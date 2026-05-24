@@ -358,24 +358,75 @@ body::before {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
+  pointer-events: auto; /* Enable hover */
+  cursor: default;
 }
 
-.nav-identity {
-  font-family: var(--font-display);
-  font-size: 0.75rem; /* Reduced from 0.85rem */
-  font-weight: 700; /* Reduced from 800 */
-  letter-spacing: 0.15em;
+.nav-identity-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.8;
   text-transform: uppercase;
-  color: var(--color-white);
+  font-family: var(--font-display);
   opacity: var(--nav-identity-opacity);
   transform: translateY(var(--nav-identity-y));
-  white-space: nowrap;
-  z-index: 2;
-  text-shadow: 0 4px 15px rgba(0, 0, 0, 0.9); /* Enhanced depth shadow */
   transition:
     opacity 0.5s cubic-bezier(0.25, 0.8, 0.2, 1),
-    transform 0.5s cubic-bezier(0.25, 0.8, 0.2, 1);
+    transform 0.5s cubic-bezier(0.25, 0.8, 0.2, 1),
+    gap 0.4s cubic-bezier(0.25, 0.8, 0.2, 1);
+  gap: -2px;
+}
+
+.nav-identity-stack span {
+  display: block;
+  font-weight: 800;
+  white-space: nowrap;
+  transition: 
+    transform 0.4s cubic-bezier(0.25, 0.8, 0.2, 1),
+    font-size 0.4s cubic-bezier(0.25, 0.8, 0.2, 1),
+    margin 0.4s cubic-bezier(0.25, 0.8, 0.2, 1),
+    color 0.3s ease;
+}
+
+/* Default Stacked State (Scrolled) */
+.nav-word-be {
+  font-size: 0.45rem;
+  align-self: flex-start;
+  margin-left: -5px;
+  color: var(--color-white-muted);
+}
+.nav-word-unconventional {
+  font-size: 0.65rem;
+  color: var(--color-white);
+  z-index: 2;
+  text-shadow: 0 4px 10px rgba(0, 0, 0, 0.8);
+}
+.nav-word-hq {
+  font-size: 0.55rem;
+  align-self: flex-end;
+  margin-right: -5px;
+  margin-top: -2px;
+  color: var(--color-accent);
+}
+
+/* Hover Expansion State */
+.nav-identity-wrapper:hover .nav-identity-stack {
+  flex-direction: row;
+  gap: 0.4rem;
+}
+
+.nav-identity-wrapper:hover .nav-word-be,
+.nav-identity-wrapper:hover .nav-word-unconventional,
+.nav-identity-wrapper:hover .nav-word-hq {
+  font-size: 0.75rem;
+  align-self: center;
+  margin: 0;
+  color: var(--color-white);
+}
+
+.nav-identity-wrapper:hover .nav-word-hq {
+  color: var(--color-accent);
 }
 
 .nav-subline {
@@ -392,7 +443,12 @@ body::before {
   text-shadow: 0 0 12px rgba(204, 0, 0, 0.6);
   transition:
     opacity 0.6s cubic-bezier(0.25, 0.8, 0.2, 1),
-    transform 0.8s cubic-bezier(0.25, 0.8, 0.2, 1);
+    transform 0.8s cubic-bezier(0.25, 0.8, 0.2, 1),
+    margin-top 0.4s cubic-bezier(0.25, 0.8, 0.2, 1);
+}
+
+.nav-identity-wrapper:hover .nav-subline {
+  margin-top: 6px;
 }
 
 .nav-subline::after {
@@ -409,6 +465,10 @@ body::before {
 #navbar.scrolled .nav-subline {
   opacity: 1;
   transform: translateY(2px); /* Parallax reveal downwards */
+}
+
+#navbar.scrolled .nav-identity-wrapper:hover .nav-subline {
+  transform: translateY(8px);
 }
 
 
