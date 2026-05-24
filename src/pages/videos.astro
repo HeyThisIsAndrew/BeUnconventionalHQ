@@ -3,45 +3,52 @@ import Layout from '../layouts/Layout.astro';
 import { site } from '../data/site.js';
 
 const title = `Videos | ${site.name}`;
-const description = 'Explore the latest cinematic video content from Be Unconventional HQ.';
+const description =
+  'Explore the latest cinematic video content from Be Unconventional HQ.';
 
 const placeholderVideos = [
   {
     title: 'Why The Batman Is A Modern Masterpiece',
     category: 'Movies',
-    thumbnail: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=800&q=80',
-    link: site.socials.youtube
+    thumbnail:
+      'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=800&q=80',
+    link: site.socials.youtube,
   },
   {
     title: 'The Last of Us Season 2: Everything We Know',
     category: 'TV',
-    thumbnail: 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?auto=format&fit=crop&w=800&q=80',
-    link: site.socials.youtube
+    thumbnail:
+      'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?auto=format&fit=crop&w=800&q=80',
+    link: site.socials.youtube,
   },
   {
     title: 'Elden Ring: Shadow of the Erdtree Review',
     category: 'Gaming',
-    thumbnail: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80',
-    link: site.socials.youtube
+    thumbnail:
+      'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80',
+    link: site.socials.youtube,
   },
   {
     title: 'Comic-Con 2026: The Biggest Announcements',
     category: 'Events',
-    thumbnail: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=800&q=80',
-    link: site.socials.youtube
+    thumbnail:
+      'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=800&q=80',
+    link: site.socials.youtube,
   },
   {
     title: 'Dune: Part Two - A Visual Symphony',
     category: 'Movies',
-    thumbnail: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=800&q=80',
-    link: site.socials.youtube
+    thumbnail:
+      'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=800&q=80',
+    link: site.socials.youtube,
   },
   {
     title: 'Succession: The Best Ending in TV History?',
     category: 'TV',
-    thumbnail: 'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?auto=format&fit=crop&w=800&q=80',
-    link: site.socials.youtube
-  }
+    thumbnail:
+      'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?auto=format&fit=crop&w=800&q=80',
+    link: site.socials.youtube,
+  },
 ];
 
 const categories = ['All', 'Movies', 'TV', 'Gaming', 'Events'];
@@ -56,41 +63,75 @@ const categories = ['All', 'Movies', 'TV', 'Gaming', 'Events'];
       </header>
 
       <nav class="filter-nav animate-on-scroll" data-delay="100">
-        {categories.map((category) => (
-          <button 
-            class:list={['filter-btn', { active: category === 'All' }]} 
-            data-filter={category.toLowerCase()}
-          >
-            {category}
-          </button>
-        ))}
+        {
+          categories.map((category) => (
+            <button
+              class:list={['filter-btn', { active: category === 'All' }]}
+              data-filter={category.toLowerCase()}
+            >
+              {category}
+            </button>
+          ))
+        }
       </nav>
 
       <div class="video-grid">
-        {placeholderVideos.map((video, index) => (
-          <div 
-            class="video-card animate-on-scroll" 
-            data-category={video.category.toLowerCase()}
-            style={`--index: ${index}`}
-          >
-            <div class="video-thumbnail-wrapper">
-              <span class="video-badge">{video.category}</span>
-              <img src={video.thumbnail} alt={video.title} class="video-thumbnail" />
-              <div class="video-play-overlay">
-                <div class="play-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        {
+          placeholderVideos.map((video, index) => (
+            <div
+              class="video-card animate-on-scroll"
+              data-category={video.category.toLowerCase()}
+              style={`--index: ${index}`}
+            >
+              <div class="video-thumbnail-wrapper">
+                <span class="video-badge">{video.category}</span>
+                <img
+                  src={video.thumbnail}
+                  alt={video.title}
+                  class="video-thumbnail"
+                />
+                <div class="video-play-overlay">
+                  <div class="play-icon">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </div>
                 </div>
               </div>
+              <div class="video-info">
+                <h3 class="video-title">{video.title}</h3>
+                <a
+                  href={video.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="video-watch-btn"
+                >
+                  Watch on YouTube
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </a>
+              </div>
             </div>
-            <div class="video-info">
-              <h3 class="video-title">{video.title}</h3>
-              <a href={video.link} target="_blank" rel="noopener noreferrer" class="video-watch-btn">
-                Watch on YouTube
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-              </a>
-            </div>
-          </div>
-        ))}
+          ))
+        }
       </div>
     </div>
   </main>
@@ -100,43 +141,37 @@ const categories = ['All', 'Movies', 'TV', 'Gaming', 'Events'];
   const filterBtns = document.querySelectorAll('.filter-btn');
   const videoCards = document.querySelectorAll('.video-card');
 
-  filterBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
+  filterBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
       if (btn.classList.contains('active')) return;
 
-      // Update active button
-      filterBtns.forEach(b => b.classList.remove('active'));
+      filterBtns.forEach(function (b) {
+        b.classList.remove('active');
+      });
       btn.classList.add('active');
 
       const filter = btn.getAttribute('data-filter');
 
-      // 1. Fade out current cards
-      videoCards.forEach(card => {
+      videoCards.forEach(function (card) {
         card.classList.remove('is-visible');
-        (card as HTMLElement).style.pointerEvents = 'none';
+        card.style.pointerEvents = 'none';
       });
 
-      // 2. Wait for fade out, then swap and fade back in
-      setTimeout(() => {
+      setTimeout(function () {
         let visibleIndex = 0;
-        videoCards.forEach((card) => {
+        videoCards.forEach(function (card) {
           const category = card.getAttribute('data-category');
           const isMatch = filter === 'all' || category === filter;
-          
+
           if (isMatch) {
-            (card as HTMLElement).style.display = 'flex';
-            
-            // Re-apply staggered delay based on new visible order
-            (card as HTMLElement).style.transitionDelay = `${visibleIndex * 80}ms`;
+            card.style.display = 'flex';
+            card.style.transitionDelay = visibleIndex * 80 + 'ms';
             visibleIndex++;
-            
-            // Force reflow
-            void (card as HTMLElement).offsetWidth;
-            
+            void card.offsetWidth;
             card.classList.add('is-visible');
-            (card as HTMLElement).style.pointerEvents = 'all';
+            card.style.pointerEvents = 'auto';
           } else {
-            (card as HTMLElement).style.display = 'none';
+            card.style.display = 'none';
           }
         });
       }, 400);
@@ -150,7 +185,7 @@ const categories = ['All', 'Movies', 'TV', 'Gaming', 'Events'];
     margin: 0 auto;
     padding: 0 2rem;
   }
-  
+
   .section-header {
     text-align: center;
     margin-bottom: 3rem;

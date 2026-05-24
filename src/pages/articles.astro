@@ -3,7 +3,8 @@ import Layout from '../layouts/Layout.astro';
 import { site } from '../data/site.js';
 
 const title = `Articles | ${site.name}`;
-const description = 'Latest editorial content, reviews, and deep dives from Be Unconventional HQ on Substack.';
+const description =
+  'Latest editorial content, reviews, and deep dives from Be Unconventional HQ on Substack.';
 
 export async function getArticles() {
   const RSS_URL = 'https://beunconventionalhq.substack.com/feed';
@@ -15,38 +16,70 @@ export async function getArticles() {
 
     const itemRegex = /<item>([\s\S]*?)<\/item>/g;
     let match;
-    
+
     while ((match = itemRegex.exec(xml)) !== null) {
       const itemContent = match[1];
-      
-      const titleMatch = itemContent.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) || itemContent.match(/<title>([\s\S]*?)<\/title>/);
+
+      const titleMatch =
+        itemContent.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) ||
+        itemContent.match(/<title>([\s\S]*?)<\/title>/);
       const linkMatch = itemContent.match(/<link>([\s\S]*?)<\/link>/);
       const pubDateMatch = itemContent.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
-      const descriptionMatch = itemContent.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/) || itemContent.match(/<description>([\s\S]*?)<\/description>/);
+      const descriptionMatch =
+        itemContent.match(
+          /<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/
+        ) || itemContent.match(/<description>([\s\S]*?)<\/description>/);
       const enclosureMatch = itemContent.match(/<enclosure[^>]+url="([^"]+)"/);
 
       if (titleMatch && linkMatch) {
         const titleStr = titleMatch[1].trim();
         const descStr = descriptionMatch ? descriptionMatch[1] : '';
-        
+
         // Simple category tagging
         let category = 'General';
         const searchPool = (titleStr + descStr).toLowerCase();
-        if (searchPool.includes('movie') || searchPool.includes('film') || searchPool.includes('batman') || searchPool.includes('dune')) category = 'Movies';
-        else if (searchPool.includes('tv') || searchPool.includes('show') || searchPool.includes('series') || searchPool.includes('boys') || searchPool.includes('succession')) category = 'TV';
-        else if (searchPool.includes('game') || searchPool.includes('gaming') || searchPool.includes('elden') || searchPool.includes('mortal kombat')) category = 'Gaming';
+        if (
+          searchPool.includes('movie') ||
+          searchPool.includes('film') ||
+          searchPool.includes('batman') ||
+          searchPool.includes('dune')
+        )
+          category = 'Movies';
+        else if (
+          searchPool.includes('tv') ||
+          searchPool.includes('show') ||
+          searchPool.includes('series') ||
+          searchPool.includes('boys') ||
+          searchPool.includes('succession')
+        )
+          category = 'TV';
+        else if (
+          searchPool.includes('game') ||
+          searchPool.includes('gaming') ||
+          searchPool.includes('elden') ||
+          searchPool.includes('mortal kombat')
+        )
+          category = 'Gaming';
 
         articles.push({
           title: titleStr,
           link: linkMatch[1].trim(),
-          date: pubDateMatch ? new Date(pubDateMatch[1]).toLocaleDateString('en-US', {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric'
-          }) : '',
-          excerpt: descStr.replace(/<[^>]*>/g, '').substring(0, 160).trim() + '...',
-          image: enclosureMatch ? enclosureMatch[1] : 'https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=800&q=80',
-          category
+          date: pubDateMatch
+            ? new Date(pubDateMatch[1]).toLocaleDateString('en-US', {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+              })
+            : '',
+          excerpt:
+            descStr
+              .replace(/<[^>]*>/g, '')
+              .substring(0, 160)
+              .trim() + '...',
+          image: enclosureMatch
+            ? enclosureMatch[1]
+            : 'https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=800&q=80',
+          category,
         });
       }
       if (articles.length >= 20) break;
@@ -70,21 +103,35 @@ const displayArticles = allArticles.slice(0, 9);
       </header>
 
       <div class="articles-grid">
-        {displayArticles.map((article, index) => (
-          <article class="article-card animate-on-scroll" style={`--index: ${index}`}>
-            <div class="article-image-wrapper">
-              <img src={article.image} alt={article.title} class="article-image" />
-            </div>
-            <div class="article-content">
-              <span class="article-date">{article.date}</span>
-              <h2 class="article-title">{article.title}</h2>
-              <p class="article-excerpt">{article.excerpt}</p>
-              <a href={article.link} target="_blank" rel="noopener noreferrer" class="article-link">
-                Read Full Article
-              </a>
-            </div>
-          </article>
-        ))}
+        {
+          displayArticles.map((article, index) => (
+            <article
+              class="article-card animate-on-scroll"
+              style={`--index: ${index}`}
+            >
+              <div class="article-image-wrapper">
+                <img
+                  src={article.image}
+                  alt={article.title}
+                  class="article-image"
+                />
+              </div>
+              <div class="article-content">
+                <span class="article-date">{article.date}</span>
+                <h2 class="article-title">{article.title}</h2>
+                <p class="article-excerpt">{article.excerpt}</p>
+                <a
+                  href={article.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="article-link"
+                >
+                  Read Full Article
+                </a>
+              </div>
+            </article>
+          ))
+        }
       </div>
     </div>
   </main>
@@ -96,7 +143,7 @@ const displayArticles = allArticles.slice(0, 9);
     margin: 0 auto;
     padding: 0 2rem;
   }
-  
+
   .section-header {
     text-align: center;
     margin-bottom: 5rem;
