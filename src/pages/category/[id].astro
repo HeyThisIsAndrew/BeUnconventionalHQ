@@ -1,0 +1,141 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { site } from '../../data/site.js';
+import { getArticles } from '../articles.astro';
+
+export function getStaticPaths() {
+  return [
+    { params: { id: 'movies' }, props: { title: 'Movies', kicker: 'Film & Cinema' } },
+    { params: { id: 'tv' }, props: { title: 'TV', kicker: 'Television & Streaming' } },
+    { params: { id: 'gaming' }, props: { title: 'Gaming', kicker: 'Interactive Media' } },
+  ];
+}
+
+const { id } = Astro.params;
+const { title, kicker } = Astro.props;
+
+const pageTitle = `${title} | ${site.name}`;
+const description = `Explore the latest ${title} content from Be Unconventional HQ.`;
+
+// 1. Fetch and filter articles
+const allArticles = await getArticles();
+const filteredArticles = allArticles.filter(a => a.category === title).slice(0, 3);
+
+// 2. Mock video filtering (would eventually come from a real YouTube fetch)
+const videos = [
+  {
+    title: `Why The Batman is a ${title} Masterpiece`,
+    category: title,
+    thumbnail: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=800&q=80',
+    link: site.socials.youtube
+  }
+].filter(v => v.category === title);
+---
+
+<Layout title={pageTitle} description={description}>
+  <main class="category-hub-page">
+    <div class="container">
+      <header class="section-header animate-on-scroll">
+        <p class="section-kicker">{kicker}</p>
+        <h1 class="section-title">{title} Hub</h1>
+      </header>
+
+      <section class="hub-section">
+        <div class="hub-section-header animate-on-scroll">
+          <h2 class="hub-subtitle">Featured Videos</h2>
+          <a href={`${import.meta.env.BASE_URL}videos`} class="hub-link">All Videos →</a>
+        </div>
+        <div class="video-grid">
+          {videos.map((video, index) => (
+            <div class="video-card animate-on-scroll" data-delay={index * 100}>
+              <div class="video-thumbnail-wrapper">
+                <span class="video-badge">{video.category}</span>
+                <img src={video.thumbnail} alt={video.title} class="video-thumbnail" />
+                <div class="video-play-overlay">
+                  <div class="play-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  </div>
+                </div>
+              </div>
+              <div class="video-info">
+                <h3 class="video-title">{video.title}</h3>
+                <a href={video.link} target="_blank" rel="noopener noreferrer" class="video-watch-btn">
+                  Watch on YouTube
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section class="hub-section">
+        <div class="hub-section-header animate-on-scroll">
+          <h2 class="hub-subtitle">Latest Articles</h2>
+          <a href={`${import.meta.env.BASE_URL}articles`} class="hub-link">All Articles →</a>
+        </div>
+        <div class="articles-grid">
+          {filteredArticles.map((article, index) => (
+            <article class="article-card animate-on-scroll" data-delay={index * 100}>
+              <div class="article-image-wrapper">
+                <img src={article.image} alt={article.title} class="article-image" />
+              </div>
+              <div class="article-content">
+                <span class="article-date">{article.date}</span>
+                <h2 class="article-title">{article.title}</h2>
+                <p class="article-excerpt">{article.excerpt}</p>
+                <a href={article.link} target="_blank" rel="noopener noreferrer" class="article-link">
+                  Read Full Article
+                </a>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .category-hub-page {
+    padding-top: 120px;
+    min-height: 100vh;
+  }
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+  }
+  .section-header {
+    text-align: center;
+    margin-bottom: 6rem;
+  }
+  .hub-section {
+    margin-bottom: 8rem;
+  }
+  .hub-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 3rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 1.5rem;
+  }
+  .hub-subtitle {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+  .hub-link {
+    color: var(--color-accent);
+    text-decoration: none;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    transition: color 0.3s ease, text-shadow 0.3s ease;
+  }
+  .hub-link:hover {
+    color: var(--color-accent-hover);
+    text-shadow: 0 0 16px rgba(204, 0, 0, 0.5);
+  }
+</style>

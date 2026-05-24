@@ -5,63 +5,60 @@ import { site } from '../data/site.js';
 const title = `Articles | ${site.name}`;
 const description = 'Latest editorial content, reviews, and deep dives from Be Unconventional HQ on Substack.';
 
-let articles = [];
-const RSS_URL = 'https://beunconventionalhq.substack.com/feed';
+export async function getArticles() {
+  const RSS_URL = 'https://beunconventionalhq.substack.com/feed';
+  let articles = [];
 
-try {
-  const response = await fetch(RSS_URL);
-  const xml = await response.text();
+  try {
+    const response = await fetch(RSS_URL);
+    const xml = await response.text();
 
-  // Simple regex-based RSS parsing since we can't install new packages
-  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-  let match;
-  
-  while ((match = itemRegex.exec(xml)) !== null) {
-    const itemContent = match[1];
+    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+    let match;
     
-    const titleMatch = itemContent.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) || itemContent.match(/<title>([\s\S]*?)<\/title>/);
-    const linkMatch = itemContent.match(/<link>([\s\S]*?)<\/link>/);
-    const pubDateMatch = itemContent.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
-    const descriptionMatch = itemContent.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/) || itemContent.match(/<description>([\s\S]*?)<\/description>/);
-    const enclosureMatch = itemContent.match(/<enclosure[^>]+url="([^"]+)"/);
+    while ((match = itemRegex.exec(xml)) !== null) {
+      const itemContent = match[1];
+      
+      const titleMatch = itemContent.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) || itemContent.match(/<title>([\s\S]*?)<\/title>/);
+      const linkMatch = itemContent.match(/<link>([\s\S]*?)<\/link>/);
+      const pubDateMatch = itemContent.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
+      const descriptionMatch = itemContent.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/) || itemContent.match(/<description>([\s\S]*?)<\/description>/);
+      const enclosureMatch = itemContent.match(/<enclosure[^>]+url="([^"]+)"/);
 
-    if (titleMatch && linkMatch) {
-      articles.push({
-        title: titleMatch[1].trim(),
-        link: linkMatch[1].trim(),
-        date: pubDateMatch ? new Date(pubDateMatch[1]).toLocaleDateString('en-US', {
-          month: 'long',
-          day: 'numeric',
-          year: 'numeric'
-        }) : '',
-        excerpt: descriptionMatch ? descriptionMatch[1].replace(/<[^>]*>/g, '').substring(0, 160).trim() + '...' : '',
-        image: enclosureMatch ? enclosureMatch[1] : 'https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=800&q=80'
-      });
+      if (titleMatch && linkMatch) {
+        const titleStr = titleMatch[1].trim();
+        const descStr = descriptionMatch ? descriptionMatch[1] : '';
+        
+        // Simple category tagging
+        let category = 'General';
+        const searchPool = (titleStr + descStr).toLowerCase();
+        if (searchPool.includes('movie') || searchPool.includes('film') || searchPool.includes('batman') || searchPool.includes('dune')) category = 'Movies';
+        else if (searchPool.includes('tv') || searchPool.includes('show') || searchPool.includes('series') || searchPool.includes('boys') || searchPool.includes('succession')) category = 'TV';
+        else if (searchPool.includes('game') || searchPool.includes('gaming') || searchPool.includes('elden') || searchPool.includes('mortal kombat')) category = 'Gaming';
+
+        articles.push({
+          title: titleStr,
+          link: linkMatch[1].trim(),
+          date: pubDateMatch ? new Date(pubDateMatch[1]).toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+          }) : '',
+          excerpt: descStr.replace(/<[^>]*>/g, '').substring(0, 160).trim() + '...',
+          image: enclosureMatch ? enclosureMatch[1] : 'https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=800&q=80',
+          category
+        });
+      }
+      if (articles.length >= 20) break;
     }
-    
-    // Limit to 9 articles
-    if (articles.length >= 9) break;
+  } catch (error) {
+    console.error('Error fetching Substack feed:', error);
   }
-} catch (error) {
-  console.error('Error fetching Substack feed:', error);
-  // Fallback placeholder data if fetch fails
-  articles = [
-    {
-      title: 'The Boys Season 5 Episode 5: The Chaos Finally Clicks',
-      link: site.socials.substack,
-      date: 'May 5, 2026',
-      excerpt: 'So yeah... Seth Rogen "died" in The Boys Season 5, Episode 5. Naturally, I thought it\'d be hilarious to make a dramatic "in memoriam" post about it...',
-      image: 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?auto=format&fit=crop&w=800&q=80'
-    },
-    {
-      title: 'Mortal Kombat 2 Review',
-      link: site.socials.substack,
-      date: 'May 2, 2026',
-      excerpt: 'One job... be everything the first Mortal Kombat was not. I saw Mortal Kombat 2 early at the premiere, and hype factor aside, I ended up having a really good time with it...',
-      image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80'
-    }
-  ];
+  return articles;
 }
+
+const allArticles = await getArticles();
+const displayArticles = allArticles.slice(0, 9);
 ---
 
 <Layout title={title} description={description}>
@@ -73,7 +70,7 @@ try {
       </header>
 
       <div class="articles-grid">
-        {articles.map((article, index) => (
+        {displayArticles.map((article, index) => (
           <article class="article-card animate-on-scroll" data-delay={index * 100}>
             <div class="article-image-wrapper">
               <img src={article.image} alt={article.title} class="article-image" />
