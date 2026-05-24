@@ -1,0 +1,73 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { site } from '../data/site.js';
+
+const title = `Events | ${site.name}`;
+const description = 'Live coverage, premieres, and press event highlights from Be Unconventional HQ.';
+
+const placeholderEvents = [
+  {
+    title: 'San Diego Comic-Con 2026',
+    date: 'July 2026',
+    tag: 'Convention',
+    image: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    title: 'The Batman Part II Premiere',
+    date: 'October 2026',
+    tag: 'Red Carpet',
+    image: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    title: 'Summer Game Fest 2026',
+    date: 'June 2026',
+    tag: 'Gaming',
+    image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80'
+  }
+];
+---
+
+<Layout title={title} description={description}>
+  <main class="events-page">
+    <div class="container">
+      <header class="section-header animate-on-scroll">
+        <p class="section-kicker">Live Coverage</p>
+        <h1 class="section-title">Latest Events</h1>
+      </header>
+
+      <div class="event-grid">
+        {placeholderEvents.map((event, index) => (
+          <div class="event-card animate-on-scroll" data-delay={index * 100}>
+            <div class="event-image-wrapper">
+              <img src={event.image} alt={event.title} class="event-image" />
+              <div class="event-overlay">
+                <span class="event-tag">{event.tag}</span>
+                <h3 class="event-title">{event.title}</h3>
+                <span class="event-date">{event.date}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <section class="press-kit-section animate-on-scroll" style="margin-top: 8rem;">
+        <h2 class="press-kit-title">Want Us at Your Event?</h2>
+        <p class="press-kit-desc">We provide cinematic coverage for premieres, conventions, and gaming events.</p>
+        <a href={`${import.meta.env.BASE_URL}contact`} class="press-kit-cta">Get in Touch</a>
+      </section>
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+  }
+  
+  .section-header {
+    text-align: center;
+    margin-bottom: 5rem;
+  }
+</style>

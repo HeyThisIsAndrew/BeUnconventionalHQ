@@ -1,0 +1,76 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { site } from '../data/site.js';
+
+const title = `Contact | ${site.name}`;
+const description = 'Get in touch for press inquiries, collaborations, or general questions.';
+
+const contactSocials = [
+  { name: 'Instagram', handle: '@beunconventionalhq', url: site.socials.instagram },
+  { name: 'TikTok', handle: '@beunconventional', url: site.socials.tiktok },
+  { name: 'YouTube', handle: '@BeUnconventionalHQ', url: site.socials.youtube },
+  { name: 'Substack', handle: 'Be Unconventional', url: site.socials.substack },
+  { name: 'Twitter / X', handle: '@beunconhq', url: site.socials.twitter }
+];
+---
+
+<Layout title={title} description={description}>
+  <main class="contact-page">
+    <div class="contact-container">
+      <header class="section-header animate-on-scroll">
+        <p class="section-kicker">Get In Touch</p>
+        <h1 class="section-title">Contact Us</h1>
+      </header>
+
+      <form class="contact-form animate-on-scroll" data-delay="100" onsubmit="event.preventDefault(); alert('Message sent! (Note: This is a static demo)');">
+        <div class="form-group">
+          <label for="name" class="form-label">Full Name</label>
+          <input type="text" id="name" name="name" class="form-input" placeholder="Enter your name" required />
+        </div>
+
+        <div class="form-group">
+          <label for="email" class="form-label">Email Address</label>
+          <input type="email" id="email" name="email" class="form-input" placeholder="Enter your email" required />
+        </div>
+
+        <div class="form-group">
+          <label for="subject" class="form-label">Subject</label>
+          <select id="subject" name="subject" class="form-select" required>
+            <option value="" disabled selected>Select a subject</option>
+            <option value="press">Press Inquiry</option>
+            <option value="collaboration">Collaboration</option>
+            <option value="general">General Question</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="message" class="form-label">Message</label>
+          <textarea id="message" name="message" class="form-textarea" placeholder="How can we help?" required></textarea>
+        </div>
+
+        <button type="submit" class="form-submit">Send Message</button>
+      </form>
+    </div>
+
+    <section class="contact-socials-section">
+      <p class="section-kicker animate-on-scroll">Follow Us</p>
+      <h2 class="section-title animate-on-scroll">Connect on Social</h2>
+      
+      <div class="contact-socials-grid">
+        {contactSocials.map((social, index) => (
+          <a href={social.url} target="_blank" rel="noopener noreferrer" class="contact-social-card animate-on-scroll" data-delay={index * 100}>
+            <span class="contact-social-name">{social.name}</span>
+            <span class="article-date" style="margin: 0;">{social.handle}</span>
+          </a>
+        ))}
+      </div>
+    </section>
+  </main>
+</Layout>
+
+<style>
+  .section-header {
+    text-align: center;
+    margin-bottom: 4rem;
+  }
+</style>
