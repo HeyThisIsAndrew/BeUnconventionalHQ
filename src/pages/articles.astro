@@ -10,10 +10,30 @@ export async function getArticles() {
   const RSS_URL = 'https://beunconventionalhq.substack.com/feed';
   let articles = [];
 
+  function cleanText(str) {
+    return str
+      .replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/<a[^>]*>[\s\S]*?<\/a>/gi, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/(?:href|target|rel|class|id|style)=(?:["'][^"']*["']|[^\s>]+)/gi, '')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&mdash;/g, '-')
+      .replace(/&ndash;/g, '-')
+      .replace(/&hellip;/g, '...')
+      .replace(/&#\d+;/g, '')
+      .replace(/&[a-z]+;/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   try {
     const response = await fetch(RSS_URL);
     const xml = await response.text();
-
     const itemRegex = /<item>([\s\S]*?)<\/item>/g;
     let match;
 
@@ -26,40 +46,27 @@ export async function getArticles() {
       const linkMatch = itemContent.match(/<link>([\s\S]*?)<\/link>/);
       const pubDateMatch = itemContent.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
       const descriptionMatch =
-        itemContent.match(
-          /<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/
-        ) || itemContent.match(/<description>([\s\S]*?)<\/description>/);
+        itemContent.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/) ||
+        itemContent.match(/<description>([\s\S]*?)<\/description>/);
       const enclosureMatch = itemContent.match(/<enclosure[^>]+url="([^"]+)"/);
 
       if (titleMatch && linkMatch) {
-        const titleStr = titleMatch[1].trim();
+        const titleStr = cleanText(titleMatch[1]);
         const descStr = descriptionMatch ? descriptionMatch[1] : '';
+        const cleanDesc = cleanText(descStr);
 
-        // Simple category tagging
         let category = 'General';
-        const searchPool = (titleStr + descStr).toLowerCase();
-        if (
-          searchPool.includes('movie') ||
-          searchPool.includes('film') ||
-          searchPool.includes('batman') ||
-          searchPool.includes('dune')
-        )
+        const searchPool = (titleStr + cleanDesc).toLowerCase();
+        if (searchPool.includes('movie') || searchPool.includes('film') || searchPool.includes('batman') || searchPool.includes('dune'))
           category = 'Movies';
-        else if (
-          searchPool.includes('tv') ||
-          searchPool.includes('show') ||
-          searchPool.includes('series') ||
-          searchPool.includes('boys') ||
-          searchPool.includes('succession')
-        )
+        else if (searchPool.includes('tv') || searchPool.includes('show') || searchPool.includes('series') || searchPool.includes('boys') || searchPool.includes('succession'))
           category = 'TV';
-        else if (
-          searchPool.includes('game') ||
-          searchPool.includes('gaming') ||
-          searchPool.includes('elden') ||
-          searchPool.includes('mortal kombat')
-        )
+        else if (searchPool.includes('game') || searchPool.includes('gaming') || searchPool.includes('elden') || searchPool.includes('mortal kombat'))
           category = 'Gaming';
+
+        const excerpt = cleanDesc.length > 20
+          ? cleanDesc.substring(0, 160).trim() + '...'
+          : 'Read the full article on Substack.';
 
         articles.push({
           title: titleStr,
@@ -71,11 +78,7 @@ export async function getArticles() {
                 year: 'numeric',
               })
             : '',
-          excerpt:
-            descStr
-              .replace(/<[^>]*>/g, '')
-              .substring(0, 160)
-              .trim() + '...',
+          excerpt,
           image: enclosureMatch
             ? enclosureMatch[1]
             : 'https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=800&q=80',
@@ -101,7 +104,6 @@ const displayArticles = allArticles.slice(0, 9);
         <p class="section-kicker">Explore The HQ</p>
         <h1 class="section-title">Latest Articles</h1>
       </header>
-
       <div class="articles-grid">
         {
           displayArticles.map((article, index) => (
@@ -143,7 +145,6 @@ const displayArticles = allArticles.slice(0, 9);
     margin: 0 auto;
     padding: 0 2rem;
   }
-
   .section-header {
     text-align: center;
     margin-bottom: 5rem;
