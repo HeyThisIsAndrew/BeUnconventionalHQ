@@ -9,26 +9,39 @@ const base = import.meta.env.BASE_URL;
   <div class="hero-overlay" aria-hidden="true"></div>
   <div class="hero-content">
     <p class="hero-kicker">{site.tagline}</p>
-    <h1 class="hero-title">{site.name}</h1>
+    <h1 class="hero-title-stack">
+      <span class="word-be">Be</span>
+      <span class="word-unconventional">Unconventional</span>
+      <span class="word-hq">HQ</span>
+    </h1>
     <p class="hero-subtitle">
       Sometimes Unconventional is the Only Way Forward
     </p>
-    <a href={`${base}videos`} class="hero-cta">Explore Content</a>
+    <a href={`${base}videos`} class="hero-cta">Explore The HQ</a>
   </div>
 </section>
 
 <script define:vars={{ bannerUrl: `${base}banner.png` }}>
+  const hero = document.querySelector('.hero');
   const heroBackground = document.querySelector('.hero-bg');
 
-  if (heroBackground) {
+  if (heroBackground && hero) {
     heroBackground.style.backgroundImage = `url('${bannerUrl}')`;
 
-    const updateHeroParallax = () => {
-      const offset = Math.min(window.scrollY * 0.4, 80);
+    const updateHeroCompression = () => {
+      const scrollY = window.scrollY;
+      
+      // Parallax effect (Faster: 0.6)
+      const offset = Math.min(scrollY * 0.6, 100);
       heroBackground.style.setProperty('--hero-parallax', `${offset}px`);
+      
+      // Compression progress (0 to 1 over first 400px)
+      const compressZone = 400;
+      const progress = Math.min(scrollY / compressZone, 1);
+      hero.style.setProperty('--hero-compress-progress', progress.toFixed(3));
     };
 
-    updateHeroParallax();
-    window.addEventListener('scroll', updateHeroParallax, { passive: true });
+    updateHeroCompression();
+    window.addEventListener('scroll', updateHeroCompression, { passive: true });
   }
 </script>
