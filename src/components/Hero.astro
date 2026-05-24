@@ -8,16 +8,18 @@ const base = import.meta.env.BASE_URL;
   <div class="hero-bg" aria-hidden="true"></div>
   <div class="hero-overlay" aria-hidden="true"></div>
   <div class="hero-content">
-    <p class="hero-kicker">{site.tagline}</p>
-    <h1 class="hero-title-stack">
-      <span class="word-be">Be</span>
-      <span class="word-unconventional">Unconventional</span>
-      <span class="word-hq">HQ</span>
-    </h1>
-    <p class="hero-subtitle">
-      Sometimes Unconventional is the Only Way Forward
-    </p>
-    <a href={`${base}videos`} class="hero-cta">Explore The HQ</a>
+    <div class="animate-on-scroll">
+      <p class="hero-kicker">{site.tagline}</p>
+      <h1 class="hero-title-stack">
+        <span class="word-be">Be</span>
+        <span class="word-unconventional">Unconventional</span>
+        <span class="word-hq">HQ</span>
+      </h1>
+      <p class="hero-subtitle">
+        Sometimes Unconventional is the Only Way Forward
+      </p>
+      <a href={`${base}videos`} class="hero-cta">Explore The HQ</a>
+    </div>
   </div>
 </section>
 
@@ -31,9 +33,10 @@ const base = import.meta.env.BASE_URL;
     const updateHeroCompression = () => {
       const scrollY = window.scrollY;
 
-      // Parallax effect (Faster: 0.6)
-      const offset = Math.min(scrollY * 0.6, 100);
-      heroBackground.style.setProperty('--hero-parallax', `${offset}px`);
+      // Parallax effect: Smoother movement using a capped transform
+      // We limit to prevent excessive movement on high scroll speeds
+      const parallaxValue = Math.min(scrollY * 0.4, 150); 
+      heroBackground.style.setProperty('--hero-parallax', `${parallaxValue}px`);
 
       // Compression progress (0 to 1 over first 400px)
       const compressZone = 400;
