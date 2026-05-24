@@ -1,6 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Categories from '../components/Categories.astro';
+
+const base = import.meta.env.BASE_URL;
 ---
 
 <Layout title="Be Unconventional HQ">
@@ -19,7 +21,7 @@ import Categories from '../components/Categories.astro';
     transition: background 0.4s ease, backdrop-filter 0.4s ease;
   ">
     <a href="/">
-      <img src="/logo.png" alt="Be Unconventional HQ" style="height: 48px; width: auto;" />
+      <img src={`${base}logo.png`} alt="Be Unconventional HQ" style="height: 48px; width: auto;" />
     </a>
     <ul style="
       list-style: none;
@@ -46,15 +48,7 @@ import Categories from '../components/Categories.astro';
     justify-content: center;
   ">
     <!-- BANNER IMAGE WITH KEN BURNS -->
-    <div style="
-      position: absolute;
-      inset: 0;
-      background-image: url('/banner.png');
-      background-size: cover;
-      background-position: center;
-      animation: kenburns 20s ease-in-out infinite alternate;
-      z-index: 0;
-    "></div>
+    <div style={`position: absolute; inset: 0; background-image: url('${base}banner.png'); background-size: cover; background-position: center; animation: kenburns 20s ease-in-out infinite alternate; z-index: 0;`}></div>
 
     <!-- DARK OVERLAY -->
     <div style="
@@ -128,17 +122,19 @@ import Categories from '../components/Categories.astro';
 <!-- NAVBAR SCROLL EFFECT -->
 <script>
   const navbar = document.getElementById('navbar');
-  window.addEventListener('scroll', () => {
-    if (window.scrollY > 50) {
-      navbar.style.background = 'rgba(10,10,10,0.92)';
-      navbar.style.backdropFilter = 'blur(12px)';
-      navbar.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-    } else {
-      navbar.style.background = 'transparent';
-      navbar.style.backdropFilter = 'none';
-      navbar.style.borderBottom = 'none';
-    }
-  });
+  if (navbar) {
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 50) {
+        navbar.style.background = 'rgba(10,10,10,0.92)';
+        navbar.style.backdropFilter = 'blur(12px)';
+        navbar.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+      } else {
+        navbar.style.background = 'rgba(10,10,10,0.4)';
+        navbar.style.backdropFilter = 'none';
+        navbar.style.borderBottom = '1px solid rgba(255,255,255,0.06)';
+      }
+    });
+  }
 </script>
 
 <!-- KEN BURNS ANIMATION -->
