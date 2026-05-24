@@ -1,0 +1,69 @@
+---
+import { site } from '../data/site.js';
+const base = import.meta.env.BASE_URL;
+const socialLinks = [
+  { label: 'YouTube', href: site.socials.youtube },
+  { label: 'Instagram', href: site.socials.instagram },
+  { label: 'TikTok', href: site.socials.tiktok },
+  { label: 'Threads', href: site.socials.threads },
+  { label: 'Twitter', href: site.socials.twitter },
+  { label: 'Facebook', href: site.socials.facebook },
+  { label: 'Substack', href: site.socials.substack },
+  { label: 'Letterboxd', href: site.socials.letterboxd },
+  //   { label: 'Amazon', href: site.socials.amazon },
+];
+---
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <a href={`${base}`}>
+        <img
+          src={`${base}logo.png`}
+          alt="Be Unconventional HQ"
+          class="footer-logo"
+        />
+      </a>
+      <p class="footer-tagline">{site.tagline}</p>
+      <p class="footer-sub">Sometimes Unconventional is the Only Way Forward</p>
+    </div>
+
+    <div class="footer-nav">
+      <p class="footer-nav-label">Explore</p>
+      <ul>
+        <li><a href={`${base}videos`}>Videos</a></li>
+        <li><a href={`${base}articles`}>Articles</a></li>
+        <li><a href={`${base}about`}>About</a></li>
+        <li><a href={`${base}contact`}>Contact</a></li>
+      </ul>
+    </div>
+
+    <div class="footer-socials-col">
+      <p class="footer-nav-label">Follow</p>
+      <ul class="footer-socials">
+        {
+          socialLinks.map((social) => (
+            <li>
+              <a
+                href={social.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="footer-social-link"
+                aria-label={social.label}
+              >
+                {social.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </div>
+
+  <div class="footer-bottom">
+    <p class="footer-copy">
+      &copy; {new Date().getFullYear()} Be Unconventional HQ. All rights reserved.
+    </p>
+    <p class="footer-credit">Where Nerd Culture Gets Cinematic</p>
+  </div>
+</footer>
