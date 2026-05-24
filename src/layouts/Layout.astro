@@ -2,15 +2,23 @@
 import '../styles/global.css';
 import '../styles/theme-red.css';
 import Navbar from '../components/Navbar.astro';
-const { title = 'Be Unconventional HQ' } = Astro.props;
+import { site } from '../data/site.js';
+
 const base = import.meta.env.BASE_URL;
+const {
+  title = site.name,
+  description = site.description,
+  image = site.image,
+  url = new URL(Astro.url.pathname.replace(base, ''), site.url).toString(),
+  type = 'website',
+} = Astro.props;
 ---
 
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Where Nerd Culture Gets Cinematic" />
+    <meta name="description" content={description} />
     <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -19,9 +27,47 @@ const base = import.meta.env.BASE_URL;
       rel="stylesheet"
     />
     <title>{title}</title>
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={image} />
+    <meta property="og:url" content={url} />
+    <meta property="og:type" content={type} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={image} />
   </head>
   <body>
     <Navbar />
     <slot />
+    <script>
+      const animatedElements = document.querySelectorAll('.animate-on-scroll');
+
+      if ('IntersectionObserver' in window && animatedElements.length > 0) {
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                const target = entry.target;
+
+                if (target instanceof HTMLElement) {
+                  const delay = target.getAttribute('data-delay') || '0';
+                  target.style.transitionDelay = `${delay}ms`;
+                  target.classList.add('is-visible');
+                  observer.unobserve(target);
+                }
+              }
+            });
+          },
+          { threshold: 0.18 }
+        );
+
+        animatedElements.forEach((element) => observer.observe(element));
+      } else {
+        animatedElements.forEach((element) =>
+          element.classList.add('is-visible')
+        );
+      }
+    </script>
   </body>
 </html>
