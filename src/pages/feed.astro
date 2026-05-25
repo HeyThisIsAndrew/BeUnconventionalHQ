@@ -1,0 +1,110 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { site } from '../data/site.js';
+import { getArticles } from './articles.astro';
+
+const title = `All Content | ${site.name}`;
+const description = 'Discover all articles, videos, and events from Be Unconventional HQ.';
+
+const articles = await getArticles();
+const allItems = [
+    ...articles, 
+    { type: 'video', title: 'Why The Batman Is A Modern Masterpiece', category: 'Movies', image: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=800&q=80', link: site.socials.youtube, date: 'May 20, 2026', excerpt: 'Watch our deep dive into the cinematic masterpiece.' },
+    { type: 'event', title: 'Comic-Con 2026', category: 'Events', image: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=800&q=80', date: 'July 2026', excerpt: 'Live coverage from the convention floor.' }
+];
+
+const types = ['All', 'Article', 'Video', 'Event'];
+const categories = ['All', 'Movies', 'TV', 'Gaming', 'Events'];
+---
+
+<Layout title={title} description={description}>
+  <main class="feed-page">
+    <div class="container">
+      <header class="section-header animate-on-scroll">
+        <p class="section-kicker">Explore The HQ</p>
+        <h1 class="section-title">The Feed</h1>
+      </header>
+
+      <nav class="filter-nav animate-on-scroll">
+        <div class="filter-group">
+          <span class="filter-label">TYPE:</span>
+          {types.map((type) => (
+            <button class:list={['filter-btn', { active: type === 'All' }]} data-filter-type={type.toLowerCase()}>
+              {type === 'All' ? 'ALL' : type.toUpperCase()}
+            </button>
+          ))}
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">CATEGORY:</span>
+          {categories.map((cat) => (
+            <button class:list={['filter-btn', { active: cat === 'All' }]} data-filter-cat={cat.toLowerCase()}>
+              {cat.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      <div class="articles-grid">
+        {allItems.map((item, index) => (
+          <article 
+            class="article-card animate-on-scroll" 
+            data-type={(item.type || 'article').toLowerCase()} 
+            data-category={(item.category || 'General').toLowerCase()}
+            style={`--index: ${index}`}
+          >
+            <div class="article-image-wrapper">
+                <img src={item.image} alt={item.title} class="article-image" />
+                <span class="article-type-badge">{(item.type || 'ARTICLE').toUpperCase()}</span>
+            </div>
+            <div class="article-content">
+                <span class="article-date">{item.date}</span>
+                <h3 class="article-title">{item.title}</h3>
+                <p class="article-excerpt">{item.excerpt}</p>
+                <a href={item.link || '#'} target="_blank" class="article-link">Explore →</a>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script>
+    const typeBtns = document.querySelectorAll('[data-filter-type]');
+    const catBtns = document.querySelectorAll('[data-filter-cat]');
+    const items = document.querySelectorAll('.article-card');
+
+    function update() {
+        const type = document.querySelector('[data-filter-type].active')?.getAttribute('data-filter-type');
+        const cat = document.querySelector('[data-filter-cat].active')?.getAttribute('data-filter-cat');
+
+        items.forEach(item => {
+            const matchesType = type === 'all' || item.dataset.type === type;
+            const matchesCat = cat === 'all' || item.dataset.category === cat;
+            item.style.display = (matchesType && matchesCat) ? 'flex' : 'none';
+        });
+    }
+
+    [...typeBtns, ...catBtns].forEach(btn => btn.addEventListener('click', (e) => {
+        const group = e.target.parentElement;
+        group.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        update();
+    }));
+</script>
+
+<style>
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 2rem; }
+  .feed-page { padding: 120px 0; min-height: 80vh; }
+  
+  .filter-nav { display: flex; flex-direction: column; gap: 1.5rem; align-items: flex-start; margin-bottom: 4rem; max-width: 1200px; margin-left: auto; margin-right: auto; }
+  .filter-group { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .filter-label { color: var(--color-white); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; margin-right: 1rem; align-self: center; }
+  .filter-btn { background: none; border: 1px solid rgba(255, 255, 255, 0.1); color: var(--color-white-muted); padding: 0.4rem 0.8rem; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; transition: all 0.3s ease; }
+  .filter-btn.active { border-color: var(--color-accent); color: var(--color-accent); background: rgba(204, 0, 0, 0.1); }
+
+  .articles-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 3rem; max-width: 1200px; margin: 0 auto; }
+  .article-type-badge { position: absolute; top: 1rem; left: 1rem; background: var(--color-accent); color: white; padding: 0.2rem 0.6rem; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; z-index: 2; }
+
+  @media (max-width: 768px) { .articles-grid { grid-template-columns: 1fr; } .filter-nav { align-items: center; } }
+</style>
