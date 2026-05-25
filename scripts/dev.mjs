@@ -10,11 +10,16 @@ function getNetworkIP() {
 
   for (const name of Object.keys(nets)) {
     for (const net of nets[name] || []) {
-      if (net.family === 'IPv4' && !net.internal) {
+      if (
+        net.family === 'IPv4' &&
+        !net.internal &&
+        net.address.startsWith('192.168.')
+      ) {
         return net.address;
       }
     }
   }
+
   return 'localhost';
 }
 
@@ -34,14 +39,10 @@ console.log(networkUrl);
 console.log('\n📲 Scan to open:');
 qrcode.generate(networkUrl, { small: true });
 
-const astro = spawn(
-  'astro',
-  ['dev', '--host', '0.0.0.0', '--port', PORT],
-  {
-    stdio: 'inherit',
-    shell: true,
-  }
-);
+const astro = spawn('astro', ['dev', '--host', '0.0.0.0', '--port', PORT], {
+  stdio: 'inherit',
+  shell: true,
+});
 
 astro.on('exit', (code) => {
   console.log(`\nAstro exited with code ${code}`);
