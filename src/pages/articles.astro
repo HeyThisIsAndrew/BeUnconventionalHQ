@@ -10,14 +10,25 @@ export async function getArticles() {
   const RSS_URL = 'https://beunconventionalhq.substack.com/feed';
   let articles = [];
 
+  /* GEMINI-CLI CHANGE
+     - author: gemini-cli
+     - date: 2026-05-25T00:00:00Z
+     - file: src/pages/articles.astro
+     - summary: Improved cleanText regex for aggressive HTML/attribute stripping
+     - reason: Article excerpts were showing raw HTML attributes and tags from RSS feed.
+     - revert: git checkout HEAD src/pages/articles.astro
+  */
   function cleanText(str) {
+    if (!str) return '';
     return str
       .replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '')
-      .replace(/&lt;/gi, '<')
-      .replace(/&gt;/gi, '>')
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
       .replace(/<a[^>]*>[\s\S]*?<\/a>/gi, '')
       .replace(/<[^>]+>/g, '')
-      .replace(/(?:href|target|rel|class|id|style)=(?:["'][^"']*["']|[^\s>]+)/gi, '')
+      .replace(/(?:href|target|rel|class|id|style|data-[a-z-]+|onerror|onload)=(?:["'][^"']*["']|[^\s>]+)/gi, '')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
       .replace(/&amp;/g, '&')
       .replace(/&quot;/g, '"')
       .replace(/&#39;/g, "'")
