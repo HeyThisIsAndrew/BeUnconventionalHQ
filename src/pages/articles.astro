@@ -26,7 +26,10 @@ export async function getArticles() {
       .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
       .replace(/<a[^>]*>[\s\S]*?<\/a>/gi, '')
       .replace(/<[^>]+>/g, '')
-      .replace(/(?:href|target|rel|class|id|style|data-[a-z-]+|onerror|onload)=(?:["'][^"']*["']|[^\s>]+)/gi, '')
+      .replace(
+        /(?:href|target|rel|class|id|style|data-[a-z-]+|onerror|onload)=(?:["'][^"']*["']|[^\s>]+)/gi,
+        ''
+      )
       .replace(/&lt;/gi, '<')
       .replace(/&gt;/gi, '>')
       .replace(/&amp;/g, '&')
@@ -57,8 +60,9 @@ export async function getArticles() {
       const linkMatch = itemContent.match(/<link>([\s\S]*?)<\/link>/);
       const pubDateMatch = itemContent.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
       const descriptionMatch =
-        itemContent.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/) ||
-        itemContent.match(/<description>([\s\S]*?)<\/description>/);
+        itemContent.match(
+          /<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/
+        ) || itemContent.match(/<description>([\s\S]*?)<\/description>/);
       const enclosureMatch = itemContent.match(/<enclosure[^>]+url="([^"]+)"/);
 
       if (titleMatch && linkMatch) {
@@ -68,16 +72,33 @@ export async function getArticles() {
 
         let category = 'General';
         const searchPool = (titleStr + cleanDesc).toLowerCase();
-        if (searchPool.includes('movie') || searchPool.includes('film') || searchPool.includes('batman') || searchPool.includes('dune'))
+        if (
+          searchPool.includes('movie') ||
+          searchPool.includes('film') ||
+          searchPool.includes('batman') ||
+          searchPool.includes('dune')
+        )
           category = 'Movies';
-        else if (searchPool.includes('tv') || searchPool.includes('show') || searchPool.includes('series') || searchPool.includes('boys') || searchPool.includes('succession'))
+        else if (
+          searchPool.includes('tv') ||
+          searchPool.includes('show') ||
+          searchPool.includes('series') ||
+          searchPool.includes('boys') ||
+          searchPool.includes('succession')
+        )
           category = 'TV';
-        else if (searchPool.includes('game') || searchPool.includes('gaming') || searchPool.includes('elden') || searchPool.includes('mortal kombat'))
+        else if (
+          searchPool.includes('game') ||
+          searchPool.includes('gaming') ||
+          searchPool.includes('elden') ||
+          searchPool.includes('mortal kombat')
+        )
           category = 'Gaming';
 
-        const excerpt = cleanDesc.length > 20
-          ? cleanDesc.substring(0, 160).trim() + '...'
-          : 'Read the full article on Substack.';
+        const excerpt =
+          cleanDesc.length > 20
+            ? cleanDesc.substring(0, 160).trim() + '...'
+            : 'Read the full article on Substack.';
 
         articles.push({
           title: titleStr,
@@ -151,9 +172,9 @@ const displayArticles = allArticles.slice(0, 9);
 </Layout>
 
 <style>
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 2rem;
-}
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+  }
 </style>
