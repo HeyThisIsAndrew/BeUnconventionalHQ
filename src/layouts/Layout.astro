@@ -49,26 +49,46 @@ const {
         const observer = new IntersectionObserver(
           (entries) => {
             entries.forEach((entry) => {
-              if (entry.isIntersecting) {
-                const target = entry.target;
+              const target = entry.target;
+              if (!(target instanceof HTMLElement)) return;
 
-                if (target instanceof HTMLElement) {
-                  const delay = target.getAttribute('data-delay') || '0';
-                  target.style.transitionDelay = `${delay}ms`;
-                  target.classList.add('is-visible');
+              if (entry.isIntersecting) {
+                const delay = target.getAttribute('data-delay') || '0';
+                target.style.transitionDelay = `${delay}ms`;
+                target.setAttribute('data-state', 'active');
+                
+                // For lower sections, we unobserve once active to ensure stability
+                // and eliminate any residual coupling to scroll events.
+                if (!target.closest('.hero')) {
                   observer.unobserve(target);
+                }
+              } else {
+                // Only set to 'enter' if it hasn't been activated yet
+                // or if we want to allow re-entry animations (not requested here)
+                if (target.getAttribute('data-state') !== 'active') {
+                  target.setAttribute('data-state', 'enter');
                 }
               }
             });
           },
-          { threshold: 0.18 }
+          { 
+            threshold: 0.15,
+            rootMargin: '0px 0px -50px 0px' // Trigger slightly before it fully enters
+          }
         );
 
-        animatedElements.forEach((element) => observer.observe(element));
+        animatedElements.forEach((element) => {
+          if (element instanceof HTMLElement) {
+            element.setAttribute('data-state', 'enter');
+            observer.observe(element);
+          }
+        });
       } else {
-        animatedElements.forEach((element) =>
-          element.classList.add('is-visible')
-        );
+        animatedElements.forEach((element) => {
+          if (element instanceof HTMLElement) {
+            element.setAttribute('data-state', 'active');
+          }
+        });
       }
     </script>
   </body>

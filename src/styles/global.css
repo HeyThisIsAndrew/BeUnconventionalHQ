@@ -280,6 +280,7 @@ body::before {
 */
 .hero .word-be {
   transform: translateX(calc(var(--hero-compress-progress) * 18%));
+  margin-left: -18%; /* Tighter alignment over UN */
 }
 
 .hero .word-unconventional {
@@ -288,13 +289,13 @@ body::before {
 
 .hero .word-hq {
   transform: translateX(calc(var(--hero-compress-progress) * -22%));
+  margin-right: -22%; /* Tighter alignment under AL */
 }
 
 .word-be {
   font-size: clamp(1rem, 2.5vw, 1.8rem);
   font-weight: 600;
   align-self: center;
-  margin-left: -18%; /* Tighter alignment over UN */
   color: var(--color-white-muted);
   will-change: transform;
 }
@@ -313,7 +314,6 @@ body::before {
   font-size: clamp(1.5rem, 5vw, 3rem);
   font-weight: 800;
   align-self: center;
-  margin-right: -22%; /* Tighter alignment under AL */
   margin-top: -1.2rem;
   color: var(--color-accent);
   text-shadow: 0 0 25px rgba(204, 0, 0, 0.5);
@@ -699,10 +699,22 @@ body::before {
   will-change: transform, opacity, filter;
 }
 
-.animate-on-scroll.is-visible {
+.animate-on-scroll[data-state="active"] {
   opacity: 1;
   transform: scale(1) translateY(0);
   filter: blur(0);
+}
+
+.animate-on-scroll[data-state="enter"] {
+  opacity: 0;
+  transform: scale(0.985) translateY(15px);
+  filter: blur(4px);
+}
+
+.animate-on-scroll[data-state="exit"] {
+  opacity: 0;
+  transform: scale(0.985) translateY(-15px);
+  filter: blur(4px);
 }
 
 /* Unified Grid Ripple (Composition-first) */
