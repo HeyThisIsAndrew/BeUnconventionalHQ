@@ -603,103 +603,139 @@ body::before {
   margin-bottom: 4rem; /* More space before grid */
   line-height: 1.1;
 }
-}
 
 /* GEMINI-CLI CHANGE
    - author: gemini-cli
    - date: 2026-05-25T00:00:00Z
    - file: src/styles/global.css
-   - summary: Refined category card spacing and hover depth
-   - reason: Enhanced premium editorial feel; consistent with global HQ card depth refinements.
-   - revert: Change padding back to 2rem; remove box-shadow shadow color
+   - summary: Refined category card visual hierarchy and added interactive glint
+   - reason: Enhanced editorial presence; added subtle depth and lighting for V2 identity.
 */
 .category-card {
   position: relative;
   display: flex;
   flex-direction: column;
-  background: var(--color-surface);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 3rem 2rem; /* Balanced internal breathing room */
+  background: linear-gradient(135deg, var(--color-surface) 0%, #0d0d0d 100%);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 3.5rem 2.25rem; /* Increased vertical presence */
   text-decoration: none;
   height: 100%;
+  overflow: hidden; /* For glint effect */
   transition:
     opacity 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
     transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
-    background 0.3s ease,
-    border-color 0.3s ease,
-    box-shadow 0.3s ease;
+    background 0.4s ease,
+    border-color 0.4s ease,
+    box-shadow 0.4s ease;
+}
+
+/* Subtle Lighting Glint */
+.category-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+    circle at 20% 20%,
+    rgba(255, 255, 255, 0.03) 0%,
+    transparent 50%
+  );
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
 }
 
 .category-card:hover {
-  transform: translateY(-8px) scale(1.02); /* More intentional hover depth */
-  border-color: var(--color-accent);
-  background: var(--color-surface-2);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 20px rgba(204, 0, 0, 0.15);
+  transform: translateY(-8px) scale(1.02);
+  border-color: rgba(204, 0, 0, 0.4);
+  background: linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-surface) 100%);
+  box-shadow: 
+    0 30px 60px rgba(0, 0, 0, 0.6),
+    0 0 30px rgba(204, 0, 0, 0.1);
+}
+
+.category-card:hover::before {
+  opacity: 1;
 }
 
 .category-label {
   position: absolute;
   top: 1.5rem;
   right: 1.5rem;
-  font-size: 0.6rem;
-  letter-spacing: 0.25em;
+  font-size: 0.55rem; /* Tighter editorial size */
+  font-weight: 700;
+  letter-spacing: 0.3em;
   text-transform: uppercase;
   color: var(--color-accent);
   writing-mode: vertical-rl;
   text-orientation: mixed;
+  opacity: 0.8;
   transition:
     letter-spacing 0.3s ease,
-    transform 0.3s ease;
+    transform 0.3s ease,
+    opacity 0.3s ease;
 }
 
 .category-card:hover .category-label {
-  letter-spacing: 0.4em;
-  transform: translateY(-2px);
+  letter-spacing: 0.45em;
+  transform: translateY(-4px);
+  opacity: 1;
 }
 
 .category-icon {
-  font-size: 3rem; /* Larger icon for better visual anchor */
-  margin-bottom: 1.5rem;
+  font-size: 3.25rem; /* Increased for prominence */
+  margin-bottom: 2rem;
   display: block;
-  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3));
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .category-card:hover .category-icon {
-  transform: scale(1.1) rotate(5deg);
+  transform: scale(1.15) rotate(8deg);
 }
 
 .category-title {
   font-family: var(--font-display);
-  font-size: 1.75rem; /* Slightly larger */
+  font-size: 1.85rem; /* Scaled up for clarity */
   font-weight: 700;
   color: var(--color-white);
-  margin-bottom: 1rem;
-  line-height: 1.2;
+  margin-bottom: 1.25rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
 .category-description {
   color: var(--color-white-muted);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   line-height: 1.6;
-  flex-grow: 1; /* Push arrow to bottom */
+  flex-grow: 1;
+  opacity: 0.9;
+  transition: opacity 0.3s ease;
+}
+
+.category-card:hover .category-description {
+  opacity: 1;
 }
 
 .explore-arrow {
-  margin-top: 2rem;
-  font-size: 0.7rem;
-  letter-spacing: 0.2em;
+  margin-top: 2.5rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.25em;
   text-transform: uppercase;
   color: var(--color-accent);
-  font-weight: 700;
+  font-weight: 800;
   transition:
-    color 0.3s ease,
     letter-spacing 0.3s ease,
-    transform 0.3s ease;
+    transform 0.3s ease,
+    text-shadow 0.3s ease;
 }
 
 .category-card:hover .explore-arrow {
-  letter-spacing: 0.3em;
-  transform: translateX(5px);
+  letter-spacing: 0.35em;
+  transform: translateX(8px);
+  text-shadow: 0 0 10px rgba(204, 0, 0, 0.5);
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
