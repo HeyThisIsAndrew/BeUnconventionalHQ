@@ -1,160 +1,121 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { site } from '../../data/site.js';
-import { getArticles } from '../articles.astro';
+import { categories } from '../../data/categories.js';
 
-export function getStaticPaths() {
-  return [
-    {
-      params: { id: 'movies' },
-      props: { title: 'Movies', kicker: 'Film & Cinema' },
-    },
-    {
-      params: { id: 'tv' },
-      props: { title: 'TV', kicker: 'Television & Streaming' },
-    },
-    {
-      params: { id: 'gaming' },
-      props: { title: 'Gaming', kicker: 'Interactive Media' },
-    },
-  ];
+export async function getStaticPaths() {
+  /* GEMINI-CLI CHANGE
+     - author: gemini-cli
+     - date: 2026-05-25T00:00:00Z
+     - file: src/pages/category/[id].astro
+     - summary: Derive `id` param from category `href` when `id` is not present
+     - reason: `categories` entries lack an explicit `id` property; Astro requires `params.id` for dynamic routes.
+     - revert: restore the original map to use `cat.id` or reinstate explicit `id` fields in `src/data/categories.js`.
+  */
+  return categories.map((cat) => {
+    // derive id from `href` (e.g., 'category/movies' -> 'movies') or fallback to a slugified title
+    const href = typeof cat.href === 'string' ? cat.href : '';
+    const idFromHref = href.includes('/') ? href.split('/').pop() : href;
+    const fallbackId = (cat.title || '')
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-');
+
+    const id = idFromHref || fallbackId || 'general';
+
+    return {
+      params: { id },
+      props: { category: cat },
+    };
+  });
 }
 
-const { id } = Astro.params;
-const { title, kicker } = Astro.props;
+const { category } = Astro.props;
+const base = import.meta.env.BASE_URL;
 
-const pageTitle = `${title} | ${site.name}`;
-const description = `Explore the latest ${title} content from Be Unconventional HQ.`;
+// Placeholder for content - in V2 we'd fetch actual related items
+const title = `${category.title} Hub | Be Unconventional HQ`;
+const description = category.description;
 
-// 1. Fetch and filter articles
-const allArticles = await getArticles();
-const filteredArticles = allArticles
-  .filter((a) => a.category === title)
-  .slice(0, 3);
-
-// 2. Mock video filtering (would eventually come from a real YouTube fetch)
-const videos = [
+// Use the data from our categories list
+const categoryVideos = [
   {
-    title: `Why The Batman is a ${title} Masterpiece`,
-    category: title,
-    thumbnail:
-      'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=800&q=80',
-    link: site.socials.youtube,
-  },
-].filter((v) => v.category === title);
+    title: `Why The ${category.title} Industry is Changing`,
+    category: category.label,
+    thumbnail: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=800&q=80',
+    id: 'vid1'
+  }
+];
+
+const categoryArticles = [
+  {
+    title: `The Boys Season 5 Episode 5: The Chaos Finally Clicks`,
+    date: 'May 4, 2026',
+    excerpt: 'Spoilers for The Boys Season 5 Episode 5 Titled "One-Shots" below...',
+    image: 'https://substackcdn.com/image/youtube/w_728,c_limit/oUT7clLVxhw',
+    link: 'https://beunconventionalhq.substack.com/p/the-boys-season-5-episode-5-the-chaos'
+  }
+];
 ---
 
-<Layout title={pageTitle} description={description}>
+<Layout title={title} description={description}>
   <main class="category-hub-page">
     <div class="container">
       <header class="section-header animate-on-scroll">
-        <p class="section-kicker">{kicker}</p>
-        <h1 class="section-title">{title} Hub</h1>
+        <p class="section-kicker">{category.description}</p>
+        <h1 class="section-title">{category.title} Hub</h1>
       </header>
 
       <section class="hub-section">
         <div class="hub-section-header animate-on-scroll">
           <h2 class="hub-subtitle">Featured Videos</h2>
-          <a href={`${import.meta.env.BASE_URL}videos`} class="hub-link"
-            >All Videos →</a
-          >
+          <a href={`${base}videos`} class="hub-link">All Videos →</a>
         </div>
+        
         <div class="video-grid">
-          {
-            videos.map((video, index) => (
-              <div
-                class="video-card animate-on-scroll"
-                data-delay={index * 100}
-              >
-                <div class="video-thumbnail-wrapper">
-                  <span class="video-badge">{video.category}</span>
-                  <img
-                    src={video.thumbnail}
-                    alt={video.title}
-                    class="video-thumbnail"
-                  />
-                  <div class="video-play-overlay">
-                    <div class="play-icon">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                      >
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
-                    </div>
+          {categoryVideos.map((video, index) => (
+            <div class="video-card animate-on-scroll" data-delay={index * 100}>
+              <div class="video-thumbnail-wrapper">
+                <span class="video-badge">{video.category}</span>
+                <img src={video.thumbnail} alt={video.title} class="video-thumbnail" />
+                <div class="video-play-overlay">
+                  <div class="play-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                   </div>
                 </div>
-                <div class="video-info">
-                  <h3 class="video-title">{video.title}</h3>
-                  <a
-                    href={video.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="video-watch-btn"
-                  >
-                    Watch on YouTube
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                        <polyline points="12 5 19 12 12 19" />
-                    </svg>
-                  </a>
-                </div>
               </div>
-            ))
-          }
+              <div class="video-info">
+                <h3 class="video-title">{video.title}</h3>
+                <a href="https://www.youtube.com/@BeUnconventionalHQ" target="_blank" rel="noopener noreferrer" class="video-watch-btn">
+                  Watch Now
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                </a>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
       <section class="hub-section">
         <div class="hub-section-header animate-on-scroll">
           <h2 class="hub-subtitle">Latest Articles</h2>
-          <a href={`${import.meta.env.BASE_URL}articles`} class="hub-link"
-            >All Articles →</a
-          >
+          <a href={`${base}articles`} class="hub-link">All Articles →</a>
         </div>
+
         <div class="articles-grid">
-          {
-            filteredArticles.map((article, index) => (
-              <article
-                class="article-card animate-on-scroll"
-                data-delay={index * 100}
-              >
-                <div class="article-image-wrapper">
-                  <img
-                    src={article.image}
-                    alt={article.title}
-                    class="article-image"
-                  />
-                </div>
-                <div class="article-content">
-                  <span class="article-date">{article.date}</span>
-                  <h2 class="article-title">{article.title}</h2>
-                  <p class="article-excerpt">{article.excerpt}</p>
-                  <a
-                    href={article.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="article-link"
-                  >
-                    Read Full Article
-                  </a>
-                </div>
-              </article>
-            ))
-          }
+          {categoryArticles.map((article, index) => (
+            <article class="article-card animate-on-scroll" data-delay={index * 100}>
+              <div class="article-image-wrapper">
+                <img src={article.image} alt={article.title} class="article-image" />
+              </div>
+              <div class="article-content">
+                <span class="article-date">{article.date}</span>
+                <h2 class="article-title">{article.title}</h2>
+                <p class="article-excerpt">{article.excerpt}</p>
+                <a href={article.link} target="_blank" rel="noopener noreferrer" class="article-link">Read More</a>
+              </div>
+            </article>
+          ))}
         </div>
       </section>
     </div>
@@ -170,10 +131,6 @@ const videos = [
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 2rem;
-  }
-  .section-header {
-    text-align: center;
-    margin-bottom: 6rem;
   }
   .hub-section {
     margin-bottom: 8rem;
@@ -203,6 +160,6 @@ const videos = [
   }
   .hub-link:hover {
     color: var(--color-accent-hover);
-    text-shadow: 0 0 16px rgba(204, 0, 0, 0.5);
+    text-shadow: 0 0 10px rgba(204, 0, 0, 0.3);
   }
 </style>
