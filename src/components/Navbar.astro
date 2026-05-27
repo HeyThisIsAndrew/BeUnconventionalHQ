@@ -18,6 +18,13 @@ const isActive = (href) => currentPath === `${base}${href}`;
     <img src={`${base}logo.png`} alt="Be Unconventional HQ" />
   </a>
 
+  <!-- Mobile Toggle -->
+  <button class="nav-toggle" aria-label="Toggle Menu" aria-expanded="false">
+    <span class="line line-1"></span>
+    <span class="line line-2"></span>
+    <span class="line line-3"></span>
+  </button>
+
   <div class="nav-identity-wrapper">
     <div class="nav-identity-stack">
       <span class="nav-word-be">Be</span>
@@ -49,11 +56,11 @@ const isActive = (href) => currentPath === `${base}${href}`;
     </div>
   </div>
 
-  <nav>
-    <ul>
+  <nav class="nav-container">
+    <ul class="nav-list">
       {
         navItems.map((item) => (
-          <li>
+          <li class="nav-item">
             <a
               href={`${base}${item.href}`}
               class:list={[item.className, { active: isActive(item.href) }]}
@@ -69,13 +76,40 @@ const isActive = (href) => currentPath === `${base}${href}`;
 
 <script>
   const navbar = document.getElementById('navbar');
-  if (navbar) {
+  const toggle = document.querySelector('.nav-toggle');
+  
+  if (navbar && toggle) {
+    // Scroll handling
     window.addEventListener('scroll', () => {
       if (window.scrollY > 60) {
         navbar.classList.add('scrolled');
       } else {
         navbar.classList.remove('scrolled');
       }
+    });
+
+    // Mobile menu toggle
+    toggle.addEventListener('click', () => {
+      const isOpened = navbar.classList.contains('menu-open');
+      if (isOpened) {
+        navbar.classList.remove('menu-open');
+        toggle.setAttribute('aria-expanded', 'false');
+        document.body.style.overflow = '';
+      } else {
+        navbar.classList.add('menu-open');
+        toggle.setAttribute('aria-expanded', 'true');
+        document.body.style.overflow = 'hidden';
+      }
+    });
+
+    // Close menu on link click
+    const navLinks = navbar.querySelectorAll('.nav-list a');
+    navLinks.forEach(link => {
+      link.addEventListener('click', () => {
+        navbar.classList.remove('menu-open');
+        toggle.setAttribute('aria-expanded', 'false');
+        document.body.style.overflow = '';
+      });
     });
   }
 </script>
