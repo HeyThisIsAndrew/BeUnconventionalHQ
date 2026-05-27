@@ -8,7 +8,7 @@
   --color-white-muted: #888888;
   --font-display: 'Syne', sans-serif;
   --font-body: 'Inter', sans-serif;
-  --section-spacing-y: clamp(6rem, 12vw, 10rem);
+  --section-spacing-y: clamp(5.1rem, 10vw, 8.5rem);
 }
 
 * {
@@ -279,21 +279,9 @@ body::before {
   }
 
   /* HERO BANNER STABILIZATION */
-  .hero {
-    height: auto !important;
-    min-height: 100dvh;
-    padding-top: calc(env(safe-area-inset-top) + 6rem);
-    padding-bottom: 3rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    background: #000000;
-    overflow: hidden;
-  }
-
   .hero-title-stack {
     max-width: 100%;
-    padding: 0 1rem;
+    padding: 0 1.5rem;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
@@ -301,15 +289,15 @@ body::before {
   }
 
   .hero .word-be {
-    margin-left: -20% !important; /* Restore 'B' alignment above N/V region */
+    margin-left: -15% !important; /* Slightly reduced shift for better containment */
     transform: none !important;
     align-self: center;
-    font-size: 1rem !important;
-    margin-bottom: 0.5rem !important;
+    font-size: 0.9rem !important;
+    margin-bottom: 0.4rem !important;
   }
 
   .word-unconventional {
-    font-size: clamp(1.1rem, 7.5vw, 2.1rem) !important; /* Fits iPhone SE/Pro Max */
+    font-size: clamp(1.1rem, 7vw, 1.65rem) !important; /* Tuning max for screen edge safety */
     white-space: nowrap !important;
     letter-spacing: -0.02em;
     transform: none !important;
@@ -317,11 +305,23 @@ body::before {
   }
 
   .hero .word-hq {
-    margin-right: -28% !important; /* Restore 'HQ' tuck under N/T region */
-    margin-top: -0.8rem !important;
+    margin-right: -22% !important; /* Adjusted tuck */
+    margin-top: -0.45rem !important; /* Adjusted downward (less tuck) */
     transform: none !important;
-    font-size: clamp(0.9rem, 5vw, 1.4rem) !important;
+    font-size: clamp(0.85rem, 5.5vw, 1.4rem) !important;
     align-self: center;
+  }
+
+  .hero-kicker {
+    font-size: 0.65rem !important;
+    letter-spacing: 0.25em !important;
+    margin-bottom: 1.25rem !important;
+  }
+
+  .hero-subtitle {
+    font-size: 0.65rem !important;
+    padding: 0 1rem !important;
+    margin-bottom: 2rem !important;
   }
 
   .hero-content {
@@ -341,14 +341,14 @@ body::before {
     top: 0 !important;
     height: auto !important;
     background-color: #000000 !important;
-    padding-top: 6rem !important;
-    padding-bottom: 6rem !important;
+    padding-top: 5.1rem !important;
+    padding-bottom: 5.1rem !important;
     display: block !important;
   }
 
   .categories-section,
   .latest-section {
-    padding: 5rem 1.5rem !important;
+    padding: 4.25rem 1.5rem !important;
     transform: none !important;
     opacity: 1 !important;
   }
@@ -1142,6 +1142,66 @@ body::before {
     flex-direction: column;
     gap: 0.75rem;
     text-align: center;
+  }
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   FILTER / SELECTOR UI (Standardized)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.filter-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  align-items: flex-start;
+  margin-bottom: 4rem;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.filter-group {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.filter-label {
+  color: var(--color-white);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  margin-right: 1rem;
+  align-self: center;
+}
+
+.filter-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--color-white-muted);
+  padding: 0.4rem 0.8rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.filter-btn:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: var(--color-white);
+}
+
+.filter-btn.active {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: rgba(204, 0, 0, 0.1);
+}
+
+@media (max-width: 768px) {
+  .filter-nav {
+    align-items: center;
   }
 }
 

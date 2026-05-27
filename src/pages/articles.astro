@@ -126,7 +126,8 @@ export async function getArticles() {
 }
 
 const allArticles = await getArticles();
-const displayArticles = allArticles.slice(0, 9);
+const displayArticles = allArticles.slice(0, 20);
+const categories = ['All', 'Movies', 'TV', 'Gaming', 'General'];
 ---
 
 <Layout title={title} description={description}>
@@ -136,11 +137,29 @@ const displayArticles = allArticles.slice(0, 9);
         <p class="section-kicker">Explore The HQ</p>
         <h1 class="section-title">Latest Articles</h1>
       </header>
+
+      <nav class="filter-nav animate-on-scroll" data-delay="100">
+        <div class="filter-group">
+          <span class="filter-label">CATEGORY:</span>
+          {
+            categories.map((cat) => (
+              <button
+                class:list={['filter-btn', { active: cat === 'All' }]}
+                data-filter={cat.toLowerCase()}
+              >
+                {cat.toUpperCase()}
+              </button>
+            ))
+          }
+        </div>
+      </nav>
+
       <div class="articles-grid">
         {
           displayArticles.map((article, index) => (
             <article
               class="article-card animate-on-scroll"
+              data-category={(article.category || 'General').toLowerCase()}
               style={`--index: ${index}`}
             >
               <div class="article-image-wrapper">
@@ -170,6 +189,29 @@ const displayArticles = allArticles.slice(0, 9);
     </div>
   </main>
 </Layout>
+
+<script>
+  const filterBtns = document.querySelectorAll('.filter-btn');
+  const cards = document.querySelectorAll('.article-card');
+
+  filterBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      filterBtns.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const filter = btn.getAttribute('data-filter');
+
+      cards.forEach((card) => {
+        const cat = card.getAttribute('data-category');
+        if (filter === 'all' || cat === filter) {
+          (card as HTMLElement).style.display = 'flex';
+        } else {
+          (card as HTMLElement).style.display = 'none';
+        }
+      });
+    });
+  });
+</script>
 
 <style>
   .container {
