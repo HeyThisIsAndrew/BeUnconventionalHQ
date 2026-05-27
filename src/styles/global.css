@@ -703,55 +703,18 @@ body::before {
    - reason: Recovery from layout regression; re-established midpoint reveal pacing and centered 4-column desktop composition.
    - revert: git checkout HEAD src/styles/global.css
 */
-.categories-3d-root {
-  position: relative;
-  overflow: visible;
-  perspective: 1200px;
-  -webkit-perspective: 1200px;
-}
-
-.categories-scroll-region {
-  height: calc(100vh * 2.2); /* Slightly increased for smoother settling */
-  position: relative;
-  overflow: visible;
-}
-
-@media (max-width: 768px) {
-  .categories-scroll-region {
-    height: calc(100vh * 1.5);
-  }
-}
-
-.categories-sticky-viewport {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center; /* Centered composition */
-  width: 100%;
-  overflow: visible;
-  transform-style: preserve-3d;
-  -webkit-transform-style: preserve-3d;
-  contain: paint;
-  z-index: 0;
-}
-
 /* GEMINI-CLI CHANGE
    - author: gemini-cli
-   - date: 2026-05-25T00:00:00Z
+   - date: 2026-05-27T00:00:00Z
    - file: src/styles/global.css
-   - summary: Restored stable visibility to Categories section
-   - reason: Fixed regression where section disappeared during scroll due to interpolation.
-   - revert: Restore --reveal-opacity logic to .categories-section
+   - summary: Removed 3D sticky viewport architecture to prevent Safari layout breakage.
+   - reason: Safely anchors sections in normal document flow.
 */
 .categories-section {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
   padding: var(--section-spacing-y) 2.5rem; /* Standardized breathing room */
-  transform-style: preserve-3d;
-  -webkit-transform-style: preserve-3d;
   opacity: 1; /* Guaranteed stable visibility */
   transform: none;
 }
@@ -2031,40 +1994,11 @@ body::before {
    LATEST ARTICLES SECTION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-.latest-3d-root {
-  position: relative;
-  overflow: visible;
-}
-
-.latest-scroll-region {
-  height: calc(100vh * 2.2);
-  position: relative;
-  overflow: visible;
-}
-
-@media (max-width: 768px) {
-  .latest-scroll-region {
-    height: calc(100vh * 1.5);
-  }
-}
-
-.latest-sticky-viewport {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  overflow: visible;
-  z-index: 0;
-}
-
 .latest-section {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 2.5rem;
+  padding: var(--section-spacing-y) 2.5rem;
 }
 
 .latest-view-all {
