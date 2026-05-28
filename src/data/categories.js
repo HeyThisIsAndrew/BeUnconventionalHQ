@@ -23,7 +23,7 @@ export const categories = [
   {
     title: 'Events',
     description: 'Live coverage, premieres, and press events',
-    icon: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 8.5V6C3 4.89543 3.89543 4 5 4H19C20.1046 4 21 4.89543 21 6V8.5C19.8954 8.5 19 9.39543 19 10.5C19 11.6046 19.8954 12.5 21 12.5V18C21 19.1046 20.1046 20 19 20H5C3.89543 20 3 19.1046 3 18V12.5C4.10457 12.5 5 11.6046 5 10.5C5 9.39543 4.10457 8.5 3 8.5Z" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="3" stroke="var(--color-accent)" stroke-width="1" stroke-dasharray="1 1"/><path d="M12 9V15" stroke="var(--color-accent)" stroke-width="1.5"/><path d="M9 12H15" stroke="var(--color-accent)" stroke-width="1.5"/></svg>`,
+    icon: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 7C2 5.89543 2.89543 5 4 5H20C21.1046 5 22 5.89543 22 7V17C22 18.1046 21.1046 19 20 19H4C2.89543 19 2 18.1046 2 17V7Z" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M16 5V3H12V5" stroke="currentColor" stroke-width="1.5"/><path d="M11 11L13 13" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round"/><path d="M13 11L11 13" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round"/><rect x="5" y="7" width="2" height="1" rx="0.5" fill="currentColor" fill-opacity="0.3"/></svg>`,
     href: 'events',
     label: 'Events',
   },
