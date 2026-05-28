@@ -3,7 +3,7 @@ import os from 'os';
 import qrcode from 'qrcode-terminal';
 
 const PORT = 4321;
-const BASE_PATH = '/BeUnconventionalHQ/';
+const BASE_PATH = '/';
 
 function getNetworkIP() {
   const nets = os.networkInterfaces();

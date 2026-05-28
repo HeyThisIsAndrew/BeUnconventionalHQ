@@ -3,9 +3,9 @@ export const site = {
   tagline: 'Where Nerd Culture Gets Cinematic',
   description:
     'A cinematic dark-aesthetic creator media hub for movies, TV, gaming, and events content.',
-  url: 'https://heythisisandrew.github.io/BeUnconventionalHQ/',
-  basePath: '/BeUnconventionalHQ/',
-  image: 'https://heythisisandrew.github.io/BeUnconventionalHQ/banner.png',
+  url: 'https://beunconventionalhq.com/',
+  basePath: '/',
+  image: 'https://beunconventionalhq.com/banner.png',
   socials: {
     youtube: 'https://www.youtube.com/@BeUnconventionalHQ',
     instagram: 'https://www.instagram.com/beunconventionalhq',
