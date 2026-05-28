@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { categories } from '../../data/categories.js';
+import { getVideos } from '../videos.astro';
 
 export async function getStaticPaths() {
   /* GEMINI-CLI CHANGE
@@ -33,20 +34,26 @@ export async function getStaticPaths() {
 const { category } = Astro.props;
 const base = import.meta.env.BASE_URL;
 
+// Fetch and filter live content
+const allVideos = await getVideos();
+const categoryVideos = allVideos.filter(v => 
+  (v.category || '').toLowerCase() === (category.label || '').toLowerCase() ||
+  (v.category || '').toLowerCase() === (category.title || '').toLowerCase()
+).slice(0, 4);
+
+// Fallback if no live videos found for this category
+if (categoryVideos.length === 0) {
+  categoryVideos.push({
+    title: `Why The ${category.title} Industry is Changing`,
+    category: category.label,
+    thumbnail: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=800&q=80',
+    link: 'https://www.youtube.com/@BeUnconventionalHQ'
+  });
+}
+
 // Placeholder for content - in V2 we'd fetch actual related items
 const title = `${category.title} Hub | Be Unconventional HQ`;
 const description = category.description;
-
-// Use the data from our categories list
-const categoryVideos = [
-  {
-    title: `Why The ${category.title} Industry is Changing`,
-    category: category.label,
-    thumbnail:
-      'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=800&q=80',
-    id: 'vid1',
-  },
-];
 
 const categoryArticles = [
   {
@@ -105,7 +112,7 @@ const categoryArticles = [
                 <div class="video-info">
                   <h3 class="video-title">{video.title}</h3>
                   <a
-                    href="https://www.youtube.com/@BeUnconventionalHQ"
+                    href={video.link}
                     target="_blank"
                     rel="noopener noreferrer"
                     class="video-watch-btn"

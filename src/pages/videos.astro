@@ -1,57 +1,121 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { site } from '../data/site.js';
+import { CATEGORIES, CATEGORY_NORMALIZATION } from '../data/constants.js';
 
 const title = `Videos | ${site.name}`;
 const description =
   'Explore the latest cinematic video content from Be Unconventional HQ.';
 
-const placeholderVideos = [
-  {
-    title: 'Why The Batman Is A Modern Masterpiece',
-    category: 'Movies',
-    thumbnail:
-      'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=800&q=80',
-    link: site.socials.youtube,
-  },
-  {
-    title: 'The Last of Us Season 2: Everything We Know',
-    category: 'TV',
-    thumbnail:
-      'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?auto=format&fit=crop&w=800&q=80',
-    link: site.socials.youtube,
-  },
-  {
-    title: 'Elden Ring: Shadow of the Erdtree Review',
-    category: 'Gaming',
-    thumbnail:
-      'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80',
-    link: site.socials.youtube,
-  },
-  {
-    title: 'Comic-Con 2026: The Biggest Announcements',
-    category: 'Events',
-    thumbnail:
-      'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=800&q=80',
-    link: site.socials.youtube,
-  },
-  {
-    title: 'Dune: Part Two - A Visual Symphony',
-    category: 'Movies',
-    thumbnail:
-      'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=800&q=80',
-    link: site.socials.youtube,
-  },
-  {
-    title: 'Succession: The Best Ending in TV History?',
-    category: 'TV',
-    thumbnail:
-      'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?auto=format&fit=crop&w=800&q=80',
-    link: site.socials.youtube,
-  },
-];
+export async function getVideos() {
+  const CHANNEL_ID = 'UCXqU6781pQgYXDExLvMw2Og';
+  const RSS_URL = `https://www.youtube.com/feeds/videos.xml?channel_id=${CHANNEL_ID}`;
+  let videos = [];
 
-const categories = ['All', 'Movies', 'TV', 'Gaming', 'Events'];
+  const placeholderVideos = [
+    {
+      title: 'Why The Batman Is A Modern Masterpiece',
+      category: 'Movies',
+      thumbnail:
+        'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=800&q=80',
+      link: site.socials.youtube,
+    },
+    {
+      title: 'The Last of Us Season 2: Everything We Know',
+      category: 'TV',
+      thumbnail:
+        'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?auto=format&fit=crop&w=800&q=80',
+      link: site.socials.youtube,
+    },
+    {
+      title: 'Elden Ring: Shadow of the Erdtree Review',
+      category: 'Gaming',
+      thumbnail:
+        'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80',
+      link: site.socials.youtube,
+    },
+    {
+      title: 'Comic-Con 2026: The Biggest Announcements',
+      category: 'Events',
+      thumbnail:
+        'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=800&q=80',
+      link: site.socials.youtube,
+    },
+    {
+      title: 'Dune: Part Two - A Visual Symphony',
+      category: 'Movies',
+      thumbnail:
+        'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=800&q=80',
+      link: site.socials.youtube,
+    },
+    {
+      title: 'Succession: The Best Ending in TV History?',
+      category: 'TV',
+      thumbnail:
+        'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?auto=format&fit=crop&w=800&q=80',
+      link: site.socials.youtube,
+    },
+  ];
+
+  try {
+    const response = await fetch(RSS_URL);
+    if (!response.ok) throw new Error('YouTube RSS fetch failed');
+    const xml = await response.text();
+    
+    const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
+    let match;
+
+    while ((match = entryRegex.exec(xml)) !== null) {
+      const entryContent = match[1];
+
+      const titleMatch = entryContent.match(/<title>([\s\S]*?)<\/title>/);
+      const linkMatch = entryContent.match(/<link[^>]+href="([^"]+)"/);
+      const videoIdMatch = entryContent.match(/<yt:videoId>([^<]+)<\/yt:videoId>/);
+      const publishedMatch = entryContent.match(/<published>([^<]+)<\/published>/);
+      const thumbnailMatch = entryContent.match(/<media:thumbnail[^>]+url="([^"]+)"/);
+
+      if (titleMatch && (linkMatch || videoIdMatch)) {
+        const titleStr = titleMatch[1];
+        const link = linkMatch ? linkMatch[1] : `https://www.youtube.com/watch?v=${videoIdMatch[1]}`;
+        
+        // Basic keyword-based categorization similar to articles.astro
+        let category = 'General';
+        const searchPool = titleStr.toLowerCase();
+        if (searchPool.includes('movie') || searchPool.includes('film') || searchPool.includes('batman') || searchPool.includes('dune'))
+          category = CATEGORIES.MOVIES;
+        else if (searchPool.includes('tv') || searchPool.includes('show') || searchPool.includes('series') || searchPool.includes('boys') || searchPool.includes('succession'))
+          category = CATEGORIES.TV;
+        else if (searchPool.includes('game') || searchPool.includes('gaming') || searchPool.includes('elden') || searchPool.includes('mortal kombat'))
+          category = CATEGORIES.GAMING;
+        else if (searchPool.includes('event') || searchPool.includes('con') || searchPool.includes('expo') || searchPool.includes('live'))
+          category = CATEGORIES.EVENTS;
+
+        const normalizedCategory = CATEGORY_NORMALIZATION[category] || category;
+
+        videos.push({
+          title: titleStr,
+          link: link,
+          thumbnail: thumbnailMatch ? thumbnailMatch[1] : `https://i.ytimg.com/vi/${videoIdMatch ? videoIdMatch[1] : ''}/maxresdefault.jpg`,
+          category: normalizedCategory,
+          date: publishedMatch ? new Date(publishedMatch[1]).toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+          }) : '',
+        });
+      }
+    }
+
+    if (videos.length === 0) return placeholderVideos;
+    return videos;
+  } catch (error) {
+    console.error('Error fetching YouTube feed:', error);
+    return placeholderVideos;
+  }
+}
+
+const displayVideos = await getVideos();
+const categories = ['All', CATEGORIES.FILM, CATEGORIES.TV, CATEGORIES.GAMING, CATEGORIES.EVENTS, 'General'];
 ---
 
 <Layout title={title} description={description}>
@@ -80,10 +144,10 @@ const categories = ['All', 'Movies', 'TV', 'Gaming', 'Events'];
 
       <div class="video-grid">
         {
-          placeholderVideos.map((video, index) => (
+          displayVideos.map((video, index) => (
             <div
-              class="video-card animate-on-scroll"
-              data-category={video.category.toLowerCase()}
+              class="video-card animate-on-scroll is-visible"
+              data-category={(video.category || 'General').toLowerCase()}
               style={`--index: ${index}`}
             >
               <div class="video-thumbnail-wrapper">
