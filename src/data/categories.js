@@ -5,6 +5,7 @@ export const categories = [
     icon: `<img src="/BeUnconventionalHQ/movies.PNG" alt="Movies category icon" />`,
     href: 'category/movies',
     label: 'Film',
+    action: 'Read Reviews',
   },
   {
     title: 'TV',
@@ -12,6 +13,7 @@ export const categories = [
     icon: `<img src="/BeUnconventionalHQ/tv.PNG" alt="TV category icon" />`,
     href: 'category/tv',
     label: 'Television',
+    action: 'Binge',
   },
   {
     title: 'Gaming',
@@ -19,6 +21,7 @@ export const categories = [
     icon: `<img src="/BeUnconventionalHQ/gaming.PNG" alt="Gaming category icon" />`,
     href: 'category/gaming',
     label: 'Gaming',
+    action: 'Press Start',
   },
   {
     title: 'Events',
@@ -26,5 +29,10 @@ export const categories = [
     icon: `<img src="/BeUnconventionalHQ/events.PNG" alt="Events category icon" />`,
     href: 'events',
     label: 'Events',
+    action: 'On Location',
+  },
+];
+    label: 'Events',
+    action: 'On Location',
   },
 ];
