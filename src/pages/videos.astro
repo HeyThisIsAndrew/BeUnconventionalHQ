@@ -61,7 +61,7 @@ export async function getVideos() {
     const response = await fetch(RSS_URL);
     if (!response.ok) throw new Error('YouTube RSS fetch failed');
     const xml = await response.text();
-    
+
     const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
     let match;
 
@@ -70,24 +70,53 @@ export async function getVideos() {
 
       const titleMatch = entryContent.match(/<title>([\s\S]*?)<\/title>/);
       const linkMatch = entryContent.match(/<link[^>]+href="([^"]+)"/);
-      const videoIdMatch = entryContent.match(/<yt:videoId>([^<]+)<\/yt:videoId>/);
-      const publishedMatch = entryContent.match(/<published>([^<]+)<\/published>/);
-      const thumbnailMatch = entryContent.match(/<media:thumbnail[^>]+url="([^"]+)"/);
+      const videoIdMatch = entryContent.match(
+        /<yt:videoId>([^<]+)<\/yt:videoId>/
+      );
+      const publishedMatch = entryContent.match(
+        /<published>([^<]+)<\/published>/
+      );
+      const thumbnailMatch = entryContent.match(
+        /<media:thumbnail[^>]+url="([^"]+)"/
+      );
 
       if (titleMatch && (linkMatch || videoIdMatch)) {
         const titleStr = titleMatch[1];
-        const link = linkMatch ? linkMatch[1] : `https://www.youtube.com/watch?v=${videoIdMatch[1]}`;
-        
+        const link = linkMatch
+          ? linkMatch[1]
+          : `https://www.youtube.com/watch?v=${videoIdMatch[1]}`;
+
         // Basic keyword-based categorization similar to articles.astro
         let category = 'General';
         const searchPool = titleStr.toLowerCase();
-        if (searchPool.includes('movie') || searchPool.includes('film') || searchPool.includes('batman') || searchPool.includes('dune'))
+        if (
+          searchPool.includes('movie') ||
+          searchPool.includes('film') ||
+          searchPool.includes('batman') ||
+          searchPool.includes('dune')
+        )
           category = CATEGORIES.MOVIES;
-        else if (searchPool.includes('tv') || searchPool.includes('show') || searchPool.includes('series') || searchPool.includes('boys') || searchPool.includes('succession'))
+        else if (
+          searchPool.includes('tv') ||
+          searchPool.includes('show') ||
+          searchPool.includes('series') ||
+          searchPool.includes('boys') ||
+          searchPool.includes('succession')
+        )
           category = CATEGORIES.TV;
-        else if (searchPool.includes('game') || searchPool.includes('gaming') || searchPool.includes('elden') || searchPool.includes('mortal kombat'))
+        else if (
+          searchPool.includes('game') ||
+          searchPool.includes('gaming') ||
+          searchPool.includes('elden') ||
+          searchPool.includes('mortal kombat')
+        )
           category = CATEGORIES.GAMING;
-        else if (searchPool.includes('event') || searchPool.includes('con') || searchPool.includes('expo') || searchPool.includes('live'))
+        else if (
+          searchPool.includes('event') ||
+          searchPool.includes('con') ||
+          searchPool.includes('expo') ||
+          searchPool.includes('live')
+        )
           category = CATEGORIES.EVENTS;
 
         const normalizedCategory = CATEGORY_NORMALIZATION[category] || category;
@@ -95,13 +124,17 @@ export async function getVideos() {
         videos.push({
           title: titleStr,
           link: link,
-          thumbnail: thumbnailMatch ? thumbnailMatch[1] : `https://i.ytimg.com/vi/${videoIdMatch ? videoIdMatch[1] : ''}/maxresdefault.jpg`,
+          thumbnail: thumbnailMatch
+            ? thumbnailMatch[1]
+            : `https://i.ytimg.com/vi/${videoIdMatch ? videoIdMatch[1] : ''}/maxresdefault.jpg`,
           category: normalizedCategory,
-          date: publishedMatch ? new Date(publishedMatch[1]).toLocaleDateString('en-US', {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric',
-          }) : '',
+          date: publishedMatch
+            ? new Date(publishedMatch[1]).toLocaleDateString('en-US', {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+              })
+            : '',
         });
       }
     }
@@ -115,7 +148,14 @@ export async function getVideos() {
 }
 
 const displayVideos = await getVideos();
-const categories = ['All', CATEGORIES.FILM, CATEGORIES.TV, CATEGORIES.GAMING, CATEGORIES.EVENTS, 'General'];
+const categories = [
+  'All',
+  CATEGORIES.FILM,
+  CATEGORIES.TV,
+  CATEGORIES.GAMING,
+  CATEGORIES.EVENTS,
+  'General',
+];
 ---
 
 <Layout title={title} description={description}>

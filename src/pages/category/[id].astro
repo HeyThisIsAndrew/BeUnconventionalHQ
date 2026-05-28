@@ -36,18 +36,23 @@ const base = import.meta.env.BASE_URL;
 
 // Fetch and filter live content
 const allVideos = await getVideos();
-const categoryVideos = allVideos.filter(v => 
-  (v.category || '').toLowerCase() === (category.label || '').toLowerCase() ||
-  (v.category || '').toLowerCase() === (category.title || '').toLowerCase()
-).slice(0, 4);
+const categoryVideos = allVideos
+  .filter(
+    (v) =>
+      (v.category || '').toLowerCase() ===
+        (category.label || '').toLowerCase() ||
+      (v.category || '').toLowerCase() === (category.title || '').toLowerCase()
+  )
+  .slice(0, 4);
 
 // Fallback if no live videos found for this category
 if (categoryVideos.length === 0) {
   categoryVideos.push({
     title: `Why The ${category.title} Industry is Changing`,
     category: category.label,
-    thumbnail: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=800&q=80',
-    link: 'https://www.youtube.com/@BeUnconventionalHQ'
+    thumbnail:
+      'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=800&q=80',
+    link: 'https://www.youtube.com/@BeUnconventionalHQ',
   });
 }
 

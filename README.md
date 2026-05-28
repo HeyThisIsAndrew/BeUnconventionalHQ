@@ -1,43 +1,154 @@
-# Astro Starter Kit: Minimal
+# BeUnconventionalHQ
 
-```sh
-npm create astro@latest -- --template minimal
-```
+BeUnconventionalHQ is a cinematic creator-driven editorial platform built with Astro 6.3.
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+The site combines long-form commentary, automated YouTube content ingestion, creator-focused publishing workflows, and future monetization infrastructure into a fast, static-first media platform designed for independent creators.
 
-## 🚀 Project Structure
+## Core Philosophy
 
-Inside of your Astro project, you'll see the following folders and files:
+BeUnconventionalHQ is designed around a **Hybrid Content Engine** architecture:
+
+- **Static-First Performance:** Zero-latency delivery via build-time rendering.
+- **Build-Time Ingestion:** Automated data fetching from Substack and YouTube during the build process.
+- **Unified Editorial Taxonomy:** Centralized category normalization for cross-platform consistency.
+- **Automation-Ready:** Decoupled data pipelines designed for future scale.
+- **Minimal Backend:** Leverages Astro's server-side logic for ingestion without the overhead of a traditional CMS.
+
+The project prioritizes visual identity, editorial credibility, and maintainability over unnecessary framework complexity.
+
+---
+
+# Current Platform Features
+
+## Editorial Content System
+
+- **Substack RSS Ingestion:** Automated fetching and sanitization of Substack articles.
+- **Unified Article Rendering:** Custom pipeline for high-fidelity editorial presentation.
+- **Category Normalization:** Automatically maps diverse external tags into the canonical HQ taxonomy.
+- **Dynamic Editorial Feed:** A unified stream of content aggregated from multiple sources.
+
+## Video Platform Integration
+
+- **YouTube RSS Ingestion:** Real-time fetching of latest videos via channel-specific feeds.
+- **Metadata Extraction:** Automated parsing of video IDs, dynamic thumbnails, and publication dates.
+- **Unified Feed Integration:** Seamless blending of video content with editorial articles in the global feed.
+
+## Taxonomy Engine
+
+Centralized normalization layer (`src/data/constants.js`) supporting:
+
+- **Film** (Normalized from "Movies")
+- **Television** (Normalized from "TV")
+- **Gaming**
+- **Events**
+- _Extensible for future platform-specific categories._
+
+## UI / Design System
+
+- **Cinematic Motion:** Custom scroll-driven animations and parallax hero systems.
+- **Unified CTA System:** Standardized primary action components across all pages.
+- **Responsive Layouts:** Mobile-first editorial grids with horizontal scroll stabilization.
+- **Visual Continuity:** Consistent red-accent theme with animated hover states and glows.
+
+## Press + Creator Infrastructure
+
+- **Static Press Kit:** Dedicated destination for media assets and contact information.
+- **Contact Routing:** Integrated routing for press, collaborations, and inquiries.
+- **Monetization Readiness:** Architecture prepared for Amazon storefronts and referral ecosystems.
+
+---
+
+# Tech Stack
+
+- **Framework:** Astro 6.3
+- **Styling:** Vanilla CSS (Global & Themed)
+- **Ingestion:** Build-time Fetch + RSS Parsing
+- **Deployment:** Static-First (Optimized for GitHub Pages)
+- **Tooling:** Custom Node.js dev server with mobile-testing QR generation
+
+---
+
+# Project Structure
 
 ```text
 /
-├── public/
+├── public/          # Static assets (logos, icons, banners)
+├── docs/            # Platform protocols and engineering documentation
+├── scripts/         # Custom development and testing utilities
 ├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
+│   ├── components/  # Atomic and composite UI components
+│   ├── data/        # Source of Truth for taxonomy, site config, and constants
+│   ├── layouts/     # Base HTML structure and shared layouts
+│   ├── pages/       # Site routes and data-ingestion templates
+│   └── styles/      # Global base, theme-specific, and utility CSS
+├── package.json     # Project dependencies and scripts
+└── README.md        # This documentation
 ```
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+---
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+# Development Commands
 
-Any static assets, like images, can be placed in the `public/` directory.
+| Command           | Action                                                        |
+| :---------------- | :------------------------------------------------------------ |
+| `npm install`     | Install all dependencies                                      |
+| `npm run dev`     | Start custom dev server (includes QR code for mobile testing) |
+| `npm run build`   | Generate production-ready static site in `./dist/`            |
+| `npm run preview` | Locally preview the generated production build                |
+| `npm run deploy`  | Build and deploy to GitHub Pages                              |
 
-## 🧞 Commands
+---
 
-All commands are run from the root of the project, from a terminal:
+# Architecture Overview
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
+## Hybrid Content Engine
 
-## 👀 Want to learn more?
+The platform uses a hybrid ingestion architecture that bridges the gap between static speed and dynamic content freshness.
 
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+### Automated Sources
+
+- **YouTube:** Pulls latest content via `https://www.youtube.com/feeds/videos.xml`.
+- **Substack:** Pulls latest articles via `/feed`.
+
+### Centralized Normalization
+
+External platform data is transformed at the **Ingestion Boundary**. This ensures that even if Substack uses "Movies" and YouTube uses "Film," the HQ UI presents a single, unified "Film" taxonomy.
+
+### Static Rendering
+
+All external data is fetched and baked into static HTML during the build process, resulting in industry-leading SEO and performance metrics.
+
+---
+
+# Future Expansion Roadmap
+
+## Planned Systems
+
+- **Creator LinkHub:** Unified social and referral destination.
+- **Sponsor Infrastructure:** Dedicated blocks for editorial partnerships.
+- **Astro Content Collections:** Migrating static data to local Markdown/JSON for type-safety.
+- **Lightweight CMS:** Git-based workflow for on-the-go editorial updates.
+- **Expanded Ingestion:** Future support for TikTok, Instagram, and Letterboxd feeds.
+
+## Long-Term Vision
+
+BeUnconventionalHQ is evolving toward a "Creator-Owned Media Operating System"—a platform that empowers independent journalists to own their audience, content, and monetization without technical friction.
+
+---
+
+# Status
+
+**Current Phase:** Hybrid Content Engine v1.5 (Stabilized)
+
+**System State:**
+
+- ✅ **Stable:** Core UI and motion systems verified.
+- ✅ **Production-Capable:** Fully automated content pipelines.
+- ✅ **Automation-Ready:** Ingestion boundary is hardened.
+- 🚀 **Active Expansion:** Transitioning toward monetization and community tools.
+
+---
+
+# License
+
+Private project. All rights reserved. © 2026 Be Unconventional HQ.
