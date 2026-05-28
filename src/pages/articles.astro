@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { site } from '../data/site.js';
+import { CATEGORIES, CATEGORY_NORMALIZATION } from '../data/constants.js';
 
 const title = `Articles | ${site.name}`;
 const description =
@@ -78,7 +79,7 @@ export async function getArticles() {
           searchPool.includes('batman') ||
           searchPool.includes('dune')
         )
-          category = 'Movies';
+          category = CATEGORIES.MOVIES;
         else if (
           searchPool.includes('tv') ||
           searchPool.includes('show') ||
@@ -86,14 +87,17 @@ export async function getArticles() {
           searchPool.includes('boys') ||
           searchPool.includes('succession')
         )
-          category = 'TV';
+          category = CATEGORIES.TV;
         else if (
           searchPool.includes('game') ||
           searchPool.includes('gaming') ||
           searchPool.includes('elden') ||
           searchPool.includes('mortal kombat')
         )
-          category = 'Gaming';
+          category = CATEGORIES.GAMING;
+
+        // Apply Normalization (e.g., "Movies" -> "Film" label logic)
+        const normalizedCategory = CATEGORY_NORMALIZATION[category] || category;
 
         const excerpt =
           cleanDesc.length > 20
@@ -114,7 +118,7 @@ export async function getArticles() {
           image: enclosureMatch
             ? enclosureMatch[1]
             : 'https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=800&q=80',
-          category,
+          category: normalizedCategory,
         });
       }
       if (articles.length >= 20) break;
@@ -127,7 +131,7 @@ export async function getArticles() {
 
 const allArticles = await getArticles();
 const displayArticles = allArticles.slice(0, 20);
-const categories = ['All', 'Movies', 'TV', 'Gaming', 'General'];
+const categories = ['All', CATEGORIES.FILM, CATEGORIES.TV, CATEGORIES.GAMING, 'General'];
 ---
 
 <Layout title={title} description={description}>
