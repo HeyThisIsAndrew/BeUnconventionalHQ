@@ -1,43 +1,4 @@
-@import 'tailwindcss';
-
-:root {
-  --color-black: #0a0a0a;
-  --color-surface: #111111;
-  --color-surface-2: #1a1a1a;
-  --color-white: #f0f0f0;
-  --color-white-muted: #888888;
-  --font-display: 'Syne', sans-serif;
-  --font-body: 'Inter', sans-serif;
-  --section-spacing-y: clamp(4.35rem, 8.5vw, 7.25rem);
-}
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-html {
-  max-width: 100%;
-  overflow-x: hidden;
-  scroll-behavior: smooth;
-}
-
-body {
-  max-width: 100%;
-  overflow-x: hidden;
-  background-color: var(--color-black);
-  color: var(--color-white);
-  font-family: var(--font-body);
-  -webkit-font-smoothing: antialiased;
-}
-
-::selection {
-  background-color: var(--color-accent);
-  color: var(--color-white);
-}
-
-/* Grain texture overlay */
+/* Grain texture overlay - VISUAL LAYER */
 body::before {
   content: '';
   position: fixed;
@@ -192,6 +153,14 @@ body::before {
     pointer-events: none;
   }
 
+  html, body {
+    overflow-x: hidden !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100% !important;
+    position: relative; /* Re-enabled for body::before placement */
+  }
+
   #navbar {
     position: fixed;
     top: 0;
@@ -200,13 +169,13 @@ body::before {
     padding: 0.75rem 1rem;
     padding-top: env(safe-area-inset-top);
     padding-bottom: 0.75rem;
-    background: #000000 !important;
+    background: rgba(0, 0, 0, 0.8) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
     max-width: 100%;
     overflow: visible;
     height: auto;
-    border-bottom: 1px solid #1a1a1a;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     z-index: 9999;
   }
 
@@ -365,14 +334,9 @@ body::before {
     display: block !important;
   }
 
-  .categories-section {
-    padding: 2.8rem 1.5rem 3.65rem 1.5rem !important; /* Top reduced by ~20% */
-    transform: none !important;
-    opacity: 1 !important;
-  }
-
+  .categories-section,
   .latest-section {
-    padding: 3.65rem 1.5rem !important;
+    padding: 2.8rem 1.5rem 3.65rem 1.5rem !important; /* Top reduced by ~20% */
     transform: none !important;
     opacity: 1 !important;
   }
@@ -399,6 +363,33 @@ body::before {
   --hero-cta-scale: calc(1 - var(--hero-compress-progress) * 0.1);
 }
 
+@media (max-width: 768px) {
+  /* iOS Safari Rendering Fix: feTurbulence GPU crash prevention */
+  body::before {
+    display: none !important;
+  }
+  
+  /* Disable heavy filters on mobile to prevent rendering crashes */
+  #navbar,
+  .hero-overlay {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  
+  /* iOS Safari Address Bar layout shift prevention */
+  .hero {
+    height: 100dvh;
+  }
+
+  /* Force visibility on mobile to rule out IntersectionObserver failures */
+  .animate-on-scroll {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+    transition: none !important;
+  }
+}
+
 .hero-bg {
   position: absolute;
   inset: -80px 0 0;
@@ -408,12 +399,6 @@ body::before {
   background-position: center;
   animation: kenburns 20s ease-in-out infinite alternate;
   will-change: transform;
-}
-
-@media (max-width: 768px) {
-  .hero-bg {
-    background-position: center top;
-  }
 }
 
 .hero-overlay {
@@ -730,7 +715,7 @@ body::before {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: calc(var(--section-spacing-y) * 0.8) 2.5rem var(--section-spacing-y); /* Standardized breathing room, top reduced 20% */
+  padding: var(--section-spacing-y) 2.5rem; /* Standardized breathing room */
   opacity: 1; /* Guaranteed stable visibility */
   transform: none;
 }
@@ -750,8 +735,23 @@ body::before {
 
 @media (max-width: 640px) {
   .categories-grid {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     gap: 1.25rem;
+    padding: 0 0 1.5rem;
+    scrollbar-width: none;
+    width: 100%;
+  }
+
+  .categories-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .category-card {
+    flex: 0 0 280px;
+    height: auto;
   }
 }
 
@@ -1204,20 +1204,22 @@ body::before {
   }
   
   .filter-group {
+    display: flex;
     flex-wrap: nowrap;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 0.5rem; /* Space for scrollbar if visible */
     width: 100%;
-    scrollbar-width: none; /* Firefox */
+    gap: 0.75rem;
+    padding-bottom: 0.5rem;
+    scrollbar-width: none;
   }
   
   .filter-group::-webkit-scrollbar {
-    display: none; /* Chrome/Safari */
+    display: none;
   }
   
   .filter-btn {
-    white-space: nowrap; /* Prevent text wrap inside button */
+    white-space: nowrap;
     flex-shrink: 0;
   }
 }
@@ -1442,6 +1444,12 @@ body::before {
 .articles-page {
   padding-top: 120px;
   min-height: 100vh;
+}
+
+@media (max-width: 768px) {
+  .articles-page {
+    min-height: 100dvh;
+  }
 }
 
 /* GEMINI-CLI CHANGE
@@ -1786,62 +1794,50 @@ body::before {
    - reason: Resolves layout compression on iPhone-sized screens.
 */
 @media (max-width: 768px) {
+  /* Category Icon Reduction (~25% from original 3.25rem) */
+  .category-icon {
+    font-size: 2.45rem !important;
+    margin-bottom: 1.5rem !important;
+  }
+
   .about-hero {
-    gap: 2rem;
-    padding: 0 1.5rem;
-    margin-bottom: 4rem;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 2.5rem !important;
+    padding: 0 1.5rem !important;
+    margin-bottom: 4rem !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   .about-image-container {
-    aspect-ratio: 1 / 1;
-    width: 100%;
-    max-width: 280px; /* Reduced physical size for containment */
-    margin: 0 auto; /* Horizontally centered */
+    aspect-ratio: 1 / 1 !important;
+    width: 100% !important;
+    max-width: 300px !important;
+    margin: 0 auto !important;
+    display: block !important;
   }
 
   .about-story {
-    align-items: center;
-    text-align: center; /* Center alignment acceptable per user request */
-    width: 100%;
+    width: 100% !important;
+    max-width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
   }
 
-  .about-story h2.about-headline {
-    margin-bottom: 1.5rem;
-    text-align: center;
-    width: 100%;
-    max-width: 100%;
-    /* Removed word-break to prevent mid-word splitting */
-  }
-
-  .headline-line1,
-  .headline-line2 {
-    display: block;
-    line-height: 1.1;
-    white-space: nowrap; /* Force single line */
-    text-transform: uppercase; /* Enforce mobile aesthetic request */
-  }
-
-  /* Safely scale to fit 14 chars ("UNCONVENTIONAL") inside 270px available width */
-  .headline-line1 {
-    font-size: clamp(1.1rem, 6.5vw, 2.25rem); 
-  }
-
-  /* Safely scale to fit 16 chars ("TRUTH IN CULTURE") */
-  .headline-line2 {
-    font-size: clamp(0.95rem, 5.5vw, 1.75rem);
-    margin-top: 0.25rem;
-  }
 
   .about-text {
-    font-size: 1rem;
-    line-height: 1.6;
-    margin-bottom: 2rem;
-    width: 100%;
-    /* Keep body centered visually as a block, but text readable */
-    max-width: 95%;
-    margin-left: auto;
-    margin-right: auto;
-    text-align: left; /* Keep readable */
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 1rem !important;
+    line-height: 1.6 !important;
+    text-align: left !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
   }
 
   .stats-section {
