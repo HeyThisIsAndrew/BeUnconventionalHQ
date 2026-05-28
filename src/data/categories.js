@@ -32,7 +32,3 @@ export const categories = [
     action: 'On Location',
   },
 ];
-    label: 'Events',
-    action: 'On Location',
-  },
-];
