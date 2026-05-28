@@ -1,5 +1,4 @@
 ---
-const base = import.meta.env.BASE_URL;
 const currentPath = Astro.url.pathname;
 const navItems = [
   { label: 'Videos', href: 'videos' },
@@ -10,12 +9,12 @@ const navItems = [
   { label: 'Contact', href: 'contact', className: 'cta' },
 ];
 
-const isActive = (href) => currentPath === `${base}${href}`;
+const isActive = (href) => currentPath === `/${href}` || currentPath === `/${href}/`;
 ---
 
 <header id="navbar">
-  <a href={`${base}`} class="nav-logo">
-    <img src={`${base}logo.png`} alt="Be Unconventional HQ" />
+  <a href={`/`} class="nav-logo">
+    <img src={`/logo.png`} alt="Be Unconventional HQ" />
   </a>
 
   <!-- Mobile Toggle -->
@@ -62,7 +61,7 @@ const isActive = (href) => currentPath === `${base}${href}`;
         navItems.map((item) => (
           <li class="nav-item">
             <a
-              href={`${base}${item.href}`}
+              href={`/${item.href}`}
               class:list={[item.className, { active: isActive(item.href) }]}
             >
               {item.label}
