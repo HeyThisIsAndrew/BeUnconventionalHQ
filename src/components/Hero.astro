@@ -4,45 +4,116 @@ import { site } from '../data/site.js';
 
 <section class="hero">
   <div class="hero-bg" aria-hidden="true"></div>
-  <div class="hero-overlay" aria-hidden="true"></div>
-  <div class="hero-content">
-    <div class="animate-on-scroll">
-      <p class="hero-kicker">{site.tagline}</p>
-      <h1 class="hero-title-stack">
-        <span class="word-be">Be</span>
-        <span class="word-unconventional">Unconventional</span>
-        <span class="word-hq">HQ</span>
-      </h1>
-      <p class="hero-subtitle">
-        Sometimes Unconventional is the Only Way Forward
-      </p>
-      <a href={`/videos`} class="hero-cta cta-button-primary">Explore The HQ</a>
+  <div class="hero-content container">
+    <p class="eyebrow reveal">Nerd culture · Made cinematic</p>
+    <h1 class="hero-title reveal" data-delay="60">
+      <span class="t-be">Be</span>
+      <span class="t-main">Unconventional</span>
+      <span class="t-hq">HQ</span>
+    </h1>
+    <p class="hero-tagline lead reveal" data-delay="120">
+      Film, TV, gaming &amp; live events — reviews, reactions, and deep dives
+      for people who take their fandom seriously.
+    </p>
+    <div class="hero-actions reveal" data-delay="180">
+      <a class="btn btn-primary" href="/videos">Watch the latest</a>
+      <a class="btn btn-ghost" href="/articles">Read the latest</a>
     </div>
   </div>
 </section>
 
-<script define:vars={{ bannerUrl: `/banner.png` }}>
-  const hero = document.querySelector('.hero');
-  const heroBackground = document.querySelector('.hero-bg');
-
-  if (heroBackground && hero) {
-    heroBackground.style.backgroundImage = `url('${bannerUrl}')`;
-
-    const updateHeroCompression = () => {
-      const scrollY = window.scrollY;
-
-      // Parallax effect: Smoother movement using a capped transform
-      // We limit to prevent excessive movement on high scroll speeds
-      const parallaxValue = Math.min(scrollY * 0.4, 150);
-      heroBackground.style.setProperty('--hero-parallax', `${parallaxValue}px`);
-
-      // Compression progress (0 to 1 over first 400px)
-      const compressZone = 400;
-      const progress = Math.min(scrollY / compressZone, 1);
-      hero.style.setProperty('--hero-compress-progress', progress.toFixed(3));
-    };
-
-    updateHeroCompression();
-    window.addEventListener('scroll', updateHeroCompression, { passive: true });
+<style>
+  .hero {
+    position: relative;
+    min-height: 90svh;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    padding-block: 7rem 4rem;
   }
-</script>
+
+  /* Banner art, heavily blurred + darkened: a cinematic wash, never a crop. */
+  .hero-bg {
+    position: absolute;
+    inset: -10%;
+    z-index: 0;
+    background:
+      radial-gradient(
+        120% 90% at 50% 0%,
+        transparent 0%,
+        rgba(9, 9, 11, 0.55) 55%,
+        var(--bg) 100%
+      ),
+      url('/banner.png') center / cover no-repeat;
+    filter: blur(46px) saturate(1.05) brightness(0.5);
+    transform: scale(1.15);
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background:
+      radial-gradient(
+        70% 60% at 50% 42%,
+        rgba(229, 9, 20, 0.12) 0%,
+        transparent 60%
+      ),
+      linear-gradient(to bottom, transparent 40%, var(--bg) 100%);
+    pointer-events: none;
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1.5rem;
+  }
+
+  .hero-title {
+    font-family: var(--font-display);
+    font-weight: 800;
+    text-transform: uppercase;
+    line-height: 0.92;
+    letter-spacing: -0.03em;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-block: 0.25rem 0.5rem;
+  }
+  .t-be {
+    font-size: clamp(1rem, 3vw, 1.7rem);
+    font-weight: 600;
+    color: var(--text-3);
+    letter-spacing: 0.1em;
+  }
+  .t-main {
+    /* vw-based so the 14-char word always fits the viewport, never clips. */
+    font-size: clamp(1.15rem, 5vw, 4.6rem);
+    white-space: nowrap;
+    color: var(--text);
+    text-shadow: 0 12px 50px rgba(0, 0, 0, 0.6);
+  }
+  .t-hq {
+    font-size: clamp(1.3rem, 4.5vw, 2.6rem);
+    color: var(--accent);
+    text-shadow: 0 0 28px rgba(229, 9, 20, 0.5);
+    margin-top: -0.1em;
+  }
+
+  .hero-tagline {
+    text-align: center;
+    margin-inline: auto;
+  }
+
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 0.75rem;
+  }
+</style>

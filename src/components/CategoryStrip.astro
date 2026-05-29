@@ -1,0 +1,95 @@
+---
+import { categories } from '../data/categories.js';
+---
+
+<div class="cat-grid">
+  {
+    categories.map((cat, i) => (
+      <a
+        class="cat reveal"
+        href={`/videos#${cat.slug}`}
+        data-delay={i * 80}
+        style={`background-image:url('${cat.image}')`}
+      >
+        <span class="cat-overlay" />
+        <span class="cat-body">
+          <span class="cat-label">{cat.label}</span>
+          <span class="cat-blurb">{cat.blurb}</span>
+          <span class="cat-cta">Explore →</span>
+        </span>
+      </a>
+    ))
+  }
+</div>
+
+<style>
+  .cat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+    gap: clamp(1rem, 2vw, 1.5rem);
+  }
+  .cat {
+    position: relative;
+    min-height: 240px;
+    display: flex;
+    align-items: flex-end;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--line);
+    background-size: cover;
+    background-position: center;
+    transition:
+      transform 0.3s ease,
+      border-color 0.3s ease;
+  }
+  .cat:hover {
+    transform: translateY(-6px);
+    border-color: var(--accent);
+  }
+  .cat-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to top,
+      rgba(9, 9, 11, 0.95) 0%,
+      rgba(9, 9, 11, 0.5) 45%,
+      rgba(9, 9, 11, 0.2) 100%
+    );
+    transition: background 0.3s ease;
+  }
+  .cat:hover .cat-overlay {
+    background: linear-gradient(
+      to top,
+      rgba(9, 9, 11, 0.92) 0%,
+      rgba(229, 9, 20, 0.22) 100%
+    );
+  }
+  .cat-body {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 1.4rem;
+  }
+  .cat-label {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.5rem;
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+  }
+  .cat-blurb {
+    color: var(--text-2);
+    font-size: 0.85rem;
+    line-height: 1.4;
+  }
+  .cat-cta {
+    margin-top: 0.4rem;
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+  }
+</style>

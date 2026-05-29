@@ -1,36 +1,30 @@
-import { CATEGORIES } from './constants.js';
-
+/**
+ * Content pillars surfaced on the homepage. Each links to the Videos page
+ * pre-filtered via a URL hash (e.g. /videos#gaming).
+ */
 export const categories = [
   {
-    title: CATEGORIES.MOVIES,
-    description: 'Reviews, analysis, and deep dives',
-    icon: `<img src="/movies.PNG" alt="Movies category icon" />`,
-    href: 'category/movies',
-    label: CATEGORIES.FILM,
-    action: 'Read Reviews',
+    slug: 'film',
+    label: 'Film',
+    blurb: 'Reviews, reactions & deep dives',
+    image: '/movies.PNG',
   },
   {
-    title: CATEGORIES.TV,
-    description: 'Episode breakdowns and season reviews',
-    icon: `<img src="/tv.PNG" alt="TV category icon" />`,
-    href: 'category/tv',
-    label: CATEGORIES.TELEVISION,
-    action: 'Binge',
+    slug: 'tv',
+    label: 'TV',
+    blurb: 'Episode breakdowns & season verdicts',
+    image: '/tv.PNG',
   },
   {
-    title: CATEGORIES.GAMING,
-    description: 'Reviews, coverage, and culture',
-    icon: `<img src="/gaming.PNG" alt="Gaming category icon" />`,
-    href: 'category/gaming',
-    label: CATEGORIES.GAMING,
-    action: 'Press Start',
+    slug: 'gaming',
+    label: 'Gaming',
+    blurb: 'Coverage, reviews & culture',
+    image: '/gaming.PNG',
   },
   {
-    title: CATEGORIES.EVENTS,
-    description: 'Live coverage, premiere events',
-    icon: `<img src="/events.PNG" alt="Events category icon" />`,
-    href: 'events',
-    label: CATEGORIES.EVENTS,
-    action: 'On Location',
+    slug: 'events',
+    label: 'Events',
+    blurb: 'Premieres & live, on-location coverage',
+    image: '/events.PNG',
   },
 ];

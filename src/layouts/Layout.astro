@@ -1,113 +1,98 @@
 ---
-import '../styles/global-base.css';
-import '../styles/global.css';
-import '../styles/theme-red.css';
+import '../styles/app.css';
+import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
-import Navbar from '../components/Navbar.astro';
 import { site } from '../data/site.js';
 
 const {
   title = site.name,
   description = site.description,
   image = site.image,
-  url = new URL(Astro.url.pathname, site.url).toString(),
   type = 'website',
 } = Astro.props;
+
+const pageTitle = title === site.name ? title : `${title} · ${site.short}`;
+const canonical = new URL(Astro.url.pathname, site.url).toString();
 ---
 
+<!doctype html>
 <html lang="en">
   <head>
-    <!-- Google Analytics (GA4) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-CF16HJW04T"></script>
-    <script is:inline>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-CF16HJW04T');
-    </script>
-
     <meta charset="utf-8" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#09090b" />
+    <title>{pageTitle}</title>
     <meta name="description" content={description} />
-    <link rel="icon" type="image/svg+xml" href={`/favicon.svg`} />
-    <link rel="icon" type="image/x-icon" href={`/favicon.ico`} />
+    <link rel="canonical" href={canonical} />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@300;400;500;600&display=swap"
       rel="stylesheet"
     />
-    <title>{title}</title>
-    <meta property="og:title" content={title} />
+
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={image} />
-    <meta property="og:url" content={url} />
+    <meta property="og:url" content={canonical} />
     <meta property="og:type" content={type} />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content={title} />
+    <meta name="twitter:title" content={pageTitle} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={image} />
-  </head>
-  <body>
-    <div class="safe-area-blackout"></div>
-    <Navbar />
-    <slot />
-    <Footer />
-    <script is:inline>
-      console.log('Layout script initialized');
-      window.addEventListener('load', () => console.log('Page fully loaded'));
+
+    <script
+      async
+      src={`https://www.googletagmanager.com/gtag/js?id=${site.ga4}`}></script>
+    <script is:inline define:vars={{ ga4: site.ga4 }}>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag('js', new Date());
+      gtag('config', ga4);
     </script>
+  </head>
+
+  <body>
+    <Nav />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer />
+
     <script>
-      const animatedElements = document.querySelectorAll('.animate-on-scroll');
+      // Reveal-on-scroll for any [.reveal] element.
+      const els = document.querySelectorAll('.reveal');
+      const reduce = window.matchMedia(
+        '(prefers-reduced-motion: reduce)'
+      ).matches;
 
-      if ('IntersectionObserver' in window && animatedElements.length > 0) {
-        const observer = new IntersectionObserver(
-          (entries) => {
+      if (reduce || !('IntersectionObserver' in window)) {
+        els.forEach((el) => el.setAttribute('data-state', 'in'));
+      } else {
+        const io = new IntersectionObserver(
+          (entries, obs) => {
             entries.forEach((entry) => {
-              const target = entry.target;
-              if (!(target instanceof HTMLElement)) return;
-
-              if (entry.isIntersecting) {
-                const delay = target.getAttribute('data-delay') || '0';
-                target.style.transitionDelay = `${delay}ms`;
-                target.setAttribute('data-state', 'active');
-
-                // For lower sections, we unobserve once active to ensure stability
-                // and eliminate any residual coupling to scroll events.
-                if (!target.closest('.hero')) {
-                  observer.unobserve(target);
-                }
-              } else {
-                // Only set to 'enter' if it hasn't been activated yet
-                // or if we want to allow re-entry animations (not requested here)
-                if (target.getAttribute('data-state') !== 'active') {
-                  target.setAttribute('data-state', 'enter');
-                }
-              }
+              if (!entry.isIntersecting) return;
+              const el = entry.target as HTMLElement;
+              const delay = el.dataset.delay || '0';
+              el.style.transitionDelay = `${delay}ms`;
+              el.setAttribute('data-state', 'in');
+              obs.unobserve(el);
             });
           },
-          {
-            threshold: 0.15,
-            rootMargin: '0px 0px -50px 0px', // Trigger slightly before it fully enters
-          }
+          { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
         );
-
-        animatedElements.forEach((element) => {
-          if (element instanceof HTMLElement) {
-            element.setAttribute('data-state', 'enter');
-            observer.observe(element);
-          }
-        });
-      } else {
-        animatedElements.forEach((element) => {
-          if (element instanceof HTMLElement) {
-            element.setAttribute('data-state', 'active');
-          }
-        });
+        els.forEach((el) => io.observe(el));
       }
     </script>
   </body>

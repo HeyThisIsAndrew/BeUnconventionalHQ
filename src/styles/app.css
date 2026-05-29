@@ -1,0 +1,289 @@
+@import 'tailwindcss';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Be Unconventional HQ — design tokens & base
+   Cinematic dark: near-black canvas, one confident red, generous space.
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Surfaces */
+  --bg: #09090b;
+  --bg-1: #111114;
+  --bg-2: #18181c;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.16);
+
+  /* Ink */
+  --text: #fafafa;
+  --text-2: #b6b6bd;
+  --text-3: #76767f;
+
+  /* Brand */
+  --accent: #e50914;
+  --accent-ink: #ff2d39;
+  --accent-dim: rgba(229, 9, 20, 0.14);
+  --gold: #c9a84c;
+
+  /* Type */
+  --font-display: 'Syne', sans-serif;
+  --font-body: 'Inter', sans-serif;
+
+  /* Geometry */
+  --radius: 14px;
+  --radius-sm: 10px;
+  --maxw: 1180px;
+  --gutter: clamp(1.25rem, 5vw, 3rem);
+  --section-y: clamp(4.5rem, 10vw, 9rem);
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  --shadow-accent: 0 18px 50px rgba(229, 9, 20, 0.18);
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+  min-height: 100svh;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ── Layout primitives ───────────────────────────────────────────────────── */
+
+.container {
+  width: 100%;
+  max-width: var(--maxw);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.section {
+  padding-block: var(--section-y);
+}
+
+/* Top-of-page header that clears the fixed nav. */
+.page-head {
+  padding-top: calc(72px + clamp(2.5rem, 7vw, 5rem));
+  padding-bottom: clamp(1.5rem, 4vw, 2.5rem);
+  text-align: center;
+}
+.page-head .eyebrow {
+  margin-bottom: 0.9rem;
+}
+.page-head .lead {
+  margin-inline: auto;
+  margin-top: 1rem;
+}
+
+/* Category filter chips. */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-bottom: clamp(2rem, 4vw, 3rem);
+}
+.chip {
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.55rem 1.05rem;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+.chip:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+.chip.active {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Empty / fallback note. */
+.empty-note {
+  text-align: center;
+  color: var(--text-2);
+  max-width: 48ch;
+  margin: 2rem auto 0;
+}
+.empty-note a {
+  color: var(--accent-ink);
+}
+
+.eyebrow {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+
+/* Stacked section heading used across pages. */
+.heading {
+  font-family: var(--font-display);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  font-size: clamp(2.2rem, 5.5vw, 3.6rem);
+  text-transform: uppercase;
+}
+
+.lead {
+  color: var(--text-2);
+  font-size: clamp(1rem, 1.6vw, 1.15rem);
+  max-width: 56ch;
+}
+
+/* ── Centered, never-lopsided card grid ─────────────────────────────────────
+   Flex wrap + center means partial rows (and single items) stay centered
+   instead of hugging the left/right edge. */
+.card-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(1.25rem, 2.5vw, 2rem);
+}
+
+.card-grid > * {
+  flex: 1 1 300px;
+  max-width: 400px;
+  min-width: 0;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 0.95rem 1.6rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    transform 0.25s ease,
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: var(--shadow-accent);
+}
+
+.btn-primary:hover {
+  background: var(--accent-ink);
+  transform: translateY(-2px);
+}
+
+.btn-ghost {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.btn-ghost:hover {
+  border-color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateY(-2px);
+}
+
+/* ── Scroll reveal ───────────────────────────────────────────────────────── */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 0.8, 0.2, 1),
+    transform 0.7s cubic-bezier(0.22, 0.8, 0.2, 1);
+  will-change: opacity, transform;
+}
+
+.reveal[data-state='in'] {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── Accessibility ───────────────────────────────────────────────────────── */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

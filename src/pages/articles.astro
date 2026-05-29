@@ -1,134 +1,86 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import ArticleCard from '../components/ArticleCard.astro';
+import { getArticles } from '../data/feeds.js';
+import { CATEGORIES } from '../data/constants.js';
 import { site } from '../data/site.js';
-import { CATEGORIES, CATEGORY_NORMALIZATION } from '../data/constants.js';
-import fs from 'fs/promises';
-import path from 'path';
 
-const title = `Articles | ${site.name}`;
-const description =
-  'Latest editorial content, reviews, and deep dives from Be Unconventional HQ on Substack.';
-
-// Provide getter for components like LatestArticles.astro and feed.astro
-export async function getArticles() {
-  try {
-    const cachePath = path.join(
-      process.cwd(),
-      'src',
-      'data',
-      'cache',
-      'articles.json'
-    );
-
-    const data = await fs.readFile(cachePath, 'utf-8');
-    return JSON.parse(data);
-  } catch (e) {
-    console.warn('[Astro] No articles cache found, returning empty array.');
-    return [];
-  }
-}
-
-const allArticles = await getArticles();
-const displayArticles = allArticles.slice(0, 20);
-const categories = [
-  'All',
-  CATEGORIES.FILM,
-  CATEGORIES.TV,
-  CATEGORIES.GAMING,
-  'General',
-];
+const articles = await getArticles();
+const present = new Set(articles.map((a) => a.category || 'General'));
+const filters = ['All', ...CATEGORIES.filter((c) => present.has(c))];
 ---
 
-<Layout title={title} description={description}>
-  <main class="articles-page">
-    <div class="container">
-      <header class="section-header animate-on-scroll">
-        <p class="section-kicker">Explore The HQ</p>
-        <h1 class="section-title">Latest Articles</h1>
-      </header>
+<Layout
+  title="Articles"
+  description="Editorial reviews, deep dives, and reactions from Be Unconventional HQ."
+>
+  <header class="page-head container">
+    <p class="eyebrow">The Editorial Feed</p>
+    <h1 class="heading">Articles</h1>
+    <p class="lead">Long-form reviews and deep dives, published on Substack.</p>
+  </header>
 
-      <nav class="filter-nav animate-on-scroll" data-delay="100">
-        <div class="filter-group">
-          <span class="filter-label">CATEGORY:</span>
-          <div class="filter-scroll">
-            {
-              categories.map((cat) => (
-                <button
-                  class:list={['filter-btn', { active: cat === 'All' }]}
-                  data-filter={cat.toLowerCase()}
-                >
-                  {cat.toUpperCase()}
-                </button>
-              ))
-            }
-          </div>
-        </div>
-      </nav>
-
-      <div class="articles-grid">
-        {
-          displayArticles.map((article, index) => (
-            <article
-              class="article-card animate-on-scroll"
-              data-category={(article.category || 'General').toLowerCase()}
-              style={`--index: ${index}`}
+  <div class="container section" style="padding-top:0">
+    {
+      filters.length > 1 && (
+        <div
+          class="filters"
+          role="tablist"
+          aria-label="Filter articles by category"
+        >
+          {filters.map((f) => (
+            <button
+              class:list={['chip', { active: f === 'All' }]}
+              data-filter={f.toLowerCase()}
             >
-              <div class="article-image-wrapper">
-                <span class="content-badge">{article.category}</span>
-                <img
-                  src={article.image}
-                  alt={article.title}
-                  class="article-image"
-                />
-              </div>
-              <div class="article-content">
-                <span class="article-date">{article.date}</span>
-                <h2 class="article-title">{article.title}</h2>
-                <p class="article-excerpt">{article.excerpt}</p>
-                <a
-                  href={article.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="article-link"
-                >
-                  Read Full Article
-                </a>
-              </div>
-            </article>
-          ))
-        }
-      </div>
-    </div>
-  </main>
+              {f}
+            </button>
+          ))}
+        </div>
+      )
+    }
+
+    {
+      articles.length > 0 ? (
+        <div class="card-grid" id="grid">
+          {articles.map((article) => (
+            <ArticleCard article={article} />
+          ))}
+        </div>
+      ) : (
+        <p class="empty-note">
+          No articles yet — follow along on
+          <a href={site.socials.substack} target="_blank" rel="noopener">
+            {' '}
+            Substack
+          </a>
+          .
+        </p>
+      )
+    }
+  </div>
 </Layout>
 
 <script>
-  const filterBtns = document.querySelectorAll('.filter-btn');
-  const cards = document.querySelectorAll('.article-card');
+  const chips = [...document.querySelectorAll<HTMLButtonElement>('.chip')];
+  const cards = [
+    ...document.querySelectorAll<HTMLElement>('#grid > [data-category]'),
+  ];
 
-  filterBtns.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      filterBtns.forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-
-      const filter = btn.getAttribute('data-filter');
-
-      cards.forEach((card) => {
-        const cat = card.getAttribute('data-category');
-        if (filter === 'all' || cat === filter) {
-          (card as HTMLElement).style.display = 'flex';
-        } else {
-          (card as HTMLElement).style.display = 'none';
-        }
-      });
+  function apply(filter: string) {
+    chips.forEach((c) =>
+      c.classList.toggle('active', c.dataset.filter === filter)
+    );
+    cards.forEach((card) => {
+      const match = filter === 'all' || card.dataset.category === filter;
+      card.style.display = match ? '' : 'none';
     });
-  });
-</script>
-
-<style>
-  .container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 2rem;
   }
-</style>
+
+  chips.forEach((chip) =>
+    chip.addEventListener('click', () => apply(chip.dataset.filter || 'all'))
+  );
+
+  const hash = decodeURIComponent(location.hash.replace('#', '')).toLowerCase();
+  if (hash && chips.some((c) => c.dataset.filter === hash)) apply(hash);
+</script>

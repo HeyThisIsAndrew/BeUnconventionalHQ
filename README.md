@@ -1,154 +1,88 @@
-# BeUnconventionalHQ
+# Be Unconventional HQ
 
-BeUnconventionalHQ is a cinematic creator-driven editorial platform built with Astro 6.3.
+A cinematic creator hub for film, TV, gaming, and live events — built with [Astro](https://astro.build) as a fast, static-first site. Content (YouTube videos + Substack articles) is fetched at build time and baked into the HTML, so the live site stays fresh on every deploy with zero runtime backend.
 
-The site combines long-form commentary, automated YouTube content ingestion, creator-focused publishing workflows, and future monetization infrastructure into a fast, static-first media platform designed for independent creators.
+## Requirements
 
-## Core Philosophy
+- **Node 22.12+** (Astro 6 requires it). The repo pins this in `.nvmrc`.
 
-BeUnconventionalHQ is designed around a **Hybrid Content Engine** architecture:
-
-- **Static-First Performance:** Zero-latency delivery via build-time rendering.
-- **Build-Time Ingestion:** Automated data fetching from Substack and YouTube during the build process.
-- **Unified Editorial Taxonomy:** Centralized category normalization for cross-platform consistency.
-- **Automation-Ready:** Decoupled data pipelines designed for future scale.
-- **Minimal Backend:** Leverages Astro's server-side logic for ingestion without the overhead of a traditional CMS.
-
-The project prioritizes visual identity, editorial credibility, and maintainability over unnecessary framework complexity.
-
----
-
-# Current Platform Features
-
-## Editorial Content System
-
-- **Substack RSS Ingestion:** Automated fetching and sanitization of Substack articles.
-- **Unified Article Rendering:** Custom pipeline for high-fidelity editorial presentation.
-- **Category Normalization:** Automatically maps diverse external tags into the canonical HQ taxonomy.
-- **Dynamic Editorial Feed:** A unified stream of content aggregated from multiple sources.
-
-## Video Platform Integration
-
-- **YouTube RSS Ingestion:** Real-time fetching of latest videos via channel-specific feeds.
-- **Metadata Extraction:** Automated parsing of video IDs, dynamic thumbnails, and publication dates.
-- **Unified Feed Integration:** Seamless blending of video content with editorial articles in the global feed.
-
-## Taxonomy Engine
-
-Centralized normalization layer (`src/data/constants.js`) supporting:
-
-- **Film** (Normalized from "Movies")
-- **Television** (Normalized from "TV")
-- **Gaming**
-- **Events**
-- _Extensible for future platform-specific categories._
-
-## UI / Design System
-
-- **Cinematic Motion:** Custom scroll-driven animations and parallax hero systems.
-- **Unified CTA System:** Standardized primary action components across all pages.
-- **Responsive Layouts:** Mobile-first editorial grids with horizontal scroll stabilization.
-- **Visual Continuity:** Consistent red-accent theme with animated hover states and glows.
-
-## Press + Creator Infrastructure
-
-- **Static Press Kit:** Dedicated destination for media assets and contact information.
-- **Contact Routing:** Integrated routing for press, collaborations, and inquiries.
-- **Monetization Readiness:** Architecture prepared for Amazon storefronts and referral ecosystems.
-
----
-
-# Tech Stack
-
-- **Framework:** Astro 6.3
-- **Styling:** Vanilla CSS (Global & Themed)
-- **Ingestion:** Build-time Fetch + RSS Parsing
-- **Deployment:** Static-First (Optimized for GitHub Pages)
-- **Tooling:** Custom Node.js dev server with mobile-testing QR generation
-
----
-
-# Project Structure
-
-```text
-/
-├── public/          # Static assets (logos, icons, banners)
-├── docs/            # Platform protocols and engineering documentation
-├── scripts/         # Custom development and testing utilities
-├── src/
-│   ├── components/  # Atomic and composite UI components
-│   ├── data/        # Source of Truth for taxonomy, site config, and constants
-│   ├── layouts/     # Base HTML structure and shared layouts
-│   ├── pages/       # Site routes and data-ingestion templates
-│   └── styles/      # Global base, theme-specific, and utility CSS
-├── package.json     # Project dependencies and scripts
-└── README.md        # This documentation
+```bash
+nvm install   # first time — reads .nvmrc
+nvm use       # selects Node 22.12
 ```
 
----
+## Local development
 
-# Development Commands
+```bash
+npm install
+npm run dev
+```
 
-| Command           | Action                                                        |
-| :---------------- | :------------------------------------------------------------ |
-| `npm install`     | Install all dependencies                                      |
-| `npm run dev`     | Start custom dev server (includes QR code for mobile testing) |
-| `npm run build`   | Generate production-ready static site in `./dist/`            |
-| `npm run preview` | Locally preview the generated production build                |
-| `npm run deploy`  | Build and deploy to GitHub Pages                              |
+`npm run dev` fetches the latest content, then starts the dev server at
+`http://localhost:4321`. It also prints a **network URL and a QR code** so you
+can open the site on your phone (same Wi-Fi) while developing.
 
----
+| Command           | What it does                                           |
+| :---------------- | :----------------------------------------------------- |
+| `npm run dev`     | Fetch content + start dev server (with mobile QR code) |
+| `npm run build`   | Generate the static site into `./dist/`                |
+| `npm run preview` | Serve the built `./dist/` locally                      |
 
-# Architecture Overview
+## Content pipeline
 
-## Hybrid Content Engine
+`scripts/fetch-feeds.mjs` runs automatically before `dev` and `build` and writes
+two caches under `src/data/cache/`:
 
-The platform uses a hybrid ingestion architecture that bridges the gap between static speed and dynamic content freshness.
+- **Articles** — Substack RSS (`/feed`).
+- **Videos** — YouTube. The channel's RSS feed currently 404s, so the script
+  falls back to scraping the channel's Videos tab (`ytInitialData`). Thumbnails
+  use `maxresdefault` with an `hqdefault` fallback.
 
-### Automated Sources
+Pages read these caches via `src/data/feeds.js` (`getArticles()` / `getVideos()`).
+If a fetch fails, the previous cache is kept so the build never breaks.
 
-- **YouTube:** Pulls latest content via `https://www.youtube.com/feeds/videos.xml`.
-- **Substack:** Pulls latest articles via `/feed`.
+### Categorization
 
-### Centralized Normalization
+Items are sorted into **Film / TV / Gaming / Events** by a weighted keyword
+classifier in `fetch-feeds.mjs` (`categorize()` + the `SIGNALS` table). It scores
+phrasing ("out of theater reaction" → Film), streaming/season cues → TV,
+conventions → Events, and a list of recurring franchises. It's heuristic, not AI
+— to improve it, add terms to the relevant `SIGNALS` list.
 
-External platform data is transformed at the **Ingestion Boundary**. This ensures that even if Substack uses "Movies" and YouTube uses "Film," the HQ UI presents a single, unified "Film" taxonomy.
+## Project structure
 
-### Static Rendering
+```text
+public/            Static assets (logo, banner, profile, category icons)
+scripts/           fetch-feeds.mjs (ingestion) + dev.mjs (dev server + QR)
+src/
+  components/      Nav, Footer, Hero, cards, Socials, etc.
+  data/            site.js, categories.js, constants.js, feeds.js, cache/
+  layouts/         Layout.astro (head, GA4, nav/footer, reveal observer)
+  pages/           index, videos, articles, about, contact, links
+  styles/          app.css (design tokens + base + utilities)
+```
 
-All external data is fetched and baked into static HTML during the build process, resulting in industry-leading SEO and performance metrics.
+## Deployment — Cloudflare Pages
 
----
+The site is a static `dist/` build, hosted on **Cloudflare Pages**.
 
-# Future Expansion Roadmap
+**Option A — Git integration (recommended):** connect the repo in the Cloudflare
+Pages dashboard with:
 
-## Planned Systems
+- Build command: `npm run build`
+- Output directory: `dist`
+- Environment variable: `NODE_VERSION = 22.12.0` (or rely on `.nvmrc`)
 
-- **Creator LinkHub:** Unified social and referral destination.
-- **Sponsor Infrastructure:** Dedicated blocks for editorial partnerships.
-- **Astro Content Collections:** Migrating static data to local Markdown/JSON for type-safety.
-- **Lightweight CMS:** Git-based workflow for on-the-go editorial updates.
-- **Expanded Ingestion:** Future support for TikTok, Instagram, and Letterboxd feeds.
+**Option B — direct upload via Wrangler:**
 
-## Long-Term Vision
+```bash
+npm run build
+npx wrangler pages deploy
+```
 
-BeUnconventionalHQ is evolving toward a "Creator-Owned Media Operating System"—a platform that empowers independent journalists to own their audience, content, and monetization without technical friction.
+`wrangler.toml` already sets `pages_build_output_dir = "dist"`. The custom domain
+(`beunconventionalhq.com`) is managed in the Cloudflare dashboard.
 
----
-
-# Status
-
-**Current Phase:** Hybrid Content Engine v1.5 (Stabilized)
-
-**System State:**
-
-- ✅ **Stable:** Core UI and motion systems verified.
-- ✅ **Production-Capable:** Fully automated content pipelines.
-- ✅ **Automation-Ready:** Ingestion boundary is hardened.
-- 🚀 **Active Expansion:** Transitioning toward monetization and community tools.
-
----
-
-# License
+## License
 
 Private project. All rights reserved. © 2026 Be Unconventional HQ.
