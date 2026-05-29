@@ -58,9 +58,25 @@ export async function getVideos() {
   ];
 
   try {
-    const response = await fetch(RSS_URL);
-    if (!response.ok) throw new Error('YouTube RSS fetch failed');
+    const response = await fetch(RSS_URL, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Accept: 'application/rss+xml, application/xml;q=0.9, */*;q=0.8',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `YouTube RSS fetch failed: ${response.status} ${response.statusText}`
+      );
+    }
+
     const xml = await response.text();
+
+    if (!xml.includes('<feed') && !xml.includes('<entry')) {
+      throw new Error('Invalid YouTube RSS payload received.');
+    }
 
     const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
     let match;

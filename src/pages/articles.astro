@@ -2,131 +2,30 @@
 import Layout from '../layouts/Layout.astro';
 import { site } from '../data/site.js';
 import { CATEGORIES, CATEGORY_NORMALIZATION } from '../data/constants.js';
+import fs from 'fs/promises';
+import path from 'path';
 
 const title = `Articles | ${site.name}`;
 const description =
   'Latest editorial content, reviews, and deep dives from Be Unconventional HQ on Substack.';
 
+// Provide getter for components like LatestArticles.astro and feed.astro
 export async function getArticles() {
-  const RSS_URL = 'https://beunconventionalhq.substack.com/feed';
-  let articles = [];
-
-  /* GEMINI-CLI CHANGE
-     - author: gemini-cli
-     - date: 2026-05-25T00:00:00Z
-     - file: src/pages/articles.astro
-     - summary: Improved cleanText regex for aggressive HTML/attribute stripping
-     - reason: Article excerpts were showing raw HTML attributes and tags from RSS feed.
-     - revert: git checkout HEAD src/pages/articles.astro
-  */
-  function cleanText(str: string) {
-    if (!str) return '';
-    return str
-      .replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '')
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-      .replace(/<a[^>]*>[\s\S]*?<\/a>/gi, '')
-      .replace(/<[^>]+>/g, '')
-      .replace(
-        /(?:href|target|rel|class|id|style|data-[a-z-]+|onerror|onload)=(?:["'][^"']*["']|[^\s>]+)/gi,
-        ''
-      )
-      .replace(/&lt;/gi, '<')
-      .replace(/&gt;/gi, '>')
-      .replace(/&amp;/g, '&')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&mdash;/g, '-')
-      .replace(/&ndash;/g, '-')
-      .replace(/&hellip;/g, '...')
-      .replace(/&#\d+;/g, '')
-      .replace(/&[a-z]+;/gi, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-
   try {
-    const response = await fetch(RSS_URL);
-    const xml = await response.text();
-    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-    let match;
+    const cachePath = path.join(
+      process.cwd(),
+      'src',
+      'data',
+      'cache',
+      'articles.json'
+    );
 
-    while ((match = itemRegex.exec(xml)) !== null) {
-      const itemContent = match[1];
-
-      const titleMatch =
-        itemContent.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) ||
-        itemContent.match(/<title>([\s\S]*?)<\/title>/);
-      const linkMatch = itemContent.match(/<link>([\s\S]*?)<\/link>/);
-      const pubDateMatch = itemContent.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
-      const descriptionMatch =
-        itemContent.match(
-          /<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/
-        ) || itemContent.match(/<description>([\s\S]*?)<\/description>/);
-      const enclosureMatch = itemContent.match(/<enclosure[^>]+url="([^"]+)"/);
-
-      if (titleMatch && linkMatch) {
-        const titleStr = cleanText(titleMatch[1]);
-        const descStr = descriptionMatch ? descriptionMatch[1] : '';
-        const cleanDesc = cleanText(descStr);
-
-        let category = 'General';
-        const searchPool = (titleStr + cleanDesc).toLowerCase();
-        if (
-          searchPool.includes('movie') ||
-          searchPool.includes('film') ||
-          searchPool.includes('batman') ||
-          searchPool.includes('dune')
-        )
-          category = CATEGORIES.MOVIES;
-        else if (
-          searchPool.includes('tv') ||
-          searchPool.includes('show') ||
-          searchPool.includes('series') ||
-          searchPool.includes('boys') ||
-          searchPool.includes('succession')
-        )
-          category = CATEGORIES.TV;
-        else if (
-          searchPool.includes('game') ||
-          searchPool.includes('gaming') ||
-          searchPool.includes('elden') ||
-          searchPool.includes('mortal kombat')
-        )
-          category = CATEGORIES.GAMING;
-
-        // Apply Normalization (e.g., "Movies" -> "Film" label logic)
-        const normalizedCategory = CATEGORY_NORMALIZATION[category] || category;
-
-        const excerpt =
-          cleanDesc.length > 20
-            ? cleanDesc.substring(0, 160).trim() + '...'
-            : 'Read the full article on Substack.';
-
-        articles.push({
-          title: titleStr,
-          link: linkMatch[1].trim(),
-          date: pubDateMatch
-            ? new Date(pubDateMatch[1]).toLocaleDateString('en-US', {
-                month: 'long',
-                day: 'numeric',
-                year: 'numeric',
-              })
-            : '',
-          excerpt,
-          image: enclosureMatch
-            ? enclosureMatch[1]
-            : 'https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=800&q=80',
-          category: normalizedCategory,
-        });
-      }
-      if (articles.length >= 20) break;
-    }
-  } catch (error) {
-    console.error('Error fetching Substack feed:', error);
+    const data = await fs.readFile(cachePath, 'utf-8');
+    return JSON.parse(data);
+  } catch (e) {
+    console.warn('[Astro] No articles cache found, returning empty array.');
+    return [];
   }
-  return articles;
 }
 
 const allArticles = await getArticles();
