@@ -1,6 +1,6 @@
 # Be Unconventional HQ
 
-A cinematic creator hub for film, TV, gaming, and live events — built with [Astro](https://astro.build) as a fast, static-first site. Content (YouTube videos + Substack articles) is fetched at build time and baked into the HTML, so the live site stays fresh on every deploy with zero runtime backend.
+A cinematic creator hub for film, TV, gaming, and live events — built with [Astro](https://astro.build) as a static site for self-hosting. Content is fetched into local JSON caches, then baked into `dist/` so the finished site can be served by any plain web server.
 
 ## Requirements
 
@@ -18,20 +18,21 @@ npm install
 npm run dev
 ```
 
-`npm run dev` fetches the latest content, then starts the dev server at
+`npm run dev` refreshes the local content cache, then starts the dev server at
 `http://localhost:4321`. It also prints a **network URL and a QR code** so you
 can open the site on your phone (same Wi-Fi) while developing.
 
 | Command           | What it does                                           |
 | :---------------- | :----------------------------------------------------- |
-| `npm run dev`     | Fetch content + start dev server (with mobile QR code) |
-| `npm run build`   | Generate the static site into `./dist/`                |
+| `npm run refresh-content` | Fetch the latest articles/videos into `src/data/cache/` |
+| `npm run dev`     | Refresh content + start dev server (with mobile QR code) |
+| `npm run build`   | Generate the static site into `./dist/` from the current cache |
+| `npm run build:live` | Refresh content, then build `./dist/` for deployment |
 | `npm run preview` | Serve the built `./dist/` locally                      |
 
 ## Content pipeline
 
-`scripts/fetch-feeds.mjs` runs automatically before `dev` and `build` and writes
-two caches under `src/data/cache/`:
+`scripts/fetch-feeds.mjs` refreshes two caches under `src/data/cache/`:
 
 - **Articles** — Substack RSS (`/feed`).
 - **Videos** — YouTube. The channel's RSS feed currently 404s, so the script
@@ -39,7 +40,8 @@ two caches under `src/data/cache/`:
   use `maxresdefault` with an `hqdefault` fallback.
 
 Pages read these caches via `src/data/feeds.js` (`getArticles()` / `getVideos()`).
-If a fetch fails, the previous cache is kept so the build never breaks.
+If a fetch fails, the previous cache is kept so scheduled builds do not wipe out
+working content.
 
 ### Categorization
 
@@ -56,32 +58,48 @@ public/            Static assets (logo, banner, profile, category icons)
 scripts/           fetch-feeds.mjs (ingestion) + dev.mjs (dev server + QR)
 src/
   components/      Nav, Footer, Hero, cards, Socials, etc.
-  data/            site.js, categories.js, constants.js, feeds.js, cache/
+  data/            site.js, categories.js, constants.js, content-source.js, feeds.js, cache/
   layouts/         Layout.astro (head, GA4, nav/footer, reveal observer)
   pages/           index, videos, articles, about, contact, links
   styles/          app.css (design tokens + base + utilities)
 ```
 
-## Deployment — Cloudflare Pages
+## Self-hosting
 
-The site is a static `dist/` build, hosted on **Cloudflare Pages**.
+The site builds to plain static files in `dist/`. Serve that folder with
+`nginx`, `caddy`, Apache, or any static file host on your own machine.
 
-**Option A — Git integration (recommended):** connect the repo in the Cloudflare
-Pages dashboard with:
-
-- Build command: `npm run build`
-- Output directory: `dist`
-- Environment variable: `NODE_VERSION = 22.12.0` (or rely on `.nvmrc`)
-
-**Option B — direct upload via Wrangler:**
+Typical production flow on a Raspberry Pi or Linux box:
 
 ```bash
-npm run build
-npx wrangler pages deploy
+npm install
+npm run build:live
 ```
 
-`wrangler.toml` already sets `pages_build_output_dir = "dist"`. The custom domain
-(`beunconventionalhq.com`) is managed in the Cloudflare dashboard.
+Point your web server at the generated `dist/` directory.
+
+### Automatic refreshes
+
+If you want the site to update itself without manual rebuilds, schedule:
+
+```bash
+npm run build:live
+```
+
+A simple cron example that refreshes every 30 minutes:
+
+```cron
+*/30 * * * * cd /path/to/BeUnconventionalHQ && /usr/bin/npm run build:live >> /var/log/beunconventionalhq.log 2>&1
+```
+
+If you prefer `systemd`, run the same command from a timer/service pair.
+
+### Deployment notes
+
+- The repo requires Node `22.12+`.
+- `npm run build` only uses the current cache.
+- `npm run build:live` is the right command for unattended refresh-and-publish jobs.
+- If upstream fetches fail temporarily, the previous cache is preserved.
 
 ## License
 

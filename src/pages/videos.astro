@@ -6,8 +6,6 @@ import { CATEGORIES } from '../data/constants.js';
 import { site } from '../data/site.js';
 
 const videos = await getVideos();
-
-// Only show filters for categories that actually have videos.
 const present = new Set(videos.map((v) => v.category || 'General'));
 const filters = ['All', ...CATEGORIES.filter((c) => present.has(c))];
 ---
@@ -85,7 +83,6 @@ const filters = ['All', ...CATEGORIES.filter((c) => present.has(c))];
     chip.addEventListener('click', () => apply(chip.dataset.filter || 'all'))
   );
 
-  // Honor /videos#gaming style deep links from the homepage category strip.
   const hash = decodeURIComponent(location.hash.replace('#', '')).toLowerCase();
   if (hash && chips.some((c) => c.dataset.filter === hash)) apply(hash);
 </script>

@@ -1,7 +1,7 @@
 /**
- * Read-only access to the content caches written at build time by
- * `scripts/fetch-feeds.mjs`. Importing from here keeps pages/components
- * decoupled from how the data is fetched.
+ * Read-only access to the local content caches written by
+ * `scripts/fetch-feeds.mjs`. Pages import from here so rendering stays
+ * decoupled from how the data is refreshed.
  */
 import fs from 'fs/promises';
 import path from 'path';
