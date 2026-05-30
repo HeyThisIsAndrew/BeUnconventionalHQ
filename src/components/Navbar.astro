@@ -19,10 +19,13 @@ const isActive = (href) =>
       <a href="/" class="nav-logo">
         <img src="/logo.png" alt="Be Unconventional HQ" />
       </a>
-      <div class="nav-identity-wrapper">
-        <span class="nav-word-be">BE</span>
-        <span class="nav-word-unconventional">UNCONVENTIONAL</span>
-        <span class="nav-word-hq">HQ</span>
+      <div class="nav-identity-wrapper" id="nav-identity">
+        <div class="nav-identity-stack">
+          <span class="nav-word-be">BE</span>
+          <span class="nav-word-unconventional">UNCONVENTIONAL</span>
+          <span class="nav-word-hq">HQ</span>
+        </div>
+        <div class="nav-subline" id="nav-subline"></div>
       </div>
     </div>
     <button class="nav-toggle" aria-label="Toggle Menu" aria-expanded="false">
@@ -48,41 +51,74 @@ const isActive = (href) =>
 </header>
 
 <script>
-  const navbar = document.getElementById('navbar');
-  const toggle = document.querySelector('.nav-toggle');
+  document.addEventListener('astro:page-load', () => {
+    // 1. Dynamic Red Subline & Underline Logic
+    const path = window.location.pathname;
+    let subtext = '';
+    if (path.includes('videos')) subtext = 'VIDEOS';
+    else if (path.includes('articles')) subtext = 'ARTICLES';
+    else if (path.includes('category')) subtext = 'HUB';
+    else if (path.includes('about')) subtext = 'ABOUT';
+    else if (path.includes('contact')) subtext = 'CONTACT';
+    
+    const sublineEl = document.getElementById('nav-subline');
+    if (sublineEl) {
+      sublineEl.textContent = subtext;
+      // If there is text, display it; otherwise hide the element so the underline disappears
+      if (subtext === '') {
+        sublineEl.style.display = 'none';
+      } else {
+        sublineEl.style.display = 'inline-block';
+      }
+    }
 
-  if (navbar && toggle) {
-    // Scroll handling
+    // 2. Buttery Smooth Scroll-Up Logic
+    const identity = document.getElementById('nav-identity');
+    let lastScroll = window.scrollY;
+
     window.addEventListener('scroll', () => {
-      if (window.scrollY > 60) {
-        navbar.classList.add('scrolled');
-      } else {
-        navbar.classList.remove('scrolled');
+      const currentScroll = window.scrollY;
+      
+      // Show when scrolling UP and past the very top
+      if (currentScroll < lastScroll && currentScroll > 100) {
+        identity?.classList.add('is-visible');
+        identity?.classList.remove('is-hidden');
+      } 
+      // Hide when scrolling DOWN or at the very top
+      else if (currentScroll > lastScroll || currentScroll <= 100) {
+        identity?.classList.remove('is-visible');
+        identity?.classList.add('is-hidden');
       }
-    });
+      
+      lastScroll = currentScroll <= 0 ? 0 : currentScroll;
+    }, { passive: true });
+    
+    // Mobile menu logic
+    const navbar = document.getElementById('navbar');
+    const toggle = document.querySelector('.nav-toggle');
 
-    // Mobile menu toggle
-    toggle.addEventListener('click', () => {
-      const isOpened = navbar.classList.contains('menu-open');
-      if (isOpened) {
-        navbar.classList.remove('menu-open');
-        toggle.setAttribute('aria-expanded', 'false');
-        document.body.style.overflow = '';
-      } else {
-        navbar.classList.add('menu-open');
-        toggle.setAttribute('aria-expanded', 'true');
-        document.body.style.overflow = 'hidden';
-      }
-    });
-
-    // Close menu on link click
-    const navLinks = navbar.querySelectorAll('.nav-list a');
-    navLinks.forEach((link) => {
-      link.addEventListener('click', () => {
-        navbar.classList.remove('menu-open');
-        toggle.setAttribute('aria-expanded', 'false');
-        document.body.style.overflow = '';
+    if (navbar && toggle) {
+      toggle.addEventListener('click', () => {
+        const isOpened = navbar.classList.contains('menu-open');
+        if (isOpened) {
+          navbar.classList.remove('menu-open');
+          toggle.setAttribute('aria-expanded', 'false');
+          document.body.style.overflow = '';
+        } else {
+          navbar.classList.add('menu-open');
+          toggle.setAttribute('aria-expanded', 'true');
+          document.body.style.overflow = 'hidden';
+        }
       });
-    });
-  }
+
+      const navLinks = navbar.querySelectorAll('.nav-list a');
+      navLinks.forEach((link) => {
+        link.addEventListener('click', () => {
+          navbar.classList.remove('menu-open');
+          toggle.setAttribute('aria-expanded', 'false');
+          document.body.style.overflow = '';
+        });
+      });
+    }
+  });
 </script>
