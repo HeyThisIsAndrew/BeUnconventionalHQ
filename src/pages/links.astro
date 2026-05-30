@@ -48,21 +48,24 @@ const socialLinks = [
     <div class="links-container">
       <!-- Profile & Brand Section -->
       <section class="links-profile-header animate-on-scroll">
-        <div class="links-profile-image-wrapper">
+        <button id="qr-trigger" class="links-profile-trigger" aria-label="Open QR Code Modal">
           <img src="/profile.jpg" alt="Be Unconventional HQ" class="links-profile-img" />
           <div class="links-profile-glow"></div>
-        </div>
-        <div class="links-brand-stack">
-          <p class="links-kicker">WE’RE NERD CULTURE GETS CINEMATIC</p>
-          <h1 class="links-title-stack">
-            <span class="links-word-be">Be</span>
-            <span class="links-word-unconventional">Unconventional</span>
-            <span class="links-word-hq">HQ</span>
-          </h1>
-          <p class="links-subtitle">
-            SOMETIMES UNCONVENTIONAL IS THE ONLY WAY FORWARD
-          </p>
-        </div>
+        </button>
+        
+        <a href="/" class="links-brand-link" aria-label="Return to homepage">
+          <div class="links-brand-stack">
+            <p class="links-kicker">WHERE NERD CULTURE GETS CINEMATIC</p>
+            <h1 class="links-title-stack">
+              <span class="links-word-be">Be</span>
+              <span class="links-word-unconventional">Unconventional</span>
+              <span class="links-word-hq">HQ</span>
+            </h1>
+            <p class="links-subtitle">
+              SOMETIMES UNCONVENTIONAL IS THE ONLY WAY FORWARD
+            </p>
+          </div>
+        </a>
       </section>
 
       <!-- Main Navigation -->
@@ -135,7 +138,68 @@ const socialLinks = [
       </section>
     </div>
   </main>
+
+  <!-- QR Modal -->
+  <div id="qr-modal" class="modal-overlay" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal-content">
+      <button id="close-modal" class="modal-close" aria-label="Close modal">&times;</button>
+      <div class="qr-placeholder">
+        <div class="qr-grid-box">
+          <div class="qr-scan-line"></div>
+          {Array.from({ length: 144 }).map(() => (
+            <div class={Math.random() > 0.7 ? 'dot-active' : ''}></div>
+          ))}
+        </div>
+        <div class="qr-brand-stack">
+          <div class="qr-line-1">
+            <span class="qr-word-qr">QR</span>
+            <span class="qr-word-code">CODE</span>
+          </div>
+          <span class="qr-word-status">COMING SOON</span>
+        </div>
+        <p class="qr-subtext">Scan to save digital contact card</p>
+      </div>
+    </div>
+  </div>
 </Layout>
+
+<script is:inline>
+  (function() {
+    const trigger = document.getElementById('qr-trigger');
+    const modal = document.getElementById('qr-modal');
+    const closeBtn = document.getElementById('close-modal');
+
+    if (!trigger || !modal) return;
+
+    const openModal = () => {
+      modal.classList.add('is-active');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+      // Focus close button for accessibility
+      setTimeout(() => closeBtn.focus(), 100);
+    };
+
+    const closeModal = () => {
+      modal.classList.remove('is-active');
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+      trigger.focus();
+    };
+
+    trigger.addEventListener('click', openModal);
+    closeBtn.addEventListener('click', closeModal);
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal.classList.contains('is-active')) {
+        closeModal();
+      }
+    });
+  })();
+</script>
 
 <style>
   /* Local overrides to hide site chrome on links page */
