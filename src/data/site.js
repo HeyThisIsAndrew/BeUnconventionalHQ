@@ -1,11 +1,21 @@
 export const site = {
   name: 'Be Unconventional HQ',
-  tagline: 'Where Nerd Culture Gets Cinematic',
+  short: 'Unconventional HQ',
+  tagline: 'Where nerd culture gets cinematic',
   description:
-    'A cinematic dark-aesthetic creator media hub for movies, TV, gaming, and events content.',
+    'A cinematic creator hub for film, TV, gaming, and live events — reviews, reactions, and deep dives from Be Unconventional HQ.',
   url: 'https://beunconventionalhq.com/',
-  basePath: '/',
   image: 'https://beunconventionalhq.com/banner.png',
+  ga4: 'G-CF16HJW04T',
+
+  // Primary navigation (streamlined).
+  nav: [
+    { label: 'Videos', href: '/videos' },
+    { label: 'Articles', href: '/articles' },
+    { label: 'About', href: '/about' },
+    { label: 'Contact', href: '/contact' },
+  ],
+
   socials: {
     youtube: 'https://www.youtube.com/@BeUnconventionalHQ',
     instagram: 'https://www.instagram.com/beunconventionalhq',
