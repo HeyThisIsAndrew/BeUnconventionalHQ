@@ -62,53 +62,28 @@ const {
       window.addEventListener('load', () => console.log('Page fully loaded'));
     </script>
     <script>
-      const animatedElements = document.querySelectorAll('.animate-on-scroll');
-
-      if ('IntersectionObserver' in window && animatedElements.length > 0) {
-        const observer = new IntersectionObserver(
-          (entries) => {
-            entries.forEach((entry) => {
-              const target = entry.target;
-              if (!(target instanceof HTMLElement)) return;
-
-              if (entry.isIntersecting) {
-                const delay = target.getAttribute('data-delay') || '0';
-                target.style.transitionDelay = `${delay}ms`;
-                target.setAttribute('data-state', 'active');
-
-                // For lower sections, we unobserve once active to ensure stability
-                // and eliminate any residual coupling to scroll events.
-                if (!target.closest('.hero')) {
-                  observer.unobserve(target);
-                }
-              } else {
-                // Only set to 'enter' if it hasn't been activated yet
-                // or if we want to allow re-entry animations (not requested here)
-                if (target.getAttribute('data-state') !== 'active') {
-                  target.setAttribute('data-state', 'enter');
-                }
-              }
-            });
-          },
-          {
-            threshold: 0.15,
-            rootMargin: '0px 0px -50px 0px', // Trigger slightly before it fully enters
-          }
-        );
-
-        animatedElements.forEach((element) => {
-          if (element instanceof HTMLElement) {
-            element.setAttribute('data-state', 'enter');
-            observer.observe(element);
-          }
-        });
-      } else {
-        animatedElements.forEach((element) => {
-          if (element instanceof HTMLElement) {
-            element.setAttribute('data-state', 'active');
-          }
-        });
-      }
-    </script>
+  document.addEventListener('astro:page-load', () => {
+    const els = document.querySelectorAll('.reveal');
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce || !('IntersectionObserver' in window)) {
+      els.forEach((el) => el.setAttribute('data-state', 'in'));
+    } else {
+      const io = new IntersectionObserver(
+        (entries, obs) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            const el = entry.target;
+            const delay = el.dataset.delay || '0';
+            el.style.transitionDelay = `${delay}ms`;
+            el.setAttribute('data-state', 'in');
+            obs.unobserve(el);
+          });
+        },
+        { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
+      );
+      els.forEach((el) => io.observe(el));
+    }
+  });
+</script>
   </body>
 </html>
