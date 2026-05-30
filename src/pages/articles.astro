@@ -1,42 +1,16 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { site } from '../data/site.js';
-import { CATEGORIES, CATEGORY_NORMALIZATION } from '../data/constants.js';
-import fs from 'fs/promises';
-import path from 'path';
+import { CATEGORIES } from '../data/constants.js';
+import { getArticles } from '../data/feeds.js';
 
 const title = `Articles | ${site.name}`;
 const description =
   'Latest editorial content, reviews, and deep dives from Be Unconventional HQ on Substack.';
 
-// Provide getter for components like LatestArticles.astro and feed.astro
-export async function getArticles() {
-  try {
-    const cachePath = path.join(
-      process.cwd(),
-      'src',
-      'data',
-      'cache',
-      'articles.json'
-    );
-
-    const data = await fs.readFile(cachePath, 'utf-8');
-    return JSON.parse(data);
-  } catch (e) {
-    console.warn('[Astro] No articles cache found, returning empty array.');
-    return [];
-  }
-}
-
 const allArticles = await getArticles();
 const displayArticles = allArticles.slice(0, 20);
-const categories = [
-  'All',
-  CATEGORIES.FILM,
-  CATEGORIES.TV,
-  CATEGORIES.GAMING,
-  'General',
-];
+const categories = ['All', ...CATEGORIES];
 ---
 
 <Layout title={title} description={description}>
