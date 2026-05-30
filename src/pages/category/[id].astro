@@ -41,11 +41,11 @@ const categoryArticles = allArticles
           {
             categoryVideos.length > 0 ? (
               categoryVideos.map((video, index) => (
-                <a
-                  href={video.link}
-                  target="_blank"
-                  class="video-card reveal"
+                <div
+                  class="video-card reveal video-modal-trigger"
                   data-delay={index * 100}
+                  data-video-id={video.link.includes('shorts') ? video.link.split('/').pop() : new URL(video.link).searchParams.get('v')}
+                  style="cursor: pointer;"
                 >
                   <div class="video-thumbnail-wrapper">
                     <span class="content-badge">{video.category}</span>
@@ -60,7 +60,7 @@ const categoryArticles = allArticles
                     <h3 class="video-title">{video.title}</h3>
                     <span class="video-watch-btn">Watch Now →</span>
                   </div>
-                </a>
+                </div>
               ))
             ) : (
               <p class="empty-note">No videos found for this category.</p>

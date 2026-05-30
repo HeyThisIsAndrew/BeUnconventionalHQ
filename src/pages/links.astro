@@ -115,7 +115,11 @@ const socialLinks = [
           <!-- Featured Videos -->
           {
             featuredVideos.map((video) => (
-              <a href={video.link} target="_blank" class="links-bento-item">
+              <div
+                class="links-bento-item video-modal-trigger"
+                data-video-id={video.link.includes('shorts') ? video.link.split('/').pop() : new URL(video.link).searchParams.get('v')}
+                style="cursor: pointer;"
+              >
                 <div class="links-bento-image">
                   <img src={video.thumbnail} alt={video.title} />
                   <span class="links-bento-badge">VIDEO</span>
@@ -123,7 +127,7 @@ const socialLinks = [
                 <div class="links-bento-content">
                   <h3 class="links-bento-title">{video.title}</h3>
                 </div>
-              </a>
+              </div>
             ))
           }
 
