@@ -422,13 +422,13 @@ body::before {
 
 .hero-bg {
   position: absolute;
-  inset: -80px 0 0;
+  inset: -10%;
   z-index: 0;
-  --hero-parallax: 0px;
-  background-size: cover;
-  background-position: center;
-  animation: kenburns 20s ease-in-out infinite alternate;
-  will-change: transform;
+  background:
+    radial-gradient(120% 90% at 50% 0%, transparent 0%, rgba(9, 9, 11, 0.55) 55%, #0a0a0a 100%),
+    url('/banner.png') center / cover no-repeat;
+  filter: blur(46px) saturate(1.05) brightness(0.5);
+  transform: scale(1.15);
 }
 
 .hero-overlay {
@@ -750,18 +750,11 @@ body::before {
 
 @media (max-width: 640px) {
   .categories-grid {
-    display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
     gap: 1.25rem;
     padding: 0 0 1.5rem;
-    scrollbar-width: none;
     width: 100%;
-  }
-
-  .categories-grid::-webkit-scrollbar {
-    display: none;
   }
 
   .category-card {
@@ -2298,4 +2291,23 @@ body::before {
 
 .view-all-link:hover::after {
   width: 100%;
+}
+ opacity 0.7s cubic-bezier(0.22, 0.8, 0.2, 1), transform 0.7s cubic-bezier(0.22, 0.8, 0.2, 1);
+  will-change: opacity, transform;
+}
+.reveal[data-state='in'] {
+  opacity: 1;
+  transform: none;
+}
+.container {
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
+  padding-inline: clamp(1.25rem, 5vw, 3rem);
+}
+
+.cta-band {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2rem;
+  padding: clamp(2.25rem, 5vw, 3.5rem); border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.08);
+  background: radial-gradient(120% 140% at 0% 0%, rgba(204, 0, 0, 0.16) 0%, transparent 55%), #111111;
 }
