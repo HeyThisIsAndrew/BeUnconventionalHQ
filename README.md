@@ -99,6 +99,25 @@ Centralized normalization layer (`src/data/constants.js`) supporting:
 
 ---
 
+# Maintenance & Content Management
+
+## Adding a QR Code to the Links Page
+
+The Links page (`/links`) features an interactive profile image that opens a QR code modal. To replace the "Coming Soon" placeholder with a real QR code:
+
+1.  **Generate your QR code:** Generate a high-quality SVG or PNG of your digital contact card or social link.
+2.  **Add the asset:** Place your QR code image in the `/public/` directory (e.g., `/public/qr-contact.svg`).
+3.  **Update the template:** Open `src/pages/links.astro`.
+4.  **Replace the placeholder:** Locate the `<div class="qr-grid-box">` element (approx. line 150) and replace its internal contents (the scan line and dot-generator loop) with your new image:
+    ```html
+    <div class="qr-grid-box">
+      <img src="/qr-contact.svg" alt="Scan to connect" style="width: 100%; height: 100%; object-fit: contain;" />
+    </div>
+    ```
+5.  **Update the status:** Change the text in `<span class="qr-word-status">` from "COMING SOON" to "ACTIVE" or "SCAN ME".
+
+---
+
 # Architecture Overview
 
 ## Hybrid Content Engine
