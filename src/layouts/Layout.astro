@@ -88,6 +88,30 @@ const {
       (function() {
         const modal = document.getElementById('video-modal');
         const modalIframe = document.getElementById('modal-iframe');
+        const modalContent = modal?.querySelector('.modal-content');
+
+        const ScrollLock = {
+          elementToScroll: null,
+          handleTouchMove(e) {
+            if (!ScrollLock.elementToScroll) return;
+            const target = e.target;
+            const isScrollable = target.closest('.scroll-lock-allow');
+            if (!isScrollable) {
+              if (e.cancelable) e.preventDefault();
+              return;
+            }
+          },
+          lock(el) {
+            this.elementToScroll = el;
+            if (el) el.classList.add('scroll-lock-allow');
+            window.addEventListener('touchmove', this.handleTouchMove, { passive: false });
+          },
+          unlock() {
+            if (this.elementToScroll) this.elementToScroll.classList.remove('scroll-lock-allow');
+            this.elementToScroll = null;
+            window.removeEventListener('touchmove', this.handleTouchMove);
+          }
+        };
         
         function openModal(videoId) {
           if (videoId && modal && modalIframe) {
@@ -95,7 +119,7 @@ const {
             modalIframe.src = `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`;
             modal.classList.add('active');
             modal.setAttribute('aria-hidden', 'false');
-            document.body.style.overflow = 'hidden';
+            ScrollLock.lock(modalContent);
           }
         }
 
@@ -104,7 +128,7 @@ const {
             modal.classList.remove('active');
             modal.setAttribute('aria-hidden', 'true');
             modalIframe.src = '';
-            document.body.style.overflow = '';
+            ScrollLock.unlock();
           }
         }
 
