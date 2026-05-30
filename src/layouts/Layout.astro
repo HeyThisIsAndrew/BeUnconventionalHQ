@@ -62,28 +62,38 @@ const {
       window.addEventListener('load', () => console.log('Page fully loaded'));
     </script>
     <script>
-  document.addEventListener('astro:page-load', () => {
-    const els = document.querySelectorAll('.reveal');
+  function initReveal() {
+    const els = document.querySelectorAll('.reveal, .animate-on-scroll');
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduce || !('IntersectionObserver' in window)) {
-      els.forEach((el) => el.setAttribute('data-state', 'in'));
-    } else {
-      const io = new IntersectionObserver(
-        (entries, obs) => {
-          entries.forEach((entry) => {
-            if (!entry.isIntersecting) return;
-            const el = entry.target;
-            const delay = el.dataset.delay || '0';
-            el.style.transitionDelay = `${delay}ms`;
-            el.setAttribute('data-state', 'in');
-            obs.unobserve(el);
-          });
-        },
-        { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
-      );
-      els.forEach((el) => io.observe(el));
+      els.forEach((el) => { 
+        el.setAttribute('data-state', 'in'); 
+        el.setAttribute('data-state', 'active'); 
+        el.style.opacity = '1'; 
+        el.style.transform = 'none'; 
+      });
+      return;
     }
-  });
+    const io = new IntersectionObserver((entries, obs) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        const el = entry.target;
+        const delay = el.dataset.delay || '0';
+        el.style.transitionDelay = `${delay}ms`;
+        el.setAttribute('data-state', 'in');
+        el.setAttribute('data-state', 'active');
+        el.style.opacity = '1';
+        el.style.transform = 'none';
+        obs.unobserve(el);
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+    els.forEach((el) => io.observe(el));
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initReveal);
+  } else {
+    initReveal();
+  }
 </script>
   </body>
 </html>
