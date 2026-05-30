@@ -1,0 +1,90 @@
+---
+const { title, subtitle, videoId, image } = Astro.props;
+---
+
+<section class="promo-banner-container reveal animate-on-scroll">
+  <div class="promo-banner" style={`background-image: url(${image});`}>
+    <div class="promo-overlay"></div>
+    <div class="promo-content">
+      <p class="promo-kicker">Featured Release</p>
+      <h2 class="promo-title">{title}</h2>
+      <p class="promo-subtitle">{subtitle}</p>
+      <button class="cta-button-primary play-modal-btn" data-video-id={videoId}>
+        Watch Trailer
+      </button>
+    </div>
+  </div>
+</section>
+
+<style>
+  .promo-banner-container {
+    max-width: 1200px;
+    margin: 4rem auto;
+    padding: 0 2rem;
+  }
+
+  .promo-banner {
+    position: relative;
+    height: 400px;
+    background-size: cover;
+    background-position: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  }
+
+  .promo-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to right, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.4) 60%, transparent 100%);
+  }
+
+  .promo-content {
+    position: relative;
+    z-index: 2;
+    padding: 3rem;
+    max-width: 600px;
+  }
+
+  .promo-kicker {
+    color: var(--color-accent);
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+
+  .promo-title {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 1rem;
+    color: white;
+  }
+
+  .promo-subtitle {
+    color: var(--color-white-muted);
+    font-size: 1.1rem;
+    margin-bottom: 2rem;
+    line-height: 1.6;
+  }
+
+  @media (max-width: 768px) {
+    .promo-banner {
+      height: auto;
+      min-height: 500px;
+      align-items: flex-end;
+    }
+    
+    .promo-overlay {
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.4) 100%);
+    }
+
+    .promo-content {
+      padding: 2rem;
+    }
+  }
+</style>
