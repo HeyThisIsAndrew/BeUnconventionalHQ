@@ -18,7 +18,7 @@ import { getVideos } from '../data/feeds.js';
       </h2>
     </div>
     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2.5rem;">
-      {(await getVideos()).filter(v => !v.link.includes('/shorts/')).slice(0, 3).map((video, index) => (
+      {(await getVideos()).filter(v => v.isUpload).slice(0, 3).map((video, index) => (
         <a href={video.link} target="_blank" class="reveal video-card-home" data-delay={index * 100} style="background: var(--color-surface); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; overflow: hidden; text-decoration: none; display: flex; flex-direction: column; transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; min-height: 100%;">
           <div style="position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden;">
             <img src={video.thumbnail} alt={video.title} style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease;" onerror="this.onerror=null;this.src=this.src.replace('maxresdefault','hqdefault')" />

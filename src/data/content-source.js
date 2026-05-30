@@ -210,12 +210,45 @@ async function fetchVideosFromPage() {
   return videos;
 }
 
-export async function fetchVideos() {
+async function fetchUploadIds() {
   try {
-    return await fetchVideosFromRss();
+    const html = await fetchText(`https://www.youtube.com/${YOUTUBE_HANDLE}/videos`);
+    const match = html.match(/ytInitialData\s*=\s*(\{.+?\})\s*;\s*<\/script>/s);
+    if (!match) return new Set();
+    const data = JSON.parse(match[1]);
+    const ids = new Set();
+    (function walk(node) {
+      if (!node || typeof node !== 'object') return;
+      const id = node.lockupViewModel?.contentId;
+      if (id) ids.add(id);
+      for (const key in node) walk(node[key]);
+    })(data);
+    return ids;
   } catch {
-    return await fetchVideosFromPage();
+    return new Set();
   }
+}
+
+export async function fetchVideos() {
+  const [rssVideos, uploadIds] = await Promise.all([
+    fetchVideosFromRss().catch(() => []),
+    fetchUploadIds(),
+  ]);
+
+  if (rssVideos.length === 0) {
+    return fetchVideosFromPage();
+  }
+
+  return rssVideos.map((v) => {
+    const id = v.link.includes('v=')
+      ? v.link.split('v=')[1].split('&')[0]
+      : v.link.split('/').pop();
+
+    return {
+      ...v,
+      isUpload: uploadIds.size > 0 ? uploadIds.has(id) : true, // Fallback to true if scrape failed
+    };
+  });
 }
 
 export async function fetchContentBundle() {
