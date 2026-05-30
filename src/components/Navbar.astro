@@ -52,7 +52,7 @@ const isActive = (href) =>
 
 <script is:inline>
   (function() {
-    function initNav() {
+    function initNavObserver() {
       const identity = document.getElementById('nav-identity');
       const sublineEl = document.getElementById('nav-subline');
       if (!identity) return;
@@ -71,30 +71,48 @@ const isActive = (href) =>
         sublineEl.style.display = subtext ? 'inline-block' : 'none';
       }
 
-      // 2. Scroll-Up Fade-In Logic
-      let lastScroll = window.scrollY || document.documentElement.scrollTop;
+      // 2. IntersectionObserver Logic
+      // If we are on a subpage (no Hero), show it by default after scrolling down slightly
+      const heroText = document.querySelector('.hero-title-stack');
       
-      window.addEventListener('scroll', () => {
-        const currentScroll = window.scrollY || document.documentElement.scrollTop;
+      if (heroText) {
+        // We are on the homepage. Watch the Hero text.
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (!entry.isIntersecting) {
+              // Hero text left the screen -> Show Navbar text
+              identity.style.opacity = '1';
+              identity.style.transform = 'translateY(0) scale(1)';
+              identity.style.pointerEvents = 'auto';
+            } else {
+              // Hero text is on screen -> Hide Navbar text
+              identity.style.opacity = '0';
+              identity.style.transform = 'translateY(-10px) scale(0.95)';
+              identity.style.pointerEvents = 'none';
+            }
+          });
+        }, { rootMargin: '-80px 0px 0px 0px' }); // Offset for the navbar height
         
-        if (currentScroll < lastScroll && currentScroll > 50) {
-          // Scrolling UP (past 50px) -> Show smoothly
-          identity.style.opacity = '1';
-          identity.style.transform = 'translateY(0) scale(1)';
-          identity.style.pointerEvents = 'auto';
-        } else {
-          // Scrolling DOWN or at TOP -> Hide smoothly
-          identity.style.opacity = '0';
-          identity.style.transform = 'translateY(-10px) scale(0.95)';
-          identity.style.pointerEvents = 'none';
-        }
-        lastScroll = currentScroll <= 0 ? 0 : currentScroll;
-      }, { passive: true });
+        observer.observe(heroText);
+      } else {
+        // We are on a subpage. Fallback to basic scroll threshold.
+        window.addEventListener('scroll', () => {
+          const scroll = window.scrollY || document.documentElement.scrollTop;
+          if (scroll > 100) {
+            identity.style.opacity = '1';
+            identity.style.transform = 'translateY(0) scale(1)';
+            identity.style.pointerEvents = 'auto';
+          } else {
+            identity.style.opacity = '0';
+            identity.style.transform = 'translateY(-10px) scale(0.95)';
+            identity.style.pointerEvents = 'none';
+          }
+        }, { passive: true });
+      }
     }
 
-    // Run immediately, and also on Astro page swaps
-    initNav();
-    document.addEventListener('astro:page-load', initNav);
+    initNavObserver();
+    document.addEventListener('astro:page-load', initNavObserver);
   })();
 
   // Mobile menu logic (separate block since the above is inline)
