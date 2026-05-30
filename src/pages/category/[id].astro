@@ -12,27 +12,49 @@ const allArticles = await getArticles();
 const categoryVideos = allVideos.filter(v => v.category.toLowerCase() === category.label.toLowerCase()).slice(0, 4);
 const categoryArticles = allArticles.filter(a => a.category.toLowerCase() === category.label.toLowerCase()).slice(0, 4);
 ---
-
 <Layout title={`${category.label} | Be Unconventional HQ`}>
-  <main style="padding-top: 120px; min-height: 100vh; max-width: 1200px; margin: 0 auto; padding-inline: 2rem;">
-    <h1 style="font-family: var(--font-display); font-size: 3rem; color: white; text-transform: uppercase; margin-bottom: 3rem;">{category.label} Hub</h1>
-    <h2 style="font-family: var(--font-display); font-size: 1.5rem; margin-bottom: 2rem;">Videos</h2>
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2.5rem; margin-bottom: 4rem;">
-      {categoryVideos.map((video) => (
-        <a href={video.link} target="_blank" style="background: var(--color-surface); border: 1px solid rgba(255,255,255,0.05); text-decoration: none; display: flex; flex-direction: column;">
-          <img src={video.thumbnail} alt={video.title} style="width: 100%; aspect-ratio: 16/9; object-fit: cover;" onerror="this.onerror=null;this.src=this.src.replace('maxresdefault','hqdefault')" />
-          <div style="padding: 1.5rem;"><h3 style="color: white; font-family: var(--font-display); font-weight: 700;">{video.title}</h3></div>
-        </a>
-      ))}
-    </div>
-    <h2 style="font-family: var(--font-display); font-size: 1.5rem; margin-bottom: 2rem;">Articles</h2>
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2.5rem; margin-bottom: 4rem;">
-      {categoryArticles.map((article) => (
-        <a href={article.link} target="_blank" style="background: var(--color-surface); border: 1px solid rgba(255,255,255,0.05); text-decoration: none; display: flex; flex-direction: column;">
-          <img src={article.image} alt={article.title} style="width: 100%; aspect-ratio: 16/9; object-fit: cover;" />
-          <div style="padding: 1.5rem;"><h3 style="color: white; font-family: var(--font-display); font-weight: 700;">{article.title}</h3></div>
-        </a>
-      ))}
+  <main class="category-hub-page" style="padding-top: 120px; min-height: 100vh;">
+    <div class="container">
+      <header class="section-header reveal">
+        <p class="section-kicker">{category.blurb}</p>
+        <h1 class="section-title">{category.label} Hub</h1>
+      </header>
+
+      <section class="hub-section" style="margin-bottom: 6rem;">
+        <h2 style="font-family: var(--font-display); font-size: 1.5rem; margin-bottom: 2rem;">Latest Videos</h2>
+        <div class="video-grid">
+          {categoryVideos.length > 0 ? categoryVideos.map((video, index) => (
+            <a href={video.link} target="_blank" class="video-card reveal" data-delay={index * 100}>
+              <div class="video-thumbnail-wrapper">
+                <span class="content-badge">{video.category}</span>
+                <img src={video.thumbnail} alt={video.title} class="video-thumbnail" onerror="this.onerror=null;this.src=this.src.replace('maxresdefault','hqdefault')" />
+              </div>
+              <div class="video-info">
+                <h3 class="video-title">{video.title}</h3>
+                <span class="video-watch-btn">Watch Now →</span>
+              </div>
+            </a>
+          )) : <p class="empty-note">No videos found for this category.</p>}
+        </div>
+      </section>
+
+      <section class="hub-section" style="margin-bottom: 6rem;">
+        <h2 style="font-family: var(--font-display); font-size: 1.5rem; margin-bottom: 2rem;">Latest Articles</h2>
+        <div class="articles-grid">
+          {categoryArticles.length > 0 ? categoryArticles.map((article, index) => (
+            <a href={article.link} target="_blank" class="article-card reveal" data-delay={index * 100}>
+              <div class="article-image-wrapper">
+                <img src={article.image} alt={article.title} class="article-image" />
+              </div>
+              <div class="article-content">
+                <span class="article-date">{article.date}</span>
+                <h3 class="article-title">{article.title}</h3>
+                <span class="article-link">Read More →</span>
+              </div>
+            </a>
+          )) : <p class="empty-note">No articles found for this category.</p>}
+        </div>
+      </section>
     </div>
   </main>
 </Layout>
