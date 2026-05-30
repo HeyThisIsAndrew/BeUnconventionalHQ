@@ -164,9 +164,10 @@ async function fetchVideosFromRss() {
   return entries.map((entry) => {
     const title = cleanText(entry.title);
     const id = entry['yt:videoId'];
+    const actualLink = entry.link?.['@_href'] || `https://www.youtube.com/watch?v=${id}`;
     return {
       title,
-      link: `https://www.youtube.com/watch?v=${id}`,
+      link: actualLink,
       thumbnail: `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
       category: categorize(title),
       date: formatDate(entry.published),
