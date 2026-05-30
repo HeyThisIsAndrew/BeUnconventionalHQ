@@ -19,7 +19,7 @@ const isActive = (href) =>
       <a href="/" class="nav-logo">
         <img src="/logo.png" alt="Be Unconventional HQ" />
       </a>
-      <div class="nav-identity-wrapper" id="nav-identity">
+      <div class="nav-identity-wrapper" id="nav-identity" style="opacity: 0; transform: translateY(-10px) scale(0.95); pointer-events: none; transition: opacity 0.4s ease, transform 0.4s ease; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-left: 1rem;">
         <div class="nav-identity-stack">
           <span class="nav-word-be">BE</span>
           <span class="nav-word-unconventional">UNCONVENTIONAL</span>
@@ -50,50 +50,55 @@ const isActive = (href) =>
   </div>
 </header>
 
-<script>
-  document.addEventListener('astro:page-load', () => {
-    // 1. Dynamic Red Subline & Underline Logic
-    const path = window.location.pathname;
-    let subtext = '';
-    if (path.includes('videos')) subtext = 'VIDEOS';
-    else if (path.includes('articles')) subtext = 'ARTICLES';
-    else if (path.includes('category')) subtext = 'HUB';
-    else if (path.includes('about')) subtext = 'ABOUT';
-    else if (path.includes('contact')) subtext = 'CONTACT';
-    
-    const sublineEl = document.getElementById('nav-subline');
-    if (sublineEl) {
-      sublineEl.textContent = subtext;
-      // If there is text, display it; otherwise hide the element so the underline disappears
-      if (subtext === '') {
-        sublineEl.style.display = 'none';
-      } else {
-        sublineEl.style.display = 'inline-block';
+<script is:inline>
+  (function() {
+    function initNav() {
+      const identity = document.getElementById('nav-identity');
+      const sublineEl = document.getElementById('nav-subline');
+      if (!identity) return;
+
+      // 1. Dynamic Red Subline
+      const path = window.location.pathname;
+      let subtext = '';
+      if (path.includes('videos')) subtext = 'VIDEOS';
+      else if (path.includes('articles')) subtext = 'ARTICLES';
+      else if (path.includes('category')) subtext = 'HUB';
+      else if (path.includes('about')) subtext = 'ABOUT';
+      else if (path.includes('contact')) subtext = 'CONTACT';
+      
+      if (sublineEl) {
+        sublineEl.textContent = subtext;
+        sublineEl.style.display = subtext ? 'inline-block' : 'none';
       }
+
+      // 2. Scroll-Up Fade-In Logic
+      let lastScroll = window.scrollY || document.documentElement.scrollTop;
+      
+      window.addEventListener('scroll', () => {
+        const currentScroll = window.scrollY || document.documentElement.scrollTop;
+        
+        if (currentScroll < lastScroll && currentScroll > 50) {
+          // Scrolling UP (past 50px) -> Show smoothly
+          identity.style.opacity = '1';
+          identity.style.transform = 'translateY(0) scale(1)';
+          identity.style.pointerEvents = 'auto';
+        } else {
+          // Scrolling DOWN or at TOP -> Hide smoothly
+          identity.style.opacity = '0';
+          identity.style.transform = 'translateY(-10px) scale(0.95)';
+          identity.style.pointerEvents = 'none';
+        }
+        lastScroll = currentScroll <= 0 ? 0 : currentScroll;
+      }, { passive: true });
     }
 
-    // 2. Buttery Smooth Scroll-Up Logic
-    const identity = document.getElementById('nav-identity');
-    let lastScroll = window.scrollY;
+    // Run immediately, and also on Astro page swaps
+    initNav();
+    document.addEventListener('astro:page-load', initNav);
+  })();
 
-    window.addEventListener('scroll', () => {
-      const currentScroll = window.scrollY;
-      
-      // Show when scrolling UP and past the very top
-      if (currentScroll < lastScroll && currentScroll > 100) {
-        identity?.classList.add('is-visible');
-        identity?.classList.remove('is-hidden');
-      } 
-      // Hide when scrolling DOWN or at the very top
-      else if (currentScroll > lastScroll || currentScroll <= 100) {
-        identity?.classList.remove('is-visible');
-        identity?.classList.add('is-hidden');
-      }
-      
-      lastScroll = currentScroll <= 0 ? 0 : currentScroll;
-    }, { passive: true });
-    
-    // Mobile menu logic
+  // Mobile menu logic (separate block since the above is inline)
+  document.addEventListener('astro:page-load', () => {
     const navbar = document.getElementById('navbar');
     const toggle = document.querySelector('.nav-toggle');
 
