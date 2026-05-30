@@ -164,7 +164,8 @@ async function fetchVideosFromRss() {
   return entries.map((entry) => {
     const title = cleanText(entry.title);
     const id = entry['yt:videoId'];
-    const actualLink = entry.link?.['@_href'] || `https://www.youtube.com/watch?v=${id}`;
+    const actualLink =
+      entry.link?.['@_href'] || `https://www.youtube.com/watch?v=${id}`;
     return {
       title,
       link: actualLink,
@@ -176,7 +177,9 @@ async function fetchVideosFromRss() {
 }
 
 async function fetchVideosFromPage() {
-  const html = await fetchText(`https://www.youtube.com/${YOUTUBE_HANDLE}/videos`);
+  const html = await fetchText(
+    `https://www.youtube.com/${YOUTUBE_HANDLE}/videos`
+  );
   const match = html.match(/ytInitialData\s*=\s*(\{.+?\})\s*;\s*<\/script>/s);
   if (!match) throw new Error('ytInitialData not found');
 
@@ -245,7 +248,10 @@ export async function fetchVideos() {
 }
 
 export async function fetchContentBundle() {
-  const [articles, videos] = await Promise.all([fetchArticles(), fetchVideos()]);
+  const [articles, videos] = await Promise.all([
+    fetchArticles(),
+    fetchVideos(),
+  ]);
   return {
     articles,
     videos,

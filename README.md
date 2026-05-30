@@ -111,7 +111,11 @@ The Links page (`/links`) features an interactive profile image that opens a QR 
 4.  **Replace the placeholder:** Locate the `<div class="qr-grid-box">` element (approx. line 150) and replace its internal contents (the scan line and dot-generator loop) with your new image:
     ```html
     <div class="qr-grid-box">
-      <img src="/qr-contact.svg" alt="Scan to connect" style="width: 100%; height: 100%; object-fit: contain;" />
+      <img
+        src="/qr-contact.svg"
+        alt="Scan to connect"
+        style="width: 100%; height: 100%; object-fit: contain;"
+      />
     </div>
     ```
 5.  **Update the status:** Change the text in `<span class="qr-word-status">` from "COMING SOON" to "ACTIVE" or "SCAN ME".

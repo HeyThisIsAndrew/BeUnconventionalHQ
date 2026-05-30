@@ -19,7 +19,12 @@ const isActive = (href) =>
       <a href="/" class="nav-logo">
         <img src="/logo.png" alt="Be Unconventional HQ" />
       </a>
-      <a href="#" class="nav-identity-wrapper" id="nav-identity" style="transform: translateY(-10px) scale(0.95); pointer-events: none; transition: opacity 0.4s ease, transform 0.4s ease; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-left: 1rem; text-decoration: none; cursor: pointer;">
+      <a
+        href="#"
+        class="nav-identity-wrapper"
+        id="nav-identity"
+        style="transform: translateY(-10px) scale(0.95); pointer-events: none; transition: opacity 0.4s ease, transform 0.4s ease; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-left: 1rem; text-decoration: none; cursor: pointer;"
+      >
         <div class="nav-identity-stack">
           <span class="nav-word-be">BE</span>
           <span class="nav-word-unconventional">UNCONVENTIONAL</span>
@@ -29,29 +34,30 @@ const isActive = (href) =>
       </a>
     </div>
     <button class="nav-toggle" aria-label="Toggle Menu" aria-expanded="false">
-      <span class="line line-1"></span><span class="line line-2"></span><span class="line line-3"></span>
+      <span class="line line-1"></span><span class="line line-2"></span><span
+        class="line line-3"></span>
     </button>
     <nav class="nav-container">
       <ul class="nav-list">
-      {
-        navItems.map((item) => (
-          <li class="nav-item">
-            <a
-              href={`/${item.href}`}
-              class:list={[item.className, { active: isActive(item.href) }]}
-            >
-              {item.label}
-            </a>
-          </li>
-        ))
-      }
+        {
+          navItems.map((item) => (
+            <li class="nav-item">
+              <a
+                href={`/${item.href}`}
+                class:list={[item.className, { active: isActive(item.href) }]}
+              >
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
       </ul>
     </nav>
   </div>
 </header>
 
 <script is:inline>
-  (function() {
+  (function () {
     function initNavObserver() {
       const identity = document.getElementById('nav-identity');
       const sublineEl = document.getElementById('nav-subline');
@@ -65,7 +71,7 @@ const isActive = (href) =>
       else if (path.includes('category')) subtext = 'HUB';
       else if (path.includes('about')) subtext = 'ABOUT';
       else if (path.includes('contact')) subtext = 'CONTACT';
-      
+
       if (sublineEl) {
         sublineEl.textContent = subtext;
         sublineEl.style.display = subtext ? 'inline-block' : 'none';
@@ -80,40 +86,47 @@ const isActive = (href) =>
       // 3. IntersectionObserver Logic
       // If we are on a subpage (no Hero), show it by default after scrolling down slightly
       const heroText = document.querySelector('.hero-title-stack');
-      
+
       if (heroText) {
         // We are on the homepage. Watch the Hero text.
-        const observer = new IntersectionObserver((entries) => {
-          entries.forEach(entry => {
-            if (!entry.isIntersecting) {
-              // Hero text left the screen -> Show Navbar text
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (!entry.isIntersecting) {
+                // Hero text left the screen -> Show Navbar text
+                identity.style.opacity = '1';
+                identity.style.transform = 'translateY(0) scale(1)';
+                identity.style.pointerEvents = 'auto';
+              } else {
+                // Hero text is on screen -> Hide Navbar text
+                identity.style.opacity = '0';
+                identity.style.transform = 'translateY(-10px) scale(0.95)';
+                identity.style.pointerEvents = 'none';
+              }
+            });
+          },
+          { rootMargin: '-80px 0px 0px 0px' }
+        ); // Offset for the navbar height
+
+        observer.observe(heroText);
+      } else {
+        // We are on a subpage. Fallback to basic scroll threshold.
+        window.addEventListener(
+          'scroll',
+          () => {
+            const scroll = window.scrollY || document.documentElement.scrollTop;
+            if (scroll > 100) {
               identity.style.opacity = '1';
               identity.style.transform = 'translateY(0) scale(1)';
               identity.style.pointerEvents = 'auto';
             } else {
-              // Hero text is on screen -> Hide Navbar text
               identity.style.opacity = '0';
               identity.style.transform = 'translateY(-10px) scale(0.95)';
               identity.style.pointerEvents = 'none';
             }
-          });
-        }, { rootMargin: '-80px 0px 0px 0px' }); // Offset for the navbar height
-        
-        observer.observe(heroText);
-      } else {
-        // We are on a subpage. Fallback to basic scroll threshold.
-        window.addEventListener('scroll', () => {
-          const scroll = window.scrollY || document.documentElement.scrollTop;
-          if (scroll > 100) {
-            identity.style.opacity = '1';
-            identity.style.transform = 'translateY(0) scale(1)';
-            identity.style.pointerEvents = 'auto';
-          } else {
-            identity.style.opacity = '0';
-            identity.style.transform = 'translateY(-10px) scale(0.95)';
-            identity.style.pointerEvents = 'none';
-          }
-        }, { passive: true });
+          },
+          { passive: true }
+        );
       }
     }
 
@@ -121,7 +134,7 @@ const isActive = (href) =>
     document.addEventListener('astro:page-load', initNavObserver);
   })();
 
-  (function() {
+  (function () {
     function initMobileMenu() {
       const navbar = document.getElementById('navbar');
       const toggle = document.querySelector('.nav-toggle');

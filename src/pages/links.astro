@@ -28,7 +28,7 @@ const socialIcons: Record<string, string> = {
   Facebook: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>`,
   Substack: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.54 0H1.46v2.836h21.08V0z"/></svg>`,
   Twitter: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg>`,
-  Letterboxd: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M7.2 16.8c-2.651 0-4.8-2.149-4.8-4.8s2.149-4.8 4.8-4.8c.84 0 1.628.216 2.315.594C8.64 8.61 8 10.23 8 12s.64 3.39 1.515 4.206C8.828 16.584 8.04 16.8 7.2 16.8zm4.8-9.006c.875.816 1.515 2.436 1.515 4.206s-.64 3.39-1.515 4.206c-.875-.816-1.515-2.436-1.515-4.206s.64-3.39 1.515-4.206zm4.8-.594c.84 0 1.628.216 2.315.594-.875.816-1.515 2.436-1.515 4.206s.64 3.39 1.515 4.206c-.687.378-1.475.594-2.315.594-2.651 0-4.8-2.149-4.8-4.8s2.149-4.8 4.8-4.8z"/></svg>`
+  Letterboxd: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M7.2 16.8c-2.651 0-4.8-2.149-4.8-4.8s2.149-4.8 4.8-4.8c.84 0 1.628.216 2.315.594C8.64 8.61 8 10.23 8 12s.64 3.39 1.515 4.206C8.828 16.584 8.04 16.8 7.2 16.8zm4.8-9.006c.875.816 1.515 2.436 1.515 4.206s-.64 3.39-1.515 4.206c-.875-.816-1.515-2.436-1.515-4.206s.64-3.39 1.515-4.206zm4.8-.594c.84 0 1.628.216 2.315.594-.875.816-1.515 2.436-1.515 4.206s.64 3.39 1.515 4.206c-.687.378-1.475.594-2.315.594-2.651 0-4.8-2.149-4.8-4.8s2.149-4.8 4.8-4.8z"/></svg>`,
 };
 
 const socialLinks = [
@@ -39,7 +39,7 @@ const socialLinks = [
   { label: 'Twitter', href: site.socials.twitter },
   { label: 'Facebook', href: site.socials.facebook },
   { label: 'Substack', href: site.socials.substack },
-  { label: 'Letterboxd', href: site.socials.letterboxd }
+  { label: 'Letterboxd', href: site.socials.letterboxd },
 ];
 ---
 
@@ -48,11 +48,19 @@ const socialLinks = [
     <div class="links-container">
       <!-- Profile & Brand Section -->
       <section class="links-profile-header animate-on-scroll">
-        <button id="qr-trigger" class="links-profile-trigger" aria-label="Open QR Code Modal">
-          <img src="/profile.jpg" alt="Be Unconventional HQ" class="links-profile-img" />
+        <button
+          id="qr-trigger"
+          class="links-profile-trigger"
+          aria-label="Open QR Code Modal"
+        >
+          <img
+            src="/profile.jpg"
+            alt="Be Unconventional HQ"
+            class="links-profile-img"
+          />
           <div class="links-profile-glow"></div>
         </button>
-        
+
         <a href="/" class="links-brand-link" aria-label="Return to homepage">
           <div class="links-brand-stack">
             <p class="links-kicker">WHERE NERD CULTURE GETS CINEMATIC</p>
@@ -71,22 +79,32 @@ const socialLinks = [
       <!-- Main Navigation -->
       <section class="animate-on-scroll" data-delay="100">
         <div class="links-grid">
-          {mainLinks.map((link) => (
-            <a href={link.href} class="links-card">
-              <span class="links-label">{link.label}</span>
-              <span class="links-arrow">→</span>
-            </a>
-          ))}
+          {
+            mainLinks.map((link) => (
+              <a href={link.href} class="links-card">
+                <span class="links-label">{link.label}</span>
+                <span class="links-arrow">→</span>
+              </a>
+            ))
+          }
         </div>
       </section>
 
       <!-- Social Icons -->
       <section class="animate-on-scroll" data-delay="200">
         <div class="links-socials-row">
-          {socialLinks.map((social) => (
-            <a href={social.href} target="_blank" rel="noopener noreferrer" class="links-social-icon" aria-label={social.label} set:html={socialIcons[social.label]}>
-            </a>
-          ))}
+          {
+            socialLinks.map((social) => (
+              <a
+                href={social.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="links-social-icon"
+                aria-label={social.label}
+                set:html={socialIcons[social.label]}
+              ></a>
+            ))
+          }
         </div>
       </section>
 
@@ -95,30 +113,34 @@ const socialLinks = [
         <h2 class="links-section-title">Featured Content</h2>
         <div class="links-bento-grid">
           <!-- Featured Videos -->
-          {featuredVideos.map((video) => (
-            <a href={video.link} target="_blank" class="links-bento-item">
-              <div class="links-bento-image">
-                <img src={video.thumbnail} alt={video.title} />
-                <span class="links-bento-badge">VIDEO</span>
-              </div>
-              <div class="links-bento-content">
-                <h3 class="links-bento-title">{video.title}</h3>
-              </div>
-            </a>
-          ))}
+          {
+            featuredVideos.map((video) => (
+              <a href={video.link} target="_blank" class="links-bento-item">
+                <div class="links-bento-image">
+                  <img src={video.thumbnail} alt={video.title} />
+                  <span class="links-bento-badge">VIDEO</span>
+                </div>
+                <div class="links-bento-content">
+                  <h3 class="links-bento-title">{video.title}</h3>
+                </div>
+              </a>
+            ))
+          }
 
           <!-- Featured Articles -->
-          {featuredArticles.map((article) => (
-            <a href={article.link} target="_blank" class="links-bento-item">
-              <div class="links-bento-image">
-                <img src={article.image} alt={article.title} />
-                <span class="links-bento-badge">ARTICLE</span>
-              </div>
-              <div class="links-bento-content">
-                <h3 class="links-bento-title">{article.title}</h3>
-              </div>
-            </a>
-          ))}
+          {
+            featuredArticles.map((article) => (
+              <a href={article.link} target="_blank" class="links-bento-item">
+                <div class="links-bento-image">
+                  <img src={article.image} alt={article.title} />
+                  <span class="links-bento-badge">ARTICLE</span>
+                </div>
+                <div class="links-bento-content">
+                  <h3 class="links-bento-title">{article.title}</h3>
+                </div>
+              </a>
+            ))
+          }
         </div>
       </section>
 
@@ -126,13 +148,41 @@ const socialLinks = [
       <section class="reveal" data-delay="400" style="margin-top: 1rem;">
         <div class="cta-band">
           <div style="flex: 1; min-width: 280px;">
-            <p class="section-kicker" style="text-align: left; margin-bottom: 0.5rem;">Don't miss a drop</p>
-            <h2 class="cta-title" style="font-family: var(--font-display); font-size: clamp(1.4rem, 4vw, 1.8rem); font-weight: 800; margin-bottom: 0.5rem; text-align: left; line-height: 1.1; color: white;">Get the next review in your inbox.</h2>
-            <p style="color: var(--color-white-muted); text-align: left; font-size: 0.9rem;">New videos and articles, straight from Be Unconventional HQ.</p>
+            <p
+              class="section-kicker"
+              style="text-align: left; margin-bottom: 0.5rem;"
+            >
+              Don't miss a drop
+            </p>
+            <h2
+              class="cta-title"
+              style="font-family: var(--font-display); font-size: clamp(1.4rem, 4vw, 1.8rem); font-weight: 800; margin-bottom: 0.5rem; text-align: left; line-height: 1.1; color: white;"
+            >
+              Get the next review in your inbox.
+            </h2>
+            <p
+              style="color: var(--color-white-muted); text-align: left; font-size: 0.9rem;"
+            >
+              New videos and articles, straight from Be Unconventional HQ.
+            </p>
           </div>
-          <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.5rem; width: 100%;">
-            <a class="cta-button-primary" style="flex: 1; min-width: 200px; padding: 1rem;" href={site.socials.substack} target="_blank" rel="noopener">Subscribe on Substack</a>
-            <a class="cta-button-primary" style="flex: 1; min-width: 200px; padding: 1rem;" href={site.socials.youtube} target="_blank" rel="noopener">Subscribe on YouTube</a>
+          <div
+            style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.5rem; width: 100%;"
+          >
+            <a
+              class="cta-button-primary"
+              style="flex: 1; min-width: 200px; padding: 1rem;"
+              href={site.socials.substack}
+              target="_blank"
+              rel="noopener">Subscribe on Substack</a
+            >
+            <a
+              class="cta-button-primary"
+              style="flex: 1; min-width: 200px; padding: 1rem;"
+              href={site.socials.youtube}
+              target="_blank"
+              rel="noopener">Subscribe on YouTube</a
+            >
           </div>
         </div>
       </section>
@@ -140,15 +190,25 @@ const socialLinks = [
   </main>
 
   <!-- QR Modal -->
-  <div id="qr-modal" class="modal-overlay" aria-hidden="true" role="dialog" aria-modal="true">
+  <div
+    id="qr-modal"
+    class="modal-overlay"
+    aria-hidden="true"
+    role="dialog"
+    aria-modal="true"
+  >
     <div class="modal-content">
-      <button id="close-modal" class="modal-close" aria-label="Close modal">&times;</button>
+      <button id="close-modal" class="modal-close" aria-label="Close modal"
+        >&times;</button
+      >
       <div class="qr-placeholder">
         <div class="qr-grid-box">
           <div class="qr-scan-line"></div>
-          {Array.from({ length: 144 }).map(() => (
-            <div class={Math.random() > 0.7 ? 'dot-active' : ''}></div>
-          ))}
+          {
+            Array.from({ length: 144 }).map(() => (
+              <div class={Math.random() > 0.7 ? 'dot-active' : ''} />
+            ))
+          }
         </div>
         <div class="qr-brand-stack">
           <div class="qr-line-1">
@@ -164,7 +224,7 @@ const socialLinks = [
 </Layout>
 
 <script is:inline>
-  (function() {
+  (function () {
     const trigger = document.getElementById('qr-trigger');
     const modal = document.getElementById('qr-modal');
     const closeBtn = document.getElementById('close-modal');
@@ -203,7 +263,8 @@ const socialLinks = [
 
 <style>
   /* Local overrides to hide site chrome on links page */
-  :global(#navbar), :global(.site-footer) {
+  :global(#navbar),
+  :global(.site-footer) {
     display: none !important;
   }
 </style>

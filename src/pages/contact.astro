@@ -42,9 +42,9 @@ const contactSocials = [
       </header>
 
       <form
+        id="contact-form"
         class="contact-form animate-on-scroll"
         data-delay="100"
-        onsubmit="event.preventDefault(); alert('Message sent! (Note: This is a static demo)');"
       >
         <div class="form-group">
           <label for="name" class="form-label">Full Name</label>
@@ -90,10 +90,34 @@ const contactSocials = [
             required></textarea>
         </div>
 
-        <button type="submit" class="form-submit cta-button-primary"
-          >Send Message</button
+        <div
+          id="form-status"
+          class="form-status-message"
+          role="status"
+          aria-live="polite"
         >
+          Contact form is currently unavailable. Please use social links to get
+          in touch.
+        </div>
+
+        <button type="submit" class="form-submit cta-button-primary">
+          Send Message
+        </button>
       </form>
+
+      <script is:inline>
+        const form = document.getElementById('contact-form');
+        const status = document.getElementById('form-status');
+
+        if (form && status) {
+          form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            status.classList.add('is-visible');
+            // Optional: reset form fields to feel more interactive
+            form.reset();
+          });
+        }
+      </script>
     </div>
 
     <section class="contact-socials-section">
@@ -128,4 +152,32 @@ const contactSocials = [
   </main>
 </Layout>
 
-<style></style>
+<style>
+  .form-status-message {
+    display: none;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    background: rgba(204, 0, 0, 0.1);
+    border: 1px solid var(--color-accent);
+    color: var(--color-white);
+    font-size: 0.85rem;
+    text-align: center;
+    border-radius: 4px;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .form-status-message.is-visible {
+    display: block;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>
