@@ -30,8 +30,11 @@ const currentPath = Astro.url.pathname;
         const isActive = isNavMode && currentPath.includes(`/category/${slug}`);
         const className = `quadrant-btn cat-btn ${isActive ? 'active' : ''}`;
         
+        // Active Toggle Escape Route: if active on Hub page, link to /feed to deselect
+        const hrefTarget = isActive ? '/feed' : `/category/${slug}`;
+        
         return isNavMode ? (
-          <a href={`/category/${slug}`} class={className}>{c}</a>
+          <a href={hrefTarget} class={className}>{c}</a>
         ) : (
           <button class="quadrant-btn cat-btn" data-filter-cat={slug}>{c}</button>
         );
@@ -130,10 +133,13 @@ const currentPath = Astro.url.pathname;
 
     // Apply active class if hash is present
     const urlHash = window.location.hash.replace('#', '').toLowerCase();
-    
-    let initialCatBtn = Array.from(catBtns).find(b => b.dataset.filterCat === urlHash);
-    if (initialCatBtn) {
-      initialCatBtn.classList.add('active');
+    if (urlHash) {
+      const activeHashes = urlHash.split('+');
+      catBtns.forEach(b => {
+        if (activeHashes.includes(b.dataset.filterCat)) {
+          b.classList.add('active');
+        }
+      });
     }
 
     function update() {
@@ -181,10 +187,11 @@ const currentPath = Astro.url.pathname;
       btn.addEventListener('click', (e) => {
         e.currentTarget.classList.toggle('active');
         
-        // Update hash with the first active category or clear it
+        // Update hash with all active categories or clear it
         const newActiveCats = Array.from(document.querySelectorAll('.cat-btn.active'));
         if (newActiveCats.length > 0) {
-          window.location.hash = newActiveCats[0].dataset.filterCat;
+          const hashString = newActiveCats.map(b => b.dataset.filterCat).join('+');
+          window.location.hash = hashString;
         } else {
           history.pushState("", document.title, window.location.pathname);
         }
@@ -195,12 +202,16 @@ const currentPath = Astro.url.pathname;
 
     window.addEventListener('hashchange', () => {
       const newHash = window.location.hash.replace('#', '').toLowerCase();
+      const activeHashes = newHash ? newHash.split('+') : [];
+      
       catBtns.forEach((b) => {
-        b.classList.remove('active');
-        if (newHash && b.dataset.filterCat === newHash) {
+        if (activeHashes.includes(b.dataset.filterCat)) {
           b.classList.add('active');
+        } else {
+          b.classList.remove('active');
         }
       });
+      
       update();
     });
 
