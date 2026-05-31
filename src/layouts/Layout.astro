@@ -95,10 +95,10 @@ const {
       document.addEventListener('astro:page-load', () => console.log('Astro Page Load'));
 
       (function () {
-        const modal = document.getElementById('video-modal');
-        const modalIframe = document.getElementById('modal-iframe');
-
         function openModal(videoId) {
+          const modal = document.getElementById('video-modal');
+          const modalIframe = document.getElementById('modal-iframe');
+          
           if (videoId && modal && modalIframe) {
             // Capture scroll position
             const scrollY = window.scrollY;
@@ -113,6 +113,9 @@ const {
         }
 
         function closeModal() {
+          const modal = document.getElementById('video-modal');
+          const modalIframe = document.getElementById('modal-iframe');
+          
           if (modal && modalIframe) {
             // Guard clause to prevent state corruption
             if (!document.documentElement.classList.contains('modal-open'))
@@ -152,7 +155,8 @@ const {
             if (videoId) openModal(videoId);
           }
 
-          if (e.target === modal || e.target.closest('.modal-close')) {
+          const currentModal = document.getElementById('video-modal');
+          if (e.target === currentModal || e.target.closest('.modal-close')) {
             closeModal();
           }
         });
