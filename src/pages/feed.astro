@@ -14,16 +14,7 @@ const videos = await getVideos();
 const allItems = [
   ...articles.map((a) => ({ ...a, type: 'article' })),
   ...videos.map((v) => ({ ...v, type: 'video', image: v.thumbnail })),
-  {
-    type: 'event',
-    title: 'Comic-Con 2026',
-    category: 'Events',
-    image:
-      'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=800&q=80',
-    date: 'July 2026',
-    excerpt: 'Live coverage from the convention floor.',
-  },
-];
+].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
 const types = ['All', 'Article', 'Video', 'Event'];
 const categories = ['All', ...CATEGORIES];
@@ -72,34 +63,52 @@ const categories = ['All', ...CATEGORIES];
 
       <div class="articles-grid">
         {
-          allItems.map((item, index) => (
-            <a
-              href={item.link || '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              class="article-card animate-on-scroll"
-              data-type={(item.type || 'article').toLowerCase()}
-              data-category={(item.category || 'General').toLowerCase()}
-              style={`--index: ${index}; text-decoration: none;`}
-            >
-              <div class="article-image-wrapper">
-                <img src={item.image} alt={item.title} class="article-image" />
-                <span class="content-badge">
-                  {(item.category || 'General').toUpperCase()}
-                </span>
-              </div>
-              <div class="article-content">
-                <span class="content-type-subtle">
-                  {(item.type || 'ARTICLE').toUpperCase()} • {item.date}
-                </span>
-                <h3 class="article-title">{item.title}</h3>
-                <p class="article-excerpt">{item.excerpt}</p>
-                <span class="article-link">
-                  Explore →
-                </span>
-              </div>
-            </a>
-          ))
+          allItems.map((item, index) => {
+            const isVideo = item.type === 'video';
+            const videoId = isVideo 
+              ? (item.link.includes('shorts') ? item.link.split('/').pop() : new URL(item.link).searchParams.get('v'))
+              : null;
+
+            const CardWrapper = isVideo ? 'div' : 'a';
+            const wrapperProps = isVideo 
+              ? { 
+                  class: "article-card animate-on-scroll video-modal-trigger",
+                  "data-video-id": videoId,
+                  style: `--index: ${index}; text-decoration: none; cursor: pointer;`
+                }
+              : {
+                  href: item.link || '#',
+                  target: "_blank",
+                  rel: "noopener noreferrer",
+                  class: "article-card animate-on-scroll",
+                  style: `--index: ${index}; text-decoration: none;`
+                };
+
+            return (
+              <CardWrapper
+                {...wrapperProps}
+                data-type={(item.type || 'article').toLowerCase()}
+                data-category={(item.category || 'General').toLowerCase()}
+              >
+                <div class="article-image-wrapper">
+                  <img src={item.image} alt={item.title} class="article-image" />
+                  <span class="content-badge">
+                    {(item.category || 'General').toUpperCase()}
+                  </span>
+                </div>
+                <div class="article-content">
+                  <span class="content-type-subtle">
+                    {(item.type || 'ARTICLE').toUpperCase()} • {item.date}
+                  </span>
+                  <h3 class="article-title">{item.title}</h3>
+                  <p class="article-excerpt">{item.excerpt}</p>
+                  <span class="article-link">
+                    {isVideo ? 'Watch Now →' : 'Explore →'}
+                  </span>
+                </div>
+              </CardWrapper>
+            );
+          })
         }
       </div>
     </div>

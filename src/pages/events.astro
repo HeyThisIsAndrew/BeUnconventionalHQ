@@ -1,34 +1,21 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { site } from '../data/site.js';
+import { getArticles, getVideos } from '../data/feeds.js';
 
 const title = `Events | ${site.name}`;
 const description =
   'Live coverage, premieres, and press event highlights from Be Unconventional HQ.';
 
-const placeholderEvents = [
-  {
-    title: 'San Diego Comic-Con 2026',
-    date: 'July 2026',
-    tag: 'Convention',
-    image:
-      'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    title: 'The Batman Part II Premiere',
-    date: 'October 2026',
-    tag: 'Red Carpet',
-    image:
-      'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    title: 'Summer Game Fest 2026',
-    date: 'June 2026',
-    tag: 'Gaming',
-    image:
-      'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80',
-  },
-];
+const articles = await getArticles();
+const videos = await getVideos();
+
+const eventItems = [
+  ...articles.map((a) => ({ ...a, type: 'article' })),
+  ...videos.map((v) => ({ ...v, type: 'video', image: v.thumbnail })),
+]
+  .filter((item) => item.category === 'Events')
+  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 ---
 
 <Layout title={title} description={description}>
@@ -41,21 +28,46 @@ const placeholderEvents = [
 
       <div class="event-grid">
         {
-          placeholderEvents.map((event, index) => (
-            <div
-              class="event-card animate-on-scroll"
-              style={`--index: ${index}`}
-            >
-              <div class="event-image-wrapper">
-                <img src={event.image} alt={event.title} class="event-image" />
-                <div class="event-overlay">
-                  <span class="event-tag">{event.tag}</span>
-                  <h3 class="event-title">{event.title}</h3>
-                  <span class="event-date">{event.date}</span>
-                </div>
-              </div>
+          eventItems.length > 0 ? (
+            eventItems.map((item, index) => {
+              const isVideo = item.type === 'video';
+              const videoId = isVideo 
+                ? (item.link.includes('shorts') ? item.link.split('/').pop() : new URL(item.link).searchParams.get('v'))
+                : null;
+
+              const CardWrapper = isVideo ? 'div' : 'a';
+              const wrapperProps = isVideo 
+                ? { 
+                    class: "event-card animate-on-scroll video-modal-trigger",
+                    "data-video-id": videoId,
+                    style: `--index: ${index}; cursor: pointer;`
+                  }
+                : {
+                    href: item.link,
+                    target: "_blank",
+                    rel: "noopener noreferrer",
+                    class: "event-card animate-on-scroll",
+                    style: `--index: ${index};`
+                  };
+
+              return (
+                <CardWrapper {...wrapperProps}>
+                  <div class="event-image-wrapper">
+                    <img src={item.image} alt={item.title} class="event-image" />
+                    <div class="event-overlay">
+                      <span class="event-tag">{item.category}</span>
+                      <h3 class="event-title">{item.title}</h3>
+                      <span class="event-date">{item.date}</span>
+                    </div>
+                  </div>
+                </CardWrapper>
+              );
+            })
+          ) : (
+            <div class="empty-state animate-on-scroll" style="grid-column: 1 / -1; text-align: center; padding: 4rem 0; opacity: 0.6;">
+              <p>Check back soon for live coverage and event highlights.</p>
             </div>
-          ))
+          )
         }
       </div>
 
