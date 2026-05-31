@@ -1,83 +1,127 @@
-import httpx
-import json
-import re
-import asyncio
-from bs4 import BeautifulSoup
-from typing import List, Dict, Any
+# ==========================================
+# NORMALIZED MAPPING DICTIONARIES
+# Keys: Raw tag variants | Values: Formatted Display Strings
+# ==========================================
 
-class ContentIngestionSkill:
+STUDIO_MAP = {
+    "marvel": "Marvel", "marvel studios": "Marvel",
+    "dc": "DC", "dcu": "DC", "dc comics": "DC",
+    "disney": "Disney", "sony": "Sony", "a24": "A24",
+    "wb": "Warner Bros", "warnerbros": "Warner Bros",
+    "warner bros": "Warner Bros", "warnerbrothers": "Warner Bros"
+}
+
+PLATFORM_MAP = {
+    # Gaming
+    "playstation": "PlayStation", "ps5": "PlayStation", "ps4": "PlayStation", "ps3": "PlayStation",
+    "xbox": "Xbox", "xboxseriesx": "Xbox", "xbsx": "Xbox",
+    "nintendo": "Nintendo", "switch": "Nintendo", "gamecube": "Nintendo",
+    "pc": "PC", "pcgaming": "PC",
+    # Streaming
+    "netflix": "Netflix",
+    "apple tv": "Apple TV", "appletv": "Apple TV", "appletvplus": "Apple TV",
+    "hulu": "Hulu",
+    "max": "Max", "hbo max": "Max", "hbomax": "Max",
+    "prime": "Prime Video", "primevideo": "Prime Video", "amazon prime": "Prime Video"
+}
+
+# ==========================================
+# CATEGORY TRIGGERS
+# ==========================================
+
+GAMING_TRIGGERS = {
+    "gaming", "video game", "videogame", "gameplay",
+    "playstation", "xbox", "nintendo", "pc", "pcgaming"
+}
+EVENT_TRIGGERS = {
+    "event", "premiere", "convention", "interview",
+    "comiccon", "sdcc", "nycc", "d23", "wondercon"
+}
+TV_TRIGGERS    = {"tv", "television", "series", "shows", "streaming", "episode"}
+MOVIE_TRIGGERS = {"movie", "movies", "film", "cinema", "feature", "theatrical"}
+
+# Pre-computed union — avoids rebuilding the set on every function call.
+ALL_CATEGORY_TRIGGERS = GAMING_TRIGGERS | MOVIE_TRIGGERS | TV_TRIGGERS | EVENT_TRIGGERS
+
+def extract_matched_entities(tag_set, mapping_dict):
     """
-    Anti-Gravity Skill: Orchestrates resilient data gathering from 
-    Substack (RSS) and YouTube (RSS + Scrape Fallback).
+    Uses set intersection for O(1) key lookups rather than iterating tags.
+    Returns a deterministic, alphabetically sorted list of display names.
     """
-    def __init__(self):
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/rss+xml,application/xml;q=0.9,*/*;q=0.8',
-        }
-        self.substack_url = 'https://beunconventionalhq.substack.com/feed'
-        self.yt_channel_id = 'UCXqU6781pQgYXDExLvMw2Og'
-        self.yt_handle = '@BeUnconventionalHQ'
+    matched_keys = tag_set.intersection(mapping_dict.keys())
+    normalized   = {mapping_dict[key] for key in matched_keys}
+    return sorted(normalized)
 
-    def clean_text(self, text: str) -> str:
-        if not text: return ""
-        # Remove CDATA and HTML tags
-        text = re.sub(r'<!\[CDATA\[[\s\S]*?\]\]>', '', text)
-        soup = BeautifulSoup(text, "html.parser")
-        return re.sub(r'\s+', ' ', soup.get_text()).strip()
+def extract_rich_metadata(raw_tags, category_id=None):
+    """
+    Unified taxonomy engine for YouTube and Substack ingestion.
+    """
+    tag_set = set(tag.lower() for tag in raw_tags)
 
-    async def fetch_articles(self, client: httpx.AsyncClient) -> List[Dict[str, Any]]:
-        resp = await client.get(self.substack_url)
-        soup = BeautifulSoup(resp.content, "lxml-xml")
-        articles = []
-        
-        for item in soup.find_all("item")[:20]:
-            desc = self.clean_text(item.description.string if item.description else "")
-            articles.append({
-                "title": self.clean_text(item.title.string if item.title else ""),
-                "link": item.link.string if item.link else "",
-                "date": item.pubDate.string if item.pubDate else "",
-                "excerpt": f"{desc[:160]}..." if len(desc) > 20 else "Read full article.",
-                "image": item.find("enclosure")["url"] if item.find("enclosure") else None
-            })
-        return articles
+    # Cast to string — guards against int vs str mismatch across SDK versions.
+    safe_category_id = str(category_id) if category_id is not None else None
 
-    async def fetch_videos_rss(self, client: httpx.AsyncClient) -> List[Dict[str, Any]]:
-        url = f"https://www.youtube.com/feeds/videos.xml?channel_id={self.yt_channel_id}"
-        resp = await client.get(url)
-        soup = BeautifulSoup(resp.content, "lxml-xml")
-        return [{
-            "title": self.clean_text(e.title.string),
-            "link": f"https://www.youtube.com/watch?v={e.find('yt:videoId').string}",
-            "thumbnail": f"https://i.ytimg.com/vi/{e.find('yt:videoId').string}/maxresdefault.jpg",
-            "date": e.published.string
-        } for e in soup.find_all("entry")]
+    metadata = {
+        "primary_category": "Uncategorized",
+        "studios":  [],
+        "platforms": [],
+        "tags_raw":  raw_tags   # Original casing preserved for display/debugging.
+    }
 
-    async def fetch_videos_scrape(self, client: httpx.AsyncClient) -> List[Dict[str, Any]]:
-        # Fallback logic: Scrape ytInitialData if RSS fails
-        resp = await client.get(f"https://www.youtube.com/{self.yt_handle}/videos")
-        match = re.search(r'ytInitialData\s*=\s*({.+?});', resp.text)
-        if not match: raise ValueError("YouTube Scrape Failed")
-        
-        data = json.loads(match.group(1))
-        videos = []
-        # Recursive walk logic simplified for blueprint
-        return videos 
+    # 1. TAG-FIRST ROUTING
+    if   tag_set.intersection(GAMING_TRIGGERS):  metadata["primary_category"] = "Gaming"
+    elif tag_set.intersection(MOVIE_TRIGGERS):   metadata["primary_category"] = "Movies"
+    elif tag_set.intersection(TV_TRIGGERS):      metadata["primary_category"] = "TV"
+    elif tag_set.intersection(EVENT_TRIGGERS):   metadata["primary_category"] = "Events"
 
-    async def execute(self) -> Dict[str, Any]:
-        async with httpx.AsyncClient(headers=self.headers, timeout=10.0) as client:
-            articles_task = self.fetch_articles(client)
-            # Try RSS first, then fallback to scrape
-            try:
-                videos = await self.fetch_videos_rss(client)
-            except Exception:
-                videos = await self.fetch_videos_scrape(client)
-                
-            return {
-                "articles": await articles_task,
-                "videos": videos,
-                "timestamp": asyncio.get_event_loop().time()
-            }
+    # 2. CATEGORY ID FALLBACK
+    elif safe_category_id == "20": metadata["primary_category"] = "Gaming"
+    elif safe_category_id == "19": metadata["primary_category"] = "Events"
+    elif safe_category_id == "1":  metadata["primary_category"] = "Film & Animation"
 
-def get_skill():
-    return ContentIngestionSkill()
+    # 3. STUDIO EXTRACTION (No Context Gate)
+    metadata["studios"] = extract_matched_entities(tag_set, STUDIO_MAP)
+
+    # 4. PLATFORM EXTRACTION (Gated by Category Context)
+    if tag_set.intersection(ALL_CATEGORY_TRIGGERS):
+        metadata["platforms"] = extract_matched_entities(tag_set, PLATFORM_MAP)
+
+    return metadata
+
+# ==========================================
+# INTEGRATION WRAPPERS
+# ==========================================
+
+def process_youtube_item(youtube_video):
+    """Extracts payload and passes to unified engine."""
+    snippet = youtube_video.get("snippet", {})
+    return extract_rich_metadata(
+        raw_tags    = snippet.get("tags", []),
+        category_id = snippet.get("categoryId")
+    )
+
+import feedparser
+
+def process_substack_feed(rss_url):
+    """
+    Ingests Substack RSS feed.
+    
+    WORKFLOW DEPENDENCY: Substack <category> nodes map from Section names/tags.
+    Section names MUST contain trigger words (e.g., "Movies", "TV", "Gaming").
+    Stylized section titles (e.g., "Weekly Picks") fall back to "Uncategorized".
+    """
+    feed    = feedparser.parse(rss_url)
+    results = []
+
+    for entry in feed.entries:
+        substack_categories = [tag["term"] for tag in entry.get("tags", [])]
+        results.append({
+            "title":    entry.get("title", ""),
+            "link":     entry.get("link",  ""),
+            "metadata": extract_rich_metadata(
+                raw_tags    = substack_categories,
+                category_id = None
+            )
+        })
+
+    return results
