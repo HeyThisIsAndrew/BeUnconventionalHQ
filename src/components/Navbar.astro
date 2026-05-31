@@ -23,7 +23,7 @@ const isActive = (href) =>
         href="#"
         class="nav-identity-wrapper"
         id="nav-identity"
-        style="transform: translateY(-10px) scale(0.95); pointer-events: none; transition: opacity 0.4s ease, transform 0.4s ease; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-left: 1rem; text-decoration: none; cursor: pointer;"
+        style="transform: translateY(-10px) scale(0.95); opacity: 0; pointer-events: none; transition: opacity 0.4s ease, transform 0.4s ease; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-left: 1rem; text-decoration: none; cursor: pointer;"
       >
         <div class="nav-identity-stack">
           <span class="nav-word-be">BE</span>
@@ -58,6 +58,9 @@ const isActive = (href) =>
 
 <script is:inline>
   (function () {
+    let scrollHandler = null;
+    let observer = null;
+
     function initNavObserver() {
       const identity = document.getElementById('nav-identity');
       const sublineEl = document.getElementById('nav-subline');
@@ -77,56 +80,61 @@ const isActive = (href) =>
         sublineEl.style.display = subtext ? 'inline-block' : 'none';
       }
 
-      // 2. Smooth Scroll to Top
-      identity.addEventListener('click', (e) => {
-        e.preventDefault();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      });
+      // 2. Smooth Scroll to Top (avoid duplicate listeners on SPA transitions)
+      if (!identity.dataset.clickBound) {
+        identity.addEventListener('click', (e) => {
+          e.preventDefault();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+        identity.dataset.clickBound = "true";
+      }
 
-      // 3. IntersectionObserver Logic
-      // If we are on a subpage (no Hero), show it by default after scrolling down slightly
+      // Cleanup old observer and scroll handler to prevent memory leaks
+      if (observer) {
+        observer.disconnect();
+        observer = null;
+      }
+      if (scrollHandler) {
+        window.removeEventListener('scroll', scrollHandler);
+        scrollHandler = null;
+      }
+
+      // 3. Visibility Logic
       const heroText = document.querySelector('.hero-title-stack');
+
+      function updateVisibility(isVisible) {
+        if (isVisible) {
+          identity.style.opacity = '1';
+          identity.style.transform = 'translateY(0) scale(1)';
+          identity.style.pointerEvents = 'auto';
+        } else {
+          identity.style.opacity = '0';
+          identity.style.transform = 'translateY(-10px) scale(0.95)';
+          identity.style.pointerEvents = 'none';
+        }
+      }
 
       if (heroText) {
         // We are on the homepage. Watch the Hero text.
-        const observer = new IntersectionObserver(
+        observer = new IntersectionObserver(
           (entries) => {
             entries.forEach((entry) => {
-              if (!entry.isIntersecting) {
-                // Hero text left the screen -> Show Navbar text
-                identity.style.opacity = '1';
-                identity.style.transform = 'translateY(0) scale(1)';
-                identity.style.pointerEvents = 'auto';
-              } else {
-                // Hero text is on screen -> Hide Navbar text
-                identity.style.opacity = '0';
-                identity.style.transform = 'translateY(-10px) scale(0.95)';
-                identity.style.pointerEvents = 'none';
-              }
+              updateVisibility(!entry.isIntersecting);
             });
           },
           { rootMargin: '-80px 0px 0px 0px' }
-        ); // Offset for the navbar height
-
+        ); 
         observer.observe(heroText);
       } else {
         // We are on a subpage. Fallback to basic scroll threshold.
-        window.addEventListener(
-          'scroll',
-          () => {
-            const scroll = window.scrollY || document.documentElement.scrollTop;
-            if (scroll > 100) {
-              identity.style.opacity = '1';
-              identity.style.transform = 'translateY(0) scale(1)';
-              identity.style.pointerEvents = 'auto';
-            } else {
-              identity.style.opacity = '0';
-              identity.style.transform = 'translateY(-10px) scale(0.95)';
-              identity.style.pointerEvents = 'none';
-            }
-          },
-          { passive: true }
-        );
+        scrollHandler = () => {
+          const scroll = window.scrollY || document.documentElement.scrollTop;
+          updateVisibility(scroll > 100);
+        };
+        window.addEventListener('scroll', scrollHandler, { passive: true });
+        
+        // INSTANTLY check state on load so it doesn't get stuck visible!
+        scrollHandler();
       }
     }
 
