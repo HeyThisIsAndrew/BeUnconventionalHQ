@@ -206,5 +206,24 @@ const {
         initReveal();
       }
     </script>
+    <script>
+      // Step 1: Strip mobile scroll locks BEFORE Astro takes its snapshot
+      document.addEventListener('astro:before-preparation', () => {
+        const body = document.body;
+        if (body.style.position === 'fixed') {
+          const scrollY = Math.abs(parseInt(body.style.top || '0', 10));
+          body.style.position = '';
+          body.style.top = '';
+          body.style.width = '';
+          body.style.overflowY = '';
+          window.scrollTo(0, scrollY);
+        }
+      });
+
+      // Step 2: Force scroll to top instantly BEFORE the DOM swaps
+      document.addEventListener('astro:before-swap', () => {
+        window.scrollTo({ left: 0, top: 0, behavior: 'instant' });
+      });
+    </script>
   </body>
 </html>
