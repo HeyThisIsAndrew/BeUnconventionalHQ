@@ -3,6 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import { site } from '../data/site.js';
 import { getArticles, getVideos } from '../data/feeds.js';
 import '../styles/links.css';
+import PageTitle from '../components/PageTitle.astro';
 
 const title = `Links | ${site.name}`;
 const description = 'Connect with Be Unconventional HQ across all platforms.';
@@ -150,29 +151,18 @@ const socialLinks = [
 
       <!-- Substack & YouTube CTA -->
       <section class="reveal" data-delay="400" style="margin-top: 1rem;">
-        <div class="cta-band">
-          <div style="flex: 1; min-width: 280px;">
+        <div class="cta-band" style="flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+          <div style="text-align: center; width: 100%;">
+            <div class="section-header" style="margin-bottom: 1rem;">
+              <PageTitle kicker="Don't miss a drop" primary="Subscribe" secondary="For Updates" scale="secondary" />
+            </div>
             <p
-              class="section-kicker"
-              style="text-align: left; margin-bottom: 0.5rem;"
-            >
-              Don't miss a drop
-            </p>
-            <h2
-              class="cta-title"
-              style="font-family: var(--font-display); font-size: clamp(1.4rem, 4vw, 1.8rem); font-weight: 800; margin-bottom: 0.5rem; text-align: left; line-height: 1.1; color: white;"
-            >
-              Get the next review in your inbox.
-            </h2>
-            <p
-              style="color: var(--color-white-muted); text-align: left; font-size: 0.9rem;"
+              style="color: var(--color-white-muted); font-size: 0.9rem;"
             >
               New videos and articles, straight from Be Unconventional HQ.
             </p>
           </div>
-          <div
-            style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.5rem; width: 100%;"
-          >
+          <div class="cta-buttons-wrapper">
             <a
               class="cta-button-primary"
               style="flex: 1; min-width: 200px; padding: 1rem;"
@@ -270,5 +260,30 @@ const socialLinks = [
   :global(#navbar),
   :global(.site-footer) {
     display: none !important;
+  }
+</style>
+
+<style>
+  .cta-buttons-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 2rem;
+    width: 100%;
+  }
+  
+  .cta-buttons-wrapper .cta-button-primary {
+    width: 100%;
+    text-align: center;
+  }
+  
+  @media (min-width: 768px) {
+    .cta-buttons-wrapper {
+      flex-direction: row;
+    }
+    
+    .cta-buttons-wrapper .cta-button-primary {
+      flex: 1;
+    }
   }
 </style>

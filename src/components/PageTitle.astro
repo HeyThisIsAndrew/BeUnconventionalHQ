@@ -1,0 +1,42 @@
+---
+const { kicker = '', primary = '', secondary = '', scale = 'default' } = Astro.props;
+---
+<h1 class={`hero-title-stack ${scale === 'secondary' ? 'title-secondary-scale' : ''}`}>
+  {kicker && <span class="word-be page-title-kicker">{kicker}</span>}
+  {primary && <span class="word-unconventional">{primary}</span>}
+  {secondary && <span class="word-hq page-title-secondary">{secondary}</span>}
+</h1>
+
+<style>
+  /* Scoped uniquely to these interior hub pages */
+  .page-title-kicker {
+    font-size: clamp(0.75rem, 1.8vw, 1.25rem);
+    margin-left: 0 !important; /* Forces center alignment */
+    margin-bottom: 0.5rem;
+  }
+
+  .page-title-secondary {
+    margin-right: -8%; /* Subtle stagger for mobile */
+    margin-top: -0.2rem !important; /* Moves text down to prevent unreadable overlap on mobile */
+  }
+
+  /* Secondary scale class for lower-page sections */
+  html body .title-secondary-scale .word-unconventional {
+    font-size: clamp(1.5rem, 5vw, 3rem);
+  }
+  
+  html body .title-secondary-scale .page-title-secondary {
+    font-size: clamp(1.1rem, 3.5vw, 2rem);
+  }
+
+  @media (min-width: 768px) {
+    .page-title-secondary {
+      margin-right: -15%; /* Slightly more stagger on desktop */
+      margin-top: -0.6rem !important; /* Tighter overlap on desktop where fonts are larger */
+    }
+    
+    .title-secondary-scale .page-title-secondary {
+      margin-top: -0.4rem !important; /* Tighter overlap for smaller scale */
+    }
+  }
+</style>

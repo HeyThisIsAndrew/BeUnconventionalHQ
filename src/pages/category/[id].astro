@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import { categories } from '../../data/categories.js';
 import { getVideos, getArticles } from '../../data/feeds.js';
+import PageTitle from '../../components/PageTitle.astro';
 
 export async function getStaticPaths() {
   return categories.map((cat) => ({
@@ -27,15 +28,16 @@ const categoryArticles = allArticles
   >
     <div class="container">
       <header class="section-header reveal">
-        <p class="section-kicker">{category.blurb}</p>
-        <h1 class="section-title">{category.label} Hub</h1>
+        <PageTitle
+          kicker={category.blurb}
+          primary={category.label}
+          secondary="HUB"
+        />
       </header>
 
       <section class="hub-section" style="margin-bottom: 6rem;">
-        <h2
-          style="font-family: var(--font-display); font-size: 1.5rem; margin-bottom: 2rem;"
-        >
-          Latest Videos
+        <h2 class="filter-label" style="margin-bottom: 1.5rem; display: block; margin-right: 0;">
+          LATEST VIDEOS
         </h2>
         <div class="video-grid">
           {
@@ -63,17 +65,15 @@ const categoryArticles = allArticles
                 </div>
               ))
             ) : (
-              <p class="empty-note">No videos found for this category.</p>
+              <p class="filter-label empty-note" style="text-transform: uppercase;">NO VIDEOS FOUND FOR THIS CATEGORY.</p>
             )
           }
         </div>
       </section>
 
       <section class="hub-section" style="margin-bottom: 6rem;">
-        <h2
-          style="font-family: var(--font-display); font-size: 1.5rem; margin-bottom: 2rem;"
-        >
-          Latest Articles
+        <h2 class="filter-label" style="margin-bottom: 1.5rem; display: block; margin-right: 0;">
+          LATEST ARTICLES
         </h2>
         <div class="articles-grid">
           {
@@ -100,7 +100,7 @@ const categoryArticles = allArticles
                 </a>
               ))
             ) : (
-              <p class="empty-note">No articles found for this category.</p>
+              <p class="filter-label empty-note" style="text-transform: uppercase;">NO ARTICLES FOUND FOR THIS CATEGORY.</p>
             )
           }
         </div>

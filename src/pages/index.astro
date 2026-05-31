@@ -6,6 +6,7 @@ import Categories from '../components/Categories.astro';
 import LatestArticles from '../components/LatestArticles.astro';
 import PromoBanner from '../components/PromoBanner.astro';
 import { getVideos } from '../data/feeds.js';
+import PageTitle from '../components/PageTitle.astro';
 ---
 
 <Layout title="Be Unconventional HQ">
@@ -25,11 +26,11 @@ import { getVideos } from '../data/feeds.js';
     style="padding-top: 4rem; padding-bottom: 6rem; max-width: 1200px; margin: 0 auto;"
   >
     <div class="section-header reveal animate-on-scroll">
-      <h2 class="hero-title-stack">
-        <span class="word-be">Latest From The Channel</span>
-        <span class="word-unconventional">Recent</span>
-        <span class="word-hq">Videos</span>
-      </h2>
+      <PageTitle
+        kicker="Latest From The Channel"
+        primary="Recent"
+        secondary="Videos"
+      />
     </div>
     <div
       style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2.5rem;"
@@ -80,11 +81,11 @@ import { getVideos } from '../data/feeds.js';
     style="padding-bottom: 8rem; max-width: 1200px; margin: 0 auto;"
   >
     <div class="section-header reveal animate-on-scroll">
-      <h2 class="hero-title-stack">
-        <span class="word-be">Explore The HQ</span>
-        <span class="word-unconventional">What We</span>
-        <span class="word-hq">Cover</span>
-      </h2>
+      <PageTitle
+        kicker="Explore The HQ"
+        primary="What We"
+        secondary="Cover"
+      />
     </div>
     <Categories />
   </section>
@@ -95,24 +96,16 @@ import { getVideos } from '../data/feeds.js';
     class="container"
     style="margin-bottom: 6rem; position: relative; z-index: 10;"
   >
-    <div class="cta-band reveal">
-      <div>
-        <p class="section-kicker" style="text-align: left;">
-          Don't miss a drop
-        </p>
-        <h2
-          class="cta-title"
-          style="font-family: var(--font-display); font-size: clamp(1.6rem, 3.5vw, 2.4rem); font-weight: 800; margin-bottom: 0.5rem; text-align: left; line-height: 1.1;"
-        >
-          Get the next review in your inbox.
-        </h2>
-        <p style="color: var(--color-white-muted); text-align: left;">
+    <div class="cta-band reveal" style="flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+      <div style="width: 100%;">
+        <div class="section-header" style="margin-bottom: 1rem;">
+          <PageTitle kicker="Don't miss a drop" primary="Subscribe" secondary="For Updates" scale="secondary" />
+        </div>
+        <p style="color: var(--color-white-muted);">
           New videos and articles, straight from Be Unconventional HQ.
         </p>
       </div>
-      <div
-        style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1rem; align-items: center;"
-      >
+      <div class="cta-buttons-wrapper">
         <a
           class="cta-button-primary"
           href={site.socials.substack}
@@ -128,3 +121,28 @@ import { getVideos } from '../data/feeds.js';
   </section>
 
 </Layout>
+
+<style>
+  .cta-buttons-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 2rem;
+    width: 100%;
+  }
+  
+  .cta-buttons-wrapper .cta-button-primary {
+    width: 100%;
+    text-align: center;
+  }
+  
+  @media (min-width: 768px) {
+    .cta-buttons-wrapper {
+      flex-direction: row;
+    }
+    
+    .cta-buttons-wrapper .cta-button-primary {
+      flex: 1;
+    }
+  }
+</style>
