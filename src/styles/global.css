@@ -256,7 +256,6 @@ body::before {
     transform: translateY(-7px) rotate(-45deg);
   }
 
-  /* Full-screen Mobile Menu */
   .nav-container {
     position: fixed;
     top: 0;
@@ -275,6 +274,7 @@ body::before {
       visibility 0.4s ease;
     z-index: 10001;
     padding-top: env(safe-area-inset-top);
+    overscroll-behavior: contain;
   }
 
   #navbar.menu-open .nav-container {
@@ -2633,6 +2633,7 @@ body::before {
   opacity: 0;
   visibility: hidden;
   transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  overscroll-behavior: contain;
 }
 
 .modal-overlay.active {
@@ -2694,9 +2695,17 @@ body::before {
   transform: rotate(90deg);
 }
 
-@media (max-width: 768px) {
-  .modal-close {
-    top: -50px;
-    right: 5px;
-  }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   BRUTE-FORCE iOS SAFARI LOCK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+html.menu-open,
+html.menu-open body,
+html.modal-open,
+html.modal-open body {
+  position: fixed !important;
+  width: 100% !important;
+  height: 100dvh !important;
+  overflow: hidden !important;
 }

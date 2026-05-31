@@ -88,47 +88,46 @@ const {
       (function() {
         const modal = document.getElementById('video-modal');
         const modalIframe = document.getElementById('modal-iframe');
-        const modalContent = modal?.querySelector('.modal-content');
-
-        const ScrollLock = {
-          elementToScroll: null,
-          handleTouchMove(e) {
-            if (!ScrollLock.elementToScroll) return;
-            const target = e.target;
-            const isScrollable = target.closest('.scroll-lock-allow');
-            if (!isScrollable) {
-              if (e.cancelable) e.preventDefault();
-              return;
-            }
-          },
-          lock(el) {
-            this.elementToScroll = el;
-            if (el) el.classList.add('scroll-lock-allow');
-            window.addEventListener('touchmove', this.handleTouchMove, { passive: false });
-          },
-          unlock() {
-            if (this.elementToScroll) this.elementToScroll.classList.remove('scroll-lock-allow');
-            this.elementToScroll = null;
-            window.removeEventListener('touchmove', this.handleTouchMove);
-          }
-        };
         
         function openModal(videoId) {
           if (videoId && modal && modalIframe) {
+            // Capture scroll position
+            const scrollY = window.scrollY;
+            document.body.style.top = `-${scrollY}px`;
+
             // ACTION 2.1 & 2.2: No autoplay, use rel=0 and modestbranding=1
             modalIframe.src = `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`;
             modal.classList.add('active');
+            document.documentElement.classList.add('modal-open');
             modal.setAttribute('aria-hidden', 'false');
-            ScrollLock.lock(modalContent);
           }
         }
 
         function closeModal() {
           if (modal && modalIframe) {
+            // Guard clause to prevent state corruption
+            if (!document.documentElement.classList.contains('modal-open')) return;
+
+            const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
+            
             modal.classList.remove('active');
+            document.documentElement.classList.remove('modal-open');
             modal.setAttribute('aria-hidden', 'true');
             modalIframe.src = '';
-            ScrollLock.unlock();
+
+            document.body.style.position = '';
+            document.body.style.top = '';
+            document.body.style.width = '';
+
+            // Double requestAnimationFrame for native thread safety
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                const originalBehavior = document.documentElement.style.scrollBehavior;
+                document.documentElement.style.scrollBehavior = 'auto'; // Force instant
+                window.scrollTo(0, scrollY);
+                document.documentElement.style.scrollBehavior = originalBehavior;
+              });
+            });
           }
         }
 

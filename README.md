@@ -93,6 +93,7 @@ Centralized normalization layer (`src/data/constants.js`) supporting:
 | :---------------- | :------------------------------------------------------------ |
 | `npm install`     | Install all dependencies                                      |
 | `npm run dev`     | Start custom dev server (includes QR code for mobile testing) |
+| `npm run start:full` | Refresh content, build the project, and start dev server   |
 | `npm run build`   | Generate production-ready static site in `./dist/`            |
 | `npm run preview` | Locally preview the generated production build                |
 | `npm run deploy`  | Build and deploy to GitHub Pages                              |

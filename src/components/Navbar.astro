@@ -135,52 +135,46 @@ const isActive = (href) =>
   })();
 
   (function () {
-    const ScrollLock = {
-      elementToScroll: null,
-      handleTouchMove(e) {
-        if (!ScrollLock.elementToScroll) return;
-        const target = e.target;
-        const isScrollable = target.closest('.scroll-lock-allow');
-        if (!isScrollable) {
-          if (e.cancelable) e.preventDefault();
-          return;
-        }
-        const el = ScrollLock.elementToScroll;
-        if (el.scrollTop <= 0) el.scrollTop = 1;
-        if (el.scrollTop + el.offsetHeight >= el.scrollHeight) el.scrollTop = el.scrollHeight - el.offsetHeight - 1;
-      },
-      lock(el) {
-        this.elementToScroll = el;
-        el.classList.add('scroll-lock-allow');
-        document.documentElement.classList.add('menu-open');
-        window.addEventListener('touchmove', this.handleTouchMove, { passive: false });
-      },
-      unlock() {
-        if (this.elementToScroll) this.elementToScroll.classList.remove('scroll-lock-allow');
-        this.elementToScroll = null;
-        document.documentElement.classList.remove('menu-open');
-        window.removeEventListener('touchmove', this.handleTouchMove);
-      }
-    };
-
     function initMobileMenu() {
       const navbar = document.getElementById('navbar');
       const toggle = document.querySelector('.nav-toggle');
-      const navContainer = document.querySelector('.nav-container');
 
-      if (navbar && toggle && navContainer) {
+      if (navbar && toggle) {
+        // Clear any existing listeners by cloning the toggle to prevent duplicates on soft navs
         const newToggle = toggle.cloneNode(true);
         toggle.parentNode.replaceChild(newToggle, toggle);
 
         newToggle.addEventListener('click', () => {
           const isOpened = navbar.classList.contains('menu-open');
           if (isOpened) {
+            // Guard clause to prevent state corruption
+            if (!document.documentElement.classList.contains('menu-open')) return;
+
+            const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
             navbar.classList.remove('menu-open');
-            ScrollLock.unlock();
+            document.documentElement.classList.remove('menu-open');
             newToggle.setAttribute('aria-expanded', 'false');
+            
+            document.body.style.position = '';
+            document.body.style.top = '';
+            document.body.style.width = '';
+
+            // Double requestAnimationFrame for native thread safety
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                const originalBehavior = document.documentElement.style.scrollBehavior;
+                document.documentElement.style.scrollBehavior = 'auto'; // Force instant
+                window.scrollTo(0, scrollY);
+                document.documentElement.style.scrollBehavior = originalBehavior;
+              });
+            });
           } else {
+            // Capture scroll position
+            const scrollY = window.scrollY;
+            document.body.style.top = `-${scrollY}px`;
+            
             navbar.classList.add('menu-open');
-            ScrollLock.lock(navContainer);
+            document.documentElement.classList.add('menu-open');
             newToggle.setAttribute('aria-expanded', 'true');
           }
         });
@@ -188,9 +182,29 @@ const isActive = (href) =>
         const navLinks = navbar.querySelectorAll('.nav-list a');
         navLinks.forEach((link) => {
           link.addEventListener('click', () => {
-            navbar.classList.remove('menu-open');
-            ScrollLock.unlock();
-            newToggle.setAttribute('aria-expanded', 'false');
+            if (navbar.classList.contains('menu-open')) {
+              // Guard clause
+              if (!document.documentElement.classList.contains('menu-open')) return;
+
+              const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
+              navbar.classList.remove('menu-open');
+              document.documentElement.classList.remove('menu-open');
+              newToggle.setAttribute('aria-expanded', 'false');
+
+              document.body.style.position = '';
+              document.body.style.top = '';
+              document.body.style.width = '';
+
+              // Double requestAnimationFrame for native thread safety
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  const originalBehavior = document.documentElement.style.scrollBehavior;
+                  document.documentElement.style.scrollBehavior = 'auto'; // Force instant
+                  window.scrollTo(0, scrollY);
+                  document.documentElement.style.scrollBehavior = originalBehavior;
+                });
+              });
+            }
           });
         });
       }
