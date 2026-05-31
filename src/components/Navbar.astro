@@ -148,13 +148,14 @@ const isActive = (href) =>
           const isOpened = navbar.classList.contains('menu-open');
           if (isOpened) {
             // Guard clause to prevent state corruption
-            if (!document.documentElement.classList.contains('menu-open')) return;
+            if (!document.documentElement.classList.contains('menu-open'))
+              return;
 
             const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
             navbar.classList.remove('menu-open');
             document.documentElement.classList.remove('menu-open');
             newToggle.setAttribute('aria-expanded', 'false');
-            
+
             document.body.style.position = '';
             document.body.style.top = '';
             document.body.style.width = '';
@@ -162,17 +163,19 @@ const isActive = (href) =>
             // Double requestAnimationFrame for native thread safety
             requestAnimationFrame(() => {
               requestAnimationFrame(() => {
-                const originalBehavior = document.documentElement.style.scrollBehavior;
+                const originalBehavior =
+                  document.documentElement.style.scrollBehavior;
                 document.documentElement.style.scrollBehavior = 'auto'; // Force instant
                 window.scrollTo(0, scrollY);
-                document.documentElement.style.scrollBehavior = originalBehavior;
+                document.documentElement.style.scrollBehavior =
+                  originalBehavior;
               });
             });
           } else {
             // Capture scroll position
             const scrollY = window.scrollY;
             document.body.style.top = `-${scrollY}px`;
-            
+
             navbar.classList.add('menu-open');
             document.documentElement.classList.add('menu-open');
             newToggle.setAttribute('aria-expanded', 'true');
@@ -184,9 +187,12 @@ const isActive = (href) =>
           link.addEventListener('click', () => {
             if (navbar.classList.contains('menu-open')) {
               // Guard clause
-              if (!document.documentElement.classList.contains('menu-open')) return;
+              if (!document.documentElement.classList.contains('menu-open'))
+                return;
 
-              const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
+              const scrollY = Math.abs(
+                parseInt(document.body.style.top || '0')
+              );
               navbar.classList.remove('menu-open');
               document.documentElement.classList.remove('menu-open');
               newToggle.setAttribute('aria-expanded', 'false');
@@ -198,10 +204,12 @@ const isActive = (href) =>
               // Double requestAnimationFrame for native thread safety
               requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
-                  const originalBehavior = document.documentElement.style.scrollBehavior;
+                  const originalBehavior =
+                    document.documentElement.style.scrollBehavior;
                   document.documentElement.style.scrollBehavior = 'auto'; // Force instant
                   window.scrollTo(0, scrollY);
-                  document.documentElement.style.scrollBehavior = originalBehavior;
+                  document.documentElement.style.scrollBehavior =
+                    originalBehavior;
                 });
               });
             }

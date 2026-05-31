@@ -31,29 +31,35 @@ const eventItems = [
           eventItems.length > 0 ? (
             eventItems.map((item, index) => {
               const isVideo = item.type === 'video';
-              const videoId = isVideo 
-                ? (item.link.includes('shorts') ? item.link.split('/').pop() : new URL(item.link).searchParams.get('v'))
+              const videoId = isVideo
+                ? item.link.includes('shorts')
+                  ? item.link.split('/').pop()
+                  : new URL(item.link).searchParams.get('v')
                 : null;
 
               const CardWrapper = isVideo ? 'div' : 'a';
-              const wrapperProps = isVideo 
-                ? { 
-                    class: "event-card animate-on-scroll video-modal-trigger",
-                    "data-video-id": videoId,
-                    style: `--index: ${index}; cursor: pointer;`
+              const wrapperProps = isVideo
+                ? {
+                    class: 'event-card animate-on-scroll video-modal-trigger',
+                    'data-video-id': videoId,
+                    style: `--index: ${index}; cursor: pointer;`,
                   }
                 : {
                     href: item.link,
-                    target: "_blank",
-                    rel: "noopener noreferrer",
-                    class: "event-card animate-on-scroll",
-                    style: `--index: ${index};`
+                    target: '_blank',
+                    rel: 'noopener noreferrer',
+                    class: 'event-card animate-on-scroll',
+                    style: `--index: ${index};`,
                   };
 
               return (
                 <CardWrapper {...wrapperProps}>
                   <div class="event-image-wrapper">
-                    <img src={item.image} alt={item.title} class="event-image" />
+                    <img
+                      src={item.image}
+                      alt={item.title}
+                      class="event-image"
+                    />
                     <div class="event-overlay">
                       <span class="event-tag">{item.category}</span>
                       <h3 class="event-title line-clamp-2">{item.title}</h3>
@@ -64,7 +70,10 @@ const eventItems = [
               );
             })
           ) : (
-            <div class="empty-state animate-on-scroll" style="grid-column: 1 / -1; text-align: center; padding: 4rem 0; opacity: 0.6;">
+            <div
+              class="empty-state animate-on-scroll"
+              style="grid-column: 1 / -1; text-align: center; padding: 4rem 0; opacity: 0.6;"
+            >
               <p>Check back soon for live coverage and event highlights.</p>
             </div>
           )
@@ -76,7 +85,12 @@ const eventItems = [
         style="margin-top: 8rem;"
       >
         <div class="section-header" style="margin-bottom: 2rem;">
-          <PageTitle kicker="Bookings" primary="Want us at" secondary="Your event?" scale="secondary" />
+          <PageTitle
+            kicker="Bookings"
+            primary="Want us at"
+            secondary="Your event?"
+            scale="secondary"
+          />
         </div>
         <p class="press-kit-desc">
           We provide cinematic coverage for premieres, conventions, and gaming

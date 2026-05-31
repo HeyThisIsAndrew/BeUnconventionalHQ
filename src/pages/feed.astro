@@ -65,23 +65,25 @@ const categories = ['All', ...CATEGORIES];
         {
           allItems.map((item, index) => {
             const isVideo = item.type === 'video';
-            const videoId = isVideo 
-              ? (item.link.includes('shorts') ? item.link.split('/').pop() : new URL(item.link).searchParams.get('v'))
+            const videoId = isVideo
+              ? item.link.includes('shorts')
+                ? item.link.split('/').pop()
+                : new URL(item.link).searchParams.get('v')
               : null;
 
             const CardWrapper = isVideo ? 'div' : 'a';
-            const wrapperProps = isVideo 
-              ? { 
-                  class: "article-card animate-on-scroll video-modal-trigger",
-                  "data-video-id": videoId,
-                  style: `--index: ${index}; text-decoration: none; cursor: pointer;`
+            const wrapperProps = isVideo
+              ? {
+                  class: 'article-card animate-on-scroll video-modal-trigger',
+                  'data-video-id': videoId,
+                  style: `--index: ${index}; text-decoration: none; cursor: pointer;`,
                 }
               : {
                   href: item.link || '#',
-                  target: "_blank",
-                  rel: "noopener noreferrer",
-                  class: "article-card animate-on-scroll",
-                  style: `--index: ${index}; text-decoration: none;`
+                  target: '_blank',
+                  rel: 'noopener noreferrer',
+                  class: 'article-card animate-on-scroll',
+                  style: `--index: ${index}; text-decoration: none;`,
                 };
 
             return (
@@ -91,7 +93,11 @@ const categories = ['All', ...CATEGORIES];
                 data-category={(item.category || 'General').toLowerCase()}
               >
                 <div class="article-image-wrapper">
-                  <img src={item.image} alt={item.title} class="article-image" />
+                  <img
+                    src={item.image}
+                    alt={item.title}
+                    class="article-image"
+                  />
                   <span class="content-badge">
                     {(item.category || 'General').toUpperCase()}
                   </span>

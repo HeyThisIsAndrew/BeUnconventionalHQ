@@ -65,7 +65,13 @@ const {
     <Footer />
 
     <!-- Unified Video Modal -->
-    <div id="video-modal" class="modal-overlay" aria-hidden="true" role="dialog" aria-label="Video Player">
+    <div
+      id="video-modal"
+      class="modal-overlay"
+      aria-hidden="true"
+      role="dialog"
+      aria-label="Video Player"
+    >
       <div class="modal-content">
         <button class="modal-close" aria-label="Close modal">&times;</button>
         <div class="video-container">
@@ -75,8 +81,7 @@ const {
             frameborder="0"
             allow="autoplay; encrypted-media"
             allowfullscreen
-            title="YouTube video player"
-          ></iframe>
+            title="YouTube video player"></iframe>
         </div>
       </div>
     </div>
@@ -85,10 +90,10 @@ const {
       console.log('Layout script initialized');
       window.addEventListener('load', () => console.log('Page fully loaded'));
 
-      (function() {
+      (function () {
         const modal = document.getElementById('video-modal');
         const modalIframe = document.getElementById('modal-iframe');
-        
+
         function openModal(videoId) {
           if (videoId && modal && modalIframe) {
             // Capture scroll position
@@ -106,10 +111,11 @@ const {
         function closeModal() {
           if (modal && modalIframe) {
             // Guard clause to prevent state corruption
-            if (!document.documentElement.classList.contains('modal-open')) return;
+            if (!document.documentElement.classList.contains('modal-open'))
+              return;
 
             const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
-            
+
             modal.classList.remove('active');
             document.documentElement.classList.remove('modal-open');
             modal.setAttribute('aria-hidden', 'true');
@@ -122,10 +128,12 @@ const {
             // Double requestAnimationFrame for native thread safety
             requestAnimationFrame(() => {
               requestAnimationFrame(() => {
-                const originalBehavior = document.documentElement.style.scrollBehavior;
+                const originalBehavior =
+                  document.documentElement.style.scrollBehavior;
                 document.documentElement.style.scrollBehavior = 'auto'; // Force instant
                 window.scrollTo(0, scrollY);
-                document.documentElement.style.scrollBehavior = originalBehavior;
+                document.documentElement.style.scrollBehavior =
+                  originalBehavior;
               });
             });
           }
@@ -139,7 +147,7 @@ const {
             const videoId = trigger.getAttribute('data-video-id');
             if (videoId) openModal(videoId);
           }
-          
+
           if (e.target === modal || e.target.closest('.modal-close')) {
             closeModal();
           }
