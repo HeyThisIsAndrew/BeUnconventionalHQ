@@ -134,10 +134,11 @@ const currentPath = Astro.url.pathname;
     // Apply active class if hash is present
     const urlHash = window.location.hash.replace('#', '').toLowerCase();
     if (urlHash) {
-      const activeHashes = urlHash.split('+');
       catBtns.forEach(b => {
-        if (activeHashes.includes(b.dataset.filterCat)) {
+        if (b.dataset.filterCat === urlHash) {
           b.classList.add('active');
+        } else {
+          b.classList.remove('active');
         }
       });
     }
@@ -150,19 +151,16 @@ const currentPath = Astro.url.pathname;
       // If none or all types are selected, it means 'All' types
       const isAllTypes = activeTypeValues.length === 0 || activeTypeValues.length === typeBtns.length;
 
-      // Get all active category buttons
-      const activeCatBtns = Array.from(document.querySelectorAll('.cat-btn.active'));
-      const activeCatValues = activeCatBtns.map(btn => btn.dataset.filterCat);
-
-      // If none or all categories are selected, it means 'All' categories
-      const isAllCats = activeCatValues.length === 0 || activeCatValues.length === catBtns.length;
+      // Get single active category
+      const activeCatBtn = document.querySelector('.cat-btn.active');
+      const cat = activeCatBtn ? activeCatBtn.dataset.filterCat : 'all';
 
       cards.forEach((card) => {
         const cardType = card.dataset.type || 'article';
         const cardCat = card.dataset.category || 'general';
 
         const matchesType = isAllTypes || activeTypeValues.includes(cardType.toLowerCase());
-        const matchesCat = isAllCats || activeCatValues.includes(cardCat.toLowerCase());
+        const matchesCat = cat === 'all' || cardCat.toLowerCase() === cat;
 
         if (matchesType && matchesCat) {
           card.style.display = 'flex';
@@ -185,15 +183,17 @@ const currentPath = Astro.url.pathname;
 
     catBtns.forEach((btn) =>
       btn.addEventListener('click', (e) => {
-        e.currentTarget.classList.toggle('active');
+        const wasActive = e.currentTarget.classList.contains('active');
         
-        // Update hash with all active categories or clear it
-        const newActiveCats = Array.from(document.querySelectorAll('.cat-btn.active'));
-        if (newActiveCats.length > 0) {
-          const hashString = newActiveCats.map(b => b.dataset.filterCat).join('+');
-          window.location.hash = hashString;
-        } else {
+        // Strip active from all to enforce single selection
+        catBtns.forEach(b => b.classList.remove('active'));
+        
+        if (wasActive) {
+          // Toggle-to-Clear logic (Deselects entirely)
           history.pushState("", document.title, window.location.pathname);
+        } else {
+          e.currentTarget.classList.add('active');
+          window.location.hash = e.currentTarget.dataset.filterCat;
         }
         
         update();
@@ -202,10 +202,9 @@ const currentPath = Astro.url.pathname;
 
     window.addEventListener('hashchange', () => {
       const newHash = window.location.hash.replace('#', '').toLowerCase();
-      const activeHashes = newHash ? newHash.split('+') : [];
       
       catBtns.forEach((b) => {
-        if (activeHashes.includes(b.dataset.filterCat)) {
+        if (newHash && b.dataset.filterCat === newHash) {
           b.classList.add('active');
         } else {
           b.classList.remove('active');
