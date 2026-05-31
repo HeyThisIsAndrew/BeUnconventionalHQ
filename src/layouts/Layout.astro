@@ -5,7 +5,6 @@ import '../styles/theme-red.css';
 import Footer from '../components/Footer.astro';
 import Navbar from '../components/Navbar.astro';
 import { site } from '../data/site.js';
-import { ClientRouter } from 'astro:transitions';
 
 const {
   title = site.name,
@@ -18,7 +17,6 @@ const {
 
 <html lang="en">
   <head>
-    <ClientRouter />
     <script is:inline>
       document.documentElement.classList.add('js');
     </script>
@@ -90,7 +88,7 @@ const {
 
     <script is:inline>
       console.log('Layout script initialized');
-      document.addEventListener('astro:page-load', () => console.log('Astro Page Load'));
+      window.addEventListener('load', () => console.log('Page fully loaded'));
 
       (function () {
         const modal = document.getElementById('video-modal');
@@ -193,7 +191,6 @@ const {
         );
         els.forEach((el) => io.observe(el));
       }
-      document.addEventListener('astro:page-load', initReveal);
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initReveal);
       } else {
