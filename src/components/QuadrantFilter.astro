@@ -1,0 +1,218 @@
+---
+export interface Props {
+  showTypes?: boolean;
+  isNavMode?: boolean;
+}
+const { showTypes = false, isNavMode = false } = Astro.props;
+
+const categories = ['Film', 'TV', 'Gaming', 'Events'];
+const types = ['Article', 'Video'];
+const currentPath = Astro.url.pathname;
+---
+
+<div class="quadrant-filter-container animate-on-scroll" data-nav-mode={isNavMode ? 'true' : 'false'}>
+  {showTypes && (
+    <div class="filter-row">
+      <span class="filter-label">TYPE</span>
+      <div class="filter-grid type-grid">
+        {types.map(t => (
+          <button class="quadrant-btn type-btn" data-filter-type={t.toLowerCase()}>{t.toUpperCase()}</button>
+        ))}
+      </div>
+    </div>
+  )}
+
+  <div class="filter-row">
+    <span class="filter-label">CATEGORY</span>
+    <div class="filter-grid">
+      {categories.map(c => {
+        const slug = c.toLowerCase();
+        const isActive = isNavMode && currentPath.includes(`/category/${slug}`);
+        const className = `quadrant-btn cat-btn ${isActive ? 'active' : ''}`;
+        
+        return isNavMode ? (
+          <a href={`/category/${slug}`} class={className}>{c}</a>
+        ) : (
+          <button class="quadrant-btn cat-btn" data-filter-cat={slug}>{c}</button>
+        );
+      })}
+    </div>
+  </div>
+</div>
+
+<style>
+  .quadrant-filter-container {
+    margin: 2rem 0 3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    width: 100%;
+  }
+
+  .filter-row {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .filter-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: var(--color-white-muted);
+    text-transform: uppercase;
+  }
+
+  .filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1rem;
+  }
+
+  .type-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .quadrant-btn {
+    padding: 1.25rem 1rem;
+    background: rgba(10, 10, 10, 0.6);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: var(--color-white);
+    font-size: 1.1rem;
+    font-weight: 700;
+    font-family: var(--font-display);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  @media (hover: hover) {
+    .quadrant-btn:hover {
+      background: rgba(255, 255, 255, 0.05);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+  }
+
+  .quadrant-btn.active {
+    background: rgba(229, 9, 20, 0.1);
+    border: 2px solid var(--color-accent);
+    color: white;
+    box-shadow: 0 0 15px rgba(229, 9, 20, 0.3);
+  }
+
+  @media (max-width: 768px) {
+    .filter-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+</style>
+
+<script>
+  function initQuadrantFilter() {
+    const container = document.querySelector('.quadrant-filter-container');
+    if (!container) return;
+    const isNavMode = container.getAttribute('data-nav-mode') === 'true';
+
+    const typeBtns = document.querySelectorAll('.type-btn');
+    const catBtns = document.querySelectorAll('.cat-btn');
+    const cards = document.querySelectorAll('.article-card, .video-card');
+
+    if (cards.length === 0 || isNavMode) return;
+
+    // Apply active class if hash is present
+    const urlHash = window.location.hash.replace('#', '').toLowerCase();
+    
+    let initialCatBtn = Array.from(catBtns).find(b => b.dataset.filterCat === urlHash);
+    if (initialCatBtn) {
+      initialCatBtn.classList.add('active');
+    }
+
+    function update() {
+      // Get all active type buttons
+      const activeTypeBtns = Array.from(document.querySelectorAll('.type-btn.active'));
+      const activeTypeValues = activeTypeBtns.map(btn => btn.dataset.filterType);
+      
+      // If none or all types are selected, it means 'All' types
+      const isAllTypes = activeTypeValues.length === 0 || activeTypeValues.length === typeBtns.length;
+
+      // Get all active category buttons
+      const activeCatBtns = Array.from(document.querySelectorAll('.cat-btn.active'));
+      const activeCatValues = activeCatBtns.map(btn => btn.dataset.filterCat);
+
+      // If none or all categories are selected, it means 'All' categories
+      const isAllCats = activeCatValues.length === 0 || activeCatValues.length === catBtns.length;
+
+      cards.forEach((card) => {
+        const cardType = card.dataset.type || 'article';
+        const cardCat = card.dataset.category || 'general';
+
+        const matchesType = isAllTypes || activeTypeValues.includes(cardType.toLowerCase());
+        const matchesCat = isAllCats || activeCatValues.includes(cardCat.toLowerCase());
+
+        if (matchesType && matchesCat) {
+          card.style.display = 'flex';
+          card.style.opacity = '1';
+          card.style.pointerEvents = 'auto';
+          card.style.transform = 'scale(1)';
+          card.style.filter = 'grayscale(0)';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+
+    typeBtns.forEach((btn) =>
+      btn.addEventListener('click', (e) => {
+        e.currentTarget.classList.toggle('active');
+        update();
+      })
+    );
+
+    catBtns.forEach((btn) =>
+      btn.addEventListener('click', (e) => {
+        e.currentTarget.classList.toggle('active');
+        
+        // Update hash with the first active category or clear it
+        const newActiveCats = Array.from(document.querySelectorAll('.cat-btn.active'));
+        if (newActiveCats.length > 0) {
+          window.location.hash = newActiveCats[0].dataset.filterCat;
+        } else {
+          history.pushState("", document.title, window.location.pathname);
+        }
+        
+        update();
+      })
+    );
+
+    window.addEventListener('hashchange', () => {
+      const newHash = window.location.hash.replace('#', '').toLowerCase();
+      catBtns.forEach((b) => {
+        b.classList.remove('active');
+        if (newHash && b.dataset.filterCat === newHash) {
+          b.classList.add('active');
+        }
+      });
+      update();
+    });
+
+    // Run on initial load
+    update();
+  }
+
+  // Handle Astro page loads
+  document.addEventListener('astro:page-load', initQuadrantFilter);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initQuadrantFilter);
+  } else {
+    initQuadrantFilter();
+  }
+</script>

@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import PageTitle from '../components/PageTitle.astro';
 import { site } from '../data/site.js';
 import { getArticles, getVideos } from '../data/feeds.js';
-import { CATEGORIES } from '../data/constants.js';
+import QuadrantFilter from '../components/QuadrantFilter.astro';
 
 const title = `All Content | ${site.name}`;
 const description =
@@ -16,9 +16,6 @@ const allItems = [
   ...articles.map((a) => ({ ...a, type: 'article' })),
   ...videos.map((v) => ({ ...v, type: 'video', image: v.thumbnail })),
 ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-const types = ['All', 'Article', 'Video', 'Event'];
-const categories = ['All', ...CATEGORIES];
 ---
 
 <Layout title={title} description={description}>
@@ -28,38 +25,7 @@ const categories = ['All', ...CATEGORIES];
         <PageTitle kicker="Explore The HQ" primary="The" secondary="Feed" />
       </header>
 
-      <nav class="filter-nav animate-on-scroll">
-        <div class="filter-group">
-          <span class="filter-label">TYPE:</span>
-          <div class="filter-scroll">
-            {
-              types.map((type) => (
-                <button
-                  class:list={['filter-btn', { active: type === 'All' }]}
-                  data-filter-type={type.toLowerCase()}
-                >
-                  {type === 'All' ? 'ALL' : type.toUpperCase()}
-                </button>
-              ))
-            }
-          </div>
-        </div>
-        <div class="filter-group">
-          <span class="filter-label">CATEGORY:</span>
-          <div class="filter-scroll">
-            {
-              categories.map((cat) => (
-                <button
-                  class:list={['filter-btn', { active: cat === 'All' }]}
-                  data-filter-cat={cat.toLowerCase()}
-                >
-                  {cat.toUpperCase()}
-                </button>
-              ))
-            }
-          </div>
-        </div>
-      </nav>
+      <QuadrantFilter showTypes={true} />
 
       <div class="articles-grid">
         {
@@ -120,38 +86,6 @@ const categories = ['All', ...CATEGORIES];
     </div>
   </main>
 </Layout>
-
-<script>
-  const typeBtns = document.querySelectorAll('[data-filter-type]');
-  const catBtns = document.querySelectorAll('[data-filter-cat]');
-  const items = document.querySelectorAll('.article-card');
-
-  function update() {
-    const type = document
-      .querySelector('[data-filter-type].active')
-      ?.getAttribute('data-filter-type');
-    const cat = document
-      .querySelector('[data-filter-cat].active')
-      ?.getAttribute('data-filter-cat');
-
-    items.forEach((item) => {
-      const matchesType = type === 'all' || item.dataset.type === type;
-      const matchesCat = cat === 'all' || item.dataset.category === cat;
-      item.style.display = matchesType && matchesCat ? 'flex' : 'none';
-    });
-  }
-
-  [...typeBtns, ...catBtns].forEach((btn) =>
-    btn.addEventListener('click', (e) => {
-      const group = e.target.parentElement;
-      group
-        .querySelectorAll('button')
-        .forEach((b) => b.classList.remove('active'));
-      e.target.classList.add('active');
-      update();
-    })
-  );
-</script>
 
 <style>
   .container {

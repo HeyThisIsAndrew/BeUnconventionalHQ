@@ -2,7 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import PageTitle from '../components/PageTitle.astro';
 import { site } from '../data/site.js';
-import { CATEGORIES } from '../data/constants.js';
+import QuadrantFilter from '../components/QuadrantFilter.astro';
 import { getArticles } from '../data/feeds.js';
 
 const title = `Articles | ${site.name}`;
@@ -11,7 +11,6 @@ const description =
 
 const allArticles = await getArticles();
 const displayArticles = allArticles.slice(0, 20);
-const categories = ['All', ...CATEGORIES];
 ---
 
 <Layout title={title} description={description}>
@@ -25,23 +24,7 @@ const categories = ['All', ...CATEGORIES];
         />
       </header>
 
-      <nav class="filter-nav animate-on-scroll" data-delay="100">
-        <div class="filter-group">
-          <span class="filter-label">CATEGORY:</span>
-          <div class="filter-scroll">
-            {
-              categories.map((cat) => (
-                <button
-                  class:list={['filter-btn', { active: cat === 'All' }]}
-                  data-filter={cat.toLowerCase()}
-                >
-                  {cat.toUpperCase()}
-                </button>
-              ))
-            }
-          </div>
-        </div>
-      </nav>
+      <QuadrantFilter showTypes={false} />
 
       <div class="articles-grid">
         {
@@ -75,29 +58,6 @@ const categories = ['All', ...CATEGORIES];
     </div>
   </main>
 </Layout>
-
-<script>
-  const filterBtns = document.querySelectorAll('.filter-btn');
-  const cards = document.querySelectorAll('.article-card');
-
-  filterBtns.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      filterBtns.forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-
-      const filter = btn.getAttribute('data-filter');
-
-      cards.forEach((card) => {
-        const cat = card.getAttribute('data-category');
-        if (filter === 'all' || cat === filter) {
-          (card as HTMLElement).style.display = 'flex';
-        } else {
-          (card as HTMLElement).style.display = 'none';
-        }
-      });
-    });
-  });
-</script>
 
 <style>
   .container {
