@@ -20,7 +20,7 @@ const currentPath = Astro.url.pathname;
             <button class="quadrant-btn type-btn" data-filter-type={t.toLowerCase()}>{t.toUpperCase()}</button>
           ))}
         </div>
-        <button id="open-categories-btn" class="quadrant-btn" style="display: none;">Categories</button>
+        <button id="open-categories-btn" class="quadrant-btn">Categories</button>
       </div>
 
       <div class="filter-row desktop-type-row">
@@ -210,19 +210,6 @@ const currentPath = Astro.url.pathname;
     .desktop-category-row {
       display: none;
     }
-    #category-modal .filter-grid {
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      justify-content: center;
-      gap: 1rem;
-    }
-    #category-modal .modal-content {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
   }
 
   /* Dialog Styles for Category Overlay */
@@ -297,13 +284,32 @@ const currentPath = Astro.url.pathname;
     }
   }
 
-  .modal-content {
-    background: var(--color-background, #000);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: 3rem 2rem 2rem;
-    position: relative;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  #category-modal .modal-content {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  #category-modal .filter-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    width: 100%;
+    max-width: 320px;
+  }
+
+  #category-modal .cat-btn {
+    background: rgba(20, 20, 20, 0.7);
+    backdrop-filter: blur(25px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 0 30px rgba(255, 255, 255, 0.05);
+    width: 100%;
   }
 
   .modal-close {
@@ -579,4 +585,12 @@ const currentPath = Astro.url.pathname;
 
   // Handle Astro page loads
   document.addEventListener('astro:page-load', initQuadrantFilter);
+
+  // Handle global state resets for dedicated routes
+  document.addEventListener('astro:before-preparation', (e) => {
+    const targetPath = new URL(e.to).pathname.replace(/\/$/, '').toLowerCase();
+    if (targetPath !== '/feed') {
+      sessionStorage.removeItem('activeType');
+    }
+  });
 </script>
