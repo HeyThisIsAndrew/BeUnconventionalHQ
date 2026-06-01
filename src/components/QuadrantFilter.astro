@@ -20,7 +20,7 @@ const currentPath = Astro.url.pathname;
             <button class="quadrant-btn type-btn" data-filter-type={t.toLowerCase()}>{t.toUpperCase()}</button>
           ))}
         </div>
-        <button id="open-categories-btn" class="quadrant-btn" style="display: none !important;">Categories</button>
+        <button id="open-categories-btn" class="quadrant-btn" style="display: none;">Categories</button>
       </div>
 
       <div class="filter-row desktop-type-row">
@@ -34,7 +34,7 @@ const currentPath = Astro.url.pathname;
     </div>
   </div>
 
-  <div class="filter-row category-row">
+  <div class="filter-row category-row desktop-category-row">
     <span class="filter-label desktop-category-label">CATEGORY</span>
     <div class="filter-grid">
       {categories.map(c => {
@@ -54,6 +54,30 @@ const currentPath = Astro.url.pathname;
     </div>
   </div>
 </div>
+
+<dialog id="category-modal" class="fade-in-overlay">
+  <div class="modal-content">
+    <button class="modal-close" aria-label="Close categories" id="close-categories-btn">&times;</button>
+    <div class="filter-row category-row">
+      <span class="filter-label">CATEGORY</span>
+      <div class="filter-grid">
+        {categories.map(c => {
+          const slug = c.toLowerCase();
+          const isActive = isNavMode && currentPath.includes(`/category/${slug}`);
+          const className = `quadrant-btn cat-btn ${isActive ? 'active' : ''}`;
+          
+          const hrefTarget = isActive ? '/feed' : `/category/${slug}`;
+          
+          return isNavMode ? (
+            <a href={hrefTarget} class={className}>{c}</a>
+          ) : (
+            <button class="quadrant-btn cat-btn" data-filter-cat={slug}>{c}</button>
+          );
+        })}
+      </div>
+    </div>
+  </div>
+</dialog>
 
 <style>
   .quadrant-filter-container {
@@ -178,13 +202,123 @@ const currentPath = Astro.url.pathname;
       padding: 0.75rem 1rem;
       font-size: 0.9rem;
       white-space: nowrap;
+      display: flex; /* Replaces !important */
     }
     .desktop-type-row {
       display: none;
     }
-    .desktop-category-label {
+    .desktop-category-row {
       display: none;
     }
+  }
+
+  /* Dialog Styles for Category Overlay */
+  #category-modal {
+    view-transition-name: cinematic-overlay;
+    background: transparent;
+    border: none;
+    margin: auto;
+    padding: 0;
+    max-width: 90vw;
+    width: 100%;
+  }
+
+  #category-modal[open] {
+    animation: fadeIn 0.3s ease-out forwards;
+  }
+  
+  #category-modal::backdrop {
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+  }
+
+  #category-modal[open]::backdrop {
+    animation: fadeInBackdrop 0.3s ease-out forwards;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95) translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  @keyframes fadeInBackdrop {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  #category-modal.closing {
+    animation: fadeOut 0.3s ease-in forwards;
+  }
+
+  #category-modal.closing::backdrop {
+    animation: fadeOutBackdrop 0.3s ease-in forwards;
+  }
+
+  @keyframes fadeOut {
+    from {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.95) translateY(10px);
+    }
+  }
+
+  @keyframes fadeOutBackdrop {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  .modal-content {
+    background: var(--color-background, #000);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 3rem 2rem 2rem;
+    position: relative;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: transparent;
+    border: none;
+    color: var(--color-white-muted, #aaa);
+    font-size: 2rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.3s ease;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+  }
+
+  .modal-close:hover {
+    color: white;
+  }
+
+  /* Completely eliminates JS scroll-locking */
+  :global(body:has(#category-modal[open])) {
+    overflow: hidden;
   }
 </style>
 
@@ -193,6 +327,50 @@ const currentPath = Astro.url.pathname;
     const container = document.getElementById('quadrant-filter-wrapper');
     if (!container) return;
     const isNavMode = container.getAttribute('data-nav-mode') === 'true';
+
+    // Modal Logic
+    const categoryModal = document.getElementById('category-modal') as HTMLDialogElement;
+    const openBtn = document.getElementById('open-categories-btn');
+    const closeBtn = document.getElementById('close-categories-btn');
+
+    function closeCategoryModal() {
+      if (!categoryModal || !categoryModal.open) return;
+      categoryModal.classList.add('closing');
+      categoryModal.addEventListener('animationend', function handleAnimationEnd() {
+        categoryModal.classList.remove('closing');
+        categoryModal.close();
+      }, { once: true });
+    }
+
+    if (openBtn && categoryModal && !openBtn.dataset.bound) {
+      openBtn.addEventListener('click', () => {
+        categoryModal.showModal();
+      });
+      openBtn.dataset.bound = 'true';
+    }
+
+    if (closeBtn && categoryModal && !closeBtn.dataset.bound) {
+      closeBtn.addEventListener('click', closeCategoryModal);
+      closeBtn.dataset.bound = 'true';
+    }
+
+    // Close when clicking on backdrop
+    if (categoryModal && !categoryModal.dataset.boundClick) {
+      categoryModal.addEventListener('click', (e) => {
+        const rect = categoryModal.getBoundingClientRect();
+        const isInDialog = (
+          rect.top <= e.clientY &&
+          e.clientY <= rect.top + rect.height &&
+          rect.left <= e.clientX &&
+          e.clientX <= rect.left + rect.width
+        );
+        if (!isInDialog && categoryModal.open) {
+          closeCategoryModal();
+        }
+      });
+      categoryModal.dataset.boundClick = 'true';
+    }
+
 
     // 1. RUN ONCE: Attach events only if not already initialized
     if (container.dataset.initialized !== 'true') {
@@ -229,11 +407,19 @@ const currentPath = Astro.url.pathname;
             // Toggle-to-Clear logic (Deselects entirely)
             history.pushState("", document.title, window.location.pathname);
           } else {
-            (e.currentTarget as HTMLElement).classList.add('active');
-            window.location.hash = (e.currentTarget as HTMLElement).dataset.filterCat || '';
+            // Sync all category buttons with same filter
+            const filterCat = (e.currentTarget as HTMLElement).dataset.filterCat;
+            document.querySelectorAll(`.cat-btn[data-filter-cat="${filterCat}"]`).forEach(b => {
+               b.classList.add('active');
+            });
+            window.location.hash = filterCat || '';
           }
           
           update();
+          // Also close modal if open
+          if (categoryModal && categoryModal.open) {
+            closeCategoryModal();
+          }
         })
       );
 
@@ -291,12 +477,24 @@ const currentPath = Astro.url.pathname;
         
         if (currentPath === expectedPath) {
           b.classList.add('active');
-          (b as HTMLAnchorElement).href = '/feed'; // Active Toggle Escape Route
+          if (b.tagName === 'A') (b as HTMLAnchorElement).href = '/feed'; // Active Toggle Escape Route
         } else {
           b.classList.remove('active');
-          (b as HTMLAnchorElement).href = expectedPath;
+          if (b.tagName === 'A') (b as HTMLAnchorElement).href = expectedPath;
         }
       });
+
+      // Close modal on link click during nav mode
+      if (categoryModal) {
+        const modalLinks = categoryModal.querySelectorAll('a.cat-btn');
+        modalLinks.forEach(link => {
+          link.addEventListener('click', () => {
+            if (categoryModal.open) {
+              closeCategoryModal();
+            }
+          });
+        });
+      }
       return;
     }
 
