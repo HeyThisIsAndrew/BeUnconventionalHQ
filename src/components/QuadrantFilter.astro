@@ -210,6 +210,19 @@ const currentPath = Astro.url.pathname;
     .desktop-category-row {
       display: none;
     }
+    #category-modal .filter-grid {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: center;
+      gap: 1rem;
+    }
+    #category-modal .modal-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
   }
 
   /* Dialog Styles for Category Overlay */
@@ -334,12 +347,14 @@ const currentPath = Astro.url.pathname;
     const closeBtn = document.getElementById('close-categories-btn');
 
     function closeCategoryModal() {
-      if (!categoryModal || !categoryModal.open) return;
+      if (!categoryModal || !categoryModal.open || categoryModal.classList.contains('closing')) return;
       categoryModal.classList.add('closing');
-      categoryModal.addEventListener('animationend', function handleAnimationEnd() {
+      categoryModal.addEventListener('animationend', function handleAnimationEnd(e) {
+        if (e.target !== categoryModal) return;
         categoryModal.classList.remove('closing');
         categoryModal.close();
-      }, { once: true });
+        categoryModal.removeEventListener('animationend', handleAnimationEnd);
+      });
     }
 
     if (openBtn && categoryModal && !openBtn.dataset.bound) {
@@ -516,16 +531,15 @@ const currentPath = Astro.url.pathname;
 
       const path = window.location.pathname;
       const isDedicatedRoute = path.includes('/videos') || path.includes('/articles');
-      
-      // Skip Type filtering entirely on dedicated pages
-      if (isDedicatedRoute) {
-        freshCards.forEach(card => (card as HTMLElement).style.display = 'flex');
-        return;
-      }
 
       // Get single active type
       const activeTypeBtn = document.querySelector('.type-btn.active');
-      const activeType = activeTypeBtn ? (activeTypeBtn as HTMLElement).dataset.filterType : 'all';
+      let activeType = activeTypeBtn ? (activeTypeBtn as HTMLElement).dataset.filterType : 'all';
+
+      // Force type on dedicated pages to ignore UI toggles
+      if (isDedicatedRoute) {
+        activeType = path.includes('/videos') ? 'video' : 'article';
+      }
 
       // Get single active category
       const activeCatBtn = document.querySelector('.cat-btn.active');
