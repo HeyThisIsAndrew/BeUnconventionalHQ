@@ -312,6 +312,19 @@ const currentPath = Astro.url.pathname;
     }
 
     function update() {
+      // Query fresh cards dynamically (solves stale references issue)
+      const freshCards = document.querySelectorAll('.article-card, .video-card');
+      if (freshCards.length === 0) return;
+
+      const path = window.location.pathname;
+      const isDedicatedRoute = path.includes('/videos') || path.includes('/articles');
+      
+      // Skip Type filtering entirely on dedicated pages
+      if (isDedicatedRoute) {
+        freshCards.forEach(card => (card as HTMLElement).style.display = 'flex');
+        return;
+      }
+
       // Get single active type
       const activeTypeBtn = document.querySelector('.type-btn.active');
       const activeType = activeTypeBtn ? (activeTypeBtn as HTMLElement).dataset.filterType : 'all';
@@ -319,10 +332,6 @@ const currentPath = Astro.url.pathname;
       // Get single active category
       const activeCatBtn = document.querySelector('.cat-btn.active');
       const cat = activeCatBtn ? (activeCatBtn as HTMLElement).dataset.filterCat : 'all';
-
-      // Query fresh cards dynamically (solves stale references issue)
-      const freshCards = document.querySelectorAll('.article-card, .video-card');
-      if (freshCards.length === 0) return;
 
       freshCards.forEach((card) => {
         const cardElem = card as HTMLElement;
