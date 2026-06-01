@@ -100,7 +100,7 @@ const isActive = (href) =>
       }
 
       // 3. Visibility Logic
-      const heroText = document.querySelector('.hero-title-stack');
+      const anchor = document.querySelector('[data-nav-anchor]');
 
       function updateVisibility(isVisible) {
         if (isVisible) {
@@ -114,7 +114,7 @@ const isActive = (href) =>
         }
       }
 
-      if (heroText) {
+      if (anchor) {
         // We are on the homepage. Watch the Hero text.
         observer = new IntersectionObserver(
           (entries) => {
@@ -124,7 +124,9 @@ const isActive = (href) =>
           },
           { rootMargin: '-80px 0px 0px 0px' }
         ); 
-        observer.observe(heroText);
+        const rect = anchor.getBoundingClientRect();
+        updateVisibility(rect.bottom <= 0);
+        observer.observe(anchor);
       } else {
         // We are on a subpage. Fallback to basic scroll threshold.
         scrollHandler = () => {
@@ -138,7 +140,6 @@ const isActive = (href) =>
       }
     }
 
-    initNavObserver();
     document.addEventListener('astro:page-load', initNavObserver);
 
     function updateActiveNavLinks() {
