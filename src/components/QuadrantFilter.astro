@@ -525,31 +525,29 @@ const currentPath = Astro.url.pathname;
         }
       });
 
-      // Close modal on link click during nav mode
-      if (categoryModal) {
-        const modalLinks = categoryModal.querySelectorAll('a.cat-btn');
-        modalLinks.forEach(link => {
-          if (!(link as HTMLElement).dataset.boundNav) {
-            link.addEventListener('click', (e) => {
-              e.preventDefault();
-              
-              // Intercept active category click
-              if (link.classList.contains('active')) {
-                closeCategoryModal();
-                return;
-              }
+      // Close modal on link click during nav mode (Event Delegation)
+      if (categoryModal && !categoryModal.dataset.boundNavDelegation) {
+        categoryModal.addEventListener('click', (e) => {
+          const link = (e.target as HTMLElement).closest('a.cat-btn');
+          if (!link) return;
 
-              // Synchronously kill the dialog before Astro navigation propagates
-              if (categoryModal.open) {
-                categoryModal.classList.remove('closing');
-                categoryModal.close();
-              }
-              
-              navigate((link as HTMLAnchorElement).href);
-            });
-            (link as HTMLElement).dataset.boundNav = 'true';
+          e.preventDefault();
+          
+          // Intercept active category click
+          if (link.classList.contains('active')) {
+            closeCategoryModal();
+            return;
           }
+
+          // Synchronously kill the dialog before Astro navigation propagates
+          if (categoryModal.open) {
+            categoryModal.classList.remove('closing');
+            categoryModal.close();
+          }
+          
+          navigate((link as HTMLAnchorElement).href);
         });
+        categoryModal.dataset.boundNavDelegation = 'true';
       }
       // Removed early return to allow update() to run and sync the Categories button on Hub pages
     }
