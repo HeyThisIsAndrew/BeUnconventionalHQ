@@ -438,19 +438,22 @@ const currentPath = Astro.url.pathname;
         })
       );
 
-      window.addEventListener('hashchange', () => {
-        const newHash = window.location.hash.replace('#', '').toLowerCase();
-        
-        document.querySelectorAll('.cat-btn').forEach((b) => {
-          if (newHash && (b as HTMLElement).dataset.filterCat === newHash) {
-            b.classList.add('active');
-          } else {
-            b.classList.remove('active');
-          }
+      if (!(window as any).hasQuadrantFilterHashListener) {
+        window.addEventListener('hashchange', () => {
+          const newHash = window.location.hash.replace('#', '').toLowerCase();
+          
+          document.querySelectorAll('.cat-btn').forEach((b) => {
+            if (newHash && (b as HTMLElement).dataset.filterCat === newHash) {
+              b.classList.add('active');
+            } else {
+              b.classList.remove('active');
+            }
+          });
+          
+          update();
         });
-        
-        update();
-      });
+        (window as any).hasQuadrantFilterHashListener = true;
+      }
 
       container.dataset.initialized = 'true';
     }
@@ -503,11 +506,16 @@ const currentPath = Astro.url.pathname;
       if (categoryModal) {
         const modalLinks = categoryModal.querySelectorAll('a.cat-btn');
         modalLinks.forEach(link => {
-          link.addEventListener('click', () => {
-            if (categoryModal.open) {
-              closeCategoryModal();
-            }
-          });
+          if (!(link as HTMLElement).dataset.boundNav) {
+            link.addEventListener('click', () => {
+              if (categoryModal.open) {
+                categoryModal.classList.remove('closing');
+                categoryModal.style.display = 'none';
+                categoryModal.close();
+              }
+            });
+            (link as HTMLElement).dataset.boundNav = 'true';
+          }
         });
       }
       return;
@@ -571,10 +579,4 @@ const currentPath = Astro.url.pathname;
 
   // Handle Astro page loads
   document.addEventListener('astro:page-load', initQuadrantFilter);
-  document.addEventListener('astro:after-swap', initQuadrantFilter);
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initQuadrantFilter);
-  } else {
-    initQuadrantFilter();
-  }
 </script>
