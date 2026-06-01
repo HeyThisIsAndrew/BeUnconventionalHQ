@@ -12,18 +12,16 @@ const currentPath = Astro.url.pathname;
 
 <div class="quadrant-filter-container" id="quadrant-filter-wrapper" transition:persist={isNavMode ? "desktop-sidebar" : "quadrant-feed"} data-nav-mode={isNavMode ? 'true' : 'false'}>
   
-  <div class="mobile-top-bar">
-    {showTypes && (
+  <div id="global-type-row">
+    <div class="mobile-top-bar">
       <div class="filter-grid type-grid mobile-type-toggles">
         {types.map(t => (
           <button class="quadrant-btn type-btn" data-filter-type={t.toLowerCase()}>{t.toUpperCase()}</button>
         ))}
       </div>
-    )}
-    <button id="open-categories-btn" class="quadrant-btn">Categories</button>
-  </div>
+      <button id="open-categories-btn" class="quadrant-btn" style="display: none !important;">Categories</button>
+    </div>
 
-  {showTypes && (
     <div class="filter-row desktop-type-row">
       <span class="filter-label">TYPE</span>
       <div class="filter-grid type-grid">
@@ -32,7 +30,7 @@ const currentPath = Astro.url.pathname;
         ))}
       </div>
     </div>
-  )}
+  </div>
 
   <div class="filter-row category-row">
     <span class="filter-label desktop-category-label">CATEGORY</span>
@@ -231,6 +229,15 @@ const currentPath = Astro.url.pathname;
     // 2. RUN EVERY TIME: Sync visual state
     const urlHash = window.location.hash.replace('#', '').toLowerCase();
     const currentCatBtns = document.querySelectorAll('.cat-btn');
+
+    const typeRow = document.getElementById('global-type-row');
+    if (typeRow) {
+      if (window.location.pathname === '/feed' || window.location.pathname === '/feed/') {
+        typeRow.style.display = 'block';
+      } else {
+        typeRow.style.display = 'none';
+      }
+    }
 
     // IF THIS IS NAV MODE AND PERSISTED, WE MUST UPDATE THE ACTIVE STATE MANUALLY ON SPA TRANSITIONS
     if (isNavMode) {
