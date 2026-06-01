@@ -60,9 +60,8 @@ const currentPath = Astro.url.pathname;
 
 <dialog id="category-modal" class="fade-in-overlay" data-nav-mode={isNavMode ? 'true' : 'false'}>
   <div class="modal-content">
-    <button class="modal-close" aria-label="Close categories" id="close-categories-btn">&times;</button>
     <div class="filter-row category-row">
-      <span class="filter-label">CATEGORY</span>
+      <span class="filter-label" style="display: block; width: 100%; text-align: center;">CATEGORY</span>
       <div class="filter-grid">
         {categories.map(c => {
           const slug = c.toLowerCase();
@@ -344,29 +343,7 @@ const currentPath = Astro.url.pathname;
     opacity: 0.5;
   }
 
-  .modal-close {
-    position: fixed;
-    top: 15px;
-    right: 15px;
-    z-index: 99999;
-    background: transparent;
-    border: none;
-    color: var(--color-white-muted, #aaa);
-    font-size: 2rem;
-    line-height: 1;
-    cursor: pointer;
-    transition: color 0.3s ease;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-  }
 
-  .modal-close:hover {
-    color: white;
-  }
 
   /* Completely eliminates JS scroll-locking */
   :global(body:has(#category-modal[open])) {
@@ -375,6 +352,8 @@ const currentPath = Astro.url.pathname;
 </style>
 
 <script>
+  import { navigate } from 'astro:transitions/client';
+
   function initQuadrantFilter() {
     const container = document.getElementById('quadrant-filter-wrapper');
     if (!container) return;
@@ -383,7 +362,6 @@ const currentPath = Astro.url.pathname;
     // Modal Logic
     const categoryModal = document.getElementById('category-modal') as HTMLDialogElement;
     const openBtn = document.getElementById('open-categories-btn');
-    const closeBtn = document.getElementById('close-categories-btn');
 
     function closeCategoryModal() {
       if (!categoryModal || !categoryModal.open || categoryModal.classList.contains('closing')) return;
@@ -419,10 +397,7 @@ const currentPath = Astro.url.pathname;
       openBtn.dataset.bound = 'true';
     }
 
-    if (closeBtn && categoryModal && !closeBtn.dataset.bound) {
-      closeBtn.addEventListener('click', closeCategoryModal);
-      closeBtn.dataset.bound = 'true';
-    }
+
 
     // Close when clicking on backdrop
     if (categoryModal && !categoryModal.dataset.boundClick) {
@@ -557,17 +532,21 @@ const currentPath = Astro.url.pathname;
         modalLinks.forEach(link => {
           if (!(link as HTMLElement).dataset.boundNav) {
             link.addEventListener('click', (e) => {
+              e.preventDefault();
+              
               // Intercept active category click
               if (link.classList.contains('active')) {
-                e.preventDefault();
                 closeCategoryModal();
                 return;
               }
 
+              // Synchronously kill the dialog before Astro navigation propagates
               if (categoryModal.open) {
                 categoryModal.classList.remove('closing');
                 categoryModal.close();
               }
+              
+              navigate((link as HTMLAnchorElement).href);
             });
             (link as HTMLElement).dataset.boundNav = 'true';
           }
@@ -667,5 +646,22 @@ const currentPath = Astro.url.pathname;
     if (targetPath !== '/feed') {
       sessionStorage.removeItem('activeType');
     }
+  });
+
+  // Hub-to-Hub State Rehydration
+  document.addEventListener('astro:page-load', () => {
+    const modal = document.getElementById('category-modal');
+    if (!modal || modal.getAttribute('data-nav-mode') !== 'true') return;
+    
+    const currentPath = window.location.pathname.replace(/\/$/, '').toLowerCase();
+    
+    modal.querySelectorAll('.cat-btn').forEach(btn => {
+      const slug = (btn.textContent || '').toLowerCase();
+      if (currentPath === `/category/${slug}`) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
   });
 </script>
