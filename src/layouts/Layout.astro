@@ -167,6 +167,8 @@ const {
       })();
     </script>
     <script>
+      let isInitialLoad = true;
+
       function initReveal() {
         const els = document.querySelectorAll('.reveal, .animate-on-scroll');
         const reduce = window.matchMedia(
@@ -199,11 +201,38 @@ const {
         );
         els.forEach((el) => io.observe(el));
       }
-      document.addEventListener('astro:page-load', initReveal);
+
+      function handlePageLoad() {
+        if (isInitialLoad) {
+          initReveal();
+          isInitialLoad = false;
+        } else {
+          const els = document.querySelectorAll('.reveal, .animate-on-scroll');
+          els.forEach((el) => {
+            const originalTransition = el.style.transition;
+            el.style.transition = 'none';
+            el.setAttribute('data-state', 'in');
+            el.setAttribute('data-state', 'active');
+            el.style.opacity = '1';
+            el.style.transform = 'none';
+            
+            // Restore transition for hover effects after rendering
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                el.style.transition = originalTransition;
+              });
+            });
+          });
+        }
+      }
+
+      document.addEventListener('astro:page-load', handlePageLoad);
+      
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initReveal);
+        document.addEventListener('DOMContentLoaded', handlePageLoad);
       } else {
-        initReveal();
+        // Run immediately if ready (e.g. initial load missed by DOMContentLoaded)
+        handlePageLoad();
       }
     </script>
     <script>
