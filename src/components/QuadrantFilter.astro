@@ -10,9 +10,21 @@ const types = ['Article', 'Video'];
 const currentPath = Astro.url.pathname;
 ---
 
-<div class="quadrant-filter-container" transition:persist={isNavMode ? "desktop-sidebar" : "quadrant-feed"} data-nav-mode={isNavMode ? 'true' : 'false'}>
+<div class="quadrant-filter-container" id="quadrant-filter-wrapper" transition:persist={isNavMode ? "desktop-sidebar" : "quadrant-feed"} data-nav-mode={isNavMode ? 'true' : 'false'}>
+  
+  <div class="mobile-top-bar">
+    {showTypes && (
+      <div class="filter-grid type-grid mobile-type-toggles">
+        {types.map(t => (
+          <button class="quadrant-btn type-btn" data-filter-type={t.toLowerCase()}>{t.toUpperCase()}</button>
+        ))}
+      </div>
+    )}
+    <button id="open-categories-btn" class="quadrant-btn">Categories</button>
+  </div>
+
   {showTypes && (
-    <div class="filter-row">
+    <div class="filter-row desktop-type-row">
       <span class="filter-label">TYPE</span>
       <div class="filter-grid type-grid">
         {types.map(t => (
@@ -22,8 +34,8 @@ const currentPath = Astro.url.pathname;
     </div>
   )}
 
-  <div class="filter-row">
-    <span class="filter-label">CATEGORY</span>
+  <div class="filter-row category-row">
+    <span class="filter-label desktop-category-label">CATEGORY</span>
     <div class="filter-grid">
       {categories.map(c => {
         const slug = c.toLowerCase();
@@ -117,45 +129,132 @@ const currentPath = Astro.url.pathname;
       grid-template-columns: repeat(2, 1fr);
     }
   }
+
+  .mobile-top-bar {
+    display: none;
+  }
+
+  @media (max-width: 767px) {
+    .mobile-top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      position: sticky;
+      top: 20px;
+      z-index: 50;
+      margin-bottom: 2rem;
+    }
+    .mobile-type-toggles {
+      display: flex;
+      flex-grow: 1;
+      gap: 0.5rem;
+    }
+    .mobile-type-toggles .quadrant-btn {
+      flex: 1;
+      padding: 0.75rem 0.5rem;
+      font-size: 0.9rem;
+    }
+    #open-categories-btn {
+      padding: 0.75rem 1rem;
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+    .desktop-type-row {
+      display: none;
+    }
+    .desktop-category-label {
+      display: none;
+    }
+  }
 </style>
 
 <script>
   function initQuadrantFilter() {
-    const container = document.querySelector('.quadrant-filter-container');
+    const container = document.getElementById('quadrant-filter-wrapper');
     if (!container) return;
     const isNavMode = container.getAttribute('data-nav-mode') === 'true';
 
-    const typeBtns = document.querySelectorAll('.type-btn');
-    const catBtns = document.querySelectorAll('.cat-btn');
-    const cards = document.querySelectorAll('.article-card, .video-card');
+    // 1. RUN ONCE: Attach events only if not already initialized
+    if (container.dataset.initialized !== 'true') {
+      const typeBtns = document.querySelectorAll('.type-btn');
+      const catBtns = document.querySelectorAll('.cat-btn');
 
+      typeBtns.forEach((btn) =>
+        btn.addEventListener('click', (e) => {
+          const type = (e.currentTarget as HTMLElement).dataset.filterType;
+          const isCurrentlyActive = (e.currentTarget as HTMLElement).classList.contains('active');
+          // Sync desktop and mobile toggles
+          document.querySelectorAll(`.type-btn[data-filter-type="${type}"]`).forEach(b => {
+             b.classList.toggle('active', !isCurrentlyActive);
+          });
+          update();
+        })
+      );
+
+      catBtns.forEach((btn) =>
+        btn.addEventListener('click', (e) => {
+          const wasActive = (e.currentTarget as HTMLElement).classList.contains('active');
+          
+          // Strip active from all to enforce single selection
+          document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+          
+          if (wasActive) {
+            // Toggle-to-Clear logic (Deselects entirely)
+            history.pushState("", document.title, window.location.pathname);
+          } else {
+            (e.currentTarget as HTMLElement).classList.add('active');
+            window.location.hash = (e.currentTarget as HTMLElement).dataset.filterCat || '';
+          }
+          
+          update();
+        })
+      );
+
+      window.addEventListener('hashchange', () => {
+        const newHash = window.location.hash.replace('#', '').toLowerCase();
+        
+        document.querySelectorAll('.cat-btn').forEach((b) => {
+          if (newHash && (b as HTMLElement).dataset.filterCat === newHash) {
+            b.classList.add('active');
+          } else {
+            b.classList.remove('active');
+          }
+        });
+        
+        update();
+      });
+
+      container.dataset.initialized = 'true';
+    }
+
+    // 2. RUN EVERY TIME: Sync visual state
     const urlHash = window.location.hash.replace('#', '').toLowerCase();
+    const currentCatBtns = document.querySelectorAll('.cat-btn');
 
     // IF THIS IS NAV MODE AND PERSISTED, WE MUST UPDATE THE ACTIVE STATE MANUALLY ON SPA TRANSITIONS
     if (isNavMode) {
       const currentPath = window.location.pathname.replace(/\/$/, '').toLowerCase();
       
-      catBtns.forEach(b => {
-        const slug = b.textContent.toLowerCase();
+      currentCatBtns.forEach(b => {
+        const slug = b.textContent?.toLowerCase() || '';
         const expectedPath = `/category/${slug}`;
         
         if (currentPath === expectedPath) {
           b.classList.add('active');
-          b.href = '/feed'; // Active Toggle Escape Route
+          (b as HTMLAnchorElement).href = '/feed'; // Active Toggle Escape Route
         } else {
           b.classList.remove('active');
-          b.href = expectedPath;
+          (b as HTMLAnchorElement).href = expectedPath;
         }
       });
       return;
     }
 
-    if (cards.length === 0) return;
-
     // Apply active class if hash is present
     if (urlHash) {
-      catBtns.forEach(b => {
-        if (b.dataset.filterCat === urlHash) {
+      currentCatBtns.forEach(b => {
+        if ((b as HTMLElement).dataset.filterCat === urlHash) {
           b.classList.add('active');
         } else {
           b.classList.remove('active');
@@ -164,77 +263,43 @@ const currentPath = Astro.url.pathname;
     }
 
     function update() {
-      // Get all active type buttons
+      // Get all active type buttons (unique values)
       const activeTypeBtns = Array.from(document.querySelectorAll('.type-btn.active'));
-      const activeTypeValues = activeTypeBtns.map(btn => btn.dataset.filterType);
+      const activeTypeValues = Array.from(new Set(activeTypeBtns.map(btn => (btn as HTMLElement).dataset.filterType)));
       
       // If none or all types are selected, it means 'All' types
-      const isAllTypes = activeTypeValues.length === 0 || activeTypeValues.length === typeBtns.length;
+      const totalTypes = 2; // Fixed 'article', 'video'
+      const isAllTypes = activeTypeValues.length === 0 || activeTypeValues.length === totalTypes;
 
       // Get single active category
       const activeCatBtn = document.querySelector('.cat-btn.active');
-      const cat = activeCatBtn ? activeCatBtn.dataset.filterCat : 'all';
+      const cat = activeCatBtn ? (activeCatBtn as HTMLElement).dataset.filterCat : 'all';
 
-      cards.forEach((card) => {
-        const cardType = card.dataset.type || 'article';
-        const cardCat = card.dataset.category || 'general';
+      // Query fresh cards dynamically (solves stale references issue)
+      const freshCards = document.querySelectorAll('.article-card, .video-card');
+      if (freshCards.length === 0) return;
+
+      freshCards.forEach((card) => {
+        const cardElem = card as HTMLElement;
+        const cardType = cardElem.dataset.type || 'article';
+        const cardCat = cardElem.dataset.category || 'general';
 
         const matchesType = isAllTypes || activeTypeValues.includes(cardType.toLowerCase());
         const matchesCat = cat === 'all' || cardCat.toLowerCase() === cat;
 
         if (matchesType && matchesCat) {
-          card.style.display = 'flex';
-          card.style.opacity = '1';
-          card.style.pointerEvents = 'auto';
-          card.style.transform = 'scale(1)';
-          card.style.filter = 'grayscale(0)';
+          cardElem.style.display = 'flex';
+          cardElem.style.opacity = '1';
+          cardElem.style.pointerEvents = 'auto';
+          cardElem.style.transform = 'scale(1)';
+          cardElem.style.filter = 'grayscale(0)';
         } else {
-          card.style.display = 'none';
+          cardElem.style.display = 'none';
         }
       });
     }
 
-    typeBtns.forEach((btn) =>
-      btn.addEventListener('click', (e) => {
-        e.currentTarget.classList.toggle('active');
-        update();
-      })
-    );
-
-    catBtns.forEach((btn) =>
-      btn.addEventListener('click', (e) => {
-        const wasActive = e.currentTarget.classList.contains('active');
-        
-        // Strip active from all to enforce single selection
-        catBtns.forEach(b => b.classList.remove('active'));
-        
-        if (wasActive) {
-          // Toggle-to-Clear logic (Deselects entirely)
-          history.pushState("", document.title, window.location.pathname);
-        } else {
-          e.currentTarget.classList.add('active');
-          window.location.hash = e.currentTarget.dataset.filterCat;
-        }
-        
-        update();
-      })
-    );
-
-    window.addEventListener('hashchange', () => {
-      const newHash = window.location.hash.replace('#', '').toLowerCase();
-      
-      catBtns.forEach((b) => {
-        if (newHash && b.dataset.filterCat === newHash) {
-          b.classList.add('active');
-        } else {
-          b.classList.remove('active');
-        }
-      });
-      
-      update();
-    });
-
-    // Run on initial load
+    // Run on initial load and view transitions
     update();
   }
 
