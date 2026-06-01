@@ -114,6 +114,8 @@ const currentPath = Astro.url.pathname;
   .type-row-inner {
     overflow: hidden;
     min-height: 0;
+    padding-top: 10px;
+    margin-top: -10px;
   }
 
   .filter-label {
@@ -164,10 +166,10 @@ const currentPath = Astro.url.pathname;
   }
 
   .quadrant-btn.active {
-    background: rgba(229, 9, 20, 0.1);
-    border: 2px solid var(--color-accent);
+    background: rgba(239, 68, 68, 0.1);
+    border: 2px solid var(--color-accent, #ef4444);
     color: white;
-    box-shadow: 0 0 15px rgba(229, 9, 20, 0.3);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
   }
 
   @media (max-width: 768px) {
@@ -311,9 +313,10 @@ const currentPath = Astro.url.pathname;
   #category-modal .filter-grid {
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 1.5rem;
     width: 100%;
-    max-width: 400px;
+    max-width: 100%;
   }
 
   #category-modal .cat-btn {
@@ -321,7 +324,9 @@ const currentPath = Astro.url.pathname;
     backdrop-filter: blur(25px);
     border: 1px solid rgba(255, 255, 255, 0.15);
     box-shadow: 0 0 30px rgba(255, 255, 255, 0.05);
-    width: 100%;
+    width: 60vw;
+    min-width: 280px;
+    max-width: 400px;
     padding: 1.5rem;
     font-size: 1.3rem;
     letter-spacing: 0.1em;
@@ -375,12 +380,14 @@ const currentPath = Astro.url.pathname;
         categoryModal.classList.remove('closing');
         categoryModal.close();
         categoryModal.removeEventListener('animationend', handleAnimationEnd);
+        update(); // Re-sync Categories button state when closed
       });
     }
 
     if (openBtn && categoryModal && !openBtn.dataset.bound) {
       openBtn.addEventListener('click', () => {
         categoryModal.showModal();
+        update(); // Re-sync state when opened
       });
       openBtn.dataset.bound = 'true';
     }
@@ -393,14 +400,8 @@ const currentPath = Astro.url.pathname;
     // Close when clicking on backdrop
     if (categoryModal && !categoryModal.dataset.boundClick) {
       categoryModal.addEventListener('click', (e) => {
-        const rect = categoryModal.getBoundingClientRect();
-        const isInDialog = (
-          rect.top <= e.clientY &&
-          e.clientY <= rect.top + rect.height &&
-          rect.left <= e.clientX &&
-          e.clientX <= rect.left + rect.width
-        );
-        if (!isInDialog && categoryModal.open) {
+        // e.target evaluates to the <dialog> element when clicking the ::backdrop pseudo-element
+        if (e.target === categoryModal && categoryModal.open) {
           closeCategoryModal();
         }
       });
@@ -573,6 +574,29 @@ const currentPath = Astro.url.pathname;
       // Get single active category
       const activeCatBtn = document.querySelector('.cat-btn.active');
       const cat = activeCatBtn ? (activeCatBtn as HTMLElement).dataset.filterCat : 'all';
+
+      // Sync the Categories button text and active state
+      const openCategoriesBtn = document.getElementById('open-categories-btn');
+      if (openCategoriesBtn) {
+        let isOverlayOpen = false;
+        const catModal = document.getElementById('category-modal') as HTMLDialogElement;
+        if (catModal && catModal.open && !catModal.classList.contains('closing')) {
+          isOverlayOpen = true;
+        }
+
+        if (cat !== 'all') {
+           const catLabel = cat.charAt(0).toUpperCase() + cat.slice(1);
+           openCategoriesBtn.textContent = `Categories | ${catLabel}`;
+           openCategoriesBtn.classList.add('active');
+        } else {
+           openCategoriesBtn.textContent = `Categories`;
+           if (isOverlayOpen) {
+             openCategoriesBtn.classList.add('active');
+           } else {
+             openCategoriesBtn.classList.remove('active');
+           }
+        }
+      }
 
       freshCards.forEach((card) => {
         const cardElem = card as HTMLElement;
