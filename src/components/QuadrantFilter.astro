@@ -158,7 +158,15 @@ const currentPath = Astro.url.pathname;
   }
 
   @media (hover: hover) {
-    .quadrant-btn:hover {
+    .type-btn:hover, .cat-btn:hover,
+    .type-btn:focus-visible, .cat-btn:focus-visible {
+      background: rgba(239, 68, 68, 0.1);
+      border: 2px solid var(--color-accent, #ef4444);
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+      transform: translateY(-2px);
+    }
+    
+    .quadrant-btn:not(.type-btn):not(.cat-btn):hover {
       background: rgba(255, 255, 255, 0.05);
       transform: translateY(-2px);
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
@@ -306,7 +314,6 @@ const currentPath = Astro.url.pathname;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 100vh;
     padding: 0;
   }
 
@@ -400,9 +407,9 @@ const currentPath = Astro.url.pathname;
     // Close when clicking on backdrop
     if (categoryModal && !categoryModal.dataset.boundClick) {
       categoryModal.addEventListener('click', (e) => {
-        // e.target evaluates to the <dialog> element when clicking the ::backdrop pseudo-element
-        if (e.target === categoryModal && categoryModal.open) {
-          closeCategoryModal();
+        const rect = categoryModal.getBoundingClientRect();
+        if (e.clientY < rect.top || e.clientY > rect.bottom || e.clientX < rect.left || e.clientX > rect.right) {
+          if (categoryModal.open) closeCategoryModal();
         }
       });
       categoryModal.dataset.boundClick = 'true';
@@ -587,14 +594,14 @@ const currentPath = Astro.url.pathname;
         if (cat !== 'all') {
            const catLabel = cat.charAt(0).toUpperCase() + cat.slice(1);
            openCategoriesBtn.textContent = `Categories | ${catLabel}`;
-           openCategoriesBtn.classList.add('active');
         } else {
            openCategoriesBtn.textContent = `Categories`;
-           if (isOverlayOpen) {
-             openCategoriesBtn.classList.add('active');
-           } else {
-             openCategoriesBtn.classList.remove('active');
-           }
+        }
+
+        if (isOverlayOpen) {
+          openCategoriesBtn.classList.add('active');
+        } else {
+          openCategoriesBtn.classList.remove('active');
         }
       }
 
