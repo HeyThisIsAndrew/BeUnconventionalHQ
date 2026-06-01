@@ -6,7 +6,7 @@ const navItems = [
   { label: 'Feed', href: 'feed' },
   { label: 'Events', href: 'events' },
   { label: 'About', href: 'about' },
-  { label: 'Contact', href: 'contact', className: 'cta' },
+  { label: 'Contact', href: 'contact' },
 ];
 
 const isActive = (href) =>
@@ -140,6 +140,23 @@ const isActive = (href) =>
 
     initNavObserver();
     document.addEventListener('astro:page-load', initNavObserver);
+
+    function updateActiveNavLinks() {
+      const currentPath = window.location.pathname.replace(/\/$/, '');
+      const navLinks = document.querySelectorAll('.nav-list .nav-item a');
+      
+      navLinks.forEach(link => {
+        const linkPath = new URL(link.href).pathname.replace(/\/$/, '');
+        if (currentPath === linkPath) {
+          link.classList.add('active');
+        } else {
+          link.classList.remove('active');
+        }
+      });
+    }
+
+    updateActiveNavLinks();
+    document.addEventListener('astro:page-load', updateActiveNavLinks);
   })();
 
   (function () {
