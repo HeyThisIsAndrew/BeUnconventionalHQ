@@ -340,9 +340,10 @@ const currentPath = Astro.url.pathname;
   }
 
   .modal-close {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
+    position: fixed;
+    top: 1.5rem;
+    right: 1.5rem;
+    z-index: 100;
     background: transparent;
     border: none;
     color: var(--color-white-muted, #aaa);
@@ -394,6 +395,20 @@ const currentPath = Astro.url.pathname;
     if (openBtn && categoryModal && !openBtn.dataset.bound) {
       openBtn.addEventListener('click', () => {
         categoryModal.showModal();
+        
+        // Memory Glow Rehydration
+        const currentPath = window.location.pathname.toLowerCase();
+        document.querySelectorAll('#category-modal .cat-btn').forEach(btn => {
+           const slug = (btn as HTMLElement).dataset.filterCat;
+           if (isNavMode && currentPath.includes(`/category/${slug}`)) {
+               btn.classList.add('active');
+           } else if (!isNavMode && window.location.hash.includes(slug)) {
+               btn.classList.add('active');
+           } else {
+               btn.classList.remove('active');
+           }
+        });
+
         update(); // Re-sync state when opened
       });
       openBtn.dataset.bound = 'true';
@@ -536,10 +551,16 @@ const currentPath = Astro.url.pathname;
         const modalLinks = categoryModal.querySelectorAll('a.cat-btn');
         modalLinks.forEach(link => {
           if (!(link as HTMLElement).dataset.boundNav) {
-            link.addEventListener('click', () => {
+            link.addEventListener('click', (e) => {
+              // Intercept active category click
+              if (link.classList.contains('active')) {
+                e.preventDefault();
+                closeCategoryModal();
+                return;
+              }
+
               if (categoryModal.open) {
                 categoryModal.classList.remove('closing');
-                categoryModal.style.display = 'none';
                 categoryModal.close();
               }
             });
@@ -604,6 +625,9 @@ const currentPath = Astro.url.pathname;
           openCategoriesBtn.classList.remove('active');
         }
       }
+
+      // Target 3 Safeguard: Skip DOM filtering on Hub pages
+      if (isNavMode) return; 
 
       freshCards.forEach((card) => {
         const cardElem = card as HTMLElement;
