@@ -10,71 +10,108 @@ const types = ['Article', 'Video'];
 const currentPath = Astro.url.pathname;
 ---
 
-<div class="quadrant-filter-container animate-on-scroll" id="quadrant-filter-wrapper" data-nav-mode={isNavMode ? 'true' : 'false'}>
-  
+<div
+  class="quadrant-filter-container animate-on-scroll"
+  id="quadrant-filter-wrapper"
+  data-nav-mode={isNavMode ? 'true' : 'false'}
+>
   <div id="global-type-row" class="type-row-wrapper">
     <div class="type-row-inner">
       <div class="mobile-top-bar">
         <div class="filter-grid type-grid mobile-type-toggles">
-          {types.map(t => (
-            <button class="quadrant-btn type-btn" data-filter-type={t.toLowerCase()}>{t.toUpperCase()}</button>
-          ))}
+          {
+            types.map((t) => (
+              <button
+                class="quadrant-btn type-btn"
+                data-filter-type={t.toLowerCase()}
+              >
+                {t.toUpperCase()}
+              </button>
+            ))
+          }
         </div>
       </div>
 
       <div class="filter-row desktop-type-row">
         <span class="filter-label">TYPE</span>
         <div class="filter-grid type-grid">
-          {types.map(t => (
-            <button class="quadrant-btn type-btn" data-filter-type={t.toLowerCase()}>{t.toUpperCase()}</button>
-          ))}
+          {
+            types.map((t) => (
+              <button
+                class="quadrant-btn type-btn"
+                data-filter-type={t.toLowerCase()}
+              >
+                {t.toUpperCase()}
+              </button>
+            ))
+          }
         </div>
       </div>
     </div>
   </div>
 
   <div class="mobile-category-row">
-    <button id="open-categories-btn" class="quadrant-btn full-width-btn">Categories</button>
+    <button id="open-categories-btn" class="quadrant-btn full-width-btn"
+      >Categories</button
+    >
   </div>
 
   <div class="filter-row category-row desktop-category-row">
     <span class="filter-label desktop-category-label">CATEGORY</span>
     <div class="filter-grid">
-      {categories.map(c => {
-        const slug = c.toLowerCase();
-        const isActive = isNavMode && currentPath.includes(`/category/${slug}`);
-        const className = `quadrant-btn cat-btn ${isActive ? 'active' : ''}`;
-        
-        // Active Toggle Escape Route: if active on Hub page, link to /feed to deselect
-        const hrefTarget = isActive ? '/feed' : `/category/${slug}`;
-        
-        return isNavMode ? (
-          <a href={hrefTarget} class={className} data-filter-cat={slug}>{c}</a>
-        ) : (
-          <button class="quadrant-btn cat-btn" data-filter-cat={slug}>{c}</button>
-        );
-      })}
+      {
+        categories.map((c) => {
+          const slug = c.toLowerCase();
+          const isActive =
+            isNavMode && currentPath.includes(`/category/${slug}`);
+          const className = `quadrant-btn cat-btn ${isActive ? 'active' : ''}`;
+
+          // Active Toggle Escape Route: if active on Hub page, link to /feed to deselect
+          const hrefTarget = isActive ? '/feed' : `/category/${slug}`;
+
+          return isNavMode ? (
+            <a href={hrefTarget} class={className} data-filter-cat={slug}>
+              {c}
+            </a>
+          ) : (
+            <button class="quadrant-btn cat-btn" data-filter-cat={slug}>
+              {c}
+            </button>
+          );
+        })
+      }
     </div>
   </div>
 </div>
 
-<dialog id="category-modal" class="fade-in-overlay" data-nav-mode={isNavMode ? 'true' : 'false'}>
+<dialog
+  id="category-modal"
+  class="fade-in-overlay"
+  data-nav-mode={isNavMode ? 'true' : 'false'}
+>
   <div class="modal-content">
     <div class="filter-row category-row">
       <div class="filter-grid">
-        {categories.map(c => {
-          const slug = c.toLowerCase();
-          const isActive = isNavMode && currentPath.includes(`/category/${slug}`);
-          const className = `quadrant-btn cat-btn ${isActive ? 'active' : ''}`;
-          
-          const hrefTarget = isActive ? '/feed' : `/category/${slug}`;
-          
-          return isNavMode ? (
-            <a href={hrefTarget} class={className} data-filter-cat={slug}>{c}</a>
-          ) : (
-            <button class="quadrant-btn cat-btn" data-filter-cat={slug}>{c}</button>
-          );
-        })}
+        {
+          categories.map((c) => {
+            const slug = c.toLowerCase();
+            const isActive =
+              isNavMode && currentPath.includes(`/category/${slug}`);
+            const className = `quadrant-btn cat-btn ${isActive ? 'active' : ''}`;
+
+            const hrefTarget = isActive ? '/feed' : `/category/${slug}`;
+
+            return isNavMode ? (
+              <a href={hrefTarget} class={className} data-filter-cat={slug}>
+                {c}
+              </a>
+            ) : (
+              <button class="quadrant-btn cat-btn" data-filter-cat={slug}>
+                {c}
+              </button>
+            );
+          })
+        }
       </div>
     </div>
   </div>
@@ -100,7 +137,10 @@ const currentPath = Astro.url.pathname;
     grid-template-rows: 0fr;
     opacity: 0;
     visibility: hidden;
-    transition: grid-template-rows 0.3s ease, opacity 0.3s ease, visibility 0.3s ease;
+    transition:
+      grid-template-rows 0.3s ease,
+      opacity 0.3s ease,
+      visibility 0.3s ease;
   }
 
   .type-row-wrapper.is-open {
@@ -156,14 +196,16 @@ const currentPath = Astro.url.pathname;
   }
 
   @media (hover: hover) {
-    .type-btn:hover, .cat-btn:hover,
-    .type-btn:focus-visible, .cat-btn:focus-visible {
+    .type-btn:hover,
+    .cat-btn:hover,
+    .type-btn:focus-visible,
+    .cat-btn:focus-visible {
       background: rgba(239, 68, 68, 0.1);
       border: 2px solid var(--color-accent, #ef4444);
       box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
       transform: translateY(-2px);
     }
-    
+
     .quadrant-btn:not(.type-btn):not(.cat-btn):hover {
       background: rgba(255, 255, 255, 0.05);
       transform: translateY(-2px);
@@ -246,7 +288,7 @@ const currentPath = Astro.url.pathname;
   #category-modal[open] {
     animation: fadeIn 0.3s ease-out forwards;
   }
-  
+
   #category-modal::backdrop {
     background: rgba(0, 0, 0, 0.8);
     backdrop-filter: blur(8px);
@@ -337,12 +379,10 @@ const currentPath = Astro.url.pathname;
     letter-spacing: 0.1em;
   }
 
-  #category-modal[data-nav-mode="true"] .cat-btn.active {
+  #category-modal[data-nav-mode='true'] .cat-btn.active {
     pointer-events: none;
     opacity: 0.5;
   }
-
-
 
   /* Completely eliminates JS scroll-locking */
   :global(body:has(#category-modal[open])) {
@@ -359,36 +399,46 @@ const currentPath = Astro.url.pathname;
     const isNavMode = container.getAttribute('data-nav-mode') === 'true';
 
     // Modal Logic
-    const categoryModal = document.getElementById('category-modal') as HTMLDialogElement;
+    const categoryModal = document.getElementById(
+      'category-modal'
+    ) as HTMLDialogElement;
     const openBtn = document.getElementById('open-categories-btn');
 
     function closeCategoryModal() {
-      if (!categoryModal || !categoryModal.open || categoryModal.classList.contains('closing')) return;
+      if (
+        !categoryModal ||
+        !categoryModal.open ||
+        categoryModal.classList.contains('closing')
+      )
+        return;
       categoryModal.classList.add('closing');
-      categoryModal.addEventListener('animationend', function handleAnimationEnd(e) {
-        if (e.target !== categoryModal) return;
-        categoryModal.classList.remove('closing');
-        categoryModal.close();
-        categoryModal.removeEventListener('animationend', handleAnimationEnd);
-        update(); // Re-sync Categories button state when closed
-      });
+      categoryModal.addEventListener(
+        'animationend',
+        function handleAnimationEnd(e) {
+          if (e.target !== categoryModal) return;
+          categoryModal.classList.remove('closing');
+          categoryModal.close();
+          categoryModal.removeEventListener('animationend', handleAnimationEnd);
+          update(); // Re-sync Categories button state when closed
+        }
+      );
     }
 
     if (openBtn && categoryModal && !openBtn.dataset.bound) {
       openBtn.addEventListener('click', () => {
         categoryModal.showModal();
-        
+
         // Memory Glow Rehydration
         const currentPath = window.location.pathname.toLowerCase();
-        document.querySelectorAll('#category-modal .cat-btn').forEach(btn => {
-           const slug = (btn as HTMLElement).dataset.filterCat;
-           if (isNavMode && currentPath.includes(`/category/${slug}`)) {
-               btn.classList.add('active');
-           } else if (!isNavMode && window.location.hash.includes(slug)) {
-               btn.classList.add('active');
-           } else {
-               btn.classList.remove('active');
-           }
+        document.querySelectorAll('#category-modal .cat-btn').forEach((btn) => {
+          const slug = (btn as HTMLElement).dataset.filterCat;
+          if (isNavMode && currentPath.includes(`/category/${slug}`)) {
+            btn.classList.add('active');
+          } else if (!isNavMode && window.location.hash.includes(slug)) {
+            btn.classList.add('active');
+          } else {
+            btn.classList.remove('active');
+          }
         });
 
         update(); // Re-sync state when opened
@@ -396,19 +446,21 @@ const currentPath = Astro.url.pathname;
       openBtn.dataset.bound = 'true';
     }
 
-
-
     // Close when clicking on backdrop
     if (categoryModal && !categoryModal.dataset.boundClick) {
       categoryModal.addEventListener('click', (e) => {
         const rect = categoryModal.getBoundingClientRect();
-        if (e.clientY < rect.top || e.clientY > rect.bottom || e.clientX < rect.left || e.clientX > rect.right) {
+        if (
+          e.clientY < rect.top ||
+          e.clientY > rect.bottom ||
+          e.clientX < rect.left ||
+          e.clientX > rect.right
+        ) {
           if (categoryModal.open) closeCategoryModal();
         }
       });
       categoryModal.dataset.boundClick = 'true';
     }
-
 
     // 1. RUN ONCE: Attach events only if not already initialized
     if (container.dataset.initialized !== 'true') {
@@ -418,16 +470,22 @@ const currentPath = Astro.url.pathname;
       typeBtns.forEach((btn) =>
         btn.addEventListener('click', (e) => {
           const type = (e.currentTarget as HTMLElement).dataset.filterType;
-          const wasActive = (e.currentTarget as HTMLElement).classList.contains('active');
-          
-          document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+          const wasActive = (e.currentTarget as HTMLElement).classList.contains(
+            'active'
+          );
+
+          document
+            .querySelectorAll('.type-btn')
+            .forEach((b) => b.classList.remove('active'));
 
           if (wasActive) {
             sessionStorage.removeItem('activeType');
           } else {
-            document.querySelectorAll(`.type-btn[data-filter-type="${type}"]`).forEach(b => {
-               b.classList.add('active');
-            });
+            document
+              .querySelectorAll(`.type-btn[data-filter-type="${type}"]`)
+              .forEach((b) => {
+                b.classList.add('active');
+              });
             if (type) sessionStorage.setItem('activeType', type);
           }
           update();
@@ -436,23 +494,30 @@ const currentPath = Astro.url.pathname;
 
       catBtns.forEach((btn) =>
         btn.addEventListener('click', (e) => {
-          const wasActive = (e.currentTarget as HTMLElement).classList.contains('active');
-          
+          const wasActive = (e.currentTarget as HTMLElement).classList.contains(
+            'active'
+          );
+
           // Strip active from all to enforce single selection
-          document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
-          
+          document
+            .querySelectorAll('.cat-btn')
+            .forEach((b) => b.classList.remove('active'));
+
           if (wasActive) {
             // Toggle-to-Clear logic (Deselects entirely)
-            history.pushState("", document.title, window.location.pathname);
+            history.pushState('', document.title, window.location.pathname);
           } else {
             // Sync all category buttons with same filter
-            const filterCat = (e.currentTarget as HTMLElement).dataset.filterCat;
-            document.querySelectorAll(`.cat-btn[data-filter-cat="${filterCat}"]`).forEach(b => {
-               b.classList.add('active');
-            });
+            const filterCat = (e.currentTarget as HTMLElement).dataset
+              .filterCat;
+            document
+              .querySelectorAll(`.cat-btn[data-filter-cat="${filterCat}"]`)
+              .forEach((b) => {
+                b.classList.add('active');
+              });
             window.location.hash = filterCat || '';
           }
-          
+
           update();
           // Also close modal if open
           if (categoryModal && categoryModal.open) {
@@ -464,7 +529,7 @@ const currentPath = Astro.url.pathname;
       if (!(window as any).hasQuadrantFilterHashListener) {
         window.addEventListener('hashchange', () => {
           const newHash = window.location.hash.replace('#', '').toLowerCase();
-          
+
           document.querySelectorAll('.cat-btn').forEach((b) => {
             if (newHash && (b as HTMLElement).dataset.filterCat === newHash) {
               b.classList.add('active');
@@ -472,7 +537,7 @@ const currentPath = Astro.url.pathname;
               b.classList.remove('active');
             }
           });
-          
+
           update();
         });
         (window as any).hasQuadrantFilterHashListener = true;
@@ -487,7 +552,10 @@ const currentPath = Astro.url.pathname;
 
     const typeRow = document.getElementById('global-type-row');
     if (typeRow) {
-      if (window.location.pathname === '/feed' || window.location.pathname === '/feed/') {
+      if (
+        window.location.pathname === '/feed' ||
+        window.location.pathname === '/feed/'
+      ) {
         typeRow.classList.add('is-open');
       } else {
         typeRow.classList.remove('is-open');
@@ -497,7 +565,7 @@ const currentPath = Astro.url.pathname;
     // Also sync sessionStorage on load
     const storedType = sessionStorage.getItem('activeType');
     if (storedType) {
-      document.querySelectorAll('.type-btn').forEach(b => {
+      document.querySelectorAll('.type-btn').forEach((b) => {
         if ((b as HTMLElement).dataset.filterType === storedType) {
           b.classList.add('active');
         } else {
@@ -505,17 +573,21 @@ const currentPath = Astro.url.pathname;
         }
       });
     } else {
-      document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+      document
+        .querySelectorAll('.type-btn')
+        .forEach((b) => b.classList.remove('active'));
     }
 
     // IF THIS IS NAV MODE AND PERSISTED, WE MUST UPDATE THE ACTIVE STATE MANUALLY ON SPA TRANSITIONS
     if (isNavMode) {
-      const currentPath = window.location.pathname.replace(/\/$/, '').toLowerCase();
-      
-      currentCatBtns.forEach(b => {
+      const currentPath = window.location.pathname
+        .replace(/\/$/, '')
+        .toLowerCase();
+
+      currentCatBtns.forEach((b) => {
         const slug = b.textContent?.toLowerCase() || '';
         const expectedPath = `/category/${slug}`;
-        
+
         if (currentPath === expectedPath) {
           b.classList.add('active');
           if (b.tagName === 'A') (b as HTMLAnchorElement).href = '/feed'; // Active Toggle Escape Route
@@ -525,36 +597,38 @@ const currentPath = Astro.url.pathname;
         }
       });
 
-      // Close modal on link click during nav mode (Event Delegation)
-      if (categoryModal && !categoryModal.dataset.boundNavDelegation) {
-        categoryModal.addEventListener('click', (e) => {
-          const link = (e.target as HTMLElement).closest('a.cat-btn');
-          if (!link) return;
+      // Close modal on link click during nav mode
+      if (categoryModal) {
+        const modalLinks = categoryModal.querySelectorAll('a.cat-btn');
+        modalLinks.forEach((link) => {
+          if (!(link as HTMLElement).dataset.boundNav) {
+            link.addEventListener('click', (e) => {
+              e.preventDefault();
 
-          e.preventDefault();
-          
-          // Intercept active category click
-          if (link.classList.contains('active')) {
-            closeCategoryModal();
-            return;
-          }
+              // Intercept active category click
+              if (link.classList.contains('active')) {
+                closeCategoryModal();
+                return;
+              }
 
-          // Synchronously kill the dialog before Astro navigation propagates
-          if (categoryModal.open) {
-            categoryModal.classList.remove('closing');
-            categoryModal.close();
+              // Synchronously kill the dialog before Astro navigation propagates
+              if (categoryModal.open) {
+                categoryModal.classList.remove('closing');
+                categoryModal.close();
+              }
+
+              navigate((link as HTMLAnchorElement).href);
+            });
+            (link as HTMLElement).dataset.boundNav = 'true';
           }
-          
-          navigate((link as HTMLAnchorElement).href);
         });
-        categoryModal.dataset.boundNavDelegation = 'true';
       }
       // Removed early return to allow update() to run and sync the Categories button on Hub pages
     }
 
     // Apply active class if hash is present
     if (urlHash) {
-      currentCatBtns.forEach(b => {
+      currentCatBtns.forEach((b) => {
         if ((b as HTMLElement).dataset.filterCat === urlHash) {
           b.classList.add('active');
         } else {
@@ -565,15 +639,20 @@ const currentPath = Astro.url.pathname;
 
     function update() {
       // Query fresh cards dynamically (solves stale references issue)
-      const freshCards = document.querySelectorAll('.article-card, .video-card');
+      const freshCards = document.querySelectorAll(
+        '.article-card, .video-card'
+      );
       if (freshCards.length === 0) return;
 
       const path = window.location.pathname;
-      const isDedicatedRoute = path.includes('/videos') || path.includes('/articles');
+      const isDedicatedRoute =
+        path.includes('/videos') || path.includes('/articles');
 
       // Get single active type
       const activeTypeBtn = document.querySelector('.type-btn.active');
-      let activeType = activeTypeBtn ? (activeTypeBtn as HTMLElement).dataset.filterType : 'all';
+      let activeType = activeTypeBtn
+        ? (activeTypeBtn as HTMLElement).dataset.filterType
+        : 'all';
 
       // Force type on dedicated pages to ignore UI toggles
       if (isDedicatedRoute) {
@@ -582,22 +661,30 @@ const currentPath = Astro.url.pathname;
 
       // Get single active category
       const activeCatBtn = document.querySelector('.cat-btn.active');
-      const cat = activeCatBtn ? (activeCatBtn as HTMLElement).dataset.filterCat : 'all';
+      const cat = activeCatBtn
+        ? (activeCatBtn as HTMLElement).dataset.filterCat
+        : 'all';
 
       // Sync the Categories button text and active state
       const openCategoriesBtn = document.getElementById('open-categories-btn');
       if (openCategoriesBtn) {
         let isOverlayOpen = false;
-        const catModal = document.getElementById('category-modal') as HTMLDialogElement;
-        if (catModal && catModal.open && !catModal.classList.contains('closing')) {
+        const catModal = document.getElementById(
+          'category-modal'
+        ) as HTMLDialogElement;
+        if (
+          catModal &&
+          catModal.open &&
+          !catModal.classList.contains('closing')
+        ) {
           isOverlayOpen = true;
         }
 
         if (cat !== 'all') {
-           const catLabel = cat.charAt(0).toUpperCase() + cat.slice(1);
-           openCategoriesBtn.textContent = `Categories | ${catLabel}`;
+          const catLabel = cat.charAt(0).toUpperCase() + cat.slice(1);
+          openCategoriesBtn.textContent = `Categories | ${catLabel}`;
         } else {
-           openCategoriesBtn.textContent = `Categories`;
+          openCategoriesBtn.textContent = `Categories`;
         }
 
         if (isOverlayOpen) {
@@ -608,14 +695,15 @@ const currentPath = Astro.url.pathname;
       }
 
       // Target 3 Safeguard: Skip DOM filtering on Hub pages
-      if (isNavMode) return; 
+      if (isNavMode) return;
 
       freshCards.forEach((card) => {
         const cardElem = card as HTMLElement;
         const cardType = cardElem.dataset.type || 'article';
         const cardCat = cardElem.dataset.category || 'general';
 
-        const matchesType = activeType === 'all' || cardType.toLowerCase() === activeType;
+        const matchesType =
+          activeType === 'all' || cardType.toLowerCase() === activeType;
         const matchesCat = cat === 'all' || cardCat.toLowerCase() === cat;
 
         if (matchesType && matchesCat) {
@@ -649,10 +737,12 @@ const currentPath = Astro.url.pathname;
   document.addEventListener('astro:page-load', () => {
     const modal = document.getElementById('category-modal');
     if (!modal || modal.getAttribute('data-nav-mode') !== 'true') return;
-    
-    const currentPath = window.location.pathname.replace(/\/$/, '').toLowerCase();
-    
-    modal.querySelectorAll('.cat-btn').forEach(btn => {
+
+    const currentPath = window.location.pathname
+      .replace(/\/$/, '')
+      .toLowerCase();
+
+    modal.querySelectorAll('.cat-btn').forEach((btn) => {
       const slug = (btn.textContent || '').toLowerCase();
       if (currentPath === `/category/${slug}`) {
         btn.classList.add('active');
