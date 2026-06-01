@@ -12,22 +12,24 @@ const currentPath = Astro.url.pathname;
 
 <div class="quadrant-filter-container animate-on-scroll" id="quadrant-filter-wrapper" data-nav-mode={isNavMode ? 'true' : 'false'}>
   
-  <div id="global-type-row">
-    <div class="mobile-top-bar">
-      <div class="filter-grid type-grid mobile-type-toggles">
-        {types.map(t => (
-          <button class="quadrant-btn type-btn" data-filter-type={t.toLowerCase()}>{t.toUpperCase()}</button>
-        ))}
+  <div id="global-type-row" class="type-row-wrapper">
+    <div class="type-row-inner">
+      <div class="mobile-top-bar">
+        <div class="filter-grid type-grid mobile-type-toggles">
+          {types.map(t => (
+            <button class="quadrant-btn type-btn" data-filter-type={t.toLowerCase()}>{t.toUpperCase()}</button>
+          ))}
+        </div>
+        <button id="open-categories-btn" class="quadrant-btn" style="display: none !important;">Categories</button>
       </div>
-      <button id="open-categories-btn" class="quadrant-btn" style="display: none !important;">Categories</button>
-    </div>
 
-    <div class="filter-row desktop-type-row">
-      <span class="filter-label">TYPE</span>
-      <div class="filter-grid type-grid">
-        {types.map(t => (
-          <button class="quadrant-btn type-btn" data-filter-type={t.toLowerCase()}>{t.toUpperCase()}</button>
-        ))}
+      <div class="filter-row desktop-type-row">
+        <span class="filter-label">TYPE</span>
+        <div class="filter-grid type-grid">
+          {types.map(t => (
+            <button class="quadrant-btn type-btn" data-filter-type={t.toLowerCase()}>{t.toUpperCase()}</button>
+          ))}
+        </div>
       </div>
     </div>
   </div>
@@ -66,6 +68,25 @@ const currentPath = Astro.url.pathname;
     display: flex;
     flex-direction: column;
     gap: 1rem;
+  }
+
+  .type-row-wrapper {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+    transition: grid-template-rows 0.3s ease, opacity 0.3s ease, visibility 0.3s ease;
+  }
+
+  .type-row-wrapper.is-open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .type-row-inner {
+    overflow: hidden;
+    min-height: 0;
   }
 
   .filter-label {
@@ -181,11 +202,18 @@ const currentPath = Astro.url.pathname;
       typeBtns.forEach((btn) =>
         btn.addEventListener('click', (e) => {
           const type = (e.currentTarget as HTMLElement).dataset.filterType;
-          const isCurrentlyActive = (e.currentTarget as HTMLElement).classList.contains('active');
-          // Sync desktop and mobile toggles
-          document.querySelectorAll(`.type-btn[data-filter-type="${type}"]`).forEach(b => {
-             b.classList.toggle('active', !isCurrentlyActive);
-          });
+          const wasActive = (e.currentTarget as HTMLElement).classList.contains('active');
+          
+          document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+
+          if (wasActive) {
+            sessionStorage.removeItem('activeType');
+          } else {
+            document.querySelectorAll(`.type-btn[data-filter-type="${type}"]`).forEach(b => {
+               b.classList.add('active');
+            });
+            if (type) sessionStorage.setItem('activeType', type);
+          }
           update();
         })
       );
@@ -233,10 +261,24 @@ const currentPath = Astro.url.pathname;
     const typeRow = document.getElementById('global-type-row');
     if (typeRow) {
       if (window.location.pathname === '/feed' || window.location.pathname === '/feed/') {
-        typeRow.style.display = 'block';
+        typeRow.classList.add('is-open');
       } else {
-        typeRow.style.display = 'none';
+        typeRow.classList.remove('is-open');
       }
+    }
+
+    // Also sync sessionStorage on load
+    const storedType = sessionStorage.getItem('activeType');
+    if (storedType) {
+      document.querySelectorAll('.type-btn').forEach(b => {
+        if ((b as HTMLElement).dataset.filterType === storedType) {
+          b.classList.add('active');
+        } else {
+          b.classList.remove('active');
+        }
+      });
+    } else {
+      document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
     }
 
     // IF THIS IS NAV MODE AND PERSISTED, WE MUST UPDATE THE ACTIVE STATE MANUALLY ON SPA TRANSITIONS
@@ -270,13 +312,9 @@ const currentPath = Astro.url.pathname;
     }
 
     function update() {
-      // Get all active type buttons (unique values)
-      const activeTypeBtns = Array.from(document.querySelectorAll('.type-btn.active'));
-      const activeTypeValues = Array.from(new Set(activeTypeBtns.map(btn => (btn as HTMLElement).dataset.filterType)));
-      
-      // If none or all types are selected, it means 'All' types
-      const totalTypes = 2; // Fixed 'article', 'video'
-      const isAllTypes = activeTypeValues.length === 0 || activeTypeValues.length === totalTypes;
+      // Get single active type
+      const activeTypeBtn = document.querySelector('.type-btn.active');
+      const activeType = activeTypeBtn ? (activeTypeBtn as HTMLElement).dataset.filterType : 'all';
 
       // Get single active category
       const activeCatBtn = document.querySelector('.cat-btn.active');
@@ -291,7 +329,7 @@ const currentPath = Astro.url.pathname;
         const cardType = cardElem.dataset.type || 'article';
         const cardCat = cardElem.dataset.category || 'general';
 
-        const matchesType = isAllTypes || activeTypeValues.includes(cardType.toLowerCase());
+        const matchesType = activeType === 'all' || cardType.toLowerCase() === activeType;
         const matchesCat = cat === 'all' || cardCat.toLowerCase() === cat;
 
         if (matchesType && matchesCat) {
