@@ -33,7 +33,6 @@ const currentPath = Astro.url.pathname;
       </div>
 
       <div class="filter-row desktop-type-row">
-        <span class="filter-label">TYPE</span>
         <div class="filter-grid type-grid">
           {
             types.map((t) => (
@@ -57,7 +56,6 @@ const currentPath = Astro.url.pathname;
   </div>
 
   <div class="filter-row category-row desktop-category-row">
-    <span class="filter-label desktop-category-label">CATEGORY</span>
     <div class="filter-grid">
       {
         categories.map((c) => {
@@ -66,8 +64,7 @@ const currentPath = Astro.url.pathname;
             isNavMode && currentPath.includes(`/category/${slug}`);
           const className = `quadrant-btn cat-btn ${isActive ? 'active' : ''}`;
 
-          // Active Toggle Escape Route: if active on Hub page, link to /feed to deselect
-          const hrefTarget = isActive ? '/feed' : `/category/${slug}`;
+          const hrefTarget = `/category/${slug}`;
 
           return isNavMode ? (
             <a href={hrefTarget} class={className} data-filter-cat={slug}>
@@ -99,7 +96,7 @@ const currentPath = Astro.url.pathname;
               isNavMode && currentPath.includes(`/category/${slug}`);
             const className = `quadrant-btn cat-btn ${isActive ? 'active' : ''}`;
 
-            const hrefTarget = isActive ? '/feed' : `/category/${slug}`;
+            const hrefTarget = `/category/${slug}`;
 
             return isNavMode ? (
               <a href={hrefTarget} class={className} data-filter-cat={slug}>
@@ -380,8 +377,8 @@ const currentPath = Astro.url.pathname;
   }
 
   #category-modal[data-nav-mode='true'] .cat-btn.active {
-    pointer-events: none;
-    opacity: 0.5;
+    /* pointer-events: none; */
+    opacity: 1.0;
   }
 
   /* Completely eliminates JS scroll-locking */
@@ -585,43 +582,33 @@ const currentPath = Astro.url.pathname;
         .toLowerCase();
 
       currentCatBtns.forEach((b) => {
-        const slug = b.textContent?.toLowerCase() || '';
+        const slug = (b as HTMLElement).dataset.filterCat || '';
         const expectedPath = `/category/${slug}`;
 
         if (currentPath === expectedPath) {
           b.classList.add('active');
-          if (b.tagName === 'A') (b as HTMLAnchorElement).href = '/feed'; // Active Toggle Escape Route
         } else {
           b.classList.remove('active');
-          if (b.tagName === 'A') (b as HTMLAnchorElement).href = expectedPath;
         }
       });
 
-      // Close modal on link click during nav mode
-      if (categoryModal) {
-        const modalLinks = categoryModal.querySelectorAll('a.cat-btn');
-        modalLinks.forEach((link) => {
-          if (!(link as HTMLElement).dataset.boundNav) {
-            link.addEventListener('click', (e) => {
-              e.preventDefault();
+      // Close modal on link click during nav mode (Event Delegation)
+      if (categoryModal && !categoryModal.dataset.boundNavDelegation) {
+        categoryModal.addEventListener('click', (e) => {
+          const link = (e.target as HTMLElement).closest('a.cat-btn');
+          if (!link) return;
 
-              // Intercept active category click
-              if (link.classList.contains('active')) {
-                closeCategoryModal();
-                return;
-              }
+          e.preventDefault();
 
-              // Synchronously kill the dialog before Astro navigation propagates
-              if (categoryModal.open) {
-                categoryModal.classList.remove('closing');
-                categoryModal.close();
-              }
-
-              navigate((link as HTMLAnchorElement).href);
-            });
-            (link as HTMLElement).dataset.boundNav = 'true';
+          // Synchronously kill the dialog before Astro navigation propagates
+          if (categoryModal.open) {
+            categoryModal.classList.remove('closing');
+            categoryModal.close();
           }
+
+          navigate((link as HTMLAnchorElement).href);
         });
+        categoryModal.dataset.boundNavDelegation = 'true';
       }
       // Removed early return to allow update() to run and sync the Categories button on Hub pages
     }
@@ -743,7 +730,7 @@ const currentPath = Astro.url.pathname;
       .toLowerCase();
 
     modal.querySelectorAll('.cat-btn').forEach((btn) => {
-      const slug = (btn.textContent || '').toLowerCase();
+      const slug = (btn as HTMLElement).dataset.filterCat || '';
       if (currentPath === `/category/${slug}`) {
         btn.classList.add('active');
       } else {
