@@ -10,7 +10,7 @@ const types = ['Article', 'Video'];
 const currentPath = Astro.url.pathname;
 ---
 
-<div class="quadrant-filter-container animate-on-scroll" data-nav-mode={isNavMode ? 'true' : 'false'}>
+<div class="quadrant-filter-container" transition:persist={isNavMode ? "desktop-sidebar" : "quadrant-feed"} data-nav-mode={isNavMode ? 'true' : 'false'}>
   {showTypes && (
     <div class="filter-row">
       <span class="filter-label">TYPE</span>
@@ -129,10 +129,30 @@ const currentPath = Astro.url.pathname;
     const catBtns = document.querySelectorAll('.cat-btn');
     const cards = document.querySelectorAll('.article-card, .video-card');
 
-    if (cards.length === 0 || isNavMode) return;
+    const urlHash = window.location.hash.replace('#', '').toLowerCase();
+
+    // IF THIS IS NAV MODE AND PERSISTED, WE MUST UPDATE THE ACTIVE STATE MANUALLY ON SPA TRANSITIONS
+    if (isNavMode) {
+      const currentPath = window.location.pathname.replace(/\/$/, '').toLowerCase();
+      
+      catBtns.forEach(b => {
+        const slug = b.textContent.toLowerCase();
+        const expectedPath = `/category/${slug}`;
+        
+        if (currentPath === expectedPath) {
+          b.classList.add('active');
+          b.href = '/feed'; // Active Toggle Escape Route
+        } else {
+          b.classList.remove('active');
+          b.href = expectedPath;
+        }
+      });
+      return;
+    }
+
+    if (cards.length === 0) return;
 
     // Apply active class if hash is present
-    const urlHash = window.location.hash.replace('#', '').toLowerCase();
     if (urlHash) {
       catBtns.forEach(b => {
         if (b.dataset.filterCat === urlHash) {
