@@ -19,7 +19,7 @@ export const site = {
   socials: {
     youtube: 'https://www.youtube.com/@BeUnconventionalHQ',
     instagram: 'https://www.instagram.com/beunconventionalhq',
-    tiktok: 'https://www.tiktok.com/@beunconventional',
+    tiktok: 'https://www.tiktok.com/@beunconventionalhq',
     threads: 'https://www.threads.com/@beunconventionalhq',
     facebook: 'https://www.facebook.com/profile.php?id=61557980693320',
     substack: 'https://beunconventionalhq.substack.com/',
