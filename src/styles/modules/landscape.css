@@ -1,0 +1,67 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   LANDSCAPE ORIENTATION CONTAINMENT
+   Phones rotated sideways report widths above the 768px
+   mobile breakpoint while offering ~320-430px of height.
+   These rules keep the header, logo, and nav links inside
+   short landscape viewports. Import last — overrides both
+   desktop and portrait-mobile rules.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+@media (orientation: landscape) and (max-height: 500px) {
+  /* Compress the fixed header so it doesn't eat the short viewport */
+  #navbar {
+    padding-top: max(0.4rem, env(safe-area-inset-top));
+    padding-bottom: 0.4rem;
+  }
+
+  .nav-logo img {
+    height: clamp(28px, 9vh, 40px);
+  }
+
+  .nav-identity-wrapper {
+    display: none !important;
+  }
+
+  /* Fullscreen menu: wrap links horizontally and allow scroll
+     instead of stacking a tall column that clips off-screen */
+  .nav-container {
+    justify-content: flex-start;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: calc(env(safe-area-inset-top) + 4.25rem) 2rem 2rem;
+  }
+
+  .nav-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: center;
+    gap: 1.25rem 2.25rem;
+    width: 100%;
+    min-height: 100%;
+  }
+
+  .nav-item a {
+    font-size: clamp(1rem, 5vh, 1.5rem);
+  }
+
+  /* Hero grows with its content instead of clipping it */
+  .hero {
+    height: auto;
+    min-height: 100dvh;
+    padding-top: 5.5rem;
+    padding-bottom: 3rem;
+  }
+
+  .hero-title-stack {
+    margin-bottom: 1.25rem;
+  }
+
+  .hero-kicker {
+    margin-bottom: 0.75rem !important;
+  }
+
+  .hero-subtitle {
+    margin-bottom: 1.25rem !important;
+  }
+}
