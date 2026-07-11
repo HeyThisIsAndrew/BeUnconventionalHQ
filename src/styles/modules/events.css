@@ -1,0 +1,103 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   EVENTS PAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.events-page {
+  padding-top: 120px;
+  min-height: 100vh;
+}
+
+.event-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 3rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+@media (max-width: 768px) {
+  .event-grid {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    padding: 0 1.5rem;
+  }
+}
+
+.event-card {
+  position: relative;
+  background: var(--color-surface);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  transition:
+    transform 0.4s cubic-bezier(0.25, 0.8, 0.2, 1),
+    border-color 0.3s ease;
+}
+
+/* GEMINI-CLI CHANGE
+   - author: gemini-cli
+   - date: 2026-05-25T00:00:00Z
+   - file: src/styles/global.css
+   - summary: Harmonized event-card hover with canonical HQ card spec
+   - reason: Visual parity across all card types; uses translateY(-4px) instead of scale.
+   - revert: Change back to transform: scale(1.02)
+*/
+.event-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--color-accent);
+  box-shadow: 0 8px 40px rgba(204, 0, 0, 0.15);
+}
+
+.event-image-wrapper {
+  position: relative;
+  aspect-ratio: 16 / 9;
+}
+
+.event-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.event-card:hover .event-image {
+  opacity: 1;
+}
+
+.event-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(10, 10, 10, 0.9) 0%,
+    transparent 100%
+  );
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 2rem;
+}
+
+.event-tag {
+  color: var(--color-accent);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.event-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-white);
+  margin-bottom: 0.5rem;
+}
+
+.event-date {
+  color: var(--color-white-muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+}

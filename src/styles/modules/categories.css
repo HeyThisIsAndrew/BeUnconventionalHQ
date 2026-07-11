@@ -1,0 +1,279 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SECTIONS + CATEGORIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* GEMINI-CLI CHANGE
+   - author: gemini-cli
+   - date: 2026-05-25T00:00:00Z
+   - file: src/styles/global.css
+   - summary: Restored sticky scroll structure and forced 4-column category grid
+   - reason: Recovery from layout regression; re-established midpoint reveal pacing and centered 4-column desktop composition.
+   - revert: git checkout HEAD src/styles/global.css
+*/
+/* GEMINI-CLI CHANGE
+   - author: gemini-cli
+   - date: 2026-05-27T00:00:00Z
+   - file: src/styles/global.css
+   - summary: Removed 3D sticky viewport architecture to prevent Safari layout breakage.
+   - reason: Safely anchors sections in normal document flow.
+*/
+.categories-section {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--section-spacing-y) 2.5rem; /* Standardized breathing room */
+  opacity: 1; /* Guaranteed stable visibility */
+  transform: none;
+}
+
+.categories-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr); /* Forced 4-column parity */
+  gap: 2rem; /* Increased gap for better tile separation */
+}
+
+@media (max-width: 1100px) {
+  .categories-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .categories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+    gap: 1.25rem;
+    padding: 0 0 1.5rem;
+    width: 100%;
+  }
+
+  .category-card {
+    flex: 0 0 280px;
+    height: auto;
+  }
+}
+
+.section-header {
+  text-align: center;
+  margin-bottom: 4rem; /* Consistent gap before content */
+}
+
+.section-kicker {
+  color: var(--color-accent);
+  font-size: 0.7rem; /* Slightly smaller for premium feel */
+  letter-spacing: 0.4em; /* Increased tracking */
+  text-transform: uppercase;
+  margin-bottom: 1.25rem;
+  text-align: center;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: clamp(
+    2.2rem,
+    5vw,
+    4rem
+  ); /* Slightly larger for clearer hierarchy */
+  font-weight: 800;
+  color: var(--color-white);
+  text-align: center;
+  margin-bottom: 0; /* Reset margin; gap handled by section-header */
+  line-height: 1.1;
+}
+
+.section-header .hero-title-stack {
+  margin-bottom: 0; /* Reset margin; container handles spacing */
+}
+
+/* GEMINI-CLI CHANGE
+   - author: gemini-cli
+   - date: 2026-05-25T00:00:00Z
+   - file: src/styles/global.css
+   - summary: Refined category card visual hierarchy and added interactive glint
+   - reason: Enhanced editorial presence; added subtle depth and lighting for V2 identity.
+*/
+.category-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, var(--color-surface) 0%, #0d0d0d 100%);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 3.5rem 2.25rem; /* Increased vertical presence */
+  text-decoration: none;
+  height: 100%;
+  overflow: hidden; /* For glint effect */
+  transition:
+    opacity 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 0.5s ease,
+    background 0.4s ease,
+    border-color 0.4s ease,
+    box-shadow 0.4s ease;
+  will-change: transform, opacity;
+}
+
+/* Explicitly merge transitions for active state to prevent utility-class overrides */
+.category-card.animate-on-scroll[data-state='active'] {
+  transition:
+    opacity 0.8s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 0.5s ease,
+    background 0.4s ease,
+    border-color 0.4s ease,
+    box-shadow 0.4s ease;
+}
+
+/* Subtle Lighting Glint */
+.category-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+    circle at 20% 20%,
+    rgba(255, 255, 255, 0.03) 0%,
+    transparent 50%
+  );
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+
+.category-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  border-color: var(--color-accent);
+  background: linear-gradient(
+    135deg,
+    var(--color-surface-2) 0%,
+    var(--color-surface) 100%
+  );
+  box-shadow: 0 8px 40px rgba(204, 0, 0, 0.15);
+}
+
+.category-card:active {
+  transform: translateY(-4px) scale(0.98);
+  transition: transform 0.1s ease;
+}
+
+.category-card:hover::before {
+  opacity: 1;
+}
+
+.category-label {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  font-size: 0.55rem; /* Tighter editorial size */
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  opacity: 0.8;
+  transition:
+    letter-spacing 0.3s ease,
+    transform 0.3s ease,
+    opacity 0.3s ease;
+}
+
+.category-card:hover .category-label {
+  letter-spacing: 0.45em;
+  transform: translateY(-4px);
+  opacity: 1;
+}
+
+.category-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.category-icon {
+  display: block;
+  width: 11rem;
+  height: 11rem;
+  margin-top: -5rem; /* Lift icon for visual impact */
+  margin-left: -2rem; /* Shift left for better composition */
+  flex-shrink: 0;
+  filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.3));
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.category-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.category-card:hover .category-icon {
+  transform: scale(1.1); /* Restrained scale, no rotation */
+}
+
+.category-title {
+  font-family: var(--font-display);
+  font-size: 1.85rem; /* Scaled up for clarity */
+  font-weight: 700;
+  color: var(--color-white);
+  margin-bottom: 1.25rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.category-description {
+  color: var(--color-white-muted);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  flex-grow: 1;
+  opacity: 0.9;
+  transition: opacity 0.3s ease;
+}
+
+.category-card:hover .category-description {
+  opacity: 1;
+}
+.action-link,
+.video-watch-btn {
+  width: fit-content; /* Shrink-wrap around text content */
+  margin-top: 2.5rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--color-white);
+  font-weight: 800;
+  text-decoration: none;
+  position: relative;
+  display: inline-block;
+  padding-bottom: 4px;
+  transition:
+    color 0.3s ease,
+    text-shadow 0.3s ease,
+    letter-spacing 0.3s ease,
+    transform 0.3s ease;
+}
+
+.action-link::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: var(--color-accent);
+  transition: width 0.35s cubic-bezier(0.25, 0.8, 0.2, 1);
+}
+
+.category-card:hover .action-link {
+  color: var(--color-accent);
+  text-shadow: 0 0 16px rgba(204, 0, 0, 0.5);
+  letter-spacing: 0.35em;
+  transform: translateX(8px);
+}
+
+.category-card:hover .action-link::after {
+  width: 100%;
+}

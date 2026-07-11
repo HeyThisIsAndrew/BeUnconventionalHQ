@@ -1,0 +1,53 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SCROLL ANIMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.animate-on-scroll {
+  opacity: 0;
+  transform: scale(0.985) translateY(15px);
+  filter: blur(4px);
+  transition:
+    opacity 1.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 1.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 1s ease-out;
+  will-change: transform, opacity, filter;
+}
+
+.animate-on-scroll[data-state='active'] {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  filter: blur(0);
+}
+
+.animate-on-scroll[data-state='enter'] {
+  opacity: 0;
+  transform: scale(0.985) translateY(15px);
+  filter: blur(4px);
+}
+
+.animate-on-scroll[data-state='exit'] {
+  opacity: 0;
+  transform: scale(0.985) translateY(-15px);
+  filter: blur(4px);
+}
+
+/* Unified Grid Ripple (Composition-first) */
+.categories-grid > .animate-on-scroll:nth-child(1) {
+  transition-delay: 0ms;
+}
+.categories-grid > .animate-on-scroll:nth-child(2) {
+  transition-delay: 20ms;
+}
+.categories-grid > .animate-on-scroll:nth-child(3) {
+  transition-delay: 40ms;
+}
+.categories-grid > .animate-on-scroll:nth-child(4) {
+  transition-delay: 60ms;
+}
+
+.video-grid > .animate-on-scroll:nth-child(n),
+.articles-grid > .animate-on-scroll:nth-child(n),
+.latest-grid > .animate-on-scroll:nth-child(n),
+.event-grid > .animate-on-scroll:nth-child(n) {
+  transition-delay: calc(var(--index, 0) * 30ms);
+}

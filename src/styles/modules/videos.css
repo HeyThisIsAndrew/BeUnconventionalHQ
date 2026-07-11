@@ -1,0 +1,245 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   VIDEOS PAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.videos-page {
+  padding-top: 120px;
+  min-height: 100vh;
+}
+
+.filter-nav {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-bottom: 4rem;
+  flex-wrap: wrap;
+  padding: 0 1.5rem;
+}
+
+.filter-btn {
+  background: none;
+  border: none;
+  color: var(--color-white-muted);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  position: relative;
+  padding-bottom: 6px;
+  transition:
+    color 0.3s ease,
+    text-shadow 0.3s ease;
+}
+
+.filter-btn::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: var(--color-accent);
+  transition: width 0.35s cubic-bezier(0.25, 0.8, 0.2, 1);
+}
+
+.filter-btn:hover,
+.filter-btn.active {
+  color: var(--color-accent);
+  text-shadow: 0 0 16px rgba(204, 0, 0, 0.5);
+}
+
+.filter-btn:hover::after,
+.filter-btn.active::after {
+  width: 100%;
+}
+
+/* GEMINI-CLI CHANGE
+   - author: gemini-cli
+   - date: 2026-05-25T00:00:00Z
+   - file: src/styles/global.css
+   - summary: Reduced min-width to 300px for video/article grids
+   - reason: Restores 3-column desktop layout within 1200px container (1136px inner width).
+   - revert: Change 300px back to 360px
+*/
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 2.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.video-card {
+  background: var(--color-surface);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  transition:
+    opacity 0.6s cubic-bezier(0.25, 0.8, 0.2, 1),
+    transform 0.6s cubic-bezier(0.25, 0.8, 0.2, 1),
+    border-color 0.3s ease,
+    box-shadow 0.4s ease;
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+}
+
+/* GEMINI-CLI CHANGE
+   - author: gemini-cli
+   - date: 2026-05-25T00:00:00Z
+   - file: src/styles/global.css
+   - summary: Normalized video card hover with canonical red glow
+   - reason: Visual consistency across editorial cards; unified depth and accent border.
+   - revert: git checkout HEAD src/styles/global.css
+*/
+.video-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--color-accent);
+  box-shadow: 0 8px 40px rgba(204, 0, 0, 0.15);
+}
+
+.video-thumbnail-wrapper {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  overflow: hidden;
+  transform: translateZ(0);
+  background-color: #121212;
+}
+
+.video-thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.2, 1);
+}
+
+.video-card:hover .video-thumbnail {
+  transform: scale(1.05);
+}
+
+.content-badge {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  background: rgba(204, 0, 0, 0.9);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 0.4rem 0.8rem;
+  z-index: 2;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.content-type-subtle {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-white-muted);
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.video-play-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 1;
+}
+
+.video-card:hover .video-play-overlay {
+  opacity: 1;
+}
+
+.play-icon {
+  width: 50px;
+  height: 50px;
+  background: var(--color-accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.2rem;
+  box-shadow: 0 0 20px rgba(204, 0, 0, 0.4);
+}
+
+.video-info {
+  padding: 1.75rem;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.video-title {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--color-white);
+  margin-bottom: 1.5rem;
+  flex-grow: 1;
+}
+
+/* GEMINI-CLI CHANGE
+   - author: gemini-cli
+   - date: 2026-05-25T00:00:00Z
+   - file: src/styles/global.css
+   - summary: Updated video watch button color to white-muted
+   - reason: Visual hierarchy; ensure button starts muted and highlights on hover.
+   - revert: Change color back to white
+*/
+.video-watch-btn {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-white);
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  gap: 0.75rem;
+  position: relative;
+  padding-bottom: 4px;
+  transition:
+    color 0.3s ease,
+    text-shadow 0.3s ease;
+}
+
+.video-watch-btn::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: var(--color-accent);
+  transition: width 0.35s cubic-bezier(0.25, 0.8, 0.2, 1);
+}
+
+.video-watch-btn:hover {
+  color: var(--color-accent);
+  text-shadow: 0 0 16px rgba(204, 0, 0, 0.4);
+}
+
+.video-watch-btn:hover::after {
+  width: 100%;
+}
+
+.video-watch-btn svg {
+  transition: transform 0.3s ease;
+}
+
+.video-watch-btn:hover svg {
+  transform: translateX(4px);
+}
