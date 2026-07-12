@@ -10,8 +10,7 @@ export const site = {
 
   // Primary navigation (streamlined).
   nav: [
-    { label: 'Videos', href: '/videos' },
-    { label: 'Articles', href: '/articles' },
+    { label: 'Feed', href: '/feed' },
     { label: 'About', href: '/about' },
     { label: 'Contact', href: '/contact' },
   ],

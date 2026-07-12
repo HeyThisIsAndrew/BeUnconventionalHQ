@@ -1,60 +1,3 @@
----
-const currentPath = Astro.url.pathname;
-const navItems = [
-  { label: 'Feed', href: 'feed' },
-  { label: 'Events', href: 'events' },
-  { label: 'About', href: 'about' },
-  { label: 'Contact', href: 'contact' },
-];
-
-const isActive = (href) =>
-  currentPath === `/${href}` || currentPath === `/${href}/`;
----
-
-<header id="navbar">
-  <div class="container nav-inner">
-    <div class="nav-brand-group">
-      <a href="/" class="nav-logo">
-        <img src="/logo.png" alt="Be Unconventional HQ" />
-      </a>
-      <a
-        href="#"
-        class="nav-identity-wrapper"
-        id="nav-identity"
-        style="transform: translateY(-10px) scale(0.95); opacity: 0; pointer-events: none; transition: opacity 0.4s ease, transform 0.4s ease; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-left: 1rem; text-decoration: none; cursor: pointer;"
-      >
-        <div class="nav-identity-stack">
-          <span class="nav-word-be">BE</span>
-          <span class="nav-word-unconventional">UNCONVENTIONAL</span>
-          <span class="nav-word-hq">HQ</span>
-        </div>
-        <div class="nav-subline" id="nav-subline"></div>
-      </a>
-    </div>
-    <button class="nav-toggle" aria-label="Toggle Menu" aria-expanded="false">
-      <span class="line line-1"></span><span class="line line-2"></span><span
-        class="line line-3"></span>
-    </button>
-    <nav class="nav-container">
-      <ul class="nav-list">
-        {
-          navItems.map((item) => (
-            <li class="nav-item">
-              <a
-                href={`/${item.href}`}
-                class:list={[item.className, { active: isActive(item.href) }]}
-              >
-                {item.label}
-              </a>
-            </li>
-          ))
-        }
-      </ul>
-    </nav>
-  </div>
-</header>
-
-<script is:inline>
   (function () {
     let scrollHandler = null;
     let observer = null;
@@ -246,11 +189,8 @@ const isActive = (href) =>
         });
     }
 
-    } // Ends initMobileMenu
-
     if (!window.navbarMobileMenuSetup) {
       document.addEventListener('astro:page-load', initMobileMenu);
       window.navbarMobileMenuSetup = true;
     }
   })();
-</script>
