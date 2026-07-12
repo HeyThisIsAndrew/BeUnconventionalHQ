@@ -188,6 +188,7 @@ const isActive = (href) =>
             document.body.style.position = '';
             document.body.style.top = '';
             document.body.style.width = '';
+            document.body.style.overflowY = '';
 
             const originalBehavior = document.documentElement.style.scrollBehavior;
             document.documentElement.style.scrollBehavior = 'auto'; // Force instant
@@ -241,6 +242,7 @@ const isActive = (href) =>
               document.body.style.position = '';
               document.body.style.top = '';
               document.body.style.width = '';
+              document.body.style.overflowY = '';
 
               const originalBehavior = document.documentElement.style.scrollBehavior;
               document.documentElement.style.scrollBehavior = 'auto'; // Force instant
@@ -261,8 +263,28 @@ const isActive = (href) =>
 
     } // Ends initMobileMenu
 
+    // The navbar uses transition:persist, so Astro preserves it (and any
+    // .menu-open class) across client-side navigations — leaving the menu
+    // visibly stuck open on the new page when the user navigates via the logo
+    // or the browser Back button. Force it closed on every page load.
+    function resetMenuState() {
+      const navbar = document.getElementById('navbar');
+      if (navbar && navbar.classList.contains('menu-open')) {
+        navbar.classList.remove('menu-open');
+        document.documentElement.classList.remove('menu-open');
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.overflowY = '';
+        navbar
+          .querySelector('.nav-toggle')
+          ?.setAttribute('aria-expanded', 'false');
+      }
+    }
+
     if (!window.navbarMobileMenuSetup) {
       document.addEventListener('astro:page-load', initMobileMenu);
+      document.addEventListener('astro:page-load', resetMenuState);
       window.navbarMobileMenuSetup = true;
     }
   })();

@@ -52,13 +52,33 @@ import PageTitle from './PageTitle.astro';
 <script is:inline>
   (function () {
     const boundElements = new WeakSet();
+    // Remembers the trigger so focus can return to it on close.
+    let lastFocused = null;
+    let interactivityTimer = null;
+
+    // Clears the "state leak": typed text, validation and the status banner.
+    function resetModalForm() {
+      const form = document.getElementById('contact-modal-form');
+      const status = document.getElementById('modal-form-status');
+      form?.reset();
+      status?.classList.remove('is-visible');
+    }
 
     function openContactModal(e) {
       if (e) e.preventDefault();
       const modal = document.getElementById('contact-modal');
+      const form = document.getElementById('contact-modal-form');
       const closeBtn = document.getElementById('close-contact-modal');
       if (modal) {
-        document.getElementById('page-content')?.setAttribute('inert', '');
+        // Start clean every open — the modal is persisted across navigations,
+        // so text/errors from a previous page could otherwise still be here.
+        resetModalForm();
+
+        lastFocused = document.activeElement;
+        // Inert the whole app wrapper (navbar + content + footer), not just
+        // #page-content, so Tab can't escape the modal.
+        document.getElementById('app-wrapper')?.setAttribute('inert', '');
+
         // Only capture and lock scroll if it isn't already locked by the mobile menu
         if (document.body.style.position !== 'fixed') {
           const scrollY = window.scrollY;
@@ -67,6 +87,21 @@ import PageTitle from './PageTitle.astro';
           document.body.style.width = '100%';
           document.body.style.overflowY = 'scroll';
         }
+
+        // iOS auto-zoom guard: the content animates transform: scale(0.9)->1,
+        // which renders inputs below 16px mid-transition. Hold the form out of
+        // the tab order (inert) until the scale settles, and focus only the
+        // (non-input) close button — so Safari never sees a focused sub-16px
+        // input.
+        form?.setAttribute('inert', '');
+        const enableInputs = () => {
+          form?.removeAttribute('inert');
+          clearTimeout(interactivityTimer);
+        };
+        const content = modal.querySelector('.contact-modal-content');
+        content?.addEventListener('transitionend', enableInputs, { once: true });
+        clearTimeout(interactivityTimer);
+        interactivityTimer = setTimeout(enableInputs, 600);
 
         modal.classList.add('is-active');
         modal.setAttribute('aria-hidden', 'false');
@@ -78,21 +113,32 @@ import PageTitle from './PageTitle.astro';
     function closeContactModal() {
       const modal = document.getElementById('contact-modal');
       if (modal && modal.classList.contains('is-active')) {
-        document.getElementById('page-content')?.removeAttribute('inert');
+        document.getElementById('app-wrapper')?.removeAttribute('inert');
+        document.getElementById('contact-modal-form')?.removeAttribute('inert');
+        clearTimeout(interactivityTimer);
         modal.classList.remove('is-active');
         modal.setAttribute('aria-hidden', 'true');
-        
+
         const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
         document.body.style.position = '';
         document.body.style.top = '';
         document.body.style.width = '';
         document.body.style.overflowY = '';
-        
+
+        // Reset the (persisted) form so nothing leaks into the next open.
+        resetModalForm();
+
+        // Restore focus to the element that opened the modal.
+        if (lastFocused && typeof lastFocused.focus === 'function') {
+          lastFocused.focus();
+        }
+        lastFocused = null;
+
         document.documentElement.classList.remove('modal-open');
         const originalBehavior = document.documentElement.style.scrollBehavior;
         document.documentElement.style.scrollBehavior = 'auto'; // Force instant snap
         window.scrollTo(0, scrollY);
-        
+
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             document.documentElement.style.scrollBehavior = originalBehavior;
@@ -283,7 +329,9 @@ import PageTitle from './PageTitle.astro';
     padding: 0.8rem 1rem;
     color: var(--color-white);
     font-family: var(--font-inter);
-    font-size: 16px;
+    /* iOS auto-zoom guard: never render below 16px (combined with the
+       inert-until-scale-settles behavior in the script). */
+    font-size: max(16px, 1rem);
     transition: all 0.3s ease;
   }
 
