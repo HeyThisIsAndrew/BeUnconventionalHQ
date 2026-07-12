@@ -36,6 +36,15 @@
     z-index: 9999;
   }
 
+  /* When the mobile menu is open, lift the navbar's stacking context above
+     the .safe-area-blackout (z-index: 10000). The .nav-container is nested
+     inside #navbar, so its z-index: 10001 is only resolved WITHIN this
+     context — without this, the whole menu is trapped at 9999 and the
+     blackout renders on top of it. */
+  #navbar.menu-open {
+    z-index: 10001;
+  }
+
   /* Traditional 3-Line Hamburger */
   .nav-toggle {
     display: flex;
@@ -204,5 +213,31 @@
   .nav-identity-wrapper {
     display: flex !important;
     transform: scale(0.8) !important;
+  }
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   TINY SCREENS (<= 360px, e.g. iPhone SE)
+   Stop the 14-letter "UNCONVENTIONAL" lockup from overflowing the viewport,
+   and drop the negative percentage margins that make .word-be and .word-hq
+   visually overlap once the stack is this narrow.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+@media (max-width: 360px) {
+  .hero-title-stack {
+    padding: 0 0.75rem;
+  }
+
+  .word-unconventional {
+    /* allow it to shrink below the 1.1rem floor on very narrow screens */
+    font-size: clamp(0.8rem, calc(0.35rem + 3vw), 1.1rem) !important;
+    letter-spacing: -0.04em;
+  }
+
+  .hero .word-be {
+    margin-left: 0 !important;
+  }
+
+  .hero .word-hq {
+    margin-right: 0 !important;
   }
 }

@@ -4,6 +4,7 @@ import '../styles/global.css';
 import '../styles/theme-red.css';
 import Footer from '../components/Footer.astro';
 import Navbar from '../components/Navbar.astro';
+import ContactModal from '../components/ContactModal.astro';
 import { site } from '../data/site.js';
 import { ClientRouter } from 'astro:transitions';
 
@@ -94,11 +95,18 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
       )
     }
     <div class="safe-area-blackout"></div>
-    <div transition:persist="global-nav">
+    <!-- Navbar and Footer are siblings of #page-content, so inert-ing only
+         #page-content would still let Tab reach them. Wrap all three in
+         #app-wrapper and inert THAT while a modal is open — the modals live
+         outside the wrapper, so they stay reachable. -->
+    <div id="app-wrapper">
       <Navbar />
+      <main id="page-content">
+        <slot />
+      </main>
+      <Footer />
     </div>
-    <slot />
-    <Footer />
+    <ContactModal />
 
     <!-- Unified Video Modal -->
     <div
@@ -106,6 +114,7 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
       class="modal-overlay"
       aria-hidden="true"
       role="dialog"
+      aria-modal="true"
       aria-label="Video Player"
     >
       <div class="modal-content">
@@ -123,17 +132,30 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
     </div>
 
     <script is:inline>
-      console.log('Layout script initialized');
-      document.addEventListener('astro:page-load', () =>
-        console.log('Astro Page Load')
-      );
+      // Guarded so this page-load listener binds exactly once, not once per
+      // client-side navigation (Astro re-executes <body> scripts on every swap).
+      if (!window.setup) {
+        window.setup = true;
+        console.log('Layout script initialized');
+        document.addEventListener('astro:page-load', () =>
+          console.log('Astro Page Load')
+        );
+      }
 
       (function () {
+        // Remembers what had focus before the modal opened, to restore it on
+        // close instead of dropping keyboard users at the top of the page.
+        let lastFocused = null;
+
         function openModal(videoId) {
           const modal = document.getElementById('video-modal');
           const modalIframe = document.getElementById('modal-iframe');
 
           if (videoId && modal && modalIframe) {
+            // Save focus + trap it: inert the whole app wrapper (navbar,
+            // content, footer), not just #page-content.
+            lastFocused = document.activeElement;
+
             // Capture scroll position
             const scrollY = window.scrollY;
             document.body.style.top = `-${scrollY}px`;
@@ -143,6 +165,10 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
             modal.classList.add('active');
             document.documentElement.classList.add('modal-open');
             modal.setAttribute('aria-hidden', 'false');
+            document.getElementById('app-wrapper')?.setAttribute('inert', '');
+
+            const closeBtn = modal.querySelector('.modal-close');
+            if (closeBtn) setTimeout(() => closeBtn.focus(), 100);
           }
         }
 
@@ -160,11 +186,19 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
             modal.classList.remove('active');
             document.documentElement.classList.remove('modal-open');
             modal.setAttribute('aria-hidden', 'true');
+            document.getElementById('app-wrapper')?.removeAttribute('inert');
             modalIframe.src = '';
 
             document.body.style.position = '';
             document.body.style.top = '';
             document.body.style.width = '';
+            document.body.style.overflowY = '';
+
+            // Restore focus to the element that opened the modal.
+            if (lastFocused && typeof lastFocused.focus === 'function') {
+              lastFocused.focus();
+            }
+            lastFocused = null;
 
             // Double requestAnimationFrame for native thread safety
             requestAnimationFrame(() => {
@@ -181,23 +215,29 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
         }
 
         // Global Event Delegation for Video Triggers
-        document.addEventListener('click', (e) => {
-          const trigger = e.target.closest('.video-modal-trigger');
-          if (trigger) {
-            e.preventDefault();
-            const videoId = trigger.getAttribute('data-video-id');
-            if (videoId) openModal(videoId);
-          }
+        if (!window.videoModalSetup) {
+          document.addEventListener('click', (e) => {
+            const trigger = e.target.closest('.video-modal-trigger');
+            if (trigger) {
+              e.preventDefault();
+              const videoId = trigger.getAttribute('data-video-id');
+              if (videoId) openModal(videoId);
+            }
 
-          const currentModal = document.getElementById('video-modal');
-          if (e.target === currentModal || e.target.closest('.modal-close')) {
-            closeModal();
-          }
-        });
+            const currentModal = document.getElementById('video-modal');
+            if (e.target === currentModal || e.target.closest('.modal-close')) {
+              closeModal();
+            }
+          });
+          window.videoModalSetup = true;
+        }
 
-        document.addEventListener('keydown', (e) => {
-          if (e.key === 'Escape') closeModal();
-        });
+        if (!window.videoModalEscSetup) {
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+          });
+          window.videoModalEscSetup = true;
+        }
       })();
     </script>
     <script>
@@ -261,25 +301,46 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
       }
 
       document.addEventListener('astro:page-load', handlePageLoad);
-
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', handlePageLoad);
-      } else {
-        // Run immediately if ready (e.g. initial load missed by DOMContentLoaded)
-        handlePageLoad();
-      }
     </script>
     <script>
       // Step 1: Strip mobile scroll locks BEFORE Astro takes its snapshot
       document.addEventListener('astro:before-preparation', () => {
+        document.documentElement.classList.remove('modal-open', 'menu-open');
         const body = document.body;
-        if (body.style.position === 'fixed') {
+        // Class-based locks (html.modal-open body { position: fixed }) leave the
+        // inline body.style.position empty, so `=== 'fixed'` misses the video
+        // modal and its scroll offset leaks into the snapshot. The inline
+        // `top: -[scrollY]px` is set for every lock type — key off that.
+        if (body.style.top) {
           const scrollY = Math.abs(parseInt(body.style.top || '0', 10));
           body.style.position = '';
           body.style.top = '';
           body.style.width = '';
           body.style.overflowY = '';
           window.scrollTo(0, scrollY);
+        }
+        if (body.style.overflow === 'hidden') {
+          body.style.overflow = '';
+        }
+        // Never cache an OPEN modal: with the scroll lock already cleared above,
+        // a cached-open modal causes a big scroll jump when closed after Back.
+        // Release the focus trap and close/reset both modals.
+        document.getElementById('app-wrapper')?.removeAttribute('inert');
+        const videoModal = document.getElementById('video-modal');
+        if (videoModal) {
+          videoModal.classList.remove('active');
+          videoModal.setAttribute('aria-hidden', 'true');
+          const iframe = videoModal.querySelector('#modal-iframe');
+          if (iframe) iframe.src = '';
+        }
+        const contactModal = document.getElementById('contact-modal');
+        if (contactModal) {
+          contactModal.classList.remove('is-active');
+          contactModal.setAttribute('aria-hidden', 'true');
+          document.getElementById('contact-modal-form')?.reset();
+          document
+            .getElementById('modal-form-status')
+            ?.classList.remove('is-visible');
         }
         document.querySelector('#category-modal')?.close();
       });

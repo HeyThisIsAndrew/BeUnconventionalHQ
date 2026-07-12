@@ -1,8 +1,6 @@
 ---
 const currentPath = Astro.url.pathname;
 const navItems = [
-  { label: 'Videos', href: 'videos' },
-  { label: 'Articles', href: 'articles' },
   { label: 'Feed', href: 'feed' },
   { label: 'Events', href: 'events' },
   { label: 'About', href: 'about' },
@@ -13,7 +11,7 @@ const isActive = (href) =>
   currentPath === `/${href}` || currentPath === `/${href}/`;
 ---
 
-<header id="navbar">
+<header id="navbar" transition:persist="global-nav">
   <div class="container nav-inner">
     <div class="nav-brand-group">
       <a href="/" class="nav-logo">
@@ -45,6 +43,7 @@ const isActive = (href) =>
               <a
                 href={`/${item.href}`}
                 class:list={[item.className, { active: isActive(item.href) }]}
+                data-modal-trigger={item.href === 'contact' ? 'contact' : undefined}
               >
                 {item.label}
               </a>
@@ -69,9 +68,7 @@ const isActive = (href) =>
       // 1. Dynamic Red Subline
       const path = window.location.pathname;
       let subtext = '';
-      if (path.includes('videos')) subtext = 'VIDEOS';
-      else if (path.includes('articles')) subtext = 'ARTICLES';
-      else if (path.includes('category')) subtext = 'HUB';
+      if (path.includes('category')) subtext = 'HUB';
       else if (path.includes('about')) subtext = 'ABOUT';
       else if (path.includes('contact')) subtext = 'CONTACT';
 
@@ -140,8 +137,6 @@ const isActive = (href) =>
       }
     }
 
-    document.addEventListener('astro:page-load', initNavObserver);
-
     function updateActiveNavLinks() {
       const currentPath = window.location.pathname.replace(/\/$/, '');
       const navLinks = document.querySelectorAll('.nav-list .nav-item a');
@@ -156,8 +151,14 @@ const isActive = (href) =>
       });
     }
 
-    updateActiveNavLinks();
-    document.addEventListener('astro:page-load', updateActiveNavLinks);
+    // updateActiveNavLinks(); 
+    // We remove the immediate call because astro:page-load fires on initial load.
+
+    if (!window.navbarObserverSetup) {
+      document.addEventListener('astro:page-load', initNavObserver);
+      document.addEventListener('astro:page-load', updateActiveNavLinks);
+      window.navbarObserverSetup = true;
+    }
   })();
 
   (function () {
@@ -173,9 +174,11 @@ const isActive = (href) =>
         newToggle.addEventListener('click', () => {
           const isOpened = navbar.classList.contains('menu-open');
           if (isOpened) {
-            // Guard clause to prevent state corruption
-            if (!document.documentElement.classList.contains('menu-open'))
+            if (!document.documentElement.classList.contains('menu-open')) {
+              navbar.classList.remove('menu-open');
+              newToggle.setAttribute('aria-expanded', 'false');
               return;
+            }
 
             const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
             navbar.classList.remove('menu-open');
@@ -185,22 +188,25 @@ const isActive = (href) =>
             document.body.style.position = '';
             document.body.style.top = '';
             document.body.style.width = '';
+            document.body.style.overflowY = '';
+
+            const originalBehavior = document.documentElement.style.scrollBehavior;
+            document.documentElement.style.scrollBehavior = 'auto'; // Force instant
+            window.scrollTo(0, scrollY);
 
             // Double requestAnimationFrame for native thread safety
             requestAnimationFrame(() => {
               requestAnimationFrame(() => {
-                const originalBehavior =
-                  document.documentElement.style.scrollBehavior;
-                document.documentElement.style.scrollBehavior = 'auto'; // Force instant
-                window.scrollTo(0, scrollY);
-                document.documentElement.style.scrollBehavior =
-                  originalBehavior;
+                document.documentElement.style.scrollBehavior = originalBehavior;
               });
             });
           } else {
             // Capture scroll position
             const scrollY = window.scrollY;
             document.body.style.top = `-${scrollY}px`;
+            document.body.style.position = 'fixed';
+            document.body.style.width = '100%';
+            document.body.style.overflowY = 'scroll';
 
             navbar.classList.add('menu-open');
             document.documentElement.classList.add('menu-open');
@@ -210,41 +216,76 @@ const isActive = (href) =>
 
         const navLinks = navbar.querySelectorAll('.nav-list a');
         navLinks.forEach((link) => {
-          link.addEventListener('click', () => {
-            if (navbar.classList.contains('menu-open')) {
-              // Guard clause
-              if (!document.documentElement.classList.contains('menu-open'))
-                return;
+          if (!link.dataset.mobileClickBound) {
+            link.addEventListener('click', (e) => {
+              const isModalTrigger = !!e.target.closest('[data-modal-trigger]');
 
-              const scrollY = Math.abs(
-                parseInt(document.body.style.top || '0')
-              );
+              if (navbar.classList.contains('menu-open')) {
+                if (!document.documentElement.classList.contains('menu-open')) {
+                  navbar.classList.remove('menu-open');
+                  newToggle.setAttribute('aria-expanded', 'false');
+                  return;
+                }
+
               navbar.classList.remove('menu-open');
               document.documentElement.classList.remove('menu-open');
               newToggle.setAttribute('aria-expanded', 'false');
 
+              // If this is a modal trigger, just visually close the menu but leave 
+              // the scroll lock perfectly intact so the modal can adopt it!
+              if (isModalTrigger) return;
+
+              const scrollY = Math.abs(
+                parseInt(document.body.style.top || '0')
+              );
+
               document.body.style.position = '';
               document.body.style.top = '';
               document.body.style.width = '';
+              document.body.style.overflowY = '';
+
+              const originalBehavior = document.documentElement.style.scrollBehavior;
+              document.documentElement.style.scrollBehavior = 'auto'; // Force instant
+              window.scrollTo(0, scrollY);
 
               // Double requestAnimationFrame for native thread safety
               requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
-                  const originalBehavior =
-                    document.documentElement.style.scrollBehavior;
-                  document.documentElement.style.scrollBehavior = 'auto'; // Force instant
-                  window.scrollTo(0, scrollY);
-                  document.documentElement.style.scrollBehavior =
-                    originalBehavior;
+                  document.documentElement.style.scrollBehavior = originalBehavior;
                 });
               });
             }
           });
+          link.dataset.mobileClickBound = 'true';
+        }
         });
+    }
+
+    } // Ends initMobileMenu
+
+    // The navbar uses transition:persist, so Astro preserves it (and any
+    // .menu-open class) across client-side navigations — leaving the menu
+    // visibly stuck open on the new page when the user navigates via the logo
+    // or the browser Back button. Force it closed on every page load.
+    function resetMenuState() {
+      const navbar = document.getElementById('navbar');
+      if (navbar && navbar.classList.contains('menu-open')) {
+        navbar.classList.remove('menu-open');
+        document.documentElement.classList.remove('menu-open');
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.overflowY = '';
+        navbar
+          .querySelector('.nav-toggle')
+          ?.setAttribute('aria-expanded', 'false');
       }
     }
 
-    initMobileMenu();
-    document.addEventListener('astro:page-load', initMobileMenu);
+    if (!window.navbarMobileMenuSetup) {
+      document.addEventListener('astro:page-load', initMobileMenu);
+      document.addEventListener('astro:page-load', resetMenuState);
+      window.navbarMobileMenuSetup = true;
+    }
   })();
 </script>
