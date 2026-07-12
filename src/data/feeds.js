@@ -3,20 +3,8 @@
  * `scripts/fetch-feeds.mjs`. Pages import from here so rendering stays
  * decoupled from how the data is refreshed.
  */
-import fs from 'fs/promises';
-import path from 'path';
+import articlesData from './cache/articles.json';
+import videosData from './cache/videos.json';
 
-const CACHE_DIR = path.join(process.cwd(), 'src', 'data', 'cache');
-
-async function readCache(file) {
-  try {
-    const raw = await fs.readFile(path.join(CACHE_DIR, file), 'utf-8');
-    const data = JSON.parse(raw);
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
-  }
-}
-
-export const getArticles = () => readCache('articles.json');
-export const getVideos = () => readCache('videos.json');
+export const getArticles = () => Array.isArray(articlesData) ? articlesData : [];
+export const getVideos = () => Array.isArray(videosData) ? videosData : [];
