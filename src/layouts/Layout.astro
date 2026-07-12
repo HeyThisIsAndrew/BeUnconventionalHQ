@@ -4,6 +4,7 @@ import '../styles/global.css';
 import '../styles/theme-red.css';
 import Footer from '../components/Footer.astro';
 import Navbar from '../components/Navbar.astro';
+import ContactModal from '../components/ContactModal.astro';
 import { site } from '../data/site.js';
 import { ClientRouter } from 'astro:transitions';
 
@@ -94,11 +95,10 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
       )
     }
     <div class="safe-area-blackout"></div>
-    <div transition:persist="global-nav">
-      <Navbar />
-    </div>
+    <Navbar />
     <slot />
     <Footer />
+    <ContactModal />
 
     <!-- Unified Video Modal -->
     <div
@@ -273,6 +273,9 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
           body.style.width = '';
           body.style.overflowY = '';
           window.scrollTo(0, scrollY);
+        }
+        if (body.style.overflow === 'hidden') {
+          body.style.overflow = '';
         }
         document.querySelector('#category-modal')?.close();
       });

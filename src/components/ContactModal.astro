@@ -1,0 +1,336 @@
+---
+import PageTitle from './PageTitle.astro';
+---
+
+<div id="contact-modal" class="contact-modal-overlay" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Contact Us">
+  <div class="contact-modal-content">
+    <button id="close-contact-modal" class="contact-modal-close" aria-label="Close modal"><span aria-hidden="true">&times;</span></button>
+    
+    <div class="contact-modal-header">
+      <PageTitle kicker="Get In Touch" primary="Contact" secondary="Us" scale="secondary" />
+      <p class="contact-modal-desc">
+        Have a question or collaboration idea? <br class="mobile-break" />
+        Send us a message.
+      </p>
+    </div>
+
+    <form id="contact-modal-form" class="contact-modal-form">
+      <div class="form-group">
+        <label for="modal-name" class="form-label">Full Name</label>
+        <input type="text" id="modal-name" name="name" class="form-input" placeholder="Enter your name" required />
+      </div>
+
+      <div class="form-group">
+        <label for="modal-email" class="form-label">Email Address</label>
+        <input type="email" id="modal-email" name="email" class="form-input" placeholder="Enter your email" required />
+      </div>
+
+      <div class="form-group">
+        <label for="modal-subject" class="form-label">Subject</label>
+        <select id="modal-subject" name="subject" class="form-select" required>
+          <option value="" disabled selected>Select a subject</option>
+          <option value="press">Press Inquiry</option>
+          <option value="collaboration">Collaboration</option>
+          <option value="general">General Question</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="modal-message" class="form-label">Message</label>
+        <textarea id="modal-message" name="message" class="form-textarea" placeholder="How can we help?" required></textarea>
+      </div>
+
+      <div id="modal-form-status" class="form-status-message" role="status" aria-live="polite">
+        Contact form is currently unavailable. Please use social links to get in touch.
+      </div>
+
+      <button type="submit" class="form-submit cta-button-primary">Send Message</button>
+    </form>
+  </div>
+</div>
+
+<script is:inline>
+  (function () {
+    function openContactModal(e) {
+      if (e) e.preventDefault();
+      const modal = document.getElementById('contact-modal');
+      const closeBtn = document.getElementById('close-contact-modal');
+      if (modal) {
+        // Only capture and lock scroll if it isn't already locked by the mobile menu
+        if (document.body.style.position !== 'fixed') {
+          const scrollY = window.scrollY;
+          document.body.style.top = `-${scrollY}px`;
+          document.body.style.position = 'fixed';
+          document.body.style.width = '100%';
+          document.body.style.overflowY = 'scroll';
+        }
+
+        modal.classList.add('is-active');
+        modal.setAttribute('aria-hidden', 'false');
+        if (closeBtn) setTimeout(() => closeBtn.focus(), 100);
+      }
+    }
+
+    function closeContactModal() {
+      const modal = document.getElementById('contact-modal');
+      if (modal && modal.classList.contains('is-active')) {
+        modal.classList.remove('is-active');
+        modal.setAttribute('aria-hidden', 'true');
+        
+        const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.overflowY = '';
+        
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const originalBehavior = document.documentElement.style.scrollBehavior;
+            document.documentElement.style.scrollBehavior = 'auto'; // Force instant snap
+            window.scrollTo(0, scrollY);
+            document.documentElement.style.scrollBehavior = originalBehavior;
+          });
+        });
+      }
+    }
+
+    // Direct binding for triggers inside astro:page-load
+    document.addEventListener('astro:page-load', () => {
+      const triggers = document.querySelectorAll('[data-modal-trigger="contact"]');
+      triggers.forEach(trigger => {
+        if (!trigger.dataset.contactBound) {
+          trigger.addEventListener('click', openContactModal);
+          trigger.dataset.contactBound = 'true';
+        }
+      });
+
+      // Bind close buttons and backdrop
+      const modal = document.getElementById('contact-modal');
+      const closeBtn = document.getElementById('close-contact-modal');
+      
+      if (closeBtn && !closeBtn.dataset.bound) {
+        closeBtn.addEventListener('click', closeContactModal);
+        closeBtn.dataset.bound = 'true';
+      }
+
+      if (modal && !modal.dataset.bound) {
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) closeContactModal();
+        });
+        modal.dataset.bound = 'true';
+      }
+
+      // Form submission binding
+      const form = document.getElementById('contact-modal-form');
+      const status = document.getElementById('modal-form-status');
+      
+      if (form && status && !form.dataset.modalBound) {
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          status.classList.add('is-visible');
+          form.reset();
+        });
+        form.dataset.modalBound = 'true';
+      }
+    });
+
+    // Handle Escape key globally
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeContactModal();
+    });
+
+  })();
+</script>
+
+<style>
+  .contact-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(10px);
+    z-index: 10005;
+    display: grid;
+    place-items: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    padding: 1.5rem;
+  }
+
+  .contact-modal-overlay.is-active {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .contact-modal-content {
+    background: linear-gradient(
+      135deg,
+      rgba(20, 20, 20, 0.9),
+      rgba(10, 10, 10, 0.95)
+    );
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
+    padding: 2.5rem 2rem;
+    width: 100%;
+    max-width: 500px;
+    position: relative;
+    transform: scale(0.9) translateY(20px);
+    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    max-height: 90vh;
+    max-height: 90dvh;
+    overflow-y: auto;
+  }
+
+  .contact-modal-overlay.is-active .contact-modal-content {
+    transform: scale(1) translateY(0);
+  }
+
+  .contact-modal-close {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: none;
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.5rem;
+    transition: all 0.3s ease;
+    z-index: 10;
+  }
+
+  .contact-modal-close:hover {
+    background: var(--color-accent);
+    transform: rotate(90deg);
+  }
+
+  .contact-modal-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .contact-modal-desc {
+    color: var(--color-white-muted);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin-top: 1rem;
+    text-align: center;
+  }
+
+  .mobile-break {
+    display: none;
+  }
+
+  @media (max-width: 768px) {
+    .mobile-break {
+      display: block;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .contact-modal-content {
+      padding: 1.5rem 1rem;
+    }
+  }
+
+  /* Form Styles (Adopted from contact.astro) */
+  .contact-modal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .form-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-white-muted);
+  }
+
+  .form-input,
+  .form-select,
+  .form-textarea {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
+    color: var(--color-white);
+    font-family: var(--font-inter);
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+  }
+
+  .form-input:focus,
+  .form-select:focus,
+  .form-textarea:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .form-textarea {
+    min-height: 100px;
+    resize: vertical;
+  }
+  
+  .form-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem top 50%;
+    background-size: 0.65rem auto;
+  }
+  
+  /* Select styling overrides for better contrast when expanded */
+  .form-select option {
+    background: #111;
+    color: var(--color-white);
+  }
+
+  .form-submit {
+    margin-top: 0.5rem;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .form-status-message {
+    display: none;
+    padding: 1rem;
+    background: rgba(204, 0, 0, 0.1);
+    border: 1px solid var(--color-accent);
+    color: var(--color-white);
+    font-size: 0.85rem;
+    text-align: center;
+    border-radius: 4px;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .form-status-message.is-visible {
+    display: block;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>

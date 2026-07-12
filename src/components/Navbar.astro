@@ -11,7 +11,7 @@ const isActive = (href) =>
   currentPath === `/${href}` || currentPath === `/${href}/`;
 ---
 
-<header id="navbar">
+<header id="navbar" transition:persist="global-nav">
   <div class="container nav-inner">
     <div class="nav-brand-group">
       <a href="/" class="nav-logo">
@@ -43,6 +43,7 @@ const isActive = (href) =>
               <a
                 href={`/${item.href}`}
                 class:list={[item.className, { active: isActive(item.href) }]}
+                data-modal-trigger={item.href === 'contact' ? 'contact' : undefined}
               >
                 {item.label}
               </a>
@@ -201,6 +202,9 @@ const isActive = (href) =>
             // Capture scroll position
             const scrollY = window.scrollY;
             document.body.style.top = `-${scrollY}px`;
+            document.body.style.position = 'fixed';
+            document.body.style.width = '100%';
+            document.body.style.overflowY = 'scroll';
 
             navbar.classList.add('menu-open');
             document.documentElement.classList.add('menu-open');
@@ -211,18 +215,25 @@ const isActive = (href) =>
         const navLinks = navbar.querySelectorAll('.nav-list a');
         navLinks.forEach((link) => {
           if (!link.dataset.mobileClickBound) {
-            link.addEventListener('click', () => {
-            if (navbar.classList.contains('menu-open')) {
-              // Guard clause
-              if (!document.documentElement.classList.contains('menu-open'))
-                return;
+            link.addEventListener('click', (e) => {
+              const isModalTrigger = !!e.target.closest('[data-modal-trigger]');
+
+              if (navbar.classList.contains('menu-open')) {
+                // Guard clause
+                if (!document.documentElement.classList.contains('menu-open'))
+                  return;
+
+              navbar.classList.remove('menu-open');
+              document.documentElement.classList.remove('menu-open');
+              newToggle.setAttribute('aria-expanded', 'false');
+
+              // If this is a modal trigger, just visually close the menu but leave 
+              // the scroll lock perfectly intact so the modal can adopt it!
+              if (isModalTrigger) return;
 
               const scrollY = Math.abs(
                 parseInt(document.body.style.top || '0')
               );
-              navbar.classList.remove('menu-open');
-              document.documentElement.classList.remove('menu-open');
-              newToggle.setAttribute('aria-expanded', 'false');
 
               document.body.style.position = '';
               document.body.style.top = '';
