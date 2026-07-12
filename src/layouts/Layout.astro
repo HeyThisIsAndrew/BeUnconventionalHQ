@@ -14,6 +14,8 @@ const {
   url = new URL(Astro.url.pathname, site.url).toString(),
   type = 'website',
 } = Astro.props;
+
+const gtmId = import.meta.env.PUBLIC_GTM_ID;
 ---
 
 <html lang="en">
@@ -22,16 +24,33 @@ const {
     <script is:inline>
       document.documentElement.classList.add('js');
     </script>
-    <!-- Google Analytics (GA4) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-CF16HJW04T"
-    ></script>
-    <script is:inline>
-      window.dataLayer = window.dataLayer || [];
-      function gtag() {
-        dataLayer.push(arguments);
+    <!-- Google Tag Manager -->
+    <script is:inline define:vars={{ gtmId }}>
+      if (gtmId) {
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+          'gtm.start': new Date().getTime(),
+          event: 'gtm.js',
+        });
+        var gtmScript = document.createElement('script');
+        gtmScript.async = true;
+        gtmScript.src = 'https://www.googletagmanager.com/gtm.js?id=' + gtmId;
+        document.head.appendChild(gtmScript);
+
+        // ClientRouter swaps pages without full reloads, so this script only
+        // runs once per session. astro:page-load fires on the initial load
+        // AND after every client-side navigation — the GA4 tag in the GTM
+        // dashboard triggers on this event (not "All Pages") to avoid
+        // double-counting the first view.
+        document.addEventListener('astro:page-load', function () {
+          window.dataLayer.push({
+            event: 'page_view',
+            page_location: window.location.href,
+            page_path: window.location.pathname,
+            page_title: document.title,
+          });
+        });
       }
-      gtag('js', new Date());
-      gtag('config', 'G-CF16HJW04T');
     </script>
 
     <meta charset="utf-8" />
@@ -61,6 +80,19 @@ const {
     <meta name="twitter:image" content={image} />
   </head>
   <body>
+    {
+      gtmId && (
+        <noscript>
+          <iframe
+            src={`https://www.googletagmanager.com/ns.html?id=${gtmId}`}
+            height="0"
+            width="0"
+            style="display:none;visibility:hidden"
+            title="Google Tag Manager"
+          />
+        </noscript>
+      )
+    }
     <div class="safe-area-blackout"></div>
     <div transition:persist="global-nav">
       <Navbar />
