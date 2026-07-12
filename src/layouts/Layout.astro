@@ -96,7 +96,9 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
     }
     <div class="safe-area-blackout"></div>
     <Navbar />
-    <slot />
+    <main id="page-content">
+      <slot />
+    </main>
     <Footer />
     <ContactModal />
 
@@ -106,6 +108,7 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
       class="modal-overlay"
       aria-hidden="true"
       role="dialog"
+      aria-modal="true"
       aria-label="Video Player"
     >
       <div class="modal-content">
@@ -143,6 +146,10 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
             modal.classList.add('active');
             document.documentElement.classList.add('modal-open');
             modal.setAttribute('aria-hidden', 'false');
+            document.getElementById('page-content')?.setAttribute('inert', '');
+            
+            const closeBtn = modal.querySelector('.modal-close');
+            if (closeBtn) setTimeout(() => closeBtn.focus(), 100);
           }
         }
 
@@ -160,6 +167,7 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
             modal.classList.remove('active');
             document.documentElement.classList.remove('modal-open');
             modal.setAttribute('aria-hidden', 'true');
+            document.getElementById('page-content')?.removeAttribute('inert');
             modalIframe.src = '';
 
             document.body.style.position = '';
@@ -181,23 +189,29 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
         }
 
         // Global Event Delegation for Video Triggers
-        document.addEventListener('click', (e) => {
-          const trigger = e.target.closest('.video-modal-trigger');
-          if (trigger) {
-            e.preventDefault();
-            const videoId = trigger.getAttribute('data-video-id');
-            if (videoId) openModal(videoId);
-          }
+        if (!window.videoModalSetup) {
+          document.addEventListener('click', (e) => {
+            const trigger = e.target.closest('.video-modal-trigger');
+            if (trigger) {
+              e.preventDefault();
+              const videoId = trigger.getAttribute('data-video-id');
+              if (videoId) openModal(videoId);
+            }
 
-          const currentModal = document.getElementById('video-modal');
-          if (e.target === currentModal || e.target.closest('.modal-close')) {
-            closeModal();
-          }
-        });
+            const currentModal = document.getElementById('video-modal');
+            if (e.target === currentModal || e.target.closest('.modal-close')) {
+              closeModal();
+            }
+          });
+          window.videoModalSetup = true;
+        }
 
-        document.addEventListener('keydown', (e) => {
-          if (e.key === 'Escape') closeModal();
-        });
+        if (!window.videoModalEscSetup) {
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+          });
+          window.videoModalEscSetup = true;
+        }
       })();
     </script>
     <script>
@@ -265,6 +279,7 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
     <script>
       // Step 1: Strip mobile scroll locks BEFORE Astro takes its snapshot
       document.addEventListener('astro:before-preparation', () => {
+        document.documentElement.classList.remove('modal-open', 'menu-open');
         const body = document.body;
         if (body.style.position === 'fixed') {
           const scrollY = Math.abs(parseInt(body.style.top || '0', 10));

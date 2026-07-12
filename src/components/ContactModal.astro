@@ -51,11 +51,14 @@ import PageTitle from './PageTitle.astro';
 
 <script is:inline>
   (function () {
+    const boundElements = new WeakSet();
+
     function openContactModal(e) {
       if (e) e.preventDefault();
       const modal = document.getElementById('contact-modal');
       const closeBtn = document.getElementById('close-contact-modal');
       if (modal) {
+        document.getElementById('page-content')?.setAttribute('inert', '');
         // Only capture and lock scroll if it isn't already locked by the mobile menu
         if (document.body.style.position !== 'fixed') {
           const scrollY = window.scrollY;
@@ -67,6 +70,7 @@ import PageTitle from './PageTitle.astro';
 
         modal.classList.add('is-active');
         modal.setAttribute('aria-hidden', 'false');
+        document.documentElement.classList.add('modal-open');
         if (closeBtn) setTimeout(() => closeBtn.focus(), 100);
       }
     }
@@ -74,6 +78,7 @@ import PageTitle from './PageTitle.astro';
     function closeContactModal() {
       const modal = document.getElementById('contact-modal');
       if (modal && modal.classList.contains('is-active')) {
+        document.getElementById('page-content')?.removeAttribute('inert');
         modal.classList.remove('is-active');
         modal.setAttribute('aria-hidden', 'true');
         
@@ -83,11 +88,13 @@ import PageTitle from './PageTitle.astro';
         document.body.style.width = '';
         document.body.style.overflowY = '';
         
+        document.documentElement.classList.remove('modal-open');
+        const originalBehavior = document.documentElement.style.scrollBehavior;
+        document.documentElement.style.scrollBehavior = 'auto'; // Force instant snap
+        window.scrollTo(0, scrollY);
+        
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            const originalBehavior = document.documentElement.style.scrollBehavior;
-            document.documentElement.style.scrollBehavior = 'auto'; // Force instant snap
-            window.scrollTo(0, scrollY);
             document.documentElement.style.scrollBehavior = originalBehavior;
           });
         });
@@ -95,49 +102,55 @@ import PageTitle from './PageTitle.astro';
     }
 
     // Direct binding for triggers inside astro:page-load
-    document.addEventListener('astro:page-load', () => {
-      const triggers = document.querySelectorAll('[data-modal-trigger="contact"]');
-      triggers.forEach(trigger => {
-        if (!trigger.dataset.contactBound) {
-          trigger.addEventListener('click', openContactModal);
-          trigger.dataset.contactBound = 'true';
+    if (!window.contactModalSetup) {
+      document.addEventListener('astro:page-load', () => {
+        const triggers = document.querySelectorAll('[data-modal-trigger="contact"]');
+        triggers.forEach(trigger => {
+          if (!boundElements.has(trigger)) {
+            trigger.addEventListener('click', openContactModal);
+            boundElements.add(trigger);
+          }
+        });
+
+        // Bind close buttons and backdrop
+        const modal = document.getElementById('contact-modal');
+        const closeBtn = document.getElementById('close-contact-modal');
+        
+        if (closeBtn && !boundElements.has(closeBtn)) {
+          closeBtn.addEventListener('click', closeContactModal);
+          boundElements.add(closeBtn);
+        }
+
+        if (modal && !boundElements.has(modal)) {
+          modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeContactModal();
+          });
+          boundElements.add(modal);
+        }
+
+        // Form submission binding
+        const form = document.getElementById('contact-modal-form');
+        const status = document.getElementById('modal-form-status');
+        
+        if (form && status && !boundElements.has(form)) {
+          form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            status.classList.add('is-visible');
+            form.reset();
+          });
+          boundElements.add(form);
         }
       });
-
-      // Bind close buttons and backdrop
-      const modal = document.getElementById('contact-modal');
-      const closeBtn = document.getElementById('close-contact-modal');
-      
-      if (closeBtn && !closeBtn.dataset.bound) {
-        closeBtn.addEventListener('click', closeContactModal);
-        closeBtn.dataset.bound = 'true';
-      }
-
-      if (modal && !modal.dataset.bound) {
-        modal.addEventListener('click', (e) => {
-          if (e.target === modal) closeContactModal();
-        });
-        modal.dataset.bound = 'true';
-      }
-
-      // Form submission binding
-      const form = document.getElementById('contact-modal-form');
-      const status = document.getElementById('modal-form-status');
-      
-      if (form && status && !form.dataset.modalBound) {
-        form.addEventListener('submit', (e) => {
-          e.preventDefault();
-          status.classList.add('is-visible');
-          form.reset();
-        });
-        form.dataset.modalBound = 'true';
-      }
-    });
+      window.contactModalSetup = true;
+    }
 
     // Handle Escape key globally
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeContactModal();
-    });
+    if (!window.contactModalEscSetup) {
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeContactModal();
+      });
+      window.contactModalEscSetup = true;
+    }
 
   })();
 </script>
@@ -270,7 +283,7 @@ import PageTitle from './PageTitle.astro';
     padding: 0.8rem 1rem;
     color: var(--color-white);
     font-family: var(--font-inter);
-    font-size: 0.95rem;
+    font-size: 16px;
     transition: all 0.3s ease;
   }
 
