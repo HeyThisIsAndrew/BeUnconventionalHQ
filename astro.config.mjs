@@ -3,6 +3,8 @@ import { defineConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
 import sitemap from '@astrojs/sitemap';
 import cloudflare from '@astrojs/cloudflare';
+import sanity from '@sanity/astro';
+import react from '@astrojs/react';
 
 export default defineConfig({
   site: 'https://beunconventionalhq.com',
@@ -14,6 +16,16 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
   },
-  integrations: [sitemap()],
+  integrations: [
+    react(),
+    sitemap(),
+    sanity({
+      projectId: '38nhxsib',
+      dataset: 'production',
+      useCdn: false, // Set to false to ensure fresh data during development
+      apiVersion: '2024-03-01',
+      studioBasePath: '/admin',
+    }),
+  ],
   adapter: cloudflare(),
 });

@@ -1,109 +1,74 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import PageTitle from '../components/PageTitle.astro';
+import EventCalendar from '../components/EventCalendar.astro';
+import EventCard from '../components/EventCard.astro';
+import CalendarModal from '../components/CalendarModal.astro';
+import EventBookingCTA from '../components/EventBookingCTA.astro';
 import { site } from '../data/site.js';
-import { getArticles, getVideos } from '../data/feeds.js';
+import { sanityClient } from "sanity:client";
 
 const title = `Events | ${site.name}`;
-const description =
-  'Live coverage, premieres, and press event highlights from Be Unconventional HQ.';
+const description = 'Live coverage, premieres, and press event highlights from Be Unconventional HQ.';
 
-const articles = await getArticles();
-const videos = await getVideos();
+const query = `*[_type == "event"] | order(startDate desc)`;
+let allEvents = [];
+try {
+  allEvents = await sanityClient.fetch(query);
+} catch (e) {
+  console.error("Failed to fetch Sanity events", e);
+}
 
-const eventItems = [
-  ...articles.map((a) => ({ ...a, type: 'article' })),
-  ...videos.map((v) => ({ ...v, type: 'video', image: v.thumbnail })),
-]
-  .filter((item) => item.category === 'Events')
-  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+const today = new Date().toISOString();
+// Upcoming events: chronologically (earliest first)
+const upcomingEvents = allEvents
+  .filter(e => (e.endDate || e.startDate) >= today)
+  .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+
+// Past events: reverse chronological (most recent first)
+const pastEvents = allEvents.filter(e => (e.endDate || e.startDate) < today);
 ---
 
 <Layout title={title} description={description}>
   <main class="events-page">
     <div class="container">
-      <header class="section-header animate-on-scroll" data-nav-anchor>
-        <PageTitle as="h1" kicker="Live Coverage" primary="Latest" secondary="Events" />
-      </header>
-
-      <div class="event-grid">
-        {
-          eventItems.length > 0 ? (
-            eventItems.map((item, index) => {
-              const isVideo = item.type === 'video';
-              const videoId = isVideo
-                ? item.link.includes('shorts')
-                  ? item.link.split('/').pop()
-                  : new URL(item.link).searchParams.get('v')
-                : null;
-
-              const CardWrapper = isVideo ? 'div' : 'a';
-              const wrapperProps = isVideo
-                ? {
-                    class: 'event-card animate-on-scroll video-modal-trigger',
-                    'data-video-id': videoId,
-                    style: `--index: ${index}; cursor: pointer;`,
-                  }
-                : {
-                    href: item.link,
-                    target: '_blank',
-                    rel: 'noopener noreferrer',
-                    class: 'event-card animate-on-scroll',
-                    style: `--index: ${index};`,
-                  };
-
-              return (
-                <CardWrapper {...wrapperProps}>
-                  <div class="event-image-wrapper">
-                    <img
-                      src={item.image}
-                      alt={item.title}
-                      loading="lazy"
-                      decoding="async"
-                      class="event-image"
-                    />
-                    <div class="event-overlay">
-                      <span class="event-tag">{item.category}</span>
-                      <h3 class="event-title line-clamp-2">{item.title}</h3>
-                      <span class="event-date">{item.date}</span>
-                    </div>
-                  </div>
-                </CardWrapper>
-              );
-            })
-          ) : (
-            <div
-              class="empty-state animate-on-scroll"
-              style="grid-column: 1 / -1; text-align: center; padding: 4rem 0; opacity: 0.6;"
-            >
-              <p>Check back soon for live coverage and event highlights.</p>
-            </div>
-          )
-        }
-      </div>
-
-      <section
-        class="press-kit-section animate-on-scroll"
-        style="margin-top: 8rem;"
-      >
-        <div class="section-header" style="margin-bottom: 2rem;">
-          <PageTitle
-            kicker="Bookings"
-            primary="Want us at"
-            secondary="Your event?"
-            scale="secondary"
-          />
+      
+      {/* Upcoming Events Calendar */}
+      <header class="section-header animate-on-scroll" data-nav-anchor style="text-align: center; margin-bottom: 3rem;">
+        <PageTitle as="h1" kicker="Calendar" primary="Upcoming" secondary="Events" />
+        <div style="margin-top: 1.5rem;">
+          <button class="cta-button-primary calendar-trigger-btn" data-modal-trigger="calendar">
+            View Full Calendar
+          </button>
         </div>
-        <p class="press-kit-desc">
-          We provide cinematic coverage for premieres, conventions, and gaming
-          events.
-        </p>
-        <a href={`/contact`} class="cta-button-primary" data-modal-trigger="contact"
-          >Get in Touch</a
-        >
+      </header>
+      
+      <EventCalendar events={upcomingEvents} />
+
+      {/* Past Events Coverage Portfolio */}
+      <section class="past-events-section" style="margin-top: 6rem;">
+        <header class="section-header animate-on-scroll">
+          <PageTitle as="h2" kicker="Portfolio" primary="Coverage" secondary="Hubs" scale="secondary" />
+        </header>
+        
+        <div class="event-grid">
+          {pastEvents.length > 0 ? (
+            pastEvents.map((event, index) => (
+              <EventCard event={event} index={index} />
+            ))
+          ) : (
+            <div class="empty-state animate-on-scroll" style="grid-column: 1 / -1; text-align: center; padding: 4rem 0; opacity: 0.6;">
+              <p>No past coverage hubs available yet.</p>
+            </div>
+          )}
+        </div>
       </section>
+
+      <EventBookingCTA />
+      
     </div>
   </main>
+  <CalendarModal slot="modals" events={upcomingEvents} />
 </Layout>
 
 <style>
@@ -111,5 +76,11 @@ const eventItems = [
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 2rem;
+  }
+  .event-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
   }
 </style>

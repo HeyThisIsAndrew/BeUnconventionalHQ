@@ -1,0 +1,298 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { sanityClient } from "sanity:client";
+import { getVideos, getArticles } from '../../data/feeds.js';
+import EventBookingCTA from '../../components/EventBookingCTA.astro';
+
+export async function getStaticPaths() {
+  const query = `*[_type == "event"]`;
+  const events = await sanityClient.fetch(query);
+  
+  return events.map((event: any) => ({
+    params: { slug: event.slug.current },
+    props: { event },
+  }));
+}
+
+const { event } = Astro.props;
+
+import imageUrlBuilder from "@sanity/image-url";
+const builder = imageUrlBuilder(sanityClient);
+function urlFor(source: any) {
+  return builder.image(source);
+}
+
+// 1. Fetch Global Data
+const allVideos = await getVideos();
+const allArticles = await getArticles();
+
+// 2. Filter Global Data against Sanity Event Tags
+const eventTags = event.tags || [];
+
+const filteredVideos = allVideos.filter((v: any) => {
+  // TEMPORARY TEST: Display all videos categorized as "Events" for SDCC 2026 
+  // so the user can see the layout while the tagging system is configured
+  if (event.slug?.current === 'sdcc-2026' || event.slug?.current === 'san-diego-comic-con-2026') {
+    return v.category === 'Events';
+  }
+
+  // If the video title or description contains ANY of the exact tags
+  return eventTags.some((tag: string) => 
+    v.title?.toLowerCase().includes(tag.toLowerCase()) || 
+    v.description?.toLowerCase().includes(tag.toLowerCase())
+  );
+});
+
+const filteredArticles = allArticles.filter((a: any) => {
+  return eventTags.some((tag: string) => 
+    a.title?.toLowerCase().includes(tag.toLowerCase()) || 
+    a.excerpt?.toLowerCase().includes(tag.toLowerCase())
+  );
+});
+
+// Calculate stats
+const stats = {
+  videos: filteredVideos.length,
+  articles: filteredArticles.length,
+};
+
+const brandColor = event.brandColor || 'var(--accent-color, #E50914)';
+const heroUrl = event.heroImage ? urlFor(event.heroImage).url() : '';
+---
+
+<Layout title={`${event.title} | Coverage Hub`} description={`Complete coverage of ${event.title}`}>
+  <main class="event-dashboard" style={`--brand-color: ${brandColor};`}>
+    
+    {/* Cinematic Hero */}
+    <section class="event-hero" style={heroUrl ? `background-image: url('${heroUrl}');` : ''}>
+      <div class="hero-overlay">
+        <div class="container">
+          <div class="hero-content animate-on-scroll">
+            {event.logo && (
+              <img src={urlFor(event.logo).height(100).url()} alt={`${event.title} logo`} class="hero-logo" />
+            )}
+            <h1 class="hero-title">{event.title}</h1>
+            <p class="hero-meta">
+              {new Date(event.startDate).toLocaleString('default', { month: 'long', year: 'numeric' })} • {event.location}
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {/* Event Stats */}
+    <section class="event-stats">
+      <div class="container">
+        <div class="stats-grid">
+          <div class="stat-box animate-on-scroll">
+            <span class="stat-number">{stats.videos}</span>
+            <span class="stat-label">Videos</span>
+          </div>
+          <div class="stat-box animate-on-scroll" style="--index: 1;">
+            <span class="stat-number">{stats.articles}</span>
+            <span class="stat-label">Articles</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="container content-container">
+      {/* Videos Section */}
+      {filteredVideos.length > 0 && (
+        <section class="content-section">
+          <h2 class="section-title">Video Coverage</h2>
+          <div class="video-grid">
+            {filteredVideos.map((video: any, index: number) => {
+              const videoId = video.link.includes('shorts')
+                ? video.link.split('/').pop()
+                : new URL(video.link).searchParams.get('v');
+                
+              return (
+                <div class="video-card animate-on-scroll video-modal-trigger" data-video-id={videoId} style={`--index: ${index}; cursor: pointer;`}>
+                  <div class="video-thumbnail-wrapper">
+                    <img src={video.thumbnail} alt={video.title} loading="lazy" class="video-thumbnail" onerror="this.onerror=null;this.src=this.src.replace('maxresdefault','hqdefault')" />
+                    <div class="video-play-overlay">
+                      <div class="play-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="video-info">
+                    <h3 class="video-title">{video.title}</h3>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Articles Section */}
+      {filteredArticles.length > 0 && (
+        <section class="content-section">
+          <h2 class="section-title">Written Coverage</h2>
+          <div class="article-grid">
+            {filteredArticles.map((article: any, index: number) => (
+              <a href={article.link} target="_blank" rel="noopener noreferrer" class="article-card animate-on-scroll" style={`--index: ${index};`}>
+                {article.image && (
+                  <div class="article-image-wrapper">
+                    <img src={article.image} alt={article.title} loading="lazy" class="article-image" />
+                  </div>
+                )}
+                <div class="article-content">
+                  <h3 class="article-title">{article.title}</h3>
+                  <p class="article-excerpt">{article.excerpt}</p>
+                </div>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Fallback if no content */}
+      {filteredVideos.length === 0 && filteredArticles.length === 0 && (
+        <div class="empty-state animate-on-scroll">
+          <p>Coverage for this event is coming soon.</p>
+        </div>
+      )}
+    </div>
+    
+    <EventBookingCTA />
+
+  </main>
+</Layout>
+
+<style>
+  .event-dashboard {
+    background: #000;
+    min-height: 100vh;
+  }
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+  }
+  
+  /* Hero */
+  .event-hero {
+    position: relative;
+    min-height: 60vh;
+    background-size: cover;
+    background-position: center;
+    background-color: #111;
+  }
+  .hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.4) 100%);
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 4rem;
+  }
+  .hero-logo {
+    max-height: 100px;
+    margin-bottom: 1.5rem;
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
+  }
+  .hero-title {
+    font-size: 3.5rem;
+    line-height: 1.1;
+    margin: 0 0 1rem 0;
+  }
+  .hero-meta {
+    font-size: 1.25rem;
+    color: #ccc;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+  
+  /* Stats */
+  .event-stats {
+    padding: 2rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .stats-grid {
+    display: flex;
+    gap: 3rem;
+  }
+  .stat-box {
+    display: flex;
+    flex-direction: column;
+  }
+  .stat-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--brand-color);
+    line-height: 1;
+  }
+  .stat-label {
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 0.9rem;
+    color: #a0a0a0;
+    margin-top: 0.5rem;
+  }
+  
+  /* Content */
+  .content-container {
+    padding: 4rem 2rem;
+  }
+  .content-section {
+    margin-bottom: 5rem;
+  }
+  .section-title {
+    font-size: 2rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--brand-color);
+    display: inline-block;
+  }
+  
+  /* Reusable Grid Styles */
+  .video-grid, .article-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 2rem;
+  }
+  
+  .article-card {
+    background: #111;
+    border-radius: 12px;
+    overflow: hidden;
+    text-decoration: none;
+    color: white;
+    transition: transform 0.2s ease;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .article-card:hover {
+    transform: translateY(-5px);
+    border-color: var(--brand-color);
+  }
+  .article-image-wrapper {
+    aspect-ratio: 16/9;
+  }
+  .article-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .article-content {
+    padding: 1.5rem;
+  }
+  .article-title {
+    font-size: 1.25rem;
+    margin: 0 0 0.5rem 0;
+  }
+  .article-excerpt {
+    color: #a0a0a0;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+  
+  .empty-state {
+    text-align: center;
+    padding: 4rem;
+    color: #a0a0a0;
+    font-size: 1.2rem;
+  }
+</style>

@@ -1,0 +1,95 @@
+---
+import { sanityClient } from "sanity:client";
+import imageUrlBuilder from "@sanity/image-url";
+
+const builder = imageUrlBuilder(sanityClient);
+const urlFor = (source: any) => {
+  return builder.image(source);
+};
+
+const { events } = Astro.props;
+---
+
+<div class="calendar-container">
+  {events.length > 0 ? (
+    <div class="event-grid">
+      {events.map((event: any, index: number) => {
+        const heroUrl = event.heroImage ? urlFor(event.heroImage).width(800).height(450).url() : '/placeholder-event.jpg';
+        return (
+          <div class="event-card animate-on-scroll" style={`--index: ${index};`}>
+            <a href={`/events/${event.slug.current}`} class="event-link-overlay" aria-label={`View ${event.title}`}></a>
+            <div class="event-image-wrapper">
+              <img
+                src={heroUrl}
+                alt={event.title}
+                loading="lazy"
+                decoding="async"
+                class="event-image"
+              />
+              <div class="event-overlay">
+                <div class="event-header-row">
+                  <span class="event-tag">EVENTS</span>
+                  {event.signUpLink && (
+                    <a href={event.signUpLink} target="_blank" rel="noopener noreferrer" class="rsvp-btn">
+                      RSVP
+                    </a>
+                  )}
+                </div>
+                <h3 class="event-title line-clamp-2">{event.title}</h3>
+                <span class="event-date">
+                  {new Date(event.startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                </span>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  ) : (
+    <div class="empty-calendar">
+      <p>No upcoming events currently scheduled. Check back soon!</p>
+    </div>
+  )}
+</div>
+
+<style>
+  .calendar-container {
+    margin: 2rem 0 4rem;
+  }
+  
+  .event-link-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+  }
+  
+  .event-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    position: relative;
+    z-index: 10;
+  }
+  
+  .event-tag {
+    margin-bottom: 0; /* Override events.css */
+  }
+
+  .rsvp-btn {
+    background: var(--color-accent, #cc0000);
+    color: white;
+    text-decoration: none;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.4rem 1rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: background 0.3s ease, transform 0.2s ease;
+  }
+  .rsvp-btn:hover {
+    background: #ff0000;
+    transform: scale(1.05);
+  }
+</style>

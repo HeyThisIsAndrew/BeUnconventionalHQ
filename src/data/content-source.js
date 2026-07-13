@@ -214,9 +214,14 @@ async function fetchVideosFromPage() {
 }
 
 export async function fetchVideos() {
+  // If the RSS feed fails (e.g. rate limit), we WANT it to throw so we keep the old cache.
+  // We do not want to silently fallback to only scraped videos (which lack shorts and dates).
   const [rssVideos, scrapedVideos] = await Promise.all([
-    fetchVideosFromRss().catch(() => []),
-    fetchVideosFromPage().catch(() => []),
+    fetchVideosFromRss(),
+    fetchVideosFromPage().catch((e) => {
+      console.warn("Scraper failed:", e.message);
+      return [];
+    }),
   ]);
 
   const uploadIds = new Set(scrapedVideos.map((v) => v.link.split('v=')[1]));

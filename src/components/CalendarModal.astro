@@ -1,0 +1,505 @@
+---
+import PageTitle from './PageTitle.astro';
+const { events = [] } = Astro.props;
+
+// We only need specific fields for the calendar to keep the payload small
+const simplifiedEvents = events.map((event: any) => ({
+  id: event._id || event.slug?.current,
+  title: event.title,
+  startDate: event.startDate,
+  endDate: event.endDate,
+  slug: event.slug?.current,
+  brandColor: event.brandColor
+}));
+---
+
+<div id="calendar-modal" class="calendar-modal-overlay" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Event Calendar">
+  <div class="calendar-modal-content">
+    <button id="close-calendar-modal" class="calendar-modal-close" aria-label="Close modal"><span aria-hidden="true">&times;</span></button>
+    
+    <div class="calendar-modal-header">
+      <PageTitle kicker="Interactive" primary="Event" secondary="Calendar" scale="secondary" />
+    </div>
+
+    <div class="calendar-container">
+      <div class="calendar-controls">
+        <button id="cal-prev-month" class="cal-nav-btn" aria-label="Previous Month">&larr;</button>
+        <h3 id="cal-current-month-year" class="cal-month-title">Month Year</h3>
+        <button id="cal-next-month" class="cal-nav-btn" aria-label="Next Month">&rarr;</button>
+      </div>
+      
+      <div class="calendar-grid-header">
+        <div>Sun</div>
+        <div>Mon</div>
+        <div>Tue</div>
+        <div>Wed</div>
+        <div>Thu</div>
+        <div>Fri</div>
+        <div>Sat</div>
+      </div>
+      
+      <div id="calendar-grid" class="calendar-grid">
+        <!-- Rendered by Vanilla JS -->
+      </div>
+    </div>
+
+    <!-- Inject data for client-side JS -->
+    <script type="application/json" id="calendar-events-data" set:html={JSON.stringify(simplifiedEvents)}></script>
+  </div>
+</div>
+
+<script is:inline>
+  (function () {
+    const boundElements = new WeakSet();
+    let lastFocused = null;
+    let eventsData = [];
+    
+    let currentDate = new Date(); // Start with current month
+    
+    function renderCalendar() {
+      const grid = document.getElementById('calendar-grid');
+      const title = document.getElementById('cal-current-month-year');
+      if (!grid || !title) return;
+      
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth(); // 0-indexed
+      
+      const now = new Date();
+      const isCurrentMonthOrPast = year < now.getFullYear() || (year === now.getFullYear() && month <= now.getMonth());
+      
+      const prevBtn = document.getElementById('cal-prev-month');
+      if (prevBtn) {
+        if (isCurrentMonthOrPast) {
+          prevBtn.disabled = true;
+          prevBtn.style.opacity = '0.3';
+          prevBtn.style.cursor = 'not-allowed';
+        } else {
+          prevBtn.disabled = false;
+          prevBtn.style.opacity = '1';
+          prevBtn.style.cursor = 'pointer';
+        }
+      }
+      
+      title.textContent = new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      
+      // Calculate days in month and start day
+      const firstDay = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      
+      let html = '';
+      
+      // Blank padding days for start of month
+      for (let i = 0; i < firstDay; i++) {
+        html += `<div class="cal-day empty"></div>`;
+      }
+      
+      // Days of the month
+      const today = new Date();
+      for (let day = 1; day <= daysInMonth; day++) {
+        const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
+        const classes = ['cal-day'];
+        if (isToday) classes.push('is-today');
+        
+        // Find events on this day
+        const dayEvents = eventsData.filter(e => {
+          if (!e.startDate) return false;
+          
+          const currentCellDate = new Date(year, month, day);
+          currentCellDate.setHours(0, 0, 0, 0);
+          
+          const startD = new Date(e.startDate);
+          startD.setHours(0, 0, 0, 0);
+          
+          const endD = e.endDate ? new Date(e.endDate) : new Date(startD);
+          endD.setHours(0, 0, 0, 0);
+          
+          return currentCellDate >= startD && currentCellDate <= endD;
+        });
+        
+        let eventsHtml = '';
+        if (dayEvents.length > 0) {
+          classes.push('has-events');
+          dayEvents.forEach(e => {
+            const color = e.brandColor || 'var(--color-accent)';
+            eventsHtml += `
+              <a href="/events/${e.slug}" class="cal-event-chip" style="--chip-color: ${color}">
+                <span class="chip-title">${e.title}</span>
+              </a>
+            `;
+          });
+        }
+        
+        html += `
+          <div class="${classes.join(' ')}">
+            <span class="day-number">${day}</span>
+            <div class="day-events-container">${eventsHtml}</div>
+          </div>
+        `;
+      }
+      
+      grid.innerHTML = html;
+    }
+
+    function changeMonth(delta) {
+      if (delta < 0) {
+        const now = new Date();
+        if (currentDate.getFullYear() < now.getFullYear() || (currentDate.getFullYear() === now.getFullYear() && currentDate.getMonth() <= now.getMonth())) {
+          return; // Already at or before current month, cannot go backward
+        }
+      }
+      currentDate.setMonth(currentDate.getMonth() + delta);
+      renderCalendar();
+    }
+
+    function openCalendarModal(e) {
+      if (e) e.preventDefault();
+      const modal = document.getElementById('calendar-modal');
+      const closeBtn = document.getElementById('close-calendar-modal');
+      
+      if (modal) {
+        lastFocused = document.activeElement;
+        
+        // Parse data if not already done
+        if (eventsData.length === 0) {
+          const dataTag = document.getElementById('calendar-events-data');
+          if (dataTag) {
+            try { eventsData = JSON.parse(dataTag.textContent); } 
+            catch(e) { console.error("Could not parse calendar events", e); }
+          }
+        }
+        
+        // Render current month
+        renderCalendar();
+        
+        document.getElementById('app-wrapper')?.setAttribute('inert', '');
+
+        if (document.body.style.position !== 'fixed') {
+          const scrollY = window.scrollY;
+          document.body.style.top = `-${scrollY}px`;
+          document.body.style.position = 'fixed';
+          document.body.style.width = '100%';
+          document.body.style.overflowY = 'scroll';
+        }
+
+        modal.classList.add('is-active');
+        modal.setAttribute('aria-hidden', 'false');
+        document.documentElement.classList.add('modal-open');
+        if (closeBtn) setTimeout(() => closeBtn.focus(), 100);
+      }
+    }
+
+    function closeCalendarModal() {
+      const modal = document.getElementById('calendar-modal');
+      if (modal && modal.classList.contains('is-active')) {
+        document.getElementById('app-wrapper')?.removeAttribute('inert');
+        modal.classList.remove('is-active');
+        modal.setAttribute('aria-hidden', 'true');
+
+        const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.overflowY = '';
+
+        if (lastFocused && typeof lastFocused.focus === 'function') {
+          lastFocused.focus();
+        }
+        lastFocused = null;
+
+        document.documentElement.classList.remove('modal-open');
+        const originalBehavior = document.documentElement.style.scrollBehavior;
+        document.documentElement.style.scrollBehavior = 'auto';
+        window.scrollTo(0, scrollY);
+        requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.style.scrollBehavior = originalBehavior));
+      }
+    }
+
+    if (!window.calendarModalSetup) {
+      document.addEventListener('astro:page-load', () => {
+        const triggers = document.querySelectorAll('[data-modal-trigger="calendar"]');
+        triggers.forEach(trigger => {
+          if (!boundElements.has(trigger)) {
+            trigger.addEventListener('click', openCalendarModal);
+            boundElements.add(trigger);
+          }
+        });
+
+        const modal = document.getElementById('calendar-modal');
+        const closeBtn = document.getElementById('close-calendar-modal');
+        const prevBtn = document.getElementById('cal-prev-month');
+        const nextBtn = document.getElementById('cal-next-month');
+        
+        if (closeBtn && !boundElements.has(closeBtn)) {
+          closeBtn.addEventListener('click', closeCalendarModal);
+          boundElements.add(closeBtn);
+        }
+
+        if (modal && !boundElements.has(modal)) {
+          modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeCalendarModal();
+          });
+          boundElements.add(modal);
+        }
+        
+        if (prevBtn && !boundElements.has(prevBtn)) {
+          prevBtn.addEventListener('click', () => changeMonth(-1));
+          boundElements.add(prevBtn);
+        }
+        
+        if (nextBtn && !boundElements.has(nextBtn)) {
+          nextBtn.addEventListener('click', () => changeMonth(1));
+          boundElements.add(nextBtn);
+        }
+      });
+      window.calendarModalSetup = true;
+    }
+
+    if (!window.calendarModalEscSetup) {
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeCalendarModal();
+      });
+      window.calendarModalEscSetup = true;
+    }
+  })();
+</script>
+
+<style>
+  .calendar-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(12px);
+    z-index: 10005;
+    display: grid;
+    place-items: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    padding: 1.5rem;
+  }
+
+  .calendar-modal-overlay.is-active {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .calendar-modal-content {
+    background: linear-gradient(135deg, rgba(20, 20, 20, 0.95), rgba(10, 10, 10, 0.98));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
+    padding: 2.5rem 2rem;
+    width: 100%;
+    max-width: 900px;
+    position: relative;
+    transform: scale(0.95) translateY(20px);
+    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    max-height: 90vh;
+    max-height: 90dvh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .calendar-modal-overlay.is-active .calendar-modal-content {
+    transform: scale(1) translateY(0);
+  }
+
+  .calendar-modal-close {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: none;
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.5rem;
+    transition: all 0.3s ease;
+    z-index: 10;
+  }
+
+  .calendar-modal-close:hover {
+    background: var(--color-accent, #cc0000);
+    transform: rotate(90deg);
+  }
+
+  .calendar-modal-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  /* Calendar Internal Styles */
+  .calendar-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    flex-grow: 1;
+  }
+  
+  .calendar-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 1rem;
+  }
+  
+  .cal-month-title {
+    font-family: 'Syne Variable', sans-serif;
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin: 0;
+  }
+  
+  .cal-nav-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+  }
+  
+  .cal-nav-btn:hover {
+    background: var(--color-accent, #cc0000);
+    border-color: var(--color-accent, #cc0000);
+    transform: scale(1.1);
+  }
+  
+  .calendar-grid-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    font-weight: 700;
+    color: #888;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    /* Aspect ratio for the grid */
+    min-height: 400px;
+  }
+  
+  .cal-day {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    min-height: 100px;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    transition: background 0.2s ease;
+  }
+  
+  .cal-day:not(.empty):hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  
+  .cal-day.empty {
+    background: transparent;
+    border-color: transparent;
+  }
+  
+  .day-number {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    align-self: flex-end;
+    color: #ccc;
+  }
+  
+  .cal-day.is-today {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+  }
+  
+  .cal-day.is-today .day-number {
+    background: var(--color-accent, #cc0000);
+    color: white;
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: -2px;
+    margin-top: -2px;
+  }
+  
+  .day-events-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-grow: 1;
+    overflow-y: auto;
+  }
+  
+  .cal-event-chip {
+    background: rgba(255, 255, 255, 0.08);
+    border-left: 3px solid var(--chip-color, #cc0000);
+    padding: 4px 6px 4px 8px;
+    border-radius: 4px;
+    text-decoration: none;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  
+  .cal-event-chip:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateX(2px);
+  }
+  
+  .chip-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  @media (max-width: 768px) {
+    .calendar-modal-content {
+      padding: 1.5rem 1rem;
+    }
+    .calendar-grid {
+      gap: 4px;
+      min-height: 300px;
+    }
+    .cal-day {
+      min-height: 70px;
+      padding: 0.25rem;
+      border-radius: 4px;
+    }
+    .calendar-grid-header {
+      font-size: 0.6rem;
+    }
+    .cal-month-title {
+      font-size: 1.4rem;
+    }
+    .cal-event-chip {
+      padding: 2px 4px;
+      font-size: 0.65rem;
+    }
+  }
+</style>

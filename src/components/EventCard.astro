@@ -1,0 +1,94 @@
+---
+import { sanityClient } from "sanity:client";
+import imageUrlBuilder from "@sanity/image-url";
+
+const builder = imageUrlBuilder(sanityClient);
+const urlFor = (source: any) => {
+  return builder.image(source);
+};
+
+const { event, index = 0 } = Astro.props;
+const heroUrl = event.heroImage ? urlFor(event.heroImage).width(800).height(450).url() : '/placeholder-event.jpg';
+---
+
+<a href={`/events/${event.slug.current}`} class="event-card animate-on-scroll" style={`--index: ${index};`}>
+  <div class="event-image-wrapper">
+    <img
+      src={heroUrl}
+      alt={event.title}
+      loading="lazy"
+      decoding="async"
+      class="event-image"
+    />
+    <div class="event-overlay" style={event.brandColor ? `--hover-color: ${event.brandColor};` : ''}>
+      <div class="event-header">
+        {event.logo && (
+          <img src={urlFor(event.logo).height(50).url()} alt={`${event.title} logo`} class="event-card-logo" loading="lazy" />
+        )}
+      </div>
+      <div class="event-footer">
+        <h3 class="event-title line-clamp-2">{event.title}</h3>
+        <span class="event-date">
+          {new Date(event.startDate).getFullYear()} Coverage
+        </span>
+      </div>
+    </div>
+  </div>
+</a>
+
+<style>
+  .event-card {
+    display: block;
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    text-decoration: none;
+    color: white;
+    background: #111;
+    aspect-ratio: 16/9;
+  }
+  .event-image-wrapper {
+    width: 100%;
+    height: 100%;
+    position: relative;
+  }
+  .event-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+  }
+  .event-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.1) 100%);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: background 0.3s ease;
+  }
+  .event-card:hover .event-image {
+    transform: scale(1.05);
+  }
+  .event-card:hover .event-overlay {
+    background: linear-gradient(to top, var(--hover-color, rgba(0,0,0,0.9)) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.2) 100%);
+  }
+  .event-card-logo {
+    max-height: 40px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+  }
+  .event-title {
+    font-size: 1.5rem;
+    margin: 0 0 0.25rem 0;
+    font-family: 'Syne Variable', sans-serif;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  }
+  .event-date {
+    font-size: 0.9rem;
+    opacity: 0.8;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+</style>
