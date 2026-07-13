@@ -21,10 +21,11 @@ const topEvents = events.slice(0, 3);
     {topEvents.length > 0 ? topEvents.map(event => {
       const start = new Date(event.startDate);
       const end = event.endDate ? new Date(event.endDate) : start;
-      const monthShort = start.toLocaleString('en-US', { month: 'short' });
-      const dateLabel = start.getDate() === end.getDate()
-        ? `${monthShort} ${start.getDate()}`
-        : `${monthShort} ${start.getDate()}–${end.getDate()}`;
+      // UTC so dates don't shift a day back for viewers west of UTC.
+      const monthShort = start.toLocaleString('en-US', { timeZone: 'UTC', month: 'short' });
+      const dateLabel = start.getUTCDate() === end.getUTCDate()
+        ? `${monthShort} ${start.getUTCDate()}`
+        : `${monthShort} ${start.getUTCDate()}–${end.getUTCDate()}`;
 
       return (
         <a href={`/events/${event.slug.current}`} class="mini-event-row">

@@ -10,19 +10,20 @@ const urlFor = (source: any) => {
 
 const { events } = Astro.props;
 
-// Helper to format date ranges
+// Helper to format date ranges. Pinned to UTC so a date stored as midnight UTC
+// doesn't shift back a day for viewers west of UTC (all of the Americas).
 function formatDateRange(start: any, end: any) {
   const startDate = new Date(start);
-  const startMonth = startDate.toLocaleString('en-US', { month: 'short' }).toUpperCase();
-  const startDay = startDate.getDate();
-  
+  const startMonth = startDate.toLocaleString('en-US', { timeZone: 'UTC', month: 'short' }).toUpperCase();
+  const startDay = startDate.getUTCDate();
+
   if (!end) {
     return { month: startMonth, days: `${startDay}` };
   }
-  
+
   const endDate = new Date(end);
-  const endMonth = endDate.toLocaleString('en-US', { month: 'short' }).toUpperCase();
-  const endDay = endDate.getDate();
+  const endMonth = endDate.toLocaleString('en-US', { timeZone: 'UTC', month: 'short' }).toUpperCase();
+  const endDay = endDate.getUTCDate();
   
   if (startMonth === endMonth) {
     return { month: startMonth, days: `${startDay}-${endDay}` };
@@ -46,7 +47,7 @@ function formatDateRange(start: any, end: any) {
             <div class="timeline-date">
               <span class="date-month">{dateFormatted.month}</span>
               <span class="date-days">{dateFormatted.days}</span>
-              <span class="date-year">{new Date(event.startDate).getFullYear()}</span>
+              <span class="date-year">{new Date(event.startDate).getUTCFullYear()}</span>
             </div>
             
             {/* Timeline Dot & Line */}
