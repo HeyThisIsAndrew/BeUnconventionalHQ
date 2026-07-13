@@ -1,6 +1,4 @@
 ---
-import PageTitle from './PageTitle.astro';
-
 export interface Props {
   events: any[];
 }
@@ -8,20 +6,23 @@ const { events } = Astro.props;
 
 // Get current month
 const today = new Date();
-const currentMonthStr = today.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+const monthLabel = today.toLocaleString('en-US', { month: 'long' });
+const yearLabel = today.getFullYear().toString();
 
 // Get top 3 upcoming events for the sidebar
 const topEvents = events.slice(0, 3);
 ---
 
 <div class="mini-calendar-wrapper animate-on-scroll">
-  <div class="calendar-header" style="justify-content: center; text-align: center; border-bottom: none; margin-bottom: 1.5rem; padding-bottom: 0;">
-    <PageTitle 
-      as="div" 
-      kicker="Calendar"
-      primary={today.toLocaleString('en-US', { month: 'long' })} 
-      secondary={today.getFullYear().toString()} 
-    />
+  {/* Custom, fixed-rem header sized for the 300px column. The global PageTitle
+      uses vw-based clamps that break out of a constrained sidebar, so this is a
+      localised, high-contrast lockup: kicker + overlapping month/year. */}
+  <div class="mini-cal-header">
+    <span class="mini-cal-kicker">Calendar</span>
+    <div class="mini-cal-lockup">
+      <span class="mini-cal-month">{monthLabel}</span>
+      <span class="mini-cal-year">{yearLabel}</span>
+    </div>
   </div>
   
   <div class="calendar-events-list">
@@ -57,20 +58,50 @@ const topEvents = events.slice(0, 3);
     /* removed sticky positioning so it floats naturally with document scroll */
   }
   
-  .calendar-header {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.5rem;
-    padding-bottom: 0;
+  /* Localised header — fixed rem sizing tuned for the 300px column. */
+  .mini-cal-header {
+    margin-bottom: 1.75rem;
+    padding-bottom: 1.25rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
-  
-  .calendar-icon {
+
+  .mini-cal-kicker {
+    display: block;
+    font-family: var(--font-display, 'Syne Variable', sans-serif);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
     color: var(--color-accent, #cc0000);
-    display: flex;
+    margin-bottom: 0.35rem;
   }
-  
+
+  .mini-cal-lockup {
+    display: flex;
+    flex-direction: column;
+    line-height: 0.82;
+    font-family: var(--font-display, 'Syne Variable', sans-serif);
+    text-transform: uppercase;
+  }
+
+  .mini-cal-month {
+    font-size: 2.25rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: white;
+  }
+
+  .mini-cal-year {
+    /* Overlaps up under the month for the unconventional stacked lockup. */
+    align-self: flex-end;
+    margin-top: -0.15rem;
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: var(--color-accent, #cc0000);
+    text-shadow: 0 0 20px rgba(204, 0, 0, 0.4);
+  }
+
   .calendar-events-list {
     display: flex;
     flex-direction: column;

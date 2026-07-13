@@ -59,18 +59,27 @@ const calendarSegments = currentMonthEvents.flatMap((event) => {
   const color = event.brandColor || 'var(--color-accent, #cc0000)';
   const segments = [];
 
+  const slug = event.slug?.current ?? event.slug ?? '';
+
   for (let row = startRow; row <= endRow; row++) {
     const colStart = row === startRow ? startCol : 1;
     const colEnd = row === endRow ? endCol : 7;
     const span = colEnd - colStart + 1;
+    const isStart = row === startRow;
+    const isEnd = row === endRow;
 
     segments.push({
       row,
       colStart,
       span,
       color,
-      slug: event.slug?.current ?? event.slug ?? '',
-      title: row === startRow ? event.title : '\u00A0',
+      slug,
+      title: event.title,
+      // Continuation rows repeat the title so no bar is ever blank; a leading
+      // arrow marks the rows that flow on from the line above.
+      isStart,
+      isEnd,
+      isContinuation: !isStart,
     });
   }
 
@@ -103,10 +112,22 @@ const calendarSegments = currentMonthEvents.flatMap((event) => {
           </div>
         ))}
         
-        <!-- Draw Highlighter Bars -->
+        <!-- Draw Highlighter Bars. Multi-week events emit one <a> per row, but
+             they share a data-event-id so JS can sync hover across all pieces,
+             and border-radius is only applied on the true start/end so the rows
+             read as one continuous block. -->
         {calendarSegments.map((segment) => (
-          <a href={`/events/${segment.slug}`} class="highlighter-bar" style={`grid-row: ${segment.row}; grid-column: ${segment.colStart} / span ${segment.span}; --bar-color: ${segment.color};`}>
-            {segment.title}
+          <a
+            href={`/events/${segment.slug}`}
+            data-event-id={segment.slug}
+            class:list={[
+              'highlighter-bar',
+              { 'is-start': segment.isStart, 'is-end': segment.isEnd, 'is-continuation': segment.isContinuation },
+            ]}
+            style={`grid-row: ${segment.row}; grid-column: ${segment.colStart} / span ${segment.span}; --bar-color: ${segment.color};`}
+          >
+            {segment.isContinuation && <span class="bar-cont" aria-hidden="true">↳ </span>}
+            <span class="bar-label">{segment.title}</span>
           </a>
         ))}
       </div>
@@ -204,28 +225,65 @@ const calendarSegments = currentMonthEvents.flatMap((event) => {
   }
   
   .highlighter-bar {
+    display: flex;
+    align-items: center;
     background: var(--bar-color);
     color: white;
-    border-radius: 4px;
+    border-radius: 0; /* squared by default; start/end round their outer edge */
     padding: 0.25rem 0.5rem;
     font-size: 0.8rem;
     font-weight: 700;
     text-transform: uppercase;
     text-decoration: none;
     margin-top: 2.5rem; /* Push it down below the date number */
-    margin-left: 0.25rem;
-    margin-right: 0.25rem;
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     z-index: 10;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    transition: transform 0.2s ease;
+    /* No positional movement on hover — the whole event brightens together via
+       the .hover-active class so multi-row events feel like one block. */
+    transition: filter 0.2s ease, box-shadow 0.2s ease;
     align-self: start;
   }
-  .highlighter-bar:hover {
-    transform: translateY(-2px);
+
+  /* Round only the outer corners of the whole event so intermediate rows butt
+     up flush, like a text-selection highlight flowing across lines. */
+  .highlighter-bar.is-start {
+    border-top-left-radius: 4px;
+    border-bottom-left-radius: 4px;
+    margin-left: 0.25rem;
+  }
+  .highlighter-bar.is-end {
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+    margin-right: 0.25rem;
+  }
+
+  .bar-cont {
+    opacity: 0.75;
+    margin-right: 0.15rem;
+    flex-shrink: 0;
+  }
+  /* Continuation rows dim their repeated label slightly so the eye reads the
+     first row as the event's "start" while later rows stay clearly labelled. */
+  .highlighter-bar.is-continuation .bar-label {
+    opacity: 0.8;
+  }
+  .bar-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Applied by JS to every segment sharing the hovered event's id. */
+  .highlighter-bar:hover,
+  .highlighter-bar.hover-active {
+    filter: brightness(1.15);
     box-shadow: 0 6px 15px rgba(0,0,0,0.5);
+  }
+  .highlighter-bar.hover-active .bar-label,
+  .highlighter-bar:hover .bar-label {
+    opacity: 1;
   }
 </style>
 
@@ -259,6 +317,33 @@ const calendarSegments = currentMonthEvents.flatMap((event) => {
         ) {
           modal.close();
         }
+      });
+
+      // Sync hover across every segment of the same event. Multi-week events
+      // are split into one <a> per row to satisfy the grid, so :hover alone
+      // only lights the piece under the cursor — this bridges them by data id.
+      const setHover = (id: string | null, on: boolean) => {
+        if (!id) return;
+        modal
+          .querySelectorAll(`.highlighter-bar[data-event-id="${CSS.escape(id)}"]`)
+          .forEach((el) => el.classList.toggle('hover-active', on));
+      };
+
+      modal.addEventListener('mouseover', (event) => {
+        const bar = (event.target as HTMLElement)?.closest?.('.highlighter-bar');
+        if (bar) setHover(bar.getAttribute('data-event-id'), true);
+      });
+      modal.addEventListener('mouseout', (event) => {
+        const bar = (event.target as HTMLElement)?.closest?.('.highlighter-bar');
+        if (bar) setHover(bar.getAttribute('data-event-id'), false);
+      });
+      modal.addEventListener('focusin', (event) => {
+        const bar = (event.target as HTMLElement)?.closest?.('.highlighter-bar');
+        if (bar) setHover(bar.getAttribute('data-event-id'), true);
+      });
+      modal.addEventListener('focusout', (event) => {
+        const bar = (event.target as HTMLElement)?.closest?.('.highlighter-bar');
+        if (bar) setHover(bar.getAttribute('data-event-id'), false);
       });
     }
   });
