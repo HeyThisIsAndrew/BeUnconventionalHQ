@@ -1,0 +1,45 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ACCESSIBILITY
+   Imported last so these rules win the cascade.
+
+   - Skip link: the first focusable element on the page. Lets keyboard
+     and screen-reader users jump past the nav straight to the main
+     content. Hidden off-screen until it receives focus.
+   - Focus ring: one consistent, high-contrast keyboard focus indicator
+     (white outline + dark halo so it stays visible on both dark and
+     light backgrounds). Uses :focus-visible, so it appears only for
+     keyboard users and never on mouse click — the cinematic look is
+     preserved.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.skip-link {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  padding: 0.75rem 1.25rem;
+  background: #000;
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  border: 2px solid #fff;
+  border-radius: 0 0 6px 0;
+  transform: translateY(-120%);
+  transition: transform 0.15s ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px rgba(0, 0, 0, 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skip-link {
+    transition: none;
+  }
+}
