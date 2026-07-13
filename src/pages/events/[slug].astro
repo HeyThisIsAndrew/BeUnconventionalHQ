@@ -56,24 +56,42 @@ const stats = {
   articles: filteredArticles.length,
 };
 
-const brandColor = event.brandColor || 'var(--accent-color, #E50914)';
+// Format date range
+function formatDateRange(start, end) {
+  const startDate = new Date(start);
+  const startStr = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  if (!end) return startStr;
+  
+  const endDate = new Date(end);
+  const endStr = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  
+  if (startDate.getMonth() === endDate.getMonth() && startDate.getFullYear() === endDate.getFullYear()) {
+    return `${startDate.toLocaleString('en-US', { month: 'short' })} ${startDate.getDate()} - ${endDate.getDate()}, ${startDate.getFullYear()}`;
+  }
+  return `${startStr} - ${endStr}`;
+}
+
+const brandColor = event.brandColor || 'var(--color-accent, #cc0000)';
 const heroUrl = event.heroImage ? urlFor(event.heroImage).url() : '';
+const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
 ---
 
-<Layout title={`${event.title} | Coverage Hub`} description={`Complete coverage of ${event.title}`}>
+<Layout title={`${event.title}`} description={`Complete coverage of ${event.title}`}>
   <main class="event-dashboard" style={`--brand-color: ${brandColor};`}>
     
     {/* Cinematic Hero */}
-    <section class="event-hero" style={heroUrl ? `background-image: url('${heroUrl}');` : ''}>
+    <section class="event-hero" style={heroUrl ? `background-image: url('${heroUrl}');` : `background: ${fallbackGradient};`}>
       <div class="hero-overlay">
         <div class="container">
           <div class="hero-content animate-on-scroll">
-            {event.logo && (
-              <img src={urlFor(event.logo).height(100).url()} alt={`${event.title} logo`} class="hero-logo" />
+            {event.logo ? (
+              <img src={urlFor(event.logo).height(120).url()} alt={`${event.title} logo`} class="hero-logo" />
+            ) : (
+              <h1 class="hero-title">{event.title}</h1>
             )}
-            <h1 class="hero-title">{event.title}</h1>
             <p class="hero-meta">
-              {new Date(event.startDate).toLocaleString('default', { month: 'long', year: 'numeric' })} • {event.location}
+              <span class="event-dates">{formatDateRange(event.startDate, event.endDate)}</span>
+              {event.location && <span class="event-location"> • {event.location}</span>}
             </p>
           </div>
         </div>

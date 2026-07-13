@@ -8,37 +8,78 @@ const urlFor = (source: any) => {
 };
 
 const { events } = Astro.props;
+
+// Helper to format date ranges
+function formatDateRange(start, end) {
+  const startDate = new Date(start);
+  const startMonth = startDate.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+  const startDay = startDate.getDate();
+  
+  if (!end) {
+    return { month: startMonth, days: `${startDay}` };
+  }
+  
+  const endDate = new Date(end);
+  const endMonth = endDate.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+  const endDay = endDate.getDate();
+  
+  if (startMonth === endMonth) {
+    return { month: startMonth, days: `${startDay}-${endDay}` };
+  } else {
+    return { month: `${startMonth}-${endMonth}`, days: `${startDay}-${endDay}` };
+  }
+}
 ---
 
-<div class="calendar-container">
+<div class="timeline-container">
   {events.length > 0 ? (
-    <div class="event-grid">
+    <div class="timeline">
       {events.map((event: any, index: number) => {
-        const heroUrl = event.heroImage ? urlFor(event.heroImage).width(800).height(450).url() : '/placeholder-event.jpg';
+        const heroUrl = event.heroImage ? urlFor(event.heroImage).width(800).height(450).url() : '';
+        const logoUrl = event.logo ? urlFor(event.logo).height(80).url() : '';
+        const dateFormatted = formatDateRange(event.startDate, event.endDate);
+        
         return (
-          <div class="event-card animate-on-scroll" style={`--index: ${index};`}>
-            <a href={`/events/${event.slug.current}`} class="event-link-overlay" aria-label={`View ${event.title}`}></a>
-            <div class="event-image-wrapper">
-              <img
-                src={heroUrl}
-                alt={event.title}
-                loading="lazy"
-                decoding="async"
-                class="event-image"
-              />
-              <div class="event-overlay">
-                <div class="event-header-row">
-                  <span class="event-tag">EVENTS</span>
-                  {event.signUpLink && (
-                    <a href={event.signUpLink} target="_blank" rel="noopener noreferrer" class="rsvp-btn">
-                      RSVP
-                    </a>
+          <div class="timeline-item animate-on-scroll" style={`--index: ${index};`}>
+            {/* Date Block */}
+            <div class="timeline-date">
+              <span class="date-month">{dateFormatted.month}</span>
+              <span class="date-days">{dateFormatted.days}</span>
+              <span class="date-year">{new Date(event.startDate).getFullYear()}</span>
+            </div>
+            
+            {/* Timeline Dot & Line */}
+            <div class="timeline-divider">
+              <div class="timeline-dot"></div>
+              <div class="timeline-line"></div>
+            </div>
+            
+            {/* Event Content Card */}
+            <div class="timeline-content">
+              <div class="event-card" style={heroUrl ? `background-image: linear-gradient(to right, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 40%, rgba(0,0,0,0.4) 100%), url('${heroUrl}');` : 'background: #111;'}>
+                <a href={`/events/${event.slug.current}`} class="event-link-overlay" aria-label={`View ${event.title}`}></a>
+                
+                <div class="card-inner">
+                  <div class="card-meta">
+                    <span class="event-tag">EVENTS</span>
+                    {event.location && <span class="event-location">• {event.location}</span>}
+                  </div>
+                  
+                  {logoUrl ? (
+                    <img src={logoUrl} alt={`${event.title} logo`} class="event-logo" />
+                  ) : (
+                    <h3 class="event-title">{event.title}</h3>
                   )}
+                  
+                  <div class="card-actions">
+                    <span class="view-hub-link">View Coverage Hub &rarr;</span>
+                    {event.signUpLink && (
+                      <a href={event.signUpLink} target="_blank" rel="noopener noreferrer" class="rsvp-btn" style="position: relative; z-index: 10;">
+                        RSVP
+                      </a>
+                    )}
+                  </div>
                 </div>
-                <h3 class="event-title line-clamp-2">{event.title}</h3>
-                <span class="event-date">
-                  {new Date(event.startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                </span>
               </div>
             </div>
           </div>
@@ -53,8 +94,101 @@ const { events } = Astro.props;
 </div>
 
 <style>
-  .calendar-container {
-    margin: 2rem 0 4rem;
+  .timeline-container {
+    margin: 2rem auto 5rem;
+    max-width: 1000px;
+    padding: 0 1rem;
+  }
+  
+  .timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  
+  .timeline-item {
+    display: flex;
+    position: relative;
+    gap: 1.5rem;
+  }
+  
+  /* Date Block */
+  .timeline-date {
+    width: 100px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    text-align: right;
+    padding-top: 1.5rem;
+    color: var(--color-accent, #cc0000);
+  }
+  .date-month {
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+  }
+  .date-days {
+    font-size: 2.5rem;
+    font-weight: 800;
+    line-height: 1;
+    color: white;
+    margin: 0.25rem 0;
+  }
+  .date-year {
+    font-size: 1rem;
+    color: #888;
+  }
+  
+  /* Divider */
+  .timeline-divider {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    padding-top: 2rem;
+  }
+  .timeline-dot {
+    width: 16px;
+    height: 16px;
+    background: var(--color-accent, #cc0000);
+    border-radius: 50%;
+    position: relative;
+    z-index: 2;
+    box-shadow: 0 0 10px rgba(204,0,0,0.5);
+  }
+  .timeline-line {
+    position: absolute;
+    top: 2rem;
+    bottom: -2rem; /* Extend to next item */
+    width: 2px;
+    background: rgba(255,255,255,0.1);
+    z-index: 1;
+  }
+  .timeline-item:last-child .timeline-line {
+    display: none;
+  }
+  
+  /* Content Card */
+  .timeline-content {
+    flex-grow: 1;
+    padding-bottom: 3rem;
+  }
+  
+  .event-card {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background-size: cover;
+    background-position: center;
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: transform 0.3s ease, border-color 0.3s ease;
+    min-height: 200px;
+  }
+  
+  .event-card:hover {
+    transform: translateX(10px);
+    border-color: rgba(255,255,255,0.3);
   }
   
   .event-link-overlay {
@@ -63,33 +197,118 @@ const { events } = Astro.props;
     z-index: 5;
   }
   
-  .event-header-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
+  .card-inner {
     position: relative;
     z-index: 10;
+    padding: 2.5rem;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    justify-content: center;
+  }
+  
+  .card-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #aaa;
   }
   
   .event-tag {
-    margin-bottom: 0; /* Override events.css */
-  }
-
-  .rsvp-btn {
-    background: var(--color-accent, #cc0000);
-    color: white;
-    text-decoration: none;
-    font-size: 0.75rem;
-    font-weight: 700;
-    padding: 0.4rem 1rem;
+    background: rgba(255,255,255,0.1);
+    padding: 0.2rem 0.6rem;
     border-radius: 4px;
+    color: white;
+    font-weight: 600;
+  }
+  
+  .event-logo {
+    max-height: 60px;
+    width: auto;
+    object-fit: contain;
+    object-position: left;
+    margin-bottom: 1rem;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+  }
+  
+  .event-title {
+    font-size: 2rem;
+    margin: 0 0 1rem 0;
+    font-weight: 700;
+  }
+  
+  .card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 1rem;
+  }
+  
+  .view-hub-link {
+    color: var(--color-accent, #cc0000);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 0.9rem;
+  }
+  
+  .rsvp-btn {
+    background: white;
+    color: black;
+    text-decoration: none;
+    font-size: 0.8rem;
+    font-weight: 800;
+    padding: 0.5rem 1.25rem;
+    border-radius: 30px;
     text-transform: uppercase;
     letter-spacing: 1px;
     transition: background 0.3s ease, transform 0.2s ease;
   }
   .rsvp-btn:hover {
-    background: #ff0000;
+    background: #f0f0f0;
     transform: scale(1.05);
+  }
+  
+  .empty-calendar {
+    text-align: center;
+    padding: 4rem;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    color: #888;
+  }
+  
+  @media (max-width: 768px) {
+    .timeline-item {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .timeline-date {
+      width: 100%;
+      text-align: left;
+      align-items: flex-start;
+      flex-direction: row;
+      gap: 1rem;
+      align-items: baseline;
+      padding-top: 0;
+    }
+    .date-days {
+      font-size: 1.5rem;
+    }
+    .timeline-divider {
+      display: none;
+    }
+    .timeline-content {
+      padding-bottom: 2rem;
+    }
+    .card-inner {
+      padding: 1.5rem;
+    }
+    .event-card:hover {
+      transform: translateY(-5px);
+    }
   }
 </style>

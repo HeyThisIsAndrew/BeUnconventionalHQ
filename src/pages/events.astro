@@ -3,7 +3,6 @@ import Layout from '../layouts/Layout.astro';
 import PageTitle from '../components/PageTitle.astro';
 import EventCalendar from '../components/EventCalendar.astro';
 import EventCard from '../components/EventCard.astro';
-import CalendarModal from '../components/CalendarModal.astro';
 import EventBookingCTA from '../components/EventBookingCTA.astro';
 import { site } from '../data/site.js';
 import { sanityClient } from "sanity:client";
@@ -34,13 +33,11 @@ const pastEvents = allEvents.filter(e => (e.endDate || e.startDate) < today);
     <div class="container">
       
       {/* Upcoming Events Calendar */}
-      <header class="section-header animate-on-scroll" data-nav-anchor style="text-align: center; margin-bottom: 3rem;">
-        <PageTitle as="h1" kicker="Calendar" primary="Upcoming" secondary="Events" />
-        <div style="margin-top: 1.5rem;">
-          <button class="cta-button-primary calendar-trigger-btn" data-modal-trigger="calendar">
-            View Full Calendar
-          </button>
-        </div>
+      <header class="section-header animate-on-scroll" data-nav-anchor style="text-align: center; margin-bottom: 2rem;">
+        <PageTitle as="h1" kicker="Schedule" primary="Upcoming" secondary="Events" />
+        <p style="color: #888; max-width: 600px; margin: 1.5rem auto 0; font-size: 1.1rem; line-height: 1.6;">
+          Our coverage roadmap for conventions, premieres, and industry events.
+        </p>
       </header>
       
       <EventCalendar events={upcomingEvents} />
@@ -68,7 +65,6 @@ const pastEvents = allEvents.filter(e => (e.endDate || e.startDate) < today);
       
     </div>
   </main>
-  <CalendarModal slot="modals" events={upcomingEvents} />
 </Layout>
 
 <style>

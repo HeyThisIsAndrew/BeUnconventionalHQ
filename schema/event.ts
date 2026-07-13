@@ -64,6 +64,7 @@ export const eventType = {
       description: 'Array of YouTube Video IDs (e.g., dQw4w9WgXcQ)',
       type: 'array',
       of: [{ type: 'string' }],
+      initialValue: [],
     },
     {
       name: 'articleUrls',
@@ -71,6 +72,7 @@ export const eventType = {
       description: 'Array of full Substack URLs',
       type: 'array',
       of: [{ type: 'url' }],
+      initialValue: [],
     },
     {
       name: 'tags',
@@ -78,6 +80,7 @@ export const eventType = {
       description: 'Exact string tags to match against YouTube and Substack titles/descriptions (e.g., "#SDCC 2026").',
       type: 'array',
       of: [{ type: 'string' }],
+      initialValue: [],
     },
   ],
 };
