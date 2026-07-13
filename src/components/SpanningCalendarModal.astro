@@ -76,19 +76,26 @@ const currentMonthEvents = events.filter(e => {
           
           const color = event.brandColor || 'var(--color-accent, #cc0000)';
           
-          const bars = [];
+          const segments = [];
           for (let row = startRow; row <= endRow; row++) {
             let colStart = row === startRow ? startCol : 1;
             let colEnd = row === endRow ? endCol : 7;
             let span = colEnd - colStart + 1;
-            bars.push(
-              <a href={`/events/${event.slug.current}`} class="highlighter-bar" style={"grid-row: " + row + "; grid-column: " + colStart + " / span " + span + "; --bar-color: " + color + ";"}>
-                {row === startRow ? event.title : '\u00A0'}
-              </a>
-            );
+            segments.push({
+              row,
+              colStart,
+              span,
+              color,
+              slug: event.slug.current,
+              title: row === startRow ? event.title : '\u00A0'
+            });
           }
-          return bars;
-        })}
+          return segments;
+        }).flat().map(segment => (
+          <a href={`/events/${segment.slug}`} class="highlighter-bar" style={`grid-row: ${segment.row}; grid-column: ${segment.colStart} / span ${segment.span}; --bar-color: ${segment.color};`}>
+            {segment.title}
+          </a>
+        ))}
       </div>
     </div>
   </div>
