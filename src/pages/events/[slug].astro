@@ -50,11 +50,11 @@ const filteredArticles = allArticles.filter((a: any) => {
   );
 });
 
-// Calculate stats
-const stats = {
-  videos: filteredVideos.length,
-  articles: filteredArticles.length,
-};
+// Merge and sort all content
+const unifiedContent = [
+  ...filteredVideos.map((v: any) => ({ ...v, contentType: 'video' })),
+  ...filteredArticles.map((a: any) => ({ ...a, contentType: 'article' }))
+].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
 // Format date range
 function formatDateRange(start, end) {
@@ -93,82 +93,69 @@ const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
               <span class="event-dates">{formatDateRange(event.startDate, event.endDate)}</span>
               {event.location && <span class="event-location"> • {event.location}</span>}
             </p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    {/* Event Stats */}
-    <section class="event-stats">
-      <div class="container">
-        <div class="stats-grid">
-          <div class="stat-box animate-on-scroll">
-            <span class="stat-number">{stats.videos}</span>
-            <span class="stat-label">Videos</span>
-          </div>
-          <div class="stat-box animate-on-scroll" style="--index: 1;">
-            <span class="stat-number">{stats.articles}</span>
-            <span class="stat-label">Articles</span>
+            {event.signUpLink && (
+              <div style="margin-top: 1.5rem;">
+                <a href={event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn">
+                  Event Details & Tickets
+                </a>
+              </div>
+            )}
           </div>
         </div>
       </div>
     </section>
 
     <div class="container content-container">
-      {/* Videos Section */}
-      {filteredVideos.length > 0 && (
+      {unifiedContent.length > 0 ? (
         <section class="content-section">
-          <h2 class="section-title">Video Coverage</h2>
-          <div class="video-grid">
-            {filteredVideos.map((video: any, index: number) => {
-              const videoId = video.link.includes('shorts')
-                ? video.link.split('/').pop()
-                : new URL(video.link).searchParams.get('v');
-                
-              return (
-                <div class="video-card animate-on-scroll video-modal-trigger" data-video-id={videoId} style={`--index: ${index}; cursor: pointer;`}>
-                  <div class="video-thumbnail-wrapper">
-                    <img src={video.thumbnail} alt={video.title} loading="lazy" class="video-thumbnail" onerror="this.onerror=null;this.src=this.src.replace('maxresdefault','hqdefault')" />
-                    <div class="video-play-overlay">
-                      <div class="play-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+          
+          <div class="filter-controls animate-on-scroll">
+            <button class="filter-btn type-btn" data-filter="video">VIDEOS</button>
+            <button class="filter-btn type-btn" data-filter="article">ARTICLES</button>
+          </div>
+
+          <div class="mixed-grid">
+            {unifiedContent.map((item, index) => {
+              if (item.contentType === 'video') {
+                const videoId = item.link.includes('shorts')
+                  ? item.link.split('/').pop()
+                  : new URL(item.link).searchParams.get('v');
+                return (
+                  <div class="content-card video-card animate-on-scroll video-modal-trigger" data-type="video" data-video-id={videoId} style={`--index: ${index}; cursor: pointer;`}>
+                    <div class="thumbnail-wrapper">
+                      <img src={item.thumbnail} alt={item.title} loading="lazy" class="thumbnail" onerror="this.onerror=null;this.src=this.src.replace('maxresdefault','hqdefault')" />
+                      <div class="video-play-overlay">
+                        <div class="play-icon">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                        </div>
                       </div>
                     </div>
+                    <div class="card-info">
+                      <span class="content-type-subtle">VIDEO • {item.date}</span>
+                      <h3 class="card-title">{item.title}</h3>
+                    </div>
                   </div>
-                  <div class="video-info">
-                    <h3 class="video-title">{video.title}</h3>
-                  </div>
-                </div>
-              );
+                );
+              } else {
+                return (
+                  <a href={item.link} target="_blank" rel="noopener noreferrer" class="content-card article-card animate-on-scroll" data-type="article" style={`--index: ${index};`}>
+                    {item.image && (
+                      <div class="thumbnail-wrapper">
+                        <img src={item.image} alt={item.title} loading="lazy" class="thumbnail" />
+                      </div>
+                    )}
+                    <div class="card-info">
+                      <span class="content-type-subtle">ARTICLE • {item.date}</span>
+                      <h3 class="card-title">{item.title}</h3>
+                      {item.excerpt && <p class="card-excerpt">{item.excerpt}</p>}
+                    </div>
+                  </a>
+                );
+              }
             })}
           </div>
         </section>
-      )}
-
-      {/* Articles Section */}
-      {filteredArticles.length > 0 && (
-        <section class="content-section">
-          <h2 class="section-title">Written Coverage</h2>
-          <div class="article-grid">
-            {filteredArticles.map((article: any, index: number) => (
-              <a href={article.link} target="_blank" rel="noopener noreferrer" class="article-card animate-on-scroll" style={`--index: ${index};`}>
-                {article.image && (
-                  <div class="article-image-wrapper">
-                    <img src={article.image} alt={article.title} loading="lazy" class="article-image" />
-                  </div>
-                )}
-                <div class="article-content">
-                  <h3 class="article-title">{article.title}</h3>
-                  <p class="article-excerpt">{article.excerpt}</p>
-                </div>
-              </a>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Fallback if no content */}
-      {filteredVideos.length === 0 && filteredArticles.length === 0 && (
+      ) : (
         <div class="empty-state animate-on-scroll">
           <p>Coverage for this event is coming soon.</p>
         </div>
@@ -223,32 +210,22 @@ const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
     text-transform: uppercase;
     letter-spacing: 2px;
   }
-  
-  /* Stats */
-  .event-stats {
-    padding: 2rem 0;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-  }
-  .stats-grid {
-    display: flex;
-    gap: 3rem;
-  }
-  .stat-box {
-    display: flex;
-    flex-direction: column;
-  }
-  .stat-number {
-    font-size: 2.5rem;
-    font-weight: 700;
-    color: var(--brand-color);
-    line-height: 1;
-  }
-  .stat-label {
-    text-transform: uppercase;
-    letter-spacing: 1px;
+  .hero-rsvp-btn {
+    display: inline-block;
+    background: transparent;
+    color: white;
+    text-decoration: none;
     font-size: 0.9rem;
-    color: #a0a0a0;
-    margin-top: 0.5rem;
+    font-weight: 700;
+    padding: 0.75rem 2rem;
+    border: 1px solid var(--color-accent, #cc0000);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    transition: background 0.3s ease, color 0.3s ease;
+  }
+  .hero-rsvp-btn:hover {
+    background: var(--color-accent, #cc0000);
+    color: white;
   }
   
   /* Content */
@@ -258,53 +235,167 @@ const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
   .content-section {
     margin-bottom: 5rem;
   }
-  .section-title {
-    font-size: 2rem;
-    margin-bottom: 2rem;
-    padding-bottom: 1rem;
-    border-bottom: 2px solid var(--brand-color);
-    display: inline-block;
+  
+  /* Filter Controls */
+  .filter-controls {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    max-width: 600px;
+    margin: 0 auto 3rem auto;
+  }
+  .filter-btn {
+    padding: 1.25rem 1rem;
+    background: rgba(10, 10, 10, 0.6);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: var(--color-white, #fff);
+    font-size: 1.1rem;
+    font-weight: 700;
+    font-family: var(--font-display, 'Inter', sans-serif);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   
-  /* Reusable Grid Styles */
-  .video-grid, .article-grid {
+  @media (hover: hover) {
+    .filter-btn:hover,
+    .filter-btn:focus-visible {
+      background: rgba(239, 68, 68, 0.1);
+      border: 2px solid var(--color-accent, #ef4444);
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+      transform: translateY(-2px);
+    }
+  }
+
+  .filter-btn.active {
+    background: rgba(239, 68, 68, 0.1);
+    border: 2px solid var(--color-accent, #ef4444);
+    color: white;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+  }
+  
+  /* Mixed Grid */
+  .mixed-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 2rem;
   }
   
-  .article-card {
+  .content-card {
     background: #111;
     border-radius: 12px;
     overflow: hidden;
     text-decoration: none;
     color: white;
-    transition: transform 0.2s ease;
+    transition: transform 0.2s ease, border-color 0.2s ease;
     border: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    flex-direction: column;
   }
-  .article-card:hover {
+  .content-card:hover {
     transform: translateY(-5px);
     border-color: var(--brand-color);
   }
-  .article-image-wrapper {
+  
+  .thumbnail-wrapper {
+    position: relative;
     aspect-ratio: 16/9;
+    overflow: hidden;
   }
-  .article-image {
+  .thumbnail {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: transform 0.5s ease;
   }
-  .article-content {
+  .content-card:hover .thumbnail {
+    transform: scale(1.05);
+  }
+  
+  .content-badge {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    z-index: 10;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  
+  /* Video Specific */
+  .video-play-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 5;
+  }
+  .content-card:hover .video-play-overlay {
+    opacity: 1;
+  }
+  .play-icon {
+    width: 60px;
+    height: 60px;
+    background: rgba(255,255,255,0.2);
+    backdrop-filter: blur(4px);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    border: 2px solid rgba(255,255,255,0.5);
+    transition: transform 0.3s ease, background 0.3s ease;
+  }
+  .content-card:hover .play-icon {
+    transform: scale(1.1);
+    background: var(--brand-color);
+    border-color: var(--brand-color);
+  }
+  
+  .card-info {
     padding: 1.5rem;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
   }
-  .article-title {
+  .card-date {
+    font-size: 0.8rem;
+    color: var(--brand-color);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 0.5rem;
+    font-weight: 700;
+  }
+  .card-title {
     font-size: 1.25rem;
-    margin: 0 0 0.5rem 0;
+    margin: 0;
+    line-height: 1.4;
   }
-  .article-excerpt {
+  .card-excerpt {
     color: #a0a0a0;
     font-size: 0.9rem;
     line-height: 1.5;
+    margin: 0.75rem 0 0 0;
+    flex-grow: 1;
   }
   
   .empty-state {
@@ -314,3 +405,40 @@ const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
     font-size: 1.2rem;
   }
 </style>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const filterBtns = document.querySelectorAll('.filter-btn');
+    const contentCards = document.querySelectorAll('.content-card');
+
+    filterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const wasActive = btn.classList.contains('active');
+        
+        // Remove active state from all buttons
+        filterBtns.forEach(b => b.classList.remove('active'));
+
+        let activeFilter = 'all';
+
+        // Toggle logic: If it wasn't active, make it active. If it was active, it stays inactive (reverting to 'all')
+        if (!wasActive) {
+          btn.classList.add('active');
+          activeFilter = btn.getAttribute('data-filter');
+        }
+
+        // Apply filter to cards
+        contentCards.forEach(card => {
+          if (activeFilter === 'all') {
+            card.style.display = 'flex';
+          } else {
+            if (card.getAttribute('data-type') === activeFilter) {
+              card.style.display = 'flex';
+            } else {
+              card.style.display = 'none';
+            }
+          }
+        });
+      });
+    });
+  });
+</script>
