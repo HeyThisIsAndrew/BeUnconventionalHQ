@@ -56,7 +56,7 @@ function formatDateRange(start, end) {
             
             {/* Event Content Card */}
             <div class="timeline-content">
-              <div class="calendar-timeline-card" style={heroUrl ? `background-image: linear-gradient(to right, rgba(0,0,0,1) -5%, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 40%, rgba(0,0,0,0.4) 100%), url('${heroUrl}');` : 'background: #111;'}>
+              <div class="calendar-timeline-card" style={heroUrl ? `background-image: url('${heroUrl}');` : 'background: #111;'}>
                 <a href={`/events/${event.slug.current}`} class="event-link-overlay" aria-label={`View ${event.title}`}></a>
                 
                 <div class="card-inner">
@@ -190,11 +190,22 @@ function formatDateRange(start, end) {
     background-size: cover;
     background-position: center;
     background-color: #000;
-    border: 1px solid rgba(255,255,255,0.1);
+    border: 2px solid #000;
     /* Card stays put on hover — matches the homepage tiles: accent outline and
        a soft glow, no fill or movement. */
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
     min-height: 200px;
+  }
+
+  /* Gradient overlay using ::before to eliminate subpixel rendering gaps */
+  .calendar-timeline-card::before {
+    content: '';
+    position: absolute;
+    inset: -1px; /* Overflow to cover border anti-aliasing artifacts */
+    background: linear-gradient(to right, rgba(0,0,0,1) 0%, rgba(0,0,0,0.9) 5%, rgba(0,0,0,0.7) 40%, rgba(0,0,0,0.4) 100%);
+    pointer-events: none;
+    z-index: 3; /* Above background image, below content */
+    border-radius: 12px;
   }
 
   .calendar-timeline-card:hover {
@@ -217,7 +228,7 @@ function formatDateRange(start, end) {
   
   .card-inner {
     position: relative;
-    z-index: 5; /* Lower than overlay */
+    z-index: 5; /* Above gradient overlay (::before is 3), below link overlay (10) */
     padding: 2.5rem;
     display: flex;
     flex-direction: column;
