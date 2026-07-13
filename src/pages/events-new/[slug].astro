@@ -1061,12 +1061,10 @@ const trailerId = getYoutubeId(trailerUrl);
           text.addEventListener('transitionend', endHandler);
         } else {
           expanded = false;
-          // Disable transition to pin the current full height instantly
-          // without triggering a jump from 'none', then re-enable for the collapse.
-          text.style.transition = 'none';
-          text.style.maxHeight = text.getBoundingClientRect().height + 'px';
-          void text.offsetHeight; // force reflow
-          text.style.transition = '';
+          // Pin the current full height (handles max-height:none), then animate
+          // down to the collapsed value on the next frame.
+          text.style.maxHeight = text.scrollHeight + 'px';
+          void text.offsetHeight; // force reflow so the start height registers
           requestAnimationFrame(() => {
             text.style.maxHeight = COLLAPSED_MAX;
           });
