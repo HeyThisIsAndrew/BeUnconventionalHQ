@@ -1,8 +1,9 @@
 ---
+// @ts-ignore - sanity:client is an alias resolved by Astro
 import { sanityClient } from "sanity:client";
-import imageUrlBuilder from "@sanity/image-url";
+import { createImageUrlBuilder } from "@sanity/image-url";
 
-const builder = imageUrlBuilder(sanityClient);
+const builder = createImageUrlBuilder(sanityClient);
 const urlFor = (source: any) => {
   return builder.image(source);
 };
@@ -10,7 +11,7 @@ const urlFor = (source: any) => {
 const { events } = Astro.props;
 
 // Helper to format date ranges
-function formatDateRange(start, end) {
+function formatDateRange(start: any, end: any) {
   const startDate = new Date(start);
   const startMonth = startDate.toLocaleString('en-US', { month: 'short' }).toUpperCase();
   const startDay = startDate.getDate();

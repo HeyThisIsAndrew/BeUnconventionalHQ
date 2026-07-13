@@ -16,8 +16,8 @@ export async function getStaticPaths() {
 
 const { event } = Astro.props;
 
-import imageUrlBuilder from "@sanity/image-url";
-const builder = imageUrlBuilder(sanityClient);
+import { createImageUrlBuilder } from "@sanity/image-url";
+const builder = createImageUrlBuilder(sanityClient);
 function urlFor(source: any) {
   return builder.image(source);
 }
@@ -386,9 +386,8 @@ const trailerId = getYoutubeId(trailerUrl);
     height: auto;
     object-fit: contain;
     margin-bottom: 1.5rem;
-    /* Subtle two-step drop shadow so the logo lifts off the busy background. */
-    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.55))
-      drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+    /* Removed filter: drop-shadow due to known iOS Safari rendering bugs 
+       causing the image to completely fail to load/display as broken on mobile */
   }
   .hero-title {
     /* Match the primary font stack */
