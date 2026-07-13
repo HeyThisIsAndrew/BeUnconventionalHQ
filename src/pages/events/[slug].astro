@@ -259,7 +259,7 @@ const trailerId = getYoutubeId(trailerUrl);
     -webkit-backdrop-filter: blur(3px);
     backdrop-filter: blur(3px);
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     padding-top: clamp(6rem, 4.5rem + 6vw, 8.5rem);
     padding-bottom: clamp(2.5rem, 2rem + 2.5vw, 4rem);
   }
@@ -710,6 +710,8 @@ const trailerId = getYoutubeId(trailerUrl);
       } else {
         command('unMute');
         command('setVolume', [100]);
+        // Force play in case iOS Low Power Mode or Safari policies blocked the initial autoplay
+        command('playVideo');
       }
       btn.classList.toggle('is-muted', muted);
       btn.classList.toggle('is-unmuted', !muted);
