@@ -7,7 +7,7 @@ import cloudflare from '@astrojs/cloudflare';
 export default defineConfig({
   site: 'https://beunconventionalhq.com',
   base: '/',
-  trailingSlash: 'never',
+  trailingSlash: 'always',
   build: {
     assets: 'assets',
   },

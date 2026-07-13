@@ -19,10 +19,12 @@ const {
   type = 'website',
 } = Astro.props;
 
-// Self-referential canonical URL: absolute, no trailing slash (except the
-// site root). og:url reuses the same value so search engines never see a
-// page advertise two different addresses for itself.
-const canonicalPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
+// Self-referential canonical URL: absolute, always trailing-slashed to match
+// how Cloudflare Pages serves routes. og:url reuses the same value so search
+// engines never see a page advertise two different addresses for itself.
+const canonicalPath = Astro.url.pathname.endsWith('/')
+  ? Astro.url.pathname
+  : `${Astro.url.pathname}/`;
 const url = Astro.props.url ?? new URL(canonicalPath, site.url).toString();
 
 // Sitewide structured data: tells search engines who this brand is and
