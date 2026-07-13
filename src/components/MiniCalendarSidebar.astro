@@ -15,17 +15,13 @@ const topEvents = events.slice(0, 3);
 ---
 
 <div class="mini-calendar-wrapper animate-on-scroll">
-  <div class="calendar-header">
-    <div class="calendar-icon">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-    </div>
-    <div style="transform: scale(0.6); transform-origin: left center;">
-      <PageTitle 
-        as="div" 
-        primary={today.toLocaleString('en-US', { month: 'long' })} 
-        secondary={today.getFullYear().toString()} 
-      />
-    </div>
+  <div class="calendar-header" style="justify-content: center; text-align: center; border-bottom: none; margin-bottom: 1.5rem; padding-bottom: 0;">
+    <PageTitle 
+      as="div" 
+      kicker="Calendar"
+      primary={today.toLocaleString('en-US', { month: 'long' })} 
+      secondary={today.getFullYear().toString()} 
+    />
   </div>
   
   <div class="calendar-events-list">
@@ -87,10 +83,17 @@ const topEvents = events.slice(0, 3);
     flex-direction: column;
     gap: 0.25rem;
     text-decoration: none;
-    transition: transform 0.2s ease;
+    transition: all 0.2s ease;
   }
-  .mini-event-row:hover {
-    transform: translateX(5px);
+  
+  .mini-event-row:hover .mini-title {
+    color: var(--color-accent, #cc0000);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  
+  .mini-event-row:hover .mini-date {
+    color: white;
   }
   
   .mini-date {
@@ -98,6 +101,7 @@ const topEvents = events.slice(0, 3);
     color: var(--color-accent, #cc0000);
     font-weight: 700;
     text-transform: uppercase;
+    transition: color 0.2s ease;
   }
   
   .mini-title {

@@ -13,6 +13,8 @@ const month = today.getMonth();
 
 const firstDay = new Date(year, month, 1);
 const lastDay = new Date(year, month + 1, 0);
+const monthStart = new Date(year, month, 1);
+const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
 const startingDayOfWeek = firstDay.getDay(); // 0 (Sun) to 6 (Sat)
 const totalDays = lastDay.getDate();
 
@@ -24,10 +26,55 @@ for (let i = 1; i <= totalDays; i++) {
   days.push({ day: i, empty: false });
 }
 
-// Find events spanning these days
-const currentMonthEvents = events.filter(e => {
-  const s = new Date(e.startDate);
-  return s.getMonth() === month && s.getFullYear() === year;
+const currentMonthEvents = events.filter((event) => {
+  const start = new Date(event.startDate);
+  const end = new Date(event.endDate || event.startDate);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return false;
+  }
+
+  return start <= monthEnd && end >= monthStart;
+});
+
+const calendarSegments = currentMonthEvents.flatMap((event) => {
+  const start = new Date(event.startDate);
+  const end = event.endDate ? new Date(event.endDate) : start;
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return [];
+  }
+
+  const startDay = start < monthStart ? 1 : start.getDate();
+  const endDay = end > monthEnd ? totalDays : end.getDate();
+
+  const startIndex = startingDayOfWeek + startDay - 1;
+  const endIndex = startingDayOfWeek + endDay - 1;
+
+  const startRow = Math.floor(startIndex / 7) + 1;
+  const startCol = (startIndex % 7) + 1;
+  const endRow = Math.floor(endIndex / 7) + 1;
+  const endCol = (endIndex % 7) + 1;
+
+  const color = event.brandColor || 'var(--color-accent, #cc0000)';
+  const segments = [];
+
+  for (let row = startRow; row <= endRow; row++) {
+    const colStart = row === startRow ? startCol : 1;
+    const colEnd = row === endRow ? endCol : 7;
+    const span = colEnd - colStart + 1;
+
+    segments.push({
+      row,
+      colStart,
+      span,
+      color,
+      slug: event.slug?.current ?? event.slug ?? '',
+      title: row === startRow ? event.title : '\u00A0',
+    });
+  }
+
+  return segments;
 });
 
 ---
@@ -56,42 +103,8 @@ const currentMonthEvents = events.filter(e => {
           </div>
         ))}
         
-        {/* Draw Highlighter Bars */}
-        {currentMonthEvents.map((event, index) => {
-          const s = new Date(event.startDate);
-          const e = event.endDate ? new Date(event.endDate) : s;
-          
-          const startDay = s.getDate();
-          const endDay = e.getDate();
-          
-          // Calculate grid positions
-          const startIndex = startingDayOfWeek + startDay - 1;
-          const endIndex = startingDayOfWeek + endDay - 1;
-          
-          const startRow = Math.floor(startIndex / 7) + 1;
-          const startCol = (startIndex % 7) + 1;
-          
-          const endRow = Math.floor(endIndex / 7) + 1;
-          const endCol = (endIndex % 7) + 1;
-          
-          const color = event.brandColor || 'var(--color-accent, #cc0000)';
-          
-          const segments = [];
-          for (let row = startRow; row <= endRow; row++) {
-            let colStart = row === startRow ? startCol : 1;
-            let colEnd = row === endRow ? endCol : 7;
-            let span = colEnd - colStart + 1;
-            segments.push({
-              row,
-              colStart,
-              span,
-              color,
-              slug: event.slug.current,
-              title: row === startRow ? event.title : '\u00A0'
-            });
-          }
-          return segments;
-        }).flat().map(segment => (
+        <!-- Draw Highlighter Bars -->
+        {calendarSegments.map((segment) => (
           <a href={`/events/${segment.slug}`} class="highlighter-bar" style={`grid-row: ${segment.row}; grid-column: ${segment.colStart} / span ${segment.span}; --bar-color: ${segment.color};`}>
             {segment.title}
           </a>
@@ -219,26 +232,31 @@ const currentMonthEvents = events.filter(e => {
 <script>
   document.addEventListener('astro:page-load', () => {
     const btn = document.getElementById('open-calendar-btn');
-    const modal = document.getElementById('spanning-calendar-modal') as HTMLDialogElement;
+    const modalElement = document.getElementById('spanning-calendar-modal');
+    const modal = modalElement instanceof HTMLDialogElement ? modalElement : null;
     const closeBtn = document.getElementById('close-calendar-btn');
-    
+
     if (btn && modal) {
       btn.addEventListener('click', () => {
         modal.showModal();
       });
     }
-    
+
     if (closeBtn && modal) {
       closeBtn.addEventListener('click', () => {
         modal.close();
       });
     }
-    
-    // Close on backdrop click
+
     if (modal) {
-      modal.addEventListener('click', (e) => {
+      modal.addEventListener('click', (event) => {
         const rect = modal.getBoundingClientRect();
-        if (e.clientY < rect.top || e.clientY > rect.bottom || e.clientX < rect.left || e.clientX > rect.right) {
+        if (
+          event.clientY < rect.top ||
+          event.clientY > rect.bottom ||
+          event.clientX < rect.left ||
+          event.clientX > rect.right
+        ) {
           modal.close();
         }
       });
