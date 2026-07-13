@@ -429,9 +429,9 @@ const currentPath = Astro.url.pathname;
         const currentPath = window.location.pathname.toLowerCase();
         document.querySelectorAll('#category-modal .cat-btn').forEach((btn) => {
           const slug = (btn as HTMLElement).dataset.filterCat;
-          if (isNavMode && currentPath.includes(`/category/${slug}`)) {
+          if (slug && isNavMode && currentPath.includes(`/category/${slug}`)) {
             btn.classList.add('active');
-          } else if (!isNavMode && window.location.hash.includes(slug)) {
+          } else if (slug && !isNavMode && window.location.hash.includes(slug)) {
             btn.classList.add('active');
           } else {
             btn.classList.remove('active');
@@ -667,7 +667,7 @@ const currentPath = Astro.url.pathname;
           isOverlayOpen = true;
         }
 
-        if (cat !== 'all') {
+        if (cat && cat !== 'all') {
           const catLabel = cat.charAt(0).toUpperCase() + cat.slice(1);
           openCategoriesBtn.textContent = `Categories | ${catLabel}`;
         } else {
