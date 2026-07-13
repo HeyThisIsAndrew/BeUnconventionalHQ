@@ -72,7 +72,11 @@ function formatDateRange(start, end) {
 }
 
 const brandColor = event.brandColor || 'var(--color-accent, #cc0000)';
-const heroUrl = event.heroImage ? urlFor(event.heroImage).url() : '';
+// Cap the hero at 2400px wide (retina-safe for a full-bleed banner) instead of
+// serving the raw upload, and let Sanity pick the best format.
+const heroUrl = event.heroImage
+  ? urlFor(event.heroImage).width(2400).auto('format').url()
+  : '';
 const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
 
 const trailerUrl = event.trailerUrl;
