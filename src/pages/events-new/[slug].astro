@@ -168,17 +168,22 @@ const trailerId = getYoutubeId(trailerUrl);
           
           {trailerId && (
             <div class="hero-trailer animate-on-scroll" style="animation-delay: 0.2s;">
-              {/* Facade pattern: NO cross-origin iframe is rendered until the
-                  user taps the poster (mobile) or the page autoplays (desktop).
-                  JS injects the embed then — so the hero can never show a black
-                  iframe, and mobile playback is tied to the actual tap gesture,
-                  which iOS Safari honours (postMessage-triggered play does not). */}
-              <div
-                class="trailer-wrapper"
-                id="trailer-wrapper"
-                data-embed={`https://www.youtube.com/embed/${trailerId}?loop=1&playlist=${trailerId}&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`}
-                data-title={`${event.title} trailer`}
-              >
+              {/* Iframe is rendered up front (muted autoplay — allowed inline on
+                  iOS) so the player is already initialised. The poster covers it
+                  until playback actually starts, then fades; tapping the poster
+                  starts/unmutes the ALREADY-LOADED player within the gesture,
+                  which is what iOS honours. No overflow:hidden ancestor, so the
+                  iframe renders instead of going black. */}
+              <div class="trailer-wrapper" id="trailer-wrapper">
+                <iframe
+                  id="hero-trailer-iframe"
+                  src={`https://www.youtube.com/embed/${trailerId}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`}
+                  frameborder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowfullscreen
+                  title={`${event.title} trailer`}
+                ></iframe>
+
                 <button
                   type="button"
                   class="trailer-poster-overlay"
@@ -199,14 +204,12 @@ const trailerId = getYoutubeId(trailerUrl);
                   </span>
                 </button>
 
-                {/* Revealed by JS once the iframe is mounted. */}
                 <button
                   type="button"
                   class="trailer-sound-toggle is-muted"
                   id="trailer-sound-toggle"
                   aria-label="Unmute trailer"
                   aria-pressed="false"
-                  hidden
                 >
                   <svg class="icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M11 5 6 9H2v6h4l5 4z" />
@@ -320,11 +323,15 @@ const trailerId = getYoutubeId(trailerUrl);
   .event-hero {
     position: relative;
     background-color: #111;
-    overflow: hidden; /* Prevents absolute bg from spilling out */
+    /* NO overflow:hidden here. On iOS Safari an overflow:hidden ancestor makes
+       a descendant cross-origin (YouTube) iframe render as a black box. The bg
+       below is inset:0 and its image clips to its own box, so it can't spill —
+       the clip was never needed. */
   }
   .event-hero-bg {
     position: absolute;
     inset: 0;
+    overflow: hidden;
     /* Cover the whole hero (behind the copy AND the trailer). It re-crops when
        the description expands — an accepted trade for full coverage. */
     background-size: cover;
@@ -898,26 +905,24 @@ const trailerId = getYoutubeId(trailerUrl);
 </script>
 
 <script>
-  // Hero trailer — facade pattern. The iframe is injected only when we actually
-  // play: on desktop it auto-mounts muted; on mobile it mounts on the poster tap
-  // so the src is set inside the user gesture (the reliable way to get iOS Safari
-  // to autoplay with sound). No iframe exists until then, so there is never a
-  // black box, and postMessage is only used for the later mute/unmute toggle.
+  // Hero trailer. The iframe is rendered up front with muted autoplay (allowed
+  // inline on iOS), so the player is already initialised. The poster covers it
+  // until the player reports it is actually PLAYING, then fades. Tapping the
+  // poster starts/unmutes the already-loaded player from within the gesture —
+  // the reliable path on iOS, since there is no async iframe load to expire the
+  // user activation. Commands use the postMessage API (enablejsapi=1), CSP-safe.
   function initTrailer() {
-    const wrapper = document.getElementById('trailer-wrapper');
-    if (!wrapper) return;
-    const base = wrapper.dataset.embed;
-    if (!base) return;
+    const iframe = document.getElementById('hero-trailer-iframe');
+    if (!iframe) return;
     const poster = document.getElementById('trailer-poster');
     const soundBtn = document.getElementById('trailer-sound-toggle');
 
-    let iframe = null;
     let ready = false;
+    let posterHidden = false;
     const queue = [];
     let muted = true;
 
     const post = (payload) =>
-      iframe &&
       iframe.contentWindow &&
       iframe.contentWindow.postMessage(JSON.stringify(payload), 'https://www.youtube.com');
     const command = (func, args = []) => {
@@ -933,9 +938,17 @@ const trailerId = getYoutubeId(trailerUrl);
       soundBtn.setAttribute('aria-pressed', String(!m));
       soundBtn.setAttribute('aria-label', m ? 'Unmute trailer' : 'Mute trailer');
     };
+    const hidePoster = () => {
+      if (posterHidden || !poster) return;
+      posterHidden = true;
+      poster.classList.add('is-hidden');
+    };
+
+    const startListening = () =>
+      post({ event: 'listening', id: iframe.id, channel: 'widget' });
 
     const onMessage = (e) => {
-      if (!iframe || !iframe.contentWindow || e.source !== iframe.contentWindow) return;
+      if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
       let data;
       try {
         data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
@@ -947,72 +960,37 @@ const trailerId = getYoutubeId(trailerUrl);
         ready = true;
         queue.splice(0).forEach(post);
       }
-      // Keep the toggle honest with the player's real mute state — iOS may
-      // refuse the unmute, and this reflects what actually happened.
+      // playerState 1 = playing. Reveal the video (hide poster) only once it is
+      // truly playing, so a stalled autoplay leaves the poster/play button up.
+      const state =
+        data.info && typeof data.info.playerState === 'number'
+          ? data.info.playerState
+          : data.event === 'onStateChange' && typeof data.info === 'number'
+            ? data.info
+            : undefined;
+      if (state === 1) hidePoster();
+      // Keep the toggle honest with the player's actual mute state.
       if (data.event === 'infoDelivery' && data.info && typeof data.info.muted === 'boolean') {
         if (data.info.muted !== muted) setMuted(data.info.muted);
       }
     };
+
     if (window.__ytTrailerMsg) window.removeEventListener('message', window.__ytTrailerMsg);
     window.__ytTrailerMsg = onMessage;
     window.addEventListener('message', onMessage);
 
-    // Create the embed. autoplay=1 in a src set during a user gesture (mobile)
-    // or muted (desktop) is what actually plays.
-    const mountIframe = (startMuted) => {
-      if (iframe) return;
-      iframe = document.createElement('iframe');
-      iframe.id = 'hero-trailer-iframe';
-      iframe.title = wrapper.dataset.title || 'Event trailer';
-      iframe.setAttribute('frameborder', '0');
-      iframe.setAttribute(
-        'allow',
-        'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
-      );
-      iframe.setAttribute('allowfullscreen', '');
-      iframe.style.width = '100%';
-      iframe.style.height = '100%';
-      iframe.style.position = 'absolute';
-      iframe.style.top = '0';
-      iframe.style.left = '0';
-      iframe.src = base + '&autoplay=1&mute=' + (startMuted ? '1' : '0');
-      iframe.addEventListener('load', () =>
-        post({ event: 'listening', id: 'hero-trailer-iframe', channel: 'widget' })
-      );
-      wrapper.insertBefore(iframe, wrapper.firstChild);
-      setMuted(startMuted);
-      if (soundBtn) soundBtn.hidden = false;
-    };
+    iframe.addEventListener('load', startListening);
+    startListening(); // iframe is server-rendered and may already be loaded
 
-    const desktopMq = window.matchMedia('(min-width: 900px)');
-    const startDesktop = () => {
-      if (iframe) return;
-      mountIframe(true); // muted autoplay (browser policy); poster CSS-hidden ≥900px
-      if (poster) poster.classList.add('is-hidden');
-    };
-    if (desktopMq.matches) startDesktop();
-
-    const onMqChange = (e) => {
-      if (e.matches) startDesktop();
-    };
-    if (window.__ytTrailerMq && window.__ytTrailerMqRef) {
-      window.__ytTrailerMqRef.removeEventListener('change', window.__ytTrailerMq);
-    }
-    window.__ytTrailerMq = onMqChange;
-    window.__ytTrailerMqRef = desktopMq;
-    desktopMq.addEventListener('change', onMqChange);
-
-    // Poster tap (mobile). Mount MUTED so iOS actually starts the video inline
-    // (it blocks unmuted inline autoplay even from a gesture), then best-effort
-    // unmute within the same gesture. If iOS keeps it muted, the video still
-    // plays and the sound button (synced via infoDelivery) unmutes it on tap.
+    // Poster tap → play + unmute the already-initialised player, inside the tap.
     if (poster && poster.dataset.bound !== 'true') {
       poster.dataset.bound = 'true';
       poster.addEventListener('click', () => {
-        mountIframe(true);
+        command('playVideo');
         command('unMute');
         command('setVolume', [100]);
-        poster.classList.add('is-hidden');
+        setMuted(false);
+        hidePoster();
       });
     }
 
@@ -1020,12 +998,6 @@ const trailerId = getYoutubeId(trailerUrl);
     if (soundBtn && soundBtn.dataset.bound !== 'true') {
       soundBtn.dataset.bound = 'true';
       soundBtn.addEventListener('click', () => {
-        if (!iframe) {
-          mountIframe(false);
-          setMuted(false);
-          if (poster) poster.classList.add('is-hidden');
-          return;
-        }
         if (muted) {
           command('unMute');
           command('setVolume', [100]);
