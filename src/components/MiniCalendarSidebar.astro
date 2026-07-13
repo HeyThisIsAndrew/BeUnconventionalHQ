@@ -30,12 +30,8 @@ const topEvents = events.slice(0, 3);
 
       return (
         <a href={`/events/${event.slug.current}`} class="mini-event-row">
-          <span class="mini-meta">
-            <span class="mini-tag">Event</span>
-            <span class="mini-dot" aria-hidden="true">&bull;</span>
-            <span class="mini-dates">{dateLabel}</span>
-          </span>
-          <span class="mini-title">{event.title}</span>
+          <span class="mini-event-name">{event.title}</span>
+          <span class="mini-event-dates"><span class="mini-dot" aria-hidden="true">&bull;</span> {dateLabel}</span>
         </a>
       );
     }) : (
@@ -86,68 +82,47 @@ const topEvents = events.slice(0, 3);
     margin-bottom: 2rem;
   }
 
+  /* One line per event: "San Diego Comic Con 2026 • Jul 23–27". The name is the
+     emphasis (white → red with a draw-on underline); the dates trail after a
+     dot in muted grey. A background-size underline animates even if the name
+     wraps to a second line, unlike a scaleX pseudo-element. */
   .mini-event-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0.45rem;
+    display: block;
     text-decoration: none;
+    line-height: 1.4;
   }
 
-  /* Meta line: "EVENT • Jul 24–26" — matches the card meta pattern. */
-  .mini-meta {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    font-size: 0.7rem;
-    line-height: 1;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-  }
-  .mini-tag {
-    color: var(--color-accent, #cc0000);
+  .mini-event-name {
+    font-family: var(--font-display, 'Syne Variable', sans-serif);
+    font-size: 1rem;
     font-weight: 700;
+    color: var(--color-white, #f0f0f0);
+    background-image: linear-gradient(
+      var(--color-accent, #cc0000),
+      var(--color-accent, #cc0000)
+    );
+    background-repeat: no-repeat;
+    background-position: 0 100%;
+    background-size: 0% 2px;
+    padding-bottom: 2px;
+    transition: color 0.3s ease, background-size 0.3s ease;
+  }
+  .mini-event-dates {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
   }
   .mini-dot {
     color: #666;
+    margin: 0 0.3rem;
   }
-  .mini-dates {
-    color: #888;
-    font-weight: 600;
-  }
-
-  /* Title: white by default, transitions to red with a left-to-right underline
-     drawn in on hover/focus. */
-  .mini-title {
-    position: relative;
-    align-self: flex-start;
-    display: inline-block;
-    font-family: var(--font-display, 'Syne Variable', sans-serif);
-    font-size: 1.05rem;
-    font-weight: 700;
-    line-height: 1.25;
-    color: var(--color-white, #f0f0f0);
-    transition: color 0.3s ease;
-  }
-  .mini-title::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    bottom: -3px;
-    width: 100%;
-    height: 2px;
-    background: var(--color-accent, #cc0000);
-    transform: scaleX(0);
-    transform-origin: right;
-    transition: transform 0.3s ease;
-  }
-  .mini-event-row:hover .mini-title,
-  .mini-event-row:focus-visible .mini-title {
+  .mini-event-row:hover .mini-event-name,
+  .mini-event-row:focus-visible .mini-event-name {
     color: var(--color-accent, #cc0000);
-  }
-  .mini-event-row:hover .mini-title::after,
-  .mini-event-row:focus-visible .mini-title::after {
-    transform: scaleX(1);
-    transform-origin: left;
+    background-size: 100% 2px;
   }
 
   .mini-empty {
