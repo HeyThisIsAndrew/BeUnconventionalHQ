@@ -93,12 +93,14 @@ const pastEvents = allEvents.filter(e => (e.endDate || e.startDate) < today);
   
   .events-layout {
     display: grid;
-    grid-template-columns: 1fr 300px;
+    /* minmax(0, 1fr) — WITHOUT the 0 minimum, the timeline column's implicit
+       min-width:auto lets the wide event card blow the track out past its share
+       and shove the 300px calendar off to the right. The 0 lets it shrink to
+       fit so the calendar stays inside the layout. */
+    grid-template-columns: minmax(0, 1fr) 300px;
     gap: 3rem;
-    /* Columns stretch to the full row height so the sticky sidebar has room to
-       travel — it follows the timeline as you scroll and releases at its end. */
     align-items: stretch;
-    max-width: 1000px; /* Restored to original 1000px constraint as requested */
+    max-width: 1000px;
     margin: 0 auto;
   }
   

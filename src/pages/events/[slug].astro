@@ -168,47 +168,45 @@ const trailerId = getYoutubeId(trailerUrl);
           
           {trailerId && (
             <div class="hero-trailer animate-on-scroll" style="animation-delay: 0.2s;">
-              <div class="trailer-wrapper">
-                <iframe
-                  id="hero-trailer-iframe"
-                  src={`https://www.youtube.com/embed/${trailerId}?mute=1&loop=1&playlist=${trailerId}&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`}
-                  frameborder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowfullscreen
-                  title={`${event.title} trailer`}
-                ></iframe>
-
-                {/* Poster overlay: guarantees a branded image on load (never a
-                    black iframe) and ties playback to an explicit user tap, which
-                    iOS Safari always honours. */}
-                {trailerPoster && (
-                  <button
-                    type="button"
-                    class="trailer-poster-overlay"
-                    id="trailer-poster"
-                    aria-label={`Play ${event.title} trailer`}
-                  >
+              {/* Facade pattern: NO cross-origin iframe is rendered until the
+                  user taps the poster (mobile) or the page autoplays (desktop).
+                  JS injects the embed then — so the hero can never show a black
+                  iframe, and mobile playback is tied to the actual tap gesture,
+                  which iOS Safari honours (postMessage-triggered play does not). */}
+              <div
+                class="trailer-wrapper"
+                id="trailer-wrapper"
+                data-embed={`https://www.youtube.com/embed/${trailerId}?loop=1&playlist=${trailerId}&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`}
+                data-title={`${event.title} trailer`}
+              >
+                <button
+                  type="button"
+                  class="trailer-poster-overlay"
+                  id="trailer-poster"
+                  aria-label={`Play ${event.title} trailer`}
+                >
+                  {trailerPoster && (
                     <span
                       class="trailer-poster-img"
                       data-kind={trailerPoster.kind}
                       style={`background-image: url('${trailerPoster.url}');`}
                     ></span>
-                    <span class="trailer-play-btn" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
-                    </span>
-                  </button>
-                )}
+                  )}
+                  <span class="trailer-play-btn" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </span>
+                </button>
 
-                {/* Sound toggle for after playback starts (postMessage API,
-                    enablejsapi=1 → no external script, CSP-safe). */}
+                {/* Revealed by JS once the iframe is mounted. */}
                 <button
                   type="button"
                   class="trailer-sound-toggle is-muted"
                   id="trailer-sound-toggle"
                   aria-label="Unmute trailer"
                   aria-pressed="false"
+                  hidden
                 >
                   <svg class="icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M11 5 6 9H2v6h4l5 4z" />
@@ -327,12 +325,10 @@ const trailerId = getYoutubeId(trailerUrl);
   .event-hero-bg {
     position: absolute;
     inset: 0;
-    /* Width-locked (100% auto) so vertical growth when the description expands
-       never rescales or zooms the image — no hardcoded height needed. Anchored
-       to the top; the overlay gradient fades to near-black at the bottom, hiding
-       any area below the image's natural height. */
-    background-size: 100% auto;
-    background-position: center top;
+    /* Cover the whole hero (behind the copy AND the trailer). It re-crops when
+       the description expands — an accepted trade for full coverage. */
+    background-size: cover;
+    background-position: center;
     background-repeat: no-repeat;
     z-index: 0;
   }
@@ -422,6 +418,10 @@ const trailerId = getYoutubeId(trailerUrl);
     position: relative;
     width: 100%;
     height: 100%;
+    /* Solid base so there's no flash before the injected iframe paints. No
+       border-radius/overflow here — that reintroduces the iOS Safari clipping
+       bug that renders cross-origin video iframes black. */
+    background: #000;
   }
   .trailer-wrapper iframe {
     width: 100%;
@@ -449,6 +449,10 @@ const trailerId = getYoutubeId(trailerUrl);
     color: #fff;
     cursor: pointer;
     transition: background 0.25s ease, border-color 0.25s ease, transform 0.2s ease;
+  }
+  /* An explicit display above beats the [hidden] UA rule, so restore it. */
+  .trailer-sound-toggle[hidden] {
+    display: none;
   }
   .trailer-sound-toggle:hover,
   .trailer-sound-toggle:focus-visible {
@@ -894,21 +898,26 @@ const trailerId = getYoutubeId(trailerUrl);
 </script>
 
 <script>
-  // Hero trailer. Playback is tied to an explicit tap on the poster overlay —
-  // the only thing iOS Safari reliably honours — instead of forcing autoplay.
-  // Commands go through YouTube's postMessage API (enablejsapi=1 on the embed),
-  // so no external script loads and the site CSP is untouched.
+  // Hero trailer — facade pattern. The iframe is injected only when we actually
+  // play: on desktop it auto-mounts muted; on mobile it mounts on the poster tap
+  // so the src is set inside the user gesture (the reliable way to get iOS Safari
+  // to autoplay with sound). No iframe exists until then, so there is never a
+  // black box, and postMessage is only used for the later mute/unmute toggle.
   function initTrailer() {
-    const iframe = document.getElementById('hero-trailer-iframe');
-    if (!iframe) return;
+    const wrapper = document.getElementById('trailer-wrapper');
+    if (!wrapper) return;
+    const base = wrapper.dataset.embed;
+    if (!base) return;
     const poster = document.getElementById('trailer-poster');
     const soundBtn = document.getElementById('trailer-sound-toggle');
 
-    // Commands are queued until the player reports onReady, so we never fire at
-    // a player that hasn't booted its JS API yet (the load-vs-ready race).
+    let iframe = null;
     let ready = false;
     const queue = [];
+    let muted = true;
+
     const post = (payload) =>
+      iframe &&
       iframe.contentWindow &&
       iframe.contentWindow.postMessage(JSON.stringify(payload), 'https://www.youtube.com');
     const command = (func, args = []) => {
@@ -916,8 +925,6 @@ const trailerId = getYoutubeId(trailerUrl);
       if (ready) post(payload);
       else queue.push(payload);
     };
-
-    let muted = true;
     const setMuted = (m) => {
       muted = m;
       if (!soundBtn) return;
@@ -927,22 +934,8 @@ const trailerId = getYoutubeId(trailerUrl);
       soundBtn.setAttribute('aria-label', m ? 'Unmute trailer' : 'Mute trailer');
     };
 
-    const desktopMq = window.matchMedia('(min-width: 900px)');
-    const startDesktopAutoplay = () => {
-      // Desktop autoplays muted (browser policy); poster is CSS-hidden ≥900px.
-      command('mute');
-      setMuted(true);
-      command('playVideo');
-      if (poster) poster.classList.add('is-hidden');
-    };
-
-    // Handshake so the embed starts emitting API events, then act on onReady.
-    const startListening = () =>
-      post({ event: 'listening', id: iframe.id, channel: 'widget' });
-
     const onMessage = (e) => {
-      if (typeof e.origin === 'string' && e.origin.indexOf('youtube.com') === -1) return;
-      if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
+      if (!iframe || !iframe.contentWindow || e.source !== iframe.contentWindow) return;
       let data;
       try {
         data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
@@ -952,34 +945,72 @@ const trailerId = getYoutubeId(trailerUrl);
       if (data && (data.event === 'onReady' || data.event === 'initialDelivery') && !ready) {
         ready = true;
         queue.splice(0).forEach(post);
-        if (desktopMq.matches) startDesktopAutoplay();
       }
     };
-
-    // Single window listener, swapped each init so navigations don't stack them.
     if (window.__ytTrailerMsg) window.removeEventListener('message', window.__ytTrailerMsg);
     window.__ytTrailerMsg = onMessage;
     window.addEventListener('message', onMessage);
 
-    iframe.addEventListener('load', startListening);
-    startListening(); // in case the iframe is already loaded
+    // Create the embed. autoplay=1 in a src set during a user gesture (mobile)
+    // or muted (desktop) is what actually plays.
+    const mountIframe = (startMuted) => {
+      if (iframe) return;
+      iframe = document.createElement('iframe');
+      iframe.id = 'hero-trailer-iframe';
+      iframe.title = wrapper.dataset.title || 'Event trailer';
+      iframe.setAttribute('frameborder', '0');
+      iframe.setAttribute(
+        'allow',
+        'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
+      );
+      iframe.setAttribute('allowfullscreen', '');
+      iframe.src = base + '&autoplay=1&mute=' + (startMuted ? '1' : '0');
+      iframe.addEventListener('load', () =>
+        post({ event: 'listening', id: 'hero-trailer-iframe', channel: 'widget' })
+      );
+      wrapper.insertBefore(iframe, wrapper.firstChild);
+      setMuted(startMuted);
+      if (soundBtn) soundBtn.hidden = false;
+    };
 
-    // Poster tap → guaranteed playback + audio (fires inside the user gesture).
+    const desktopMq = window.matchMedia('(min-width: 900px)');
+    const startDesktop = () => {
+      if (iframe) return;
+      mountIframe(true); // muted autoplay (browser policy); poster CSS-hidden ≥900px
+      if (poster) poster.classList.add('is-hidden');
+    };
+    if (desktopMq.matches) startDesktop();
+
+    const onMqChange = (e) => {
+      if (e.matches) startDesktop();
+    };
+    if (window.__ytTrailerMq && window.__ytTrailerMqRef) {
+      window.__ytTrailerMqRef.removeEventListener('change', window.__ytTrailerMq);
+    }
+    window.__ytTrailerMq = onMqChange;
+    window.__ytTrailerMqRef = desktopMq;
+    desktopMq.addEventListener('change', onMqChange);
+
+    // Poster tap (mobile) → mount unmuted inside the gesture.
     if (poster && poster.dataset.bound !== 'true') {
       poster.dataset.bound = 'true';
       poster.addEventListener('click', () => {
-        command('playVideo');
-        command('unMute');
-        command('setVolume', [100]);
+        mountIframe(false);
         setMuted(false);
         poster.classList.add('is-hidden');
       });
     }
 
-    // Sound toggle for after playback has started.
+    // Sound toggle after playback has started.
     if (soundBtn && soundBtn.dataset.bound !== 'true') {
       soundBtn.dataset.bound = 'true';
       soundBtn.addEventListener('click', () => {
+        if (!iframe) {
+          mountIframe(false);
+          setMuted(false);
+          if (poster) poster.classList.add('is-hidden');
+          return;
+        }
         if (muted) {
           command('unMute');
           command('setVolume', [100]);
@@ -991,20 +1022,6 @@ const trailerId = getYoutubeId(trailerUrl);
         }
       });
     }
-
-    // Re-evaluate on orientation/breakpoint change so rotating into desktop
-    // width kicks off autoplay instead of leaving the JS stuck in mobile mode.
-    const onMqChange = (e) => {
-      if (!e.matches) return;
-      if (ready) startDesktopAutoplay();
-      else if (poster) poster.classList.add('is-hidden');
-    };
-    if (window.__ytTrailerMq && window.__ytTrailerMqRef) {
-      window.__ytTrailerMqRef.removeEventListener('change', window.__ytTrailerMq);
-    }
-    window.__ytTrailerMq = onMqChange;
-    window.__ytTrailerMqRef = desktopMq;
-    desktopMq.addEventListener('change', onMqChange);
   }
 
   document.addEventListener('astro:page-load', initTrailer);
