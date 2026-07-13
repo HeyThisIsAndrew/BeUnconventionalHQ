@@ -1,9 +1,7 @@
 # Cloudflare Pages reads this file and applies these HTTP response headers.
 # https://developers.cloudflare.com/pages/configuration/headers/
 #
-# These are conservative, non-breaking security headers. The stronger
-# Content-Security-Policy header is intentionally omitted here and handled
-# separately (report-only first) so it cannot break scripts/embeds.
+# Security headers applied to every route.
 
 /*
   # Stop browsers from MIME-sniffing a response away from its declared type.
@@ -14,5 +12,10 @@
   X-Frame-Options: SAMEORIGIN
   # Disable powerful browser features the site does not use.
   Permissions-Policy: geolocation=(), camera=(), microphone=()
-  # Force HTTPS. Start low (1 day) and ramp up once confirmed stable.
-  Strict-Transport-Security: max-age=86400
+  # Force HTTPS for one year (site is HTTPS-only on Cloudflare Pages).
+  Strict-Transport-Security: max-age=31536000
+  # Restrict where content may load from. Allowlist matches the site's real
+  # dependencies: Google Tag Manager/Analytics (scripts + beacons), YouTube
+  # embeds, and https image CDNs (YouTube thumbs, Substack, Unsplash).
+  # 'unsafe-inline' is required by GTM and the site's inline island scripts.
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://www.googletagmanager.com; connect-src 'self' https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com
