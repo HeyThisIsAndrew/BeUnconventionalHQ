@@ -79,6 +79,15 @@ const heroUrl = event.heroImage
   : '';
 const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
 
+// Poster shown over the paused trailer on load, so the hero never renders a
+// black iframe on iOS Safari. Prefer a 16:9 crop of the hero image; fall back
+// to the logo centred on a dark panel.
+const trailerPoster = event.heroImage
+  ? { url: urlFor(event.heroImage).width(1200).height(675).fit('crop').auto('format').url(), kind: 'hero' }
+  : event.logo
+    ? { url: urlFor(event.logo).width(800).auto('format').url(), kind: 'logo' }
+    : null;
+
 const trailerUrl = event.trailerUrl;
 function getYoutubeId(url) {
   if (!url) return null;
@@ -119,14 +128,38 @@ const trailerId = getYoutubeId(trailerUrl);
               <div class="trailer-wrapper">
                 <iframe
                   id="hero-trailer-iframe"
-                  src={`https://www.youtube.com/embed/${trailerId}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`}
+                  src={`https://www.youtube.com/embed/${trailerId}?mute=1&loop=1&playlist=${trailerId}&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`}
                   frameborder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowfullscreen
                   title={`${event.title} trailer`}
                 ></iframe>
-                {/* Autoplay forces muted start; this toggles sound on via the
-                    YouTube postMessage API (no external script → CSP-safe). */}
+
+                {/* Poster overlay: guarantees a branded image on load (never a
+                    black iframe) and ties playback to an explicit user tap, which
+                    iOS Safari always honours. */}
+                {trailerPoster && (
+                  <button
+                    type="button"
+                    class="trailer-poster-overlay"
+                    id="trailer-poster"
+                    aria-label={`Play ${event.title} trailer`}
+                  >
+                    <span
+                      class="trailer-poster-img"
+                      data-kind={trailerPoster.kind}
+                      style={`background-image: url('${trailerPoster.url}');`}
+                    ></span>
+                    <span class="trailer-play-btn" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </span>
+                  </button>
+                )}
+
+                {/* Sound toggle for after playback starts (postMessage API,
+                    enablejsapi=1 → no external script, CSP-safe). */}
                 <button
                   type="button"
                   class="trailer-sound-toggle is-muted"
@@ -368,6 +401,78 @@ const trailerId = getYoutubeId(trailerUrl);
   }
   .trailer-sound-toggle.is-unmuted .icon-unmuted {
     display: block;
+  }
+
+  /* Poster overlay covering the iframe until the user taps play. */
+  .trailer-poster-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    background: #000;
+    cursor: pointer;
+    transition: opacity 0.4s ease;
+  }
+  .trailer-poster-overlay.is-hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .trailer-poster-img {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  /* Logo fallback: contain + inset on a dark panel instead of a cover crop. */
+  .trailer-poster-img[data-kind='logo'] {
+    background-size: contain;
+    background-origin: content-box;
+    background-color: #0a0a0a;
+    padding: 14%;
+  }
+  /* Scrim so the play button reads over bright artwork. */
+  .trailer-poster-overlay::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    transition: background 0.3s ease;
+  }
+  .trailer-poster-overlay:hover::after,
+  .trailer-poster-overlay:focus-visible::after {
+    background: rgba(0, 0, 0, 0.2);
+  }
+  .trailer-play-btn {
+    position: relative;
+    z-index: 1;
+    width: 72px;
+    height: 72px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--color-accent, #cc0000);
+    color: #fff;
+    box-shadow: 0 8px 30px rgba(204, 0, 0, 0.5);
+    transition: transform 0.2s ease;
+  }
+  .trailer-poster-overlay:hover .trailer-play-btn,
+  .trailer-poster-overlay:focus-visible .trailer-play-btn {
+    transform: scale(1.08);
+  }
+  .trailer-poster-overlay:focus-visible {
+    outline: 2px solid var(--color-accent, #cc0000);
+    outline-offset: 3px;
+  }
+  .trailer-play-btn svg {
+    width: 30px;
+    height: 30px;
+    margin-left: 3px; /* optical centring of the triangle */
   }
   
   .hero-logo {
@@ -686,17 +791,14 @@ const trailerId = getYoutubeId(trailerUrl);
 </script>
 
 <script>
-  // Hero trailer sound toggle. The trailer autoplays muted (browsers block
-  // autoplaying audio), so this button unmutes on demand via YouTube's
-  // postMessage command API — enabled by `enablejsapi=1` on the embed URL, so
-  // no external script is loaded and the site CSP is untouched.
-  function initTrailerSound() {
+  // Hero trailer. Playback is tied to an explicit tap on the poster overlay —
+  // the only thing iOS Safari reliably honours — instead of forcing autoplay.
+  // Commands go through YouTube's postMessage API (enablejsapi=1 on the embed),
+  // so no external script loads and the site CSP is untouched.
+  function initTrailer() {
     const iframe = document.getElementById('hero-trailer-iframe');
-    const btn = document.getElementById('trailer-sound-toggle');
-    if (!iframe || !btn || btn.dataset.bound === 'true') return;
-    btn.dataset.bound = 'true';
+    if (!iframe) return;
 
-    let muted = true;
     const command = (func, args = []) => {
       iframe.contentWindow?.postMessage(
         JSON.stringify({ event: 'command', func, args }),
@@ -704,31 +806,48 @@ const trailerId = getYoutubeId(trailerUrl);
       );
     };
 
-    // Force play on load in case mobile Safari ignores the autoplay URL parameter
-    iframe.addEventListener('load', () => {
-      command('playVideo');
-      setTimeout(() => command('playVideo'), 500);
-      setTimeout(() => command('playVideo'), 1500);
-    });
+    let muted = true;
+    const soundBtn = document.getElementById('trailer-sound-toggle');
+    const setMuted = (m) => {
+      muted = m;
+      if (!soundBtn) return;
+      soundBtn.classList.toggle('is-muted', m);
+      soundBtn.classList.toggle('is-unmuted', !m);
+      soundBtn.setAttribute('aria-pressed', String(!m));
+      soundBtn.setAttribute('aria-label', m ? 'Unmute trailer' : 'Mute trailer');
+    };
 
-    btn.addEventListener('click', () => {
-      muted = !muted;
-      if (muted) {
-        command('mute');
-      } else {
+    // Poster tap → guaranteed playback with audio (fires inside the gesture).
+    const poster = document.getElementById('trailer-poster');
+    if (poster && poster.dataset.bound !== 'true') {
+      poster.dataset.bound = 'true';
+      poster.addEventListener('click', () => {
+        command('playVideo');
         command('unMute');
         command('setVolume', [100]);
-        // Force play in case iOS Low Power Mode or Safari policies blocked the initial autoplay
-        command('playVideo');
-      }
-      btn.classList.toggle('is-muted', muted);
-      btn.classList.toggle('is-unmuted', !muted);
-      btn.setAttribute('aria-pressed', String(!muted));
-      btn.setAttribute('aria-label', muted ? 'Unmute trailer' : 'Mute trailer');
-    });
+        setMuted(false);
+        poster.classList.add('is-hidden');
+      });
+    }
+
+    // Sound toggle for after playback has started.
+    if (soundBtn && soundBtn.dataset.bound !== 'true') {
+      soundBtn.dataset.bound = 'true';
+      soundBtn.addEventListener('click', () => {
+        if (muted) {
+          command('unMute');
+          command('setVolume', [100]);
+          command('playVideo');
+          setMuted(false);
+        } else {
+          command('mute');
+          setMuted(true);
+        }
+      });
+    }
   }
 
-  document.addEventListener('astro:page-load', initTrailerSound);
+  document.addEventListener('astro:page-load', initTrailer);
 </script>
 
 <script>
