@@ -942,9 +942,15 @@ const trailerId = getYoutubeId(trailerUrl);
       } catch {
         return;
       }
-      if (data && (data.event === 'onReady' || data.event === 'initialDelivery') && !ready) {
+      if (!data) return;
+      if ((data.event === 'onReady' || data.event === 'initialDelivery') && !ready) {
         ready = true;
         queue.splice(0).forEach(post);
+      }
+      // Keep the toggle honest with the player's real mute state — iOS may
+      // refuse the unmute, and this reflects what actually happened.
+      if (data.event === 'infoDelivery' && data.info && typeof data.info.muted === 'boolean') {
+        if (data.info.muted !== muted) setMuted(data.info.muted);
       }
     };
     if (window.__ytTrailerMsg) window.removeEventListener('message', window.__ytTrailerMsg);
@@ -991,12 +997,16 @@ const trailerId = getYoutubeId(trailerUrl);
     window.__ytTrailerMqRef = desktopMq;
     desktopMq.addEventListener('change', onMqChange);
 
-    // Poster tap (mobile) → mount unmuted inside the gesture.
+    // Poster tap (mobile). Mount MUTED so iOS actually starts the video inline
+    // (it blocks unmuted inline autoplay even from a gesture), then best-effort
+    // unmute within the same gesture. If iOS keeps it muted, the video still
+    // plays and the sound button (synced via infoDelivery) unmutes it on tap.
     if (poster && poster.dataset.bound !== 'true') {
       poster.dataset.bound = 'true';
       poster.addEventListener('click', () => {
-        mountIframe(false);
-        setMuted(false);
+        mountIframe(true);
+        command('unMute');
+        command('setVolume', [100]);
         poster.classList.add('is-hidden');
       });
     }
