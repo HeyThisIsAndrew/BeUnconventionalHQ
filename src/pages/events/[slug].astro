@@ -710,6 +710,13 @@ const trailerId = getYoutubeId(trailerUrl);
       );
     };
 
+    // Force play on load in case mobile Safari ignores the autoplay URL parameter
+    iframe.addEventListener('load', () => {
+      command('playVideo');
+      setTimeout(() => command('playVideo'), 500);
+      setTimeout(() => command('playVideo'), 1500);
+    });
+
     btn.addEventListener('click', () => {
       muted = !muted;
       if (muted) {
