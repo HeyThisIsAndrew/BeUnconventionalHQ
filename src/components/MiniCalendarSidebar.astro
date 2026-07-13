@@ -14,7 +14,6 @@ const topEvents = events.slice(0, 3);
 
 <div class="mini-calendar-wrapper animate-on-scroll">
   <div class="mini-cal-topbar">
-    <span class="mini-cal-kicker">CALENDAR</span>
     <span class="mini-cal-period">{periodLabel}</span>
   </div>
 
@@ -50,27 +49,22 @@ const topEvents = events.slice(0, 3);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     padding: 1.5rem;
-    /* Explicitly un-sticking based on user UX feedback */
-    position: static !important;
+    /* The user wants this to 'move down with the page' (follow the viewport).
+       In CSS, this is position: sticky. */
+    position: sticky;
+    top: 120px;
+    z-index: 10;
   }
 
   .mini-cal-topbar {
     display: flex;
-    flex-direction: column;
-    align-items: center;
+    justify-content: flex-end;
     margin-bottom: 2rem;
     padding-bottom: 0.5rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  .mini-cal-kicker {
-    font-size: 0.75rem;
-    font-weight: 800;
-    letter-spacing: 0.2em;
-    color: var(--color-accent, #cc0000);
-    text-transform: uppercase;
-    margin-bottom: 0.2rem;
-  }
+  /* Removed .mini-cal-kicker completely as requested */
 
   .mini-cal-period {
     font-size: 1.25rem;
@@ -78,6 +72,8 @@ const topEvents = events.slice(0, 3);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--color-white, #f0f0f0);
+    /* Right alignment */
+    text-align: right;
   }
 
   .calendar-events-list {
