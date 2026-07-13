@@ -59,6 +59,12 @@ export const eventType = {
       type: 'url',
     },
     {
+      name: 'trailerUrl',
+      title: 'Trailer Video URL',
+      description: 'A YouTube URL to embed as the event trailer in the hero banner',
+      type: 'url',
+    },
+    {
       name: 'videoIds',
       title: 'Related YouTube Video IDs',
       description: 'Array of YouTube Video IDs (e.g., dQw4w9WgXcQ)',

@@ -74,6 +74,14 @@ function formatDateRange(start, end) {
 const brandColor = event.brandColor || 'var(--color-accent, #cc0000)';
 const heroUrl = event.heroImage ? urlFor(event.heroImage).url() : '';
 const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
+
+const trailerUrl = event.trailerUrl;
+function getYoutubeId(url) {
+  if (!url) return null;
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+  return match ? match[1] : null;
+}
+const trailerId = getYoutubeId(trailerUrl);
 ---
 
 <Layout title={`${event.title}`} description={`Complete coverage of ${event.title}`}>
@@ -82,7 +90,7 @@ const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
     {/* Cinematic Hero */}
     <section class="event-hero" style={heroUrl ? `background-image: url('${heroUrl}');` : `background: ${fallbackGradient};`}>
       <div class="hero-overlay">
-        <div class="container">
+        <div class="container hero-grid-container">
           <div class="hero-content animate-on-scroll">
             {event.logo ? (
               <img src={urlFor(event.logo).height(120).url()} alt={`${event.title} logo`} class="hero-logo" />
@@ -96,11 +104,25 @@ const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
             {event.signUpLink && (
               <div style="margin-top: 1.5rem;">
                 <a href={event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn">
-                  Event Details & Tickets
+                  Event Details
                 </a>
               </div>
             )}
           </div>
+          
+          {trailerId && (
+            <div class="hero-trailer animate-on-scroll" style="animation-delay: 0.2s;">
+              <div class="trailer-wrapper">
+                <iframe 
+                  src={`https://www.youtube.com/embed/${trailerId}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&controls=0&showinfo=0&rel=0&modestbranding=1`} 
+                  frameborder="0" 
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                  allowfullscreen
+                ></iframe>
+              </div>
+            </div>
+          )}
+          
         </div>
       </div>
     </section>
@@ -194,6 +216,40 @@ const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
     align-items: flex-end;
     padding-bottom: 4rem;
   }
+  
+  .hero-grid-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    align-items: center;
+    width: 100%;
+  }
+  @media (min-width: 900px) {
+    .hero-grid-container:has(.hero-trailer) {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  
+  .hero-trailer {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.1);
+    aspect-ratio: 16/9;
+  }
+  .trailer-wrapper {
+    width: 100%;
+    height: 100%;
+  }
+  .trailer-wrapper iframe {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
   .hero-logo {
     max-height: 100px;
     margin-bottom: 1.5rem;
