@@ -86,6 +86,18 @@ function getYoutubeId(url) {
   return match ? match[1] : null;
 }
 const trailerId = getYoutubeId(trailerUrl);
+
+// Extract a short tagline from the description for the hero banner
+let heroTagline = '';
+if (event.tagline) {
+  heroTagline = event.tagline;
+} else if (event.description) {
+  const parts = event.description.split('.');
+  heroTagline = parts[0] + (parts.length > 1 ? '.' : '');
+  if (heroTagline.length > 150) {
+    heroTagline = heroTagline.substring(0, 147) + '...';
+  }
+}
 ---
 
 <Layout title={`${event.title}`} description={`Complete coverage of ${event.title}`}>
@@ -104,6 +116,9 @@ const trailerId = getYoutubeId(trailerUrl);
               <span class="event-dates">{formatDateRange(event.startDate, event.endDate)}</span>
               {event.location && <span class="event-location"> • {event.location}</span>}
             </p>
+            {heroTagline && (
+              <p class="hero-tagline">{heroTagline}</p>
+            )}
           </div>
           
           {trailerId && (
@@ -407,6 +422,19 @@ const trailerId = getYoutubeId(trailerUrl);
     text-transform: uppercase;
     letter-spacing: 0.12em;
   }
+  .event-dates, .event-location {
+    display: inline-block;
+  }
+
+  .hero-tagline {
+    font-size: 1.1rem;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.5;
+    max-width: 600px;
+    margin-top: 1.5rem;
+    font-weight: 400;
+  }
+
   .hero-rsvp-btn {
     display: inline-block;
     background: transparent;
