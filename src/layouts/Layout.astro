@@ -12,9 +12,14 @@ const {
   title = site.name,
   description = site.description,
   image = site.image,
-  url = new URL(Astro.url.pathname, site.url).toString(),
   type = 'website',
 } = Astro.props;
+
+// Self-referential canonical URL: absolute, no trailing slash (except the
+// site root). og:url reuses the same value so search engines never see a
+// page advertise two different addresses for itself.
+const canonicalPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
+const url = Astro.props.url ?? new URL(canonicalPath, site.url).toString();
 
 const gtmId = import.meta.env.PUBLIC_GTM_ID;
 ---
@@ -61,6 +66,7 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
     />
     <meta name="theme-color" content="#000000" />
     <meta name="description" content={description} />
+    <link rel="canonical" href={url} />
     <link rel="icon" type="image/svg+xml" href={`/favicon.svg`} />
     <link rel="icon" type="image/x-icon" href={`/favicon.ico`} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
