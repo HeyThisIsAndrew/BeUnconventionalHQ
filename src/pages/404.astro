@@ -16,7 +16,7 @@ const description =
       <PageTitle as="h1" kicker="Off The Map" primary="Page" secondary="Not Found" />
       <p class="notfound-text">
         This one went off-script. The page you're after moved, vanished, or
-        never existed &mdash; but the good stuff is still one click away.
+        never existed, but the good stuff is still one click away.
       </p>
       <div class="notfound-actions">
         <Button href="/">Back to Home</Button>
@@ -62,25 +62,42 @@ const description =
 
   .notfound-actions {
     display: flex;
-    gap: 1.5rem;
+    flex-direction: column;
+    gap: 1.75rem;
     align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
   }
 
   .notfound-link {
+    position: relative;
     color: var(--color-white);
     text-decoration: none;
     font-size: 0.8rem;
     font-weight: 600;
     letter-spacing: 0.15em;
     text-transform: uppercase;
-    border-bottom: 1px solid var(--color-accent);
-    padding-bottom: 2px;
-    transition: color 0.3s ease;
+    padding-bottom: 4px;
+    transition:
+      color 0.3s ease,
+      text-shadow 0.3s ease;
+  }
+
+  .notfound-link::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 0;
+    height: 1px;
+    background: var(--color-accent);
+    transition: width 0.35s cubic-bezier(0.25, 0.8, 0.2, 1);
   }
 
   .notfound-link:hover {
     color: var(--color-accent);
+    text-shadow: 0 0 16px rgba(204, 0, 0, 0.5);
+  }
+
+  .notfound-link:hover::after {
+    width: 100%;
   }
 </style>
