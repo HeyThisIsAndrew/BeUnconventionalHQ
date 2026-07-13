@@ -36,6 +36,14 @@ export const eventType = {
       type: 'string',
     },
     {
+      name: 'description',
+      title: 'Short Description',
+      description:
+        'A brief blurb shown beneath the hero. Long text collapses behind a "Read more" toggle.',
+      type: 'text',
+      rows: 4,
+    },
+    {
       name: 'logo',
       title: 'Event Logo',
       type: 'image',

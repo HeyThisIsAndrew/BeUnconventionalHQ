@@ -91,7 +91,7 @@ const trailerId = getYoutubeId(trailerUrl);
     <section class="event-hero" style={heroUrl ? `background-image: url('${heroUrl}');` : `background: ${fallbackGradient};`}>
       <div class="event-hero-overlay">
         <div class="container hero-grid-container">
-          <div class="event-hero-content animate-on-scroll">
+          <div class="event-hero-content hero-copy animate-on-scroll">
             {event.logo && (
               <img src={urlFor(event.logo).height(240).url()} alt={`${event.title} logo`} class="hero-logo" />
             )}
@@ -100,13 +100,6 @@ const trailerId = getYoutubeId(trailerUrl);
               <span class="event-dates">{formatDateRange(event.startDate, event.endDate)}</span>
               {event.location && <span class="event-location"> • {event.location}</span>}
             </p>
-            {event.signUpLink && (
-              <div style="margin-top: 1.5rem;">
-                <a href={event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn">
-                  Event Details
-                </a>
-              </div>
-            )}
           </div>
           
           {trailerId && (
@@ -143,10 +136,28 @@ const trailerId = getYoutubeId(trailerUrl);
               </div>
             </div>
           )}
-          
+
+          {/* Placed after the trailer in the DOM so mobile stacks copy →
+              trailer → button; grid-areas restore the desktop layout. */}
+          {event.signUpLink && (
+            <div class="hero-cta">
+              <a href={event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn">
+                Event Details
+              </a>
+            </div>
+          )}
         </div>
       </div>
     </section>
+
+    {event.description && (
+      <div class="container event-about animate-on-scroll">
+        <p class="event-about-text" id="event-about-text">{event.description}</p>
+        <button class="event-about-toggle" id="event-about-toggle" aria-expanded="false" hidden>
+          Read more
+        </button>
+      </div>
+    )}
 
     <div class="container content-container">
       {unifiedContent.length > 0 ? (
@@ -239,12 +250,18 @@ const trailerId = getYoutubeId(trailerUrl);
       rgba(0, 0, 0, 0.55) 55%,
       rgba(0, 0, 0, 0.35) 100%
     );
+    /* Subtle blur of the background image behind the overlay (content is a child,
+       so it stays sharp) — softens the busy hero art for title legibility. */
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
     display: flex;
     align-items: flex-end;
     padding-top: clamp(6rem, 4.5rem + 6vw, 8.5rem);
     padding-bottom: clamp(2.5rem, 2rem + 2.5vw, 4rem);
   }
 
+  /* Mobile: single column. Source order is copy → trailer → button, so the
+     trailer sits above the Event Details button. */
   .hero-grid-container {
     display: grid;
     grid-template-columns: 1fr;
@@ -252,9 +269,31 @@ const trailerId = getYoutubeId(trailerUrl);
     align-items: center;
     width: 100%;
   }
+  .hero-cta {
+    text-align: center;
+  }
+
+  /* Desktop: two columns. grid-areas keep copy + button stacked on the left
+     with the trailer spanning both rows on the right. */
   @media (min-width: 900px) {
     .hero-grid-container:has(.hero-trailer) {
       grid-template-columns: 1fr 1fr;
+      grid-template-areas:
+        'copy trailer'
+        'cta trailer';
+    }
+    .hero-grid-container:has(.hero-trailer) .hero-copy {
+      grid-area: copy;
+    }
+    .hero-grid-container:has(.hero-trailer) .hero-trailer {
+      grid-area: trailer;
+    }
+    .hero-grid-container:has(.hero-trailer) .hero-cta {
+      grid-area: cta;
+      align-self: start;
+    }
+    .hero-cta {
+      text-align: left;
     }
   }
 
@@ -343,7 +382,9 @@ const trailerId = getYoutubeId(trailerUrl);
     height: auto;
     object-fit: contain;
     margin-bottom: 1.5rem;
-    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.6));
+    /* Subtle two-step drop shadow so the logo lifts off the busy background. */
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.55))
+      drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
   }
   .hero-title {
     /* Match the global brand lockup (see .word-unconventional): display font,
@@ -568,6 +609,41 @@ const trailerId = getYoutubeId(trailerUrl);
     color: #a0a0a0;
     font-size: 1.2rem;
   }
+
+  /* Expandable event blurb below the hero. Collapsed to 3 lines; the toggle is
+     revealed by JS only when the text actually overflows. */
+  .event-about {
+    max-width: 820px;
+    padding-top: 3.5rem;
+  }
+  .event-about-text {
+    color: #cfcfcf;
+    font-size: 1.05rem;
+    line-height: 1.7;
+    white-space: pre-line;
+    margin: 0;
+  }
+  .event-about-text:not(.is-expanded) {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .event-about-toggle {
+    margin-top: 0.75rem;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--color-accent, #cc0000);
+    font-weight: 700;
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .event-about-toggle:hover {
+    text-decoration: underline;
+  }
 </style>
 
 <script>
@@ -642,4 +718,31 @@ const trailerId = getYoutubeId(trailerUrl);
   }
 
   document.addEventListener('astro:page-load', initTrailerSound);
+</script>
+
+<script>
+  // Show the "Read more" toggle only when the blurb actually overflows its
+  // 3-line clamp; otherwise the short description just displays in full.
+  function initEventAbout() {
+    const text = document.getElementById('event-about-text');
+    const toggle = document.getElementById('event-about-toggle');
+    if (!text || !toggle) return;
+
+    const overflowing = text.scrollHeight > text.clientHeight + 2;
+    if (!overflowing) {
+      toggle.hidden = true;
+      return;
+    }
+    toggle.hidden = false;
+    if (toggle.dataset.bound === 'true') return;
+    toggle.dataset.bound = 'true';
+
+    toggle.addEventListener('click', () => {
+      const expanded = text.classList.toggle('is-expanded');
+      toggle.setAttribute('aria-expanded', String(expanded));
+      toggle.textContent = expanded ? 'Read less' : 'Read more';
+    });
+  }
+
+  document.addEventListener('astro:page-load', initEventAbout);
 </script>
