@@ -202,20 +202,27 @@ const trailerId = getYoutubeId(trailerUrl);
   /* Hero */
   .event-hero {
     position: relative;
-    min-height: 60vh;
     background-size: cover;
     background-position: center;
     background-color: #111;
   }
+  /* In normal flow (not absolute) so the banner GROWS with its content instead
+     of overflowing upward under the fixed navbar. padding-top clears the navbar
+     so the logo is never clipped. */
   .hero-overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.4) 100%);
+    min-height: 62vh;
+    background: linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.97) 0%,
+      rgba(0, 0, 0, 0.55) 55%,
+      rgba(0, 0, 0, 0.35) 100%
+    );
     display: flex;
     align-items: flex-end;
-    padding-bottom: 4rem;
+    padding-top: clamp(6rem, 4.5rem + 6vw, 8.5rem);
+    padding-bottom: clamp(2.5rem, 2rem + 2.5vw, 4rem);
   }
-  
+
   .hero-grid-container {
     display: grid;
     grid-template-columns: 1fr;
@@ -227,6 +234,13 @@ const trailerId = getYoutubeId(trailerUrl);
     .hero-grid-container:has(.hero-trailer) {
       grid-template-columns: 1fr 1fr;
     }
+  }
+
+  .hero-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    max-width: 900px;
   }
   
   .hero-trailer {
@@ -250,15 +264,22 @@ const trailerId = getYoutubeId(trailerUrl);
   }
   
   .hero-logo {
-    max-height: 200px;
+    /* Responsive + width-capped so wide logos (e.g. Comic-Con) never overflow
+       the column or force the banner taller than the viewport on mobile. */
+    max-height: clamp(84px, 46px + 12vw, 180px);
+    max-width: min(100%, 420px);
+    width: auto;
+    height: auto;
+    object-fit: contain;
     margin-bottom: 1.5rem;
-    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.6));
   }
   .hero-title {
     /* Match the global brand lockup (see .word-unconventional): display font,
-       heavy weight, tight tracking, uppercase — instead of the browser default. */
+       heavy weight, tight tracking, uppercase. Sized down from the previous
+       clamp so it no longer pushes the logo off the top of the banner. */
     font-family: var(--font-display, 'Syne Variable', sans-serif);
-    font-size: clamp(2.25rem, calc(1.25rem + 4vw), 4.5rem);
+    font-size: clamp(1.9rem, calc(1.1rem + 3vw), 3.75rem);
     font-weight: 800;
     letter-spacing: -0.04em;
     line-height: 0.95;
@@ -268,10 +289,10 @@ const trailerId = getYoutubeId(trailerUrl);
     margin: 0 0 1rem 0;
   }
   .hero-meta {
-    font-size: 1.25rem;
+    font-size: clamp(0.9rem, 0.8rem + 0.6vw, 1.25rem);
     color: #ccc;
     text-transform: uppercase;
-    letter-spacing: 2px;
+    letter-spacing: 0.12em;
   }
   .hero-rsvp-btn {
     display: inline-block;
@@ -290,7 +311,16 @@ const trailerId = getYoutubeId(trailerUrl);
     background: var(--color-accent, #cc0000);
     color: white;
   }
-  
+
+  /* Mobile: single column with no trailer — centre the lockup for balance.
+     align-items centres the logo (a flex item); text-align centres the copy. */
+  @media (max-width: 899px) {
+    .hero-content {
+      align-items: center;
+      text-align: center;
+    }
+  }
+
   /* Content */
   .content-container {
     padding: 4rem 2rem;
