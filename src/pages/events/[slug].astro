@@ -129,7 +129,7 @@ const trailerId = getYoutubeId(trailerUrl);
               <div class="trailer-wrapper">
                 <iframe
                   id="hero-trailer-iframe"
-                  src={`https://www.youtube.com/embed/${trailerId}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`}
+                  src={`https://www.youtube.com/embed/${trailerId}?mute=1&loop=1&playlist=${trailerId}&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`}
                   frameborder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowfullscreen
@@ -540,8 +540,10 @@ const trailerId = getYoutubeId(trailerUrl);
     transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     max-height: 800px; /* Expanded state */
   }
-  .hero-description-text:not(.is-expanded) {
+  .hero-description-text:not(.is-expanded):not(.is-closing) {
     -webkit-line-clamp: 2;
+  }
+  .hero-description-text:not(.is-expanded) {
     max-height: 3.3rem; /* Roughly 2 lines */
     text-overflow: ellipsis;
   }
@@ -584,12 +586,14 @@ const trailerId = getYoutubeId(trailerUrl);
      align-items centres the logo (a flex item); text-align centres the copy. */
   @media (max-width: 899px) {
     .event-hero-content {
-      align-items: center;
-      text-align: center;
+      align-items: flex-start;
+      text-align: left;
     }
     
-    .hero-description-text:not(.is-expanded) {
+    .hero-description-text:not(.is-expanded):not(.is-closing) {
       -webkit-line-clamp: 1; /* 1 line on mobile */
+    }
+    .hero-description-text:not(.is-expanded) {
       max-height: 1.5rem; /* Roughly 1 line */
       margin-top: 1rem;
       font-size: 1rem;
@@ -840,17 +844,22 @@ const trailerId = getYoutubeId(trailerUrl);
       soundBtn.setAttribute('aria-label', m ? 'Unmute trailer' : 'Mute trailer');
     };
 
-    // Poster tap → guaranteed playback with audio (fires inside the gesture).
-    const poster = document.getElementById('trailer-poster');
-    if (poster && poster.dataset.bound !== 'true') {
-      poster.dataset.bound = 'true';
-      poster.addEventListener('click', () => {
-        command('playVideo');
-        command('unMute');
-        command('setVolume', [100]);
-        setMuted(false);
-        poster.classList.add('is-hidden');
-      });
+    const isDesktop = window.matchMedia('(min-width: 900px)').matches;
+    if (isDesktop) {
+      if (poster) poster.classList.add('is-hidden');
+      command('playVideo');
+      iframe.addEventListener('load', () => command('playVideo'));
+    } else {
+      if (poster && poster.dataset.bound !== 'true') {
+        poster.dataset.bound = 'true';
+        poster.addEventListener('click', () => {
+          command('playVideo');
+          command('unMute');
+          command('setVolume', [100]);
+          setMuted(false);
+          poster.classList.add('is-hidden');
+        });
+      }
     }
 
     // Sound toggle for after playback has started.
@@ -891,9 +900,25 @@ const trailerId = getYoutubeId(trailerUrl);
     toggle.dataset.bound = 'true';
 
     toggle.addEventListener('click', () => {
-      const expanded = text.classList.toggle('is-expanded');
-      toggle.setAttribute('aria-expanded', String(expanded));
-      toggle.textContent = expanded ? 'Read less' : 'Read more';
+      const isExpanding = !text.classList.contains('is-expanded');
+      
+      if (isExpanding) {
+        text.classList.remove('is-closing');
+        text.classList.add('is-expanded');
+        toggle.setAttribute('aria-expanded', 'true');
+        toggle.textContent = 'Read less';
+      } else {
+        // Remove expanded state to trigger max-height transition
+        text.classList.add('is-closing');
+        text.classList.remove('is-expanded');
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.textContent = 'Read more';
+        
+        // Wait for max-height transition to finish before clamping lines instantly
+        setTimeout(() => {
+          text.classList.remove('is-closing');
+        }, 500); 
+      }
     });
   }
 
