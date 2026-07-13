@@ -13,9 +13,8 @@ const topEvents = events.slice(0, 3);
 ---
 
 <div class="mini-calendar-wrapper animate-on-scroll">
-  {/* No "Calendar" label — the widget speaks for itself. Just the formatted
-      month/year, pinned top-right. */}
   <div class="mini-cal-topbar">
+    <span class="mini-cal-kicker">CALENDAR</span>
     <span class="mini-cal-period">{periodLabel}</span>
   </div>
 
@@ -51,28 +50,34 @@ const topEvents = events.slice(0, 3);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     padding: 1.5rem;
-    /* Follows the page as you scroll the timeline, then releases at the bottom
-       of its column. top offset clears the fixed navbar (~1.25rem padding). */
-    position: sticky;
-    top: 100px;
+    /* Explicitly un-sticking based on user UX feedback */
+    position: static !important;
   }
 
-  /* Month/year pinned top-right with an accent underline for weight. */
   .mini-cal-topbar {
     display: flex;
-    justify-content: flex-end;
-    margin-bottom: 1.75rem;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .mini-cal-kicker {
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    color: var(--color-accent, #cc0000);
+    text-transform: uppercase;
+    margin-bottom: 0.2rem;
   }
 
   .mini-cal-period {
-    font-family: var(--font-display, 'Syne Variable', sans-serif);
-    font-size: 0.8rem;
+    font-size: 1.25rem;
     font-weight: 700;
-    letter-spacing: 0.18em;
     text-transform: uppercase;
+    letter-spacing: 0.05em;
     color: var(--color-white, #f0f0f0);
-    padding-bottom: 0.4rem;
-    border-bottom: 2px solid var(--color-accent, #cc0000);
   }
 
   .calendar-events-list {
