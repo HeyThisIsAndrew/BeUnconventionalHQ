@@ -3,7 +3,7 @@ export const site = {
   short: 'Unconventional HQ',
   tagline: 'Where nerd culture gets cinematic',
   description:
-    'A cinematic creator hub for film, TV, gaming, and live events — reviews, reactions, and deep dives from Be Unconventional HQ.',
+    'A cinematic creator hub for film, TV, gaming, and live events: reviews, reactions, and deep dives from Be Unconventional HQ.',
   url: 'https://beunconventionalhq.com/',
   image: 'https://beunconventionalhq.com/banner.jpg',
   ga4: 'G-CF16HJW04T',
