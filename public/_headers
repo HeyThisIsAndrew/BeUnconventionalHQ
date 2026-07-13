@@ -1,0 +1,18 @@
+# Cloudflare Pages reads this file and applies these HTTP response headers.
+# https://developers.cloudflare.com/pages/configuration/headers/
+#
+# These are conservative, non-breaking security headers. The stronger
+# Content-Security-Policy header is intentionally omitted here and handled
+# separately (report-only first) so it cannot break scripts/embeds.
+
+/*
+  # Stop browsers from MIME-sniffing a response away from its declared type.
+  X-Content-Type-Options: nosniff
+  # Send origin only on cross-site navigations; full URL stays same-origin.
+  Referrer-Policy: strict-origin-when-cross-origin
+  # Prevent other sites from framing our pages (clickjacking protection).
+  X-Frame-Options: SAMEORIGIN
+  # Disable powerful browser features the site does not use.
+  Permissions-Policy: geolocation=(), camera=(), microphone=()
+  # Force HTTPS. Start low (1 day) and ramp up once confirmed stable.
+  Strict-Transport-Security: max-age=86400
