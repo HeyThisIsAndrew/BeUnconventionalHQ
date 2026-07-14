@@ -22,27 +22,40 @@ import { site } from '../data/site.js';
 </section>
 
 <script define:vars={{ bannerUrl: `/banner.jpg` }}>
-  const hero = document.querySelector('.hero');
-  const heroBackground = document.querySelector('.hero-bg');
+  // Keep track of the current listener so we can remove it on page exit
+  let currentScrollListener = null;
 
-  if (heroBackground && hero) {
-    heroBackground.style.backgroundImage = `url('${bannerUrl}')`;
+  document.addEventListener('astro:page-load', () => {
+    const hero = document.querySelector('.hero');
+    const heroBackground = document.querySelector('.hero-bg');
 
-    const updateHeroCompression = () => {
-      const scrollY = window.scrollY;
+    if (heroBackground && hero) {
+      heroBackground.style.backgroundImage = `url('${bannerUrl}')`;
 
-      // Parallax effect: Smoother movement using a capped transform
-      // We limit to prevent excessive movement on high scroll speeds
-      const parallaxValue = Math.min(scrollY * 0.4, 150);
-      heroBackground.style.setProperty('--hero-parallax', `${parallaxValue}px`);
+      const updateHeroCompression = () => {
+        const scrollY = window.scrollY;
+        const parallaxValue = Math.min(scrollY * 0.4, 150);
+        heroBackground.style.setProperty('--hero-parallax', `${parallaxValue}px`);
+        const progress = Math.min(scrollY / 400, 1);
+        hero.style.setProperty('--hero-compress-progress', progress.toFixed(3));
+      };
 
-      // Compression progress (0 to 1 over first 400px)
-      const compressZone = 400;
-      const progress = Math.min(scrollY / compressZone, 1);
-      hero.style.setProperty('--hero-compress-progress', progress.toFixed(3));
-    };
+      updateHeroCompression();
+      
+      // Clean up previous listener if it exists (safety)
+      if (currentScrollListener) {
+        window.removeEventListener('scroll', currentScrollListener);
+      }
+      currentScrollListener = updateHeroCompression;
+      window.addEventListener('scroll', currentScrollListener, { passive: true });
+    }
+  });
 
-    updateHeroCompression();
-    window.addEventListener('scroll', updateHeroCompression, { passive: true });
-  }
+  // Remove the listener when navigating away so it doesn't leak
+  document.addEventListener('astro:before-preparation', () => {
+    if (currentScrollListener) {
+      window.removeEventListener('scroll', currentScrollListener);
+      currentScrollListener = null;
+    }
+  });
 </script>
