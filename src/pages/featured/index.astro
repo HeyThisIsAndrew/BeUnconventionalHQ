@@ -3,21 +3,32 @@ import Layout from '../../layouts/Layout.astro';
 import PageTitle from '../../components/PageTitle.astro';
 import EventBookingCTA from '../../components/EventBookingCTA.astro';
 import { site } from '../../data/site.js';
-import { getArticles, getVideos } from '../../data/feeds.js';
 
 const title = `Featured | ${site.name}`;
 const description =
   'Deep dives and dedicated coverage hubs for our favorite brands and topics.';
 
-const articles = await getArticles();
-const videos = await getVideos();
-
-const eventItems = [
-  ...articles.map((a) => ({ ...a, type: 'article' })),
-  ...videos.map((v) => ({ ...v, type: 'video', image: v.thumbnail })),
-]
-  .filter((item) => item.category === 'Events')
-  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+// Placeholder for future CMS integration
+const featuredHubs = [
+  {
+    title: 'Marvel Studios',
+    category: 'Marvel',
+    image: 'https://images.unsplash.com/photo-1608889175123-8ee362201f81?q=80&w=800&auto=format&fit=crop', // Temporary placeholder
+    link: '#',
+  },
+  {
+    title: 'Apple TV+ Originals',
+    category: 'Apple TV',
+    image: 'https://images.unsplash.com/photo-1627843563095-f6e94676cfe0?q=80&w=800&auto=format&fit=crop', // Temporary placeholder
+    link: '#',
+  },
+  {
+    title: 'Netflix Exclusives',
+    category: 'Netflix',
+    image: 'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?q=80&w=800&auto=format&fit=crop', // Temporary placeholder
+    link: '#',
+  },
+];
 ---
 
 <Layout title={title} description={description}>
@@ -25,36 +36,21 @@ const eventItems = [
     <div class="container">
       <header class="section-header animate-on-scroll" data-nav-anchor>
         <PageTitle as="h1" kicker="Spotlight" primary="Featured" secondary="Hubs" />
+        <p class="featured-tagline">
+          Explore our deepest coverage, dedicated to the brands and stories that shape nerd culture.
+        </p>
       </header>
 
       <div class="event-grid">
         {
-          eventItems.length > 0 ? (
-            eventItems.map((item, index) => {
-              const isVideo = item.type === 'video';
-              const videoId = isVideo
-                ? item.link.includes('shorts')
-                  ? item.link.split('/').pop()
-                  : new URL(item.link).searchParams.get('v')
-                : null;
-
-              const CardWrapper = isVideo ? 'div' : 'a';
-              const wrapperProps = isVideo
-                ? {
-                    class: 'event-card animate-on-scroll video-modal-trigger',
-                    'data-video-id': videoId,
-                    style: `--index: ${index}; cursor: pointer;`,
-                  }
-                : {
-                    href: item.link,
-                    target: '_blank',
-                    rel: 'noopener noreferrer',
-                    class: 'event-card animate-on-scroll',
-                    style: `--index: ${index};`,
-                  };
-
+          featuredHubs.length > 0 ? (
+            featuredHubs.map((item, index) => {
               return (
-                <CardWrapper {...wrapperProps}>
+                <a
+                  href={item.link}
+                  class="event-card animate-on-scroll"
+                  style={`--index: ${index};`}
+                >
                   <div class="event-image-wrapper">
                     <img
                       src={item.image}
@@ -66,10 +62,9 @@ const eventItems = [
                     <div class="event-overlay">
                       <span class="event-tag">{item.category}</span>
                       <h3 class="event-title line-clamp-2">{item.title}</h3>
-                      <span class="event-date">{item.date}</span>
                     </div>
                   </div>
-                </CardWrapper>
+                </a>
               );
             })
           ) : (
@@ -77,7 +72,7 @@ const eventItems = [
               class="empty-state animate-on-scroll"
               style="grid-column: 1 / -1; text-align: center; padding: 4rem 0; opacity: 0.6;"
             >
-              <p>Check back soon for live coverage and event highlights.</p>
+              <p>Check back soon for dedicated coverage hubs.</p>
             </div>
           )
         }
@@ -94,5 +89,14 @@ const eventItems = [
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 2rem;
+  }
+  
+  .featured-tagline {
+    color: var(--color-gray, #a0a0a0);
+    font-size: clamp(1rem, calc(0.875rem + 0.6vw), 1.25rem);
+    text-align: center;
+    max-width: 700px;
+    margin: 2rem auto 4rem;
+    line-height: 1.6;
   }
 </style>
