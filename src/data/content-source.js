@@ -169,7 +169,7 @@ async function fetchVideosFromRss() {
     return {
       title,
       link: actualLink,
-      thumbnail: `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
+      thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
       category: categorize(title),
       date: formatDate(entry.published),
     };
@@ -199,7 +199,7 @@ async function fetchVideosFromPage() {
         videos.push({
           title: cleanText(title),
           link: `https://www.youtube.com/watch?v=${id}`,
-          thumbnail: `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
+          thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
           category: categorize(title),
           date: '',
         });

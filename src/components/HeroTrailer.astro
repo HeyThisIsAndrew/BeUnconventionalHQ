@@ -1,0 +1,341 @@
+---
+export interface Props {
+  trailerId: string;
+  title: string;
+  trailerPoster?: { url: string; kind: 'sanity' | 'youtube' } | null;
+}
+const { trailerId, title, trailerPoster } = Astro.props;
+---
+<div class="trailer-wrapper" id="trailer-wrapper">
+  <div id="youtube-container" data-trailer-id={trailerId} data-title={title}></div>
+  
+  <button type="button" class="trailer-poster-overlay" id="trailer-poster" aria-label={`Play ${title} trailer`}>
+    {trailerPoster && (
+      <span
+        class="trailer-poster-img"
+        data-kind={trailerPoster.kind}
+        style={`background-image: url('${trailerPoster.url}');`}
+      ></span>
+    )}
+    <span class="trailer-play-btn" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M8 5v14l11-7z" />
+      </svg>
+    </span>
+  </button>
+
+  <button
+    type="button"
+    class="trailer-sound-toggle is-muted"
+    id="trailer-sound-toggle"
+    aria-label="Unmute trailer"
+    aria-pressed="false"
+  >
+    <svg class="icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M11 5 6 9H2v6h4l5 4z" />
+      <line x1="22" y1="9" x2="16" y2="15" />
+      <line x1="16" y1="9" x2="22" y2="15" />
+    </svg>
+    <svg class="icon-unmuted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M11 5 6 9H2v6h4l5 4z" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </svg>
+  </button>
+</div>
+
+<style>
+  .trailer-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #000;
+  }
+  #youtube-container {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .trailer-wrapper iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .trailer-sound-toggle {
+    position: absolute;
+    bottom: 0.85rem;
+    right: 0.85rem;
+    z-index: 3;
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(0, 0, 0, 0.55);
+    color: white;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    transition: background 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .trailer-sound-toggle:hover {
+    background: rgba(0, 0, 0, 0.8);
+    transform: scale(1.05);
+  }
+  .trailer-sound-toggle:active {
+    transform: scale(0.95);
+  }
+  .trailer-sound-toggle svg {
+    width: 20px;
+    height: 20px;
+  }
+  .trailer-sound-toggle.is-muted .icon-unmuted {
+    display: none;
+  }
+  .trailer-sound-toggle.is-unmuted .icon-muted {
+    display: none;
+  }
+  .trailer-poster-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    width: 100%;
+    height: 100%;
+    display: block;
+    border: none;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+    transition: opacity 0.4s ease;
+  }
+  .trailer-poster-overlay.is-hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .trailer-poster-img {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    transition: transform 10s ease-out;
+  }
+  .trailer-poster-img[data-kind="youtube"] {
+    background-size: 105%;
+  }
+  .trailer-wrapper:hover .trailer-poster-img {
+    transform: scale(1.05);
+  }
+  .trailer-play-btn {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 68px;
+    height: 48px;
+    background-color: rgba(33, 33, 33, 0.8);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    transition: background-color 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .trailer-poster-overlay:hover .trailer-play-btn {
+    background-color: #ff0000;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+  .trailer-poster-overlay:active .trailer-play-btn {
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+  .trailer-play-btn svg {
+    width: 32px;
+    height: 32px;
+  }
+  
+  /* Desktop only: Show custom UI */
+  @media (min-width: 900px) {
+    .trailer-poster-overlay { display: block; }
+    .trailer-sound-toggle { display: inline-flex; }
+  }
+  /* Mobile only: Hide custom UI completely */
+  @media (max-width: 899px) {
+    .trailer-poster-overlay { display: none !important; }
+    .trailer-sound-toggle { display: none !important; }
+  }
+</style>
+
+<script>
+  function initHeroTrailer() {
+    const container = document.getElementById('youtube-container');
+    if (!container) return;
+    
+    const trailerId = container.dataset.trailerId;
+    const title = container.dataset.title;
+    if (!trailerId) return;
+
+    let iframe = null;
+    let posterHidden = false;
+    let ready = false;
+    let muted = true;
+    let pendingPlayback = false;
+    let currentMessageListener = null;
+    let currentMode = null; 
+
+    const poster = document.getElementById('trailer-poster');
+    const soundBtn = document.getElementById('trailer-sound-toggle');
+
+    const hidePoster = () => {
+      if (posterHidden || !poster) return;
+      posterHidden = true;
+      poster.classList.add('is-hidden');
+    };
+    
+    const setMuted = (m) => {
+      muted = m;
+      if (!soundBtn) return;
+      soundBtn.classList.toggle('is-muted', m);
+      soundBtn.classList.toggle('is-unmuted', !m);
+      soundBtn.setAttribute('aria-pressed', String(!m));
+      soundBtn.setAttribute('aria-label', m ? 'Unmute trailer' : 'Mute trailer');
+    };
+
+    function setupIframe(mode) {
+      if (currentMode === mode) return; 
+      currentMode = mode;
+      
+      if (iframe) iframe.remove();
+      if (currentMessageListener) {
+        window.removeEventListener('message', currentMessageListener);
+        currentMessageListener = null;
+      }
+      
+      posterHidden = false;
+      if (poster) poster.classList.remove('is-hidden');
+      ready = false;
+      pendingPlayback = false;
+
+      iframe = document.createElement('iframe');
+      iframe.id = 'hero-trailer-iframe';
+      iframe.frameBorder = '0';
+      iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+      iframe.allowFullscreen = true;
+      iframe.title = title;
+      iframe.style.position = 'absolute';
+      iframe.style.inset = '0';
+      iframe.style.width = '100%';
+      iframe.style.height = '100%';
+
+      if (mode === 'desktop') {
+        iframe.src = `https://www.youtube.com/embed/${trailerId}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
+        container.appendChild(iframe);
+
+        const post = (payload) => iframe.contentWindow && iframe.contentWindow.postMessage(JSON.stringify(payload), 'https://www.youtube.com');
+        const command = (func, args = []) => post({ event: 'command', func, args });
+
+        const onMessage = (e) => {
+          if (!iframe || !iframe.contentWindow || e.source !== iframe.contentWindow) return;
+          let data;
+          try { data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch { return; }
+          if (!data) return;
+
+          if ((data.event === 'onReady' || data.event === 'initialDelivery') && !ready) {
+            ready = true;
+            if (pendingPlayback) {
+              command('playVideo');
+              command('unMute');
+            }
+          }
+
+          const state = data.info && typeof data.info.playerState === 'number' ? data.info.playerState : data.event === 'onStateChange' && typeof data.info === 'number' ? data.info : undefined;
+          if (state === 1) hidePoster();
+
+          if (data.event === 'infoDelivery' && data.info && typeof data.info.muted === 'boolean') {
+            if (data.info.muted !== muted) setMuted(data.info.muted);
+          }
+        };
+
+        currentMessageListener = onMessage;
+        window.addEventListener('message', onMessage);
+        iframe.addEventListener('load', () => post({ event: 'listening', id: iframe.id, channel: 'widget' }));
+
+        if (poster) {
+          poster.onclick = () => {
+            pendingPlayback = true;
+            command('unMute');
+            command('playVideo');
+            setMuted(false);
+          };
+        }
+
+        if (soundBtn) {
+          soundBtn.onclick = () => {
+            if (muted) {
+              pendingPlayback = true;
+              command('unMute');
+              command('playVideo');
+              setMuted(false);
+            } else {
+              command('mute');
+              setMuted(true);
+            }
+          };
+        }
+      } else {
+        iframe.src = `https://www.youtube.com/embed/${trailerId}?autoplay=0&mute=0&loop=1&playlist=${trailerId}&controls=1&rel=0&modestbranding=1&playsinline=1`;
+        container.appendChild(iframe);
+        if (poster && !posterHidden) {
+          posterHidden = true;
+          poster.classList.add('is-hidden');
+        }
+      }
+    }
+    
+    // INITIAL SETUP
+    const mql = window.matchMedia('(min-width: 900px)');
+    setupIframe(mql.matches ? 'desktop' : 'mobile');
+
+    // RESIZE HANDLER (using matchMedia listener instead of window.resize for better perf/reliability)
+    const handleMediaChange = (e) => {
+      setupIframe(e.matches ? 'desktop' : 'mobile');
+    };
+    
+    mql.addEventListener('change', handleMediaChange);
+    
+    // Store cleanup function on container for SPA navigation cleanup
+    container.__heroTrailerCleanup = () => {
+      mql.removeEventListener('change', handleMediaChange);
+      if (currentMessageListener) {
+        window.removeEventListener('message', currentMessageListener);
+        currentMessageListener = null;
+      }
+      const oldIframe = container.querySelector('iframe');
+      if (oldIframe) oldIframe.remove();
+    };
+  }
+
+  // Initialize immediately on script load as fallback
+  // (in case astro:page-load was already fired before script loaded)
+  if (document.readyState === 'loading') {
+    // Document still loading, wait for DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', () => {
+      initHeroTrailer();
+    }, { once: true });
+  } else {
+    // Document already loaded, initialize now
+    initHeroTrailer();
+  }
+
+  // Also initialize on subsequent Astro navigations (astro:page-load fires on SPA nav)
+  document.addEventListener('astro:page-load', () => {
+    // Clean up previous instance if it exists
+    const container = document.getElementById('youtube-container');
+    if (container && container.__heroTrailerCleanup) {
+      container.__heroTrailerCleanup();
+    }
+    initHeroTrailer();
+  });
+</script>
