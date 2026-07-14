@@ -34,9 +34,7 @@ const displayVideos = await getVideos();
               data-type="video"
               data-category={(video.category || 'General').toLowerCase()}
               data-video-id={
-                video.link.includes('shorts')
-                  ? video.link.split('/').pop()
-                  : new URL(video.link).searchParams.get('v')
+                video.link.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([^&?]+)/)?.[1]
               }
               style={`--index: ${index}; cursor: pointer;`}
             >

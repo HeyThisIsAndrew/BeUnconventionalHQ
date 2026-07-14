@@ -27,6 +27,7 @@ for (let i = 1; i <= totalDays; i++) {
 }
 
 const currentMonthEvents = events.filter((event) => {
+  if (!event.startDate) return false;
   const start = new Date(event.startDate);
   const end = new Date(event.endDate || event.startDate);
 
@@ -80,6 +81,7 @@ const currentMonthEvents = events.filter((event) => {
       segments.push({
         row,
         colStart,
+        colEnd,
         span,
         color,
         slug,
@@ -94,6 +96,22 @@ const currentMonthEvents = events.filter((event) => {
     return segments;
   });
 
+  const segmentsPerRow: Record<number, any[]> = {};
+  calendarSegments.forEach(segment => {
+    if (!segmentsPerRow[segment.row]) segmentsPerRow[segment.row] = [];
+    
+    let overlapIndex = 0;
+    const rowSegments = segmentsPerRow[segment.row];
+    
+    while (rowSegments.some(s => s.overlapIndex === overlapIndex && 
+           !(segment.colEnd < s.colStart || segment.colStart > s.colEnd))) {
+      overlapIndex++;
+    }
+    
+    segment.overlapIndex = overlapIndex;
+    rowSegments.push(segment);
+  });
+
 ---
 
 <dialog id="spanning-calendar-modal" class="fade-in-overlay">
@@ -105,7 +123,7 @@ const currentMonthEvents = events.filter((event) => {
         primary={today.toLocaleString('en-US', { month: 'long' })} 
         secondary={today.getFullYear().toString()} 
       />
-      <button id="close-calendar-btn" class="close-btn">&times;</button>
+      <button id="close-calendar-btn" class="close-btn" aria-label="Close Calendar">&times;</button>
     </div>
     
     <div class="calendar-grid-wrapper">
@@ -130,7 +148,7 @@ const currentMonthEvents = events.filter((event) => {
                 'highlighter-bar',
                 { 'is-start': segment.isStart, 'is-end': segment.isEnd, 'is-continuation': segment.isContinuation, 'is-past': segment.isPast },
               ]}
-              style={`grid-row: ${segment.row}; grid-column: ${segment.colStart} / span ${segment.span}; --bar-color: ${segment.color};`}
+              style={`grid-row: ${segment.row}; grid-column: ${segment.colStart} / span ${segment.span}; --bar-color: ${segment.color}; --overlap-index: ${segment.overlapIndex};`}
             >
               {segment.isContinuation && <span class="bar-cont" aria-hidden="true">↳ </span>}
               <span class="bar-label">{segment.title}</span>
@@ -246,7 +264,7 @@ const currentMonthEvents = events.filter((event) => {
     font-weight: 700;
     text-transform: uppercase;
     text-decoration: none;
-    margin-top: 2.5rem; /* Push it down below the date number */
+    margin-top: calc(2.5rem + (var(--overlap-index, 0) * 30px)); /* Push down to avoid overlap */
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     z-index: 10;
     white-space: nowrap;
@@ -306,7 +324,7 @@ const currentMonthEvents = events.filter((event) => {
 
 <script>
   document.addEventListener('astro:page-load', () => {
-    const btn = document.getElementById('open-calendar-btn');
+    const btns = document.querySelectorAll('.open-full-calendar-btn');
     const modalElement = document.getElementById('spanning-calendar-modal');
     const modal = modalElement instanceof HTMLDialogElement ? modalElement : null;
     const closeBtn = document.getElementById('close-calendar-btn');
@@ -333,16 +351,18 @@ const currentMonthEvents = events.filter((event) => {
       modal.close();
     };
 
-    if (btn && modal) {
-      btn.addEventListener('click', () => {
-        if (document.body.style.position !== 'fixed') {
-          const scrollY = window.scrollY;
-          document.body.style.top = `-${scrollY}px`;
-          document.body.style.position = 'fixed';
-          document.body.style.width = '100%';
-          document.body.style.overflowY = 'scroll';
-        }
-        modal.showModal();
+    if (modal) {
+      btns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (document.body.style.position !== 'fixed') {
+            const scrollY = window.scrollY;
+            document.body.style.top = `-${scrollY}px`;
+            document.body.style.position = 'fixed';
+            document.body.style.width = '100%';
+            document.body.style.overflowY = 'scroll';
+          }
+          modal.showModal();
+        });
       });
     }
 
@@ -351,6 +371,8 @@ const currentMonthEvents = events.filter((event) => {
     }
 
     if (modal) {
+      document.addEventListener('astro:before-preparation', closeModal, { once: true });
+
       modal.addEventListener('click', (event) => {
         const rect = modal.getBoundingClientRect();
         if (

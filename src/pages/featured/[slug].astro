@@ -43,7 +43,7 @@ const allVideos = await getVideos();
 const allArticles = await getArticles();
 
 // 2. Filter Global Data against Sanity Event Tags
-const eventTags = event.tags || [];
+const eventTags = (event.tags || []).filter((t: any) => typeof t === 'string');
 
 const filteredVideos = allVideos.filter((v: any) => {
   // TEMPORARY TEST: Display all videos categorized as "Events" for SDCC 2026 
@@ -100,11 +100,8 @@ function formatDateRange(start: string, end?: string) {
 function getVideoId(link: string | undefined | null): string | null {
   if (!link || typeof link !== 'string') return null;
   try {
-    if (link.includes('shorts')) {
-      const id = link.split('/').filter(Boolean).pop();
-      return id || null;
-    }
-    return new URL(link).searchParams.get('v');
+    const match = link.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+    return match ? match[1] : null;
   } catch {
     return null;
   }

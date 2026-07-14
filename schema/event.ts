@@ -60,6 +60,10 @@ export const eventType = {
       title: 'Brand Color (Hex Code)',
       type: 'string',
       description: 'e.g. #FF0000',
+      validation: (Rule: any) => Rule.regex(/^#(?:[0-9a-fA-F]{3}){1,2}$/, {
+        name: 'hex color', // Error message is "Does not match hex color-pattern"
+        invert: false,
+      }),
     },
     {
       name: 'signUpLink',
@@ -85,7 +89,15 @@ export const eventType = {
       title: 'Related Substack Article URLs',
       description: 'Array of full Substack URLs',
       type: 'array',
-      of: [{ type: 'url' }],
+      of: [{ 
+        type: 'url',
+        validation: (Rule: any) => Rule.uri({
+          scheme: ['http', 'https']
+        }).custom((url: string) => {
+          if (typeof url === 'undefined') return true;
+          return url.includes('substack.com') ? true : 'URL must be a valid Substack link';
+        })
+      }],
       initialValue: [],
     },
     {
@@ -94,6 +106,9 @@ export const eventType = {
       description: 'Exact string tags to match against YouTube and Substack titles/descriptions (e.g., "#SDCC 2026").',
       type: 'array',
       of: [{ type: 'string' }],
+      options: {
+        layout: 'tags'
+      },
       initialValue: [],
     },
   ],

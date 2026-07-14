@@ -23,11 +23,19 @@ try {
 const today = new Date().toISOString();
 // Upcoming events: chronologically (earliest first)
 const upcomingEvents = allEvents
-  .filter(e => (e.endDate || e.startDate) >= today)
+  .filter(e => {
+    if (!e.startDate) return false;
+    const end = e.endDate ? e.endDate : e.startDate;
+    return end >= today;
+  })
   .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
 // Past events: reverse chronological (most recent first)
-const pastEvents = allEvents.filter(e => (e.endDate || e.startDate) < today);
+const pastEvents = allEvents.filter(e => {
+  if (!e.startDate) return false;
+  const end = e.endDate ? e.endDate : e.startDate;
+  return end < today;
+});
 ---
 
 <Layout title={title} description={description}>
@@ -41,6 +49,12 @@ const pastEvents = allEvents.filter(e => (e.endDate || e.startDate) < today);
           Our coverage roadmap for conventions, premieres, and industry events.
         </p>
       </header>
+
+      <div class="mobile-calendar-btn-container">
+        <button class="open-full-calendar-btn mobile-only-btn" id="open-calendar-btn-mobile">
+          View Full Calendar
+        </button>
+      </div>
       
       <div class="events-layout">
         <div class="events-timeline-col">
@@ -118,5 +132,38 @@ const pastEvents = allEvents.filter(e => (e.endDate || e.startDate) < today);
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 2rem;
     margin-top: 2rem;
+  }
+
+  .mobile-calendar-btn-container {
+    display: none;
+    margin: 1rem 0 3rem;
+    text-align: center;
+  }
+
+  .mobile-only-btn {
+    width: 100%;
+    max-width: 300px;
+    padding: 1rem;
+    background: transparent;
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  .mobile-only-btn:hover {
+    background: rgba(204, 0, 0, 0.1);
+    border-color: var(--color-accent, #cc0000);
+    color: var(--color-accent, #cc0000);
+  }
+
+  @media (max-width: 900px) {
+    .mobile-calendar-btn-container {
+      display: block;
+    }
   }
 </style>
