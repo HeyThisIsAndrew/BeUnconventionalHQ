@@ -1,0 +1,104 @@
+---
+import { sanityClient } from "sanity:client";
+import { createImageUrlBuilder } from "@sanity/image-url";
+
+const builder = createImageUrlBuilder(sanityClient);
+const urlFor = (source: any) => {
+  return builder.image(source);
+};
+
+const { brand, index = 0 } = Astro.props;
+function getYoutubeId(url) {
+  if (!url) return null;
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+  return match ? match[1] : null;
+}
+const trailerId = getYoutubeId(brand.trailerUrl);
+
+const heroUrl = brand.heroImage 
+  ? urlFor(brand.heroImage).width(800).height(450).url() 
+  : trailerId 
+    ? `https://img.youtube.com/vi/${trailerId}/hqdefault.jpg`
+    : '/placeholder-event.jpg';
+---
+
+<a href={`/featured/${brand.slug.current}`} class="featured-card animate-on-scroll" style={`--index: ${index};`}>
+  <div class="featured-image-wrapper">
+    <img
+      src={heroUrl}
+      alt={brand.title}
+      loading="lazy"
+      decoding="async"
+      class="featured-image"
+    />
+    <div class="featured-overlay" style={brand.brandColor ? `--hover-color: ${brand.brandColor};` : ''}>
+      <div class="featured-header">
+        {brand.logo && (
+          <img src={urlFor(brand.logo).height(50).url()} alt={`${brand.title} logo`} class="featured-card-logo" loading="lazy" />
+        )}
+      </div>
+      <div class="featured-footer">
+        <h3 class="featured-title line-clamp-2">{brand.title}</h3>
+        {brand.description && (
+          <span class="featured-description line-clamp-1">
+            {brand.description}
+          </span>
+        )}
+      </div>
+    </div>
+  </div>
+</a>
+
+<style>
+  .featured-card {
+    display: block;
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    text-decoration: none;
+    color: white;
+    background: #111;
+    aspect-ratio: 16/9;
+  }
+  .featured-image-wrapper {
+    width: 100%;
+    height: 100%;
+    position: relative;
+  }
+  .featured-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+  }
+  .featured-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.1) 100%);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: background 0.3s ease;
+  }
+  .featured-card:hover .featured-image {
+    transform: scale(1.05);
+  }
+  .featured-card:hover .featured-overlay {
+    background: linear-gradient(to top, var(--hover-color, rgba(0,0,0,0.9)) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.2) 100%);
+  }
+  .featured-card-logo {
+    max-height: 40px;
+    object-fit: contain;
+  }
+  .featured-title {
+    font-size: 1.5rem;
+    margin: 0 0 0.25rem 0;
+    font-family: 'Syne Variable', sans-serif;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  }
+  .featured-description {
+    font-size: 0.9rem;
+    opacity: 0.8;
+  }
+</style>

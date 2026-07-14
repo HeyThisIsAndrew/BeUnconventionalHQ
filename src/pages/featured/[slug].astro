@@ -1,0 +1,712 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { sanityClient } from "sanity:client";
+import { getVideos, getArticles } from '../../data/feeds.js';
+import HeroTrailer from '../../components/HeroTrailer.astro';
+
+export async function getStaticPaths() {
+  // Project image asset dimensions so we can reserve the logo's box and avoid CLS.
+  const query = `*[_type == "featuredBrand"]{
+    ...,
+    logo{ ..., "dimensions": asset->metadata.dimensions },
+    heroImage{ ..., "dimensions": asset->metadata.dimensions }
+  }`;
+  const brands = await sanityClient.fetch(query);
+  
+  return brands.map((brand: any) => ({
+    params: { slug: brand.slug.current },
+    props: { brand },
+  }));
+}
+
+const { brand } = Astro.props;
+
+import { createImageUrlBuilder } from "@sanity/image-url";
+const builder = createImageUrlBuilder(sanityClient);
+function urlFor(source: any) {
+  return builder.image(source);
+}
+
+// 1. Fetch Global Data
+const allVideos = await getVideos();
+const allArticles = await getArticles();
+
+// 2. Filter Global Data against Sanity Brand Tags
+const brandTags = brand.tags || [];
+
+const filteredVideos = allVideos.filter((v: any) => {
+  // If the video title or description contains ANY of the exact tags
+  return brandTags.some((tag: string) => 
+    v.title?.toLowerCase().includes(tag.toLowerCase()) || 
+    v.description?.toLowerCase().includes(tag.toLowerCase())
+  );
+});
+
+const filteredArticles = allArticles.filter((a: any) => {
+  return brandTags.some((tag: string) => 
+    a.title?.toLowerCase().includes(tag.toLowerCase()) || 
+    a.excerpt?.toLowerCase().includes(tag.toLowerCase())
+  );
+});
+
+// Merge and sort all content
+const unifiedContent = [
+  ...filteredVideos.map((v: any) => ({ ...v, contentType: 'video' })),
+  ...filteredArticles.map((a: any) => ({ ...a, contentType: 'article' }))
+].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+// Safe YouTube ID extraction for feed items — a null/broken link returns null
+// instead of throwing (a bad URL used to crash the whole static build).
+function getVideoId(link: string | undefined | null): string | null {
+  if (!link || typeof link !== 'string') return null;
+  try {
+    if (link.includes('shorts')) {
+      const id = link.split('/').filter(Boolean).pop();
+      return id || null;
+    }
+    return new URL(link).searchParams.get('v');
+  } catch {
+    return null;
+  }
+}
+
+const brandColor = brand.brandColor || 'var(--color-accent, #cc0000)';
+// Cap the hero at 2400px wide (retina-safe for a full-bleed banner) instead of
+// serving the raw upload, and let Sanity pick the best format.
+const heroUrl = brand.heroImage
+  ? urlFor(brand.heroImage).width(2400).auto('format').url()
+  : '';
+const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
+
+// The trailer (poster, players, sound) is fully encapsulated in <HeroTrailer/>.
+const trailerUrl = brand.trailerUrl;
+function getYoutubeId(url) {
+  if (!url) return null;
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+  return match ? match[1] : null;
+}
+const trailerId = getYoutubeId(trailerUrl);
+---
+
+<Layout title={`${brand.title}`} description={`Complete coverage of ${brand.title}`}>
+  <main class="brand-dashboard" style={`--brand-color: ${brandColor};`}>
+    
+    {/* Cinematic Hero */}
+    <section class="brand-hero">
+      <div class="brand-hero-bg" style={heroUrl ? `background-image: url('${heroUrl}');` : `background-image: ${fallbackGradient};`}></div>
+      <div class="brand-hero-overlay">
+        <div
+          class:list={[
+            'container',
+            'hero-grid-container',
+            { 'has-trailer': !!trailerId },
+          ]}
+        >
+          <div class="brand-hero-content hero-copy animate-on-scroll">
+            {brand.logo && (
+              <img
+                src={urlFor(brand.logo).height(240).url()}
+                alt={`${brand.title} logo`}
+                class="hero-logo"
+                height="240"
+                width={brand.logo?.dimensions?.aspectRatio
+                  ? Math.round(240 * brand.logo.dimensions.aspectRatio)
+                  : undefined}
+              />
+            )}
+            <h1 class="hero-title">{brand.title}</h1>
+            {brand.description && (
+              <div class="hero-description-wrapper">
+                <p class="hero-description-text" id="brand-about-text">{brand.description}</p>
+                <button class="hero-read-more" id="brand-about-toggle" aria-expanded="false" hidden>
+                  Read more
+                </button>
+              </div>
+            )}
+          </div>
+          
+          {trailerId && (
+            <div class="hero-trailer animate-on-scroll" style="animation-delay: 0.2s;">
+              <HeroTrailer trailerId={trailerId} title={brand.title} />
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+
+    <div class="container content-container">
+      {unifiedContent.length > 0 ? (
+        <section class="content-section">
+          <h2 class="sr-only">Event coverage</h2>
+
+          <div class="filter-controls animate-on-scroll">
+            <button class="filter-btn type-btn" data-filter="video" aria-pressed="false">VIDEOS</button>
+            <button class="filter-btn type-btn" data-filter="article" aria-pressed="false">ARTICLES</button>
+          </div>
+
+          <div class="mixed-grid" aria-live="polite">
+            {unifiedContent.map((item, index) => {
+              if (item.contentType === 'video') {
+                const videoId = getVideoId(item.link);
+                return (
+                  <div
+                    class:list={['content-card', 'video-card', 'animate-on-scroll', { 'video-modal-trigger': !!videoId }]}
+                    data-type="video"
+                    data-video-id={videoId || undefined}
+                    role={videoId ? 'button' : undefined}
+                    tabindex={videoId ? '0' : undefined}
+                    aria-label={videoId ? `Play video: ${item.title}` : undefined}
+                    style={`--index: ${index}; cursor: ${videoId ? 'pointer' : 'default'};`}
+                  >
+                    <div class="thumbnail-wrapper">
+                      <img src={item.thumbnail} alt={item.title} loading="lazy" class="thumbnail" onerror="this.onerror=null;this.src=this.src.replace('maxresdefault','hqdefault')" />
+                      <div class="video-play-overlay">
+                        <div class="play-icon">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="card-info">
+                      <span class="content-type-subtle">VIDEO • {item.date}</span>
+                      <h3 class="card-title">{item.title}</h3>
+                    </div>
+                  </div>
+                );
+              } else {
+                return (
+                  <a href={item.link} target="_blank" rel="noopener noreferrer" class="content-card article-card animate-on-scroll" data-type="article" style={`--index: ${index};`}>
+                    {item.image && (
+                      <div class="thumbnail-wrapper">
+                        <img src={item.image} alt={item.title} loading="lazy" class="thumbnail" />
+                      </div>
+                    )}
+                    <div class="card-info">
+                      <span class="content-type-subtle">ARTICLE • {item.date}</span>
+                      <h3 class="card-title">{item.title}</h3>
+                      {item.excerpt && <p class="card-excerpt">{item.excerpt}</p>}
+                    </div>
+                  </a>
+                );
+              }
+            })}
+          </div>
+        </section>
+      ) : (
+        <div class="empty-state animate-on-scroll">
+          <p>Coverage for this brand is coming soon.</p>
+        </div>
+      )}
+    </div>
+  </main>
+</Layout>
+
+<style is:global>
+  /* Fix iOS Safari GPU bug for HeroTrailer by hiding film grain on this route */
+  body::before {
+    display: none !important;
+  }
+</style>
+
+<style>
+  .brand-dashboard {
+    background-color: var(--color-bg, #050505);
+    color: var(--color-white, #fff);
+    min-height: 100vh;
+  }
+  
+  /* Hero */
+  .brand-hero {
+    position: relative;
+    background-color: #111;
+    /* NO overflow:hidden here. On iOS Safari an overflow:hidden ancestor makes
+       a descendant cross-origin (YouTube) iframe render as a black box. The bg
+       below is inset:0 and its image clips to its own box, so it can't spill —
+       the clip was never needed. */
+  }
+  .brand-hero-bg {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    /* Cover the whole hero (behind the copy AND the trailer). It re-crops when
+       the description expands — an accepted trade for full coverage. */
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    z-index: 0;
+  }
+  /* In normal flow (not absolute) so the banner GROWS with its content instead
+     of overflowing upward under the fixed navbar. padding-top clears the navbar
+     so the logo is never clipped. */
+  .brand-hero-overlay {
+    position: relative;
+    z-index: 1;
+    min-height: 70vh;
+    background: linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.97) 0%,
+      rgba(0, 0, 0, 0.55) 55%,
+      rgba(0, 0, 0, 0.35) 100%
+    );
+    /* Subtle blur of the background image behind the overlay (content is a child,
+       so it stays sharp) — softens the busy hero art for title legibility. */
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    display: flex;
+    align-items: center;
+    padding-top: clamp(6rem, 4.5rem + 6vw, 8.5rem);
+    padding-bottom: clamp(2.5rem, 2rem + 2.5vw, 4rem);
+  }
+
+  /* Mobile: single column. Source order is copy → trailer → button, so the
+     trailer sits above the Event Details button. */
+  .hero-grid-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    align-items: center;
+    width: 100%;
+  }
+  .hero-cta {
+    text-align: center;
+  }
+
+  /* Desktop: two columns. grid-areas keep copy + button stacked on the left
+     with the trailer spanning both rows on the right. */
+  @media (min-width: 900px) {
+    /* .has-trailer / .has-cta are applied at build time — no reliance on :has()
+       (which older Firefox lacks). Single-row areas when there's no CTA so the
+       copy isn't squeezed by an empty grid row. */
+    .hero-grid-container.has-trailer {
+      grid-template-columns: 1fr 1fr;
+      grid-template-areas: 'copy trailer';
+      align-items: center;
+    }
+    .hero-grid-container.has-trailer.has-cta {
+      grid-template-areas:
+        'copy trailer'
+        'cta trailer';
+    }
+    .hero-grid-container.has-trailer .hero-copy {
+      grid-area: copy;
+    }
+    .hero-grid-container.has-trailer .hero-trailer {
+      grid-area: trailer;
+    }
+    .hero-grid-container.has-trailer .hero-cta {
+      grid-area: cta;
+      align-self: start;
+    }
+    .hero-cta {
+      text-align: left;
+    }
+  }
+
+  .brand-hero-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    max-width: 900px;
+  }
+  
+  /* Placement only — the trailer's internals live in <HeroTrailer/>. */
+  .hero-trailer {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  
+  .hero-logo {
+    /* Responsive + width-capped so wide logos (e.g. Comic-Con) never overflow
+       the column or force the banner taller than the viewport on mobile. */
+    max-height: clamp(84px, 46px + 12vw, 180px);
+    max-width: min(100%, 420px);
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    margin-bottom: 1.5rem;
+    /* Removed filter: drop-shadow due to known iOS Safari rendering bugs 
+       causing the image to completely fail to load/display as broken on mobile */
+  }
+  .hero-title {
+    font-family: var(--font-display, 'Inter', sans-serif);
+    font-size: clamp(1.9rem, calc(1.1rem + 3vw), 3.75rem);
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 0.95;
+    text-transform: uppercase;
+    color: var(--color-white, #f0f0f0);
+    text-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    margin: 0 0 1rem 0;
+  }
+  .hero-meta {
+    font-size: clamp(0.9rem, 0.8rem + 0.6vw, 1.25rem);
+    color: #ccc;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .brand-dates, .brand-location {
+    display: inline-block;
+  }
+
+  .hero-description-text {
+    /* Font size is identical in every state so toggling never resizes the text.
+       Collapsed height is 3em (2 lines at line-height 1.5); JS animates the
+       inline max-height between this and the measured full height, so there's no
+       arbitrary 800px value and no invisible portion of the transition. */
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.5;
+    max-width: 600px;
+    margin-top: 1.5rem;
+    font-weight: 400;
+    overflow: hidden;
+    max-height: 3em;
+  }
+  .hero-read-more {
+    background: none;
+    border: none;
+    color: var(--color-accent, #cc0000);
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 0;
+    margin-top: 0.5rem;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+  .hero-read-more:hover {
+    color: white;
+  }
+
+  .hero-rsvp-btn {
+    display: inline-block;
+    background: transparent;
+    color: white;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 700;
+    padding: 0.75rem 2rem;
+    border: 1px solid var(--color-accent, #cc0000);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    transition: background 0.3s ease, color 0.3s ease;
+  }
+  .hero-rsvp-btn:hover {
+    background: var(--color-accent, #cc0000);
+    color: white;
+  }
+
+  /* Mobile: single column with no trailer — centre the lockup for balance.
+     align-items centres the logo (a flex item); text-align centres the copy. */
+  @media (max-width: 899px) {
+    .brand-hero-content {
+      align-items: flex-start;
+      text-align: left;
+    }
+    /* Font size stays 1rem (matching the base) so expand/collapse never resizes
+       the text; only the top margin tightens on mobile. */
+    .hero-description-text {
+      margin-top: 1rem;
+    }
+  }
+
+  /* Content */
+  .content-container {
+    padding: 4rem 2rem;
+  }
+  .content-section {
+    margin-bottom: 5rem;
+  }
+  
+  /* Filter Controls */
+  .filter-controls {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    max-width: 600px;
+    margin: 0 auto 3rem auto;
+  }
+  .filter-btn {
+    padding: 1.25rem 1rem;
+    background: rgba(10, 10, 10, 0.6);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: var(--color-white, #fff);
+    font-size: 1.1rem;
+    font-weight: 700;
+    font-family: var(--font-display, 'Inter', sans-serif);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  @media (hover: hover) {
+    .filter-btn:hover,
+    .filter-btn:focus-visible {
+      background: rgba(239, 68, 68, 0.1);
+      border: 2px solid var(--color-accent, #ef4444);
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+      transform: translateY(-2px);
+    }
+  }
+
+  .filter-btn.active {
+    background: rgba(239, 68, 68, 0.1);
+    border: 2px solid var(--color-accent, #ef4444);
+    color: white;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+  }
+  
+  /* Mixed Grid */
+  .mixed-grid {
+    display: grid;
+    /* min(100%, 320px) lets a single card shrink below 320px on narrow phones
+       instead of overflowing the padded container. */
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+    gap: 2rem;
+  }
+  
+  .content-card {
+    background: #111;
+    border-radius: 12px;
+    overflow: hidden;
+    text-decoration: none;
+    color: white;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+    border: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    flex-direction: column;
+  }
+  .content-card:hover {
+    transform: translateY(-5px);
+    border-color: var(--brand-color);
+  }
+  
+  .thumbnail-wrapper {
+    position: relative;
+    aspect-ratio: 16/9;
+    overflow: hidden;
+  }
+  .thumbnail {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+  }
+  .content-card:hover .thumbnail {
+    transform: scale(1.05);
+  }
+  
+  .content-badge {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    z-index: 10;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  
+  /* Video Specific */
+  .video-play-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 5;
+  }
+  .content-card:hover .video-play-overlay,
+  .content-card:focus-visible .video-play-overlay {
+    opacity: 1;
+  }
+  .content-card:focus-visible {
+    outline: 2px solid var(--brand-color, #cc0000);
+    outline-offset: 3px;
+  }
+  .play-icon {
+    width: 60px;
+    height: 60px;
+    background: rgba(255,255,255,0.2);
+    backdrop-filter: blur(4px);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    border: 2px solid rgba(255,255,255,0.5);
+    transition: transform 0.3s ease, background 0.3s ease;
+  }
+  .content-card:hover .play-icon {
+    transform: scale(1.1);
+    background: var(--brand-color);
+    border-color: var(--brand-color);
+  }
+  
+  .card-info {
+    padding: 1.5rem;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .card-date {
+    font-size: 0.8rem;
+    color: var(--brand-color);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 0.5rem;
+    font-weight: 700;
+  }
+  .card-title {
+    font-size: 1.25rem;
+    margin: 0;
+    line-height: 1.4;
+  }
+  .card-excerpt {
+    color: #a0a0a0;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin: 0.75rem 0 0 0;
+    flex-grow: 1;
+  }
+  
+  .empty-state {
+    text-align: center;
+    padding: 4rem;
+    color: #a0a0a0;
+    font-size: 1.2rem;
+  }
+
+  /* Visually hidden but exposed to assistive tech (used for the section <h2>
+     that restores the heading hierarchy between the hero <h1> and card <h3>s). */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>
+
+<script>
+  // astro:page-load fires on the initial load AND after every View Transition
+  // navigation, so the filters keep working after client-side nav.
+  function initEventInteractions() {
+    const filterBtns = Array.from(document.querySelectorAll('.filter-btn'));
+    const contentCards = Array.from(document.querySelectorAll('.content-card'));
+
+    filterBtns.forEach((btn) => {
+      if (btn.dataset.bound === 'true') return;
+      btn.dataset.bound = 'true';
+      btn.addEventListener('click', () => {
+        const wasActive = btn.classList.contains('active');
+        filterBtns.forEach((b) => {
+          b.classList.remove('active');
+          b.setAttribute('aria-pressed', 'false');
+        });
+
+        let activeFilter = 'all';
+        if (!wasActive) {
+          btn.classList.add('active');
+          btn.setAttribute('aria-pressed', 'true');
+          activeFilter = btn.getAttribute('data-filter');
+        }
+
+        contentCards.forEach((card) => {
+          const show = activeFilter === 'all' || card.getAttribute('data-type') === activeFilter;
+          card.style.display = show ? 'flex' : 'none';
+        });
+      });
+    });
+
+    // Keyboard activation for video cards exposed as role="button".
+    document.querySelectorAll('.video-modal-trigger').forEach((card) => {
+      if (card.dataset.keybound === 'true') return;
+      card.dataset.keybound = 'true';
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          card.click();
+        }
+      });
+    });
+  }
+
+  document.addEventListener('astro:page-load', initEventInteractions);
+</script>
+
+<script>
+  // Expandable event blurb. max-height animates between the CSS collapsed value
+  // (3em) and the measured full height, so the motion is smooth in both
+  // directions with no arbitrary max-height and no snap at the end. Rapid
+  // toggling is safe: each click retargets the same animated property and the
+  // completion cleanup uses a single transitionend handler (no stray timeout).
+  const COLLAPSED_MAX = '3em';
+
+  function initBrandAbout() {
+    const text = document.getElementById('brand-about-text');
+    const toggle = document.getElementById('brand-about-toggle');
+    if (!text || !toggle) return;
+
+    let expanded = false;
+
+
+    // Toggle visibility depends on whether the (collapsed) text overflows.
+    const evaluate = () => {
+      if (expanded) return;
+      toggle.hidden = text.scrollHeight <= text.clientHeight + 2;
+    };
+
+    if (toggle.dataset.bound !== 'true') {
+      toggle.dataset.bound = 'true';
+      toggle.addEventListener('click', () => {
+        if (!expanded) {
+          expanded = true;
+          text.style.maxHeight = 'none';
+          toggle.textContent = 'Read less';
+          toggle.setAttribute('aria-expanded', 'true');
+        } else {
+          expanded = false;
+          text.style.maxHeight = COLLAPSED_MAX;
+          toggle.textContent = 'Read more';
+          toggle.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+
+    // Evaluate after web fonts settle (wrong scrollHeight otherwise) and on any
+    // resize/reflow of the text box.
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(evaluate);
+    }
+    evaluate();
+    if (text.__ro) text.__ro.disconnect();
+    const ro = new ResizeObserver(() => evaluate());
+    ro.observe(text);
+    text.__ro = ro;
+  }
+
+  document.addEventListener('astro:page-load', initBrandAbout);
+</script>
