@@ -3,6 +3,7 @@ import Layout from '../../layouts/Layout.astro';
 import { sanityClient } from "sanity:client";
 import { getVideos, getArticles } from '../../data/feeds.js';
 import EventBookingCTA from '../../components/EventBookingCTA.astro';
+import HeroTrailer from '../../components/HeroTrailer.astro';
 
 export async function getStaticPaths() {
   // Project image asset dimensions so we can reserve the logo's box and avoid CLS.
@@ -107,15 +108,7 @@ const heroUrl = event.heroImage
   : '';
 const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
 
-// Poster shown over the paused trailer on load, so the hero never renders a
-// black iframe on iOS Safari. Prefer a 16:9 crop of the hero image; fall back
-// to the logo centred on a dark panel.
-const trailerPoster = event.heroImage
-  ? { url: urlFor(event.heroImage).width(1200).height(675).fit('crop').auto('format').url(), kind: 'hero' }
-  : event.logo
-    ? { url: urlFor(event.logo).width(800).auto('format').url(), kind: 'logo' }
-    : null;
-
+// The trailer (poster, players, sound) is fully encapsulated in <HeroTrailer/>.
 const trailerUrl = event.trailerUrl;
 function getYoutubeId(url) {
   if (!url) return null;
@@ -168,61 +161,7 @@ const trailerId = getYoutubeId(trailerUrl);
           
           {trailerId && (
             <div class="hero-trailer animate-on-scroll" style="animation-delay: 0.2s;">
-              {/* Iframe is rendered up front (muted autoplay — allowed inline on
-                  iOS) so the player is already initialised. The poster covers it
-                  until playback actually starts, then fades; tapping the poster
-                  starts/unmutes the ALREADY-LOADED player within the gesture,
-                  which is what iOS honours. No overflow:hidden ancestor, so the
-                  iframe renders instead of going black. */}
-              <div class="trailer-wrapper" id="trailer-wrapper">
-                <iframe
-                  id="hero-trailer-iframe"
-                  src={`https://www.youtube.com/embed/${trailerId}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`}
-                  frameborder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowfullscreen
-                  title={`${event.title} trailer`}
-                ></iframe>
-
-                <button
-                  type="button"
-                  class="trailer-poster-overlay"
-                  id="trailer-poster"
-                  aria-label={`Play ${event.title} trailer`}
-                >
-                  {trailerPoster && (
-                    <span
-                      class="trailer-poster-img"
-                      data-kind={trailerPoster.kind}
-                      style={`background-image: url('${trailerPoster.url}');`}
-                    ></span>
-                  )}
-                  <span class="trailer-play-btn" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  class="trailer-sound-toggle is-muted"
-                  id="trailer-sound-toggle"
-                  aria-label="Unmute trailer"
-                  aria-pressed="false"
-                >
-                  <svg class="icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M11 5 6 9H2v6h4l5 4z" />
-                    <line x1="22" y1="9" x2="16" y2="15" />
-                    <line x1="16" y1="9" x2="22" y2="15" />
-                  </svg>
-                  <svg class="icon-unmuted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M11 5 6 9H2v6h4l5 4z" />
-                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                  </svg>
-                </button>
-              </div>
+              <HeroTrailer trailerId={trailerId} title={event.title} />
             </div>
           )}
 
@@ -413,152 +352,11 @@ const trailerId = getYoutubeId(trailerUrl);
     max-width: 900px;
   }
   
+  /* Placement only — the trailer's internals live in <HeroTrailer/>. */
   .hero-trailer {
     width: 100%;
     max-width: 600px;
     margin: 0 auto;
-    aspect-ratio: 16/9;
-    /* Removed border-radius, overflow:hidden, and box-shadow to prevent the known 
-       iOS Safari WebKit bug that causes cross-origin iframes to render as a black box */
-  }
-  .trailer-wrapper {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    /* Solid base so there's no flash before the injected iframe paints. No
-       border-radius/overflow here — that reintroduces the iOS Safari clipping
-       bug that renders cross-origin video iframes black. */
-    background: #000;
-  }
-  .trailer-wrapper iframe {
-    width: 100%;
-    height: 100%;
-    /* Removed object-fit: cover; as it causes iOS Safari to render the iframe as a black tile */
-  }
-
-  /* Unmute / mute toggle overlaid on the trailer. */
-  .trailer-sound-toggle {
-    position: absolute;
-    bottom: 0.85rem;
-    right: 0.85rem;
-    z-index: 3;
-    width: 44px;
-    height: 44px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    background: rgba(0, 0, 0, 0.55);
-    -webkit-backdrop-filter: blur(6px);
-    backdrop-filter: blur(6px);
-    color: #fff;
-    cursor: pointer;
-    transition: background 0.25s ease, border-color 0.25s ease, transform 0.2s ease;
-  }
-  /* An explicit display above beats the [hidden] UA rule, so restore it. */
-  .trailer-sound-toggle[hidden] {
-    display: none;
-  }
-  .trailer-sound-toggle:hover,
-  .trailer-sound-toggle:focus-visible {
-    background: var(--color-accent, #cc0000);
-    border-color: var(--color-accent, #cc0000);
-    transform: scale(1.06);
-    outline: none;
-  }
-  .trailer-sound-toggle svg {
-    width: 20px;
-    height: 20px;
-    display: block;
-  }
-  /* Muted state (default) shows the muted icon; unmuted swaps to sound waves. */
-  .trailer-sound-toggle .icon-unmuted {
-    display: none;
-  }
-  .trailer-sound-toggle.is-unmuted .icon-muted {
-    display: none;
-  }
-  .trailer-sound-toggle.is-unmuted .icon-unmuted {
-    display: block;
-  }
-
-  /* Poster overlay covering the iframe until the user taps play. */
-  .trailer-poster-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 4;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    border: none;
-    background: #000;
-    cursor: pointer;
-    transition: opacity 0.4s ease;
-  }
-  .trailer-poster-overlay.is-hidden {
-    opacity: 0;
-    pointer-events: none;
-  }
-  @media (min-width: 900px) {
-    .trailer-poster-overlay {
-      display: none !important;
-    }
-  }
-  .trailer-poster-img {
-    position: absolute;
-    inset: 0;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-  }
-  /* Logo fallback: contain + inset on a dark panel instead of a cover crop. */
-  .trailer-poster-img[data-kind='logo'] {
-    background-size: contain;
-    background-origin: content-box;
-    background-color: #0a0a0a;
-    padding: 14%;
-  }
-  /* Scrim so the play button reads over bright artwork. */
-  .trailer-poster-overlay::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.35);
-    transition: background 0.3s ease;
-  }
-  .trailer-poster-overlay:hover::after,
-  .trailer-poster-overlay:focus-visible::after {
-    background: rgba(0, 0, 0, 0.2);
-  }
-  .trailer-play-btn {
-    position: relative;
-    z-index: 1;
-    width: 72px;
-    height: 72px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    background: var(--color-accent, #cc0000);
-    color: #fff;
-    box-shadow: 0 8px 30px rgba(204, 0, 0, 0.5);
-    transition: transform 0.2s ease;
-  }
-  .trailer-poster-overlay:hover .trailer-play-btn,
-  .trailer-poster-overlay:focus-visible .trailer-play-btn {
-    transform: scale(1.08);
-  }
-  .trailer-poster-overlay:focus-visible {
-    outline: 2px solid var(--color-accent, #cc0000);
-    outline-offset: 3px;
-  }
-  .trailer-play-btn svg {
-    width: 30px;
-    height: 30px;
-    margin-left: 3px; /* optical centring of the triangle */
   }
   
   .hero-logo {
@@ -905,116 +703,6 @@ const trailerId = getYoutubeId(trailerUrl);
 </script>
 
 <script>
-  // Hero trailer. The iframe is rendered up front with muted autoplay (allowed
-  // inline on iOS), so the player is already initialised. The poster covers it
-  // until the player reports it is actually PLAYING, then fades. Tapping the
-  // poster starts/unmutes the already-loaded player from within the gesture —
-  // the reliable path on iOS, since there is no async iframe load to expire the
-  // user activation. Commands use the postMessage API (enablejsapi=1), CSP-safe.
-  function initTrailer() {
-    const iframe = document.getElementById('hero-trailer-iframe');
-    if (!iframe) return;
-    const poster = document.getElementById('trailer-poster');
-    const soundBtn = document.getElementById('trailer-sound-toggle');
-
-    let ready = false;
-    let posterHidden = false;
-    const queue = [];
-    let muted = true;
-
-    const post = (payload) =>
-      iframe.contentWindow &&
-      iframe.contentWindow.postMessage(JSON.stringify(payload), 'https://www.youtube.com');
-    const command = (func, args = []) => {
-      const payload = { event: 'command', func, args };
-      if (ready) post(payload);
-      else queue.push(payload);
-    };
-    const setMuted = (m) => {
-      muted = m;
-      if (!soundBtn) return;
-      soundBtn.classList.toggle('is-muted', m);
-      soundBtn.classList.toggle('is-unmuted', !m);
-      soundBtn.setAttribute('aria-pressed', String(!m));
-      soundBtn.setAttribute('aria-label', m ? 'Unmute trailer' : 'Mute trailer');
-    };
-    const hidePoster = () => {
-      if (posterHidden || !poster) return;
-      posterHidden = true;
-      poster.classList.add('is-hidden');
-    };
-
-    const startListening = () =>
-      post({ event: 'listening', id: iframe.id, channel: 'widget' });
-
-    const onMessage = (e) => {
-      if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
-      let data;
-      try {
-        data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-      } catch {
-        return;
-      }
-      if (!data) return;
-      if ((data.event === 'onReady' || data.event === 'initialDelivery') && !ready) {
-        ready = true;
-        queue.splice(0).forEach(post);
-      }
-      // playerState 1 = playing. Reveal the video (hide poster) only once it is
-      // truly playing, so a stalled autoplay leaves the poster/play button up.
-      const state =
-        data.info && typeof data.info.playerState === 'number'
-          ? data.info.playerState
-          : data.event === 'onStateChange' && typeof data.info === 'number'
-            ? data.info
-            : undefined;
-      if (state === 1) hidePoster();
-      // Keep the toggle honest with the player's actual mute state.
-      if (data.event === 'infoDelivery' && data.info && typeof data.info.muted === 'boolean') {
-        if (data.info.muted !== muted) setMuted(data.info.muted);
-      }
-    };
-
-    if (window.__ytTrailerMsg) window.removeEventListener('message', window.__ytTrailerMsg);
-    window.__ytTrailerMsg = onMessage;
-    window.addEventListener('message', onMessage);
-
-    iframe.addEventListener('load', startListening);
-    startListening(); // iframe is server-rendered and may already be loaded
-
-    // Poster tap → play + unmute the already-initialised player, inside the tap.
-    if (poster && poster.dataset.bound !== 'true') {
-      poster.dataset.bound = 'true';
-      poster.addEventListener('click', () => {
-        command('playVideo');
-        command('unMute');
-        command('setVolume', [100]);
-        setMuted(false);
-        hidePoster();
-      });
-    }
-
-    // Sound toggle after playback has started.
-    if (soundBtn && soundBtn.dataset.bound !== 'true') {
-      soundBtn.dataset.bound = 'true';
-      soundBtn.addEventListener('click', () => {
-        if (muted) {
-          command('unMute');
-          command('setVolume', [100]);
-          command('playVideo');
-          setMuted(false);
-        } else {
-          command('mute');
-          setMuted(true);
-        }
-      });
-    }
-  }
-
-  document.addEventListener('astro:page-load', initTrailer);
-</script>
-
-<script>
   // Expandable event blurb. max-height animates between the CSS collapsed value
   // (3em) and the measured full height, so the motion is smooth in both
   // directions with no arbitrary max-height and no snap at the end. Rapid
@@ -1061,12 +749,19 @@ const trailerId = getYoutubeId(trailerUrl);
           text.addEventListener('transitionend', endHandler);
         } else {
           expanded = false;
-          // Pin the current full height (handles max-height:none), then animate
-          // down to the collapsed value on the next frame.
+          // Collapse without the bounce. When expanded, max-height is 'none';
+          // setting a px value while the transition is live makes the browser
+          // interpolate none→px as 0→px (an instant snap to 0, then a jump back).
+          // Fix: disable the transition, pin the REAL current height, let the
+          // browser paint it across two frames, THEN re-enable the transition and
+          // animate down to the collapsed value.
+          text.style.transition = 'none';
           text.style.maxHeight = text.scrollHeight + 'px';
-          void text.offsetHeight; // force reflow so the start height registers
           requestAnimationFrame(() => {
-            text.style.maxHeight = COLLAPSED_MAX;
+            requestAnimationFrame(() => {
+              text.style.transition = ''; // revert to the CSS max-height transition
+              text.style.maxHeight = COLLAPSED_MAX;
+            });
           });
           toggle.textContent = 'Read more';
           toggle.setAttribute('aria-expanded', 'false');

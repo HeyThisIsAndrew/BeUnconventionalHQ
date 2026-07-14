@@ -1,0 +1,393 @@
+---
+// Fully self-contained hero trailer. Zero global CSS, no generic IDs, no
+// dependency on the site-wide video modal. Two physical structures toggled by
+// CSS media queries so there is never a JS breakpoint "dead UI" trap:
+//
+//   • Mobile (≤899px): a NATIVE YouTube iframe (controls, playsinline, no
+//     autoplay, no custom overlay). The user taps the native thumbnail/play
+//     button directly — the only thing iOS Safari reliably honours, and it
+//     shows the creator's custom YouTube thumbnail for free.
+//   • Desktop (≥900px): custom poster + muted autoplay + a scoped sound toggle,
+//     driven by the YouTube postMessage API (desktop has no async gesture rules).
+//
+// Only the visible side is ever given a src, so a single embed loads at a time
+// and a hidden side can never bleed audio.
+export interface Props {
+  trailerId: string;
+  title: string;
+  /** Optional desktop poster; defaults to the video's YouTube thumbnail. */
+  posterUrl?: string;
+}
+const { trailerId, title, posterUrl } = Astro.props;
+
+const uid = Math.random().toString(36).slice(2, 11);
+const poster = posterUrl || `https://i.ytimg.com/vi/${trailerId}/maxresdefault.jpg`;
+const posterFallback = `https://i.ytimg.com/vi/${trailerId}/hqdefault.jpg`;
+
+const base = `https://www.youtube.com/embed/${trailerId}`;
+const mobileSrc = `${base}?playsinline=1&rel=0&modestbranding=1&loop=1&playlist=${trailerId}`;
+const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&controls=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
+---
+
+<div class="ht-root" data-hero-trailer data-uid={uid} data-title={title}>
+  {/* MOBILE — native player only. src is attached by JS when this side is shown. */}
+  <div class="ht-mobile">
+    <iframe
+      class="ht-frame"
+      data-src={mobileSrc}
+      title={title}
+      frameborder="0"
+      loading="lazy"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      allowfullscreen></iframe>
+  </div>
+
+  {/* DESKTOP — custom poster + muted autoplay + sound toggle. */}
+  <div class="ht-desktop">
+    <div class="ht-mount" data-src={desktopSrc}></div>
+
+    <button type="button" class="ht-poster" aria-label={`Play ${title} trailer`}>
+      <img
+        class="ht-poster-img"
+        src={poster}
+        alt=""
+        aria-hidden="true"
+        loading="lazy"
+        data-fallback={posterFallback}
+      />
+      <span class="ht-play" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+      </span>
+    </button>
+
+    <button type="button" class="ht-sound is-muted" aria-label="Unmute trailer" aria-pressed="false">
+      <svg class="ht-ico-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M11 5 6 9H2v6h4l5 4z" />
+        <line x1="22" y1="9" x2="16" y2="15" />
+        <line x1="16" y1="9" x2="22" y2="15" />
+      </svg>
+      <svg class="ht-ico-unmuted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M11 5 6 9H2v6h4l5 4z" />
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+      </svg>
+    </button>
+  </div>
+</div>
+
+<style>
+  /* Everything is scoped to .hero-trailer; Astro also hashes these selectors, so
+     there is zero chance of touching the global video modal or any other player. */
+  .ht-root {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    /* No border-radius / overflow:hidden — both trigger the iOS Safari black-box
+       bug on cross-origin video iframes. */
+  }
+
+  .ht-mobile,
+  .ht-desktop {
+    position: absolute;
+    inset: 0;
+  }
+
+  /* The injected/native iframes fill their side. */
+  .ht-root :global(iframe.ht-frame),
+  .ht-mount :global(iframe) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+
+  /* --- Desktop poster --- */
+  .ht-poster {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    padding: 0;
+    border: none;
+    background: #000;
+    cursor: pointer;
+    transition: opacity 0.4s ease;
+  }
+  .ht-poster.is-hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .ht-poster-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .ht-poster::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    transition: background 0.3s ease;
+  }
+  .ht-poster:hover::after,
+  .ht-poster:focus-visible::after {
+    background: rgba(0, 0, 0, 0.2);
+  }
+  .ht-play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1;
+    width: 72px;
+    height: 72px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--color-accent, #cc0000);
+    color: #fff;
+    box-shadow: 0 8px 30px rgba(204, 0, 0, 0.5);
+    transition: transform 0.2s ease;
+  }
+  .ht-poster:hover .ht-play,
+  .ht-poster:focus-visible .ht-play {
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+  .ht-poster:focus-visible {
+    outline: 2px solid var(--color-accent, #cc0000);
+    outline-offset: 3px;
+  }
+  .ht-play svg {
+    width: 30px;
+    height: 30px;
+    margin-left: 3px;
+  }
+
+  /* --- Desktop sound toggle --- */
+  .ht-sound {
+    position: absolute;
+    bottom: 0.85rem;
+    right: 0.85rem;
+    z-index: 5;
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(0, 0, 0, 0.55);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.25s ease, border-color 0.25s ease, transform 0.2s ease;
+  }
+  .ht-sound:hover,
+  .ht-sound:focus-visible {
+    background: var(--color-accent, #cc0000);
+    border-color: var(--color-accent, #cc0000);
+    transform: scale(1.06);
+    outline: none;
+  }
+  .ht-sound svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+  }
+  .ht-sound .ht-ico-unmuted {
+    display: none;
+  }
+  .ht-sound.is-unmuted .ht-ico-muted {
+    display: none;
+  }
+  .ht-sound.is-unmuted .ht-ico-unmuted {
+    display: block;
+  }
+
+  /* --- Physical structure toggle. Both nodes exist; CSS decides which shows. --- */
+  .ht-desktop {
+    display: none;
+  }
+  @media (min-width: 900px) {
+    .ht-mobile {
+      display: none;
+    }
+    .ht-desktop {
+      display: block;
+    }
+  }
+</style>
+
+<script>
+  // Scoped controller. Finds every .hero-trailer on the page and drives it
+  // independently. No global IDs, no global listeners beyond a single message
+  // handler per instance that filters strictly by the instance's own iframe.
+  function initHeroTrailers() {
+    document.querySelectorAll('[data-hero-trailer]').forEach((root) => {
+      if (root.dataset.htBound === 'true') return;
+      root.dataset.htBound = 'true';
+
+      const uid = root.dataset.uid || '';
+      const title = root.dataset.title || 'Trailer';
+      const mobileFrame = root.querySelector('.ht-mobile .ht-frame');
+      const mount = root.querySelector('.ht-mount');
+      const poster = root.querySelector('.ht-poster');
+      const soundBtn = root.querySelector('.ht-sound');
+      const posterImg = root.querySelector('.ht-poster-img');
+
+      // Poster thumbnail fallback (maxres → hq) if the HD image 404s.
+      if (posterImg) {
+        posterImg.addEventListener('error', function onErr() {
+          posterImg.removeEventListener('error', onErr);
+          const fb = posterImg.dataset.fallback;
+          if (fb) posterImg.src = fb;
+        });
+      }
+
+      // ---- Desktop player state ----
+      let desktopFrame = null;
+      let ready = false;
+      let muted = true;
+      let posterHidden = false;
+      const queue = [];
+
+      const post = (payload) =>
+        desktopFrame &&
+        desktopFrame.contentWindow &&
+        desktopFrame.contentWindow.postMessage(JSON.stringify(payload), 'https://www.youtube.com');
+      const command = (func, args = []) => {
+        const payload = { event: 'command', func, args };
+        if (ready) post(payload);
+        else queue.push(payload);
+      };
+      const setMuted = (m) => {
+        muted = m;
+        if (!soundBtn) return;
+        soundBtn.classList.toggle('is-muted', m);
+        soundBtn.classList.toggle('is-unmuted', !m);
+        soundBtn.setAttribute('aria-pressed', String(!m));
+        soundBtn.setAttribute('aria-label', m ? 'Unmute trailer' : 'Mute trailer');
+      };
+      const hidePoster = () => {
+        if (posterHidden || !poster) return;
+        posterHidden = true;
+        poster.classList.add('is-hidden');
+      };
+
+      const onMessage = (e) => {
+        if (!desktopFrame || !desktopFrame.contentWindow || e.source !== desktopFrame.contentWindow) return;
+        let data;
+        try {
+          data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        } catch {
+          return;
+        }
+        if (!data) return;
+        if ((data.event === 'onReady' || data.event === 'initialDelivery') && !ready) {
+          ready = true;
+          queue.splice(0).forEach(post);
+        }
+        const state =
+          data.info && typeof data.info.playerState === 'number'
+            ? data.info.playerState
+            : data.event === 'onStateChange' && typeof data.info === 'number'
+              ? data.info
+              : undefined;
+        if (state === 1) hidePoster();
+        if (data.event === 'infoDelivery' && data.info && typeof data.info.muted === 'boolean') {
+          if (data.info.muted !== muted) setMuted(data.info.muted);
+        }
+      };
+      window.addEventListener('message', onMessage);
+
+      const mountDesktop = () => {
+        if (desktopFrame || !mount) return;
+        ready = false;
+        posterHidden = false;
+        muted = true;
+        queue.length = 0;
+        if (poster) poster.classList.remove('is-hidden');
+        setMuted(true);
+        desktopFrame = document.createElement('iframe');
+        desktopFrame.id = 'ht-frame-' + uid; // unique per instance, never generic
+        desktopFrame.title = title;
+        desktopFrame.setAttribute('frameborder', '0');
+        desktopFrame.setAttribute(
+          'allow',
+          'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
+        );
+        desktopFrame.setAttribute('allowfullscreen', '');
+        desktopFrame.addEventListener('load', () =>
+          post({ event: 'listening', id: desktopFrame.id, channel: 'widget' })
+        );
+        desktopFrame.src = mount.dataset.src;
+        mount.appendChild(desktopFrame);
+      };
+      const unmountDesktop = () => {
+        if (!desktopFrame) return;
+        desktopFrame.remove();
+        desktopFrame = null;
+        ready = false;
+      };
+
+      // ---- Mobile native src toggle (no custom JS/UI, just load when shown) ----
+      const showMobile = () => {
+        if (mobileFrame && !mobileFrame.src && mobileFrame.dataset.src) {
+          mobileFrame.src = mobileFrame.dataset.src;
+        }
+      };
+      const hideMobile = () => {
+        if (mobileFrame && mobileFrame.src) mobileFrame.removeAttribute('src');
+      };
+
+      // ---- Activate exactly the visible side. One embed loads at a time. ----
+      const mql = window.matchMedia('(min-width: 900px)');
+      const activate = (isDesktop) => {
+        if (isDesktop) {
+          hideMobile();
+          mountDesktop();
+        } else {
+          unmountDesktop();
+          showMobile();
+        }
+      };
+      activate(mql.matches);
+      mql.addEventListener('change', (e) => activate(e.matches));
+
+      // ---- Desktop interactions ----
+      if (poster) {
+        poster.addEventListener('click', () => {
+          command('playVideo');
+          command('unMute');
+          command('setVolume', [100]);
+          setMuted(false);
+          hidePoster();
+        });
+      }
+      if (soundBtn) {
+        soundBtn.addEventListener('click', () => {
+          if (muted) {
+            command('unMute');
+            command('setVolume', [100]);
+            command('playVideo');
+            setMuted(false);
+          } else {
+            command('mute');
+            setMuted(true);
+          }
+        });
+      }
+    });
+  }
+
+  document.addEventListener('astro:page-load', initHeroTrailers);
+</script>
