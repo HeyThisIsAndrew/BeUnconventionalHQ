@@ -71,8 +71,11 @@ const unifiedContent = [
 // stored as midnight UTC ("2026-07-23") never shifts back a day for viewers
 // west of UTC (i.e. all of the Americas).
 function formatDateRange(start: string, end?: string) {
-  const fmtMonth = (d: Date) => d.toLocaleString('en-US', { timeZone: 'UTC', month: 'short' });
+  if (!start) return "Date TBD";
   const startDate = new Date(start);
+  if (Number.isNaN(startDate.getTime())) return "Date TBD";
+
+  const fmtMonth = (d: Date) => d.toLocaleString('en-US', { timeZone: 'UTC', month: 'short' });
   const sMonth = fmtMonth(startDate);
   const sDay = startDate.getUTCDate();
   const sYear = startDate.getUTCFullYear();
@@ -80,11 +83,16 @@ function formatDateRange(start: string, end?: string) {
   if (!end) return `${sMonth} ${sDay}, ${sYear}`;
 
   const endDate = new Date(end);
+  if (Number.isNaN(endDate.getTime())) return `${sMonth} ${sDay}, ${sYear}`;
+
   const eMonth = fmtMonth(endDate);
   const eDay = endDate.getUTCDate();
   const eYear = endDate.getUTCFullYear();
 
   if (sMonth === eMonth && sYear === eYear) {
+    if (sDay === eDay) {
+      return `${sMonth} ${sDay}, ${sYear}`;
+    }
     return `${sMonth} ${sDay} - ${eDay}, ${sYear}`;
   }
   return `${sMonth} ${sDay}, ${sYear} - ${eMonth} ${eDay}, ${eYear}`;
