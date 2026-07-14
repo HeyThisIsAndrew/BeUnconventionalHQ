@@ -8,7 +8,18 @@ const urlFor = (source: any) => {
 };
 
 const { event, index = 0 } = Astro.props;
-const heroUrl = event.heroImage ? urlFor(event.heroImage).width(800).height(450).url() : '/placeholder-event.jpg';
+function getYoutubeId(url) {
+  if (!url) return null;
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+  return match ? match[1] : null;
+}
+const trailerId = getYoutubeId(event.trailerUrl);
+
+const heroUrl = event.heroImage 
+  ? urlFor(event.heroImage).width(800).height(450).url() 
+  : trailerId 
+    ? `https://img.youtube.com/vi/${trailerId}/hqdefault.jpg`
+    : '/placeholder-event.jpg';
 ---
 
 <a href={`/events-new/${event.slug.current}`} class="event-card animate-on-scroll" style={`--index: ${index};`}>
