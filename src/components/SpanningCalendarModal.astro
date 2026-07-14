@@ -311,16 +311,43 @@ const currentMonthEvents = events.filter((event) => {
     const modal = modalElement instanceof HTMLDialogElement ? modalElement : null;
     const closeBtn = document.getElementById('close-calendar-btn');
 
+    const closeModal = () => {
+      if (!modal) return;
+      
+      const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      document.body.style.overflowY = '';
+
+      const originalBehavior = document.documentElement.style.scrollBehavior;
+      document.documentElement.style.scrollBehavior = 'auto'; // Force instant snap
+      window.scrollTo(0, scrollY);
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          document.documentElement.style.scrollBehavior = originalBehavior;
+        });
+      });
+      
+      modal.close();
+    };
+
     if (btn && modal) {
       btn.addEventListener('click', () => {
+        if (document.body.style.position !== 'fixed') {
+          const scrollY = window.scrollY;
+          document.body.style.top = `-${scrollY}px`;
+          document.body.style.position = 'fixed';
+          document.body.style.width = '100%';
+          document.body.style.overflowY = 'scroll';
+        }
         modal.showModal();
       });
     }
 
     if (closeBtn && modal) {
-      closeBtn.addEventListener('click', () => {
-        modal.close();
-      });
+      closeBtn.addEventListener('click', closeModal);
     }
 
     if (modal) {
@@ -332,7 +359,7 @@ const currentMonthEvents = events.filter((event) => {
           event.clientX < rect.left ||
           event.clientX > rect.right
         ) {
-          modal.close();
+          closeModal();
         }
       });
 
