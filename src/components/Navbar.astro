@@ -28,7 +28,6 @@ const isActive = (href) =>
           <span class="nav-word-unconventional">UNCONVENTIONAL</span>
           <span class="nav-word-hq">HQ</span>
         </div>
-        <div class="nav-subline" id="nav-subline"></div>
       </a>
     </div>
     <button class="nav-toggle" aria-label="Toggle Menu" aria-expanded="false">
@@ -62,22 +61,9 @@ const isActive = (href) =>
 
     function initNavObserver() {
       const identity = document.getElementById('nav-identity');
-      const sublineEl = document.getElementById('nav-subline');
       if (!identity) return;
 
-      // 1. Dynamic Red Subline
-      const path = window.location.pathname;
-      let subtext = '';
-      if (path.includes('category')) subtext = 'HUB';
-      else if (path.includes('about')) subtext = 'ABOUT';
-      else if (path.includes('contact')) subtext = 'CONTACT';
-
-      if (sublineEl) {
-        sublineEl.textContent = subtext;
-        sublineEl.style.display = subtext ? 'inline-block' : 'none';
-      }
-
-      // 2. Smooth Scroll to Top (avoid duplicate listeners on SPA transitions)
+      // Smooth Scroll to Top (avoid duplicate listeners on SPA transitions)
       if (!identity.dataset.clickBound) {
         identity.addEventListener('click', (e) => {
           e.preventDefault();
