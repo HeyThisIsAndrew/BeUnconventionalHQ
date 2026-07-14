@@ -1,71 +1,98 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import PageTitle from '../../components/PageTitle.astro';
-import FeaturedCard from '../../components/FeaturedCard.astro';
+import EventBookingCTA from '../../components/EventBookingCTA.astro';
 import { site } from '../../data/site.js';
-import { sanityClient } from "sanity:client";
+import { getArticles, getVideos } from '../../data/feeds.js';
 
 const title = `Featured | ${site.name}`;
-const description = 'Deep dives and dedicated coverage hubs for our favorite brands and topics.';
+const description =
+  'Deep dives and dedicated coverage hubs for our favorite brands and topics.';
 
-const query = `*[_type == "featuredBrand"] | order(_createdAt desc)`;
-let allBrands = [];
-try {
-  allBrands = await sanityClient.fetch(query);
-} catch (e) {
-  console.error("Failed to fetch Sanity featured brands", e);
-}
+const articles = await getArticles();
+const videos = await getVideos();
+
+const eventItems = [
+  ...articles.map((a) => ({ ...a, type: 'article' })),
+  ...videos.map((v) => ({ ...v, type: 'video', image: v.thumbnail })),
+]
+  .filter((item) => item.category === 'Events')
+  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 ---
 
 <Layout title={title} description={description}>
-  <main class="featured-page">
+  <main class="events-page">
     <div class="container">
-      
-      <header class="section-header animate-on-scroll" data-nav-anchor style="text-align: center; margin-bottom: 4rem;">
+      <header class="section-header animate-on-scroll" data-nav-anchor>
         <PageTitle as="h1" kicker="Spotlight" primary="Featured" secondary="Hubs" />
-        <p style="color: #888; max-width: 600px; margin: 1.5rem auto 0; font-size: 1.1rem; line-height: 1.6;">
-          Explore our deepest coverage, dedicated to the brands and stories that shape nerd culture.
-        </p>
       </header>
-      
-      <div class="featured-grid">
-        {allBrands.length > 0 ? (
-          allBrands.map((brand, index) => (
-            <FeaturedCard brand={brand} index={index} />
-          ))
-        ) : (
-          <div class="empty-state animate-on-scroll" style="grid-column: 1 / -1; text-align: center; padding: 6rem 0; opacity: 0.6;">
-            <p>No featured hubs available yet. Check back soon!</p>
-          </div>
-        )}
+
+      <div class="event-grid">
+        {
+          eventItems.length > 0 ? (
+            eventItems.map((item, index) => {
+              const isVideo = item.type === 'video';
+              const videoId = isVideo
+                ? item.link.includes('shorts')
+                  ? item.link.split('/').pop()
+                  : new URL(item.link).searchParams.get('v')
+                : null;
+
+              const CardWrapper = isVideo ? 'div' : 'a';
+              const wrapperProps = isVideo
+                ? {
+                    class: 'event-card animate-on-scroll video-modal-trigger',
+                    'data-video-id': videoId,
+                    style: `--index: ${index}; cursor: pointer;`,
+                  }
+                : {
+                    href: item.link,
+                    target: '_blank',
+                    rel: 'noopener noreferrer',
+                    class: 'event-card animate-on-scroll',
+                    style: `--index: ${index};`,
+                  };
+
+              return (
+                <CardWrapper {...wrapperProps}>
+                  <div class="event-image-wrapper">
+                    <img
+                      src={item.image}
+                      alt={item.title}
+                      loading="lazy"
+                      decoding="async"
+                      class="event-image"
+                    />
+                    <div class="event-overlay">
+                      <span class="event-tag">{item.category}</span>
+                      <h3 class="event-title line-clamp-2">{item.title}</h3>
+                      <span class="event-date">{item.date}</span>
+                    </div>
+                  </div>
+                </CardWrapper>
+              );
+            })
+          ) : (
+            <div
+              class="empty-state animate-on-scroll"
+              style="grid-column: 1 / -1; text-align: center; padding: 4rem 0; opacity: 0.6;"
+            >
+              <p>Check back soon for live coverage and event highlights.</p>
+            </div>
+          )
+        }
       </div>
 
     </div>
   </main>
+  
+  <EventBookingCTA />
 </Layout>
 
 <style>
-  .featured-page {
-    padding-top: 120px;
-  }
-
   .container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 0 2rem 4rem 2rem;
-  }
-  
-  .featured-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 2.5rem;
-    margin: 0 auto;
-    max-width: 1000px;
-  }
-  
-  @media (max-width: 768px) {
-    .featured-grid {
-      grid-template-columns: 1fr;
-    }
+    padding: 0 2rem;
   }
 </style>
