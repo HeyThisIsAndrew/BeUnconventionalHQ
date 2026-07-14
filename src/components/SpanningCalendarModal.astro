@@ -1,5 +1,6 @@
 ---
 import PageTitle from './PageTitle.astro';
+import DesktopCalendar from './DesktopCalendar.astro';
 
 export interface Props {
   events: any[];
@@ -115,48 +116,12 @@ const currentMonthEvents = events.filter((event) => {
 ---
 
 <dialog id="spanning-calendar-modal" class="fade-in-overlay">
+  <!-- Unified Responsive Calendar View -->
   <div class="modal-inner">
-    <div class="modal-header">
-      <PageTitle 
-        as="h2" 
-        kicker="Calendar" 
-        primary={today.toLocaleString('en-US', { month: 'long' })} 
-        secondary={today.getFullYear().toString()} 
-      />
-      <button id="close-calendar-btn" class="close-btn" aria-label="Close Calendar">&times;</button>
+    <div class="modal-close-bar">
+      <button class="close-btn" aria-label="Close Calendar">&times;</button>
     </div>
-    
-    <div class="calendar-grid-wrapper">
-      <div class="calendar-header-row">
-        <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
-      </div>
-      
-      <div class="calendar-grid">
-        {days.map((d, i) => (
-          <div class={`calendar-cell ${d.empty ? 'empty' : ''}`} style={`grid-column: ${(i % 7) + 1}; grid-row: ${Math.floor(i / 7) + 1};`}>
-            {!d.empty && <span class="day-number">{d.day}</span>}
-          </div>
-        ))}
-        
-        {calendarSegments.map((segment) => {
-          const Element = segment.isPast ? 'div' : 'a';
-          return (
-            <Element
-              href={segment.isPast ? undefined : `/events-new/${segment.slug}`}
-              data-event-id={segment.slug}
-              class:list={[
-                'highlighter-bar',
-                { 'is-start': segment.isStart, 'is-end': segment.isEnd, 'is-continuation': segment.isContinuation, 'is-past': segment.isPast },
-              ]}
-              style={`grid-row: ${segment.row}; grid-column: ${segment.colStart} / span ${segment.span}; --bar-color: ${segment.color}; --overlap-index: ${segment.overlapIndex};`}
-            >
-              {segment.isContinuation && <span class="bar-cont" aria-hidden="true">↳ </span>}
-              <span class="bar-label">{segment.title}</span>
-            </Element>
-          );
-        })}
-      </div>
-    </div>
+    <DesktopCalendar events={events} />
   </div>
 </dialog>
 
@@ -179,154 +144,66 @@ const currentMonthEvents = events.filter((event) => {
     background: #111;
     border: 1px solid rgba(255,255,255,0.1);
     border-radius: 12px;
-    padding: 2rem;
+    padding: 0;
     box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-    max-height: 90vh;
-    overflow-y: auto;
     display: flex;
     flex-direction: column;
-  }
-  
-  .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 3rem;
-  }
-  
-  .close-btn {
-    background: transparent;
-    border: none;
-    color: white;
-    font-size: 2.5rem;
-    line-height: 1;
-    cursor: pointer;
-    transition: color 0.2s ease;
-    -webkit-tap-highlight-color: transparent;
-    outline: none;
-  }
-  .close-btn:hover {
-    color: var(--color-accent, #cc0000);
-  }
-  
-  .calendar-grid-wrapper {
-    width: 100%;
-    max-height: 70vh;
-    max-height: 70dvh;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding-bottom: 2rem;
-  }
-  
-  .calendar-header-row {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    text-align: right;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    color: #888;
-    text-transform: uppercase;
-    font-weight: 700;
-    font-size: 0.8rem;
-    letter-spacing: 1px;
-  }
-  .calendar-header-row span {
-    padding: 0 0.5rem;
-  }
-  
-  .calendar-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    grid-auto-rows: minmax(80px, auto);
-    gap: 1px;
-    background: rgba(255,255,255,0.1);
-    border: 1px solid rgba(255,255,255,0.1);
-    position: relative;
-    /* this allows child elements (the highlighter bars) to live in the same grid cells as the background cells */
-  }
-  
-  .calendar-cell {
-    background: #111;
-    padding: 0.5rem;
-    position: relative;
-    z-index: 1;
-  }
-  
-  .day-number {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    font-weight: 600;
-    color: #aaa;
-  }
-  
-  .highlighter-bar {
-    display: flex;
-    align-items: center;
-    background: var(--bar-color);
-    color: white;
-    border-radius: 0; /* squared by default; start/end round their outer edge */
-    padding: 0.25rem 0.5rem;
-    font-size: 0.8rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    text-decoration: none;
-    margin-top: calc(2.5rem + (var(--overlap-index, 0) * 30px)); /* Push down to avoid overlap */
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    z-index: 10;
-    white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
-    /* No positional movement on hover — the whole event brightens together via
-       the .hover-active class so multi-row events feel like one block. */
-    transition: filter 0.2s ease, box-shadow 0.2s ease;
-    align-self: start;
+    max-height: 95vh;
+  }
+  .modal-close-bar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 1rem 1rem 0 0;
   }
 
-  /* Round only the outer corners of the whole event so intermediate rows butt
-     up flush, like a text-selection highlight flowing across lines. */
-  .highlighter-bar.is-start {
-    border-top-left-radius: 4px;
-    border-bottom-left-radius: 4px;
-    margin-left: 0.25rem;
+  /* Breakpoint Toggle */
+  @media (min-width: 900px) {
+    #spanning-calendar-modal {
+      width: 1200px; /* Wider for desktop */
+      max-width: 95vw;
+    }
   }
-  .highlighter-bar.is-end {
-    border-top-right-radius: 4px;
-    border-bottom-right-radius: 4px;
-    margin-right: 0.25rem;
-  }
+  
+.close-btn {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: white;
+  font-size: 2.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-user-select: none;
+  user-select: none;
+  outline: none !important;
+}
 
-  .bar-cont {
-    opacity: 0.75;
-    margin-right: 0.15rem;
-    flex-shrink: 0;
-  }
-  /* Continuation rows dim their repeated label slightly so the eye reads the
-     first row as the event's "start" while later rows stay clearly labelled. */
-  .highlighter-bar.is-continuation .bar-label {
-    opacity: 0.8;
-  }
-  .bar-label {
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+.close-btn:hover {
+  color: var(--color-accent, #cc0000);
+}
 
-  .highlighter-bar.is-past {
-    text-decoration: line-through;
-    opacity: 0.5;
-    cursor: default;
-  }
+.close-btn:focus-visible,
+.close-btn:focus,
+.close-btn:active {
+  background: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
 
-  /* Applied by JS to every segment sharing the hovered event's id. */
-  .highlighter-bar:not(.is-past):hover,
-  .highlighter-bar:not(.is-past).hover-active {
-    filter: brightness(1.15);
-    box-shadow: 0 6px 15px rgba(0,0,0,0.5);
-  }
-  .highlighter-bar.hover-active:not(.is-past) .bar-label,
-  .highlighter-bar:not(.is-past):hover .bar-label {
-    opacity: 1;
-  }
+.close-btn::-webkit-focus-inner {
+  border: 0;
+}
 </style>
 
 <script>
@@ -334,7 +211,7 @@ const currentMonthEvents = events.filter((event) => {
     const btns = document.querySelectorAll('.open-full-calendar-btn');
     const modalElement = document.getElementById('spanning-calendar-modal');
     const modal = modalElement instanceof HTMLDialogElement ? modalElement : null;
-    const closeBtn = document.getElementById('close-calendar-btn');
+    const closeBtns = document.querySelectorAll('#spanning-calendar-modal .close-btn');
 
     const closeModal = () => {
       if (!modal) return;
@@ -371,10 +248,20 @@ const currentMonthEvents = events.filter((event) => {
           modal.showModal();
         });
       });
+      
+      // Auto-close on mobile landscape to prevent overflow
+      const handleOrientationChange = () => {
+        if (window.matchMedia('(max-height: 600px) and (orientation: landscape)').matches) {
+          closeModal();
+        }
+      };
+      window.addEventListener('orientationchange', () => {
+        setTimeout(handleOrientationChange, 100);
+      });
     }
 
-    if (closeBtn && modal) {
-      closeBtn.addEventListener('click', closeModal);
+    if (closeBtns.length > 0 && modal) {
+      closeBtns.forEach(btn => btn.addEventListener('click', closeModal));
     }
 
     if (modal) {
@@ -398,24 +285,24 @@ const currentMonthEvents = events.filter((event) => {
       const setHover = (id: string | null, on: boolean) => {
         if (!id) return;
         modal
-          .querySelectorAll(`.highlighter-bar[data-event-id="${CSS.escape(id)}"]`)
+          .querySelectorAll(`.dc-highlighter-bar[data-event-id="${CSS.escape(id)}"]`)
           .forEach((el) => el.classList.toggle('hover-active', on));
       };
 
       modal.addEventListener('mouseover', (event) => {
-        const bar = (event.target as HTMLElement)?.closest?.('.highlighter-bar');
+        const bar = (event.target as HTMLElement)?.closest?.('.dc-highlighter-bar');
         if (bar) setHover(bar.getAttribute('data-event-id'), true);
       });
       modal.addEventListener('mouseout', (event) => {
-        const bar = (event.target as HTMLElement)?.closest?.('.highlighter-bar');
+        const bar = (event.target as HTMLElement)?.closest?.('.dc-highlighter-bar');
         if (bar) setHover(bar.getAttribute('data-event-id'), false);
       });
       modal.addEventListener('focusin', (event) => {
-        const bar = (event.target as HTMLElement)?.closest?.('.highlighter-bar');
+        const bar = (event.target as HTMLElement)?.closest?.('.dc-highlighter-bar');
         if (bar) setHover(bar.getAttribute('data-event-id'), true);
       });
       modal.addEventListener('focusout', (event) => {
-        const bar = (event.target as HTMLElement)?.closest?.('.highlighter-bar');
+        const bar = (event.target as HTMLElement)?.closest?.('.dc-highlighter-bar');
         if (bar) setHover(bar.getAttribute('data-event-id'), false);
       });
     }

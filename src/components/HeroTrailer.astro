@@ -238,7 +238,7 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
 
       const uid = root.dataset.uid || '';
       const title = root.dataset.title || 'Trailer';
-      const mobileFrame = root.querySelector('.ht-mobile .ht-frame');
+      let mobileFrame = root.querySelector('.ht-mobile .ht-frame') as HTMLIFrameElement;
       const mount = root.querySelector('.ht-mount');
       const poster = root.querySelector('.ht-poster');
       const soundBtn = root.querySelector('.ht-sound');
@@ -361,8 +361,31 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
         }
       };
       activate(mql.matches);
-      // Removed mql.addEventListener('change') to prevent iframe destruction and 
-      // inappropriate desktop overlay rendering on mobile landscape rotation.
+      
+      // ---- iOS Safari Rotation Fix ----
+      // When rotating the phone on mobile, the iframe can crash or desync (audio plays, video black).
+      // Resolution: forcefully destroy and recreate the iframe to guarantee a clean state.
+      const onOrientationChange = () => {
+        if (!mql.matches && mobileFrame && mobileFrame.parentNode) {
+          // 1. Attempt to exit any DOM-level fullscreen
+          if (document.fullscreenElement && document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+          } else if ((document as any).webkitFullscreenElement && (document as any).webkitExitFullscreen) {
+            (document as any).webkitExitFullscreen();
+          }
+
+          // 2. Clone and replace the iframe to completely kill the active video/audio stream
+          const newFrame = mobileFrame.cloneNode(true) as HTMLIFrameElement;
+          mobileFrame.parentNode.replaceChild(newFrame, mobileFrame);
+          
+          // 3. Update our reference so future rotations or media query checks affect the new frame
+          mobileFrame = newFrame;
+        }
+      };
+      window.addEventListener('orientationchange', () => {
+        // Slight delay to allow the browser to settle viewport dimensions
+        setTimeout(onOrientationChange, 50);
+      });
 
       // ---- Desktop interactions ----
       if (poster) {
