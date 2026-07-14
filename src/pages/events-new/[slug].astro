@@ -412,7 +412,6 @@ const trailerId = getYoutubeId(trailerUrl);
     font-weight: 400;
     overflow: hidden;
     max-height: 3em;
-    transition: max-height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .hero-read-more {
     background: none;
@@ -723,53 +722,25 @@ const trailerId = getYoutubeId(trailerUrl);
     if (!text || !toggle) return;
 
     let expanded = false;
-    let endHandler = null;
-    const clearEnd = () => {
-      if (endHandler) {
-        text.removeEventListener('transitionend', endHandler);
-        endHandler = null;
-      }
-    };
 
-    // Toggle visibility depends on whether the (collapsed) text overflows. Skip
-    // while expanded or mid-animation so a transient height can't hide it.
+
+    // Toggle visibility depends on whether the (collapsed) text overflows.
     const evaluate = () => {
       if (expanded) return;
-      if (text.style.maxHeight && text.style.maxHeight.endsWith('px')) return;
       toggle.hidden = text.scrollHeight <= text.clientHeight + 2;
     };
 
     if (toggle.dataset.bound !== 'true') {
       toggle.dataset.bound = 'true';
       toggle.addEventListener('click', () => {
-        clearEnd();
         if (!expanded) {
           expanded = true;
-          text.style.maxHeight = text.scrollHeight + 'px';
+          text.style.maxHeight = 'none';
           toggle.textContent = 'Read less';
           toggle.setAttribute('aria-expanded', 'true');
-          endHandler = (e) => {
-            if (e.propertyName !== 'max-height') return;
-            text.style.maxHeight = 'none'; // let it reflow freely once open
-            clearEnd();
-          };
-          text.addEventListener('transitionend', endHandler);
         } else {
           expanded = false;
-          // Collapse without the bounce. When expanded, max-height is 'none';
-          // setting a px value while the transition is live makes the browser
-          // interpolate none→px as 0→px (an instant snap to 0, then a jump back).
-          // Fix: disable the transition, pin the REAL current height, let the
-          // browser paint it across two frames, THEN re-enable the transition and
-          // animate down to the collapsed value.
-          text.style.transition = 'none';
-          text.style.maxHeight = text.scrollHeight + 'px';
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              text.style.transition = ''; // revert to the CSS max-height transition
-              text.style.maxHeight = COLLAPSED_MAX;
-            });
-          });
+          text.style.maxHeight = COLLAPSED_MAX;
           toggle.textContent = 'Read more';
           toggle.setAttribute('aria-expanded', 'false');
         }
