@@ -75,25 +75,7 @@ const unifiedContent = [
 // Format date range. All getters/formatters are pinned to UTC so a datetime
 // stored as midnight UTC ("2026-07-23") never shifts back a day for viewers
 // west of UTC (i.e. all of the Americas).
-function formatDateRange(start: string, end?: string) {
-  const fmtMonth = (d: Date) => d.toLocaleString('en-US', { timeZone: 'UTC', month: 'short' });
-  const startDate = new Date(start);
-  const sMonth = fmtMonth(startDate);
-  const sDay = startDate.getUTCDate();
-  const sYear = startDate.getUTCFullYear();
 
-  if (!end) return `${sMonth} ${sDay}, ${sYear}`;
-
-  const endDate = new Date(end);
-  const eMonth = fmtMonth(endDate);
-  const eDay = endDate.getUTCDate();
-  const eYear = endDate.getUTCFullYear();
-
-  if (sMonth === eMonth && sYear === eYear) {
-    return `${sMonth} ${sDay} - ${eDay}, ${sYear}`;
-  }
-  return `${sMonth} ${sDay}, ${sYear} - ${eMonth} ${eDay}, ${eYear}`;
-}
 
 // Safe YouTube ID extraction for feed items — a null/broken link returns null
 // instead of throwing (a bad URL used to crash the whole static build).
@@ -152,10 +134,7 @@ const trailerId = getYoutubeId(trailerUrl);
               />
             )}
             <h1 class="hero-title">{event.title}</h1>
-            <p class="hero-meta">
-              <span class="event-dates">{formatDateRange(event.startDate, event.endDate)}</span>
-              {event.location && <span class="event-location"> • {event.location}</span>}
-            </p>
+
             {event.description && (
               <div class="hero-description-wrapper">
                 <p class="hero-description-text" id="event-about-text">{event.description}</p>
