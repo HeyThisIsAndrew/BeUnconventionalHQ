@@ -37,54 +37,62 @@ const currentMonthEvents = events.filter((event) => {
   return start <= monthEnd && end >= monthStart;
 });
 
-const calendarSegments = currentMonthEvents.flatMap((event) => {
-  const start = new Date(event.startDate);
-  const end = event.endDate ? new Date(event.endDate) : start;
+  const todayDate = new Date();
+  // Strip time from today to compare just the date boundaries
+  todayDate.setHours(0, 0, 0, 0);
 
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return [];
-  }
+  const calendarSegments = currentMonthEvents.flatMap((event) => {
+    const start = new Date(event.startDate);
+    const end = event.endDate ? new Date(event.endDate) : start;
 
-  const startDay = start < monthStart ? 1 : start.getDate();
-  const endDay = end > monthEnd ? totalDays : end.getDate();
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return [];
+    }
+    
+    // An event is past if its end date is entirely before today
+    const eventEndDate = new Date(end);
+    eventEndDate.setHours(0, 0, 0, 0);
+    const isPast = eventEndDate < todayDate;
 
-  const startIndex = startingDayOfWeek + startDay - 1;
-  const endIndex = startingDayOfWeek + endDay - 1;
+    const startDay = start < monthStart ? 1 : start.getDate();
+    const endDay = end > monthEnd ? totalDays : end.getDate();
 
-  const startRow = Math.floor(startIndex / 7) + 1;
-  const startCol = (startIndex % 7) + 1;
-  const endRow = Math.floor(endIndex / 7) + 1;
-  const endCol = (endIndex % 7) + 1;
+    const startIndex = startingDayOfWeek + startDay - 1;
+    const endIndex = startingDayOfWeek + endDay - 1;
 
-  const color = event.brandColor || 'var(--color-accent, #cc0000)';
-  const segments = [];
+    const startRow = Math.floor(startIndex / 7) + 1;
+    const startCol = (startIndex % 7) + 1;
+    const endRow = Math.floor(endIndex / 7) + 1;
+    const endCol = (endIndex % 7) + 1;
 
-  const slug = event.slug?.current ?? event.slug ?? '';
+    const color = event.brandColor || 'var(--color-accent, #cc0000)';
+    const segments = [];
 
-  for (let row = startRow; row <= endRow; row++) {
-    const colStart = row === startRow ? startCol : 1;
-    const colEnd = row === endRow ? endCol : 7;
-    const span = colEnd - colStart + 1;
-    const isStart = row === startRow;
-    const isEnd = row === endRow;
+    const slug = event.slug?.current ?? event.slug ?? '';
 
-    segments.push({
-      row,
-      colStart,
-      span,
-      color,
-      slug,
-      title: event.title,
-      // Continuation rows repeat the title so no bar is ever blank; a leading
-      // arrow marks the rows that flow on from the line above.
-      isStart,
-      isEnd,
-      isContinuation: !isStart,
-    });
-  }
+    for (let row = startRow; row <= endRow; row++) {
+      const colStart = row === startRow ? startCol : 1;
+      const colEnd = row === endRow ? endCol : 7;
+      const span = colEnd - colStart + 1;
+      const isStart = row === startRow;
+      const isEnd = row === endRow;
 
-  return segments;
-});
+      segments.push({
+        row,
+        colStart,
+        span,
+        color,
+        slug,
+        title: event.title,
+        isStart,
+        isEnd,
+        isContinuation: !isStart,
+        isPast,
+      });
+    }
+
+    return segments;
+  });
 
 ---
 
@@ -112,24 +120,23 @@ const calendarSegments = currentMonthEvents.flatMap((event) => {
           </div>
         ))}
         
-        <!-- Draw Highlighter Bars. Multi-week events emit one <a> per row, but
-             they share a data-event-id so JS can sync hover across all pieces,
-             and border-radius is only applied on the true start/end so the rows
-             read as one continuous block. -->
-        {calendarSegments.map((segment) => (
-          <a
-            href={`/events-new/${segment.slug}`}
-            data-event-id={segment.slug}
-            class:list={[
-              'highlighter-bar',
-              { 'is-start': segment.isStart, 'is-end': segment.isEnd, 'is-continuation': segment.isContinuation },
-            ]}
-            style={`grid-row: ${segment.row}; grid-column: ${segment.colStart} / span ${segment.span}; --bar-color: ${segment.color};`}
-          >
-            {segment.isContinuation && <span class="bar-cont" aria-hidden="true">↳ </span>}
-            <span class="bar-label">{segment.title}</span>
-          </a>
-        ))}
+        {calendarSegments.map((segment) => {
+          const Element = segment.isPast ? 'div' : 'a';
+          return (
+            <Element
+              href={segment.isPast ? undefined : `/events-new/${segment.slug}`}
+              data-event-id={segment.slug}
+              class:list={[
+                'highlighter-bar',
+                { 'is-start': segment.isStart, 'is-end': segment.isEnd, 'is-continuation': segment.isContinuation, 'is-past': segment.isPast },
+              ]}
+              style={`grid-row: ${segment.row}; grid-column: ${segment.colStart} / span ${segment.span}; --bar-color: ${segment.color};`}
+            >
+              {segment.isContinuation && <span class="bar-cont" aria-hidden="true">↳ </span>}
+              <span class="bar-label">{segment.title}</span>
+            </Element>
+          );
+        })}
       </div>
     </div>
   </div>
@@ -279,14 +286,20 @@ const calendarSegments = currentMonthEvents.flatMap((event) => {
     text-overflow: ellipsis;
   }
 
+  .highlighter-bar.is-past {
+    text-decoration: line-through;
+    opacity: 0.5;
+    cursor: default;
+  }
+
   /* Applied by JS to every segment sharing the hovered event's id. */
-  .highlighter-bar:hover,
-  .highlighter-bar.hover-active {
+  .highlighter-bar:not(.is-past):hover,
+  .highlighter-bar:not(.is-past).hover-active {
     filter: brightness(1.15);
     box-shadow: 0 6px 15px rgba(0,0,0,0.5);
   }
-  .highlighter-bar.hover-active .bar-label,
-  .highlighter-bar:hover .bar-label {
+  .highlighter-bar.hover-active:not(.is-past) .bar-label,
+  .highlighter-bar:not(.is-past):hover .bar-label {
     opacity: 1;
   }
 </style>
