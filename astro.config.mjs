@@ -21,7 +21,13 @@ export default defineConfig({
   },
   integrations: [
     react(),
-    sitemap(),
+    sitemap({
+      // WIP routes are excluded from the sitemap so Google doesn't treat them
+      // as canonical destinations. Paired with a noindex meta on the pages
+      // themselves and a robots.txt Disallow. Remove this filter (and both
+      // gates) when /events-new is promoted to /events.
+      filter: (page) => !page.includes('/events-new'),
+    }),
     sanity({
       projectId: '38nhxsib',
       dataset: 'production',
