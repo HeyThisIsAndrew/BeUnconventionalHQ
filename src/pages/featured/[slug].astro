@@ -72,11 +72,6 @@ const unifiedContent = [
   ...filteredArticles.map((a: any) => ({ ...a, contentType: 'article' }))
 ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-// Format date range. All getters/formatters are pinned to UTC so a datetime
-// stored as midnight UTC ("2026-07-23") never shifts back a day for viewers
-// west of UTC (i.e. all of the Americas).
-
-
 // Safe YouTube ID extraction for feed items — a null/broken link returns null
 // instead of throwing (a bad URL used to crash the whole static build).
 function getVideoId(link: string | undefined | null): string | null {
@@ -110,6 +105,9 @@ const trailerId = getYoutubeId(trailerUrl);
 <Layout title={`${event.title}`} description={`Complete coverage of ${event.title}`}>
   <main class="event-dashboard" style={`--brand-color: ${brandColor};`}>
     
+    {/* TODO: Refactor this hero section into a reusable component to share with
+        the event detail page. Follow up with: "Can you walk me through creating
+        a reusable component for the hero section?" */}
     {/* Cinematic Hero */}
     <section class="event-hero">
       <div class="event-hero-bg" style={heroUrl ? `background-image: url('${heroUrl}');` : `background-image: ${fallbackGradient};`}></div>
