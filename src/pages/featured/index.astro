@@ -62,14 +62,21 @@ try {
                   />
                   <div class="event-overlay">
                     {brand.logo ? (
-                      <img
-                        src={urlFor(brand.logo).height(96).url()}
-                        alt={`${brand.title} logo`}
-                        class="event-card-logo"
-                        height={logoHeight}
-                        width={logoWidth}
-                        loading="lazy"
-                      />
+                      <>
+                        <span class="event-card-logo-wrap">
+                          <img
+                            src={urlFor(brand.logo).height(96).url()}
+                            alt={`${brand.title} logo`}
+                            class="event-card-logo"
+                            height={logoHeight}
+                            width={logoWidth}
+                            loading="lazy"
+                          />
+                        </span>
+                        {/* Heading kept for structure/SEO even when the logo is
+                            the visual identity (mirrors FeaturedEvent). */}
+                        <h3 class="event-card-sr-title">{brand.title}</h3>
+                      </>
                     ) : (
                       <h3 class="event-title line-clamp-2">{brand.title}</h3>
                     )}
@@ -107,16 +114,37 @@ try {
     font-size: 1.1rem;
     padding: 4rem 0;
   }
+  /* drop-shadow lives on the WRAPPER, not the <img>. It still follows the
+     logo's transparent-PNG alpha (identical look), but keeping filter OFF the
+     image element avoids the iOS Safari bug that renders a filtered <img> as
+     broken — the reason drop-shadow was removed from the hero/EventCard logos. */
+  .event-card-logo-wrap {
+    display: inline-block;
+    max-width: 80%;
+    margin-right: auto; /* left-align */
+    filter: drop-shadow(0 4px 15px rgba(0, 0, 0, 0.7));
+  }
   .event-card-logo {
     max-height: 80px;
-    max-width: 80%;
+    max-width: 100%;
     width: auto;
     height: auto;
     object-fit: contain;
-    /* Lifts the logo off the background for better legibility */
-    margin-right: auto; /* Aligns logo to the left */
-    filter: drop-shadow(0 4px 15px rgba(0,0,0,0.7));
+    display: block;
     transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  /* Visually-hidden heading — keeps document structure when the logo is the
+     visual identity. */
+  .event-card-sr-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .event-image-wrapper {

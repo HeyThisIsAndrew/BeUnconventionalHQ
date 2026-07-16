@@ -39,7 +39,12 @@ const { events = [] } = Astro.props;
 
           <div class="uel-body">
             {logoUrl ? (
-              <img src={logoUrl} alt={`${event.title} logo`} loading="lazy" class="uel-logo" />
+              <>
+                <img src={logoUrl} alt={`${event.title} logo`} loading="lazy" class="uel-logo" />
+                {/* Heading kept for structure even when the logo is the identity
+                    (mirrors FeaturedEvent's sr-only heading). */}
+                <h3 class="uel-sr-title">{event.title}</h3>
+              </>
             ) : (
               <h3 class="uel-title">{event.title}</h3>
             )}
@@ -124,6 +129,18 @@ const { events = [] } = Astro.props;
     font-weight: 700;
     margin: 0 0 0.25rem;
     line-height: 1.25;
+  }
+  /* Visually-hidden heading — keeps a per-item heading when the logo is shown. */
+  .uel-sr-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
   .uel-meta {
     margin: 0;
