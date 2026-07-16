@@ -5,17 +5,12 @@ import FeaturedEvent from '../components/FeaturedEvent.astro';
 import UpcomingEventsList from '../components/UpcomingEventsList.astro';
 import EventCard from '../components/EventCard.astro';
 import EventBookingCTA from '../components/EventBookingCTA.astro';
+import MiniCalendarSidebar from '../components/MiniCalendarSidebar.astro'; // Restored per blueprint
 import SpanningCalendarModal from '../components/SpanningCalendarModal.astro';
 import { site } from '../data/site.js';
 // @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
 import { sanityClient } from "sanity:client";
 import { toYMD } from '../lib/events';
-
-// NOTE: EventCalendar (timeline) and MiniCalendarSidebar are intentionally NOT
-// imported here anymore. The hub leads with an editorial featured hero + a
-// vertical upcoming list; the full calendar is a utility behind the button.
-// Both components are preserved in src/components for easy restoration if the
-// event volume grows or the UX direction changes.
 
 const title = `Events | ${site.name}`;
 const description = 'Live coverage, premieres, and press event highlights from Be Unconventional HQ.';
@@ -61,52 +56,136 @@ const pastEvents = allEvents
 <Layout title={title} description={description} noindex={true}>
   <main class="events-page">
     <div class="container">
+      <!--
+        ARCHITECTURAL LEDGER: FULL-WIDTH HERO SECTION
+        The main <header> and the <FeaturedEvent /> component are intentionally
+        placed *outside* and *above* the 12-column grid. This ensures they
+        remain unconstrained by the grid's columns and can span 100% of the
+        .container's width, serving as the page's primary visual anchor.
+        The 70/30 asymmetrical layout only begins *below* this section.
+      -->
       <header class="section-header animate-on-scroll" data-nav-anchor style="text-align: center; margin-bottom: 2.5rem;">
         <PageTitle as="h1" kicker="Coverage" primary="Upcoming" secondary="Events" />
         <p class="events-intro">
           The next nerd-culture moments we're covering. Premieres, conventions, and the stories around them.
         </p>
       </header>
-
       {/* Featured hero: the single nearest upcoming event. */}
-      {featuredEvent ? (
-        <FeaturedEvent event={featuredEvent} />
-      ) : (
-        <p class="events-none">
-          No upcoming events on the schedule right now — explore our past coverage below.
-        </p>
-      )}
+          {featuredEvent ? (
+            <FeaturedEvent event={featuredEvent} />
+          ) : (
+            <p class="events-none">
+              No upcoming events on the schedule right now — explore our past coverage below.
+            </p>
+          )}
 
-      {/* Secondary upcoming events as a clean vertical list. Rendered only when
-          there is more than the featured event — no empty DOM otherwise. */}
-      {secondaryUpcoming.length > 0 && (
-        <section class="upcoming-section animate-on-scroll" aria-labelledby="more-upcoming-heading">
-          <h2 id="more-upcoming-heading" class="upcoming-heading">More Upcoming</h2>
-          <UpcomingEventsList events={secondaryUpcoming} />
+      <!--
+        ARCHITECTURAL LEDGER: THE 70/30 ASYMMETRICAL GRID
+        This is the primary container for the two-column layout.
+
+        - grid-cols-1: On mobile portrait, all content stacks in a single column.
+        - md:grid-cols-12: The 70/30 split is triggered at the `md` (768px)
+          breakpoint, not `lg`. This is a deliberate choice to ensure that
+          tablets and landscape mobile phones also benefit from the two-column
+          view, preventing the sidebar from stacking vertically at the bottom.
+        - lg:items-start: This is critical for the sticky sidebar physics. It
+          prevents the shorter sidebar column from stretching to the full height
+          of the taller main content feed, which would break `position: sticky`.
+          It only applies at `lg` where sticky is active.
+      -->
+      <div class="grid grid-cols-1 md:grid-cols-12 md:gap-8 lg:items-start" style="margin-top: 3.5rem;">
+        <!--
+          ARCHITECTURAL LEDGER: OVERFLOW GUARDRAIL (min-w-0)
+          The `min-w-0` class is a non-negotiable requirement for robust flexbox
+          and grid layouts. By default, a grid/flex child has `min-width: auto`,
+          meaning it will refuse to shrink smaller than its intrinsic content
+          size. A long, unbreakable string of text or a wide image can therefore
+          "blow out" the grid and cause horizontal scrolling.
+
+          `min-w-0` overrides this default, allowing the column to shrink as needed,
+          ensuring the layout survives extreme content and high browser zoom levels
+          (e.g., 300% on a 360px viewport) without breaking.
+        -->
+        <section class="md:col-span-8 min-w-0">
+          
+          {/* Secondary upcoming events as a clean vertical list. */}
+          {secondaryUpcoming.length > 0 && (
+            <section class="upcoming-section animate-on-scroll" aria-labelledby="more-upcoming-heading">
+              <h2 id="more-upcoming-heading" class="upcoming-heading">More Upcoming</h2>
+              <UpcomingEventsList events={secondaryUpcoming} />
+            </section>
+          )}
+
+          {/* Full calendar utility — opens the SpanningCalendarModal. */}
+          {allEvents.length > 0 && (
+            <div class="calendar-cta-row animate-on-scroll">
+              <button class="open-full-calendar-btn" type="button">View Full Calendar</button>
+            </div>
+          )}
+
+          {/* Past coverage portfolio. */}
+          {pastEvents.length > 0 && (
+            <section class="past-events-section animate-on-scroll">
+              <header class="section-header">
+                <PageTitle as="h2" kicker="Portfolio" primary="Coverage" secondary="Hubs" scale="secondary" />
+              </header>
+              <div class="event-grid">
+                {pastEvents.map((event: any, index: number) => (
+                  <EventCard event={event} index={index} />
+                ))}
+              </div>
+            </section>
+          )}
         </section>
-      )}
 
-      {/* Full calendar utility — opens the SpanningCalendarModal (any element
-          with .open-full-calendar-btn is wired by that component's script). */}
-      {allEvents.length > 0 && (
-        <div class="calendar-cta-row animate-on-scroll">
-          <button class="open-full-calendar-btn" type="button">View Full Calendar</button>
-        </div>
-      )}
+        <!--
+          ARCHITECTURAL LEDGER: THE MOBILE KILL-SWITCH
+          The sidebar is hidden by default (`hidden`) and only becomes visible
+          at the `md` breakpoint (`md:block`). This is a critical UX decision
+          to provide a clean, uncluttered, single-column reading experience on
+          portrait mobile devices. Rendering the sidebar on small screens would
+          push primary content down and create unnecessary visual noise.
+        -->
+        <aside class="hidden md:block md:col-span-4">
+          <!--
+            ARCHITECTURAL LEDGER: DESKTOP-ONLY STICKY PHYSICS & FLEXBOX FLOW
 
-      {/* Past coverage portfolio — conditional, so no empty layout when absent. */}
-      {pastEvents.length > 0 && (
-        <section class="past-events-section animate-on-scroll">
-          <header class="section-header">
-            <PageTitle as="h2" kicker="Portfolio" primary="Coverage" secondary="Hubs" scale="secondary" />
-          </header>
-          <div class="event-grid">
-            {pastEvents.map((event: any, index: number) => (
-              <EventCard event={event} index={index} />
-            ))}
+            1. THE STICKY WRAPPER: `lg:sticky`
+               Sticky positioning is ONLY activated at the `lg` (1024px) breakpoint.
+               Applying `sticky` at the `md` breakpoint (landscape mobile) would
+               create a "scroll trap," where the sticky sidebar consumes the
+               entire short viewport height, preventing the user from scrolling
+               the main content. This behavior is strictly reserved for taller
+               desktop monitors where there is ample vertical space.
+
+            2. THE FLEXBOX FLOW: `flex flex-col gap-8`
+               This `div` acts as the parent for all sidebar items. Using Flexbox
+               (`flex flex-col`) with a `gap` enforces a strict vertical document
+               flow. This guarantees that the MiniCalendar and the Advertisement
+               will stack vertically with a physical space between them, preventing
+               any possibility of overlap.
+          -->
+          <div class="lg:sticky lg:top-28 flex flex-col gap-8 items-start">
+            
+            <div class="w-full">
+              <MiniCalendarSidebar events={upcomingEvents} />
+            </div>
+        
+            <!--
+              ARCHITECTURAL NOTE (Stashed Branch): AD SIMULATION
+              The advertisement simulation block below is temporarily commented out
+              to allow for QA and testing of the sidebar's collapse behavior when
+              only a single module (the calendar) is present. This validates the
+              robustness of the `flex-col gap-8` container. To restore the ad,
+              simply uncomment the following div.
+            -->
+            <div class="w-full aspect-[9/16] bg-[#111] border border-[#333] border-dashed rounded-lg flex items-center justify-center p-4 text-center">
+              <span class="text-xs font-bold tracking-widest uppercase text-[#888]">Advertisement<br/>(9:16)</span>
+            </div>
+        
           </div>
-        </section>
-      )}
+        </aside>
+      </div>
     </div>
   </main>
 
@@ -117,7 +196,7 @@ const pastEvents = allEvents
 
 <style>
   .container {
-    max-width: 1100px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 0 2rem;
   }
@@ -139,7 +218,7 @@ const pastEvents = allEvents
   }
 
   .upcoming-section {
-    margin-top: 3.5rem;
+    /* Spacing is now handled by the grid container's margin-top */
   }
   .upcoming-heading {
     font-family: var(--font-display, 'Syne Variable', sans-serif);
@@ -176,6 +255,7 @@ const pastEvents = allEvents
     background: rgba(204, 0, 0, 0.1);
     border-color: var(--color-accent, #cc0000);
     color: white;
+    box-shadow: 0 0 20px rgba(204, 0, 0, 0.5);
     outline: none;
   }
 

@@ -1,14 +1,18 @@
 ---
-import { formatEventDateRange } from '../lib/events';
+// ARCHITECTURAL LEDGER: STATIC CHILD COMPONENT
+// This component is designed to be a "dumb," static block element. It MUST NOT
+// contain any internal `sticky`, `absolute`, or `fixed` positioning classes.
+// All complex layout physics (like making the sidebar scroll with the page)
+// are deferred to and handled by its parent wrapper in the page layout
+// (e.g., `src/pages/events-new.astro`). This strict separation of concerns
+// ensures this component is reusable and prevents conflicting or unpredictable
+// scroll behaviors.
+import { formatEventDateRange } from "../lib/events";
 
 export interface Props {
   events: any[];
 }
 const { events } = Astro.props;
-
-// Current month/year for the top-right period label.
-const today = new Date();
-const periodLabel = today.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
 // Get top 3 upcoming events for the sidebar
 const topEvents = events.slice(0, 3);
@@ -16,7 +20,8 @@ const topEvents = events.slice(0, 3);
 
 <div class="mini-calendar-wrapper animate-on-scroll">
   <div class="mini-cal-topbar">
-    <span class="mini-cal-period">{periodLabel}</span>
+    <!-- Static, thematic header replacing the dynamic month. -->
+    <span class="mini-cal-header-title">Upcoming</span>
   </div>
 
   <div class="calendar-events-list">
@@ -49,31 +54,22 @@ const topEvents = events.slice(0, 3);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     padding: 1.5rem;
-    /* The user wants this to 'move down with the page' (follow the viewport).
-       In CSS, this is position: sticky. */
-    position: sticky;
-    top: 120px;
-    z-index: 10;
   }
 
   .mini-cal-topbar {
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
     margin-bottom: 2rem;
     padding-bottom: 0.5rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  /* Removed .mini-cal-kicker completely as requested */
-
-  .mini-cal-period {
-    font-size: 1.25rem;
+  .mini-cal-header-title {
+    font-size: 0.8rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--color-white, #f0f0f0);
-    /* Right alignment */
-    text-align: right;
+    letter-spacing: 0.2em;
+    color: #888;
   }
 
   .calendar-events-list {
@@ -146,9 +142,11 @@ const topEvents = events.slice(0, 3);
     transition: all 0.3s ease;
   }
 
-  .open-full-calendar-btn:hover {
+  .open-full-calendar-btn:hover,
+  .open-full-calendar-btn:focus-visible {
     background: rgba(204, 0, 0, 0.1);
     border-color: var(--color-accent, #cc0000);
-    color: var(--color-accent, #cc0000);
+    color: white;
+    box-shadow: 0 0 20px rgba(204, 0, 0, 0.5);
   }
 </style>

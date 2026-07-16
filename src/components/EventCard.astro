@@ -52,16 +52,23 @@ const heroUrl = event.heroImage
     display: block;
     position: relative;
     border-radius: 12px;
-    overflow: hidden;
+    /* overflow: hidden; is removed from the card itself to prevent it from
+       clipping the box-shadow glow effect on hover. */
     text-decoration: none;
     color: white;
     background: #111;
     aspect-ratio: 16/9;
+    /* Add box-shadow to the transition for a smooth glow effect. */
+    transition: box-shadow 0.3s ease;
   }
   .event-image-wrapper {
     width: 100%;
     height: 100%;
     position: relative;
+    /* The border-radius and overflow are moved here, to the inner wrapper,
+       to contain the scaling image while allowing the parent to have a glow. */
+    border-radius: 12px;
+    overflow: hidden;
   }
   .event-image {
     width: 100%;
@@ -78,6 +85,12 @@ const heroUrl = event.heroImage
     flex-direction: column;
     justify-content: space-between;
     transition: background 0.3s ease;
+  }
+  /* On hover/focus, apply the cinematic glow for brand consistency. */
+  .event-card:hover,
+  .event-card:focus-visible {
+    box-shadow: 0 0 25px var(--hover-color, rgba(204, 0, 0, 0.5));
+    outline: none;
   }
   .event-card:hover .event-image {
     transform: scale(1.05);
