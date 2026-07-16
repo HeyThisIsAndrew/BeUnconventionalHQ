@@ -5,6 +5,7 @@ import { getVideos, getArticles } from '../../data/feeds.js';
 import EventBookingCTA from '../../components/EventBookingCTA.astro';
 import HeroTrailer from '../../components/HeroTrailer.astro';
 import { formatEventDateRange, formatLocation } from '../../lib/events';
+import EventStatusIndicator from '../../components/EventStatusIndicator.astro';
 
 export async function getStaticPaths() {
   // Project image asset dimensions so we can reserve the logo's box and avoid CLS.
@@ -112,7 +113,7 @@ const trailerId = getYoutubeId(trailerUrl);
           class:list={[
             'container',
             'hero-grid-container',
-            { 'has-trailer': !!trailerId, 'has-cta': !!event.signUpLink },
+            { 'has-trailer': !!trailerId, 'has-cta': !!(event.officialWebsite || event.signUpLink) },
           ]}
         >
           <div class="event-hero-content hero-copy animate-on-scroll">
@@ -129,6 +130,7 @@ const trailerId = getYoutubeId(trailerUrl);
             )}
             {/* Fallback to H1 title if no logo is provided */}
             {!event.logo && <h1 class="hero-title">{event.title}</h1>}
+            <div class="hero-status"><EventStatusIndicator event={event} /></div>
             <p class="hero-meta">
               <span class="event-dates">{formatEventDateRange(event.startDate, event.endDate)}</span>
               {formatLocation(event.location) && <span class="event-location"> • {formatLocation(event.location)}</span>}
@@ -151,10 +153,10 @@ const trailerId = getYoutubeId(trailerUrl);
 
           {/* Placed after the trailer in the DOM so mobile stacks copy →
               trailer → button; grid-areas restore the desktop layout. */}
-          {event.signUpLink && (
+          {(event.officialWebsite || event.signUpLink) && (
             <div class="hero-cta">
-              <a href={event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn">
-                Event Details
+              <a href={event.officialWebsite || event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn">
+                Official event information
               </a>
             </div>
           )}
@@ -364,6 +366,9 @@ const trailerId = getYoutubeId(trailerUrl);
     color: var(--color-white, #f0f0f0);
     text-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
     margin: 0 0 1rem 0;
+  }
+  .hero-status {
+    margin-bottom: 0.75rem;
   }
   .hero-meta {
     font-size: clamp(0.9rem, 0.8rem + 0.6vw, 1.25rem);

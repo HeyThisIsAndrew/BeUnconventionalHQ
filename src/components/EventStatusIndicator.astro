@@ -1,0 +1,128 @@
+---
+// Reusable lifecycle-status indicator (dot + optional label).
+//
+// Status is resolved at BUILD TIME via getEventStatus. To keep the door open
+// for real-time flipping later without changing any markup, the element also
+// carries data-event-status / data-start / data-end — a future client script
+// can find [data-event-status], recompute with the same getEventStatus helper,
+// and swap the class. Nothing here assumes build-time-only.
+import { getEventStatus } from '../lib/events';
+import type { EventStatus } from '../lib/events';
+
+interface Props {
+  event: any;
+  size?: 'sm' | 'md';
+  /** Which statuses render a visible text label. Others show the dot only. */
+  showLabelFor?: EventStatus[];
+}
+const {
+  event,
+  size = 'md',
+  showLabelFor = ['upcoming', 'live', 'cancelled', 'postponed'],
+} = Astro.props;
+
+const status = getEventStatus(event);
+
+const LABELS: Record<EventStatus, string> = {
+  upcoming: 'Upcoming',
+  live: 'Live',
+  completed: 'Past',
+  cancelled: 'Cancelled',
+  postponed: 'Postponed',
+};
+const showLabel = showLabelFor.includes(status);
+const animated = status === 'upcoming' || status === 'live';
+---
+
+<span
+  class:list={['esi', `esi--${status}`, `esi--${size}`, { 'esi--pulse': animated }]}
+  data-event-status={status}
+  data-start={event?.startDate ?? ''}
+  data-end={event?.endDate ?? ''}
+>
+  <span class="esi-dot" aria-hidden="true"></span>
+  {showLabel && <span class="esi-label">{LABELS[status]}</span>}
+  <span class="esi-sr">{LABELS[status]}</span>
+</span>
+
+<style>
+  .esi {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .esi-dot {
+    position: relative;
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #6b7280; /* gray-500 — the completed/default color */
+  }
+  .esi--sm .esi-dot {
+    width: 8px;
+    height: 8px;
+  }
+
+  .esi-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #9ca3af;
+  }
+  .esi--sm .esi-label {
+    font-size: 0.7rem;
+  }
+
+  /* Per-status color. --esi-ring drives the pulse ring so the keyframes can
+     stay status-agnostic. */
+  .esi--upcoming .esi-dot { background: #ef4444; }
+  .esi--upcoming .esi-label { color: #f87171; }
+  .esi--upcoming { --esi-ring: rgba(239, 68, 68, 0.7); }
+
+  .esi--live .esi-dot { background: #22c55e; }
+  .esi--live .esi-label { color: #4ade80; }
+  .esi--live { --esi-ring: rgba(34, 197, 94, 0.7); }
+
+  .esi--completed .esi-dot { background: #6b7280; }
+  .esi--completed .esi-label { color: #9ca3af; }
+
+  .esi--cancelled .esi-dot { background: #ef4444; }
+  .esi--cancelled .esi-label { color: #f87171; }
+
+  .esi--postponed .esi-dot { background: #f59e0b; }
+  .esi--postponed .esi-label { color: #fbbf24; }
+
+  /* Expanding ring for the active (upcoming/live) states only. */
+  .esi--pulse .esi-dot::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    animation: esi-pulse 2s ease-out infinite;
+  }
+  @keyframes esi-pulse {
+    0% { box-shadow: 0 0 0 0 var(--esi-ring, rgba(239, 68, 68, 0.7)); }
+    70% { box-shadow: 0 0 0 8px rgba(0, 0, 0, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .esi--pulse .esi-dot::after { animation: none; }
+  }
+
+  /* Visually-hidden status text so a color dot is never the only signal. */
+  .esi-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>

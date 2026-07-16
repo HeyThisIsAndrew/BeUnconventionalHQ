@@ -8,6 +8,7 @@
 import { sanityClient } from 'sanity:client';
 import { createImageUrlBuilder } from '@sanity/image-url';
 import { formatEventDateRange, formatLocation } from '../lib/events';
+import EventStatusIndicator from './EventStatusIndicator.astro';
 
 const builder = createImageUrlBuilder(sanityClient);
 const urlFor = (source: any) => builder.image(source);
@@ -40,6 +41,9 @@ const { events = [] } = Astro.props;
             {logoUrl && <img src={logoUrl} alt="" loading="lazy" class="uel-logo" />}
             <h3 class="uel-title">{event.title}</h3>
             <p class="uel-meta">
+              {/* Dot-only for plain upcoming (label would be redundant in an
+                  upcoming list); label shows for LIVE / Cancelled / Postponed. */}
+              <EventStatusIndicator event={event} size="sm" showLabelFor={['live', 'cancelled', 'postponed']} />
               <span class="uel-date">{dateLabel}</span>
               {locationLabel && <span class="uel-location"> • {locationLabel}</span>}
             </p>
@@ -120,6 +124,10 @@ const { events = [] } = Astro.props;
   }
   .uel-meta {
     margin: 0;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
     font-size: 0.85rem;
     color: #9a9a9a;
     text-transform: uppercase;

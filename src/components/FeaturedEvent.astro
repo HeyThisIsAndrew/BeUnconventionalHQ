@@ -11,6 +11,7 @@
 import { sanityClient } from 'sanity:client';
 import { createImageUrlBuilder } from '@sanity/image-url';
 import { formatEventDateRange, formatLocation } from '../lib/events';
+import EventStatusIndicator from './EventStatusIndicator.astro';
 
 const builder = createImageUrlBuilder(sanityClient);
 const urlFor = (source: any) => builder.image(source);
@@ -36,7 +37,7 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
   <div class="fe-overlay"></div>
 
   <div class="fe-content">
-    <span class="fe-eyebrow">Next Up</span>
+    <div class="fe-eyebrow"><EventStatusIndicator event={event} /></div>
 
     {logoUrl ? (
       <>
