@@ -3,6 +3,7 @@
 import { sanityClient } from "sanity:client";
 import { createImageUrlBuilder } from "@sanity/image-url";
 import { parseEventDate } from '../lib/events';
+import { parseVideoId } from '../lib/platforms/youtube';
 import EventStatusIndicator from './EventStatusIndicator.astro';
 
 const builder = createImageUrlBuilder(sanityClient);
@@ -11,12 +12,7 @@ const urlFor = (source: any) => {
 };
 
 const { event, index = 0 } = Astro.props;
-function getYoutubeId(url: any) {
-  if (!url) return null;
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
-  return match ? match[1] : null;
-}
-const trailerId = getYoutubeId(event.trailerUrl);
+const trailerId = parseVideoId(event.trailerUrl);
 
 const heroUrl = event.heroImage 
   ? urlFor(event.heroImage).width(800).height(450).url() 

@@ -1,6 +1,8 @@
 ---
+// @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
 import { sanityClient } from "sanity:client";
 import { createImageUrlBuilder } from "@sanity/image-url";
+import { parseVideoId } from '../lib/platforms/youtube';
 
 const builder = createImageUrlBuilder(sanityClient);
 const urlFor = (source: any) => {
@@ -8,12 +10,7 @@ const urlFor = (source: any) => {
 };
 
 const { brand, index = 0 } = Astro.props;
-function getYoutubeId(url) {
-  if (!url) return null;
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
-  return match ? match[1] : null;
-}
-const trailerId = getYoutubeId(brand.trailerUrl);
+const trailerId = parseVideoId(brand.trailerUrl);
 
 const heroUrl = brand.heroImage 
   ? urlFor(brand.heroImage).width(800).height(450).url() 

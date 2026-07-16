@@ -3,6 +3,7 @@ import Layout from '../../layouts/Layout.astro';
 import { getVideos, getArticles } from '../../data/feeds.js';
 import EventBookingCTA from '../../components/EventBookingCTA.astro';
 import HeroTrailer from '../../components/HeroTrailer.astro';
+import { parseVideoId } from '../../lib/platforms/youtube';
 // @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
 import { sanityClient } from "sanity:client";
 import { createImageUrlBuilder } from "@sanity/image-url";
@@ -75,17 +76,7 @@ const unifiedContent = [
   ...filteredArticles.map((a: any) => ({ ...a, contentType: 'article' }))
 ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-// Safe YouTube ID extraction for feed items — a null/broken link returns null
-// instead of throwing (a bad URL used to crash the whole static build).
-function getVideoId(link: string | undefined | null): string | null {
-  if (!link || typeof link !== 'string') return null;
-  try {
-    const match = link.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
-    return match ? match[1] : null;
-  } catch {
-    return null;
-  }
-}
+// YouTube IDs are extracted via the shared parseVideoId (src/lib/platforms/youtube).
 
 const brandColor = event.brandColor || 'var(--color-accent, #cc0000)';
 // Cap the hero at 2400px wide (retina-safe for a full-bleed banner) instead of
@@ -97,12 +88,7 @@ const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
 
 // The trailer (poster, players, sound) is fully encapsulated in <HeroTrailer/>.
 const trailerUrl = event.trailerUrl;
-function getYoutubeId(url) {
-  if (!url) return null;
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
-  return match ? match[1] : null;
-}
-const trailerId = getYoutubeId(trailerUrl);
+const trailerId = parseVideoId(trailerUrl);
 ---
 
 <Layout title={`${event.title}`} description={`Complete coverage of ${event.title}`}>
@@ -179,7 +165,7 @@ const trailerId = getYoutubeId(trailerUrl);
           <div class="mixed-grid" aria-live="polite">
             {unifiedContent.map((item, index) => {
               if (item.contentType === 'video') {
-                const videoId = getVideoId(item.link);
+                const videoId = parseVideoId(item.link);
                 return (
                   <div
                     class:list={['content-card', 'video-card', 'animate-on-scroll', { 'video-modal-trigger': !!videoId }]}
