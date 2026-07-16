@@ -3,7 +3,7 @@
  *
  * Pulls the channel's uploads from the YouTube Data API v3 and upserts a `video`
  * document per video into Sanity. The golden rule: the sync writes FACTUAL
- * fields every run and NEVER overwrites EDITORIAL fields (see docs/youtube-sync.md).
+ * fields every run and NEVER overwrites EDITORIAL fields (see scripts/youtube-sync.md).
  *
  * The upsert uses a deterministic document _id (`youtube-<videoId>`) so re-runs
  * are idempotent — no duplicates. Per video, one transaction does:

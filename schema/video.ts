@@ -12,7 +12,7 @@ import { defineType, defineField } from 'sanity';
  *     a document is first created; it only seeds a couple of defaults on
  *     creation. This is what makes Sanity the editorial source of truth.
  *
- * See docs/youtube-sync.md for the full pipeline contract.
+ * See scripts/youtube-sync.md for the full pipeline contract.
  */
 export default defineType({
   name: 'video',
