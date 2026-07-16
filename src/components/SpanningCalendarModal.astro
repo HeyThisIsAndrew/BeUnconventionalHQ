@@ -253,15 +253,19 @@ const currentMonthEvents = events.filter((event) => {
         });
       });
       
-      // Auto-close on mobile landscape to prevent overflow
-      const handleOrientationChange = () => {
-        if (window.matchMedia('(max-height: 600px) and (orientation: landscape)').matches) {
-          closeModal();
-        }
-      };
-      window.addEventListener('orientationchange', () => {
-        setTimeout(handleOrientationChange, 100);
-      });
+      /*
+        ARCHITECTURAL NOTE: The auto-close behavior on mobile landscape has been
+        removed. Previously, this script would close the modal on short viewports
+        to prevent a broken, scrolling UI. It has been replaced with a CSS-only
+        solution within DesktopCalendar.astro that responsively scales the
+        calendar down to fit the viewport, providing a much better user experience.
+      */
+      // const handleOrientationChange = () => {
+      //   if (window.matchMedia('(max-height: 600px) and (orientation: landscape)').matches) {
+      //     closeModal();
+      //   }
+      // };
+      // window.addEventListener('orientationchange', () => { setTimeout(handleOrientationChange, 100); });
     }
 
     if (closeBtns.length > 0 && modal) {
