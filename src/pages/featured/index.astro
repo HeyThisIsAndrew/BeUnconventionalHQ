@@ -16,7 +16,7 @@ const urlFor = (source: any) => builder.image(source);
 
 // Published, sluggable brands only — same defensive filter as the detail page,
 // so drafts/incomplete docs never break the listing or produce dead links.
-const query = `*[_type == "featuredBrand" && defined(slug.current)] | order(title asc)`;
+const query = `*[_type == "featuredBrand" && defined(slug.current)]{..., logo{..., "dimensions": asset->metadata.dimensions}} | order(title asc)`;
 let brands = [];
 try {
   brands = await sanityClient.fetch(query);
@@ -41,7 +41,11 @@ try {
             const heroUrl = brand.heroImage
               ? urlFor(brand.heroImage).width(800).height(450).auto('format').url()
               : '/placeholder-event.jpg';
-            const tag = Array.isArray(brand.tags) && brand.tags.length ? brand.tags[0] : null;
+            const logoHeight = 96;
+            const logoWidth = brand.logo?.dimensions?.aspectRatio
+              ? Math.round(logoHeight * brand.logo.dimensions.aspectRatio)
+              : undefined;
+
             return (
               <a
                 href={`/featured/${brand.slug.current}`}
@@ -57,8 +61,18 @@ try {
                     class="event-image"
                   />
                   <div class="event-overlay">
-                    {tag && <span class="event-tag">{tag}</span>}
-                    <h3 class="event-title line-clamp-2">{brand.title}</h3>
+                    {brand.logo ? (
+                      <img
+                        src={urlFor(brand.logo).height(96).url()}
+                        alt={`${brand.title} logo`}
+                        class="event-card-logo"
+                        height={logoHeight}
+                        width={logoWidth}
+                        loading="lazy"
+                      />
+                    ) : (
+                      <h3 class="event-title line-clamp-2">{brand.title}</h3>
+                    )}
                   </div>
                 </div>
               </a>
@@ -92,5 +106,15 @@ try {
     color: #888;
     font-size: 1.1rem;
     padding: 4rem 0;
+  }
+  .event-card-logo {
+    max-height: 80px; /* 20% reduction from 100px */
+    max-width: 80%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    /* Lifts the logo off the background for better legibility */
+    margin-right: auto; /* Aligns logo to the left */
+    filter: drop-shadow(0 4px 15px rgba(0,0,0,0.7));
   }
 </style>

@@ -38,8 +38,11 @@ const { events = [] } = Astro.props;
           </div>
 
           <div class="uel-body">
-            {logoUrl && <img src={logoUrl} alt="" loading="lazy" class="uel-logo" />}
-            <h3 class="uel-title">{event.title}</h3>
+            {logoUrl ? (
+              <img src={logoUrl} alt={`${event.title} logo`} loading="lazy" class="uel-logo" />
+            ) : (
+              <h3 class="uel-title">{event.title}</h3>
+            )}
             <p class="uel-meta">
               {/* Dot-only for plain upcoming (label would be redundant in an
                   upcoming list); label shows for LIVE / Cancelled / Postponed. */}
@@ -137,12 +140,13 @@ const { events = [] } = Astro.props;
   .uel-arrow {
     flex-shrink: 0;
     font-size: 1.25rem;
-    color: var(--color-accent, #cc0000);
+    color: white;
     transition: transform 0.25s ease;
   }
   .uel-link:hover .uel-arrow,
   .uel-link:focus-visible .uel-arrow {
     transform: translateX(4px);
+    color: var(--color-accent, #cc0000);
   }
 
   @media (max-width: 560px) {
