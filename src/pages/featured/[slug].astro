@@ -3,39 +3,42 @@ import Layout from '../../layouts/Layout.astro';
 import { getVideos, getArticles } from '../../data/feeds.js';
 import EventBookingCTA from '../../components/EventBookingCTA.astro';
 import HeroTrailer from '../../components/HeroTrailer.astro';
+// @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
+import { sanityClient } from "sanity:client";
+import { createImageUrlBuilder } from "@sanity/image-url";
 
 export async function getStaticPaths() {
-  const hubs = [
-    {
-      slug: { current: 'marvel' },
-      title: 'Marvel Studios',
-      tags: ['Marvel'],
-      brandColor: '#e23636',
-    },
-    {
-      slug: { current: 'appletv' },
-      title: 'Apple TV+ Originals',
-      tags: ['Apple TV'],
-      brandColor: '#000000',
-    },
-    {
-      slug: { current: 'netflix' },
-      title: 'Netflix Exclusives',
-      tags: ['Netflix'],
-      brandColor: '#e50914',
-    }
-  ];
-  
-  return hubs.map((event) => ({
-    params: { slug: event.slug.current },
-    props: { event },
-  }));
+  // Source of truth is Sanity. `defined(slug.current)` excludes drafts and
+  // incomplete documents AT THE QUERY LEVEL, so a half-filled brand can never
+  // reach the map below and crash the build (the original #19 crash). Image
+  // dimensions are projected to reserve the logo box and avoid CLS.
+  const query = `*[_type == "featuredBrand" && defined(slug.current)]{
+    ...,
+    logo{ ..., "dimensions": asset->metadata.dimensions },
+    heroImage{ ..., "dimensions": asset->metadata.dimensions }
+  }`;
+  let brands = [];
+  try {
+    brands = await sanityClient.fetch(query);
+  } catch (e) {
+    console.error("Failed to fetch featuredBrand docs in getStaticPaths", e);
+  }
+
+  // Second guard (belt-and-suspenders): optional chaining + null filter, so
+  // even a query change can't reintroduce the undefined-slug crash.
+  return brands
+    .filter((brand: any) => brand?.slug?.current)
+    .map((brand: any) => ({
+      params: { slug: brand.slug.current },
+      props: { event: brand }, // body references `event.*`; keep that binding
+    }));
 }
 
 const { event } = Astro.props;
 
+const builder = createImageUrlBuilder(sanityClient);
 function urlFor(source: any) {
-  return { url: () => '', height: () => ({ url: () => '' }), width: () => ({ auto: () => ({ url: () => '' }) }) };
+  return builder.image(source);
 }
 
 // 1. Fetch Global Data
