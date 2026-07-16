@@ -217,10 +217,7 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
   .ht-desktop {
     display: none;
   }
-  /* EXPERIMENT (M4): raised 900 -> 1024 so phones (incl. Pro Max landscape
-     ~932px) stay on the mobile native tree in BOTH orientations. Keep this in
-     sync with the matchMedia() query in the script below. */
-  @media (min-width: 1024px) {
+  @media (min-width: 900px) {
     .ht-mobile {
       display: none;
     }
@@ -399,7 +396,7 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
       // Whatever the viewport is NOW, end with exactly one correctly-mounted,
       // freshly-composited player. rebuild=true recreates the active iframe
       // (used after a rotation) to force a clean compositing layer.
-      const mql = window.matchMedia('(min-width: 1024px)'); // sync with CSS @media above
+      const mql = window.matchMedia('(min-width: 900px)');
       const reconcile = (rebuild = false) => {
         if (mql.matches) {
           hideMobile();
@@ -428,23 +425,38 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
         }, 80);
       };
 
-      // Re-mount the correct side ONLY when a real breakpoint crossing happens
-      // (>=1024: iPad landscape / desktop). rebuild=false — a freshly-mounted
-      // side is already a clean element, so no forced rebuild is needed here.
-      mql.addEventListener('change', () => scheduleReconcile(false));
+      // FINDING (M4 experiment, confirmed on iPhone 12/17 Pro Max): raising the
+      // breakpoint to 1024 so the native iframe is left UNTOUCHED across a phone
+      // rotation STILL black-screens on iOS Safari (Outcome B). iOS drops the
+      // cross-origin iframe's compositing layer on rotation regardless of any
+      // tree switch. So the rebuild below is MANDATORY — it trades playback
+      // continuity for a working player. Do NOT remove it to "preserve
+      // playback": true continuity would need a single unified enablejsapi
+      // player with seek-restore, not this two-tree design (separate follow-up).
+      //
+      // Bug 1 (the one hitting the Pro Max devices): the breakpoint flip —
+      // portrait<->landscape crossing 900px, i.e. every iPad and the Plus/Pro
+      // Max iPhones — MUST re-run the mount logic. Previously CSS swapped the
+      // visible structure while JS mounted nothing, so the desktop poster sat
+      // over an empty mount and tapping play produced a black screen.
+      mql.addEventListener('change', () => scheduleReconcile(true));
 
-      // EXPERIMENT (M4): we intentionally do NOTHING on orientationchange now.
-      // With the breakpoint at 1024, a phone rotation never crosses it, so the
-      // native iframe is left completely untouched through the rotation. This
-      // tests whether iOS Safari keeps a cross-origin YouTube iframe alive
-      // across rotation:
-      //   • survives      -> playback continues; the old rebuild was the only
-      //                      thing killing continuity, and we keep this.
-      //   • black-screens -> the rebuild was genuinely necessary; continuity
-      //                      requires the deeper single-player rewrite.
-      // rebuildMobile()/reconcile(true) are kept defined so re-enabling the
-      // rebuild (flip the two scheduleReconcile args back to true + re-add an
-      // orientationchange listener) is a trivial revert.
+      // Bug 2: same-breakpoint rotation. orientationchange fires BEFORE iOS
+      // settles the viewport, so wait for the following visualViewport resize
+      // (with a timeout fallback) before rebuilding the active player.
+      const onOrientation = () => {
+        const vv = window.visualViewport;
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          if (vv) vv.removeEventListener('resize', finish);
+          scheduleReconcile(true);
+        };
+        if (vv) vv.addEventListener('resize', finish);
+        setTimeout(finish, 400);
+      };
+      window.addEventListener('orientationchange', onOrientation);
 
       // ---- Desktop interactions ----
       if (poster) {
