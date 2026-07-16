@@ -1,14 +1,21 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import PageTitle from '../components/PageTitle.astro';
-import EventCalendar from '../components/EventCalendar.astro';
+import FeaturedEvent from '../components/FeaturedEvent.astro';
+import UpcomingEventsList from '../components/UpcomingEventsList.astro';
 import EventCard from '../components/EventCard.astro';
 import EventBookingCTA from '../components/EventBookingCTA.astro';
-import MiniCalendarSidebar from '../components/MiniCalendarSidebar.astro';
 import SpanningCalendarModal from '../components/SpanningCalendarModal.astro';
 import { site } from '../data/site.js';
+// @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
 import { sanityClient } from "sanity:client";
 import { toYMD } from '../lib/events';
+
+// NOTE: EventCalendar (timeline) and MiniCalendarSidebar are intentionally NOT
+// imported here anymore. The hub leads with an editorial featured hero + a
+// vertical upcoming list; the full calendar is a utility behind the button.
+// Both components are preserved in src/components for easy restoration if the
+// event volume grows or the UX direction changes.
 
 const title = `Events | ${site.name}`;
 const description = 'Live coverage, premieres, and press event highlights from Be Unconventional HQ.';
@@ -27,141 +34,135 @@ try {
 // lower and misclassify an event that ends *today* as past.
 const today = toYMD();
 
-// Upcoming: ends today or later, earliest start first. YYYY-MM-DD strings
-// sort chronologically, so localeCompare needs no Date objects.
+// Upcoming: ends today or later, earliest start first. YYYY-MM-DD strings sort
+// chronologically, so localeCompare needs no Date objects.
 const upcomingEvents = allEvents
-  .filter(e => {
+  .filter((e: any) => {
     if (!e.startDate) return false;
     const end = (e.endDate || e.startDate).slice(0, 10);
     return end >= today;
   })
-  .sort((a, b) => a.startDate.localeCompare(b.startDate));
+  .sort((a: any, b: any) => a.startDate.localeCompare(b.startDate));
+
+// The nearest upcoming event headlines the hub; the rest form the vertical list.
+const featuredEvent = upcomingEvents[0] ?? null;
+const secondaryUpcoming = upcomingEvents.slice(1);
 
 // Past: already ended, most recent first.
 const pastEvents = allEvents
-  .filter(e => {
+  .filter((e: any) => {
     if (!e.startDate) return false;
     const end = (e.endDate || e.startDate).slice(0, 10);
     return end < today;
   })
-  .sort((a, b) => b.startDate.localeCompare(a.startDate));
+  .sort((a: any, b: any) => b.startDate.localeCompare(a.startDate));
 ---
 
 <Layout title={title} description={description} noindex={true}>
   <main class="events-page">
     <div class="container">
-      
-      {/* Upcoming Events Calendar */}
-      <header class="section-header animate-on-scroll" data-nav-anchor style="text-align: center; margin-bottom: 2rem;">
-        <PageTitle as="h1" kicker="Schedule" primary="Upcoming" secondary="Events" />
-        <p style="color: #888; max-width: 600px; margin: 1.5rem auto 0; font-size: 1.1rem; line-height: 1.6;">
-          Our coverage roadmap for conventions, premieres, and industry events.
+      <header class="section-header animate-on-scroll" data-nav-anchor style="text-align: center; margin-bottom: 2.5rem;">
+        <PageTitle as="h1" kicker="Coverage" primary="Upcoming" secondary="Events" />
+        <p class="events-intro">
+          The next nerd-culture moments we're covering — premieres, conventions, and the stories around them.
         </p>
       </header>
 
-      <!-- <div class="mobile-calendar-btn-container">
-        <button class="open-full-calendar-btn mobile-only-btn" id="open-calendar-btn-mobile">
-          View Full Calendar
-        </button>
-      </div> -->
-      
-      <div class="events-layout">
-        <div class="events-timeline-col">
-          <EventCalendar events={upcomingEvents} />
-          
-          <div class="mobile-calendar-btn-container">
-            <button class="open-full-calendar-btn mobile-only-btn" id="open-calendar-btn-mobile">
-            View Full Calendar
-            </button>
-        </div>
+      {/* Featured hero: the single nearest upcoming event. */}
+      {featuredEvent ? (
+        <FeaturedEvent event={featuredEvent} />
+      ) : (
+        <p class="events-none">
+          No upcoming events on the schedule right now — explore our past coverage below.
+        </p>
+      )}
 
-          {/* Past Events Coverage Portfolio */}
-          <section class="past-events-section" style="margin-top: 4rem;">
-            <header class="section-header animate-on-scroll">
-              <PageTitle as="h2" kicker="Portfolio" primary="Coverage" secondary="Hubs" scale="secondary" />
-            </header>
-            
-            <div class="event-grid">
-              {pastEvents.length > 0 ? (
-                pastEvents.map((event, index) => (
-                  <EventCard event={event} index={index} />
-                ))
-              ) : (
-                <div class="empty-state animate-on-scroll" style="grid-column: 1 / -1; text-align: center; padding: 4rem 0; opacity: 0.6;">
-                  <p>No past coverage hubs available yet.</p>
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
+      {/* Secondary upcoming events as a clean vertical list. Rendered only when
+          there is more than the featured event — no empty DOM otherwise. */}
+      {secondaryUpcoming.length > 0 && (
+        <section class="upcoming-section animate-on-scroll" aria-labelledby="more-upcoming-heading">
+          <h2 id="more-upcoming-heading" class="upcoming-heading">More Upcoming</h2>
+          <UpcomingEventsList events={secondaryUpcoming} />
+        </section>
+      )}
 
-        <div class="events-sidebar-col">
-          <MiniCalendarSidebar events={upcomingEvents} />
-          
-          {/* Future advertising spot placeholder (e.g., Mint Mobile) */}
-          <div class="sidebar-ad-space" style="display: none; margin-top: 3rem; padding: 2rem; border: 1px dashed rgba(255,255,255,0.2); border-radius: 12px; text-align: center; color: rgba(255,255,255,0.4); font-size: 0.9rem;">
-            <p>Advertisement Space</p>
+      {/* Full calendar utility — opens the SpanningCalendarModal (any element
+          with .open-full-calendar-btn is wired by that component's script). */}
+      {allEvents.length > 0 && (
+        <div class="calendar-cta-row animate-on-scroll">
+          <button class="open-full-calendar-btn" type="button">View Full Calendar</button>
+        </div>
+      )}
+
+      {/* Past coverage portfolio — conditional, so no empty layout when absent. */}
+      {pastEvents.length > 0 && (
+        <section class="past-events-section animate-on-scroll">
+          <header class="section-header">
+            <PageTitle as="h2" kicker="Portfolio" primary="Coverage" secondary="Hubs" scale="secondary" />
+          </header>
+          <div class="event-grid">
+            {pastEvents.map((event: any, index: number) => (
+              <EventCard event={event} index={index} />
+            ))}
           </div>
-        </div>
-      </div>
-
+        </section>
+      )}
     </div>
   </main>
-  
+
   <EventBookingCTA />
-  
+
   <SpanningCalendarModal events={allEvents} />
 </Layout>
 
 <style>
   .container {
-    max-width: 1200px;
+    max-width: 1100px;
     margin: 0 auto;
     padding: 0 2rem;
   }
-  
-  .events-layout {
-    display: grid;
-    /* minmax(0, 1fr) — WITHOUT the 0 minimum, the timeline column's implicit
-       min-width:auto lets the wide event card blow the track out past its share
-       and shove the 300px calendar off to the right. The 0 lets it shrink to
-       fit so the calendar stays inside the layout. */
-    grid-template-columns: minmax(0, 1fr) 300px;
-    gap: 3rem;
-    align-items: stretch;
-    max-width: 1000px;
-    margin: 0 auto;
-  }
-  
-  @media (max-width: 900px) {
-    .events-layout {
-      grid-template-columns: 1fr;
-    }
-    .events-sidebar-col {
-      display: none; /* or move it below the timeline, up to design preference */
-    }
+
+  .events-intro {
+    color: #999;
+    max-width: 620px;
+    margin: 1.5rem auto 0;
+    font-size: 1.1rem;
+    line-height: 1.6;
   }
 
-  .event-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 2rem;
-    margin-top: 2rem;
-  }
-
-  .mobile-calendar-btn-container {
-    display: none;
-    margin: 1rem 0 3rem;
+  .events-none {
     text-align: center;
+    color: #999;
+    font-size: 1.05rem;
+    margin: 2rem auto 3rem;
+    max-width: 560px;
   }
 
-  .mobile-only-btn {
+  .upcoming-section {
+    margin-top: 3.5rem;
+  }
+  .upcoming-heading {
+    font-family: var(--font-display, 'Syne Variable', sans-serif);
+    font-size: 1.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #fff;
+    margin: 0 0 1.5rem;
+    text-align: left;
+  }
+
+  .calendar-cta-row {
+    text-align: center;
+    margin: 3rem 0;
+  }
+  .open-full-calendar-btn {
     width: 100%;
-    max-width: 300px;
-    padding: 1rem;
+    max-width: 320px;
+    min-height: 52px;
+    padding: 1rem 1.5rem;
     background: transparent;
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.25);
     border-radius: 8px;
     font-size: 0.9rem;
     font-weight: 700;
@@ -170,15 +171,21 @@ const pastEvents = allEvents
     cursor: pointer;
     transition: all 0.3s ease;
   }
-  .mobile-only-btn:hover {
+  .open-full-calendar-btn:hover,
+  .open-full-calendar-btn:focus-visible {
     background: rgba(204, 0, 0, 0.1);
     border-color: var(--color-accent, #cc0000);
     color: var(--color-accent, #cc0000);
+    outline: none;
   }
 
-  @media (max-width: 900px) {
-    .mobile-calendar-btn-container {
-      display: block;
-    }
+  .past-events-section {
+    margin-top: 4.5rem;
+  }
+  .event-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
   }
 </style>

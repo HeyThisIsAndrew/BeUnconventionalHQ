@@ -1,0 +1,151 @@
+---
+// Clean, scannable vertical list of the secondary upcoming events (everything
+// after the featured one). Semantic <ul>/<li> with a single link per row for
+// accessibility and SEO; thumbnails are decorative (alt="") because the title
+// is adjacent text. Date/location come from the shared helpers — no date logic
+// lives here.
+// @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
+import { sanityClient } from 'sanity:client';
+import { createImageUrlBuilder } from '@sanity/image-url';
+import { formatEventDateRange, formatLocation } from '../lib/events';
+
+const builder = createImageUrlBuilder(sanityClient);
+const urlFor = (source: any) => builder.image(source);
+
+const { events = [] } = Astro.props;
+---
+
+<ul class="uel-list" role="list">
+  {events.map((event: any) => {
+    const slug = event?.slug?.current ?? '';
+    const thumb = event?.heroImage
+      ? urlFor(event.heroImage).width(320).height(180).auto('format').url()
+      : '';
+    const logoUrl = event?.logo ? urlFor(event.logo).height(44).url() : '';
+    const dateLabel = formatEventDateRange(event?.startDate, event?.endDate, { year: false });
+    const locationLabel = formatLocation(event?.location);
+
+    return (
+      <li class="uel-item">
+        <a href={`/events-new/${slug}`} class="uel-link">
+          <div class="uel-thumb-wrap">
+            {thumb ? (
+              <img src={thumb} alt="" loading="lazy" decoding="async" class="uel-thumb" />
+            ) : (
+              <div class="uel-thumb uel-thumb--empty" aria-hidden="true"></div>
+            )}
+          </div>
+
+          <div class="uel-body">
+            {logoUrl && <img src={logoUrl} alt="" loading="lazy" class="uel-logo" />}
+            <h3 class="uel-title">{event.title}</h3>
+            <p class="uel-meta">
+              <span class="uel-date">{dateLabel}</span>
+              {locationLabel && <span class="uel-location"> • {locationLabel}</span>}
+            </p>
+          </div>
+
+          <span class="uel-arrow" aria-hidden="true">→</span>
+        </a>
+      </li>
+    );
+  })}
+</ul>
+
+<style>
+  .uel-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .uel-link {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    min-height: 44px; /* comfortable touch target */
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    text-decoration: none;
+    color: #fff;
+    transition: background 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+  }
+  .uel-link:hover,
+  .uel-link:focus-visible {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: var(--color-accent, #cc0000);
+    transform: translateX(4px);
+    outline: none;
+  }
+
+  .uel-thumb-wrap {
+    flex-shrink: 0;
+    width: 120px;
+    aspect-ratio: 16 / 9;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #0d0d0d;
+  }
+  .uel-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .uel-thumb--empty {
+    background: linear-gradient(135deg, #1a1a1a, #0d0d0d);
+  }
+
+  .uel-body {
+    flex: 1 1 auto;
+    min-width: 0; /* let the title truncate instead of overflowing the row */
+  }
+  .uel-logo {
+    max-height: 22px;
+    width: auto;
+    object-fit: contain;
+    margin-bottom: 0.35rem;
+    display: block;
+  }
+  .uel-title {
+    font-family: var(--font-display, 'Syne Variable', sans-serif);
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem;
+    line-height: 1.25;
+  }
+  .uel-meta {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #9a9a9a;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .uel-arrow {
+    flex-shrink: 0;
+    font-size: 1.25rem;
+    color: var(--color-accent, #cc0000);
+    transition: transform 0.25s ease;
+  }
+  .uel-link:hover .uel-arrow,
+  .uel-link:focus-visible .uel-arrow {
+    transform: translateX(4px);
+  }
+
+  @media (max-width: 560px) {
+    .uel-thumb-wrap {
+      width: 84px;
+    }
+    .uel-title {
+      font-size: 1rem;
+    }
+    .uel-arrow {
+      display: none;
+    }
+  }
+</style>
