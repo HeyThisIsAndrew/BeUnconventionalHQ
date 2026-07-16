@@ -71,6 +71,21 @@ export function parseEventDate(value?: string | null): ParsedDate | null {
   return { year, month, day, monthShort: MONTHS_SHORT[month - 1] };
 }
 
+/**
+ * Parse "YYYY-MM-DD" into a LOCAL-midnight Date, for the rare code that needs
+ * real date arithmetic (day-of-week, month-grid placement) rather than display.
+ * Built from components — new Date(y, m-1, d) — so getDate(), getDay() and
+ * getMonth() are stable in the local zone. This is the safe counterpart to
+ * `new Date("2026-07-22")`, which is parsed as midnight UTC and then reads a day
+ * earlier for viewers west of UTC. Returns an Invalid Date for unparseable
+ * input, so existing `Number.isNaN(d.getTime())` guards keep working unchanged.
+ */
+export function parseEventDateToLocal(value?: string | null): Date {
+  const p = parseEventDate(value);
+  if (!p) return new Date(NaN);
+  return new Date(p.year, p.month - 1, p.day);
+}
+
 export interface DateRangeOptions {
   /** Include the year in the output. Default true. */
   year?: boolean;

@@ -1,6 +1,7 @@
 ---
 import PageTitle from './PageTitle.astro';
 import DesktopCalendar from './DesktopCalendar.astro';
+import { parseEventDateToLocal } from '../lib/events';
 
 export interface Props {
   events: any[];
@@ -29,8 +30,8 @@ for (let i = 1; i <= totalDays; i++) {
 
 const currentMonthEvents = events.filter((event) => {
   if (!event.startDate) return false;
-  const start = new Date(event.startDate);
-  const end = new Date(event.endDate || event.startDate);
+  const start = parseEventDateToLocal(event.startDate);
+  const end = parseEventDateToLocal(event.endDate || event.startDate);
 
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
     return false;
@@ -44,8 +45,8 @@ const currentMonthEvents = events.filter((event) => {
   todayDate.setHours(0, 0, 0, 0);
 
   const calendarSegments = currentMonthEvents.flatMap((event) => {
-    const start = new Date(event.startDate);
-    const end = event.endDate ? new Date(event.endDate) : start;
+    const start = parseEventDateToLocal(event.startDate);
+    const end = event.endDate ? parseEventDateToLocal(event.endDate) : start;
 
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return [];

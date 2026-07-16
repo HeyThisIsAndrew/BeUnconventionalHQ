@@ -1,4 +1,6 @@
 ---
+import { parseEventDateToLocal, formatEventDateRange } from '../lib/events';
+
 export interface Props {
   events: any[];
 }
@@ -26,8 +28,8 @@ for (let i = 1; i <= totalDays; i++) {
 
 const currentMonthEvents = events.filter((event) => {
   if (!event.startDate) return false;
-  const start = new Date(event.startDate);
-  const end = new Date(event.endDate || event.startDate);
+  const start = parseEventDateToLocal(event.startDate);
+  const end = parseEventDateToLocal(event.endDate || event.startDate);
 
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
     return false;
@@ -37,24 +39,23 @@ const currentMonthEvents = events.filter((event) => {
 });
 
 // Sort events by start date for the list view
-const sortedEvents = [...currentMonthEvents].sort((a, b) => {
-  return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
-});
+const sortedEvents = [...currentMonthEvents].sort((a, b) =>
+  a.startDate.localeCompare(b.startDate)
+);
 
 const todayDate = new Date();
 todayDate.setHours(0, 0, 0, 0);
 
 const calendarSegments = currentMonthEvents.flatMap((event) => {
-  const start = new Date(event.startDate);
-  const end = event.endDate ? new Date(event.endDate) : start;
+  const start = parseEventDateToLocal(event.startDate);
+  const end = event.endDate ? parseEventDateToLocal(event.endDate) : start;
 
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
     return [];
   }
-  
-  const eventEndDate = new Date(end);
-  eventEndDate.setHours(0, 0, 0, 0);
-  const isPast = eventEndDate < todayDate;
+
+  // `end` is already local midnight, so it compares directly against todayDate.
+  const isPast = end < todayDate;
 
   const startDay = start < monthStart ? 1 : start.getDate();
   const endDay = end > monthEnd ? totalDays : end.getDate();
@@ -113,10 +114,8 @@ calendarSegments.forEach(segment => {
   rowSegments.push(segment);
 });
 
-// Helper for formatting event dates in the sidebar
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-};
+// Sidebar date formatting — Date-free "Jul 22" (no year) via the shared helper.
+const formatDate = (dateStr: string) => formatEventDateRange(dateStr, undefined, { year: false });
 ---
 
 <div class="dc-container">
@@ -129,8 +128,7 @@ const formatDate = (dateStr: string) => {
     
     <div class="dc-event-list">
       {sortedEvents.map(event => {
-        const eventEnd = event.endDate ? new Date(event.endDate) : new Date(event.startDate);
-        eventEnd.setHours(0,0,0,0);
+        const eventEnd = parseEventDateToLocal(event.endDate || event.startDate);
         const isPast = eventEnd < todayDate;
         
         return (
