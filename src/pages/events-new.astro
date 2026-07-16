@@ -8,6 +8,7 @@ import MiniCalendarSidebar from '../components/MiniCalendarSidebar.astro';
 import SpanningCalendarModal from '../components/SpanningCalendarModal.astro';
 import { site } from '../data/site.js';
 import { sanityClient } from "sanity:client";
+import { toYMD } from '../lib/events';
 
 const title = `Events | ${site.name}`;
 const description = 'Live coverage, premieres, and press event highlights from Be Unconventional HQ.';
@@ -20,22 +21,30 @@ try {
   console.error("Failed to fetch Sanity events", e);
 }
 
-const today = new Date().toISOString();
-// Upcoming events: chronologically (earliest first)
+// Today's calendar date (YYYY-MM-DD) in the brand's reference timezone. Both
+// sides of the comparison are the SAME precision — comparing a bare
+// "2026-07-26" against a full ISO timestamp would sort the shorter string
+// lower and misclassify an event that ends *today* as past.
+const today = toYMD();
+
+// Upcoming: ends today or later, earliest start first. YYYY-MM-DD strings
+// sort chronologically, so localeCompare needs no Date objects.
 const upcomingEvents = allEvents
   .filter(e => {
     if (!e.startDate) return false;
-    const end = e.endDate ? e.endDate : e.startDate;
+    const end = (e.endDate || e.startDate).slice(0, 10);
     return end >= today;
   })
-  .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+  .sort((a, b) => a.startDate.localeCompare(b.startDate));
 
-// Past events: reverse chronological (most recent first)
-const pastEvents = allEvents.filter(e => {
-  if (!e.startDate) return false;
-  const end = e.endDate ? e.endDate : e.startDate;
-  return end < today;
-});
+// Past: already ended, most recent first.
+const pastEvents = allEvents
+  .filter(e => {
+    if (!e.startDate) return false;
+    const end = (e.endDate || e.startDate).slice(0, 10);
+    return end < today;
+  })
+  .sort((a, b) => b.startDate.localeCompare(a.startDate));
 ---
 
 <Layout title={title} description={description} noindex={true}>

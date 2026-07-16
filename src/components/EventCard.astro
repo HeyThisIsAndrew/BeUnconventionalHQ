@@ -1,6 +1,7 @@
 ---
 import { sanityClient } from "sanity:client";
 import { createImageUrlBuilder } from "@sanity/image-url";
+import { parseEventDate } from '../lib/events';
 
 const builder = createImageUrlBuilder(sanityClient);
 const urlFor = (source: any) => {
@@ -40,7 +41,7 @@ const heroUrl = event.heroImage
       <div class="event-footer">
         <h3 class="event-title line-clamp-2">{event.title}</h3>
         <span class="event-date">
-          {event.startDate ? new Date(event.startDate).getFullYear() : 'Recent'} Coverage
+          {parseEventDate(event.startDate)?.year ?? 'Recent'} Coverage
         </span>
       </div>
     </div>

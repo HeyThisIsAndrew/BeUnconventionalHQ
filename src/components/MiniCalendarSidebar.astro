@@ -1,4 +1,6 @@
 ---
+import { formatEventDateRange } from '../lib/events';
+
 export interface Props {
   events: any[];
 }
@@ -20,13 +22,9 @@ const topEvents = events.slice(0, 3);
   <div class="calendar-events-list">
     {topEvents.length > 0 ? topEvents.map(event => {
       if (!event.startDate) return null;
-      const start = new Date(event.startDate);
-      const end = event.endDate ? new Date(event.endDate) : start;
-      // UTC so dates don't shift a day back for viewers west of UTC.
-      const monthShort = start.toLocaleString('en-US', { timeZone: 'UTC', month: 'short' });
-      const dateLabel = start.getUTCDate() === end.getUTCDate()
-        ? `${monthShort} ${start.getUTCDate()}`
-        : `${monthShort} ${start.getUTCDate()}–${end.getUTCDate()}`;
+      // year:false -> "Jul 22–26"; also renders cross-month ranges correctly
+      // ("Jul 30 – Aug 2") instead of the old "Jul 30–2".
+      const dateLabel = formatEventDateRange(event.startDate, event.endDate, { year: false });
 
       return (
         <a href={`/events-new/${event.slug.current}`} class="mini-event-row">

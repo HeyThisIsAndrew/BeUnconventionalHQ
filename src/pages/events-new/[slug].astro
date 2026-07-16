@@ -4,6 +4,7 @@ import { sanityClient } from "sanity:client";
 import { getVideos, getArticles } from '../../data/feeds.js';
 import EventBookingCTA from '../../components/EventBookingCTA.astro';
 import HeroTrailer from '../../components/HeroTrailer.astro';
+import { formatEventDateRange, formatLocation } from '../../lib/events';
 
 export async function getStaticPaths() {
   // Project image asset dimensions so we can reserve the logo's box and avoid CLS.
@@ -67,36 +68,8 @@ const unifiedContent = [
   ...filteredArticles.map((a: any) => ({ ...a, contentType: 'article' }))
 ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-// Format date range. All getters/formatters are pinned to UTC so a datetime
-// stored as midnight UTC ("2026-07-23") never shifts back a day for viewers
-// west of UTC (i.e. all of the Americas).
-function formatDateRange(start: string, end?: string) {
-  if (!start) return "Date TBD";
-  const startDate = new Date(start);
-  if (Number.isNaN(startDate.getTime())) return "Date TBD";
-
-  const fmtMonth = (d: Date) => d.toLocaleString('en-US', { timeZone: 'UTC', month: 'short' });
-  const sMonth = fmtMonth(startDate);
-  const sDay = startDate.getUTCDate();
-  const sYear = startDate.getUTCFullYear();
-
-  if (!end) return `${sMonth} ${sDay}, ${sYear}`;
-
-  const endDate = new Date(end);
-  if (Number.isNaN(endDate.getTime())) return `${sMonth} ${sDay}, ${sYear}`;
-
-  const eMonth = fmtMonth(endDate);
-  const eDay = endDate.getUTCDate();
-  const eYear = endDate.getUTCFullYear();
-
-  if (sMonth === eMonth && sYear === eYear) {
-    if (sDay === eDay) {
-      return `${sMonth} ${sDay}, ${sYear}`;
-    }
-    return `${sMonth} ${sDay} - ${eDay}, ${sYear}`;
-  }
-  return `${sMonth} ${sDay}, ${sYear} - ${eMonth} ${eDay}, ${eYear}`;
-}
+// Date range + location formatting now live in src/lib/events (Date-free,
+// unit-tested) — see formatEventDateRange / formatLocation usage below.
 
 // Safe YouTube ID extraction for feed items — a null/broken link returns null
 // instead of throwing (a bad URL used to crash the whole static build).
@@ -157,8 +130,8 @@ const trailerId = getYoutubeId(trailerUrl);
             {/* Fallback to H1 title if no logo is provided */}
             {!event.logo && <h1 class="hero-title">{event.title}</h1>}
             <p class="hero-meta">
-              <span class="event-dates">{formatDateRange(event.startDate, event.endDate)}</span>
-              {event.location && <span class="event-location"> • {event.location.city}, {event.location.region}</span>}
+              <span class="event-dates">{formatEventDateRange(event.startDate, event.endDate)}</span>
+              {formatLocation(event.location) && <span class="event-location"> • {formatLocation(event.location)}</span>}
             </p>
             {event.description && (
               <div class="hero-description-wrapper">

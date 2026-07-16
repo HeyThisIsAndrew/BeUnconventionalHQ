@@ -2,6 +2,7 @@
 // @ts-ignore - sanity:client is an alias resolved by Astro
 import { sanityClient } from "sanity:client";
 import { createImageUrlBuilder } from "@sanity/image-url";
+import { parseEventDate, formatLocation } from '../lib/events';
 
 const builder = createImageUrlBuilder(sanityClient);
 const urlFor = (source: any) => {
@@ -10,26 +11,20 @@ const urlFor = (source: any) => {
 
 const { events } = Astro.props;
 
-// Helper to format date ranges. Pinned to UTC so a date stored as midnight UTC
-// doesn't shift back a day for viewers west of UTC (all of the Americas).
+// Structured date parts for the timeline's big-number layout. Sourced from
+// parseEventDate (string split, no Date object) so a date can't shift a day
+// west of UTC. Returns e.g. { month: "JUL", days: "22-26" }.
 function formatDateRange(start: any, end: any) {
-  const startDate = new Date(start);
-  const startMonth = startDate.toLocaleString('en-US', { timeZone: 'UTC', month: 'short' }).toUpperCase();
-  const startDay = startDate.getUTCDate();
-
-  if (!end) {
-    return { month: startMonth, days: `${startDay}` };
-  }
-
-  const endDate = new Date(end);
-  const endMonth = endDate.toLocaleString('en-US', { timeZone: 'UTC', month: 'short' }).toUpperCase();
-  const endDay = endDate.getUTCDate();
-  
+  const s = parseEventDate(start);
+  if (!s) return { month: '', days: '' };
+  const startMonth = s.monthShort.toUpperCase();
+  const e = end ? parseEventDate(end) : null;
+  if (!e) return { month: startMonth, days: `${s.day}` };
+  const endMonth = e.monthShort.toUpperCase();
   if (startMonth === endMonth) {
-    return { month: startMonth, days: `${startDay}-${endDay}` };
-  } else {
-    return { month: `${startMonth}-${endMonth}`, days: `${startDay}-${endDay}` };
+    return { month: startMonth, days: `${s.day}-${e.day}` };
   }
+  return { month: `${startMonth}-${endMonth}`, days: `${s.day}-${e.day}` };
 }
 ---
 
@@ -40,14 +35,15 @@ function formatDateRange(start: any, end: any) {
         const heroUrl = event.heroImage ? urlFor(event.heroImage).width(800).height(450).url() : '';
         const logoUrl = event.logo ? urlFor(event.logo).height(80).url() : '';
         const dateFormatted = formatDateRange(event.startDate, event.endDate);
-        
+        const locationLabel = formatLocation(event.location);
+
         return (
           <div class="timeline-item animate-on-scroll" style={`--index: ${index};`}>
             {/* Date Block */}
             <div class="timeline-date">
               <span class="date-month">{dateFormatted.month}</span>
               <span class="date-days">{dateFormatted.days}</span>
-              <span class="date-year">{new Date(event.startDate).getUTCFullYear()}</span>
+              <span class="date-year">{parseEventDate(event.startDate)?.year}</span>
             </div>
             
             {/* Timeline Dot & Line */}
@@ -64,7 +60,7 @@ function formatDateRange(start: any, end: any) {
                 <div class="card-inner">
                   <div class="card-meta">
                     <span class="event-tag">EVENTS</span>
-                    {event.location && <span class="event-location">• {event.location.city}, {event.location.region}</span>}
+                    {locationLabel && <span class="event-location">• {locationLabel}</span>}
                   </div>
                   
                   {logoUrl ? (
