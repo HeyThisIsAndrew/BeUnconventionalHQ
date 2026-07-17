@@ -5,6 +5,7 @@ import { getVideosUnified } from '../../lib/videos-source';
 import EventBookingCTA from '../../components/EventBookingCTA.astro';
 import HeroTrailer from '../../components/HeroTrailer.astro';
 import { parseVideoId } from '../../lib/platforms/youtube';
+import { mapSanityVideo } from '../../lib/videos.ts';
 // @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
 import { sanityClient } from "sanity:client";
 import { createImageUrlBuilder } from "@sanity/image-url";
@@ -47,19 +48,38 @@ function urlFor(source: any) {
 const allVideos = await getVideosUnified();
 const allArticles = await getArticles();
 
-// 2. Filter Global Data against Sanity Event Tags
+// 1b. Phase C1 (epic #25): deterministic, editor-controlled coverage — videos
+// whose hubs[] reference THIS brand doc. Empty until editors hub-tag published
+// docs; the tag-match fallback below keeps behavior unchanged until then.
+let hubCoverage: any[] = [];
+try {
+  const docs = await sanityClient.fetch(
+    `*[_type == "video" && contentStatus == "published" && references($hubId)] | order(publishedAt desc){
+      youtubeId, title, thumbnailUrl, durationSeconds, isShort, publishedAt, topics, featured
+    }`,
+    { hubId: event._id },
+  );
+  hubCoverage = docs
+    .map((d: any) => mapSanityVideo(d))
+    .filter((v: any) => v !== null);
+} catch (e) {
+  console.error('Hub coverage fetch failed; falling back to tag matching', e);
+}
+
+// 2. Fallback: filter global data against hub tags (legacy heuristic; removed
+// in Phase C2 once hub-tagging covers the catalog)
 const eventTags = (event.tags || []).filter((t: any) => typeof t === 'string');
 
-const filteredVideos = allVideos.filter((v: any) => {
-  // TEMPORARY TEST: Display all videos categorized as "Events" for SDCC 2026 
+const filteredVideos = hubCoverage.length > 0 ? hubCoverage : allVideos.filter((v: any) => {
+  // TEMPORARY TEST: Display all videos categorized as "Events" for SDCC 2026
   // so the user can see the layout while the tagging system is configured
   if (event.slug?.current === 'sdcc-2026' || event.slug?.current === 'san-diego-comic-con-2026') {
     return v.category === 'Events';
   }
 
   // If the video title or description contains ANY of the exact tags
-  return eventTags.some((tag: string) => 
-    v.title?.toLowerCase().includes(tag.toLowerCase()) || 
+  return eventTags.some((tag: string) =>
+    v.title?.toLowerCase().includes(tag.toLowerCase()) ||
     v.description?.toLowerCase().includes(tag.toLowerCase())
   );
 });

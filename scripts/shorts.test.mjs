@@ -5,6 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import { hashSeed, seededShuffle, pickDailyShorts } from '../src/lib/shorts.ts';
+import { buildShortsData, MAX_PER_CATEGORY } from './generate-shorts.mjs';
 
 let passed = 0;
 const test = (name, fn) => {
@@ -87,6 +88,57 @@ test('pickDailyShorts: empty / missing pools → []', () => {
 
 test('pickDailyShorts: pool smaller than count returns the whole pool', () => {
   assert.equal(pickDailyShorts(POOL.slice(0, 2), 'gaming', 4, JUL16).length, 2);
+});
+
+// ── buildShortsData (generate-shorts.mjs, ticket #31) ────────────────────────
+
+const shortDoc = (id, topics) => ({
+  youtubeId: id,
+  title: `Short ${id}`,
+  thumbnailUrl: `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
+  isShort: true,
+  publishedAt: '2026-07-12T15:00:00Z',
+  topics,
+});
+
+test('buildShortsData: groups by topic-derived category, lowercase keys', () => {
+  const data = buildShortsData(
+    [shortDoc('a0000000001', ['events']), shortDoc('b0000000002', ['gaming']), shortDoc('c0000000003', ['events'])],
+    new Date('2026-07-16T19:00:00Z'),
+  );
+  assert.deepEqual(Object.keys(data.categories).sort(), ['events', 'gaming']);
+  assert.equal(data.categories.events.length, 2);
+  assert.equal(data.categories.events[0].id, 'a0000000001');
+  assert.equal(data.categories.events[0].editorialTag, 'events');
+  assert.equal(data.lastUpdated, '2026-07-16T19:00:00.000Z');
+});
+
+test('buildShortsData: emits the exact shorts.json entry shape', () => {
+  const [entry] = buildShortsData([shortDoc('a0000000001', ['gaming'])]).categories.gaming;
+  assert.deepEqual(Object.keys(entry).sort(), ['editorialTag', 'id', 'thumbnailUrl', 'title'].sort());
+  assert.equal(entry.thumbnailUrl, 'https://i.ytimg.com/vi/a0000000001/maxresdefault.jpg');
+});
+
+test('buildShortsData: unmatched topics land in "general", never dropped', () => {
+  const data = buildShortsData([shortDoc('a0000000001', ['conventions'])]);
+  assert.equal(data.categories.general.length, 1);
+});
+
+test('buildShortsData: excludes long-form uploads defensively', () => {
+  const data = buildShortsData([{ ...shortDoc('a0000000001', ['gaming']), isShort: false }]);
+  assert.deepEqual(data.categories, {});
+});
+
+test('buildShortsData: caps each category at MAX_PER_CATEGORY', () => {
+  const docs = Array.from({ length: MAX_PER_CATEGORY + 5 }, (_, i) =>
+    shortDoc(`id${String(i).padStart(9, '0')}`, ['gaming']),
+  );
+  assert.equal(buildShortsData(docs).categories.gaming.length, MAX_PER_CATEGORY);
+});
+
+test('buildShortsData: empty/nullish input → empty categories', () => {
+  assert.deepEqual(buildShortsData([]).categories, {});
+  assert.deepEqual(buildShortsData(null).categories, {});
 });
 
 console.log(
