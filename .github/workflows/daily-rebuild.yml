@@ -1,0 +1,35 @@
+# Daily rebuild trigger (ticket #31 — Discovery Row rotation).
+#
+# The Shorts shelf's daily selection is seeded by the calendar date at BUILD
+# time (CDN-stable by design), so it only rotates when a build runs. This
+# workflow pokes a Cloudflare deploy hook once a day so the shelf rotates at
+# midnight (America/Los_Angeles) even on days with no content pushes.
+#
+# INERT UNTIL CONFIGURED: if the CLOUDFLARE_DEPLOY_HOOK_URL secret is absent,
+# the job logs a skip and exits green. To activate (owner):
+#   Cloudflare Pages → beunconventionalhq → Settings → Builds & deployments →
+#   Deploy hooks → create one → copy the URL →
+#   GitHub repo → Settings → Secrets and variables → Actions →
+#   new secret CLOUDFLARE_DEPLOY_HOOK_URL.
+name: Daily rebuild
+
+on:
+  schedule:
+    # 07:05 UTC = midnight-ish Pacific (00:05 PDT / 23:05 PST — close enough
+    # for a shelf rotation; exact midnight isn't worth a DST-aware scheduler).
+    - cron: '5 7 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  poke-deploy-hook:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Cloudflare deploy hook
+        env:
+          HOOK_URL: ${{ secrets.CLOUDFLARE_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK_URL" ]; then
+            echo "CLOUDFLARE_DEPLOY_HOOK_URL not configured — skipping (see workflow header to activate)."
+            exit 0
+          fi
+          curl -sS -X POST "$HOOK_URL" -o /dev/null -w "deploy hook responded: HTTP %{http_code}\n"
