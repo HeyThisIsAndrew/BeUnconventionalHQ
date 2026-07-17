@@ -22,8 +22,12 @@
  * module for tests performs zero I/O.
  */
 import { fileURLToPath } from 'node:url';
+import { config } from 'dotenv';
 import { createClient } from '@sanity/client';
 import { createYouTubeClient } from '../src/lib/platforms/youtube.ts';
+
+// Load environment variables from a .env file into process.env
+config();
 
 // ── Pure planning (unit-testable, no I/O) ────────────────────────────────────
 
