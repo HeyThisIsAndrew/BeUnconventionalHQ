@@ -13,6 +13,10 @@ GROQ. Deployed on Cloudflare.
 - `npx astro check` — type check. **~65 pre-existing errors** live in untouched
   files (DOM typing in inline scripts). The bar is: introduce zero NEW errors.
 - `npm run dev` — refreshes the content cache, then dev server.
+- `npm run deploy` — wrangler deploy of the built worker (`dist/server`).
+  Production target is **Cloudflare Workers** (git-connected Workers Builds),
+  NOT Pages — Pages serves only `dist/client` and 404s every `/api/*` route
+  (@astrojs/cloudflare v13 is Workers-only). Runbook: `scripts/live-status.md`.
 
 ## Hard rules (learned the expensive way)
 

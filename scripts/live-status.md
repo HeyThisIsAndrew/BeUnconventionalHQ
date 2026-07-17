@@ -105,13 +105,25 @@ that later without quota risk, add a 0-quota presence signal (e.g. the
 `canlive` scrape or RSS heuristic) as a cheap pre-check gating the expensive
 `search.list` call.
 
-## Adding Twitch (or any platform) later
+## Twitch (built — activate with credentials)
 
-1. Build `src/lib/platforms/twitch.ts` (adapter, same pattern as youtube.ts).
-2. Add `createTwitchLiveProvider()` in `src/lib/live-status.ts` wrapping it.
-3. Append it to the providers array in the endpoint. Done — aggregation,
-   error isolation, and the response shape already handle N providers
-   (simulcasts return multiple `streams[]`).
+The Twitch adapter (`src/lib/platforms/twitch.ts`, app-token auth with lazy
+caching) and provider are implemented and tested. The endpoint includes
+Twitch in the live check **only when all three vars exist** — fully inert
+otherwise:
+
+| Variable | Where |
+|---|---|
+| `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` | dev.twitch.tv → register an application. Worker env (encrypt the secret). |
+| `TWITCH_CHANNEL_LOGIN` | the channel's login name (the twitch.tv/<login> part) |
+
+No quota economics like YouTube's — Helix limits are per-minute buckets; the
+CDN cache stays the effective rate limiter. Simulcasts return both platforms
+in `streams[]`; the billboard prefers the YouTube entry.
+
+Adding any further platform stays the same recipe: adapter in
+`src/lib/platforms/`, a `create<X>LiveProvider()` wrapper, one conditional
+push in the endpoint.
 
 ## Tests
 

@@ -26,9 +26,12 @@ import { env as workerEnv } from 'cloudflare:workers';
 import {
   checkLiveStatus,
   createYouTubeLiveProvider,
+  createTwitchLiveProvider,
+  type LiveStatusProvider,
   type LiveStatusResult,
 } from '../../lib/live-status';
 import { createYouTubeClient } from '../../lib/platforms/youtube';
+import { createTwitchClient } from '../../lib/platforms/twitch';
 
 export const prerender = false;
 
@@ -67,10 +70,26 @@ export const GET: APIRoute = async () => {
     );
   }
 
-  const result = await checkLiveStatus([
+  const providers: LiveStatusProvider[] = [
     createYouTubeLiveProvider({ client: createYouTubeClient({ apiKey }), channelId }),
-    // Future: createTwitchLiveProvider({ ... }) — append here, nothing else changes.
-  ]);
+  ];
+
+  // Twitch joins the check only when its credentials exist — fully inert
+  // otherwise. Configure TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET /
+  // TWITCH_CHANNEL_LOGIN to activate (see scripts/live-status.md).
+  const twitchClientId = env.TWITCH_CLIENT_ID ?? import.meta.env.TWITCH_CLIENT_ID;
+  const twitchClientSecret = env.TWITCH_CLIENT_SECRET ?? import.meta.env.TWITCH_CLIENT_SECRET;
+  const twitchChannelLogin = env.TWITCH_CHANNEL_LOGIN ?? import.meta.env.TWITCH_CHANNEL_LOGIN;
+  if (twitchClientId && twitchClientSecret && twitchChannelLogin) {
+    providers.push(
+      createTwitchLiveProvider({
+        client: createTwitchClient({ clientId: twitchClientId, clientSecret: twitchClientSecret }),
+        channelLogin: twitchChannelLogin,
+      }),
+    );
+  }
+
+  const result = await checkLiveStatus(providers);
 
   // max-age=0: browsers revalidate against the edge (no stale tabs after a
   // stream starts); s-maxage=900: the edge is the quota gate; SWR keeps
