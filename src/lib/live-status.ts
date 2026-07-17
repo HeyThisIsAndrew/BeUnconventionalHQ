@@ -22,6 +22,7 @@
  */
 import type { PlatformName } from './platforms/types';
 import type { YouTubeClient } from './platforms/youtube';
+import type { TwitchClient } from './platforms/twitch';
 
 /** One live stream, normalized across platforms. */
 export interface LiveStreamInfo {
@@ -87,6 +88,37 @@ export function createYouTubeLiveProvider({
         videoId: status.videoId,
         title: status.title,
         url: `https://www.youtube.com/watch?v=${status.videoId}`,
+      };
+    },
+  };
+}
+
+export interface TwitchLiveProviderOptions {
+  /** An already-constructed Twitch client (or a stub with getLiveStatus). */
+  client: Pick<TwitchClient, 'getLiveStatus'>;
+  /** The channel's login name, e.g. "beunconventionalhq". */
+  channelLogin: string;
+}
+
+/**
+ * Twitch provider — wraps the Twitch adapter's getLiveStatus(). No scarce
+ * quota here (Helix limits are per-minute buckets); the endpoint's CDN cache
+ * is still the effective rate limiter.
+ */
+export function createTwitchLiveProvider({
+  client,
+  channelLogin,
+}: TwitchLiveProviderOptions): LiveStatusProvider {
+  return {
+    platform: 'twitch',
+    async check() {
+      const status = await client.getLiveStatus(channelLogin);
+      if (!status.isLive || !status.streamId) return null;
+      return {
+        platform: 'twitch',
+        videoId: status.streamId,
+        title: status.title,
+        url: `https://www.twitch.tv/${channelLogin}`,
       };
     },
   };

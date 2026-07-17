@@ -297,3 +297,24 @@ With `--execute`, the trailing line becomes `…committed 100/214`, `…committe
 - Uses the same Sanity project/config as `astro.config.mjs`, overridable by env.
 - Editorial-source-of-truth model matches how `event` and `featuredBrand`
   documents already work.
+
+## After the sync: Discovery Row data (ticket #31)
+
+Once videos are published (with topics) in Studio, regenerate the Shorts
+shelf's data file:
+
+```
+node scripts/generate-shorts.mjs --check   # preview
+node scripts/generate-shorts.mjs           # writes src/data/shorts.json
+```
+
+Commit the changed `shorts.json` — the Discovery Row components read it as-is.
+The script only includes `contentStatus == "published"` Shorts, groups them by
+editorial topics, and refuses to overwrite the file while Sanity has no
+published Shorts yet.
+
+Daily rotation: the shelf's 4-card pick is seeded by the calendar date at
+build time. `.github/workflows/daily-rebuild.yml` pokes a Cloudflare deploy
+hook nightly so it rotates without content pushes — inert until the
+`CLOUDFLARE_DEPLOY_HOOK_URL` secret is configured (instructions in the
+workflow header).

@@ -148,11 +148,15 @@ export default defineType({
     }),
     defineField({
       name: 'hubs',
-      title: 'Featured Hubs',
+      title: 'Hubs',
       type: 'array',
       fieldset: 'editorial',
-      of: [{ type: 'reference', to: [{ type: 'featuredBrand' }] }],
-      description: 'Assign this video to one or more Featured Hubs.',
+      // Additive: events joined featuredBrand as valid hub targets (Phase C1,
+      // epic #25) so event pages can query coverage via references(). Existing
+      // brand references are unaffected.
+      of: [{ type: 'reference', to: [{ type: 'featuredBrand' }, { type: 'event' }] }],
+      description:
+        'Assign this video to hubs (Featured Brands and/or Events). Hub pages pull their coverage from these references.',
     }),
     defineField({ name: 'editorialNotes', title: 'Editorial Notes', type: 'text', rows: 3, fieldset: 'editorial' }),
   ],
