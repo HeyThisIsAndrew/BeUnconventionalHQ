@@ -18,6 +18,11 @@
  * errors[], so the frontend billboard simply stays dormant.
  */
 import type { APIRoute } from 'astro';
+// @ts-ignore - virtual module provided by @astrojs/cloudflare (the adapter
+// shims it in `astro dev` too). Astro 6 removed Astro.locals.runtime.env —
+// accessing it THROWS — so this import is the only supported way to read
+// Workers secrets/vars.
+import { env as workerEnv } from 'cloudflare:workers';
 import {
   checkLiveStatus,
   createYouTubeLiveProvider,
@@ -40,10 +45,10 @@ function json(body: LiveStatusResult, cacheControl: string): Response {
   });
 }
 
-export const GET: APIRoute = async ({ locals }) => {
-  // Cloudflare Workers exposes secrets on the runtime env; import.meta.env
-  // covers `astro dev` with a local .env file.
-  const env = (locals as any)?.runtime?.env ?? {};
+export const GET: APIRoute = async () => {
+  // Production: secrets live on the Workers env (cloudflare:workers).
+  // Local `astro dev`: a plain .env file surfaces via import.meta.env.
+  const env = (workerEnv ?? {}) as Record<string, string | undefined>;
   const apiKey = env.YOUTUBE_API_KEY ?? import.meta.env.YOUTUBE_API_KEY;
   const channelId =
     env.YOUTUBE_CHANNEL_ID ?? import.meta.env.YOUTUBE_CHANNEL_ID ?? DEFAULT_CHANNEL_ID;
