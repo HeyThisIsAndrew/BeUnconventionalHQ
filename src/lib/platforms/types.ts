@@ -18,7 +18,7 @@
  * establishing the seam, not building the multi-platform system yet.
  */
 
-export type PlatformName = 'youtube' | 'instagram' | 'tiktok';
+export type PlatformName = 'youtube' | 'instagram' | 'tiktok' | 'twitch';
 
 /**
  * Normalized cross-platform account stats. Field names are the shared concept,
