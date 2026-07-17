@@ -1,45 +1,50 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { getVideos, getArticles } from '../../data/feeds.js';
+import { getArticles } from '../../data/feeds.js';
+import { getVideosUnified } from '../../lib/videos-source';
 import EventBookingCTA from '../../components/EventBookingCTA.astro';
 import HeroTrailer from '../../components/HeroTrailer.astro';
+import { parseVideoId } from '../../lib/platforms/youtube';
+// @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
+import { sanityClient } from "sanity:client";
+import { createImageUrlBuilder } from "@sanity/image-url";
 
 export async function getStaticPaths() {
-  const hubs = [
-    {
-      slug: { current: 'marvel' },
-      title: 'Marvel Studios',
-      tags: ['Marvel'],
-      brandColor: '#e23636',
-    },
-    {
-      slug: { current: 'appletv' },
-      title: 'Apple TV+ Originals',
-      tags: ['Apple TV'],
-      brandColor: '#000000',
-    },
-    {
-      slug: { current: 'netflix' },
-      title: 'Netflix Exclusives',
-      tags: ['Netflix'],
-      brandColor: '#e50914',
-    }
-  ];
-  
-  return hubs.map((event) => ({
-    params: { slug: event.slug.current },
-    props: { event },
-  }));
+  // Source of truth is Sanity. `defined(slug.current)` excludes drafts and
+  // incomplete documents AT THE QUERY LEVEL, so a half-filled brand can never
+  // reach the map below and crash the build (the original #19 crash). Image
+  // dimensions are projected to reserve the logo box and avoid CLS.
+  const query = `*[_type == "featuredBrand" && defined(slug.current)]{
+    ...,
+    logo{ ..., "dimensions": asset->metadata.dimensions },
+    heroImage{ ..., "dimensions": asset->metadata.dimensions }
+  }`;
+  let brands = [];
+  try {
+    brands = await sanityClient.fetch(query);
+  } catch (e) {
+    console.error("Failed to fetch featuredBrand docs in getStaticPaths", e);
+  }
+
+  // Second guard (belt-and-suspenders): optional chaining + null filter, so
+  // even a query change can't reintroduce the undefined-slug crash.
+  return brands
+    .filter((brand: any) => brand?.slug?.current)
+    .map((brand: any) => ({
+      params: { slug: brand.slug.current },
+      props: { event: brand }, // body references `event.*`; keep that binding
+    }));
 }
 
 const { event } = Astro.props;
 
+const builder = createImageUrlBuilder(sanityClient);
 function urlFor(source: any) {
-  return { url: () => '', height: () => ({ url: () => '' }), width: () => ({ auto: () => ({ url: () => '' }) }) };
+  return builder.image(source);
 }
 
 // 1. Fetch Global Data
-const allVideos = await getVideos();
+const allVideos = await getVideosUnified();
 const allArticles = await getArticles();
 
 // 2. Filter Global Data against Sanity Event Tags
@@ -68,21 +73,11 @@ const filteredArticles = allArticles.filter((a: any) => {
 
 // Merge and sort all content
 const unifiedContent = [
-  ...filteredVideos.map((v: any) => ({ ...v, contentType: 'video' })),
-  ...filteredArticles.map((a: any) => ({ ...a, contentType: 'article' }))
+  ...filteredArticles.map((a: any) => ({ ...a, contentType: 'article' })),
+  ...filteredVideos.map((v: any) => ({ ...v, contentType: 'video' }))
 ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-// Safe YouTube ID extraction for feed items — a null/broken link returns null
-// instead of throwing (a bad URL used to crash the whole static build).
-function getVideoId(link: string | undefined | null): string | null {
-  if (!link || typeof link !== 'string') return null;
-  try {
-    const match = link.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
-    return match ? match[1] : null;
-  } catch {
-    return null;
-  }
-}
+// YouTube IDs are extracted via the shared parseVideoId (src/lib/platforms/youtube).
 
 const brandColor = event.brandColor || 'var(--color-accent, #cc0000)';
 // Cap the hero at 2400px wide (retina-safe for a full-bleed banner) instead of
@@ -94,12 +89,7 @@ const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
 
 // The trailer (poster, players, sound) is fully encapsulated in <HeroTrailer/>.
 const trailerUrl = event.trailerUrl;
-function getYoutubeId(url) {
-  if (!url) return null;
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
-  return match ? match[1] : null;
-}
-const trailerId = getYoutubeId(trailerUrl);
+const trailerId = parseVideoId(trailerUrl);
 ---
 
 <Layout title={`${event.title}`} description={`Complete coverage of ${event.title}`}>
@@ -110,7 +100,12 @@ const trailerId = getYoutubeId(trailerUrl);
         a reusable component for the hero section?" */}
     {/* Cinematic Hero */}
     <section class="event-hero">
-      <div class="event-hero-bg" style={heroUrl ? `background-image: url('${heroUrl}');` : `background-image: ${fallbackGradient};`}></div>
+      {/* Two layers (issue #22): the wrapper owns clipping/coverage and stays
+          static; the inner layer owns the background image and the slow Ken
+          Burns transform. Animating a single element caused edge slivers. */}
+      <div class="event-hero-bg-wrapper">
+        <div class="event-hero-bg-animated" style={heroUrl ? `background-image: url('${heroUrl}');` : `background-image: ${fallbackGradient};`}></div>
+      </div>
       <div class="event-hero-overlay">
         <div
           class:list={[
@@ -120,7 +115,7 @@ const trailerId = getYoutubeId(trailerUrl);
           ]}
         >
           <div class="event-hero-content hero-copy animate-on-scroll">
-            {event.logo && (
+            {event.logo ? (
               <img
                 src={urlFor(event.logo).height(240).url()}
                 alt={`${event.title} logo`}
@@ -130,8 +125,9 @@ const trailerId = getYoutubeId(trailerUrl);
                   ? Math.round(240 * event.logo.dimensions.aspectRatio)
                   : undefined}
               />
+            ) : (
+              <h1 class="hero-title">{event.title}</h1>
             )}
-            <h1 class="hero-title">{event.title}</h1>
 
             {event.description && (
               <div class="hero-description-wrapper">
@@ -168,14 +164,14 @@ const trailerId = getYoutubeId(trailerUrl);
           <h2 class="sr-only">Event coverage</h2>
 
           <div class="filter-controls animate-on-scroll">
-            <button class="filter-btn type-btn" data-filter="video" aria-pressed="false">VIDEOS</button>
             <button class="filter-btn type-btn" data-filter="article" aria-pressed="false">ARTICLES</button>
+            <button class="filter-btn type-btn" data-filter="video" aria-pressed="false">VIDEOS</button>
           </div>
 
           <div class="mixed-grid" aria-live="polite">
             {unifiedContent.map((item, index) => {
               if (item.contentType === 'video') {
-                const videoId = getVideoId(item.link);
+                const videoId = parseVideoId(item.link);
                 return (
                   <div
                     class:list={['content-card', 'video-card', 'animate-on-scroll', { 'video-modal-trigger': !!videoId }]}
@@ -255,16 +251,49 @@ const trailerId = getYoutubeId(trailerUrl);
        below is inset:0 and its image clips to its own box, so it can't spill —
        the clip was never needed. */
   }
-  .event-hero-bg {
+  /* Clipping/coverage layer: static, fills the hero, hides the sliver the
+     animated child exposes at its edges while scaled. overflow:hidden is safe
+     HERE (and only here) — it contains no iframe, so the iOS black-box bug
+     cannot trigger. */
+  .event-hero-bg-wrapper {
     position: absolute;
     inset: 0;
     overflow: hidden;
+    z-index: 0;
+  }
+  .event-hero-bg-animated {
+    position: absolute;
+    inset: 0;
     /* Cover the whole hero (behind the copy AND the trailer). It re-crops when
        the description expands — an accepted trade for full coverage. */
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    z-index: 0;
+    /* translateZ(0) promotes this layer to its own compositor layer. Without
+       it, the overlay's backdrop-filter blur stops the animated transform from
+       repainting (issue #22 root cause) — keep it in the base AND in every
+       keyframe so the promotion never lapses mid-animation. */
+    transform: translateZ(0);
+    /* Tuned after visual QA: the original 1.05/50s (~0.1%/s) sat below the
+       perception floor and read as static. 1.08/30s is ambient but alive —
+       don't retune blind; verify any change with the 2s/1.5x debug values
+       (see d1db593). */
+    animation: cinematic-hero-zoom 30s ease-in-out infinite alternate;
+  }
+  /* Scale never drops below 1, so the image always covers the wrapper — no
+     exposed edges at any point in the cycle. */
+  @keyframes cinematic-hero-zoom {
+    from {
+      transform: scale(1.08) translateZ(0);
+    }
+    to {
+      transform: scale(1) translateZ(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .event-hero-bg-animated {
+      animation: none;
+    }
   }
   /* In normal flow (not absolute) so the banner GROWS with its content instead
      of overflowing upward under the fixed navbar. padding-top clears the navbar
@@ -523,7 +552,6 @@ const trailerId = getYoutubeId(trailerUrl);
   
   .content-card {
     background: #111;
-    border-radius: 12px;
     overflow: hidden;
     text-decoration: none;
     color: white;

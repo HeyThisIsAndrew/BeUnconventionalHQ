@@ -1,17 +1,23 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { site } from '../data/site.js';
+import { parseVideoId } from '../lib/platforms/youtube';
 import Hero from '../components/Hero.astro';
 import Categories from '../components/Categories.astro';
 import LatestArticles from '../components/LatestArticles.astro';
 import PromoBanner from '../components/PromoBanner.astro';
-import { getVideos } from '../data/feeds.js';
+import TakeoverBillboard from '../components/TakeoverBillboard.astro';
+import { getVideosUnified } from '../lib/videos-source';
 import PageTitle from '../components/PageTitle.astro';
 ---
 
 <Layout title="Be Unconventional HQ">
   <main>
   <Hero />
+
+  {/* Hidden in static HTML; reveals itself only while the channel is live
+      (#20). Ships dormant until YOUTUBE_API_KEY + the worker are deployed. */}
+  <TakeoverBillboard />
 
   {
     false && (
@@ -39,16 +45,14 @@ import PageTitle from '../components/PageTitle.astro';
       style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2.5rem;"
     >
       {
-        (await getVideos())
+        (await getVideosUnified())
           .filter((v) => v.isUpload)
           .slice(0, 3)
           .map((video, index) => (
             <div
               class="reveal video-card-home video-modal-trigger"
               data-delay={index * 100}
-              data-video-id={
-                video.link.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([^&?]+)/)?.[1]
-              }
+              data-video-id={parseVideoId(video.link)}
               style="background: var(--color-surface); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; overflow: hidden; text-decoration: none; display: flex; flex-direction: column; transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; min-height: 100%; cursor: pointer;"
             >
               <div style="position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden;">

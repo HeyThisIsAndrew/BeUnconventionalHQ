@@ -3,32 +3,26 @@ import Layout from '../../layouts/Layout.astro';
 import PageTitle from '../../components/PageTitle.astro';
 import EventBookingCTA from '../../components/EventBookingCTA.astro';
 import { site } from '../../data/site.js';
+// @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
+import { sanityClient } from "sanity:client";
+import { createImageUrlBuilder } from "@sanity/image-url";
 
 const title = `Featured | ${site.name}`;
 const description =
   'Deep dives and dedicated coverage hubs for our favorite brands and topics.';
 
-// Placeholder for future CMS integration
-const featuredHubs = [
-  {
-    title: 'Marvel Studios',
-    category: 'Marvel',
-    image: 'https://images.unsplash.com/photo-1608889175123-8ee362201f81?q=80&w=800&auto=format&fit=crop', // Temporary placeholder
-    link: '/featured/marvel',
-  },
-  {
-    title: 'Apple TV+ Originals',
-    category: 'Apple TV',
-    image: 'https://images.unsplash.com/photo-1627843563095-f6e94676cfe0?q=80&w=800&auto=format&fit=crop', // Temporary placeholder
-    link: '/featured/appletv',
-  },
-  {
-    title: 'Netflix Exclusives',
-    category: 'Netflix',
-    image: 'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?q=80&w=800&auto=format&fit=crop', // Temporary placeholder
-    link: '/featured/netflix',
-  },
-];
+const builder = createImageUrlBuilder(sanityClient);
+const urlFor = (source: any) => builder.image(source);
+
+// Published, sluggable brands only — same defensive filter as the detail page,
+// so drafts/incomplete docs never break the listing or produce dead links.
+const query = `*[_type == "featuredBrand" && defined(slug.current)]{..., logo{..., "dimensions": asset->metadata.dimensions}} | order(title asc)`;
+let brands = [];
+try {
+  brands = await sanityClient.fetch(query);
+} catch (e) {
+  console.error("Failed to fetch featuredBrand docs", e);
+}
 ---
 
 <Layout title={title} description={description}>
@@ -41,52 +35,71 @@ const featuredHubs = [
         </p>
       </header>
 
-      <div class="event-grid">
-        {
-          featuredHubs.length > 0 ? (
-            featuredHubs.map((item, index) => {
-              return (
-                <a
-                  href={item.link}
-                  class="event-card animate-on-scroll"
-                  style={`--index: ${index};`}
-                >
-                  <div class="event-image-wrapper">
-                    <img
-                      src={item.image}
-                      alt={item.title}
-                      loading="lazy"
-                      decoding="async"
-                      class="event-image"
-                    />
-                    <div class="event-overlay">
-                      <span class="event-tag">{item.category}</span>
-                      <h3 class="event-title line-clamp-2">{item.title}</h3>
-                    </div>
+      {brands.length > 0 ? (
+        <div class="event-grid">
+          {brands.map((brand: any, index: number) => {
+            const heroUrl = brand.heroImage
+              ? urlFor(brand.heroImage).width(800).height(450).auto('format').url()
+              : '/placeholder-event.jpg';
+            const logoHeight = 96;
+            const logoWidth = brand.logo?.dimensions?.aspectRatio
+              ? Math.round(logoHeight * brand.logo.dimensions.aspectRatio)
+              : undefined;
+
+            return (
+              <a
+                href={`/featured/${brand.slug.current}`}
+                class="event-card animate-on-scroll"
+                style={`--index: ${index};`}
+              >
+                <div class="event-image-wrapper">
+                  <img
+                    src={heroUrl}
+                    alt={brand.title}
+                    loading="lazy"
+                    decoding="async"
+                    class="event-image"
+                  />
+                  <div class="event-overlay">
+                    {brand.logo ? (
+                      <>
+                        <span class="event-card-logo-wrap">
+                          <img
+                            src={urlFor(brand.logo).height(96).url()}
+                            alt={`${brand.title} logo`}
+                            class="event-card-logo"
+                            height={logoHeight}
+                            width={logoWidth}
+                            loading="lazy"
+                          />
+                        </span>
+                        {/* Heading kept for structure/SEO even when the logo is
+                            the visual identity (mirrors FeaturedEvent). */}
+                        <h3 class="event-card-sr-title">{brand.title}</h3>
+                      </>
+                    ) : (
+                      <h3 class="event-title line-clamp-2">{brand.title}</h3>
+                    )}
                   </div>
-                </a>
-              );
-            })
-          ) : (
-            <div
-              class="empty-state animate-on-scroll"
-              style="grid-column: 1 / -1; text-align: center; padding: 4rem 0; opacity: 0.6;"
-            >
-              <p>Check back soon for dedicated coverage hubs.</p>
-            </div>
-          )
-        }
-      </div>
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      ) : (
+        <p class="featured-empty">Dedicated coverage hubs are coming soon.</p>
+      )}
 
     </div>
+
+    {/* Inside <main> so the section sits in a landmark (axe: region). */}
+    <EventBookingCTA
+      kicker="Collaborations"
+      primary="Want to be"
+      secondary="Featured?"
+      description="Do you want us to feature your game, movie, show, or content? We're always looking for new stories."
+    />
   </main>
-  
-  <EventBookingCTA 
-    kicker="Collaborations" 
-    primary="Want to be" 
-    secondary="Featured?" 
-    description="Do you want us to feature your game, movie, show, or content? We're always looking for new stories."
-  />
 </Layout>
 
 <style>
@@ -95,5 +108,61 @@ const featuredHubs = [
     margin: 0 auto;
     padding: 0 2rem;
   }
-  
+
+  .featured-empty {
+    text-align: center;
+    color: #888;
+    font-size: 1.1rem;
+    padding: 4rem 0;
+  }
+  /* drop-shadow lives on the WRAPPER, not the <img>. It still follows the
+     logo's transparent-PNG alpha (identical look), but keeping filter OFF the
+     image element avoids the iOS Safari bug that renders a filtered <img> as
+     broken — the reason drop-shadow was removed from the hero/EventCard logos. */
+  .event-card-logo-wrap {
+    display: inline-block;
+    max-width: 80%;
+    margin-right: auto; /* left-align */
+    filter: drop-shadow(0 4px 15px rgba(0, 0, 0, 0.7));
+  }
+  .event-card-logo {
+    max-height: 80px;
+    max-width: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    display: block;
+    transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  /* Visually-hidden heading — keeps document structure when the logo is the
+     visual identity. */
+  .event-card-sr-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .event-image-wrapper {
+    overflow: hidden;
+    position: relative;
+  }
+
+  .event-image {
+    transform: scale(1.05);
+    transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .event-card:hover .event-image {
+    transform: scale(1);
+  }
+
+  .event-card:hover .event-card-logo {
+    transform: scale(1.1);
+  }
 </style>

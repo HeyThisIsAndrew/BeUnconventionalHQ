@@ -1,7 +1,9 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { site } from '../data/site.js';
-import { getArticles, getVideos } from '../data/feeds.js';
+import { getArticles } from '../data/feeds.js';
+import { getVideosUnified } from '../lib/videos-source';
+import { parseVideoId } from '../lib/platforms/youtube';
 import '../styles/links.css';
 import PageTitle from '../components/PageTitle.astro';
 
@@ -9,7 +11,7 @@ const title = `Links | ${site.name}`;
 const description = 'Connect with Be Unconventional HQ across all platforms.';
 
 const articles = await getArticles();
-const videos = await getVideos();
+const videos = await getVideosUnified();
 
 const featuredArticles = articles.slice(0, 2);
 const featuredVideos = videos.slice(0, 2);
@@ -42,7 +44,11 @@ const socialLinks = [
 ];
 ---
 
-<Layout title={title} description={description}>
+{/* noindex: /links is a bio/entry utility route, reached by direct URL — not a
+    search destination. No robots.txt Disallow on purpose: crawlers must be able
+    to READ the page to see the noindex (a crawl block would leave externally-
+    linked URLs indexed with no description). */}
+<Layout title={title} description={description} noindex={true}>
   <main class="links-hub">
     <div class="links-container">
       <!-- Profile & Brand Section -->
@@ -116,9 +122,7 @@ const socialLinks = [
             featuredVideos.map((video) => (
               <div
                 class="links-bento-item video-modal-trigger"
-                data-video-id={
-                  video.link.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([^&?]+)/)?.[1]
-                }
+                data-video-id={parseVideoId(video.link)}
                 style="cursor: pointer;"
               >
                 <div class="links-bento-image">

@@ -21,7 +21,18 @@ export default defineConfig({
   },
   integrations: [
     react(),
-    sitemap(),
+    sitemap({
+      // WIP routes are excluded from the sitemap so Google doesn't treat them
+      // as canonical destinations. Paired with a noindex meta on the pages
+      // themselves and a robots.txt Disallow. Remove this filter (and both
+      // gates) when /events-new is promoted to /events.
+      // /links is a bio/entry utility route (noindex, no robots block — see
+      // links.astro) and shouldn't be advertised as a canonical destination.
+      // /admin is the embedded Sanity Studio (injected by studioBasePath) —
+      // a CMS interface must never be advertised to search engines.
+      filter: (page) =>
+        !page.includes('/events-new') && !page.includes('/links') && !page.includes('/admin'),
+    }),
     sanity({
       projectId: '38nhxsib',
       dataset: 'production',

@@ -1,13 +1,16 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import PageTitle from '../components/PageTitle.astro';
-import EventCalendar from '../components/EventCalendar.astro';
+import FeaturedEvent from '../components/FeaturedEvent.astro';
+import UpcomingEventsList from '../components/UpcomingEventsList.astro';
 import EventCard from '../components/EventCard.astro';
 import EventBookingCTA from '../components/EventBookingCTA.astro';
-import MiniCalendarSidebar from '../components/MiniCalendarSidebar.astro';
+import MiniCalendarSidebar from '../components/MiniCalendarSidebar.astro'; // Restored per blueprint
 import SpanningCalendarModal from '../components/SpanningCalendarModal.astro';
 import { site } from '../data/site.js';
+// @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
 import { sanityClient } from "sanity:client";
+import { toYMD } from '../lib/events';
 
 const title = `Events | ${site.name}`;
 const description = 'Live coverage, premieres, and press event highlights from Be Unconventional HQ.';
@@ -20,87 +23,151 @@ try {
   console.error("Failed to fetch Sanity events", e);
 }
 
-const today = new Date().toISOString();
-// Upcoming events: chronologically (earliest first)
+// Today's calendar date (YYYY-MM-DD) in the brand's reference timezone. Both
+// sides of the comparison are the SAME precision — comparing a bare
+// "2026-07-26" against a full ISO timestamp would sort the shorter string
+// lower and misclassify an event that ends *today* as past.
+const today = toYMD();
+
+// Upcoming: ends today or later, earliest start first. YYYY-MM-DD strings sort
+// chronologically, so localeCompare needs no Date objects.
 const upcomingEvents = allEvents
-  .filter(e => {
+  .filter((e: any) => {
     if (!e.startDate) return false;
-    const end = e.endDate ? e.endDate : e.startDate;
+    const end = (e.endDate || e.startDate).slice(0, 10);
     return end >= today;
   })
-  .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+  .sort((a: any, b: any) => a.startDate.localeCompare(b.startDate));
 
-// Past events: reverse chronological (most recent first)
-const pastEvents = allEvents.filter(e => {
-  if (!e.startDate) return false;
-  const end = e.endDate ? e.endDate : e.startDate;
-  return end < today;
-});
+// The nearest upcoming event headlines the hub; the rest form the vertical list.
+const featuredEvent = upcomingEvents[0] ?? null;
+const secondaryUpcoming = upcomingEvents.slice(1);
+
+// Past: already ended, most recent first.
+const pastEvents = allEvents
+  .filter((e: any) => {
+    if (!e.startDate) return false;
+    const end = (e.endDate || e.startDate).slice(0, 10);
+    return end < today;
+  })
+  .sort((a: any, b: any) => b.startDate.localeCompare(a.startDate));
 ---
 
-<Layout title={title} description={description}>
+<Layout title={title} description={description} noindex={true}>
   <main class="events-page">
     <div class="container">
-      
-      {/* Upcoming Events Calendar */}
-      <header class="section-header animate-on-scroll" data-nav-anchor style="text-align: center; margin-bottom: 2rem;">
-        <PageTitle as="h1" kicker="Schedule" primary="Upcoming" secondary="Events" />
-        <p style="color: #888; max-width: 600px; margin: 1.5rem auto 0; font-size: 1.1rem; line-height: 1.6;">
-          Our coverage roadmap for conventions, premieres, and industry events.
+      {/*
+        FULL-WIDTH HERO: header + FeaturedEvent sit outside/above the 12-col grid
+        so they span the full .container width as the page's visual anchor. The
+        70/30 split begins only below this section. (JSX comment — not shipped.)
+      */}
+      <header class="section-header animate-on-scroll" data-nav-anchor style="text-align: center; margin-bottom: 2.5rem;">
+        <PageTitle as="h1" kicker="Coverage" primary="Upcoming" secondary="Events" />
+        <p class="events-intro">
+          The next nerd-culture moments we're covering. Premieres, conventions, and the stories around them.
         </p>
       </header>
+      {/* Featured hero: the single nearest upcoming event. */}
+          {featuredEvent ? (
+            <FeaturedEvent event={featuredEvent} />
+          ) : (
+            <p class="events-none">
+              No upcoming events on the schedule right now — explore our past coverage below.
+            </p>
+          )}
 
-      <!-- <div class="mobile-calendar-btn-container">
-        <button class="open-full-calendar-btn mobile-only-btn" id="open-calendar-btn-mobile">
-          View Full Calendar
-        </button>
-      </div> -->
-      
-      <div class="events-layout">
-        <div class="events-timeline-col">
-          <EventCalendar events={upcomingEvents} />
+      {/*
+        70/30 ASYMMETRICAL GRID:
+        - grid-cols-1     mobile portrait stacks in one column.
+        - md:grid-cols-12 the 8/4 split engages at md (768px), not lg, so tablets
+                          and landscape phones also get the two-column view.
+        - lg:items-start  keeps the shorter sidebar column from stretching to the
+                          feed's height, which would break position:sticky. Only
+                          matters at lg, where sticky is active.
+      */}
+      <div class="grid grid-cols-1 md:grid-cols-12 md:gap-8 lg:items-start" style="margin-top: 3.5rem;">
+        {/*
+          OVERFLOW GUARDRAIL (min-w-0): grid/flex children default to
+          min-width:auto and refuse to shrink below their intrinsic content, so a
+          long unbreakable string or wide image can blow out the grid and cause
+          horizontal scroll. min-w-0 lets the column shrink, surviving extreme
+          content and high zoom (e.g. 300% on a 360px viewport).
+        */}
+        <section class="md:col-span-8 min-w-0">
           
-          <div class="mobile-calendar-btn-container">
-            <button class="open-full-calendar-btn mobile-only-btn" id="open-calendar-btn-mobile">
-            View Full Calendar
-            </button>
-        </div>
+          {/* Secondary upcoming events as a clean vertical list. */}
+          {secondaryUpcoming.length > 0 && (
+            <section class="upcoming-section animate-on-scroll" aria-labelledby="more-upcoming-heading">
+              <h2 id="more-upcoming-heading" class="upcoming-heading">More Upcoming</h2>
+              <UpcomingEventsList events={secondaryUpcoming} />
+            </section>
+          )}
 
-          {/* Past Events Coverage Portfolio */}
-          <section class="past-events-section" style="margin-top: 4rem;">
-            <header class="section-header animate-on-scroll">
-              <PageTitle as="h2" kicker="Portfolio" primary="Coverage" secondary="Hubs" scale="secondary" />
-            </header>
-            
-            <div class="event-grid">
-              {pastEvents.length > 0 ? (
-                pastEvents.map((event, index) => (
-                  <EventCard event={event} index={index} />
-                ))
-              ) : (
-                <div class="empty-state animate-on-scroll" style="grid-column: 1 / -1; text-align: center; padding: 4rem 0; opacity: 0.6;">
-                  <p>No past coverage hubs available yet.</p>
-                </div>
-              )}
+          {/*
+            ARCHITECTURAL LEDGER: MOBILE-ONLY CALENDAR CTA
+            This button is the primary entry point to the full calendar modal on
+            mobile devices. It is explicitly hidden on medium (`md`) viewports
+            and larger because its function is replaced by the MiniCalendarSidebar
+            component, which becomes visible at that breakpoint. This prevents
+            duplicate calendar navigation UI on desktop and tablet.
+          */}
+          {allEvents.length > 0 && (
+            <div class="calendar-cta-row animate-on-scroll md:hidden">
+              <button class="open-full-calendar-btn" type="button">View Full Calendar</button>
             </div>
-          </section>
-        </div>
+          )}
 
-        <div class="events-sidebar-col">
-          <MiniCalendarSidebar events={upcomingEvents} />
-          
-          {/* Future advertising spot placeholder (e.g., Mint Mobile) */}
-          <div class="sidebar-ad-space" style="display: none; margin-top: 3rem; padding: 2rem; border: 1px dashed rgba(255,255,255,0.2); border-radius: 12px; text-align: center; color: rgba(255,255,255,0.4); font-size: 0.9rem;">
-            <p>Advertisement Space</p>
+          {/* Past coverage portfolio. */}
+          {pastEvents.length > 0 && (
+            <section class="past-events-section animate-on-scroll">
+              <header class="section-header">
+                <PageTitle as="h2" kicker="Portfolio" primary="Coverage" secondary="Hubs" scale="secondary" />
+              </header>
+              <div class="event-grid">
+                {pastEvents.map((event: any, index: number) => (
+                  <EventCard event={event} index={index} />
+                ))}
+              </div>
+            </section>
+          )}
+        </section>
+
+        {/*
+          MOBILE KILL-SWITCH: sidebar is `hidden` by default and only `md:block`
+          — portrait mobile stays a clean single column; the sidebar would just
+          push primary content down and add noise on small screens.
+        */}
+        <aside class="hidden md:block md:col-span-4" aria-label="Upcoming events at a glance">
+          {/*
+            DESKTOP-ONLY STICKY PHYSICS & FLEXBOX FLOW
+            1. lg:sticky — sticky only at lg (1024px). At md (landscape mobile) a
+               sticky sidebar would consume the short viewport and trap scrolling,
+               so it's reserved for tall desktop viewports.
+            2. flex flex-col gap-8 — enforces vertical flow with fixed spacing
+               between sidebar modules so they can never overlap.
+          */}
+          <div class="lg:sticky lg:top-28 flex flex-col gap-8 items-start">
+
+            <div class="w-full">
+              <MiniCalendarSidebar events={upcomingEvents} />
+            </div>
+
+            {/*
+              SIDEBAR DISCOVERY MODULE [FUTURE]: this slot is reserved for a
+              <DiscoverySidebar /> powered by Sanity queries (latest videos /
+              articles) to boost in-ecosystem engagement. Tracked on a separate
+              ticket to avoid scope creep during Events Hub stabilization. The old
+              third-party ad placeholder was removed — owned content is preferred.
+            */}
+
           </div>
-        </div>
+        </aside>
       </div>
-
     </div>
+    {/* Inside <main> so the section sits in a landmark (axe: region). */}
+    <EventBookingCTA />
   </main>
-  
-  <EventBookingCTA />
-  
+
   <SpanningCalendarModal events={allEvents} />
 </Layout>
 
@@ -110,49 +177,48 @@ const pastEvents = allEvents.filter(e => {
     margin: 0 auto;
     padding: 0 2rem;
   }
-  
-  .events-layout {
-    display: grid;
-    /* minmax(0, 1fr) — WITHOUT the 0 minimum, the timeline column's implicit
-       min-width:auto lets the wide event card blow the track out past its share
-       and shove the 300px calendar off to the right. The 0 lets it shrink to
-       fit so the calendar stays inside the layout. */
-    grid-template-columns: minmax(0, 1fr) 300px;
-    gap: 3rem;
-    align-items: stretch;
-    max-width: 1000px;
-    margin: 0 auto;
-  }
-  
-  @media (max-width: 900px) {
-    .events-layout {
-      grid-template-columns: 1fr;
-    }
-    .events-sidebar-col {
-      display: none; /* or move it below the timeline, up to design preference */
-    }
+
+  .events-intro {
+    color: #999;
+    max-width: 620px;
+    margin: 1.5rem auto 0;
+    font-size: 1.1rem;
+    line-height: 1.6;
   }
 
-  .event-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 2rem;
-    margin-top: 2rem;
-  }
-
-  .mobile-calendar-btn-container {
-    display: none;
-    margin: 1rem 0 3rem;
+  .events-none {
     text-align: center;
+    color: #999;
+    font-size: 1.05rem;
+    margin: 2rem auto 3rem;
+    max-width: 560px;
   }
 
-  .mobile-only-btn {
+  .upcoming-section {
+    /* Spacing is now handled by the grid container's margin-top */
+  }
+  .upcoming-heading {
+    font-family: var(--font-display, 'Syne Variable', sans-serif);
+    font-size: 1.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #fff;
+    margin: 0 0 1.5rem;
+    text-align: left;
+  }
+
+  .calendar-cta-row {
+    text-align: center;
+    margin: 3rem 0;
+  }
+  .open-full-calendar-btn {
     width: 100%;
-    max-width: 300px;
-    padding: 1rem;
+    max-width: 320px;
+    min-height: 52px;
+    padding: 1rem 1.5rem;
     background: transparent;
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.25);
     border-radius: 8px;
     font-size: 0.9rem;
     font-weight: 700;
@@ -161,15 +227,22 @@ const pastEvents = allEvents.filter(e => {
     cursor: pointer;
     transition: all 0.3s ease;
   }
-  .mobile-only-btn:hover {
+  .open-full-calendar-btn:hover,
+  .open-full-calendar-btn:focus-visible {
     background: rgba(204, 0, 0, 0.1);
     border-color: var(--color-accent, #cc0000);
-    color: var(--color-accent, #cc0000);
+    color: white;
+    box-shadow: 0 0 20px rgba(204, 0, 0, 0.5);
+    outline: none;
   }
 
-  @media (max-width: 900px) {
-    .mobile-calendar-btn-container {
-      display: block;
-    }
+  .past-events-section {
+    margin-top: 4.5rem;
+  }
+  .event-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
   }
 </style>

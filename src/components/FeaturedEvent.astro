@@ -1,0 +1,238 @@
+---
+// The cinematic "next up" hero for the Events Hub. Presents the single nearest
+// upcoming event as an editorial statement piece — not a calendar row.
+//
+// Accessibility: the whole card is clickable via ONE stretched link (.fe-cta
+// with an ::after that covers the card), so there is exactly one link and no
+// nested-interactive markup. When a logo exists it becomes the visible
+// identity and the <h2> is visually hidden (kept for screen readers + SEO);
+// with no logo, the <h2> title shows.
+// @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
+import { sanityClient } from 'sanity:client';
+import { createImageUrlBuilder } from '@sanity/image-url';
+import { formatEventDateRange, formatLocation } from '../lib/events';
+import EventStatusIndicator from './EventStatusIndicator.astro';
+
+const builder = createImageUrlBuilder(sanityClient);
+const urlFor = (source: any) => builder.image(source);
+
+const { event } = Astro.props;
+const slug = event?.slug?.current ?? '';
+const heroUrl = event?.heroImage
+  ? urlFor(event.heroImage).width(1600).height(900).auto('format').url()
+  : '';
+const logoUrl = event?.logo ? urlFor(event.logo).height(200).url() : '';
+const dateLabel = formatEventDateRange(event?.startDate, event?.endDate);
+const locationLabel = formatLocation(event?.location);
+const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
+---
+
+<article class="fe-card animate-on-scroll" style={`--brand: ${brandColor};`}>
+  <div
+    class="fe-bg"
+    style={heroUrl
+      ? `background-image: url('${heroUrl}');`
+      : `background-image: linear-gradient(135deg, ${brandColor} 0%, #111 100%);`}>
+  </div>
+  <div class="fe-overlay"></div>
+
+  <div class="fe-content">
+    <div class="fe-eyebrow"><EventStatusIndicator event={event} /></div>
+
+    {logoUrl ? (
+      <>
+        <img src={logoUrl} alt={`${event.title} logo`} class="fe-logo" />
+        <h2 class="sr-only">{event.title}</h2>
+      </>
+    ) : (
+      <h2 class="fe-title">{event.title}</h2>
+    )}
+
+    <p class="fe-meta">
+      <span class="fe-dates">{dateLabel}</span>
+      {locationLabel && <span class="fe-location"> • {locationLabel}</span>}
+    </p>
+
+    {event.description && <p class="fe-desc">{event.description}</p>}
+
+    <a href={`/events-new/${slug}`} class="fe-cta">
+      Explore Coverage
+      <span aria-hidden="true">→</span>
+    </a>
+  </div>
+</article>
+
+<style>
+  .fe-card {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    min-height: 420px;
+    display: flex;
+    background: #111;
+    isolation: isolate;
+  }
+  @media (min-width: 900px) {
+    .fe-card {
+      min-height: 520px;
+    }
+  }
+
+  .fe-bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    z-index: 0;
+    transform: scale(1.05);
+    transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .fe-card:hover .fe-bg,
+  .fe-card:focus-within .fe-bg {
+    transform: scale(1);
+  }
+  .fe-card:hover .fe-logo,
+  .fe-card:focus-within .fe-logo {
+    transform: scale(1.1);
+  }
+  
+  /* Strong bottom-weighted overlay for WCAG-legible copy over any hero art. */
+  .fe-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.92) 0%,
+      rgba(0, 0, 0, 0.75) 35%,
+      rgba(0, 0, 0, 0.45) 70%,
+      rgba(0, 0, 0, 0.35) 100%
+    );
+  }
+
+  .fe-content {
+    position: relative;
+    z-index: 2;
+    margin-top: auto; /* anchor copy to the bottom of the hero */
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    max-width: 720px;
+  }
+  @media (min-width: 900px) {
+    .fe-content {
+      padding: 3rem;
+    }
+  }
+
+  .fe-eyebrow {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--brand);
+    margin-bottom: 1rem;
+  }
+
+  .fe-logo {
+    max-height: clamp(70px, 40px + 9vw, 130px);
+    max-width: min(100%, 380px);
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    margin-bottom: 1rem;
+    transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .fe-title {
+    font-family: var(--font-display, 'Syne Variable', sans-serif);
+    font-size: clamp(1.8rem, 1.2rem + 3vw, 3.25rem);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+    color: #fff;
+    margin: 0 0 1rem;
+    text-shadow: 0 6px 30px rgba(0, 0, 0, 0.6);
+  }
+
+  .fe-meta {
+    font-size: clamp(0.9rem, 0.8rem + 0.5vw, 1.1rem);
+    color: #e5e5e5;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin: 0 0 1rem;
+  }
+  .fe-dates,
+  .fe-location {
+    display: inline-block;
+  }
+
+  .fe-desc {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.85);
+    margin: 0 0 1.75rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .fe-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 48px;
+    padding: 0.85rem 1.75rem;
+    background: transparent;
+    color: #fff;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border: 1px solid var(--brand);
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .fe-cta span {
+    transition: transform 0.2s ease;
+  }
+  .fe-card:hover .fe-cta,
+  .fe-cta:focus-visible {
+    background: var(--brand);
+    color: #fff;
+  }
+  .fe-card:hover .fe-cta span,
+  .fe-cta:focus-visible span {
+    transform: translateX(4px);
+  }
+  .fe-cta:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 3px;
+  }
+
+  /* Stretched link: the CTA covers the whole card so the entire hero is one
+     clickable target, while remaining the single link in the DOM. */
+  .fe-cta::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>

@@ -1,0 +1,96 @@
+---
+/**
+ * Discovery Row v2: a 4-card Shorts shelf for category feeds.
+ *
+ * - Data: static src/data/shorts.json — never the YouTube API at runtime.
+ * - Selection: pickDailyShorts() — seeded by `${category}-${YYYY-MM-DD}`
+ *   (brand timezone), so every build on the same calendar day emits identical
+ *   HTML (CDN-cache stable, no hydration concerns) and the shelf rotates at
+ *   the first build after midnight.
+ * - Layout: native CSS scroll-snap carousel on mobile with a ~1.8–2.2-card
+ *   "peek" (min-w 55% / 40%); becomes a plain 4-column grid at md. No JS.
+ */
+import shortsData from '../data/shorts.json';
+import CinematicShortCard from './CinematicShortCard.astro';
+import { pickDailyShorts, type ShortItem } from '../lib/shorts.ts';
+
+export interface Props {
+  category: string;
+}
+const { category } = Astro.props;
+
+const pool = (shortsData.categories as Record<string, ShortItem[]>)[category];
+const picks = pickDailyShorts(pool, category, 4);
+
+const ROW_TITLES: Record<string, string> = {
+  gaming: 'Gaming Quick Takes',
+  events: 'Event Quick Takes',
+};
+const rowTitle = ROW_TITLES[category] ?? 'Watch Next';
+// Category-scoped so two rows on one page can never collide on ids.
+const headingId = `shorts-row-title-${category}`;
+---
+
+{
+  picks.length > 0 && (
+    <section class="w-full max-w-7xl mx-auto py-12" aria-labelledby={headingId}>
+      <header class="flex justify-between items-end mb-6 px-4 md:px-0">
+        <h3 id={headingId} class="text-2xl md:text-3xl font-bold text-white tracking-tight">
+          {rowTitle}
+        </h3>
+      </header>
+
+      {/*
+        Mobile: snap carousel. -mx-4/px-4 lets cards bleed to the container
+        edge while snap targets stay padded. min-w 55%/40% is the peek math —
+        1.8–2.2 cards visible so the row reads as scrollable without arrows.
+        Desktop (md+): the same list becomes a static 4-col grid; md:min-w-0
+        is REQUIRED — the mobile min-widths would otherwise override the 25%
+        grid tracks and blow the row out of its container.
+      */}
+      {/* Edge-bleed margins/padding live in the scoped <style> below, NOT in
+          utility classes: this site's global (unlayered) ul reset beats
+          Tailwind's layered spacing utilities, silently zeroing -mx-4/px-4.
+          Scoped component CSS is unlayered too, so it wins. Peek widths are
+          tuned to THIS site's 2rem container gutter to land in the
+          1.8–2.2-cards-visible acceptance band. */}
+      <ul
+        role="list"
+        class="shorts-scroll list-none flex overflow-x-auto snap-x snap-mandatory gap-4 md:grid md:grid-cols-4 md:gap-6 md:flex-none md:overflow-visible"
+      >
+        {picks.map((short) => (
+          <li class="min-w-[55%] sm:min-w-[46%] md:min-w-0 flex-shrink-0 snap-center">
+            <CinematicShortCard id={short.id} title={short.title} thumbnailUrl={short.thumbnailUrl} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+<style>
+  /* Carousel geometry: bleed to the container edge (negative margins) while
+     keeping snap targets padded, plus breathing room under the row. In CSS
+     here (not utilities) because the global ul reset out-cascades Tailwind's
+     layered spacing utilities — see the note in the template. */
+  .shorts-scroll {
+    margin: 0 -1rem;
+    padding: 0 1rem 1.5rem;
+  }
+  @media (min-width: 768px) {
+    .shorts-scroll {
+      margin: 0;
+      padding: 0;
+    }
+  }
+
+  /* Hide the carousel scrollbar without a Tailwind plugin (scrolling still
+     works via touch/trackpad; desktop is a grid, so nothing is lost). */
+  .shorts-scroll {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .shorts-scroll::-webkit-scrollbar {
+    display: none;
+  }
+</style>

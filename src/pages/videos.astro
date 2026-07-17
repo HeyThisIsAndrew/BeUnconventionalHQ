@@ -3,13 +3,14 @@ import Layout from '../layouts/Layout.astro';
 import PageTitle from '../components/PageTitle.astro';
 import { site } from '../data/site.js';
 import QuadrantFilter from '../components/QuadrantFilter.astro';
-import { getVideos } from '../data/feeds.js';
+import { parseVideoId } from '../lib/platforms/youtube';
+import { getVideosUnified } from '../lib/videos-source';
 
 const title = `Videos | ${site.name}`;
 const description =
   'Explore the latest cinematic video content from Be Unconventional HQ.';
 
-const displayVideos = await getVideos();
+const displayVideos = await getVideosUnified();
 ---
 
 <Layout title={title} description={description}>
@@ -26,6 +27,8 @@ const displayVideos = await getVideos();
 
       <QuadrantFilter showTypes={false} />
 
+      {/* Structural h2 so card h3s don't skip a heading level (axe: heading-order). */}
+      <h2 class="sr-only">All videos</h2>
       <div class="video-grid">
         {
           displayVideos.map((video, index) => (
@@ -33,9 +36,7 @@ const displayVideos = await getVideos();
               class="video-card animate-on-scroll is-visible video-modal-trigger"
               data-type="video"
               data-category={(video.category || 'General').toLowerCase()}
-              data-video-id={
-                video.link.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([^&?]+)/)?.[1]
-              }
+              data-video-id={parseVideoId(video.link)}
               style={`--index: ${index}; cursor: pointer;`}
             >
               <div class="video-thumbnail-wrapper">

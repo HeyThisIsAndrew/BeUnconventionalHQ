@@ -1,0 +1,130 @@
+/**
+ * Offline unit tests for src/lib/videos.ts (Video Migration Phase A).
+ *
+ * Run:  node scripts/videos.test.mjs
+ */
+import assert from 'node:assert/strict';
+import {
+  mapSanityVideo,
+  mergeVideoSources,
+  getUnifiedVideos,
+  PUBLISHED_VIDEOS_QUERY,
+} from '../src/lib/videos.ts';
+
+let passed = 0;
+const test = async (name, fn) => {
+  try {
+    await fn();
+    passed++;
+    console.log(`  ✓ ${name}`);
+  } catch (err) {
+    console.error(`  ✗ ${name}\n    ${err.message}`);
+    process.exitCode = 1;
+  }
+};
+
+const DOC = {
+  youtubeId: 'dQw4w9WgXcQ',
+  title: 'SDCC 2026 Floor Tour',
+  thumbnailUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+  durationSeconds: 754,
+  isShort: false,
+  publishedAt: '2026-07-12T15:00:00Z',
+  topics: ['events', 'conventions'],
+  featured: true,
+};
+
+console.log('videos.ts');
+
+await test('maps a full doc to the legacy shape + extras', () => {
+  const v = mapSanityVideo(DOC);
+  assert.equal(v.title, 'SDCC 2026 Floor Tour');
+  assert.equal(v.link, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  assert.equal(v.thumbnail, DOC.thumbnailUrl);
+  assert.equal(v.category, 'Events'); // editorial topic wins
+  assert.equal(v.date, 'July 12, 2026'); // legacy long-form date
+  assert.equal(v.isUpload, true);
+  assert.equal(v.youtubeId, 'dQw4w9WgXcQ');
+  assert.equal(v.featured, true);
+  assert.equal(v.source, 'sanity');
+});
+
+await test('Shorts keep the /shorts/ URL form and isUpload=false', () => {
+  const v = mapSanityVideo({ ...DOC, isShort: true });
+  assert.equal(v.link, 'https://www.youtube.com/shorts/dQw4w9WgXcQ');
+  assert.equal(v.isUpload, false);
+});
+
+await test('topic that is not a site category → categorize fallback', () => {
+  const v = mapSanityVideo(
+    { ...DOC, topics: ['conventions'] },
+    { categorize: () => 'Events' },
+  );
+  assert.equal(v.category, 'Events');
+});
+
+await test('no topics, no categorize → General', () => {
+  assert.equal(mapSanityVideo({ ...DOC, topics: [] }).category, 'General');
+});
+
+await test('missing thumbnailUrl falls back to the maxres thumbnail', () => {
+  const v = mapSanityVideo({ ...DOC, thumbnailUrl: undefined });
+  assert.equal(v.thumbnail, 'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg');
+});
+
+await test('docs missing id or title are rejected (null)', () => {
+  assert.equal(mapSanityVideo({ ...DOC, youtubeId: null }), null);
+  assert.equal(mapSanityVideo({ ...DOC, title: '' }), null);
+  assert.equal(mapSanityVideo(null), null);
+});
+
+await test('merge dedupes by video id — Sanity wins over legacy', () => {
+  const sanity = [mapSanityVideo(DOC)];
+  const legacy = [
+    // Same video via a watch URL — must be dropped.
+    { title: 'dupe', link: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', thumbnail: '', category: 'Events', date: '', isUpload: true },
+    // Different video — must pass through, tagged legacy.
+    { title: 'other', link: 'https://www.youtube.com/shorts/zGA4XXAkE_s', thumbnail: '', category: 'Events', date: '', isUpload: false },
+  ];
+  const merged = mergeVideoSources(sanity, legacy);
+  assert.equal(merged.length, 2);
+  assert.equal(merged[0].source, 'sanity');
+  assert.equal(merged[1].title, 'other');
+  assert.equal(merged[1].source, 'legacy');
+  assert.equal(merged[1].youtubeId, 'zGA4XXAkE_s');
+});
+
+await test('getUnifiedVideos: Sanity-primary, legacy fills gaps', async () => {
+  const client = { fetch: async (q) => {
+    assert.equal(q, PUBLISHED_VIDEOS_QUERY);
+    return [DOC];
+  }};
+  const legacy = [
+    { title: 'legacy-only', link: 'https://www.youtube.com/watch?v=zGA4XXAkE_s', thumbnail: '', category: 'Film', date: '', isUpload: true },
+  ];
+  const out = await getUnifiedVideos(client, legacy);
+  assert.deepEqual(out.map((v) => [v.title, v.source]), [
+    ['SDCC 2026 Floor Tour', 'sanity'],
+    ['legacy-only', 'legacy'],
+  ]);
+});
+
+await test('getUnifiedVideos: Sanity failure degrades to legacy, never throws', async () => {
+  const client = { fetch: async () => { throw new Error('egress blocked'); } };
+  const legacy = [
+    { title: 'still here', link: 'https://www.youtube.com/watch?v=zGA4XXAkE_s', thumbnail: '', category: 'TV', date: '', isUpload: true },
+  ];
+  const out = await getUnifiedVideos(client, legacy);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].title, 'still here');
+  assert.equal(out[0].source, 'legacy');
+});
+
+await test('getUnifiedVideos: empty everywhere → empty list', async () => {
+  const out = await getUnifiedVideos({ fetch: async () => [] }, []);
+  assert.deepEqual(out, []);
+});
+
+console.log(
+  process.exitCode ? `FAILED (${passed} passed)` : `All ${passed} tests passed.`,
+);

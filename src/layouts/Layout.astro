@@ -17,6 +17,11 @@ const {
   description = site.description,
   image = site.image,
   type = 'website',
+  // Opt-in gate for work-in-progress or draft routes. When true, we emit a
+  // robots meta directive that tells search engines not to index the page or
+  // follow its links. Keep the default false so existing production pages are
+  // unaffected.
+  noindex = false,
 } = Astro.props;
 
 // Self-referential canonical URL: absolute, always trailing-slashed to match
@@ -109,6 +114,7 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
     />
     <meta name="theme-color" content="#000000" />
     <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
     <link rel="canonical" href={url} />
     <script type="application/ld+json" is:inline set:html={JSON.stringify(structuredData)} />
     <link rel="icon" type="image/svg+xml" href={`/favicon.svg`} />
@@ -233,7 +239,10 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
             document.documentElement.classList.remove('modal-open');
             modal.setAttribute('aria-hidden', 'true');
             document.getElementById('app-wrapper')?.removeAttribute('inert');
-            modalIframe.src = '';
+            // 'about:blank', NOT '' — an empty src resolves to the current
+            // page URL, silently reloading the whole site inside the hidden
+            // iframe on every close.
+            modalIframe.src = 'about:blank';
 
             document.body.style.position = '';
             document.body.style.top = '';

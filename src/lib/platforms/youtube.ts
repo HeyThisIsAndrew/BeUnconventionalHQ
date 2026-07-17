@@ -1,0 +1,228 @@
+/**
+ * YouTube Data API v3 adapter — the reusable YouTube data layer for #21.
+ *
+ * ISOMORPHIC BY DESIGN. It uses only `fetch`, `URL`, and `URLSearchParams`,
+ * which exist in BOTH runtimes this project targets:
+ *   • Node (build-time ingestion/sync scripts → Sanity)
+ *   • Cloudflare Workers edge (the /api/live-status endpoint for #20)
+ * The API key is INJECTED by the caller (not read from process.env in here), so
+ * the same module works in a Node script (process.env.YOUTUBE_API_KEY) and in
+ * an edge handler (locals.runtime.env.YOUTUBE_API_KEY) with zero duplication.
+ *
+ * Caching is intentionally NOT built in — it belongs to each caller: build
+ * scripts use the cache-preserve pattern; the edge endpoint uses Cache-Control
+ * (see the quota note on getLiveStatus). This keeps the client thin and pure.
+ */
+import type { ChannelStats } from './types';
+
+const API_BASE = 'https://www.googleapis.com/youtube/v3';
+
+export interface YouTubeClientOptions {
+  apiKey: string;
+  /**
+   * Injectable fetch — defaults to the global. Lets tests run offline with a
+   * stub, and lets an edge handler pass its runtime fetch if needed.
+   */
+  fetchImpl?: typeof fetch;
+}
+
+/** Rich, YouTube-specific video model (this is a CONTENT type, not shared). */
+export interface YouTubeVideo {
+  id: string;
+  title: string;
+  description: string;
+  thumbnail: string;
+  publishedAt: string; // ISO-8601
+  durationSeconds: number;
+  viewCount: number;
+  tags: string[];
+  /** Heuristic: <= 60s. True Shorts detection needs a URL probe; documented. */
+  isShort: boolean;
+}
+
+export interface LiveStatus {
+  isLive: boolean;
+  videoId: string | null;
+  title?: string;
+}
+
+export class YouTubeApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'YouTubeApiError';
+    this.status = status;
+  }
+}
+
+// ── Pure helpers (exported for unit testing; zero I/O) ───────────────────────
+
+const VIDEO_ID_RE =
+  /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|live\/|watch\?(?:.*&)?v=))([A-Za-z0-9_-]{11})/;
+
+/**
+ * Canonical 11-char video ID from any YouTube URL/ID form (watch, youtu.be,
+ * embed, shorts, live, bare id, with extra query params), else null. This is
+ * the single validated replacement for the ~5 hand-rolled regexes scattered
+ * across the components.
+ */
+export function parseVideoId(input: string | null | undefined): string | null {
+  if (typeof input !== 'string') return null;
+  const s = input.trim();
+  if (!s) return null;
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s; // already a bare id
+  const m = s.match(VIDEO_ID_RE);
+  return m ? m[1] : null;
+}
+
+/** ISO-8601 duration ("PT1H2M3S") → seconds. Returns 0 for anything unparseable. */
+export function parseISO8601Duration(iso: string | null | undefined): number {
+  if (typeof iso !== 'string') return 0;
+  const m = iso.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+  if (!m) return 0;
+  const [, h, min, sec] = m;
+  return (Number(h) || 0) * 3600 + (Number(min) || 0) * 60 + (Number(sec) || 0);
+}
+
+/** Best available thumbnail URL from a snippet.thumbnails object. */
+export function pickThumbnail(thumbnails: any): string {
+  if (!thumbnails) return '';
+  return (
+    thumbnails.maxres?.url ||
+    thumbnails.standard?.url ||
+    thumbnails.high?.url ||
+    thumbnails.medium?.url ||
+    thumbnails.default?.url ||
+    ''
+  );
+}
+
+// ── Client factory ───────────────────────────────────────────────────────────
+
+export function createYouTubeClient({ apiKey, fetchImpl }: YouTubeClientOptions) {
+  if (!apiKey) throw new Error('createYouTubeClient: apiKey is required');
+  const doFetch = fetchImpl || fetch;
+
+  async function apiGet(resource: string, params: Record<string, string>): Promise<any> {
+    const url = new URL(`${API_BASE}/${resource}`);
+    url.search = new URLSearchParams({ ...params, key: apiKey }).toString();
+    const res = await doFetch(url.toString());
+    if (!res.ok) {
+      let reason = res.statusText;
+      try {
+        const body = await res.json();
+        reason = body?.error?.message || reason;
+      } catch {
+        /* non-JSON error body */
+      }
+      throw new YouTubeApiError(`YouTube API ${resource} failed: ${reason}`, res.status);
+    }
+    return res.json();
+  }
+
+  return {
+    parseVideoId,
+
+    /**
+     * videos.list — 1 quota unit per call, batched 50 ids/call. Returns rich
+     * YouTube-specific video metadata for ingestion into Sanity.
+     */
+    async getVideoDetails(ids: string[]): Promise<YouTubeVideo[]> {
+      const clean = [...new Set(ids.map(parseVideoId).filter((x): x is string => !!x))];
+      const out: YouTubeVideo[] = [];
+      for (let i = 0; i < clean.length; i += 50) {
+        const batch = clean.slice(i, i + 50);
+        const data = await apiGet('videos', {
+          part: 'snippet,contentDetails,statistics',
+          id: batch.join(','),
+        });
+        for (const item of data.items || []) {
+          const durationSeconds = parseISO8601Duration(item.contentDetails?.duration);
+          out.push({
+            id: item.id,
+            title: item.snippet?.title ?? '',
+            description: item.snippet?.description ?? '',
+            thumbnail: pickThumbnail(item.snippet?.thumbnails),
+            publishedAt: item.snippet?.publishedAt ?? '',
+            durationSeconds,
+            viewCount: Number(item.statistics?.viewCount ?? 0),
+            tags: Array.isArray(item.snippet?.tags) ? item.snippet.tags : [],
+            isShort: durationSeconds > 0 && durationSeconds <= 60,
+          });
+        }
+      }
+      return out;
+    },
+
+    /**
+     * channels.list — 1 quota unit per call. Returns the NORMALIZED,
+     * cross-platform ChannelStats shape (subscribers → followers), so future
+     * Instagram/TikTok adapters return the same shape for the Media Kit.
+     */
+    async getChannelStats(channelId: string): Promise<ChannelStats> {
+      const data = await apiGet('channels', { part: 'statistics', id: channelId });
+      const s = data.items?.[0]?.statistics ?? {};
+      return {
+        platform: 'youtube',
+        followers: Number(s.subscriberCount ?? 0),
+        totalViews: Number(s.viewCount ?? 0),
+        itemCount: Number(s.videoCount ?? 0),
+        fetchedAt: new Date().toISOString(),
+      };
+    },
+
+    /**
+     * List a channel's uploads (for ingestion). ~1 unit for the channel lookup
+     * + 1 unit per page of playlistItems. Paginate with the returned token.
+     */
+    async getUploads(
+      channelId: string,
+      pageToken?: string
+    ): Promise<{ videos: { id: string; title: string; publishedAt: string }[]; nextPageToken?: string }> {
+      const ch = await apiGet('channels', { part: 'contentDetails', id: channelId });
+      const uploads = ch.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+      if (!uploads) return { videos: [] };
+      const params: Record<string, string> = {
+        part: 'snippet,contentDetails',
+        maxResults: '50',
+        playlistId: uploads,
+      };
+      if (pageToken) params.pageToken = pageToken;
+      const data = await apiGet('playlistItems', params);
+      const videos = (data.items || [])
+        .map((it: any) => ({
+          id: it.contentDetails?.videoId,
+          title: it.snippet?.title ?? '',
+          publishedAt: it.contentDetails?.videoPublishedAt ?? it.snippet?.publishedAt ?? '',
+        }))
+        .filter((v: any) => v.id);
+      return { videos, nextPageToken: data.nextPageToken };
+    },
+
+    /**
+     * Live-status check for #20's takeover billboard.
+     *
+     * ⚠️ QUOTA: search.list costs 100 units/call (vs 1 for the others). Free
+     * tier is 10,000 units/day, so this is ~100 checks/day of headroom. The
+     * CALLER must cache aggressively — a naive 5-min poll = 288 calls/day =
+     * 28,800 units, ~3× over quota. The /api/live-status endpoint caches at the
+     * edge accordingly (and can gate this behind a 0-quota RSS/scrape signal).
+     */
+    async getLiveStatus(channelId: string): Promise<LiveStatus> {
+      const data = await apiGet('search', {
+        part: 'snippet',
+        channelId,
+        eventType: 'live',
+        type: 'video',
+        maxResults: '1',
+      });
+      const item = data.items?.[0];
+      if (item?.id?.videoId) {
+        return { isLive: true, videoId: item.id.videoId, title: item.snippet?.title };
+      }
+      return { isLive: false, videoId: null };
+    },
+  };
+}
+
+export type YouTubeClient = ReturnType<typeof createYouTubeClient>;

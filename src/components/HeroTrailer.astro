@@ -309,8 +309,26 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
       };
       window.addEventListener('message', onMessage);
 
+      // Force a fresh compositing layer + repaint on a just-(re)mounted
+      // cross-origin iframe — defeats the iOS Safari "player active, frames
+      // black" bug that a viewport/orientation change can leave behind (Bug 2).
+      const nudge = (el: HTMLElement) => {
+        el.style.transform = 'translateZ(0)';
+        void el.offsetHeight; // force reflow
+        requestAnimationFrame(() => {
+          el.style.transform = '';
+        });
+      };
+      const exitFullscreen = () => {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if ((document as any).webkitFullscreenElement && (document as any).webkitExitFullscreen) {
+          (document as any).webkitExitFullscreen();
+        }
+      };
+
       const mountDesktop = () => {
-        if (desktopFrame || !mount) return;
+        if (desktopFrame || !mount) return; // idempotent
         ready = false;
         posterHidden = false;
         muted = true;
@@ -331,15 +349,17 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
         );
         desktopFrame.src = mount.dataset.src;
         mount.appendChild(desktopFrame);
+        nudge(desktopFrame);
       };
       const unmountDesktop = () => {
         if (!desktopFrame) return;
         desktopFrame.remove();
         desktopFrame = null;
         ready = false;
+        queue.length = 0;
       };
 
-      // ---- Mobile native src toggle (no custom JS/UI, just load when shown) ----
+      // ---- Mobile native frame: load when shown, clear when hidden. ----
       const showMobile = () => {
         if (mobileFrame && !mobileFrame.src && mobileFrame.dataset.src) {
           mobileFrame.src = mobileFrame.dataset.src;
@@ -348,48 +368,100 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
       const hideMobile = () => {
         if (mobileFrame && mobileFrame.src) mobileFrame.removeAttribute('src');
       };
+      // Rebuild the native iframe from scratch (NOT cloneNode, which copies the
+      // stale compositing context). Fresh element, src set AFTER insertion so
+      // the load happens in the already-settled orientation.
+      const rebuildMobile = () => {
+        if (!mobileFrame || !mobileFrame.parentNode) return;
+        exitFullscreen();
+        const dataSrc = mobileFrame.dataset.src;
+        const fresh = document.createElement('iframe');
+        fresh.className = 'ht-frame';
+        fresh.title = title;
+        fresh.setAttribute('frameborder', '0');
+        fresh.setAttribute('loading', 'lazy');
+        fresh.setAttribute(
+          'allow',
+          'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
+        );
+        fresh.setAttribute('allowfullscreen', '');
+        if (dataSrc) fresh.dataset.src = dataSrc;
+        mobileFrame.parentNode.replaceChild(fresh, mobileFrame);
+        mobileFrame = fresh;
+        if (dataSrc) mobileFrame.src = dataSrc; // load in the settled orientation
+        nudge(mobileFrame);
+      };
 
-      // ---- Activate exactly the visible side. One embed loads at a time. ----
+      // ---- Single convergence point ----
+      // Whatever the viewport is NOW, end with exactly one correctly-mounted,
+      // freshly-composited player. rebuild=true recreates the active iframe
+      // (used after a rotation) to force a clean compositing layer.
       const mql = window.matchMedia('(min-width: 900px)');
-      const activate = (isDesktop) => {
-        if (isDesktop) {
+      const reconcile = (rebuild = false) => {
+        if (mql.matches) {
           hideMobile();
+          if (rebuild) unmountDesktop();
           mountDesktop();
         } else {
           unmountDesktop();
-          showMobile();
+          if (rebuild) rebuildMobile();
+          else showMobile();
         }
       };
-      activate(mql.matches);
-      
-      // ---- iOS Safari Rotation Fix ----
-      // When rotating the phone on mobile, the iframe can crash or desync (audio plays, video black).
-      // Resolution: forcefully destroy and recreate the iframe to guarantee a clean state.
-      const onOrientationChange = () => {
-        if (!mql.matches && mobileFrame && mobileFrame.parentNode) {
-          // 1. Attempt to exit any DOM-level fullscreen
-          if (document.fullscreenElement && document.exitFullscreen) {
-            document.exitFullscreen().catch(() => {});
-          } else if ((document as any).webkitFullscreenElement && (document as any).webkitExitFullscreen) {
-            (document as any).webkitExitFullscreen();
-          }
+      reconcile();
 
-          // 2. Clone and replace the iframe to completely kill the active video/audio stream
-          const newFrame = mobileFrame.cloneNode(true) as HTMLIFrameElement;
-          mobileFrame.parentNode.replaceChild(newFrame, mobileFrame);
-          
-          // 3. Update our reference so future rotations or media query checks affect the new frame
-          mobileFrame = newFrame;
-        }
+      // Coalesce rapid viewport events (mql change + orientation settle) into a
+      // single reconcile, so one rotation never double-mounts.
+      let reconcileTimer: ReturnType<typeof setTimeout> | null = null;
+      let rebuildPending = false;
+      const scheduleReconcile = (rebuild: boolean) => {
+        if (rebuild) rebuildPending = true;
+        if (reconcileTimer) clearTimeout(reconcileTimer);
+        reconcileTimer = setTimeout(() => {
+          reconcileTimer = null;
+          const doRebuild = rebuildPending;
+          rebuildPending = false;
+          reconcile(doRebuild);
+        }, 80);
       };
-      window.addEventListener('orientationchange', () => {
-        // Slight delay to allow the browser to settle viewport dimensions
-        setTimeout(onOrientationChange, 50);
-      });
+
+      // FINDING (M4 experiment, confirmed on iPhone 12/17 Pro Max): raising the
+      // breakpoint to 1024 so the native iframe is left UNTOUCHED across a phone
+      // rotation STILL black-screens on iOS Safari (Outcome B). iOS drops the
+      // cross-origin iframe's compositing layer on rotation regardless of any
+      // tree switch. So the rebuild below is MANDATORY — it trades playback
+      // continuity for a working player. Do NOT remove it to "preserve
+      // playback": true continuity would need a single unified enablejsapi
+      // player with seek-restore, not this two-tree design (separate follow-up).
+      //
+      // Bug 1 (the one hitting the Pro Max devices): the breakpoint flip —
+      // portrait<->landscape crossing 900px, i.e. every iPad and the Plus/Pro
+      // Max iPhones — MUST re-run the mount logic. Previously CSS swapped the
+      // visible structure while JS mounted nothing, so the desktop poster sat
+      // over an empty mount and tapping play produced a black screen.
+      mql.addEventListener('change', () => scheduleReconcile(true));
+
+      // Bug 2: same-breakpoint rotation. orientationchange fires BEFORE iOS
+      // settles the viewport, so wait for the following visualViewport resize
+      // (with a timeout fallback) before rebuilding the active player.
+      const onOrientation = () => {
+        const vv = window.visualViewport;
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          if (vv) vv.removeEventListener('resize', finish);
+          scheduleReconcile(true);
+        };
+        if (vv) vv.addEventListener('resize', finish);
+        setTimeout(finish, 400);
+      };
+      window.addEventListener('orientationchange', onOrientation);
 
       // ---- Desktop interactions ----
       if (poster) {
         poster.addEventListener('click', () => {
+          mountDesktop(); // ensure a frame exists before commanding it (idempotent)
           command('playVideo');
           command('unMute');
           command('setVolume', [100]);

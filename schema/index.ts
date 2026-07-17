@@ -1,4 +1,5 @@
-import { eventType } from './event';
+import event from './event';
 import featuredBrand from './featuredBrand';
+import video from './video';
 
-export const schemaTypes = [eventType, featuredBrand];
+export const schemaTypes = [event, featuredBrand, video];

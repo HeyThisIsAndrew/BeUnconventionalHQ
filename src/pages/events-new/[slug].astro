@@ -1,9 +1,14 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+// @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
 import { sanityClient } from "sanity:client";
-import { getVideos, getArticles } from '../../data/feeds.js';
+import { getArticles } from '../../data/feeds.js';
+import { getVideosUnified } from '../../lib/videos-source';
 import EventBookingCTA from '../../components/EventBookingCTA.astro';
 import HeroTrailer from '../../components/HeroTrailer.astro';
+import { parseVideoId } from '../../lib/platforms/youtube';
+import { formatEventDateRange, formatLocation } from '../../lib/events';
+import EventStatusIndicator from '../../components/EventStatusIndicator.astro';
 
 export async function getStaticPaths() {
   // Project image asset dimensions so we can reserve the logo's box and avoid CLS.
@@ -34,7 +39,7 @@ function urlFor(source: any) {
 }
 
 // 1. Fetch Global Data
-const allVideos = await getVideos();
+const allVideos = await getVideosUnified();
 const allArticles = await getArticles();
 
 // 2. Filter Global Data against Sanity Event Tags
@@ -63,52 +68,14 @@ const filteredArticles = allArticles.filter((a: any) => {
 
 // Merge and sort all content
 const unifiedContent = [
-  ...filteredVideos.map((v: any) => ({ ...v, contentType: 'video' })),
-  ...filteredArticles.map((a: any) => ({ ...a, contentType: 'article' }))
+  ...filteredArticles.map((a: any) => ({ ...a, contentType: 'article' })),
+  ...filteredVideos.map((v: any) => ({ ...v, contentType: 'video' }))
 ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-// Format date range. All getters/formatters are pinned to UTC so a datetime
-// stored as midnight UTC ("2026-07-23") never shifts back a day for viewers
-// west of UTC (i.e. all of the Americas).
-function formatDateRange(start: string, end?: string) {
-  if (!start) return "Date TBD";
-  const startDate = new Date(start);
-  if (Number.isNaN(startDate.getTime())) return "Date TBD";
+// Date range + location formatting now live in src/lib/events (Date-free,
+// unit-tested) — see formatEventDateRange / formatLocation usage below.
 
-  const fmtMonth = (d: Date) => d.toLocaleString('en-US', { timeZone: 'UTC', month: 'short' });
-  const sMonth = fmtMonth(startDate);
-  const sDay = startDate.getUTCDate();
-  const sYear = startDate.getUTCFullYear();
-
-  if (!end) return `${sMonth} ${sDay}, ${sYear}`;
-
-  const endDate = new Date(end);
-  if (Number.isNaN(endDate.getTime())) return `${sMonth} ${sDay}, ${sYear}`;
-
-  const eMonth = fmtMonth(endDate);
-  const eDay = endDate.getUTCDate();
-  const eYear = endDate.getUTCFullYear();
-
-  if (sMonth === eMonth && sYear === eYear) {
-    if (sDay === eDay) {
-      return `${sMonth} ${sDay}, ${sYear}`;
-    }
-    return `${sMonth} ${sDay} - ${eDay}, ${sYear}`;
-  }
-  return `${sMonth} ${sDay}, ${sYear} - ${eMonth} ${eDay}, ${eYear}`;
-}
-
-// Safe YouTube ID extraction for feed items — a null/broken link returns null
-// instead of throwing (a bad URL used to crash the whole static build).
-function getVideoId(link: string | undefined | null): string | null {
-  if (!link || typeof link !== 'string') return null;
-  try {
-    const match = link.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
-    return match ? match[1] : null;
-  } catch {
-    return null;
-  }
-}
+// YouTube IDs are extracted via the shared parseVideoId (src/lib/platforms/youtube).
 
 const brandColor = event.brandColor || 'var(--color-accent, #cc0000)';
 // Cap the hero at 2400px wide (retina-safe for a full-bleed banner) instead of
@@ -120,26 +87,26 @@ const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
 
 // The trailer (poster, players, sound) is fully encapsulated in <HeroTrailer/>.
 const trailerUrl = event.trailerUrl;
-function getYoutubeId(url) {
-  if (!url) return null;
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
-  return match ? match[1] : null;
-}
-const trailerId = getYoutubeId(trailerUrl);
+const trailerId = parseVideoId(trailerUrl);
 ---
 
-<Layout title={`${event.title}`} description={`Complete coverage of ${event.title}`}>
+<Layout title={`${event.title}`} description={`Complete coverage of ${event.title}`} noindex={true}>
   <main class="event-dashboard" style={`--brand-color: ${brandColor};`}>
     
     {/* Cinematic Hero */}
     <section class="event-hero">
-      <div class="event-hero-bg" style={heroUrl ? `background-image: url('${heroUrl}');` : `background-image: ${fallbackGradient};`}></div>
+      {/* Two layers (issue #22): the wrapper owns clipping/coverage and stays
+          static; the inner layer owns the background image and the slow Ken
+          Burns transform. Animating a single element caused edge slivers. */}
+      <div class="event-hero-bg-wrapper">
+        <div class="event-hero-bg-animated" style={heroUrl ? `background-image: url('${heroUrl}');` : `background-image: ${fallbackGradient};`}></div>
+      </div>
       <div class="event-hero-overlay">
         <div
           class:list={[
             'container',
             'hero-grid-container',
-            { 'has-trailer': !!trailerId, 'has-cta': !!event.signUpLink },
+            { 'has-trailer': !!trailerId, 'has-cta': !!(event.officialWebsite || event.signUpLink) },
           ]}
         >
           <div class="event-hero-content hero-copy animate-on-scroll">
@@ -154,10 +121,12 @@ const trailerId = getYoutubeId(trailerUrl);
                   : undefined}
               />
             )}
-            <h1 class="hero-title">{event.title}</h1>
+            {/* Fallback to H1 title if no logo is provided */}
+            {!event.logo && <h1 class="hero-title">{event.title}</h1>}
+            <div class="hero-status"><EventStatusIndicator event={event} /></div>
             <p class="hero-meta">
-              <span class="event-dates">{formatDateRange(event.startDate, event.endDate)}</span>
-              {event.location && <span class="event-location"> • {event.location}</span>}
+              <span class="event-dates">{formatEventDateRange(event.startDate, event.endDate)}</span>
+              {formatLocation(event.location) && <span class="event-location"> • {formatLocation(event.location)}</span>}
             </p>
             {event.description && (
               <div class="hero-description-wrapper">
@@ -177,10 +146,10 @@ const trailerId = getYoutubeId(trailerUrl);
 
           {/* Placed after the trailer in the DOM so mobile stacks copy →
               trailer → button; grid-areas restore the desktop layout. */}
-          {event.signUpLink && (
+          {(event.officialWebsite || event.signUpLink) && (
             <div class="hero-cta">
-              <a href={event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn">
-                Event Details
+              <a href={event.officialWebsite || event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn">
+                Official event information
               </a>
             </div>
           )}
@@ -194,14 +163,14 @@ const trailerId = getYoutubeId(trailerUrl);
           <h2 class="sr-only">Event coverage</h2>
 
           <div class="filter-controls animate-on-scroll">
-            <button class="filter-btn type-btn" data-filter="video" aria-pressed="false">VIDEOS</button>
             <button class="filter-btn type-btn" data-filter="article" aria-pressed="false">ARTICLES</button>
+            <button class="filter-btn type-btn" data-filter="video" aria-pressed="false">VIDEOS</button>
           </div>
 
           <div class="mixed-grid" aria-live="polite">
             {unifiedContent.map((item, index) => {
               if (item.contentType === 'video') {
-                const videoId = getVideoId(item.link);
+                const videoId = parseVideoId(item.link);
                 return (
                   <div
                     class:list={['content-card', 'video-card', 'animate-on-scroll', { 'video-modal-trigger': !!videoId }]}
@@ -276,16 +245,49 @@ const trailerId = getYoutubeId(trailerUrl);
        below is inset:0 and its image clips to its own box, so it can't spill —
        the clip was never needed. */
   }
-  .event-hero-bg {
+  /* Clipping/coverage layer: static, fills the hero, hides the sliver the
+     animated child exposes at its edges while scaled. overflow:hidden is safe
+     HERE (and only here) — it contains no iframe, so the iOS black-box bug
+     cannot trigger. */
+  .event-hero-bg-wrapper {
     position: absolute;
     inset: 0;
     overflow: hidden;
+    z-index: 0;
+  }
+  .event-hero-bg-animated {
+    position: absolute;
+    inset: 0;
     /* Cover the whole hero (behind the copy AND the trailer). It re-crops when
        the description expands — an accepted trade for full coverage. */
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    z-index: 0;
+    /* translateZ(0) promotes this layer to its own compositor layer. Without
+       it, the overlay's backdrop-filter blur stops the animated transform from
+       repainting (issue #22 root cause) — keep it in the base AND in every
+       keyframe so the promotion never lapses mid-animation. */
+    transform: translateZ(0);
+    /* Tuned after visual QA: the original 1.05/50s (~0.1%/s) sat below the
+       perception floor and read as static. 1.08/30s is ambient but alive —
+       don't retune blind; verify any change with the 2s/1.5x debug values
+       (see d1db593). */
+    animation: cinematic-hero-zoom 30s ease-in-out infinite alternate;
+  }
+  /* Scale never drops below 1, so the image always covers the wrapper — no
+     exposed edges at any point in the cycle. */
+  @keyframes cinematic-hero-zoom {
+    from {
+      transform: scale(1.08) translateZ(0);
+    }
+    to {
+      transform: scale(1) translateZ(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .event-hero-bg-animated {
+      animation: none;
+    }
   }
   /* In normal flow (not absolute) so the banner GROWS with its content instead
      of overflowing upward under the fixed navbar. padding-top clears the navbar
@@ -391,6 +393,9 @@ const trailerId = getYoutubeId(trailerUrl);
     text-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
     margin: 0 0 1rem 0;
   }
+  .hero-status {
+    margin-bottom: 0.75rem;
+  }
   .hero-meta {
     font-size: clamp(0.9rem, 0.8rem + 0.6vw, 1.25rem);
     color: #ccc;
@@ -419,7 +424,7 @@ const trailerId = getYoutubeId(trailerUrl);
   .hero-read-more {
     background: none;
     border: none;
-    color: var(--color-white-muted); /* Set to static white to resolve state bugs. See commented-out rules below. */
+    color: #f87171; /* red-400: WCAG-legible link color on the dark hero (was low-contrast muted white) */
     font-weight: 500;
     font-size: 0.85rem;
     text-transform: uppercase;
@@ -490,6 +495,7 @@ const trailerId = getYoutubeId(trailerUrl);
     margin: 0 auto 3rem auto;
   }
   .filter-btn {
+    min-height: 44px; /* WCAG 2.5.5 minimum touch target, preserved on mobile */
     padding: 1.25rem 1rem;
     background: rgba(10, 10, 10, 0.6);
     backdrop-filter: blur(10px);
