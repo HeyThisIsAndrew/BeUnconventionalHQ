@@ -4,6 +4,7 @@ import PageTitle from '../components/PageTitle.astro';
 import { site } from '../data/site.js';
 import { getArticles } from '../data/feeds.js';
 import { getVideosUnified } from '../lib/videos-source';
+import { parseVideoId } from '../lib/platforms/youtube';
 
 const title = `Events | ${site.name}`;
 const description =
@@ -27,16 +28,14 @@ const eventItems = [
         <PageTitle as="h1" kicker="Live Coverage" primary="Latest" secondary="Events" />
       </header>
 
+      {/* Structural h2 so card h3s don't skip a heading level (axe: heading-order). */}
+      <h2 class="sr-only">Event coverage</h2>
       <div class="event-grid">
         {
           eventItems.length > 0 ? (
             eventItems.map((item, index) => {
               const isVideo = item.type === 'video';
-              const videoId = isVideo
-                ? item.link.includes('shorts')
-                  ? item.link.split('/').pop()
-                  : new URL(item.link).searchParams.get('v')
-                : null;
+              const videoId = isVideo ? parseVideoId(item.link) : null;
 
               const CardWrapper = isVideo ? 'div' : 'a';
               const wrapperProps = isVideo
