@@ -2,7 +2,8 @@
 import Layout from '../layouts/Layout.astro';
 import PageTitle from '../components/PageTitle.astro';
 import { site } from '../data/site.js';
-import { getArticles, getVideos } from '../data/feeds.js';
+import { getArticles } from '../data/feeds.js';
+import { getVideosUnified } from '../lib/videos-source';
 import QuadrantFilter from '../components/QuadrantFilter.astro';
 import { parseVideoId } from '../lib/platforms/youtube';
 
@@ -11,7 +12,7 @@ const description =
   'Discover all articles, videos, and events from Be Unconventional HQ.';
 
 const articles = await getArticles();
-const videos = await getVideos();
+const videos = await getVideosUnified();
 
 const allItems = [
   ...articles.map((a) => ({ ...a, type: 'article' })),

@@ -2,7 +2,8 @@
 import Layout from '../../layouts/Layout.astro';
 // @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
 import { sanityClient } from "sanity:client";
-import { getVideos, getArticles } from '../../data/feeds.js';
+import { getArticles } from '../../data/feeds.js';
+import { getVideosUnified } from '../../lib/videos-source';
 import EventBookingCTA from '../../components/EventBookingCTA.astro';
 import HeroTrailer from '../../components/HeroTrailer.astro';
 import { parseVideoId } from '../../lib/platforms/youtube';
@@ -38,7 +39,7 @@ function urlFor(source: any) {
 }
 
 // 1. Fetch Global Data
-const allVideos = await getVideos();
+const allVideos = await getVideosUnified();
 const allArticles = await getArticles();
 
 // 2. Filter Global Data against Sanity Event Tags

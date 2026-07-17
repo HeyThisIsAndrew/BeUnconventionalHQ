@@ -1,7 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { site } from '../data/site.js';
-import { getArticles, getVideos } from '../data/feeds.js';
+import { getArticles } from '../data/feeds.js';
+import { getVideosUnified } from '../lib/videos-source';
 import { parseVideoId } from '../lib/platforms/youtube';
 import '../styles/links.css';
 import PageTitle from '../components/PageTitle.astro';
@@ -10,7 +11,7 @@ const title = `Links | ${site.name}`;
 const description = 'Connect with Be Unconventional HQ across all platforms.';
 
 const articles = await getArticles();
-const videos = await getVideos();
+const videos = await getVideosUnified();
 
 const featuredArticles = articles.slice(0, 2);
 const featuredVideos = videos.slice(0, 2);

@@ -7,7 +7,7 @@ import Categories from '../components/Categories.astro';
 import LatestArticles from '../components/LatestArticles.astro';
 import PromoBanner from '../components/PromoBanner.astro';
 import TakeoverBillboard from '../components/TakeoverBillboard.astro';
-import { getVideos } from '../data/feeds.js';
+import { getVideosUnified } from '../lib/videos-source';
 import PageTitle from '../components/PageTitle.astro';
 ---
 
@@ -45,7 +45,7 @@ import PageTitle from '../components/PageTitle.astro';
       style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2.5rem;"
     >
       {
-        (await getVideos())
+        (await getVideosUnified())
           .filter((v) => v.isUpload)
           .slice(0, 3)
           .map((video, index) => (

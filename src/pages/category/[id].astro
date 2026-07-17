@@ -1,7 +1,8 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { categories } from '../../data/categories.js';
-import { getVideos, getArticles } from '../../data/feeds.js';
+import { getArticles } from '../../data/feeds.js';
+import { getVideosUnified } from '../../lib/videos-source';
 import { parseVideoId } from '../../lib/platforms/youtube';
 import PageTitle from '../../components/PageTitle.astro';
 import QuadrantFilter from '../../components/QuadrantFilter.astro';
@@ -13,7 +14,7 @@ export async function getStaticPaths() {
   }));
 }
 const { category } = Astro.props;
-const allVideos = await getVideos();
+const allVideos = await getVideosUnified();
 const allArticles = await getArticles();
 const categoryVideos = allVideos
   .filter((v) => v.category.toLowerCase() === category.label.toLowerCase())
