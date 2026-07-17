@@ -56,14 +56,11 @@ const pastEvents = allEvents
 <Layout title={title} description={description} noindex={true}>
   <main class="events-page">
     <div class="container">
-      <!--
-        ARCHITECTURAL LEDGER: FULL-WIDTH HERO SECTION
-        The main <header> and the <FeaturedEvent /> component are intentionally
-        placed *outside* and *above* the 12-column grid. This ensures they
-        remain unconstrained by the grid's columns and can span 100% of the
-        .container's width, serving as the page's primary visual anchor.
-        The 70/30 asymmetrical layout only begins *below* this section.
-      -->
+      {/*
+        FULL-WIDTH HERO: header + FeaturedEvent sit outside/above the 12-col grid
+        so they span the full .container width as the page's visual anchor. The
+        70/30 split begins only below this section. (JSX comment — not shipped.)
+      */}
       <header class="section-header animate-on-scroll" data-nav-anchor style="text-align: center; margin-bottom: 2.5rem;">
         <PageTitle as="h1" kicker="Coverage" primary="Upcoming" secondary="Events" />
         <p class="events-intro">
@@ -79,33 +76,23 @@ const pastEvents = allEvents
             </p>
           )}
 
-      <!--
-        ARCHITECTURAL LEDGER: THE 70/30 ASYMMETRICAL GRID
-        This is the primary container for the two-column layout.
-
-        - grid-cols-1: On mobile portrait, all content stacks in a single column.
-        - md:grid-cols-12: The 70/30 split is triggered at the `md` (768px)
-          breakpoint, not `lg`. This is a deliberate choice to ensure that
-          tablets and landscape mobile phones also benefit from the two-column
-          view, preventing the sidebar from stacking vertically at the bottom.
-        - lg:items-start: This is critical for the sticky sidebar physics. It
-          prevents the shorter sidebar column from stretching to the full height
-          of the taller main content feed, which would break `position: sticky`.
-          It only applies at `lg` where sticky is active.
-      -->
+      {/*
+        70/30 ASYMMETRICAL GRID:
+        - grid-cols-1     mobile portrait stacks in one column.
+        - md:grid-cols-12 the 8/4 split engages at md (768px), not lg, so tablets
+                          and landscape phones also get the two-column view.
+        - lg:items-start  keeps the shorter sidebar column from stretching to the
+                          feed's height, which would break position:sticky. Only
+                          matters at lg, where sticky is active.
+      */}
       <div class="grid grid-cols-1 md:grid-cols-12 md:gap-8 lg:items-start" style="margin-top: 3.5rem;">
-        <!--
-          ARCHITECTURAL LEDGER: OVERFLOW GUARDRAIL (min-w-0)
-          The `min-w-0` class is a non-negotiable requirement for robust flexbox
-          and grid layouts. By default, a grid/flex child has `min-width: auto`,
-          meaning it will refuse to shrink smaller than its intrinsic content
-          size. A long, unbreakable string of text or a wide image can therefore
-          "blow out" the grid and cause horizontal scrolling.
-
-          `min-w-0` overrides this default, allowing the column to shrink as needed,
-          ensuring the layout survives extreme content and high browser zoom levels
-          (e.g., 300% on a 360px viewport) without breaking.
-        -->
+        {/*
+          OVERFLOW GUARDRAIL (min-w-0): grid/flex children default to
+          min-width:auto and refuse to shrink below their intrinsic content, so a
+          long unbreakable string or wide image can blow out the grid and cause
+          horizontal scroll. min-w-0 lets the column shrink, surviving extreme
+          content and high zoom (e.g. 300% on a 360px viewport).
+        */}
         <section class="md:col-span-8 min-w-0">
           
           {/* Secondary upcoming events as a clean vertical list. */}
@@ -145,57 +132,34 @@ const pastEvents = allEvents
           )}
         </section>
 
-        <!--
-          ARCHITECTURAL LEDGER: THE MOBILE KILL-SWITCH
-          The sidebar is hidden by default (`hidden`) and only becomes visible
-          at the `md` breakpoint (`md:block`). This is a critical UX decision
-          to provide a clean, uncluttered, single-column reading experience on
-          portrait mobile devices. Rendering the sidebar on small screens would
-          push primary content down and create unnecessary visual noise.
-        -->
-        <aside class="hidden md:block md:col-span-4">
-          <!--
-            ARCHITECTURAL LEDGER: DESKTOP-ONLY STICKY PHYSICS & FLEXBOX FLOW
-
-            1. THE STICKY WRAPPER: `lg:sticky`
-               Sticky positioning is ONLY activated at the `lg` (1024px) breakpoint.
-               Applying `sticky` at the `md` breakpoint (landscape mobile) would
-               create a "scroll trap," where the sticky sidebar consumes the
-               entire short viewport height, preventing the user from scrolling
-               the main content. This behavior is strictly reserved for taller
-               desktop monitors where there is ample vertical space.
-
-            2. THE FLEXBOX FLOW: `flex flex-col gap-8`
-               This `div` acts as the parent for all sidebar items. Using Flexbox
-               (`flex flex-col`) with a `gap` enforces a strict vertical document
-               flow. This guarantees that the MiniCalendar and the Advertisement
-               will stack vertically with a physical space between them, preventing
-               any possibility of overlap.
-          -->
+        {/*
+          MOBILE KILL-SWITCH: sidebar is `hidden` by default and only `md:block`
+          — portrait mobile stays a clean single column; the sidebar would just
+          push primary content down and add noise on small screens.
+        */}
+        <aside class="hidden md:block md:col-span-4" aria-label="Upcoming events at a glance">
+          {/*
+            DESKTOP-ONLY STICKY PHYSICS & FLEXBOX FLOW
+            1. lg:sticky — sticky only at lg (1024px). At md (landscape mobile) a
+               sticky sidebar would consume the short viewport and trap scrolling,
+               so it's reserved for tall desktop viewports.
+            2. flex flex-col gap-8 — enforces vertical flow with fixed spacing
+               between sidebar modules so they can never overlap.
+          */}
           <div class="lg:sticky lg:top-28 flex flex-col gap-8 items-start">
-            
+
             <div class="w-full">
               <MiniCalendarSidebar events={upcomingEvents} />
             </div>
-        
-            <!--
-              ARCHITECTURAL NOTE: SIDEBAR DISCOVERY MODULE [FUTURE]
-              This sidebar slot is reserved for a future content discovery module.
-              The temporary advertisement placeholder below has been disabled as it
-              does not align with the Be Unconventional HQ user experience, which
-              prioritizes owned content over third-party ads.
 
-              Future work on a separate ticket should implement a <DiscoverySidebar />
-              component here. This component will be powered by dynamic Sanity queries
-              to display the latest relevant content (e.g., videos, articles) and
-              enhance user engagement within the ecosystem. This work should be
-              tracked separately to avoid scope creep during the Events Hub
-              stabilization effort.
-            -->
-            <!-- <div class="w-full aspect-[9/16] bg-[#111] border border-[#333] border-dashed rounded-lg flex items-center justify-center p-4 text-center">
-              <span class="text-xs font-bold tracking-widest uppercase text-[#888]">Advertisement<br/>(9:16)</span>
-            </div> -->
-        
+            {/*
+              SIDEBAR DISCOVERY MODULE [FUTURE]: this slot is reserved for a
+              <DiscoverySidebar /> powered by Sanity queries (latest videos /
+              articles) to boost in-ecosystem engagement. Tracked on a separate
+              ticket to avoid scope creep during Events Hub stabilization. The old
+              third-party ad placeholder was removed — owned content is preferred.
+            */}
+
           </div>
         </aside>
       </div>

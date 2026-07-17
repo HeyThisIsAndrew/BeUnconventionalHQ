@@ -6,6 +6,24 @@ export interface Props {
 }
 const { events } = Astro.props;
 
+// One horizontal bar segment of an event on the month grid. `overlapIndex` is
+// assigned in a second pass (stacking order when events share a row), so it is
+// optional at construction time.
+interface CalendarSegment {
+  row: number;
+  colStart: number;
+  colEnd: number;
+  span: number;
+  color: string;
+  slug: string;
+  title: string;
+  isStart: boolean;
+  isEnd: boolean;
+  isContinuation: boolean;
+  isPast: boolean;
+  overlapIndex?: number;
+}
+
 // Basic logic to generate calendar grid for the current month.
 const today = new Date();
 const year = today.getFullYear();
@@ -69,7 +87,7 @@ const calendarSegments = currentMonthEvents.flatMap((event) => {
   const endCol = (endIndex % 7) + 1;
 
   const color = event.brandColor || 'var(--color-accent, #cc0000)';
-  const segments = [];
+  const segments: CalendarSegment[] = [];
 
   const slug = event.slug?.current ?? event.slug ?? '';
 
