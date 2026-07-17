@@ -99,7 +99,12 @@ const trailerId = parseVideoId(trailerUrl);
         a reusable component for the hero section?" */}
     {/* Cinematic Hero */}
     <section class="event-hero">
-      <div class="event-hero-bg" style={heroUrl ? `background-image: url('${heroUrl}');` : `background-image: ${fallbackGradient};`}></div>
+      {/* Two layers (issue #22): the wrapper owns clipping/coverage and stays
+          static; the inner layer owns the background image and the slow Ken
+          Burns transform. Animating a single element caused edge slivers. */}
+      <div class="event-hero-bg-wrapper">
+        <div class="event-hero-bg-animated" style={heroUrl ? `background-image: url('${heroUrl}');` : `background-image: ${fallbackGradient};`}></div>
+      </div>
       <div class="event-hero-overlay">
         <div
           class:list={[
@@ -245,16 +250,45 @@ const trailerId = parseVideoId(trailerUrl);
        below is inset:0 and its image clips to its own box, so it can't spill —
        the clip was never needed. */
   }
-  .event-hero-bg {
+  /* Clipping/coverage layer: static, fills the hero, hides the sliver the
+     animated child exposes at its edges while scaled. overflow:hidden is safe
+     HERE (and only here) — it contains no iframe, so the iOS black-box bug
+     cannot trigger. */
+  .event-hero-bg-wrapper {
     position: absolute;
     inset: 0;
     overflow: hidden;
+    z-index: 0;
+  }
+  .event-hero-bg-animated {
+    position: absolute;
+    inset: 0;
     /* Cover the whole hero (behind the copy AND the trailer). It re-crops when
        the description expands — an accepted trade for full coverage. */
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    z-index: 0;
+    /* translateZ(0) promotes this layer to its own compositor layer. Without
+       it, the overlay's backdrop-filter blur stops the animated transform from
+       repainting (issue #22 root cause) — keep it in the base AND in every
+       keyframe so the promotion never lapses mid-animation. */
+    transform: translateZ(0);
+    animation: cinematic-hero-zoom 50s ease-in-out infinite alternate;
+  }
+  /* Scale never drops below 1, so the image always covers the wrapper — no
+     exposed edges at any point in the cycle. */
+  @keyframes cinematic-hero-zoom {
+    from {
+      transform: scale(1.05) translateZ(0);
+    }
+    to {
+      transform: scale(1) translateZ(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .event-hero-bg-animated {
+      animation: none;
+    }
   }
   /* In normal flow (not absolute) so the banner GROWS with its content instead
      of overflowing upward under the fixed navbar. padding-top clears the navbar
