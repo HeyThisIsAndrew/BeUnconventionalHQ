@@ -274,23 +274,28 @@ const trailerId = parseVideoId(trailerUrl);
        repainting (issue #22 root cause) — keep it in the base AND in every
        keyframe so the promotion never lapses mid-animation. */
     transform: translateZ(0);
-    animation: cinematic-hero-zoom 50s ease-in-out infinite alternate;
+    /* ⚠️ TEMPORARY DEBUG (issue #22 visibility test): 2s / 1.5x so motion is
+       unmissable. Production values: 50s ease-in-out, scale(1.05)->scale(1).
+       REVERT after verification. */
+    animation: cinematic-hero-zoom 2s ease-in-out infinite alternate;
   }
-  /* Scale never drops below 1, so the image always covers the wrapper — no
-     exposed edges at any point in the cycle. */
   @keyframes cinematic-hero-zoom {
     from {
-      transform: scale(1.05) translateZ(0);
-    }
-    to {
       transform: scale(1) translateZ(0);
     }
+    to {
+      transform: scale(1.5) translateZ(0);
+    }
   }
+  /* ⚠️ TEMPORARY DEBUG: reduced-motion guard disabled so an OS-level
+     "Reduce Motion" setting (common on macOS) can't mask this test.
+     RESTORE after verification:
   @media (prefers-reduced-motion: reduce) {
     .event-hero-bg-animated {
       animation: none;
     }
   }
+  */
   /* In normal flow (not absolute) so the banner GROWS with its content instead
      of overflowing upward under the fixed navbar. padding-top clears the navbar
      so the logo is never clipped. */
