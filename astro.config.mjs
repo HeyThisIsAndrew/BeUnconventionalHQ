@@ -28,7 +28,10 @@ export default defineConfig({
       // gates) when /events-new is promoted to /events.
       // /links is a bio/entry utility route (noindex, no robots block — see
       // links.astro) and shouldn't be advertised as a canonical destination.
-      filter: (page) => !page.includes('/events-new') && !page.includes('/links'),
+      // /admin is the embedded Sanity Studio (injected by studioBasePath) —
+      // a CMS interface must never be advertised to search engines.
+      filter: (page) =>
+        !page.includes('/events-new') && !page.includes('/links') && !page.includes('/admin'),
     }),
     sanity({
       projectId: '38nhxsib',

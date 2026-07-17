@@ -239,7 +239,10 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
             document.documentElement.classList.remove('modal-open');
             modal.setAttribute('aria-hidden', 'true');
             document.getElementById('app-wrapper')?.removeAttribute('inert');
-            modalIframe.src = '';
+            // 'about:blank', NOT '' — an empty src resolves to the current
+            // page URL, silently reloading the whole site inside the hidden
+            // iframe on every close.
+            modalIframe.src = 'about:blank';
 
             document.body.style.position = '';
             document.body.style.top = '';
