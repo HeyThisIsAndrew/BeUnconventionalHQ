@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import { categories } from '../../data/categories.js';
 import { getVideos, getArticles } from '../../data/feeds.js';
+import { parseVideoId } from '../../lib/platforms/youtube';
 import PageTitle from '../../components/PageTitle.astro';
 import QuadrantFilter from '../../components/QuadrantFilter.astro';
 
@@ -53,9 +54,7 @@ const categoryArticles = allArticles
                 <div
                   class="video-card reveal video-modal-trigger"
                   data-delay={index * 100}
-                  data-video-id={
-                    video.link.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([^&?]+)/)?.[1]
-                  }
+                  data-video-id={parseVideoId(video.link)}
                   style="cursor: pointer;"
                 >
                   <div class="video-thumbnail-wrapper">

@@ -4,6 +4,7 @@ import PageTitle from '../components/PageTitle.astro';
 import { site } from '../data/site.js';
 import { getArticles, getVideos } from '../data/feeds.js';
 import QuadrantFilter from '../components/QuadrantFilter.astro';
+import { parseVideoId } from '../lib/platforms/youtube';
 
 const title = `All Content | ${site.name}`;
 const description =
@@ -31,7 +32,7 @@ const allItems = [
         {
           allItems.map((item, index) => {
             const isVideo = item.type === 'video';
-            const videoId = item.link.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([^&?]+)/)?.[1];
+            const videoId = parseVideoId(item.link);
 
             const CardWrapper = isVideo ? 'div' : 'a';
             const wrapperProps = isVideo

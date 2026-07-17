@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import { site } from '../data/site.js';
 import { getArticles, getVideos } from '../data/feeds.js';
+import { parseVideoId } from '../lib/platforms/youtube';
 import '../styles/links.css';
 import PageTitle from '../components/PageTitle.astro';
 
@@ -120,9 +121,7 @@ const socialLinks = [
             featuredVideos.map((video) => (
               <div
                 class="links-bento-item video-modal-trigger"
-                data-video-id={
-                  video.link.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([^&?]+)/)?.[1]
-                }
+                data-video-id={parseVideoId(video.link)}
                 style="cursor: pointer;"
               >
                 <div class="links-bento-image">
