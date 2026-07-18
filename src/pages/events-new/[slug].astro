@@ -129,28 +129,44 @@ const trailerId = parseVideoId(trailerUrl);
             { 'has-trailer': !!trailerId, 'has-cta': !!(event.officialWebsite || event.signUpLink) },
           ]}
         >
-          <div class="event-hero-content hero-copy animate-on-scroll">
-            {event.logo && (
-              <img
-                src={urlFor(event.logo).height(240).url()}
-                alt={`${event.title} logo`}
-                class="hero-logo"
-                height="240"
-                width={event.logo?.dimensions?.aspectRatio
-                  ? Math.round(240 * event.logo.dimensions.aspectRatio)
-                  : undefined}
-              />
-            )}
-            {/* Fallback to H1 title if no logo is provided */}
-            {!event.logo && <h1 class="hero-title">{event.title}</h1>}
-            <div class="hero-status"><EventStatusIndicator event={event} /></div>
-            <p class="hero-meta">
-              <span class="event-dates">{formatEventDateRange(event.startDate, event.endDate)}</span>
-              {formatLocation(event.location) && <span class="event-location"> • {formatLocation(event.location)}</span>}
-            </p>
+          <div class="event-hero-content hero-copy animate-on-scroll flex flex-col gap-3 md:gap-0 w-full">
+            {/* Top Row: Logo/Meta side-by-side on mobile, stacked on desktop */}
+            <div class="flex flex-row items-center gap-3 md:flex-col md:items-start md:gap-0 w-full">
+              {/* Logo */}
+              <div class="flex-shrink-0 w-36 sm:w-40 md:w-auto md:mb-6">
+                {event.logo && (
+                  <img
+                    src={urlFor(event.logo).height(240).url()}
+                    alt={`${event.title} logo`}
+                    class="hero-logo w-full h-auto md:w-auto"
+                    height="240"
+                    width={event.logo?.dimensions?.aspectRatio
+                      ? Math.round(240 * event.logo.dimensions.aspectRatio)
+                      : undefined}
+                  />
+                )}
+                {!event.logo && <h1 class="hero-title">{event.title}</h1>}
+              </div>
+              
+              {/* Meta Box */}
+              <div class="flex flex-col flex-1 min-w-0 md:w-auto">
+                <div class="hero-status md:mb-3"><EventStatusIndicator event={event} /></div>
+                <p class="hero-meta text-xs md:text-base leading-tight md:leading-normal mt-1 md:mt-0">
+                  <span class="event-dates block md:inline">{formatEventDateRange(event.startDate, event.endDate)}</span>
+                  {formatLocation(event.location) && (
+                    <span class="event-location block md:inline mt-0.5 md:mt-0">
+                      <span class="hidden md:inline mx-2 text-gray-400">•</span>
+                      {formatLocation(event.location)}
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {/* Bottom Row: Description spanning full width */}
             {event.description && (
-              <div class="hero-description-wrapper">
-                <p class="hero-description-text" id="event-about-text">{event.description}</p>
+              <div class="hero-description-wrapper w-full mt-1 md:mt-6">
+                <p class="hero-description-text md:mt-0" id="event-about-text">{event.description}</p>
                 <button class="hero-read-more" id="event-about-toggle" aria-expanded="false" hidden>
                   Read more
                 </button>
@@ -377,9 +393,6 @@ const trailerId = parseVideoId(trailerUrl);
   }
 
   .event-hero-content {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
     max-width: 900px;
   }
   
@@ -398,7 +411,6 @@ const trailerId = parseVideoId(trailerUrl);
     width: auto;
     height: auto;
     object-fit: contain;
-    margin-bottom: 1.5rem;
     /* Removed filter: drop-shadow due to known iOS Safari rendering bugs 
        causing the image to completely fail to load/display as broken on mobile */
   }
@@ -414,11 +426,12 @@ const trailerId = parseVideoId(trailerUrl);
     margin: 0 0 1rem 0;
   }
   .hero-status {
-    margin-bottom: 0.75rem;
+    /* Margins managed by Tailwind md:mb-3 on the wrapper */
   }
   .hero-meta {
     font-size: clamp(0.9rem, 0.8rem + 0.6vw, 1.25rem);
-    color: #ccc;
+    color: #fff;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.12em;
   }
