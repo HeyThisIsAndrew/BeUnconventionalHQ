@@ -54,7 +54,7 @@ const allArticles = await getArticles();
 let hubCoverage: any[] = [];
 try {
   const docs = await sanityClient.fetch(
-    `*[_type == "video" && contentStatus == "published" && references($hubId)] | order(publishedAt desc){
+    `*[_type in ["video", "short", "live"] && contentStatus == "published" && references($hubId)] | order(publishedAt desc){
       youtubeId, title, thumbnailUrl, durationSeconds, isShort, publishedAt, "topics": topics[]->slug.current, featured
     }`,
     { hubId: event._id },
