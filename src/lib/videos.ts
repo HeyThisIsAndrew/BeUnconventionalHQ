@@ -37,6 +37,9 @@ export interface UnifiedVideo extends LegacyVideo {
   youtubeId?: string;
   durationSeconds?: number;
   featured?: boolean;
+  /** Raw ISO publish timestamp (Sanity only) — the Dispatch Log needs a real
+   *  instant, not the display-string `date`. Absent on legacy-cache entries. */
+  publishedAt?: string;
   /** Marks which pipeline produced the entry — useful during the cutover. */
   source: 'sanity' | 'legacy';
 }
@@ -97,6 +100,7 @@ export function mapSanityVideo(doc: any, { categorize }: MapOptions = {}): Unifi
     youtubeId: id,
     durationSeconds: doc.durationSeconds,
     featured: doc.featured ?? false,
+    publishedAt: doc.publishedAt ?? undefined,
     source: 'sanity',
   };
 }
