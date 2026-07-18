@@ -54,7 +54,7 @@ const allArticles = await getArticles();
 let hubCoverage: any[] = [];
 try {
   const docs = await sanityClient.fetch(
-    `*[_type in ["video", "short", "live"] && contentStatus == "published" && references($hubId)] | order(publishedAt desc){
+    `*[_type == "video" && contentStatus == "published" && references($hubId)] | order(publishedAt desc){
       youtubeId, title, thumbnailUrl, durationSeconds, isShort, publishedAt, "topics": topics[]->slug.current, featured
     }`,
     { hubId: event._id },
@@ -79,24 +79,30 @@ const filteredVideos = hubCoverage.length > 0 ? hubCoverage : allVideos.filter((
 
   // STRICT FILTERING: Query against the actual YouTube Tags synced directly from 
   // YouTube Studio metadata into Sanity (`v.youtubeTags`). 
-  // We check if ANY of the Hub's defined keywords exist exactly within the video's YouTube tags.
-  // This preserves auto-querying while completely avoiding regex data leaks.
+  // We normalize both the tag and the YouTube tag to ensure case and punctuation don't break matches.
+  // We also use .includes() so that a keyword like "marvel" matches a YouTube tag like "marvel studios".
   return eventTags.some((tag: string) => {
-    const t = tag.toLowerCase();
-    const hasYouTubeTag = v.youtubeTags?.some((yt: string) => yt.toLowerCase() === t);
+    // Basic normalization: lowercase, remove punctuation, collapse spaces
+    const normalize = (s: string) => s.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    const t = normalize(tag);
+    
+    const hasYouTubeTag = v.youtubeTags?.some((yt: string) => normalize(yt).includes(t));
+    
     // Also include videos where the editor manually assigned the topic in Sanity
-    const hasTopic = v.tags?.some((vt: string) => vt.toLowerCase() === t);
-    const hasCategory = v.category?.toLowerCase() === t;
+    const hasTopic = v.tags?.some((vt: string) => normalize(vt).includes(t));
+    const hasCategory = v.category ? normalize(v.category).includes(t) : false;
+    
     return hasYouTubeTag || hasTopic || hasCategory;
   });
 });
 
 const filteredArticles = allArticles.filter((a: any) => {
   return eventTags.some((tag: string) => {
-    const t = tag.toLowerCase();
+    const normalize = (s: string) => s.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    const t = normalize(tag);
     // Articles don't have youtubeTags, so we fallback to topics/categories
-    const hasTopic = a.tags?.some((at: string) => at.toLowerCase() === t);
-    const hasCategory = a.category?.toLowerCase() === t;
+    const hasTopic = a.tags?.some((at: string) => normalize(at).includes(t));
+    const hasCategory = a.category ? normalize(a.category).includes(t) : false;
     return hasTopic || hasCategory;
   });
 });
@@ -247,7 +253,7 @@ const trailerId = parseVideoId(trailerUrl);
         </section>
       ) : (
         <div class="empty-state animate-on-scroll">
-          <p>Coverage for this event is coming soon.</p>
+          <p>{event.title} content is coming soon.</p>
         </div>
       )}
     </div>
