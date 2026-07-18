@@ -55,7 +55,7 @@ let hubCoverage: any[] = [];
 try {
   const docs = await sanityClient.fetch(
     `*[_type == "video" && contentStatus == "published" && references($hubId)] | order(publishedAt desc){
-      youtubeId, title, thumbnailUrl, durationSeconds, isShort, publishedAt, topics, featured
+      youtubeId, title, thumbnailUrl, durationSeconds, isShort, publishedAt, "topics": topics[]->slug.current, featured
     }`,
     { hubId: event._id },
   );
@@ -68,7 +68,7 @@ try {
 
 // 2. Fallback: filter global data against hub tags (legacy heuristic; removed
 // in Phase C2 once hub-tagging covers the catalog)
-const eventTags = (event.tags || []).filter((t: any) => typeof t === 'string');
+const eventTags = (event.youtubeSyncKeywords || []).filter((t: any) => typeof t === 'string');
 
 const filteredVideos = hubCoverage.length > 0 ? hubCoverage : allVideos.filter((v: any) => {
   // TEMPORARY TEST: Display all videos categorized as "Events" for SDCC 2026
@@ -77,18 +77,36 @@ const filteredVideos = hubCoverage.length > 0 ? hubCoverage : allVideos.filter((
     return v.category === 'Events';
   }
 
-  // If the video title or description contains ANY of the exact tags
-  return eventTags.some((tag: string) =>
-    v.title?.toLowerCase().includes(tag.toLowerCase()) ||
-    v.description?.toLowerCase().includes(tag.toLowerCase())
-  );
+  // STRICT FILTERING: Query against the actual YouTube Tags synced directly from 
+  // YouTube Studio metadata into Sanity (`v.youtubeTags`). 
+  // We use EXACT matching on normalized tags, avoiding all regex and substring data leaks.
+  return eventTags.some((tag: string) => {
+    const normalize = (s: string) => s.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    const t = normalize(tag);
+    if (!t) return false;
+    
+    // Exact match on normalized strings (e.g. "marvel studios" === "marvel studios")
+    const hasYouTubeTag = v.youtubeTags?.some((yt: string) => normalize(yt) === t);
+    
+    // Also include videos where the editor manually assigned the topic in Sanity
+    const hasTopic = v.tags?.some((vt: string) => normalize(vt) === t);
+    const hasCategory = v.category ? normalize(v.category) === t : false;
+    
+    return hasYouTubeTag || hasTopic || hasCategory;
+  });
 });
 
 const filteredArticles = allArticles.filter((a: any) => {
-  return eventTags.some((tag: string) => 
-    a.title?.toLowerCase().includes(tag.toLowerCase()) || 
-    a.excerpt?.toLowerCase().includes(tag.toLowerCase())
-  );
+  return eventTags.some((tag: string) => {
+    const normalize = (s: string) => s.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    const t = normalize(tag);
+    if (!t) return false;
+    
+    // Exact match on normalized strings
+    const hasTopic = a.tags?.some((at: string) => normalize(at) === t);
+    const hasCategory = a.category ? normalize(a.category) === t : false;
+    return hasTopic || hasCategory;
+  });
 });
 
 // Merge and sort all content
@@ -237,7 +255,7 @@ const trailerId = parseVideoId(trailerUrl);
         </section>
       ) : (
         <div class="empty-state animate-on-scroll">
-          <p>Coverage for this event is coming soon.</p>
+          <p>{event.title} content is coming soon.</p>
         </div>
       )}
     </div>
@@ -515,7 +533,6 @@ const trailerId = parseVideoId(trailerUrl);
     background: rgba(10, 10, 10, 0.6);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
     color: var(--color-white, #fff);
     font-size: 1.1rem;
     font-weight: 700;
@@ -607,7 +624,6 @@ const trailerId = parseVideoId(trailerUrl);
     background: rgba(0,0,0,0.8);
     color: white;
     padding: 0.25rem 0.75rem;
-    border-radius: 4px;
     font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;

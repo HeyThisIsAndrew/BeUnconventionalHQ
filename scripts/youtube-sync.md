@@ -318,3 +318,61 @@ build time. `.github/workflows/daily-rebuild.yml` pokes a Cloudflare deploy
 hook nightly so it rotates without content pushes — inert until the
 `CLOUDFLARE_DEPLOY_HOOK_URL` secret is configured (instructions in the
 workflow header).
+
+## Taxonomy-as-Code (epic #34 — supersedes manual topic/hub mapping)
+
+YouTube tags are now the taxonomy source. The sync builds a keyword dictionary
+FROM SANITY on every run and derives each video's topics + hubs from exact,
+normalized matches. Everything else in the tag soup is ignored.
+
+**The tier system (tag your uploads on YouTube):**
+
+| Tier | Maps to | Keywords live on | Example tags |
+|---|---|---|---|
+| 1 — Category (mandatory) | `topic` docs | `topic.youtubeSyncKeywords` | `film`, `tv`, `gaming`, `events` |
+| 2 — Brand hubs | `featuredBrand` docs | `featuredBrand.youtubeSyncKeywords` | `marvel`, `dc` |
+| 3 — Event hubs | `event` docs | `event.youtubeSyncKeywords` | `san diego comic-con` |
+
+Matching is case- and punctuation-insensitive ("San Diego Comic-Con" ≡
+"san diego comic con"). The four Tier-1 topics (+ `Uncategorized`) are seeded
+automatically with sensible default keywords — edit them in Studio anytime.
+
+**One-time setup (owner):** open each Featured Brand and Event in Studio and
+fill its "YouTube Sync Keywords" field. Until then, only Tier-1 category
+matching happens (hub assignment stays empty and the sync warns about it).
+
+**Field classes:**
+- FACTUAL (title, stats, …): overwritten every run.
+- DERIVED (topics, hubs, requiresReview): overwritten every run **unless**
+  the video's `manualTaxonomyOverride` is on (the Sync Lock) — then the sync
+  never touches its taxonomy again. Stats/metadata keep flowing either way.
+- EDITORIAL (featured, notes, …): seeded once, never overwritten.
+
+**Auto-publish:** a video that matches ≥1 Tier-1 keyword is created as
+`published` — it appears on the site with zero CMS touches. Zero Tier-1
+matches → `Uncategorized` + `requiresReview: true` + `needs-review` (never
+dropped). Fixing the tags on YouTube re-files it on the next sync and
+promotes it to published — but the sync never demotes, and never changes a
+status a human has set (published/archived are final against automation).
+
+## View metrics (epic #34, T6 — powers the Essential-5 shelf)
+
+`node scripts/update-metrics.mjs` records each published video's current view
+count into a bounded 14-day rolling window on a companion `videoMetrics`
+document and computes 7-day view velocity (views gained over the trailing
+week). The site's Essential-5 shelf orders by this velocity, queried
+statically — the YouTube API is never hit at render time.
+
+- `--dry-run` prints without writing.
+- Idempotent by day: safe to run repeatedly; the same day overwrites, never
+  duplicates. Velocity needs ≥2 days of history to be non-zero, so trends
+  appear after the job has run a few days.
+- v1 uses view-count deltas from data the sync already stores — **no Analytics
+  OAuth needed**. (Engagement-ratio ranking via the Analytics API is a
+  possible v2; the shelf's data source swaps without touching the frontend.)
+
+**Recommended cadence:** run nightly, right after the sync, e.g.
+`npm run sync -- --execute && npm run metrics`. This can be automated with a
+scheduled GitHub Actions job once `YOUTUBE_API_KEY` + `SANITY_WRITE_TOKEN` are
+added as Actions secrets (owner decision — a write token in CI); until then
+run it locally or from any trusted scheduler.

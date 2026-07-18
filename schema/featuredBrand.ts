@@ -52,14 +52,14 @@ export default defineType({
       description: 'A YouTube video link to loop quietly in the background of the cinematic header.',
     }),
     defineField({
-      name: 'tags',
-      title: 'Aggregation Tags',
+      name: 'youtubeSyncKeywords',
+      title: 'YouTube Sync Keywords (Tier 2)',
       type: 'array',
       of: [{ type: 'string' }],
-      options: {
-        layout: 'tags',
-      },
-      description: 'Add tags here (e.g., "Marvel", "Deadpool"). The hub will automatically pull any videos or articles whose titles/descriptions contain these tags.',
+      options: { layout: 'tags' },
+      description:
+        'YouTube tags that auto-assign a video to this brand hub (case/punctuation-insensitive exact match), e.g. "marvel". Set once — epic #34.',
     }),
+
   ],
 });

@@ -34,11 +34,13 @@ GROQ. Deployed on Cloudflare.
    wrappers (see `.event-hero-bg-wrapper` in the `[slug]` pages).
 4. **Never assign an iframe `src = ''`** — it resolves to the current page URL
    and silently reloads the site inside the iframe. Use `'about:blank'`.
-5. **Sanity `video` docs: synced fields vs editorial fields.** The sync pipeline
-   (`scripts/sync-youtube.mjs`) may only `patch.set` YouTube facts; editorial
-   fields (contentStatus, hubs, topics, …) are human-owned and must never be
-   overwritten. Hubs (`event`, `featuredBrand`) are the editorial containers;
-   content references them via `hubs[]`.
+5. **Sanity `video` docs have THREE field classes** (epic #34): FACTUAL (YouTube
+   facts — synced every run), DERIVED (topics/hubs/requiresReview — recomputed
+   from YouTube tags every run UNLESS `manualTaxonomyOverride` is on: the Sync
+   Lock), EDITORIAL (featured, notes, … — seeded once, never overwritten).
+   Clean Tier-1 tag matches auto-publish; the sync never demotes a status a
+   human set. Taxonomy keywords live IN SANITY (`youtubeSyncKeywords` on
+   topic/featuredBrand/event) — never hardcode them in scripts.
 6. **No `filter: drop-shadow` on `<img>`** — known iOS Safari rendering bugs.
 7. **Rearrange layouts with responsive CSS / grid areas, not JS reordering or
    duplicated per-breakpoint markup.**

@@ -140,6 +140,9 @@ export async function fetchArticles() {
       title,
       link: item.link,
       date: formatDate(item.pubDate),
+      // Raw ISO instant preserved alongside the display date so the Dispatch
+      // Log (and any future chronology) can bucket by real day, TZ-safely.
+      isoDate: item.pubDate || '',
       excerpt,
       image: item.enclosure?.['@_url'] || FALLBACK_IMAGE,
       category: categorize(`${title} ${desc}`),
@@ -172,6 +175,7 @@ async function fetchVideosFromRss() {
       thumbnail: `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
       category: categorize(title),
       date: formatDate(entry.published),
+      isoDate: entry.published || '',
     };
   });
 }

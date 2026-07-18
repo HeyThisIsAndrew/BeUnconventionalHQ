@@ -50,8 +50,8 @@ const allArticles = await getArticles();
 let hubCoverage: any[] = [];
 try {
   const docs = await sanityClient.fetch(
-    `*[_type == "video" && contentStatus == "published" && references($hubId)] | order(publishedAt desc){
-      youtubeId, title, thumbnailUrl, durationSeconds, isShort, publishedAt, topics, featured
+    `*[_type in ["video", "short", "live"] && contentStatus == "published" && references($hubId)] | order(publishedAt desc){
+      youtubeId, title, thumbnailUrl, durationSeconds, isShort, publishedAt, "topics": topics[]->slug.current, featured
     }`,
     { hubId: event._id },
   );
@@ -62,15 +62,14 @@ try {
   console.error('Hub coverage fetch failed; falling back to tag matching', e);
 }
 
-// 2. Fallback: filter global data against event tags (legacy heuristic; kept
-// until hub-tagging covers every event, then removed in Phase C2)
-const eventTags = (event.tags || []).filter((t: any) => typeof t === 'string');
+// 2. Fallback: filter global data against hub tags (legacy heuristic; removed
+const eventTags = (event.youtubeSyncKeywords || []).filter((t: any) => typeof t === 'string');
 
 const filteredVideos = hubCoverage.length > 0 ? hubCoverage : allVideos.filter((v: any) => {
   // TEMPORARY TEST: Display all videos categorized as "Events" for SDCC 2026
   // so the user can see the layout while the tagging system is configured
   if (event.slug?.current === 'sdcc-2026' || event.slug?.current === 'san-diego-comic-con-2026') {
-    return v.category === 'Events';
+    return v.isEvent === true;
   }
 
   // If the video title or description contains ANY of the exact tags
@@ -521,7 +520,6 @@ const trailerId = parseVideoId(trailerUrl);
     background: rgba(10, 10, 10, 0.6);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
     color: var(--color-white, #fff);
     font-size: 1.1rem;
     font-weight: 700;
@@ -575,10 +573,10 @@ const trailerId = parseVideoId(trailerUrl);
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
     gap: 2rem;
   }
-  
+
+
   .content-card {
     background: #111;
-    border-radius: 12px;
     overflow: hidden;
     text-decoration: none;
     color: white;
@@ -614,7 +612,6 @@ const trailerId = parseVideoId(trailerUrl);
     background: rgba(0,0,0,0.8);
     color: white;
     padding: 0.25rem 0.75rem;
-    border-radius: 4px;
     font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;

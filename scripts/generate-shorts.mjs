@@ -25,8 +25,8 @@ config();
 /** Max cards kept per category — plenty for a 4-slot daily rotation. */
 export const MAX_PER_CATEGORY = 12;
 
-export const PUBLISHED_SHORTS_QUERY = `*[_type == "video" && contentStatus == "published" && isShort == true] | order(publishedAt desc){
-  youtubeId, title, thumbnailUrl, durationSeconds, isShort, publishedAt, topics, featured
+export const PUBLISHED_SHORTS_QUERY = `*[_type == "short" && contentStatus == "published"] | order(publishedAt desc){
+  youtubeId, title, thumbnailUrl, durationSeconds, isShort, publishedAt, "topics": topics[]->slug.current, featured
 }`;
 
 /**
@@ -39,7 +39,7 @@ export function buildShortsData(docs, now = new Date()) {
   const categories = {};
   for (const doc of docs ?? []) {
     const mapped = mapSanityVideo(doc);
-    if (!mapped || mapped.isUpload) continue; // defensive: shorts only
+    if (!mapped || !mapped.isShort) continue; // defensive: shorts only
     const key = (mapped.category || 'General').toLowerCase();
     categories[key] ??= [];
     if (categories[key].length >= MAX_PER_CATEGORY) continue;

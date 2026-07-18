@@ -176,7 +176,6 @@ const currentPath = Astro.url.pathname;
     background: rgba(10, 10, 10, 0.6);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
     color: var(--color-white);
     font-size: 1.1rem;
     font-weight: 700;
@@ -691,7 +690,21 @@ const currentPath = Astro.url.pathname;
 
         const matchesType =
           activeType === 'all' || cardType.toLowerCase() === activeType;
-        const matchesCat = cat === 'all' || cardCat.toLowerCase() === cat;
+        
+        let matchesCat = false;
+        if (cat === 'all') {
+          matchesCat = true;
+        } else {
+          const cardCategories = cardCat.toLowerCase().split(',');
+          // Inclusive array check, accounting for event/events mismatch
+          matchesCat = cardCategories.some((c) => {
+            const trimmed = c.trim();
+            if (trimmed === cat) return true;
+            if (cat === 'events' && trimmed === 'event') return true;
+            if (cat === 'event' && trimmed === 'events') return true;
+            return false;
+          });
+        }
 
         if (matchesType && matchesCat) {
           cardElem.style.display = 'flex';
