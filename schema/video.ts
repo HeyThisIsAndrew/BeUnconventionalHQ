@@ -22,6 +22,18 @@ export default defineType({
     { name: 'youtube', title: 'YouTube (synced — do not edit)', options: { collapsible: true } },
     { name: 'editorial', title: 'Editorial (curated by you)', options: { collapsible: true, collapsed: false } },
   ],
+  orderings: [
+    {
+      title: 'Published Date, Newest First',
+      name: 'publishedAtDesc',
+      by: [{ field: 'publishedAt', direction: 'desc' }],
+    },
+    {
+      title: 'Published Date, Oldest First',
+      name: 'publishedAtAsc',
+      by: [{ field: 'publishedAt', direction: 'asc' }],
+    },
+  ],
   fields: [
     // ── Synced from YouTube (overwritten every sync; read-only in Studio) ──
     defineField({
