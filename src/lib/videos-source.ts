@@ -20,7 +20,7 @@ import { getUnifiedVideos, buildPublishedQuery, type UnifiedVideo } from './vide
 export async function getVideosUnified(): Promise<UnifiedVideo[]> {
   const query = `*[_type == "video" && contentStatus == "published" && !(_id in path("shorts.*")) && !(_id in path("live.*"))] | order(publishedAt desc) {
     youtubeId, title, thumbnailUrl, durationSeconds, isShort, isLive, isEvent, publishedAt,
-    "topics": topics[]->slug.current, featured
+    youtubeTags, "topics": topics[]->slug.current, featured
   }`;
   return await getUnifiedVideos(sanityClient, { categorize }, query);
 }

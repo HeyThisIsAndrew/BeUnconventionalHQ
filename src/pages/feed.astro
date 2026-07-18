@@ -37,6 +37,16 @@ const allItems = [
             const isVideo = item.type === 'video';
             const videoId = parseVideoId(item.link);
 
+            const itemTags = Array.isArray(item.tags) ? item.tags : [item.category || 'General'];
+            const lowerTags = itemTags.map((t) => typeof t === 'string' ? t.toLowerCase() : '');
+            
+            let primaryLabel = 'General';
+            if (lowerTags.includes('tv')) primaryLabel = 'TV';
+            else if (lowerTags.includes('film')) primaryLabel = 'Film';
+            else if (lowerTags.includes('gaming')) primaryLabel = 'Gaming';
+            else if (lowerTags.includes('event') || lowerTags.includes('events')) primaryLabel = 'Event';
+            else primaryLabel = item.category || 'General';
+
             const CardWrapper = isVideo ? 'div' : 'a';
             const wrapperProps = isVideo
               ? {
@@ -56,7 +66,7 @@ const allItems = [
               <CardWrapper
                 {...wrapperProps}
                 data-type={(item.type || 'article').toLowerCase()}
-                data-category={(item.category || 'General').toLowerCase()}
+                data-category={lowerTags.join(',')}
               >
                 <div class="article-image-wrapper">
                   <img
@@ -67,7 +77,7 @@ const allItems = [
                     class="article-image"
                   />
                   <span class="content-badge">
-                    {(item.category || 'General').toUpperCase()}
+                    {primaryLabel.toUpperCase()}
                   </span>
                 </div>
                 <div class="article-content">

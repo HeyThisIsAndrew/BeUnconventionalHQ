@@ -16,12 +16,21 @@ export async function getStaticPaths() {
 const { category } = Astro.props;
 const allVideos = await getVideosUnified();
 const allArticles = await getArticles();
-const categoryVideos = allVideos
-  .filter((v) => v.category.toLowerCase() === category.label.toLowerCase())
-  .slice(0, 4);
-const categoryArticles = allArticles
-  .filter((a) => a.category.toLowerCase() === category.label.toLowerCase())
-  .slice(0, 4);
+
+const catLabel = category.label.toLowerCase();
+function matchesCategory(item: any) {
+  const itemTags = Array.isArray(item.tags) ? item.tags : [item.category || 'general'];
+  return itemTags.some((t: any) => {
+    const trimmed = typeof t === 'string' ? t.toLowerCase().trim() : '';
+    if (trimmed === catLabel) return true;
+    if (catLabel === 'events' && trimmed === 'event') return true;
+    if (catLabel === 'event' && trimmed === 'events') return true;
+    return false;
+  });
+}
+
+const categoryVideos = allVideos.filter(matchesCategory).slice(0, 4);
+const categoryArticles = allArticles.filter(matchesCategory).slice(0, 4);
 ---
 
 <Layout title={`${category.label} | Be Unconventional HQ`}>

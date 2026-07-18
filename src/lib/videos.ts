@@ -17,6 +17,8 @@ export interface UnifiedVideo {
   link: string;
   thumbnail: string;
   category: string;
+  tags?: string[];
+  youtubeTags?: string[];
   date: string;
   isShort: boolean;
   isLive: boolean;
@@ -35,7 +37,7 @@ export interface UnifiedVideo {
 export function buildPublishedQuery(docType: string = 'video') {
   return `*[_type == "${docType}" && contentStatus == "published"] | order(publishedAt desc) {
     youtubeId, title, thumbnailUrl, durationSeconds, isShort, isLive, isEvent, publishedAt,
-    "topics": topics[]->slug.current, featured
+    youtubeTags, "topics": topics[]->slug.current, featured
   }`;
 }
 
@@ -76,6 +78,8 @@ export function mapSanityVideo(doc: any, { categorize }: MapOptions = {}): Unifi
       : `https://www.youtube.com/watch?v=${id}`,
     thumbnail: doc.thumbnailUrl || `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
     category: topicMatch ?? categorize?.(doc.title) ?? 'General',
+    tags: (doc.topics ?? []).map(String),
+    youtubeTags: doc.youtubeTags ?? [],
     date,
     isShort: doc.isShort ?? false,
     isLive: doc.isLive ?? false,
