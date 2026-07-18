@@ -52,6 +52,15 @@ export default defineType({
       description: 'A YouTube video link to loop quietly in the background of the cinematic header.',
     }),
     defineField({
+      name: 'youtubeSyncKeywords',
+      title: 'YouTube Sync Keywords (Tier 2)',
+      type: 'array',
+      of: [{ type: 'string' }],
+      options: { layout: 'tags' },
+      description:
+        'YouTube tags that auto-assign a video to this brand hub (case/punctuation-insensitive exact match), e.g. "marvel". Set once — epic #34.',
+    }),
+    defineField({
       name: 'tags',
       title: 'Aggregation Tags',
       type: 'array',

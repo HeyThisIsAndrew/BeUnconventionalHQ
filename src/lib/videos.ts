@@ -44,7 +44,7 @@ export interface UnifiedVideo extends LegacyVideo {
 /** Published videos, newest first. Kept minimal: pages do their own slicing. */
 export const PUBLISHED_VIDEOS_QUERY = `*[_type == "video" && contentStatus == "published"] | order(publishedAt desc) {
   youtubeId, title, thumbnailUrl, durationSeconds, isShort, publishedAt,
-  topics, featured
+  "topics": topics[]->slug.current, featured
 }`;
 
 /** The four site categories; topics outside this set fall through. */

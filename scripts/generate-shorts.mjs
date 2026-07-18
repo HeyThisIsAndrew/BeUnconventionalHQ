@@ -26,7 +26,7 @@ config();
 export const MAX_PER_CATEGORY = 12;
 
 export const PUBLISHED_SHORTS_QUERY = `*[_type == "video" && contentStatus == "published" && isShort == true] | order(publishedAt desc){
-  youtubeId, title, thumbnailUrl, durationSeconds, isShort, publishedAt, topics, featured
+  youtubeId, title, thumbnailUrl, durationSeconds, isShort, publishedAt, "topics": topics[]->slug.current, featured
 }`;
 
 /**

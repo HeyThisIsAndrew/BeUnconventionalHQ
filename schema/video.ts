@@ -3,14 +3,17 @@ import { defineType, defineField } from 'sanity';
 /**
  * Video — a YouTube video ingested into Sanity by scripts/sync-youtube.mjs.
  *
- * FACTUAL vs EDITORIAL separation (the core rule of the pipeline):
- *   • YouTube fieldset  — synced from the YouTube Data API every run. Marked
- *     readOnly so editors don't hand-edit values the sync will overwrite.
- *     (readOnly only affects the Studio UI; the sync writes via a token and is
- *     unaffected.)
- *   • Editorial fieldset — curated by humans. The sync NEVER writes these after
- *     a document is first created; it only seeds a couple of defaults on
- *     creation. This is what makes Sanity the editorial source of truth.
+ * THREE field classes (the pipeline contract, epic #34):
+ *   • FACTUAL (YouTube fieldset) — synced from the YouTube Data API every run.
+ *     readOnly in Studio; the sync writes via token regardless.
+ *   • DERIVED (Taxonomy fieldset) — topics/hubs/requiresReview, computed from
+ *     the video's YouTube tags against the Sanity keyword dictionary on EVERY
+ *     run… unless `manualTaxonomyOverride` is on (the Sync Lock), in which
+ *     case the sync leaves all taxonomy alone forever.
+ *   • EDITORIAL — owned by humans. Seeded once on creation, never overwritten.
+ *     contentStatus special case: a video that cleanly matches a Tier-1
+ *     keyword auto-publishes; the sync may also promote needs-review →
+ *     published later if better tags arrive and no human has intervened.
  *
  * See scripts/youtube-sync.md for the full pipeline contract.
  */
@@ -20,6 +23,11 @@ export default defineType({
   type: 'document',
   fieldsets: [
     { name: 'youtube', title: 'YouTube (synced — do not edit)', options: { collapsible: true } },
+    {
+      name: 'taxonomy',
+      title: 'Taxonomy (derived from YouTube tags — locked by Manual Override)',
+      options: { collapsible: true, collapsed: false },
+    },
     { name: 'editorial', title: 'Editorial (curated by you)', options: { collapsible: true, collapsed: false } },
   ],
   orderings: [
@@ -79,7 +87,7 @@ export default defineType({
       },
       initialValue: 'needs-review',
       description:
-        'Newly synced videos start as "Needs Review" and should not appear on the site until set to "Published". The sync sets this only on first creation and never changes it afterward.',
+        'AUTO-PUBLISH: videos whose YouTube tags cleanly match a Tier-1 category are created as "Published"; unmatched ones land as "Needs Review". The sync may promote Needs Review → Published when tags are fixed, but never touches a status a human has changed (and never un-publishes or un-archives).',
     }),
     defineField({ name: 'featured', title: 'Featured', type: 'boolean', fieldset: 'editorial', initialValue: false }),
     defineField({
@@ -104,9 +112,28 @@ export default defineType({
       name: 'topics',
       title: 'Topics',
       type: 'array',
-      of: [{ type: 'string' }],
-      options: { layout: 'tags' },
-      fieldset: 'editorial',
+      of: [{ type: 'reference', to: [{ type: 'topic' }] }],
+      fieldset: 'taxonomy',
+      description:
+        'DERIVED: recomputed from YouTube tags on every sync unless Manual Taxonomy Override is on. To hand-curate, flip the override first or the sync will reset your edits.',
+    }),
+    defineField({
+      name: 'requiresReview',
+      title: 'Requires Review',
+      type: 'boolean',
+      fieldset: 'taxonomy',
+      initialValue: false,
+      description:
+        'Set by the sync when a video matched no Tier-1 category keyword (it lands in Uncategorized). Fix the tags on YouTube (next sync re-files it) or curate by hand with the override.',
+    }),
+    defineField({
+      name: 'manualTaxonomyOverride',
+      title: 'Manual Taxonomy Override (Sync Lock)',
+      type: 'boolean',
+      fieldset: 'taxonomy',
+      initialValue: false,
+      description:
+        'When ON, the sync stops writing topics/hubs/requiresReview for this video forever — your hand-curation wins. Stats and metadata keep syncing normally.',
     }),
     defineField({
       name: 'coverageType',
@@ -162,13 +189,10 @@ export default defineType({
       name: 'hubs',
       title: 'Hubs',
       type: 'array',
-      fieldset: 'editorial',
-      // Additive: events joined featuredBrand as valid hub targets (Phase C1,
-      // epic #25) so event pages can query coverage via references(). Existing
-      // brand references are unaffected.
+      fieldset: 'taxonomy',
       of: [{ type: 'reference', to: [{ type: 'featuredBrand' }, { type: 'event' }] }],
       description:
-        'Assign this video to hubs (Featured Brands and/or Events). Hub pages pull their coverage from these references.',
+        'DERIVED: hub assignments (Featured Brands / Events) recomputed from YouTube tags on every sync unless Manual Taxonomy Override is on. Hub pages pull their coverage from these references.',
     }),
     defineField({ name: 'editorialNotes', title: 'Editorial Notes', type: 'text', rows: 3, fieldset: 'editorial' }),
   ],

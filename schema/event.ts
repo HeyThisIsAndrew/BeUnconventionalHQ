@@ -292,6 +292,16 @@ export default defineType({
 
     // ── Content matching ────────────────────────────────────────────────
     defineField({
+      name: 'youtubeSyncKeywords',
+      title: 'YouTube Sync Keywords (Tier 3)',
+      type: 'array',
+      fieldset: 'details',
+      of: [{ type: 'string' }],
+      options: { layout: 'tags' },
+      description:
+        'YouTube tags that auto-assign a video to this event hub (case/punctuation-insensitive exact match), e.g. "san diego comic-con". Set once — epic #34.',
+    }),
+    defineField({
       name: 'tags',
       title: 'Content Matching Tags',
       type: 'array',

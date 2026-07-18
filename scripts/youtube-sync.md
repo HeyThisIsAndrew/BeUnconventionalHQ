@@ -318,3 +318,39 @@ build time. `.github/workflows/daily-rebuild.yml` pokes a Cloudflare deploy
 hook nightly so it rotates without content pushes — inert until the
 `CLOUDFLARE_DEPLOY_HOOK_URL` secret is configured (instructions in the
 workflow header).
+
+## Taxonomy-as-Code (epic #34 — supersedes manual topic/hub mapping)
+
+YouTube tags are now the taxonomy source. The sync builds a keyword dictionary
+FROM SANITY on every run and derives each video's topics + hubs from exact,
+normalized matches. Everything else in the tag soup is ignored.
+
+**The tier system (tag your uploads on YouTube):**
+
+| Tier | Maps to | Keywords live on | Example tags |
+|---|---|---|---|
+| 1 — Category (mandatory) | `topic` docs | `topic.youtubeSyncKeywords` | `film`, `tv`, `gaming`, `events` |
+| 2 — Brand hubs | `featuredBrand` docs | `featuredBrand.youtubeSyncKeywords` | `marvel`, `dc` |
+| 3 — Event hubs | `event` docs | `event.youtubeSyncKeywords` | `san diego comic-con` |
+
+Matching is case- and punctuation-insensitive ("San Diego Comic-Con" ≡
+"san diego comic con"). The four Tier-1 topics (+ `Uncategorized`) are seeded
+automatically with sensible default keywords — edit them in Studio anytime.
+
+**One-time setup (owner):** open each Featured Brand and Event in Studio and
+fill its "YouTube Sync Keywords" field. Until then, only Tier-1 category
+matching happens (hub assignment stays empty and the sync warns about it).
+
+**Field classes:**
+- FACTUAL (title, stats, …): overwritten every run.
+- DERIVED (topics, hubs, requiresReview): overwritten every run **unless**
+  the video's `manualTaxonomyOverride` is on (the Sync Lock) — then the sync
+  never touches its taxonomy again. Stats/metadata keep flowing either way.
+- EDITORIAL (featured, notes, …): seeded once, never overwritten.
+
+**Auto-publish:** a video that matches ≥1 Tier-1 keyword is created as
+`published` — it appears on the site with zero CMS touches. Zero Tier-1
+matches → `Uncategorized` + `requiresReview: true` + `needs-review` (never
+dropped). Fixing the tags on YouTube re-files it on the next sync and
+promotes it to published — but the sync never demotes, and never changes a
+status a human has set (published/archived are final against automation).
