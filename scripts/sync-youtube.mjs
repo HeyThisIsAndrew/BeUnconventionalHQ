@@ -179,8 +179,13 @@ export function planVideoSync(video, match, existing, now = new Date()) {
     set.contentStatus = 'published';
   }
 
+  const recreate = existing && existing._type && existing._type !== docType;
+  const fullNewDoc = recreate ? { ...existing, ...set, _type: docType } : null;
+
   return {
     _id,
+    recreate,
+    fullNewDoc,
     createIfNotExists: {
       _id,
       _type: docType,
@@ -260,7 +265,7 @@ async function run() {
   const [topicDocs, hubDocs, existingDocs] = await Promise.all([
     sanity.fetch(`*[_type == "topic"]{_id, isTier1Category, youtubeSyncKeywords}`),
     sanity.fetch(`*[_type in ["featuredBrand", "event"]]{_id, _type, title, youtubeSyncKeywords}`),
-    sanity.fetch(`*[_type in ["video", "short", "live"]]{_id, _type, contentStatus, manualTaxonomyOverride}`),
+    sanity.fetch(`*[_type in ["video", "short", "live"]]`),
   ]);
   const knownTopicIds = new Set(topicDocs.map((t) => t._id));
   const mergedTopics = [
@@ -326,12 +331,26 @@ async function run() {
   let written = 0;
   for (let i = 0; i < plans.length; i += COMMIT_CHUNK) {
     const chunk = plans.slice(i, i + COMMIT_CHUNK);
+    
+    // Deletions must occur in a separate atomic transaction before re-creation.
+    const deletes = chunk.filter(p => p.recreate);
+    if (deletes.length > 0) {
+      const delTx = sanity.transaction();
+      for (const plan of deletes) delTx.delete(plan._id);
+      await delTx.commit();
+    }
+
     const tx = sanity.transaction();
     for (const plan of chunk) {
-      tx.createIfNotExists(plan.createIfNotExists);
-      tx.patch(plan._id, { set: plan.patch.set });
+      if (plan.recreate) {
+        tx.create(plan.fullNewDoc);
+      } else {
+        tx.createIfNotExists(plan.createIfNotExists);
+        tx.patch(plan._id, { set: plan.patch.set });
+      }
     }
     await tx.commit();
+    
     written += chunk.length;
     console.log(`  …committed ${written}/${plans.length}`);
   }
