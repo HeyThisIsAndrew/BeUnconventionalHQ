@@ -6,9 +6,8 @@
 import assert from 'node:assert/strict';
 import {
   mapSanityVideo,
-  mergeVideoSources,
   getUnifiedVideos,
-  PUBLISHED_VIDEOS_QUERY,
+  buildPublishedQuery,
 } from '../src/lib/videos.ts';
 
 let passed = 0;
@@ -43,16 +42,16 @@ await test('maps a full doc to the legacy shape + extras', () => {
   assert.equal(v.thumbnail, DOC.thumbnailUrl);
   assert.equal(v.category, 'Events'); // editorial topic wins
   assert.equal(v.date, 'July 12, 2026'); // legacy long-form date
-  assert.equal(v.isUpload, true);
+  assert.equal(v.isShort, false);
   assert.equal(v.youtubeId, 'dQw4w9WgXcQ');
   assert.equal(v.featured, true);
   assert.equal(v.source, 'sanity');
 });
 
-await test('Shorts keep the /shorts/ URL form and isUpload=false', () => {
+await test('Shorts keep the /shorts/ URL form', () => {
   const v = mapSanityVideo({ ...DOC, isShort: true });
   assert.equal(v.link, 'https://www.youtube.com/shorts/dQw4w9WgXcQ');
-  assert.equal(v.isUpload, false);
+  assert.equal(v.isShort, true);
 });
 
 await test('topic that is not a site category → categorize fallback', () => {
@@ -78,50 +77,26 @@ await test('docs missing id or title are rejected (null)', () => {
   assert.equal(mapSanityVideo(null), null);
 });
 
-await test('merge dedupes by video id — Sanity wins over legacy', () => {
-  const sanity = [mapSanityVideo(DOC)];
-  const legacy = [
-    // Same video via a watch URL — must be dropped.
-    { title: 'dupe', link: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', thumbnail: '', category: 'Events', date: '', isUpload: true },
-    // Different video — must pass through, tagged legacy.
-    { title: 'other', link: 'https://www.youtube.com/shorts/zGA4XXAkE_s', thumbnail: '', category: 'Events', date: '', isUpload: false },
-  ];
-  const merged = mergeVideoSources(sanity, legacy);
-  assert.equal(merged.length, 2);
-  assert.equal(merged[0].source, 'sanity');
-  assert.equal(merged[1].title, 'other');
-  assert.equal(merged[1].source, 'legacy');
-  assert.equal(merged[1].youtubeId, 'zGA4XXAkE_s');
-});
-
-await test('getUnifiedVideos: Sanity-primary, legacy fills gaps', async () => {
+await test('getUnifiedVideos: strictly queries using buildPublishedQuery', async () => {
   const client = { fetch: async (q) => {
-    assert.equal(q, PUBLISHED_VIDEOS_QUERY);
+    assert.equal(q, buildPublishedQuery('video'));
     return [DOC];
   }};
-  const legacy = [
-    { title: 'legacy-only', link: 'https://www.youtube.com/watch?v=zGA4XXAkE_s', thumbnail: '', category: 'Film', date: '', isUpload: true },
-  ];
-  const out = await getUnifiedVideos(client, legacy);
-  assert.deepEqual(out.map((v) => [v.title, v.source]), [
-    ['SDCC 2026 Floor Tour', 'sanity'],
-    ['legacy-only', 'legacy'],
-  ]);
+  
+  const out = await getUnifiedVideos(client, {}, buildPublishedQuery('video'));
+  assert.equal(out.length, 1);
+  assert.equal(out[0].title, 'SDCC 2026 Floor Tour');
 });
 
-await test('getUnifiedVideos: Sanity failure degrades to legacy, never throws', async () => {
+await test('getUnifiedVideos: Sanity failure never throws', async () => {
   const client = { fetch: async () => { throw new Error('egress blocked'); } };
-  const legacy = [
-    { title: 'still here', link: 'https://www.youtube.com/watch?v=zGA4XXAkE_s', thumbnail: '', category: 'TV', date: '', isUpload: true },
-  ];
-  const out = await getUnifiedVideos(client, legacy);
-  assert.equal(out.length, 1);
-  assert.equal(out[0].title, 'still here');
-  assert.equal(out[0].source, 'legacy');
+  const out = await getUnifiedVideos(client);
+  assert.equal(out.length, 0);
+  assert.deepEqual(out, []);
 });
 
 await test('getUnifiedVideos: empty everywhere → empty list', async () => {
-  const out = await getUnifiedVideos({ fetch: async () => [] }, []);
+  const out = await getUnifiedVideos({ fetch: async () => [] });
   assert.deepEqual(out, []);
 });
 
