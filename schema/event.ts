@@ -301,17 +301,7 @@ export default defineType({
       description:
         'YouTube tags that auto-assign a video to this event hub (case/punctuation-insensitive exact match), e.g. "san diego comic-con". Set once — epic #34.',
     }),
-    defineField({
-      name: 'tags',
-      title: 'Content Matching Tags',
-      type: 'array',
-      fieldset: 'details',
-      description:
-        'Exact string tags matched against YouTube and Substack titles/descriptions (e.g., "#SDCC 2026").',
-      of: [{ type: 'string' }],
-      options: { layout: 'tags' },
-      initialValue: [],
-    }),
+
     // Legacy fields — retained so existing documents aren't orphaned. Content is
     // now pulled via `tags` matching against the global feed, so these are no
     // longer the primary mechanism. Safe to remove once no document uses them.

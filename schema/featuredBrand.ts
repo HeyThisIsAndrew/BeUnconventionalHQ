@@ -60,15 +60,6 @@ export default defineType({
       description:
         'YouTube tags that auto-assign a video to this brand hub (case/punctuation-insensitive exact match), e.g. "marvel". Set once — epic #34.',
     }),
-    defineField({
-      name: 'tags',
-      title: 'Aggregation Tags',
-      type: 'array',
-      of: [{ type: 'string' }],
-      options: {
-        layout: 'tags',
-      },
-      description: 'Add tags here (e.g., "Marvel", "Deadpool"). The hub will automatically pull any videos or articles whose titles/descriptions contain these tags.',
-    }),
+
   ],
 });

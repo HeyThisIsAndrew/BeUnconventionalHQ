@@ -62,9 +62,8 @@ try {
   console.error('Hub coverage fetch failed; falling back to tag matching', e);
 }
 
-// 2. Fallback: filter global data against event tags (legacy heuristic; kept
-// until hub-tagging covers every event, then removed in Phase C2)
-const eventTags = (event.tags || []).filter((t: any) => typeof t === 'string');
+// 2. Fallback: filter global data against hub tags (legacy heuristic; removed
+const eventTags = (event.youtubeSyncKeywords || []).filter((t: any) => typeof t === 'string');
 
 const filteredVideos = hubCoverage.length > 0 ? hubCoverage : allVideos.filter((v: any) => {
   // TEMPORARY TEST: Display all videos categorized as "Events" for SDCC 2026
