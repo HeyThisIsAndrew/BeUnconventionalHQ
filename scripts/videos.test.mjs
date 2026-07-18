@@ -29,7 +29,7 @@ const DOC = {
   durationSeconds: 754,
   isShort: false,
   publishedAt: '2026-07-12T15:00:00Z',
-  topics: ['events', 'conventions'],
+  topics: ['film', 'conventions'],
   featured: true,
 };
 
@@ -40,7 +40,7 @@ await test('maps a full doc to the legacy shape + extras', () => {
   assert.equal(v.title, 'SDCC 2026 Floor Tour');
   assert.equal(v.link, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
   assert.equal(v.thumbnail, DOC.thumbnailUrl);
-  assert.equal(v.category, 'Events'); // editorial topic wins
+  assert.equal(v.category, 'Film'); // editorial topic wins
   assert.equal(v.date, 'July 12, 2026'); // legacy long-form date
   assert.equal(v.isShort, false);
   assert.equal(v.youtubeId, 'dQw4w9WgXcQ');
