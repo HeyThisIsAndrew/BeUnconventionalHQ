@@ -9,15 +9,18 @@ import PromoBanner from '../components/PromoBanner.astro';
 import TakeoverBillboard from '../components/TakeoverBillboard.astro';
 import { getVideosUnified } from '../lib/videos-source';
 import PageTitle from '../components/PageTitle.astro';
+
+// Get the current path, stripping trailing slashes for safety
+const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
+const isHomePage = currentPath === '/';
 ---
 
 <Layout title="Be Unconventional HQ">
   <main>
   <Hero />
 
-  {/* Hidden in static HTML; reveals itself only while the channel is live
-      (#20). Ships dormant until YOUTUBE_API_KEY + the worker are deployed. */}
-  <TakeoverBillboard />
+  {/* Route-based conditional rendering guardrail */}
+  {isHomePage && <TakeoverBillboard />}
 
   {
     false && (
