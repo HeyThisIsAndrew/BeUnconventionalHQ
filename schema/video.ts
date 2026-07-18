@@ -91,6 +91,20 @@ export default defineType({
       description:
         'AUTO-PUBLISH: videos whose YouTube tags cleanly match a Tier-1 category are created as "Published"; unmatched ones land as "Needs Review". The sync may promote Needs Review → Published when tags are fixed, but never touches a status a human has changed (and never un-publishes or un-archives).',
     }),
+    defineField({
+      name: 'manualTypeOverride',
+      title: 'Manual Type Override (Sync Bypass)',
+      type: 'string',
+      fieldset: 'editorial',
+      options: {
+        list: [
+          { title: 'Standard Video', value: 'video' },
+          { title: 'YouTube Short', value: 'short' },
+          { title: 'Live Stream VOD', value: 'live' },
+        ],
+      },
+      description: 'FORCE the document type. If you set this, the sync script will completely bypass the YouTube API HEAD check and instantly move this document to the selected schema type.'
+    }),
     defineField({ name: 'featured', title: 'Featured', type: 'boolean', fieldset: 'editorial', initialValue: false }),
     defineField({
       name: 'franchises',

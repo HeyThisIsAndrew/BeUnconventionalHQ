@@ -169,8 +169,13 @@ export function planVideoSync(video, match, existing, now = new Date()) {
   };
 
   let docType = 'video';
-  if (video.isShort) docType = 'short';
-  else if (video.isLive) docType = 'live';
+  if (existing?.manualTypeOverride) {
+    docType = existing.manualTypeOverride;
+  } else if (video.isShort) {
+    docType = 'short';
+  } else if (video.isLive) {
+    docType = 'live';
+  }
 
   const set = { _type: docType, ...mapVideoToSyncedFields(video, now) };
   if (!locked) Object.assign(set, derived);
