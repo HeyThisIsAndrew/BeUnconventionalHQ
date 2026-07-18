@@ -79,18 +79,18 @@ const filteredVideos = hubCoverage.length > 0 ? hubCoverage : allVideos.filter((
 
   // STRICT FILTERING: Query against the actual YouTube Tags synced directly from 
   // YouTube Studio metadata into Sanity (`v.youtubeTags`). 
-  // We normalize both the tag and the YouTube tag to ensure case and punctuation don't break matches.
-  // We also use .includes() so that a keyword like "marvel" matches a YouTube tag like "marvel studios".
+  // We use EXACT matching on normalized tags, avoiding all regex and substring data leaks.
   return eventTags.some((tag: string) => {
-    // Basic normalization: lowercase, remove punctuation, collapse spaces
     const normalize = (s: string) => s.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
     const t = normalize(tag);
+    if (!t) return false;
     
-    const hasYouTubeTag = v.youtubeTags?.some((yt: string) => normalize(yt).includes(t));
+    // Exact match on normalized strings (e.g. "marvel studios" === "marvel studios")
+    const hasYouTubeTag = v.youtubeTags?.some((yt: string) => normalize(yt) === t);
     
     // Also include videos where the editor manually assigned the topic in Sanity
-    const hasTopic = v.tags?.some((vt: string) => normalize(vt).includes(t));
-    const hasCategory = v.category ? normalize(v.category).includes(t) : false;
+    const hasTopic = v.tags?.some((vt: string) => normalize(vt) === t);
+    const hasCategory = v.category ? normalize(v.category) === t : false;
     
     return hasYouTubeTag || hasTopic || hasCategory;
   });
@@ -100,9 +100,11 @@ const filteredArticles = allArticles.filter((a: any) => {
   return eventTags.some((tag: string) => {
     const normalize = (s: string) => s.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
     const t = normalize(tag);
-    // Articles don't have youtubeTags, so we fallback to topics/categories
-    const hasTopic = a.tags?.some((at: string) => normalize(at).includes(t));
-    const hasCategory = a.category ? normalize(a.category).includes(t) : false;
+    if (!t) return false;
+    
+    // Exact match on normalized strings
+    const hasTopic = a.tags?.some((at: string) => normalize(at) === t);
+    const hasCategory = a.category ? normalize(a.category) === t : false;
     return hasTopic || hasCategory;
   });
 });
