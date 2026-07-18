@@ -18,8 +18,8 @@ import { defineType, defineField } from 'sanity';
  * See scripts/youtube-sync.md for the full pipeline contract.
  */
 export default defineType({
-  name: 'video',
-  title: 'Video',
+  name: 'live',
+  title: 'Live Stream',
   type: 'document',
   fieldsets: [
     { name: 'youtube', title: 'YouTube (synced — do not edit)', options: { collapsible: true } },

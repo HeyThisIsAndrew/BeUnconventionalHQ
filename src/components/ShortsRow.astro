@@ -10,16 +10,26 @@
  * - Layout: native CSS scroll-snap carousel on mobile with a ~1.8–2.2-card
  *   "peek" (min-w 55% / 40%); becomes a plain 4-column grid at md. No JS.
  */
-import shortsData from '../data/shorts.json';
+import { getShortsUnified } from '../lib/videos-source';
 import CinematicShortCard from './CinematicShortCard.astro';
 import { pickDailyShorts, type ShortItem } from '../lib/shorts.ts';
+import { parseVideoId } from '../lib/platforms/youtube.ts';
 
 export interface Props {
   category: string;
 }
 const { category } = Astro.props;
 
-const pool = (shortsData.categories as Record<string, ShortItem[]>)[category];
+const allShorts = await getShortsUnified();
+const pool: ShortItem[] = allShorts
+  .filter((v) => (v.category || 'general').toLowerCase() === category.toLowerCase())
+  .map((v) => ({
+    id: v.youtubeId || parseVideoId(v.link) || '',
+    title: v.title,
+    thumbnailUrl: v.thumbnail,
+    editorialTag: v.category,
+  }));
+
 const picks = pickDailyShorts(pool, category, 4);
 
 const ROW_TITLES: Record<string, string> = {

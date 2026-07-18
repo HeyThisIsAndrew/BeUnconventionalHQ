@@ -141,6 +141,8 @@ export function mapVideoToSyncedFields(video, now = new Date()) {
     thumbnailUrl: video.thumbnail,
     durationSeconds: video.durationSeconds,
     isShort: video.isShort,
+    isLive: video.isLive,
+    isEvent: video.isEvent,
     viewCount: video.viewCount,
     publishedAt: video.publishedAt,
     youtubeTags: video.tags,
@@ -166,7 +168,11 @@ export function planVideoSync(video, match, existing, now = new Date()) {
     requiresReview: match.requiresReview,
   };
 
-  const set = { ...mapVideoToSyncedFields(video, now) };
+  let docType = 'video';
+  if (video.isShort) docType = 'short';
+  else if (video.isLive) docType = 'live';
+
+  const set = { _type: docType, ...mapVideoToSyncedFields(video, now) };
   if (!locked) Object.assign(set, derived);
   // Promotion: tags got fixed and no human has moved the status → publish.
   if (!locked && existing?.contentStatus === 'needs-review' && !match.requiresReview) {
@@ -177,7 +183,7 @@ export function planVideoSync(video, match, existing, now = new Date()) {
     _id,
     createIfNotExists: {
       _id,
-      _type: 'video',
+      _type: docType,
       youtubeId: video.id,
       platform: 'youtube',
       // Auto-publish (owner-approved): clean Tier-1 match goes straight to the
@@ -254,7 +260,7 @@ async function run() {
   const [topicDocs, hubDocs, existingDocs] = await Promise.all([
     sanity.fetch(`*[_type == "topic"]{_id, isTier1Category, youtubeSyncKeywords}`),
     sanity.fetch(`*[_type in ["featuredBrand", "event"]]{_id, _type, title, youtubeSyncKeywords}`),
-    sanity.fetch(`*[_type == "video"]{_id, contentStatus, manualTaxonomyOverride}`),
+    sanity.fetch(`*[_type in ["video", "short", "live"]]{_id, _type, contentStatus, manualTaxonomyOverride}`),
   ]);
   const knownTopicIds = new Set(topicDocs.map((t) => t._id));
   const mergedTopics = [

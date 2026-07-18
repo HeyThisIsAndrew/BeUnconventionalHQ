@@ -38,6 +38,8 @@ export interface YouTubeVideo {
   tags: string[];
   /** Heuristic: <= 60s. True Shorts detection needs a URL probe; documented. */
   isShort: boolean;
+  isLive: boolean;
+  isEvent: boolean;
 }
 
 export interface LiveStatus {
@@ -123,10 +125,6 @@ export function createYouTubeClient({ apiKey, fetchImpl }: YouTubeClientOptions)
   return {
     parseVideoId,
 
-    /**
-     * videos.list — 1 quota unit per call, batched 50 ids/call. Returns rich
-     * YouTube-specific video metadata for ingestion into Sanity.
-     */
     async getVideoDetails(ids: string[]): Promise<YouTubeVideo[]> {
       const clean = [...new Set(ids.map(parseVideoId).filter((x): x is string => !!x))];
       const out: YouTubeVideo[] = [];
@@ -136,8 +134,36 @@ export function createYouTubeClient({ apiKey, fetchImpl }: YouTubeClientOptions)
           part: 'snippet,contentDetails,statistics',
           id: batch.join(','),
         });
-        for (const item of data.items || []) {
+
+        const verifiedItems = await Promise.all(
+          (data.items || []).map(async (item: any) => {
+            let isShort = false;
+            try {
+              const checkShortUrl = `https://www.youtube.com/shorts/${item.id}`;
+              const response = await doFetch(checkShortUrl, { method: 'HEAD', redirect: 'manual' });
+              // YouTube returns 200 for Shorts, 303 for standard videos redirecting to /watch
+              isShort = response.status === 200;
+            } catch (err) {
+              console.error(`Short network check failed for ${item.id}`, err);
+            }
+            return { item, isShort };
+          })
+        );
+
+        for (const { item, isShort } of verifiedItems) {
           const durationSeconds = parseISO8601Duration(item.contentDetails?.duration);
+          const tags = Array.isArray(item.snippet?.tags) ? item.snippet.tags : [];
+          
+          const isLive = tags.some((t: string) => {
+            const normalized = t.toLowerCase();
+            return normalized === 'live' || normalized === 'live stream' || normalized === 'lives';
+          });
+          
+          const isEvent = tags.some((t: string) => {
+            const normalized = t.toLowerCase();
+            return normalized === 'event' || normalized === 'events' || normalized === 'con' || normalized === 'panel';
+          });
+
           out.push({
             id: item.id,
             title: item.snippet?.title ?? '',
@@ -146,8 +172,10 @@ export function createYouTubeClient({ apiKey, fetchImpl }: YouTubeClientOptions)
             publishedAt: item.snippet?.publishedAt ?? '',
             durationSeconds,
             viewCount: Number(item.statistics?.viewCount ?? 0),
-            tags: Array.isArray(item.snippet?.tags) ? item.snippet.tags : [],
-            isShort: durationSeconds > 0 && durationSeconds <= 60,
+            tags,
+            isShort,
+            isLive,
+            isEvent,
           });
         }
       }

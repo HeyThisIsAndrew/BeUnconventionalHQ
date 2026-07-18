@@ -14,11 +14,17 @@
 // @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
 import { sanityClient } from 'sanity:client';
 // @ts-ignore - untyped JS modules
-import { getVideos } from '../data/feeds.js';
-// @ts-ignore - untyped JS modules
 import { categorize } from '../data/content-source.js';
-import { getUnifiedVideos, type UnifiedVideo } from './videos.ts';
+import { getUnifiedVideos, buildPublishedQuery, type UnifiedVideo } from './videos.ts';
 
 export async function getVideosUnified(): Promise<UnifiedVideo[]> {
-  return getUnifiedVideos(sanityClient, getVideos(), { categorize });
+  return await getUnifiedVideos(sanityClient, { categorize }, buildPublishedQuery('video'));
+}
+
+export async function getShortsUnified(): Promise<UnifiedVideo[]> {
+  return await getUnifiedVideos(sanityClient, { categorize }, buildPublishedQuery('short'));
+}
+
+export async function getLiveStreamsUnified(): Promise<UnifiedVideo[]> {
+  return await getUnifiedVideos(sanityClient, { categorize }, buildPublishedQuery('live'));
 }
