@@ -77,23 +77,27 @@ const filteredVideos = hubCoverage.length > 0 ? hubCoverage : allVideos.filter((
     return v.category === 'Events';
   }
 
-  // STRICT FILTERING: Use a word-bounded regular expression against the title
-  // and description/excerpt. This prevents severe data leaks (e.g. "dc" matching "podcast")
-  // while preserving the auto-querying functionality of YouTube Sync Keywords.
+  // STRICT FILTERING: Query against the actual YouTube Tags synced directly from 
+  // YouTube Studio metadata into Sanity (`v.youtubeTags`). 
+  // We check if ANY of the Hub's defined keywords exist exactly within the video's YouTube tags.
+  // This preserves auto-querying while completely avoiding regex data leaks.
   return eventTags.some((tag: string) => {
-    const escapedTag = tag.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-    // \b doesn't always work perfectly for non-alphanumeric, but these are mostly words.
-    // A robust regex checks for boundaries or start/end of string.
-    const regex = new RegExp(`(?:^|\\W)${escapedTag}(?:\\W|$)`, 'i');
-    return regex.test(v.title || '') || regex.test(v.description || '');
+    const t = tag.toLowerCase();
+    const hasYouTubeTag = v.youtubeTags?.some((yt: string) => yt.toLowerCase() === t);
+    // Also include videos where the editor manually assigned the topic in Sanity
+    const hasTopic = v.tags?.some((vt: string) => vt.toLowerCase() === t);
+    const hasCategory = v.category?.toLowerCase() === t;
+    return hasYouTubeTag || hasTopic || hasCategory;
   });
 });
 
 const filteredArticles = allArticles.filter((a: any) => {
   return eventTags.some((tag: string) => {
-    const escapedTag = tag.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-    const regex = new RegExp(`(?:^|\\W)${escapedTag}(?:\\W|$)`, 'i');
-    return regex.test(a.title || '') || regex.test(a.excerpt || '');
+    const t = tag.toLowerCase();
+    // Articles don't have youtubeTags, so we fallback to topics/categories
+    const hasTopic = a.tags?.some((at: string) => at.toLowerCase() === t);
+    const hasCategory = a.category?.toLowerCase() === t;
+    return hasTopic || hasCategory;
   });
 });
 
