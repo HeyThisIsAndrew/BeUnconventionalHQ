@@ -9,7 +9,6 @@ import HeroTrailer from '../../components/HeroTrailer.astro';
 import { parseVideoId } from '../../lib/platforms/youtube';
 import { mapSanityVideo } from '../../lib/videos.ts';
 import { formatEventDateRange, formatLocation } from '../../lib/events';
-import { groupIntoDispatchDays } from '../../lib/dispatch.ts';
 import EventStatusIndicator from '../../components/EventStatusIndicator.astro';
 
 export async function getStaticPaths() {
@@ -93,32 +92,6 @@ const unifiedContent = [
   ...filteredArticles.map((a: any) => ({ ...a, contentType: 'article' })),
   ...filteredVideos.map((v: any) => ({ ...v, contentType: 'video' }))
 ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-// Dispatch Log (Mandate 1): the same coverage rendered as a chronological
-// field diary. Needs a REAL instant per item — Sanity `publishedAt` for
-// videos, `isoDate` for articles — never the display-string `date` (which
-// would UTC-shift). Items without a timestamp fall out of the diary; if that
-// leaves zero days (e.g. legacy-only coverage), the page falls back to the
-// flat grid below. Fully automatic day labels (owner decision).
-const dispatchDays = groupIntoDispatchDays(
-  unifiedContent.map((item: any) => ({
-    contentType: item.contentType,
-    kind:
-      item.contentType === 'video'
-        ? item.isShort || (item.durationSeconds ?? 999) <= 60
-          ? 'short'
-          : 'video'
-        : 'article',
-    title: item.title,
-    timestamp: item.publishedAt ?? item.isoDate ?? '',
-    url: item.link,
-    videoId: item.contentType === 'video' ? parseVideoId(item.link) : undefined,
-    thumbnail: item.thumbnail ?? item.image,
-    date: item.date,
-    excerpt: item.excerpt,
-  })),
-  event.startDate,
-);
 
 // Date range + location formatting now live in src/lib/events (Date-free,
 // unit-tested) — see formatEventDateRange / formatLocation usage below.
@@ -206,64 +179,7 @@ const trailerId = parseVideoId(trailerUrl);
     </section>
 
     <div class="container content-container">
-      {dispatchDays.length > 0 ? (
-        <section class="content-section">
-          {/* Mandate 1: chronological dispatch log. Same cards as the grid
-              (identical scoped classes → no visual drift), grouped by day. */}
-          <h2 class="sr-only">Event dispatch log</h2>
-          <div class="dispatch-log">
-            {dispatchDays.map((day: any) => (
-              <section class="dispatch-day animate-on-scroll">
-                <header class="dispatch-day-header">
-                  <span class="dispatch-day-label">{day.label}</span>
-                  <span class="dispatch-day-date">{day.dateLabel}</span>
-                </header>
-                <div class="dispatch-day-items">
-                  {day.items.map((item: any, index: number) =>
-                    item.contentType === 'video' ? (
-                      <div
-                        class:list={['content-card', 'video-card', 'animate-on-scroll', { 'video-modal-trigger': !!item.videoId }]}
-                        data-type="video"
-                        data-video-id={item.videoId || undefined}
-                        role={item.videoId ? 'button' : undefined}
-                        tabindex={item.videoId ? '0' : undefined}
-                        aria-label={item.videoId ? `Play video: ${item.title}` : undefined}
-                        style={`--index: ${index}; cursor: ${item.videoId ? 'pointer' : 'default'};`}
-                      >
-                        <div class="thumbnail-wrapper">
-                          <img src={item.thumbnail} alt={item.title} loading="lazy" class="thumbnail" onerror="this.onerror=null;this.src=this.src.replace('maxresdefault','hqdefault')" />
-                          <div class="video-play-overlay">
-                            <div class="play-icon">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-                            </div>
-                          </div>
-                        </div>
-                        <div class="card-info">
-                          <span class="content-type-subtle">{item.kind === 'short' ? 'SHORT' : 'VIDEO'} • {item.date}</span>
-                          <h3 class="card-title">{item.title}</h3>
-                        </div>
-                      </div>
-                    ) : (
-                      <a href={item.url} target="_blank" rel="noopener noreferrer" class="content-card article-card animate-on-scroll" data-type="article" style={`--index: ${index};`}>
-                        {item.thumbnail && (
-                          <div class="thumbnail-wrapper">
-                            <img src={item.thumbnail} alt={item.title} loading="lazy" class="thumbnail" />
-                          </div>
-                        )}
-                        <div class="card-info">
-                          <span class="content-type-subtle">ARTICLE • {item.date}</span>
-                          <h3 class="card-title">{item.title}</h3>
-                          {item.excerpt && <p class="card-excerpt">{item.excerpt}</p>}
-                        </div>
-                      </a>
-                    ),
-                  )}
-                </div>
-              </section>
-            ))}
-          </div>
-        </section>
-      ) : unifiedContent.length > 0 ? (
+      {unifiedContent.length > 0 ? (
         <section class="content-section">
           <h2 class="sr-only">Event coverage</h2>
 
@@ -656,41 +572,6 @@ const trailerId = parseVideoId(trailerUrl);
     display: grid;
     /* min(100%, 320px) lets a single card shrink below 320px on narrow phones
        instead of overflowing the padded container. */
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
-    gap: 2rem;
-  }
-
-  /* Dispatch Log (Mandate 1): chronological day sections. Cards inside reuse
-     the .content-card styling below, so only the day scaffolding is new. */
-  .dispatch-log {
-    display: flex;
-    flex-direction: column;
-    gap: 3.5rem;
-    margin-top: 1rem;
-  }
-  .dispatch-day-header {
-    display: flex;
-    align-items: baseline;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-    padding-bottom: 0.6rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  }
-  .dispatch-day-label {
-    font-family: var(--font-display, 'Syne Variable', sans-serif);
-    font-size: clamp(1.25rem, 1rem + 1.5vw, 1.6rem);
-    font-weight: 800;
-    color: #fff;
-    letter-spacing: 0.02em;
-  }
-  .dispatch-day-date {
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: #888;
-  }
-  .dispatch-day-items {
-    display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
     gap: 2rem;
   }
