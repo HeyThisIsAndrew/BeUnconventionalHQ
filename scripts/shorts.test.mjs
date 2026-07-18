@@ -103,13 +103,13 @@ const shortDoc = (id, topics) => ({
 
 test('buildShortsData: groups by topic-derived category, lowercase keys', () => {
   const data = buildShortsData(
-    [shortDoc('a0000000001', ['events']), shortDoc('b0000000002', ['gaming']), shortDoc('c0000000003', ['events'])],
+    [shortDoc('a0000000001', ['film']), shortDoc('b0000000002', ['gaming']), shortDoc('c0000000003', ['film'])],
     new Date('2026-07-16T19:00:00Z'),
   );
-  assert.deepEqual(Object.keys(data.categories).sort(), ['events', 'gaming']);
-  assert.equal(data.categories.events.length, 2);
-  assert.equal(data.categories.events[0].id, 'a0000000001');
-  assert.equal(data.categories.events[0].editorialTag, 'events');
+  assert.deepEqual(Object.keys(data.categories).sort(), ['film', 'gaming']);
+  assert.equal(data.categories.film.length, 2);
+  assert.equal(data.categories.film[0].id, 'a0000000001');
+  assert.equal(data.categories.film[0].editorialTag, 'film');
   assert.equal(data.lastUpdated, '2026-07-16T19:00:00.000Z');
 });
 
