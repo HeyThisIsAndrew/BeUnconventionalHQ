@@ -5,8 +5,7 @@ import { site } from '../../data/site.js';
 import { getArticles } from '../../data/feeds.js';
 import { getVideosUnified } from '../../lib/videos-source';
 import QuadrantFilter from '../../components/QuadrantFilter.astro';
-import Pagination from '../../components/Pagination.astro';
-import ContentCard from '../../components/ContentCard.astro';
+import FeedGrid from '../../components/FeedGrid.astro';
 import type { GetStaticPathsOptions } from 'astro';
 
 export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
@@ -22,7 +21,13 @@ export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
 }
 
 const { page } = Astro.props;
-const allItems = page.data;
+const articles = await getArticles();
+const videos = await getVideosUnified();
+
+const allItems = [
+  ...articles.map((a: any) => ({ ...a, type: 'article' })),
+  ...videos.map((v: any) => ({ ...v, type: 'video', image: v.thumbnail })),
+].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
 const pageNum = page.currentPage > 1 ? ` - Page ${page.currentPage}` : '';
 const title = `All Content${pageNum} | ${site.name}`;
@@ -40,17 +45,8 @@ const description = 'Discover all articles, videos, and events from Be Unconvent
 
       {/* Structural h2 so card h3s don't skip a heading level (axe: heading-order). */}
       <h2 class="sr-only">All content</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-screen-2xl mx-auto px-4 md:px-8">
-        {
-          allItems.map((item: any, index: number) => (
-            <ContentCard item={item} index={index} />
-          ))
-        }
-      </div>
-
-      <div class="mt-auto w-full max-w-screen-2xl mx-auto px-4 md:px-8">
-        <Pagination page={page} />
-      </div>
+      
+      <FeedGrid page={page} allItems={allItems} />
     </div>
   </main>
 </Layout>
@@ -71,126 +67,3 @@ const description = 'Discover all articles, videos, and events from Be Unconvent
     }
   }
 </style>
-
-<script>
-  function initFeedClientFiltering() {
-    const isFeedPage = window.location.pathname.startsWith('/feed');
-    if (!isFeedPage) return;
-
-    const cards = document.querySelectorAll('.content-card') as NodeListOf<HTMLElement>;
-    const paginationNav = document.querySelector('.pagination-nav') as HTMLElement;
-    const categoryBtns = document.querySelectorAll('.cat-btn');
-    const typeBtns = document.querySelectorAll('.type-btn');
-    const openCategoriesBtn = document.getElementById('open-categories-btn');
-    const paginationLinks = document.querySelectorAll('.pagination-number, .pagination-arrow');
-
-    function applyFilters() {
-      const hash = window.location.hash.replace('#', '').toLowerCase();
-      let visibleCount = 0;
-
-      cards.forEach((card) => {
-        const categoriesAttr = card.getAttribute('data-categories') || '';
-        const categories = categoriesAttr.split(',');
-
-        if (!hash || categories.includes(hash)) {
-          card.style.display = '';
-          visibleCount++;
-        } else {
-          card.style.display = 'none';
-        }
-      });
-
-      // Dynamic Pagination Handling
-      if (paginationNav) {
-        // Hide pagination if filtering reduces visible dataset to less than limit (which is 12)
-        // Since we only have current page items in DOM, any filter applied hides pagination to prevent broken state.
-        if (hash) {
-          paginationNav.style.display = 'none';
-        } else {
-          paginationNav.style.display = '';
-        }
-      }
-
-      // Update Category Buttons Active State
-      categoryBtns.forEach((btn) => {
-        const btnCategory = btn.getAttribute('data-category');
-        if (hash && btnCategory === hash) {
-          btn.classList.add('active');
-        } else {
-          btn.classList.remove('active');
-        }
-      });
-
-      // Maintain hash on Type filter buttons
-      typeBtns.forEach(btn => {
-        if (!btn.hasAttribute('data-base-href')) {
-          btn.setAttribute('data-base-href', btn.getAttribute('href') || '');
-        }
-        const baseHref = btn.getAttribute('data-base-href');
-        if (hash) {
-          btn.setAttribute('href', `${baseHref}#${hash}`);
-        } else {
-          btn.setAttribute('href', baseHref || '');
-        }
-      });
-
-      // Maintain hash on Pagination links
-      paginationLinks.forEach(link => {
-        if (!link.hasAttribute('data-base-href') && link.hasAttribute('href')) {
-          link.setAttribute('data-base-href', link.getAttribute('href') || '');
-        }
-        const baseHref = link.getAttribute('data-base-href');
-        if (baseHref) {
-          if (hash) {
-            link.setAttribute('href', `${baseHref}#${hash}`);
-          } else {
-            link.setAttribute('href', baseHref);
-          }
-        }
-      });
-
-      // Update Mobile button state
-      if (openCategoriesBtn) {
-        if (hash) {
-          const activeBtn = Array.from(categoryBtns).find(btn => btn.getAttribute('data-category') === hash);
-          if (activeBtn) {
-            openCategoriesBtn.textContent = `Categories | ${activeBtn.textContent?.trim()}`;
-            openCategoriesBtn.classList.add('active');
-          }
-        } else {
-          openCategoriesBtn.textContent = 'Categories';
-          openCategoriesBtn.classList.remove('active');
-        }
-      }
-    }
-
-    // Attach click listeners to category buttons for smooth hash updates without scrolling
-    categoryBtns.forEach((btn) => {
-      if (!(btn as any).dataset.feedBound) {
-        btn.addEventListener('click', (e) => {
-          const hrefAttr = btn.getAttribute('href');
-          if (hrefAttr && hrefAttr.startsWith('#')) {
-            e.preventDefault();
-            const category = btn.getAttribute('data-category');
-            const currentHash = window.location.hash.replace('#', '').toLowerCase();
-            
-            if (currentHash === category) {
-              history.pushState(null, '', window.location.pathname); // Toggle off
-            } else {
-              history.pushState(null, '', `${window.location.pathname}#${category}`); // Toggle on
-            }
-            applyFilters();
-          }
-        });
-        (btn as any).dataset.feedBound = 'true';
-      }
-    });
-
-    window.addEventListener('hashchange', applyFilters);
-    
-    // Initial execution on load
-    applyFilters();
-  }
-
-  document.addEventListener('astro:page-load', initFeedClientFiltering);
-</script>

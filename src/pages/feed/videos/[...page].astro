@@ -4,8 +4,7 @@ import PageTitle from '../../../components/PageTitle.astro';
 import { site } from '../../../data/site.js';
 import { getVideosUnified } from '../../../lib/videos-source';
 import QuadrantFilter from '../../../components/QuadrantFilter.astro';
-import Pagination from '../../../components/Pagination.astro';
-import ContentCard from '../../../components/ContentCard.astro';
+import FeedGrid from '../../../components/FeedGrid.astro';
 import type { GetStaticPathsOptions } from 'astro';
 
 export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
@@ -19,7 +18,10 @@ export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
 }
 
 const { page } = Astro.props;
-const allItems = page.data;
+const videosData = await getVideosUnified();
+const allItems = [
+  ...videosData.map((v: any) => ({ ...v, type: 'video', image: v.thumbnail })),
+].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
 const pageNum = page.currentPage > 1 ? ` - Page ${page.currentPage}` : '';
 const title = `Videos${pageNum} | ${site.name}`;
@@ -38,25 +40,7 @@ const description = 'Discover the latest videos from Be Unconventional HQ.';
       {/* Structural h2 so card h3s don't skip a heading level (axe: heading-order). */}
       <h2 class="sr-only">All videos</h2>
       
-      {allItems.length > 0 ? (
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-screen-2xl mx-auto px-4 md:px-8">
-          {
-            allItems.map((item: any, index: number) => (
-              <ContentCard item={item} index={index} />
-            ))
-          }
-        </div>
-      ) : (
-        <div class="empty-state">
-          <p>No videos found.</p>
-        </div>
-      )}
-
-      {allItems.length > 0 && (
-        <div class="mt-auto w-full max-w-screen-2xl mx-auto px-4 md:px-8">
-          <Pagination page={page} />
-        </div>
-      )}
+      <FeedGrid page={page} allItems={allItems} />
     </div>
   </main>
 </Layout>

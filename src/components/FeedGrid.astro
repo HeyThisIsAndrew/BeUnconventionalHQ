@@ -1,0 +1,257 @@
+---
+import ContentCard from './ContentCard.astro';
+import Pagination from './Pagination.astro';
+
+export interface Props {
+  page: any;
+  allItems: any[];
+}
+
+const { page, allItems } = Astro.props;
+const currentItems = page.data;
+---
+
+{currentItems.length > 0 ? (
+  <div id="feed-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-screen-2xl mx-auto px-4 md:px-8">
+    {
+      currentItems.map((item: any, index: number) => (
+        <ContentCard item={item} index={index} />
+      ))
+    }
+  </div>
+) : (
+  <div id="feed-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-screen-2xl mx-auto px-4 md:px-8">
+    <div class="empty-state col-span-full">
+      <p>No content found.</p>
+    </div>
+  </div>
+)}
+
+<template id="full-dataset-cards">
+  {allItems.map((item: any, index: number) => (
+    <ContentCard item={item} index={index} />
+  ))}
+</template>
+
+{currentItems.length > 0 && (
+  <div class="mt-auto w-full max-w-screen-2xl mx-auto px-4 md:px-8">
+    <div id="standard-pagination">
+      <Pagination page={page} />
+    </div>
+    <div id="load-more-container" style="display: none; text-align: center; margin-top: 3rem;">
+      <button id="load-more-btn" class="quadrant-btn">
+        Load More
+      </button>
+    </div>
+  </div>
+)}
+
+<style>
+  .empty-state {
+    text-align: center;
+    padding: 4rem;
+    color: var(--color-white-muted);
+  }
+  .quadrant-btn {
+    padding: 1.25rem 2rem;
+    background: rgba(10, 10, 10, 0.6);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--color-white);
+    font-size: 1.1rem;
+    font-weight: 700;
+    font-family: var(--font-display);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .quadrant-btn:hover, .quadrant-btn:focus-visible {
+    background: rgba(239, 68, 68, 0.1);
+    border: 2px solid var(--color-accent, #ef4444);
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+    transform: translateY(-2px);
+  }
+</style>
+
+<script>
+  function initFeedClientFiltering() {
+    const isFeedPage = window.location.pathname.startsWith('/feed');
+    if (!isFeedPage) return;
+
+    const feedGrid = document.getElementById('feed-grid');
+    const template = document.getElementById('full-dataset-cards') as HTMLTemplateElement;
+    const standardPagination = document.getElementById('standard-pagination');
+    const loadMoreContainer = document.getElementById('load-more-container');
+    const loadMoreBtn = document.getElementById('load-more-btn');
+    const categoryBtns = document.querySelectorAll('.cat-btn');
+    const typeBtns = document.querySelectorAll('.type-btn');
+    const openCategoriesBtn = document.getElementById('open-categories-btn');
+    const paginationLinks = document.querySelectorAll('.pagination-number, .pagination-arrow');
+
+    if (!feedGrid || !template) return;
+
+    // Save initial static HTML if not saved yet so we can restore it on clear filter
+    if (!feedGrid.dataset.originalHtml) {
+      feedGrid.dataset.originalHtml = feedGrid.innerHTML;
+    }
+
+    let currentMatches: HTMLElement[] = [];
+    let currentlyDisplayedCount = 0;
+    const PAGE_SIZE = 12;
+
+    function renderMoreItems() {
+      const fragment = document.createDocumentFragment();
+      const nextBatch = currentMatches.slice(currentlyDisplayedCount, currentlyDisplayedCount + PAGE_SIZE);
+      
+      nextBatch.forEach((node, index) => {
+        node.style.display = ''; 
+        // Re-calculate animation delays based on index in current batch
+        node.setAttribute('data-delay', (index * 100).toString());
+        fragment.appendChild(node);
+      });
+
+      feedGrid?.appendChild(fragment);
+      currentlyDisplayedCount += nextBatch.length;
+
+      if (loadMoreContainer) {
+        if (currentlyDisplayedCount < currentMatches.length) {
+          loadMoreContainer.style.display = 'block';
+        } else {
+          loadMoreContainer.style.display = 'none';
+        }
+      }
+    }
+
+    function applyFilters() {
+      const hash = window.location.hash.replace('#', '').toLowerCase();
+
+      // Maintain hash on Type filter buttons
+      typeBtns.forEach(btn => {
+        if (!btn.hasAttribute('data-base-href')) {
+          btn.setAttribute('data-base-href', btn.getAttribute('href') || '');
+        }
+        const baseHref = btn.getAttribute('data-base-href');
+        if (hash) {
+          btn.setAttribute('href', `${baseHref}#${hash}`);
+        } else {
+          btn.setAttribute('href', baseHref || '');
+        }
+      });
+
+      // Maintain hash on Pagination links
+      paginationLinks.forEach(link => {
+        if (!link.hasAttribute('data-base-href') && link.hasAttribute('href')) {
+          link.setAttribute('data-base-href', link.getAttribute('href') || '');
+        }
+        const baseHref = link.getAttribute('data-base-href');
+        if (baseHref) {
+          if (hash) {
+            link.setAttribute('href', `${baseHref}#${hash}`);
+          } else {
+            link.setAttribute('href', baseHref);
+          }
+        }
+      });
+
+      // Update Category Buttons Active State
+      categoryBtns.forEach((btn) => {
+        const btnCategory = btn.getAttribute('data-category');
+        if (hash && btnCategory === hash) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+
+      // Update Mobile button state
+      if (openCategoriesBtn) {
+        if (hash) {
+          const activeBtn = Array.from(categoryBtns).find(btn => btn.getAttribute('data-category') === hash);
+          if (activeBtn) {
+            openCategoriesBtn.textContent = `Categories | ${activeBtn.textContent?.trim()}`;
+            openCategoriesBtn.classList.add('active');
+          }
+        } else {
+          openCategoriesBtn.textContent = 'Categories';
+          openCategoriesBtn.classList.remove('active');
+        }
+      }
+
+      if (!hash) {
+        // Reset State
+        if (feedGrid) feedGrid.innerHTML = feedGrid.dataset.originalHtml || '';
+        if (standardPagination) standardPagination.style.display = '';
+        if (loadMoreContainer) loadMoreContainer.style.display = 'none';
+        return;
+      }
+
+      // Hide standard pagination
+      if (standardPagination) {
+        standardPagination.style.display = 'none';
+      }
+
+      // Filter elements from the full dataset template
+      const allCards = template.content.querySelectorAll('.content-card');
+      currentMatches = [];
+      currentlyDisplayedCount = 0;
+
+      allCards.forEach(card => {
+        const categoriesAttr = card.getAttribute('data-categories') || '';
+        const categories = categoriesAttr.split(',');
+        if (categories.includes(hash)) {
+          currentMatches.push(card.cloneNode(true) as HTMLElement);
+        }
+      });
+
+      // Clear current grid
+      if (feedGrid) {
+        feedGrid.innerHTML = '';
+        if (currentMatches.length === 0) {
+          feedGrid.innerHTML = '<div class="empty-state col-span-full"><p>No items found for this filter.</p></div>';
+          if (loadMoreContainer) loadMoreContainer.style.display = 'none';
+        } else {
+          renderMoreItems();
+        }
+      }
+    }
+
+    if (loadMoreBtn && !loadMoreBtn.dataset.bound) {
+      loadMoreBtn.addEventListener('click', renderMoreItems);
+      loadMoreBtn.dataset.bound = 'true';
+    }
+
+    // Attach click listeners to category buttons for smooth hash updates without scrolling
+    categoryBtns.forEach((btn) => {
+      if (!(btn as any).dataset.feedBound) {
+        btn.addEventListener('click', (e) => {
+          const hrefAttr = btn.getAttribute('href');
+          if (hrefAttr && hrefAttr.startsWith('#')) {
+            e.preventDefault();
+            const category = btn.getAttribute('data-category');
+            const currentHash = window.location.hash.replace('#', '').toLowerCase();
+            
+            if (currentHash === category) {
+              history.pushState(null, '', window.location.pathname); // Toggle off
+            } else {
+              history.pushState(null, '', `${window.location.pathname}#${category}`); // Toggle on
+            }
+            applyFilters();
+          }
+        });
+        (btn as any).dataset.feedBound = 'true';
+      }
+    });
+
+    window.addEventListener('hashchange', applyFilters);
+    
+    // Initial execution on load
+    applyFilters();
+  }
+
+  document.addEventListener('astro:page-load', initFeedClientFiltering);
+</script>
