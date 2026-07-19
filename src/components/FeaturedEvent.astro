@@ -40,20 +40,21 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
     {/* Top Row: Logo + Meta (side-by-side on mobile, stacked on desktop) */}
     <div class="flex flex-row items-center gap-4 md:flex-col md:items-start md:gap-0 w-full mb-4">
       {/* Logo */}
-      <div class="flex-shrink-0 w-32 sm:w-40 md:w-auto">
+      <div class="flex-shrink-0 w-32 sm:w-40 md:w-auto flex flex-row items-end gap-4 md:gap-10 md:mb-4">
         {logoUrl ? (
           <>
-            <img src={logoUrl} alt={`${event.title} logo`} class="fe-logo w-full h-auto md:w-auto md:mb-4" />
+            <img src={logoUrl} alt={`${event.title} logo`} class="fe-logo w-full h-auto md:w-auto" />
             <h2 class="sr-only">{event.title}</h2>
           </>
         ) : (
-          <h2 class="fe-title md:mb-4">{event.title}</h2>
+          <h2 class="fe-title">{event.title}</h2>
         )}
+        <div class="hidden md:inline-block fe-eyebrow mb-1"><EventStatusIndicator event={event} /></div>
       </div>
 
       {/* Meta Box */}
       <div class="flex flex-col flex-1 min-w-0 md:w-auto">
-        <div class="fe-eyebrow md:mb-2"><EventStatusIndicator event={event} /></div>
+        <div class="inline-block md:hidden fe-eyebrow mb-1"><EventStatusIndicator event={event} /></div>
         <p class="fe-meta !mb-0 text-sm md:text-base leading-tight md:leading-normal">
           <span class="fe-dates block md:inline">{dateLabel}</span>
           {locationLabel && (
@@ -149,7 +150,6 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
   }
 
   .fe-eyebrow {
-    display: inline-block;
     font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.2em;
@@ -163,6 +163,7 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
     width: auto;
     height: auto;
     object-fit: contain;
+    transform-origin: left bottom;
     transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
 
