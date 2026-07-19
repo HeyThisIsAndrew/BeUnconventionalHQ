@@ -337,6 +337,11 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
               el.style.opacity = '1';
               el.style.transform = 'none';
               obs.unobserve(el);
+              
+              // Clear the delay after the animation completes so hover effects aren't permanently delayed
+              setTimeout(() => {
+                if (el) el.style.transitionDelay = '';
+              }, parseInt(delay) + 600);
             });
           },
           { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }

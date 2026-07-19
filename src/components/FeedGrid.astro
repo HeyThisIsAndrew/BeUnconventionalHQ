@@ -92,6 +92,11 @@ const currentItems = page.data;
         node.style.transitionDelay = (index * 100) + 'ms';
         node.setAttribute('data-delay', (index * 100).toString());
         
+        // Clear the delay after the entrance animation finishes
+        setTimeout(() => {
+          if (node) node.style.transitionDelay = '';
+        }, (index * 100) + 600);
+        
         fragment.appendChild(node);
       });
 
@@ -176,6 +181,10 @@ const currentItems = page.data;
             node.style.opacity = '1';
             node.style.transform = 'none';
             node.style.transitionDelay = (index * 50) + 'ms';
+            
+            setTimeout(() => {
+              if (node) node.style.transitionDelay = '';
+            }, (index * 50) + 600);
           });
         }
         if (standardPagination) standardPagination.style.display = '';
