@@ -16,6 +16,7 @@ export default defineConfig({
   redirects: {
     '/articles': '/feed/articles',
     '/videos': '/feed/videos',
+    '/events-new': '/events',
   },
   build: {
     assets: 'assets',
@@ -35,7 +36,7 @@ export default defineConfig({
       // /admin is the embedded Sanity Studio (injected by studioBasePath) —
       // a CMS interface must never be advertised to search engines.
       filter: (page) =>
-        !page.includes('/events-new') && !page.includes('/links') && !page.includes('/admin'),
+        !page.includes('/links') && !page.includes('/admin'),
     }),
     sanity({
       projectId: '38nhxsib',

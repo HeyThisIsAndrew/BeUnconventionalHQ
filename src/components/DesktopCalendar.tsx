@@ -206,7 +206,7 @@ const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
             return (
               <a
                 key={slugStr}
-                href={isPast ? undefined : `/events-new/${slugStr}`}
+                href={isPast ? undefined : `/events/${slugStr}`}
                 className={`dc-event-item ${isPast ? 'is-past' : ''}`}
                 data-event-id={slugStr}
                 onMouseEnter={() => setHoveredEventId(slugStr)}
@@ -264,7 +264,7 @@ const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
               return (
                 <Element
                   key={segment.id}
-                  href={segment.isPast ? undefined : `/events-new/${segment.slug}`}
+                  href={segment.isPast ? undefined : `/events/${segment.slug}`}
                   data-event-id={segment.slug}
                   className={`dc-highlighter-bar ${segment.isStart ? 'is-start' : ''} ${
                     segment.isEnd ? 'is-end' : ''
