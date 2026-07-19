@@ -72,6 +72,7 @@ const currentItems = page.data;
 
     let currentMatches: HTMLElement[] = [];
     let currentlyDisplayedCount = 0;
+    let hasFiltered = false;
     const PAGE_SIZE = 12;
 
     function renderMoreItems() {
@@ -160,12 +161,27 @@ const currentItems = page.data;
       }
 
       if (!hash) {
+        // If we haven't filtered yet, the DOM is perfectly intact from Astro.
+        if (!hasFiltered) return;
+
         // Reset State
-        if (feedGrid) feedGrid.innerHTML = feedGrid.dataset.originalHtml || '';
+        if (feedGrid) {
+          feedGrid.innerHTML = feedGrid.dataset.originalHtml || '';
+          // Ensure restored cards become visible since the original observer is gone
+          const restoredCards = feedGrid.querySelectorAll('.reveal');
+          restoredCards.forEach((node: any, index: number) => {
+            node.setAttribute('data-state', 'in');
+            node.style.opacity = '1';
+            node.style.transform = 'none';
+            node.style.transitionDelay = (index * 50) + 'ms';
+          });
+        }
         if (standardPagination) standardPagination.style.display = '';
         if (loadMoreContainer) loadMoreContainer.style.display = 'none';
         return;
       }
+
+      hasFiltered = true;
 
       // Hide standard pagination
       if (standardPagination) {
