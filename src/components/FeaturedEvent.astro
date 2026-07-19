@@ -36,26 +36,39 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
   </div>
   <div class="fe-overlay"></div>
 
-  <div class="fe-content">
-    <div class="fe-eyebrow"><EventStatusIndicator event={event} /></div>
+  <div class="fe-content w-full">
+    {/* Top Row: Logo + Meta (side-by-side on mobile, stacked on desktop) */}
+    <div class="flex flex-row items-center gap-4 md:flex-col md:items-start md:gap-0 w-full mb-4">
+      {/* Logo */}
+      <div class="flex-shrink-0 w-32 sm:w-40 md:w-auto">
+        {logoUrl ? (
+          <>
+            <img src={logoUrl} alt={`${event.title} logo`} class="fe-logo w-full h-auto md:w-auto md:mb-4" />
+            <h2 class="sr-only">{event.title}</h2>
+          </>
+        ) : (
+          <h2 class="fe-title md:mb-4">{event.title}</h2>
+        )}
+      </div>
 
-    {logoUrl ? (
-      <>
-        <img src={logoUrl} alt={`${event.title} logo`} class="fe-logo" />
-        <h2 class="sr-only">{event.title}</h2>
-      </>
-    ) : (
-      <h2 class="fe-title">{event.title}</h2>
-    )}
+      {/* Meta Box */}
+      <div class="flex flex-col flex-1 min-w-0 md:w-auto">
+        <div class="fe-eyebrow md:mb-2"><EventStatusIndicator event={event} /></div>
+        <p class="fe-meta !mb-0 text-sm md:text-base leading-tight md:leading-normal">
+          <span class="fe-dates block md:inline">{dateLabel}</span>
+          {locationLabel && (
+            <span class="fe-location block md:inline mt-1 md:mt-0">
+              <span class="hidden md:inline mx-2 text-gray-400">•</span>
+              {locationLabel}
+            </span>
+          )}
+        </p>
+      </div>
+    </div>
 
-    <p class="fe-meta">
-      <span class="fe-dates">{dateLabel}</span>
-      {locationLabel && <span class="fe-location"> • {locationLabel}</span>}
-    </p>
+    {event.description && <p class="fe-desc mt-2">{event.description}</p>}
 
-    {event.description && <p class="fe-desc">{event.description}</p>}
-
-    <a href={`/events/${slug}`} class="fe-cta">
+    <a href={`/events/${slug}`} class="fe-cta mt-2 md:mt-4">
       Explore Coverage
       <span aria-hidden="true">→</span>
     </a>
@@ -142,7 +155,6 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
     letter-spacing: 0.2em;
     text-transform: uppercase;
     color: var(--brand);
-    margin-bottom: 1rem;
   }
 
   .fe-logo {
@@ -151,7 +163,6 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
     width: auto;
     height: auto;
     object-fit: contain;
-    margin-bottom: 1rem;
     transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
 
@@ -163,7 +174,7 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
     letter-spacing: -0.02em;
     text-transform: uppercase;
     color: #fff;
-    margin: 0 0 1rem;
+    margin: 0;
     text-shadow: 0 6px 30px rgba(0, 0, 0, 0.6);
   }
 
@@ -172,11 +183,11 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
     color: #e5e5e5;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    margin: 0 0 1rem;
+    margin: 0;
   }
   .fe-dates,
   .fe-location {
-    display: inline-block;
+    /* controlled by Tailwind classes */
   }
 
   .fe-desc {
