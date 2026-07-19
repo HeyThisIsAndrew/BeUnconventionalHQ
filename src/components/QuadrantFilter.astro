@@ -73,17 +73,16 @@ const isFeed = currentPath === '/feed' || currentPath === '/feed/';
         categories.map((c) => {
           const slug = c.toLowerCase();
           const expectedHubPath = `/category/${slug}`;
-          const expectedFeedPath = `/feed/${slug}`;
-          
-          const isActive = currentPath.startsWith(expectedHubPath) || currentPath.startsWith(expectedFeedPath);
-          const className = `quadrant-btn cat-btn ${isActive ? 'active' : ''}`;
           
           const isFeedContext = currentPath.startsWith('/feed');
-          const baseRoute = isFeedContext ? expectedFeedPath : expectedHubPath;
-          const hrefTarget = (isActive && isFeedContext) ? '/feed' : baseRoute;
+          // In feed context, active state is primarily managed client-side via hash
+          const isActive = !isFeedContext && currentPath.startsWith(expectedHubPath);
+          const className = `quadrant-btn cat-btn ${isActive ? 'active' : ''}`;
+          
+          const hrefTarget = isFeedContext ? `#${slug}` : expectedHubPath;
 
           return (
-            <a href={hrefTarget} class={className}>
+            <a href={hrefTarget} class={className} data-category={slug}>
               {c}
             </a>
           );
@@ -104,17 +103,15 @@ const isFeed = currentPath === '/feed' || currentPath === '/feed/';
           categories.map((c) => {
             const slug = c.toLowerCase();
             const expectedHubPath = `/category/${slug}`;
-            const expectedFeedPath = `/feed/${slug}`;
-            
-            const isActive = currentPath.startsWith(expectedHubPath) || currentPath.startsWith(expectedFeedPath);
-            const className = `quadrant-btn cat-btn ${isActive ? 'active' : ''}`;
             
             const isFeedContext = currentPath.startsWith('/feed');
-            const baseRoute = isFeedContext ? expectedFeedPath : expectedHubPath;
-            const hrefTarget = (isActive && isFeedContext) ? '/feed' : baseRoute;
+            const isActive = !isFeedContext && currentPath.startsWith(expectedHubPath);
+            const className = `quadrant-btn cat-btn ${isActive ? 'active' : ''}`;
+            
+            const hrefTarget = isFeedContext ? `#${slug}` : expectedHubPath;
 
             return (
-              <a href={hrefTarget} class={className}>
+              <a href={hrefTarget} class={className} data-category={slug}>
                 {c}
               </a>
             );
@@ -469,7 +466,20 @@ const isFeed = currentPath === '/feed' || currentPath === '/feed/';
           categoryModal.close();
         }
 
-        navigate((link as HTMLAnchorElement).href);
+        const hrefAttr = link.getAttribute('href');
+        
+        if (hrefAttr && hrefAttr.startsWith('#')) {
+          // It's a client-side filter hash
+          const currentHash = window.location.hash;
+          if (currentHash === hrefAttr) {
+            history.pushState(null, '', window.location.pathname);
+          } else {
+            history.pushState(null, '', window.location.pathname + hrefAttr);
+          }
+          window.dispatchEvent(new Event('hashchange'));
+        } else {
+          navigate((link as HTMLAnchorElement).href);
+        }
       });
       categoryModal.dataset.boundNavDelegation = 'true';
     }
