@@ -5,6 +5,7 @@ import sitemap from '@astrojs/sitemap';
 import cloudflare from '@astrojs/cloudflare';
 import sanity from '@sanity/astro';
 import react from '@astrojs/react';
+import partytown from '@astrojs/partytown';
 
 export default defineConfig({
   site: 'https://beunconventionalhq.com',
@@ -25,6 +26,11 @@ export default defineConfig({
     plugins: [tailwindcss()],
   },
   integrations: [
+    partytown({
+      config: {
+        forward: ['dataLayer.push'],
+      },
+    }),
     react(),
     sitemap({
       // WIP routes are excluded from the sitemap so Google doesn't treat them
