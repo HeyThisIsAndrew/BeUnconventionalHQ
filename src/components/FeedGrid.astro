@@ -21,7 +21,7 @@ const currentItems = page.data;
   </div>
 ) : (
   <div id="feed-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-screen-2xl mx-auto px-4 md:px-8">
-    <div class="empty-state col-span-full">
+    <div class="col-span-full text-center py-16 text-white/50">
       <p>No content found.</p>
     </div>
   </div>
@@ -38,45 +38,15 @@ const currentItems = page.data;
     <div id="standard-pagination">
       <Pagination page={page} />
     </div>
-    <div id="load-more-container" style="display: none; text-align: center; margin-top: 3rem;">
-      <button id="load-more-btn" class="quadrant-btn">
+    <div id="load-more-container" style="display: none;" class="text-center mt-12 w-full">
+      <button id="load-more-btn" class="inline-flex items-center justify-center px-8 py-5 bg-black/60 backdrop-blur-md border border-white/10 text-white text-lg font-bold font-display transition-all duration-300 ease-out hover:bg-red-500/10 hover:border-red-500 hover:shadow-[0_0_15px_rgba(239,68,68,0.5)] hover:-translate-y-0.5 focus-visible:bg-red-500/10 focus-visible:border-red-500 focus-visible:shadow-[0_0_15px_rgba(239,68,68,0.5)] focus-visible:-translate-y-0.5 outline-none cursor-pointer w-full sm:w-auto">
         Load More
       </button>
     </div>
   </div>
 )}
 
-<style>
-  .empty-state {
-    text-align: center;
-    padding: 4rem;
-    color: var(--color-white-muted);
-  }
-  .quadrant-btn {
-    padding: 1.25rem 2rem;
-    background: rgba(10, 10, 10, 0.6);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: var(--color-white);
-    font-size: 1.1rem;
-    font-weight: 700;
-    font-family: var(--font-display);
-    cursor: pointer;
-    transition: all 0.3s ease;
-    text-align: center;
-    outline: none;
-    -webkit-tap-highlight-color: transparent;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .quadrant-btn:hover, .quadrant-btn:focus-visible {
-    background: rgba(239, 68, 68, 0.1);
-    border: 2px solid var(--color-accent, #ef4444);
-    box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
-    transform: translateY(-2px);
-  }
-</style>
+
 
 <script>
   function initFeedClientFiltering() {
@@ -212,7 +182,7 @@ const currentItems = page.data;
       if (feedGrid) {
         feedGrid.innerHTML = '';
         if (currentMatches.length === 0) {
-          feedGrid.innerHTML = '<div class="empty-state col-span-full"><p>No items found for this filter.</p></div>';
+          feedGrid.innerHTML = '<div class="col-span-full text-center py-16 text-white/50"><p>No items found for this filter.</p></div>';
           if (loadMoreContainer) loadMoreContainer.style.display = 'none';
         } else {
           renderMoreItems();
