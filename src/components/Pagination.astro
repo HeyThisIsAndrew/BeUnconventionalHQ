@@ -64,53 +64,17 @@ const getUrlForPage = (num: number) => {
 ---
 
 {lastPage > 1 && (
-  <nav class="pagination-nav animate-on-scroll" aria-label="Pagination">
-    {url.prev ? (
-      <a href={url.prev} class="pagination-arrow" aria-label="Previous Page">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="15 18 9 12 15 6"></polyline>
-        </svg>
+  <nav class="pagination-nav animate-on-scroll w-full flex justify-center gap-4" aria-label="Pagination">
+    {url.prev && (
+      <a href={url.prev} class="cta-button-primary" aria-label="Previous Page">
+        Previous Page
       </a>
-    ) : (
-      <span class="pagination-arrow disabled" aria-hidden="true">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="15 18 9 12 15 6"></polyline>
-        </svg>
-      </span>
     )}
-
-    <div class="pagination-numbers">
-      {pageNumbers.map((num) => {
-        if (num === '...') {
-          return <span class="pagination-ellipsis">...</span>;
-        }
-        
-        const isCurrent = num === currentPage;
-        
-        return (
-          <a
-            href={getUrlForPage(num as number)}
-            class={`pagination-number ${isCurrent ? 'active' : ''}`}
-            aria-current={isCurrent ? 'page' : undefined}
-          >
-            {num}
-          </a>
-        );
-      })}
-    </div>
-
-    {url.next ? (
-      <a href={url.next} class="pagination-arrow" aria-label="Next Page">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="9 18 15 12 9 6"></polyline>
-        </svg>
+    
+    {url.next && (
+      <a href={url.next} class="cta-button-primary" aria-label="Next Page">
+        Next Page
       </a>
-    ) : (
-      <span class="pagination-arrow disabled" aria-hidden="true">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="9 18 15 12 9 6"></polyline>
-        </svg>
-      </span>
     )}
   </nav>
 )}
