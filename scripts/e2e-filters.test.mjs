@@ -39,29 +39,27 @@ async function runTests() {
     // To make it robust, we'll navigate to /events, click the first event, and test there.
     console.log('Navigating to /events to find an event detail page...');
     await page.goto('http://localhost:4321/events');
-    
-    const eventLink = await page.$('a.video-card-home');
+    await page.waitForSelector('a[href^="/events/"]', { timeout: 3000 }).catch(() => {});
+    const eventLink = await page.$('a[href^="/events/"]');
     if (!eventLink) {
-      console.log('⚠️ No events found to test. Skipping event filter tests.');
-    } else {
-      const eventHref = await page.evaluate(el => el.href, eventLink);
-      console.log(`Testing event page: ${eventHref}`);
-      await page.goto(eventHref);
-      await testFilterInteractions(page, 'Event Detail');
+      throw new Error('Production data missing: No events found on /events. E2E tests require at least one valid event fixture.');
     }
+    const eventHref = await page.evaluate(el => el.href, eventLink);
+    console.log(`Testing event page: ${eventHref}`);
+    await page.goto(eventHref);
+    await testFilterInteractions(page, 'Event Detail');
 
     console.log('Navigating to /featured to find a featured detail page...');
     await page.goto('http://localhost:4321/featured');
-    
-    const featuredLink = await page.$('a.video-card-home');
+    await page.waitForSelector('a[href^="/featured/"]', { timeout: 3000 }).catch(() => {});
+    const featuredLink = await page.$('a[href^="/featured/"]');
     if (!featuredLink) {
-      console.log('⚠️ No featured collections found to test. Skipping featured filter tests.');
-    } else {
-      const featuredHref = await page.evaluate(el => el.href, featuredLink);
-      console.log(`Testing featured page: ${featuredHref}`);
-      await page.goto(featuredHref);
-      await testFilterInteractions(page, 'Featured Detail');
+      throw new Error('Production data missing: No featured collections found on /featured. E2E tests require at least one valid featured fixture.');
     }
+    const featuredHref = await page.evaluate(el => el.href, featuredLink);
+    console.log(`Testing featured page: ${featuredHref}`);
+    await page.goto(featuredHref);
+    await testFilterInteractions(page, 'Featured Detail');
 
     console.log('✅ All E2E filter tests passed.');
   } catch (error) {
@@ -75,7 +73,13 @@ async function runTests() {
 }
 
 async function testFilterInteractions(page, contextName) {
-  // Wait for hydration (astro:page-load event completes)
+  // Check if page has content
+  const emptyState = await page.$('.empty-state');
+  if (emptyState) {
+    throw new Error(`Production data missing: ${contextName} page has no content. E2E tests require at least one populated detail page.`);
+  }
+
+  // Wait for the filters to be present in the DOM
   await page.waitForSelector('.filter-btn', { timeout: 5000 });
   
   // Get all content cards

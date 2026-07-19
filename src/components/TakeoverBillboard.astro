@@ -9,7 +9,7 @@
  * credentials exist.
  *
  * Playback reuses the site's global video modal (Layout's #video-modal via the
- * .video-modal-trigger delegation); the script injects the live videoId before
+ * data-action="open-video" delegation); the script injects the live videoId before
  * revealing. A "Watch on YouTube" link is populated as the escape hatch for
  * streams that disallow embedding.
  */
@@ -203,7 +203,10 @@
       if (title && stream.title) title.textContent = stream.title;
 
       const trigger = billboard.querySelector('.video-modal-trigger');
-      if (trigger) trigger.setAttribute('data-video-id', stream.videoId);
+      if (trigger) {
+        trigger.setAttribute('data-video-id', stream.videoId);
+        trigger.setAttribute('data-action', 'open-video');
+      }
 
       const external = billboard.querySelector<HTMLAnchorElement>('.tb-external');
       if (external && stream.url) external.href = stream.url;

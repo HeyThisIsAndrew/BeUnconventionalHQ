@@ -276,9 +276,11 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
         // Global Event Delegation for Video Triggers
         if (!window.videoModalSetup) {
           document.addEventListener('click', (e) => {
-            const trigger = e.target.closest('.video-modal-trigger');
-            if (trigger) {
-              e.preventDefault();
+          if (!(e.target instanceof Element)) return;
+          const trigger = e.target.closest('[data-action="open-video"]');
+          
+          if (trigger) {
+            e.preventDefault();
               const videoId = trigger.getAttribute('data-video-id');
               if (videoId) openModal(videoId);
             }

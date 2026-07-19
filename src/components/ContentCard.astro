@@ -9,6 +9,7 @@ export interface Props {
 const { item, index = 0 } = Astro.props;
 const isVideo = item.contentType === 'video' || item.type === 'video';
 const videoId = isVideo ? parseVideoId(item.link) : null;
+const isPlayable = isVideo && !!videoId;
 
 // Determine primary label for the badge
 const itemTags = Array.isArray(item.tags) ? item.tags : [item.category || 'General'];
@@ -23,21 +24,22 @@ else primaryLabel = item.category || 'Article';
 
 // Render anchor or div depending on type. We use 'video-card-home' for both
 // so they share the exact hover effects from home-cards.css.
-const CardWrapper = isVideo ? 'div' : 'a';
-const wrapperProps = isVideo
+const CardWrapper = isPlayable ? 'div' : 'a';
+const wrapperProps = isPlayable
   ? {
       class: "reveal video-card-home content-card video-modal-trigger w-full",
       'data-delay': index * 100,
       'data-type': 'video',
       'data-video-id': videoId,
+      'data-action': 'open-video',
       style: "background: var(--color-surface); border: 1px solid rgba(255,255,255,0.05); overflow: hidden; text-decoration: none; display: flex; flex-direction: column; transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; min-height: 100%; cursor: pointer;"
     }
   : {
       href: item.link || '#',
       target: '_blank',
       rel: 'noopener noreferrer',
-      class: "reveal video-card-home content-card w-full",
-      'data-type': 'article',
+      class: `reveal video-card-home content-card w-full ${isVideo ? 'video-modal-trigger' : ''}`,
+      'data-type': isVideo ? 'video' : 'article',
       'data-delay': index * 100,
       style: "background: var(--color-surface); border: 1px solid rgba(255,255,255,0.05); overflow: hidden; text-decoration: none; display: flex; flex-direction: column; transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; min-height: 100%; cursor: pointer;"
     };
