@@ -23,6 +23,7 @@ export interface UnifiedVideo {
   isShort: boolean;
   isLive: boolean;
   isEvent: boolean;
+  contentType: 'video';
   youtubeId?: string;
   durationSeconds?: number;
   featured?: boolean;
@@ -84,6 +85,7 @@ export function mapSanityVideo(doc: any, { categorize }: MapOptions = {}): Unifi
     isShort: doc.isShort ?? false,
     isLive: doc.isLive ?? false,
     isEvent: doc.isEvent ?? false,
+    contentType: 'video',
     youtubeId: id,
     durationSeconds: doc.durationSeconds,
     featured: doc.featured ?? false,
