@@ -95,6 +95,8 @@ const isFeed = currentPath === '/feed' || currentPath === '/feed/';
 <dialog
   id="category-modal"
   class="fade-in-overlay"
+  aria-label="Categories menu"
+  tabindex="-1"
 >
   <div class="modal-content">
     <div class="filter-row category-row">
@@ -191,7 +193,8 @@ const isFeed = currentPath === '/feed' || currentPath === '/feed/';
     cursor: pointer;
     transition: all 0.3s ease;
     text-align: center;
-    outline: none;
+    outline: 2px solid transparent;
+    outline-offset: -2px;
     -webkit-tap-highlight-color: transparent;
     text-decoration: none;
     display: flex;
@@ -232,6 +235,7 @@ const isFeed = currentPath === '/feed' || currentPath === '/feed/';
     .cat-btn:hover,
     .quadrant-btn:not(.type-btn):not(.cat-btn):hover {
       transform: none !important;
+      transition: none !important;
     }
   }
 
@@ -320,6 +324,10 @@ const isFeed = currentPath === '/feed' || currentPath === '/feed/';
 
   #category-modal[open]::backdrop {
     animation: fadeInBackdrop 0.3s ease-out forwards;
+  }
+
+  #category-modal:focus {
+    outline: none;
   }
 
   @keyframes fadeIn {
@@ -440,6 +448,7 @@ const isFeed = currentPath === '/feed' || currentPath === '/feed/';
           }
         } else {
           categoryModal.showModal();
+          categoryModal.focus();
         }
       });
       openBtn.dataset.bound = 'true';
@@ -479,25 +488,15 @@ const isFeed = currentPath === '/feed' || currentPath === '/feed/';
         const link = (e.target as HTMLElement).closest('a.cat-btn');
         if (!link) return;
 
-        e.preventDefault();
+        const hrefAttr = link.getAttribute('href');
 
         if (categoryModal.open) {
           categoryModal.classList.remove('closing');
           categoryModal.close();
         }
-
-        const hrefAttr = link.getAttribute('href');
         
-        if (hrefAttr && hrefAttr.startsWith('#')) {
-          // It's a client-side filter hash
-          const currentHash = window.location.hash;
-          if (currentHash === hrefAttr) {
-            history.pushState(null, '', window.location.pathname);
-          } else {
-            history.pushState(null, '', window.location.pathname + hrefAttr);
-          }
-          window.dispatchEvent(new Event('hashchange'));
-        } else {
+        if (hrefAttr && !hrefAttr.startsWith('#')) {
+          e.preventDefault();
           navigate((link as HTMLAnchorElement).href);
         }
       });
