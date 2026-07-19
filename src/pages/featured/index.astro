@@ -26,14 +26,14 @@ try {
 ---
 
 <Layout title={title} description={description}>
-  <main class="events-page flex-1 flex flex-col">
-    <div class="container">
+  <main class="events-page" style="display: flex; flex-direction: column; flex: 1 1 0%; width: 100%; min-height: 50vh; padding-top: 120px;">
+    <div class="container" style="max-width: 1536px; margin: 0 auto; padding: 0 2rem; width: 100%;">
       <header class="section-header animate-on-scroll" data-nav-anchor style="text-align: center; margin-bottom: 2rem;">
         <PageTitle as="h1" kicker="Spotlight" primary="Featured" secondary="Hubs" />
       </header>
 
       {brands.length > 0 ? (
-        <div class="event-grid">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 2rem; width: 100%;">
           {brands.map((brand: any, index: number) => {
             const heroUrl = brand.heroImage
               ? urlFor(brand.heroImage).width(800).height(450).auto('format').url()
@@ -47,9 +47,9 @@ try {
               <a
                 href={`/featured/${brand.slug.current}`}
                 class="event-card animate-on-scroll"
-                style={`--index: ${index};`}
+                style={`--index: ${index}; width: 100%;`}
               >
-                <div class="event-image-wrapper">
+                <div class="event-image-wrapper w-full aspect-video">
                   <img
                     src={heroUrl}
                     alt={brand.title}
@@ -86,11 +86,10 @@ try {
       ) : (
         <p class="featured-empty">Dedicated coverage hubs are coming soon.</p>
       )}
-
     </div>
 
     {/* Inside <main> so the section sits in a landmark (axe: region). */}
-    <div class="mt-auto w-full">
+    <div style="margin-top: auto; width: 100%; max-width: 1536px; margin-left: auto; margin-right: auto; padding-left: 2rem; padding-right: 2rem; margin-bottom: 2rem; position: relative; z-index: 10;">
       <EventBookingCTA
         kicker="Collaborations"
         primary="Want to be"
