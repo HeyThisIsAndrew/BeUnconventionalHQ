@@ -88,6 +88,19 @@ async function runTests() {
       return wrapper ? !wrapper.hasAttribute('inert') : true;
     });
     assert.ok(appWrapperActive, '#app-wrapper should no longer be inert');
+    
+    console.log('Testing ESC key close...');
+    await firstTrigger.click();
+    await page.waitForSelector('#video-modal', { visible: true, timeout: 3000 });
+    
+    await page.keyboard.press('Escape');
+    await new Promise(r => setTimeout(r, 500));
+    
+    const isModalHiddenEsc = await page.evaluate(() => {
+      const modal = document.getElementById('video-modal');
+      return window.getComputedStyle(modal).display === 'none' || window.getComputedStyle(modal).opacity === '0' || modal.hidden;
+    });
+    assert.ok(isModalHiddenEsc, 'Video modal should be hidden after ESC key');
 
     console.log('✅ Video Modal E2E tests passed.');
   } catch (error) {

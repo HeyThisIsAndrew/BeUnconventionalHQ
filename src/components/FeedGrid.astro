@@ -11,7 +11,17 @@ const { page, allItems } = Astro.props;
 const currentItems = page.data;
 ---
 
-<div style="width: 100%; clear: both;">
+<script is:inline>
+  if (typeof window !== 'undefined' && window.location.hash) {
+    document.documentElement.classList.add('js-feed-filtering');
+  }
+</script>
+<style>
+  html.js-feed-filtering #feed-grid-wrapper {
+    opacity: 0 !important;
+  }
+</style>
+<div id="feed-grid-wrapper" style="width: 100%; clear: both; transition: opacity 0.2s ease;">
 {currentItems.length > 0 ? (
   <div id="feed-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-screen-2xl mx-auto px-4 md:px-8">
     {
@@ -228,7 +238,7 @@ const currentItems = page.data;
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
               </svg>
               <p class="text-2xl font-display font-bold tracking-widest uppercase mt-4">No items found for this filter.</p>
-              <button onclick="window.history.pushState(null, '', window.location.pathname); window.dispatchEvent(new Event('hashchange'));" class="cta-button-primary mt-2" style="padding: 0.75rem 2.5rem; font-size: 1rem;">
+              <button onclick="window.history.pushState(null, '', '/feed'); window.dispatchEvent(new Event('hashchange'));" class="cta-button-primary mt-2" style="padding: 0.75rem 2.5rem; font-size: 1rem;">
                 Clear Filters
               </button>
             </div>
@@ -256,9 +266,9 @@ const currentItems = page.data;
             const currentHash = window.location.hash.replace('#', '').toLowerCase();
             
             if (currentHash === category) {
-              history.pushState(null, '', window.location.pathname); // Toggle off
+              history.pushState(null, '', '/feed'); // Toggle off
             } else {
-              history.pushState(null, '', `${window.location.pathname}#${category}`); // Toggle on
+              history.pushState(null, '', `/feed#${category}`); // Toggle on
             }
             applyFilters();
           }
@@ -275,6 +285,7 @@ const currentItems = page.data;
     
     // Initial execution on load
     applyFilters();
+    document.documentElement.classList.remove('js-feed-filtering');
   }
 
   document.addEventListener('astro:page-load', initFeedClientFiltering);

@@ -204,11 +204,11 @@ const trailerId = parseVideoId(trailerUrl);
           <h2 class="sr-only">Event coverage</h2>
 
           <div class="filter-controls animate-on-scroll">
-            <button class="filter-btn type-btn" data-filter="article" aria-pressed="false">ARTICLES</button>
-            <button class="filter-btn type-btn" data-filter="video" aria-pressed="false">VIDEOS</button>
+            <button class="filter-btn type-btn" data-filter="article" aria-pressed="false" aria-controls="event-content-grid">ARTICLES</button>
+            <button class="filter-btn type-btn" data-filter="video" aria-pressed="false" aria-controls="event-content-grid">VIDEOS</button>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full" aria-live="polite">
+          <div id="event-content-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full" aria-live="polite">
             {unifiedContent.map((item, index) => (
               <ContentCard item={item} index={index} />
             ))}
@@ -416,6 +416,7 @@ const trailerId = parseVideoId(trailerUrl);
     font-weight: 400;
     overflow: hidden;
     max-height: 3em;
+    transition: max-height 0.3s ease;
   }
 
   .hero-read-more {
@@ -643,11 +644,20 @@ const trailerId = parseVideoId(trailerUrl);
       toggle.addEventListener('click', () => {
         if (!expanded) {
           expanded = true;
-          text.style.maxHeight = 'none';
+          const fullHeight = text.scrollHeight + 'px';
+          text.style.maxHeight = fullHeight;
+          text.addEventListener('transitionend', function handler(e) {
+            if (e.propertyName === 'max-height' && expanded) {
+              text.style.maxHeight = 'none';
+            }
+            text.removeEventListener('transitionend', handler);
+          });
           toggle.textContent = 'Read less';
           toggle.setAttribute('aria-expanded', 'true');
         } else {
           expanded = false;
+          text.style.maxHeight = text.scrollHeight + 'px';
+          text.offsetHeight; // force reflow
           text.style.maxHeight = COLLAPSED_MAX;
           toggle.textContent = 'Read more';
           toggle.setAttribute('aria-expanded', 'false');

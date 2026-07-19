@@ -15,11 +15,12 @@
  */
 ---
 
+<div class="sr-only" aria-live="polite" id="tb-announcer"></div>
+
 <section
   id="takeover-billboard"
   class="tb-container"
   hidden
-  aria-live="polite"
   aria-label="Live broadcast announcement"
 >
   <div class="tb-banner">
@@ -44,9 +45,14 @@
 
 <style>
   .tb-container {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
     max-width: 1536px;
-    margin: 3rem auto 0;
     padding: 0 2rem;
+    z-index: 50;
   }
 
   .tb-banner {
@@ -213,6 +219,9 @@
 
       const external = billboard.querySelector<HTMLAnchorElement>('.tb-external');
       if (external && stream.url) external.href = stream.url;
+
+      const announcer = document.getElementById('tb-announcer');
+      if (announcer && stream.title) announcer.textContent = `Live Right Now: ${stream.title}`;
 
       // Live thumbnail as the banner art (YouTube serves a frame for live IDs).
       const banner = billboard.querySelector<HTMLElement>('.tb-banner');

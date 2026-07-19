@@ -81,7 +81,7 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
     <script is:inline>
       document.documentElement.classList.add('js');
     </script>
-    <!-- Google Tag Manager -->
+    <!-- Google Tag Manager (Worker) -->
     <script type="text/partytown" is:inline define:vars={{ gtmId }}>
       if (gtmId) {
         window.dataLayer = window.dataLayer || [];
@@ -93,13 +93,19 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
         gtmScript.async = true;
         gtmScript.src = 'https://www.googletagmanager.com/gtm.js?id=' + gtmId;
         document.head.appendChild(gtmScript);
+      }
+    </script>
 
+    <!-- Google Tag Manager (Main Thread Navigation) -->
+    <script is:inline>
+      if (typeof window !== 'undefined') {
         // ClientRouter swaps pages without full reloads, so this script only
         // runs once per session. astro:page-load fires on the initial load
         // AND after every client-side navigation — the GA4 tag in the GTM
         // dashboard triggers on this event (not "All Pages") to avoid
         // double-counting the first view.
         document.addEventListener('astro:page-load', function () {
+          window.dataLayer = window.dataLayer || [];
           window.dataLayer.push({
             event: 'page_view',
             page_location: window.location.href,
@@ -404,7 +410,7 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
           videoModal.classList.remove('active');
           videoModal.setAttribute('aria-hidden', 'true');
           const iframe = videoModal.querySelector('#modal-iframe');
-          if (iframe) iframe.src = '';
+          if (iframe) iframe.src = 'about:blank';
         }
         const contactModal = document.getElementById('contact-modal');
         if (contactModal) {
@@ -415,7 +421,7 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
             .getElementById('modal-form-status')
             ?.classList.remove('is-visible');
         }
-        const calendarModal = document.getElementById('calendar-modal');
+        const calendarModal = document.getElementById('spanning-calendar-modal');
         if (calendarModal) {
           calendarModal.classList.remove('is-active');
           calendarModal.setAttribute('aria-hidden', 'true');

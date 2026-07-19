@@ -62,7 +62,7 @@ const isFeed = currentPath === '/feed' || currentPath === '/feed/';
   </div>
 
   <div class="mobile-category-row">
-    <button id="open-categories-btn" class="quadrant-btn full-width-btn"
+    <button id="open-categories-btn" class="quadrant-btn full-width-btn" aria-haspopup="dialog" aria-expanded="false"
       >Categories</button
     >
   </div>
@@ -434,6 +434,10 @@ const isFeed = currentPath === '/feed' || currentPath === '/feed/';
       if (!categoryModal || !categoryModal.open || categoryModal.classList.contains('closing')) return;
       categoryModal.classList.add('closing');
       categoryModal.addEventListener('animationend', handleAnimationEnd);
+      if (openBtn) {
+        openBtn.setAttribute('aria-expanded', 'false');
+        openBtn.focus();
+      }
     }
 
     if (openBtn && categoryModal && !openBtn.dataset.bound) {
@@ -449,6 +453,7 @@ const isFeed = currentPath === '/feed' || currentPath === '/feed/';
         } else {
           categoryModal.showModal();
           categoryModal.focus();
+          openBtn.setAttribute('aria-expanded', 'true');
         }
       });
       openBtn.dataset.bound = 'true';
@@ -493,6 +498,11 @@ const isFeed = currentPath === '/feed' || currentPath === '/feed/';
         if (categoryModal.open) {
           categoryModal.classList.remove('closing');
           categoryModal.close();
+          const btn = document.getElementById('open-categories-btn');
+          if (btn) {
+            btn.setAttribute('aria-expanded', 'false');
+            btn.focus();
+          }
         }
         
         if (hrefAttr && !hrefAttr.startsWith('#')) {
