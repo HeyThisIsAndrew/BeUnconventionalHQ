@@ -8,8 +8,9 @@ const navItems = [
   { label: 'Contact', href: 'contact' },
 ];
 
-const isActive = (href) =>
-  currentPath === `/${href}` || currentPath === `/${href}/`;
+const base = import.meta.env.BASE_URL === '/' ? '' : import.meta.env.BASE_URL;
+const isActive = (href: string) =>
+  currentPath === `${base}/${href}` || currentPath === `${base}/${href}/`;
 ---
 
 <header id="navbar" transition:persist="global-nav">
@@ -42,7 +43,7 @@ const isActive = (href) =>
             <li class="nav-item">
               <a
                 href={`/${item.href}`}
-                class:list={[item.className, { active: isActive(item.href) }]}
+                class:list={[{ active: isActive(item.href) }]}
                 data-modal-trigger={item.href === 'contact' ? 'contact' : undefined}
               >
                 {item.label}

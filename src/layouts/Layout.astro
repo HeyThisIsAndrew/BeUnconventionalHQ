@@ -1,7 +1,9 @@
 ---
 // Self-hosted fonts (was Google Fonts). Same-origin, no render-blocking
 // external request, no third-party exposure of visitor IPs.
+// @ts-ignore
 import '@fontsource-variable/syne';
+// @ts-ignore
 import '@fontsource-variable/inter';
 import '../styles/global-base.css';
 import '../styles/global.css';
@@ -84,41 +86,44 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
     <!-- Google Tag Manager (Worker) -->
     {gtmId && (
       <>
-        <script type="text/partytown" is:inline>
+        <script is:inline type="text/partytown" is:inline>
           window.dataLayer = window.dataLayer || [];
           window.dataLayer.push({
             'gtm.start': new Date().getTime(),
             event: 'gtm.js',
           });
         </script>
-        <script type="text/partytown" src={`https://www.googletagmanager.com/gtm.js?id=${gtmId}`} />
+        <script is:inline type="text/partytown" src={`https://www.googletagmanager.com/gtm.js?id=${gtmId}`} />
       </>
     )}
 
     <!-- Google Tag Manager (Main Thread Navigation) -->
     <script is:inline>
       if (typeof window !== 'undefined') {
-        // ClientRouter swaps pages without full reloads, so this script only
-        // runs once per session. astro:page-load fires on the initial load
-        // AND after every client-side navigation — the GA4 tag in the GTM
-        // dashboard triggers on this event (not "All Pages") to avoid
-        // double-counting the first view.
-        document.addEventListener('astro:page-load', function () {
-          const pushGA = () => {
-            window.dataLayer = window.dataLayer || [];
-            window.dataLayer.push({
-              event: 'page_view',
-              page_location: window.location.href,
-              page_path: window.location.pathname,
-              page_title: document.title,
-            });
-          };
-          if ('requestIdleCallback' in window) {
-            requestIdleCallback(pushGA);
-          } else {
-            setTimeout(pushGA, 200);
-          }
-        });
+        if (!window['setup']) {
+          window['setup'] = true;
+          // ClientRouter swaps pages without full reloads, so this script only
+          // runs once per session. astro:page-load fires on the initial load
+          // AND after every client-side navigation — the GA4 tag in the GTM
+          // dashboard triggers on this event (not "All Pages") to avoid
+          // double-counting the first view.
+          document.addEventListener('astro:page-load', function () {
+            const pushGA = () => {
+              window.dataLayer = window.dataLayer || [];
+              window.dataLayer.push({
+                event: 'page_view',
+                page_location: window.location.href,
+                page_path: window.location.pathname,
+                page_title: document.title,
+              });
+            };
+            if ('requestIdleCallback' in window) {
+              requestIdleCallback(pushGA);
+            } else {
+              setTimeout(pushGA, 200);
+            }
+          });
+        }
       }
     </script>
 
@@ -193,7 +198,7 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
           <iframe
             id="modal-iframe"
             src=""
-            frameborder="0"
+            
             allow="autoplay; encrypted-media"
             allowfullscreen
             title="YouTube video player"></iframe>
@@ -204,8 +209,8 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
     <script is:inline>
       // Guarded so this page-load listener binds exactly once, not once per
       // client-side navigation (Astro re-executes <body> scripts on every swap).
-      if (!window.setup) {
-        window.setup = true;
+        if (!window['setup']) {
+          window['setup'] = true;
         console.log('Layout script initialized');
         document.addEventListener('astro:page-load', () =>
           console.log('Astro Page Load')
@@ -329,7 +334,8 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
           '(prefers-reduced-motion: reduce)'
         ).matches;
         if (reduce || !('IntersectionObserver' in window)) {
-          els.forEach((el) => {
+          els.forEach((elem) => {
+            const el = elem as HTMLElement;
             el.setAttribute('data-state', 'in');
             el.setAttribute('data-state', 'active');
             el.style.opacity = '1';
@@ -341,7 +347,7 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
           (entries, obs) => {
             entries.forEach((entry) => {
               if (!entry.isIntersecting) return;
-              const el = entry.target;
+              const el = entry.target as HTMLElement;
               const delay = el.dataset.delay || '0';
               el.style.transitionDelay = `${delay}ms`;
               el.setAttribute('data-state', 'in');
@@ -366,8 +372,8 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
           initReveal();
           isInitialLoad = false;
         } else {
-          const els = document.querySelectorAll('.reveal, .animate-on-scroll');
-          els.forEach((el) => {
+          document.querySelectorAll('.reveal, .animate-on-scroll').forEach((elem) => {
+            const el = elem as HTMLElement;
             const originalTransition = el.style.transition;
             el.style.transition = 'none';
             el.setAttribute('data-state', 'in');
@@ -415,14 +421,23 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
         if (videoModal) {
           videoModal.classList.remove('active');
           videoModal.setAttribute('aria-hidden', 'true');
-          const iframe = videoModal.querySelector('#modal-iframe');
+          const iframe = videoModal.querySelector('#modal-iframe') as HTMLIFrameElement | null;
+          if (iframe) iframe.src = 'about:blank';
+        }
+        const successContainer = document.getElementById('success-message');
+        if (successContainer && !successContainer.classList.contains('hidden')) {
+          successContainer.classList.add('hidden');
+          const iframe = document.getElementById('hidden_iframe') as HTMLIFrameElement | null;
           if (iframe) iframe.src = 'about:blank';
         }
         const contactModal = document.getElementById('contact-modal');
         if (contactModal) {
-          contactModal.classList.remove('is-active');
-          contactModal.setAttribute('aria-hidden', 'true');
-          document.getElementById('contact-modal-form')?.reset();
+          const formContainer = document.getElementById('form-container');
+          if (formContainer && !formContainer.classList.contains('hidden')) {
+            formContainer.classList.add('hidden');
+            const form = document.getElementById('contact-modal-form') as HTMLFormElement | null;
+            form?.reset();
+          }
           document
             .getElementById('modal-form-status')
             ?.classList.remove('is-visible');
@@ -432,7 +447,8 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
           calendarModal.classList.remove('is-active');
           calendarModal.setAttribute('aria-hidden', 'true');
         }
-        document.querySelector('#category-modal')?.close();
+        const modal = document.querySelector('#category-modal') as HTMLDialogElement | null;
+        modal?.close();
       });
 
       // Step 2: Force scroll to top instantly BEFORE the DOM swaps

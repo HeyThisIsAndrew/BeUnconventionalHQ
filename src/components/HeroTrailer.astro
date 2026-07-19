@@ -36,7 +36,7 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
       class="ht-frame"
       data-src={mobileSrc}
       title={title}
-      frameborder="0"
+      
       loading="lazy"
       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
       allowfullscreen></iframe>
@@ -236,11 +236,11 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
   // handler per instance that filters strictly by the instance's own iframe.
   function initHeroTrailers() {
     document.querySelectorAll('[data-hero-trailer]').forEach((root) => {
-      if (root.dataset.htBound === 'true') return;
-      root.dataset.htBound = 'true';
+      if ((root as HTMLElement).dataset.htBound === 'true') return;
+      (root as HTMLElement).dataset.htBound = 'true';
 
-      const uid = root.dataset.uid || '';
-      const title = root.dataset.title || 'Trailer';
+      const uid = (root as HTMLElement).dataset.uid || '';
+      const title = (root as HTMLElement).dataset.title || 'Trailer';
       let mobileFrame = root.querySelector('.ht-mobile .ht-frame') as HTMLIFrameElement;
       const mount = root.querySelector('.ht-mount');
       const poster = root.querySelector('.ht-poster');
@@ -251,28 +251,28 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
       if (posterImg) {
         posterImg.addEventListener('error', function onErr() {
           posterImg.removeEventListener('error', onErr);
-          const fb = posterImg.dataset.fallback;
-          if (fb) posterImg.src = fb;
+          const fb = (posterImg as HTMLElement).dataset.fallback;
+          if (fb) (posterImg as HTMLImageElement).src = fb || "";
         });
       }
 
       // ---- Desktop player state ----
-      let desktopFrame = null;
+      let desktopFrame: HTMLIFrameElement | null = null;
       let ready = false;
       let muted = true;
       let posterHidden = false;
-      const queue = [];
+      const queue: any[] = [];
 
-      const post = (payload) =>
+      const post = (payload: any) =>
         desktopFrame &&
         desktopFrame.contentWindow &&
         desktopFrame.contentWindow.postMessage(JSON.stringify(payload), 'https://www.youtube.com');
-      const command = (func, args = []) => {
+      const command = (func: string, args: any[] = []) => {
         const payload = { event: 'command', func, args };
         if (ready) post(payload);
         else queue.push(payload);
       };
-      const setMuted = (m) => {
+      const setMuted = (m: boolean) => {
         muted = m;
         if (!soundBtn) return;
         soundBtn.classList.toggle('is-muted', m);
@@ -286,7 +286,7 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
         poster.classList.add('is-hidden');
       };
 
-      const onMessage = (e) => {
+      const onMessage = (e: any) => {
         if (!desktopFrame || !desktopFrame.contentWindow || e.source !== desktopFrame.contentWindow) return;
         let data;
         try {
@@ -297,7 +297,7 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
         if (!data) return;
         if ((data.event === 'onReady' || data.event === 'initialDelivery') && !ready) {
           ready = true;
-          queue.splice(0).forEach(post);
+          queue.splice(0).forEach((p: any) => post(p));
         }
         const state =
           data.info && typeof data.info.playerState === 'number'
@@ -348,9 +348,9 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
         );
         desktopFrame.setAttribute('allowfullscreen', '');
         desktopFrame.addEventListener('load', () =>
-          post({ event: 'listening', id: desktopFrame.id, channel: 'widget' })
+          post({ event: 'listening', id: desktopFrame?.id, channel: 'widget' })
         );
-        desktopFrame.src = mount.dataset.src;
+        desktopFrame.src = (mount as HTMLElement).dataset.src || "";
         mount.appendChild(desktopFrame);
         nudge(desktopFrame);
       };
@@ -462,7 +462,7 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
       };
       window.addEventListener('orientationchange', onOrientation);
 
-      root._htCleanup = () => {
+      (root as any)._htCleanup = () => {
         window.removeEventListener('message', onMessage);
         window.removeEventListener('orientationchange', onOrientation);
         mql.removeEventListener('change', onMqlChange);
@@ -475,7 +475,7 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
           mountDesktop(); // ensure a frame exists before commanding it (idempotent)
           command('playVideo');
           command('unMute');
-          command('setVolume', [100]);
+          command('setVolume', [100] as any[]);
           setMuted(false);
           hidePoster();
         });
@@ -484,7 +484,7 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
         soundBtn.addEventListener('click', () => {
           if (muted) {
             command('unMute');
-            command('setVolume', [100]);
+            command('setVolume', [100] as any[]);
             command('playVideo');
             setMuted(false);
           } else {
@@ -498,8 +498,8 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
 
   document.addEventListener('astro:before-preparation', () => {
     document.querySelectorAll('[data-hero-trailer]').forEach((root) => {
-      if (typeof root._htCleanup === 'function') {
-        root._htCleanup();
+      if (typeof (root as any)._htCleanup === 'function') {
+        (root as any)._htCleanup();
       }
     });
   });

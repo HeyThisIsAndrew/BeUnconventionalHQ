@@ -12,7 +12,7 @@ const types = [
 ];
 
 const currentPath = Astro.url.pathname;
-const isFeed = currentPath === '/feed' || currentPath === '/feed/';
+
 ---
 
 <div
@@ -478,11 +478,11 @@ const isFeed = currentPath === '/feed' || currentPath === '/feed/';
     }
 
     const explicitCloseBtn = categoryModal?.querySelector('.close-btn');
-    if (explicitCloseBtn && !explicitCloseBtn.dataset.bound) {
+    if (explicitCloseBtn && !(explicitCloseBtn as HTMLElement).dataset.bound) {
       explicitCloseBtn.addEventListener('click', () => {
         closeCategoryModal();
       });
-      explicitCloseBtn.dataset.bound = 'true';
+      (explicitCloseBtn as HTMLElement).dataset.bound = 'true';
     }
 
     if (openBtn && categoryModal && !openBtn.dataset.bound) {

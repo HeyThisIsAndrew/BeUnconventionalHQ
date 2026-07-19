@@ -47,7 +47,7 @@ function urlFor(source: any) {
 
 // 1. Fetch Global Data
 const allVideos = await getVideosUnified();
-const allArticles = await getArticles();
+const allArticles = getArticles();
 
 // 1b. Phase C1 (epic #25): deterministic, editor-controlled coverage — videos
 // whose hubs[] reference THIS brand doc. Empty until editors hub-tag published
@@ -572,8 +572,8 @@ const trailerId = parseVideoId(trailerUrl);
     const contentCards = Array.from(document.querySelectorAll('.content-card'));
 
     filterBtns.forEach((btn) => {
-      if (btn.dataset.bound === 'true') return;
-      btn.dataset.bound = 'true';
+      if ((btn as HTMLElement).dataset.bound === 'true') return;
+      (btn as HTMLElement).dataset.bound = 'true';
       btn.addEventListener('click', () => {
         const wasActive = btn.classList.contains('active');
         filterBtns.forEach((b) => {
@@ -585,24 +585,24 @@ const trailerId = parseVideoId(trailerUrl);
         if (!wasActive) {
           btn.classList.add('active');
           btn.setAttribute('aria-pressed', 'true');
-          activeFilter = btn.getAttribute('data-filter');
+          activeFilter = (btn as HTMLElement).getAttribute('data-filter') || '';
         }
 
         contentCards.forEach((card) => {
           const show = activeFilter === 'all' || card.getAttribute('data-type') === activeFilter;
-          card.style.display = show ? 'flex' : 'none';
+          (card as HTMLElement).style.display = show ? 'flex' : 'none';
         });
       });
     });
 
     // Keyboard activation for video cards exposed as role="button".
     document.querySelectorAll('[data-action="open-video"]').forEach((card) => {
-      if (card.dataset.keybound === 'true') return;
-      card.dataset.keybound = 'true';
+      if ((card as HTMLElement).dataset.keybound === 'true') return;
+      (card as HTMLElement).dataset.keybound = 'true';
       card.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
           e.preventDefault();
-          card.click();
+          (card as HTMLElement).click();
         }
       });
     });
@@ -656,10 +656,10 @@ const trailerId = parseVideoId(trailerUrl);
       document.fonts.ready.then(evaluate);
     }
     evaluate();
-    if (text.__ro) text.__ro.disconnect();
+    if ((text as any).__ro) (text as any).__ro.disconnect();
     const ro = new ResizeObserver(() => evaluate());
     ro.observe(text);
-    text.__ro = ro;
+    (text as any).__ro = ro;
   }
 
   document.addEventListener('astro:page-load', initEventAbout);

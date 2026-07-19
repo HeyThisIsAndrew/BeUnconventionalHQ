@@ -25,63 +25,62 @@ else primaryLabel = item.category || 'Article';
 
 // Render anchor or div depending on type. We use 'video-card-home' for both
 // so they share the exact hover effects from home-cards.css.
-const CardWrapper = isPlayable ? 'button' : 'a';
+const CardWrapper = isPlayable ? 'div' : 'a';
 const wrapperProps = isPlayable
   ? {
-      class: "reveal video-card-home content-card w-full text-left block h-full appearance-none",
-      'aria-label': `Watch video: ${item.title}`,
+      class: "reveal video-card-home content-card w-full",
       'data-delay': index * 100,
       'data-type': 'video',
       'data-categories': lowerTags.join(','),
       'data-video-id': videoId,
-      'data-action': 'open-video'
+      'data-action': 'open-video',
+      style: "background: var(--color-surface); border: 1px solid rgba(255,255,255,0.05); overflow: hidden; text-decoration: none; display: flex; flex-direction: column; transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; min-height: 100%; cursor: pointer;"
     }
   : {
       href: item.link || '#',
       target: '_blank',
       rel: 'noopener noreferrer',
-      class: `reveal video-card-home content-card w-full block h-full`,
-      'data-type': isVideo ? 'video' : 'article',
+      class: `reveal video-card-home content-card w-full`,
       'data-categories': lowerTags.join(','),
-      'data-delay': index * 100
+      'data-type': isVideo ? 'video' : 'article',
+      'data-delay': index * 100,
+      style: "background: var(--color-surface); border: 1px solid rgba(255,255,255,0.05); overflow: hidden; text-decoration: none; display: flex; flex-direction: column; transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease; min-height: 100%; cursor: pointer;"
     };
 ---
 
 <CardWrapper {...wrapperProps}>
-  <div class="flex flex-col h-full w-full">
-    <div class="relative w-full aspect-video overflow-hidden">
-      <img
-        src={item.image || item.thumbnail}
-        alt={item.title}
-        loading="lazy"
-        decoding="async"
-        class="w-full h-full object-cover transition-transform duration-500 ease-in-out"
-        onerror="this.onerror=null;this.src=this.src.replace('maxresdefault','hqdefault')"
-      />
+  <div style="position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden;">
+    <img
+      src={item.image || item.thumbnail}
+      alt={item.title}
+      loading="lazy"
+      decoding="async"
+      style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease;"
+    />
+  </div>
+  <div style="padding: 1.5rem; display: flex; flex-direction: column; flex-grow: 1;">
+    <div class="flex items-center gap-2 text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-3">
+      <span>{primaryLabel}</span>
+      {item.date && (
+        <>
+          <span>&bull;</span>
+          <span>{item.date}</span>
+        </>
+      )}
     </div>
-    <div class="p-6 flex flex-col flex-grow">
-      <div class="flex items-center gap-2 text-xs text-gray-400 font-bold uppercase tracking-widest mb-3">
-        <span>{primaryLabel}</span>
-        {item.date && (
-          <>
-            <span>&bull;</span>
-            <span>{item.date}</span>
-          </>
-        )}
-      </div>
-      <h3 class="text-white font-display text-[1.1rem] font-bold mb-4 leading-[1.4]">
-        {item.title}
-      </h3>
+    <h3 style="color: white; font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; line-height: 1.4;">
+      {item.title}
+    </h3>
+    <span
+      class="watch-now-btn"
+      style="margin-top: auto; color: var(--color-white); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.15em; display: inline-block; position: relative; width: fit-content; transition: color 0.3s ease;"
+    >
+      {isVideo ? 'Watch Now' : 'Read Now'}{' '}
+      <span style="color: var(--color-accent);">&rarr;</span>
       <span
-        class="watch-now-btn mt-auto text-white text-xs font-semibold uppercase tracking-[0.15em] inline-block relative w-fit transition-colors duration-300"
-      >
-        {isVideo ? 'Watch Now' : 'Read Now'}{' '}
-        <span style="color: var(--color-accent);">&rarr;</span>
-        <span
-          class="btn-underline absolute -bottom-1 left-0 w-0 h-[1px] transition-all duration-300"
-          style="background: var(--color-accent);"
-        />
-      </span>
-    </div>
+        class="btn-underline"
+        style="position: absolute; bottom: -4px; left: 0; width: 0; height: 1px; background: var(--color-accent); transition: width 0.3s ease;"
+      />
+    </span>
   </div>
 </CardWrapper>

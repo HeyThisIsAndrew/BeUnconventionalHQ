@@ -3,7 +3,6 @@ import Layout from '../../layouts/Layout.astro';
 import { categories } from '../../data/categories.js';
 import { getArticles } from '../../data/feeds.js';
 import { getVideosUnified } from '../../lib/videos-source';
-import { parseVideoId } from '../../lib/platforms/youtube';
 import PageTitle from '../../components/PageTitle.astro';
 import QuadrantFilter from '../../components/QuadrantFilter.astro';
 import ContentCard from '../../components/ContentCard.astro';
@@ -16,7 +15,7 @@ export async function getStaticPaths() {
 }
 const { category } = Astro.props;
 const allVideos = await getVideosUnified();
-const allArticles = await getArticles();
+const allArticles = getArticles();
 
 const catLabel = category.label.toLowerCase();
 function matchesCategory(item: any) {

@@ -8,7 +8,7 @@ import FeedGrid from '../../../components/FeedGrid.astro';
 import type { GetStaticPathsOptions } from 'astro';
 
 export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
-  const articles = await getArticles();
+  const articles = getArticles();
 
   const allItems = [
     ...articles.map((a: any) => ({ ...a, type: 'article' }))
@@ -18,7 +18,7 @@ export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
 }
 
 const { page } = Astro.props;
-const articlesData = await getArticles();
+const articlesData = getArticles();
 const allItems = [
   ...articlesData.map((a: any) => ({ ...a, type: 'article' }))
 ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());

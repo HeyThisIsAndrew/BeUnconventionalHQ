@@ -12,55 +12,9 @@ export interface Props {
 }
 
 const { page } = Astro.props;
-const { currentPage, lastPage, url } = page;
+const { lastPage, url } = page;
 
-const getPageNumbers = () => {
-  const pages = [];
-  const maxVisible = 5;
 
-  if (lastPage <= maxVisible + 2) {
-    for (let i = 1; i <= lastPage; i++) pages.push(i);
-  } else {
-    pages.push(1);
-    
-    if (currentPage > 3) {
-      pages.push('...');
-    }
-    
-    const start = Math.max(2, currentPage - 1);
-    const end = Math.min(lastPage - 1, currentPage + 1);
-    
-    for (let i = start; i <= end; i++) {
-      pages.push(i);
-    }
-    
-    if (currentPage < lastPage - 2) {
-      pages.push('...');
-    }
-    
-    if (lastPage > 1) {
-      pages.push(lastPage);
-    }
-  }
-  return pages;
-};
-
-const pageNumbers = getPageNumbers();
-
-const getUrlForPage = (num: number) => {
-  if (num === currentPage) return url.current;
-  
-  let base = url.current;
-  if (currentPage > 1) {
-    // replace trailing /2 or /2/
-    base = base.replace(/\/\d+\/?$/, '');
-  }
-  
-  base = base.endsWith('/') ? base.slice(0, -1) : base;
-  
-  if (num === 1) return base || '/';
-  return `${base}/${num}`;
-};
 ---
 
 {lastPage > 1 && (

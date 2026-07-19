@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { parseEventDateToLocal, formatEventDateRange } from '../lib/events';
 import './DesktopCalendar.css';
 
@@ -83,7 +83,7 @@ const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
     const _todayDate = new Date();
     _todayDate.setHours(0, 0, 0, 0);
 
-    const rawSegments = currentMonthEvents.flatMap((event, i) => {
+    const rawSegments = currentMonthEvents.flatMap((event) => {
       const start = parseEventDateToLocal(event.startDate);
       const end = event.endDate ? parseEventDateToLocal(event.endDate) : start;
 
