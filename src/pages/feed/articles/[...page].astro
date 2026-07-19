@@ -1,0 +1,146 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import PageTitle from '../../../components/PageTitle.astro';
+import { site } from '../../../data/site.js';
+import { getArticles } from '../../../data/feeds.js';
+import QuadrantFilter from '../../../components/QuadrantFilter.astro';
+import Pagination from '../../../components/Pagination.astro';
+import type { GetStaticPathsOptions } from 'astro';
+
+export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
+  const articles = await getArticles();
+
+  const allItems = [
+    ...articles.map((a: any) => ({ ...a, type: 'article' }))
+  ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  return paginate(allItems, { pageSize: 16 });
+}
+
+const { page } = Astro.props;
+const allItems = page.data;
+
+const pageNum = page.currentPage > 1 ? ` - Page ${page.currentPage}` : '';
+const title = `Articles${pageNum} | ${site.name}`;
+const description = 'Discover the latest articles from Be Unconventional HQ.';
+---
+
+<Layout title={title} description={description} prevUrl={page.url.prev} nextUrl={page.url.next}>
+  <main class="feed-page" style="min-height: 100vh;">
+    <div class="container">
+      <header class="section-header animate-on-scroll" data-nav-anchor>
+        <PageTitle as="h1" kicker="Explore The HQ" primary="The" secondary="Feed" />
+      </header>
+
+      <QuadrantFilter showTypes={true} isNavMode={true} />
+
+      {/* Structural h2 so card h3s don't skip a heading level (axe: heading-order). */}
+      <h2 class="sr-only">All articles</h2>
+      
+      {allItems.length > 0 ? (
+        <div class="articles-grid">
+          {
+            allItems.map((item: any, index: number) => {
+              const itemTags = Array.isArray(item.tags) ? item.tags : [item.category || 'General'];
+              const lowerTags = itemTags.map((t: string) => typeof t === 'string' ? t.toLowerCase() : '');
+              
+              let primaryLabel = 'General';
+              if (lowerTags.includes('tv')) primaryLabel = 'TV';
+              else if (lowerTags.includes('film')) primaryLabel = 'Film';
+              else if (lowerTags.includes('gaming')) primaryLabel = 'Gaming';
+              else if (lowerTags.includes('event') || lowerTags.includes('events')) primaryLabel = 'Event';
+              else primaryLabel = item.category || 'General';
+
+              const wrapperProps = {
+                href: item.link || '#',
+                target: '_blank',
+                rel: 'noopener noreferrer',
+                class: 'article-card animate-on-scroll',
+                style: `--index: ${index}; text-decoration: none;`,
+              };
+
+              // Image loading strategy: Eager for first 6 items, lazy for the rest
+              const loadingStrategy = index < 6 ? 'eager' : 'lazy';
+
+              return (
+                <a
+                  {...wrapperProps}
+                  data-type={(item.type || 'article').toLowerCase()}
+                  data-category={lowerTags.join(',')}
+                >
+                  <div class="article-image-wrapper">
+                    <img
+                      src={item.image}
+                      alt={item.title}
+                      loading={loadingStrategy}
+                      decoding="async"
+                      class="article-image"
+                    />
+                    <span class="content-badge">
+                      {primaryLabel.toUpperCase()}
+                    </span>
+                  </div>
+                  <div class="article-content">
+                    <span class="content-type-subtle">
+                      {(item.type || 'ARTICLE').toUpperCase()} • {item.date}
+                    </span>
+                    <h3 class="article-title">{item.title}</h3>
+                    <p class="article-excerpt">{item.excerpt}</p>
+                    <span class="article-link">
+                      Explore →
+                    </span>
+                  </div>
+                </a>
+              );
+            })
+          }
+        </div>
+      ) : (
+        <div class="empty-state">
+          <p>No articles found.</p>
+        </div>
+      )}
+
+      {allItems.length > 0 && <Pagination page={page} />}
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+  }
+  .feed-page {
+    padding: 120px 0;
+    min-height: 80vh;
+  }
+
+  .articles-grid {
+    display: grid;
+    /* 4-column grid constraint adjusted */
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+    gap: 3rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--color-white-muted);
+    font-size: 1.25rem;
+    font-style: italic;
+  }
+
+  @media (max-width: 768px) {
+    .feed-page {
+      padding: 80px 0 40px;
+      min-height: auto;
+    }
+    .articles-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

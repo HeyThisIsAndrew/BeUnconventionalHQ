@@ -49,7 +49,7 @@ const categoryArticles = allArticles.filter(matchesCategory).slice(0, 4);
       </header>
 
       <section class="hub-section" style="margin-bottom: 6rem;">
-        <QuadrantFilter isNavMode={true} />
+        <QuadrantFilter showTypes={false} />
 
         <h2
           class="filter-label"
@@ -60,7 +60,7 @@ const categoryArticles = allArticles.filter(matchesCategory).slice(0, 4);
         <div class="video-grid">
           {
             categoryVideos.length > 0 ? (
-              categoryVideos.map((video, index) => (
+              categoryVideos.map((video: any, index: number) => (
                 <div
                   class="video-card reveal video-modal-trigger"
                   data-delay={index * 100}
@@ -106,10 +106,11 @@ const categoryArticles = allArticles.filter(matchesCategory).slice(0, 4);
         <div class="articles-grid">
           {
             categoryArticles.length > 0 ? (
-              categoryArticles.map((article, index) => (
+              categoryArticles.map((article: any, index: number) => (
                 <a
                   href={article.link}
                   target="_blank"
+                  rel="noopener noreferrer"
                   class="article-card reveal"
                   data-delay={index * 100}
                 >
@@ -143,3 +144,29 @@ const categoryArticles = allArticles.filter(matchesCategory).slice(0, 4);
     </div>
   </main>
 </Layout>
+
+<style>
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+  }
+  
+  .video-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+    gap: 2rem;
+  }
+
+  .articles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+    gap: 2rem;
+  }
+  
+  @media (max-width: 768px) {
+    .video-grid, .articles-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -13,6 +13,10 @@ export default defineConfig({
   // and Cloudflare Pages serves the canonical trailing-slash form in prod.
   // Canonical <link> and the sitemap are normalized to trailing slashes.
   trailingSlash: 'ignore',
+  redirects: {
+    '/articles': '/feed/articles',
+    '/videos': '/feed/videos',
+  },
   build: {
     assets: 'assets',
   },

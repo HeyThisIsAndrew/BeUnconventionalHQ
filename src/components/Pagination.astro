@@ -1,0 +1,224 @@
+---
+export interface Props {
+  page: {
+    currentPage: number;
+    lastPage: number;
+    url: {
+      prev: string | undefined;
+      next: string | undefined;
+      current: string;
+    };
+  };
+}
+
+const { page } = Astro.props;
+const { currentPage, lastPage, url } = page;
+
+const getPageNumbers = () => {
+  const pages = [];
+  const maxVisible = 5;
+
+  if (lastPage <= maxVisible + 2) {
+    for (let i = 1; i <= lastPage; i++) pages.push(i);
+  } else {
+    pages.push(1);
+    
+    if (currentPage > 3) {
+      pages.push('...');
+    }
+    
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(lastPage - 1, currentPage + 1);
+    
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    
+    if (currentPage < lastPage - 2) {
+      pages.push('...');
+    }
+    
+    if (lastPage > 1) {
+      pages.push(lastPage);
+    }
+  }
+  return pages;
+};
+
+const pageNumbers = getPageNumbers();
+
+const getUrlForPage = (num: number) => {
+  if (num === currentPage) return url.current;
+  
+  let base = url.current;
+  if (currentPage > 1) {
+    // replace trailing /2 or /2/
+    base = base.replace(/\/\d+\/?$/, '');
+  }
+  
+  base = base.endsWith('/') ? base.slice(0, -1) : base;
+  
+  if (num === 1) return base || '/';
+  return `${base}/${num}`;
+};
+---
+
+{lastPage > 1 && (
+  <nav class="pagination-nav animate-on-scroll" aria-label="Pagination">
+    {url.prev ? (
+      <a href={url.prev} class="pagination-arrow" aria-label="Previous Page">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </a>
+    ) : (
+      <span class="pagination-arrow disabled" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </span>
+    )}
+
+    <div class="pagination-numbers">
+      {pageNumbers.map((num) => {
+        if (num === '...') {
+          return <span class="pagination-ellipsis">...</span>;
+        }
+        
+        const isCurrent = num === currentPage;
+        
+        return (
+          <a
+            href={getUrlForPage(num as number)}
+            class={`pagination-number ${isCurrent ? 'active' : ''}`}
+            aria-current={isCurrent ? 'page' : undefined}
+          >
+            {num}
+          </a>
+        );
+      })}
+    </div>
+
+    {url.next ? (
+      <a href={url.next} class="pagination-arrow" aria-label="Next Page">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </a>
+    ) : (
+      <span class="pagination-arrow disabled" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </span>
+    )}
+  </nav>
+)}
+
+<style>
+  .pagination-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 2rem;
+    margin: 3rem 0 3rem;
+    font-family: var(--font-display);
+  }
+
+  .pagination-numbers {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  .pagination-number {
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: var(--color-white-muted);
+    text-decoration: none;
+    transition: all 0.3s ease;
+    padding: 0.75rem;
+    min-width: 48px;
+    min-height: 48px;
+    text-align: center;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 4px;
+  }
+
+  .pagination-ellipsis {
+    color: var(--color-white-muted);
+    opacity: 0.5;
+    letter-spacing: 2px;
+  }
+
+  .pagination-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    color: var(--color-white);
+    transition: all 0.3s ease;
+    border-radius: 50%;
+  }
+
+  .pagination-arrow.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  .pagination-number:focus-visible,
+  .pagination-arrow:focus-visible {
+    outline: 2px solid var(--color-white, #ffffff);
+    outline-offset: 2px;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .pagination-number:hover:not(.active) {
+      color: var(--color-white);
+      transform: translateY(-2px);
+    }
+
+    .pagination-arrow:not(.disabled):hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--color-accent, #ef4444);
+      transform: scale(1.1);
+    }
+  }
+
+  .pagination-number.active {
+    color: var(--color-white);
+    font-weight: 700;
+    position: relative;
+  }
+
+  .pagination-number.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 20px;
+    height: 2px;
+    background: var(--color-accent, #ef4444);
+    border-radius: 2px;
+  }
+
+  @media (max-width: 768px) {
+    .pagination-nav {
+      gap: 1rem;
+      margin: 2rem 0;
+    }
+    .pagination-numbers {
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .pagination-number {
+      font-size: 1.25rem;
+    }
+  }
+</style>

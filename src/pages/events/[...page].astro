@@ -1,27 +1,36 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import PageTitle from '../components/PageTitle.astro';
-import { site } from '../data/site.js';
-import { getArticles } from '../data/feeds.js';
-import { getVideosUnified } from '../lib/videos-source';
-import { parseVideoId } from '../lib/platforms/youtube';
+import Layout from '../../layouts/Layout.astro';
+import PageTitle from '../../components/PageTitle.astro';
+import { site } from '../../data/site.js';
+import { getArticles } from '../../data/feeds.js';
+import { getVideosUnified } from '../../lib/videos-source';
+import Pagination from '../../components/Pagination.astro';
+import { parseVideoId } from '../../lib/platforms/youtube';
+import type { GetStaticPathsOptions } from 'astro';
 
-const title = `Events | ${site.name}`;
-const description =
-  'Live coverage, premieres, and press event highlights from Be Unconventional HQ.';
+export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
+  const articles = await getArticles();
+  const videos = await getVideosUnified();
 
-const articles = await getArticles();
-const videos = await getVideosUnified();
+  const eventItems = [
+    ...articles.map((a: any) => ({ ...a, type: 'article' })),
+    ...videos.map((v: any) => ({ ...v, type: 'video', image: v.thumbnail })),
+  ]
+    .filter((item) => (item.type === 'video' && item.isEvent === true) || item.category === 'Events')
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-const eventItems = [
-  ...articles.map((a) => ({ ...a, type: 'article' })),
-  ...videos.map((v) => ({ ...v, type: 'video', image: v.thumbnail })),
-]
-  .filter((item) => (item.type === 'video' && item.isEvent === true) || item.category === 'Events')
-  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  return paginate(eventItems, { pageSize: 16 });
+}
+
+const { page } = Astro.props;
+const eventItems = page.data;
+
+const pageNum = page.currentPage > 1 ? ` - Page ${page.currentPage}` : '';
+const title = `Events${pageNum} | ${site.name}`;
+const description = 'Live coverage, premieres, and press event highlights from Be Unconventional HQ.';
 ---
 
-<Layout title={title} description={description}>
+<Layout title={title} description={description} prevUrl={page.url.prev} nextUrl={page.url.next}>
   <main class="events-page">
     <div class="container">
       <header class="section-header animate-on-scroll" data-nav-anchor>
@@ -33,7 +42,7 @@ const eventItems = [
       <div class="event-grid">
         {
           eventItems.length > 0 ? (
-            eventItems.map((item, index) => {
+            eventItems.map((item: any, index: number) => {
               const isVideo = item.type === 'video';
               const videoId = isVideo ? parseVideoId(item.link) : null;
 
@@ -52,13 +61,15 @@ const eventItems = [
                     style: `--index: ${index};`,
                   };
 
+              const loadingStrategy = index < 6 ? 'eager' : 'lazy';
+
               return (
                 <CardWrapper {...wrapperProps}>
                   <div class="event-image-wrapper">
                     <img
                       src={item.image}
                       alt={item.title}
-                      loading="lazy"
+                      loading={loadingStrategy}
                       decoding="async"
                       class="event-image"
                     />
@@ -82,6 +93,8 @@ const eventItems = [
         }
       </div>
 
+      <Pagination page={page} />
+
       <section
         class="press-kit-section animate-on-scroll"
       >
@@ -102,9 +115,6 @@ const eventItems = [
         >
       </section>
 
-      {/* Discovery Row (ShortsRow) intentionally NOT rendered here — the events
-          page is not its home. Component + data live on; re-add on the chosen
-          surface (see ticket #31) with: import ShortsRow … + <ShortsRow category="…" />. */}
     </div>
   </main>
 </Layout>
@@ -114,5 +124,38 @@ const eventItems = [
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 2rem;
+  }
+  
+  .events-page {
+    padding: 120px 0;
+    min-height: 80vh;
+  }
+
+  .event-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 350px), 1fr));
+    gap: 3rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    margin-bottom: 4rem;
+  }
+
+  @media (max-width: 768px) {
+    .event-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  
+  .press-kit-section {
+    text-align: center;
+    padding: 6rem 0;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+  
+  .press-kit-desc {
+    color: var(--color-white-muted);
+    font-size: 1.1rem;
+    max-width: 600px;
+    margin: 0 auto 2rem;
   }
 </style>
