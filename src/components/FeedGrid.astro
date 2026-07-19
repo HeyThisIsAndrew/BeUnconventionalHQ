@@ -80,8 +80,15 @@ const currentItems = page.data;
       
       nextBatch.forEach((node, index) => {
         node.style.display = 'flex'; 
+        // Force the reveal animation state so the observer isn't needed
+        node.setAttribute('data-state', 'in');
+        node.style.opacity = '1';
+        node.style.transform = 'none';
+        
         // Re-calculate animation delays based on index in current batch
+        node.style.transitionDelay = (index * 100) + 'ms';
         node.setAttribute('data-delay', (index * 100).toString());
+        
         fragment.appendChild(node);
       });
 
