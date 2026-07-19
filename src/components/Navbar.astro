@@ -154,23 +154,20 @@ const isActive = (href) =>
       const toggle = document.querySelector('.nav-toggle');
 
       if (navbar && toggle) {
-        // Clear any existing listeners by cloning the toggle to prevent duplicates on soft navs
-        const newToggle = toggle.cloneNode(true);
-        toggle.parentNode.replaceChild(newToggle, toggle);
+        if (!toggle.dataset.mobileClickBound) {
+          toggle.addEventListener('click', () => {
+            const isOpened = navbar.classList.contains('menu-open');
+            if (isOpened) {
+              if (!document.documentElement.classList.contains('menu-open')) {
+                navbar.classList.remove('menu-open');
+                toggle.setAttribute('aria-expanded', 'false');
+                return;
+              }
 
-        newToggle.addEventListener('click', () => {
-          const isOpened = navbar.classList.contains('menu-open');
-          if (isOpened) {
-            if (!document.documentElement.classList.contains('menu-open')) {
+              const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
               navbar.classList.remove('menu-open');
-              newToggle.setAttribute('aria-expanded', 'false');
-              return;
-            }
-
-            const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
-            navbar.classList.remove('menu-open');
-            document.documentElement.classList.remove('menu-open');
-            newToggle.setAttribute('aria-expanded', 'false');
+              document.documentElement.classList.remove('menu-open');
+              toggle.setAttribute('aria-expanded', 'false');
 
             document.body.style.position = '';
             document.body.style.top = '';
@@ -197,11 +194,13 @@ const isActive = (href) =>
 
             navbar.classList.add('menu-open');
             document.documentElement.classList.add('menu-open');
-            newToggle.setAttribute('aria-expanded', 'true');
+            toggle.setAttribute('aria-expanded', 'true');
           }
         });
+        toggle.dataset.mobileClickBound = 'true';
+      }
 
-        const navLinks = navbar.querySelectorAll('.nav-list a');
+      const navLinks = navbar.querySelectorAll('.nav-list a');
         navLinks.forEach((link) => {
           if (!link.dataset.mobileClickBound) {
             link.addEventListener('click', (e) => {
@@ -210,13 +209,13 @@ const isActive = (href) =>
               if (navbar.classList.contains('menu-open')) {
                 if (!document.documentElement.classList.contains('menu-open')) {
                   navbar.classList.remove('menu-open');
-                  newToggle.setAttribute('aria-expanded', 'false');
+                  toggle.setAttribute('aria-expanded', 'false');
                   return;
                 }
 
               navbar.classList.remove('menu-open');
               document.documentElement.classList.remove('menu-open');
-              newToggle.setAttribute('aria-expanded', 'false');
+              toggle.setAttribute('aria-expanded', 'false');
 
               // If this is a modal trigger, just visually close the menu but leave 
               // the scroll lock perfectly intact so the modal can adopt it!

@@ -17,8 +17,8 @@ const currentItems = page.data;
   }
 </script>
 <style>
-  html.js-feed-filtering #feed-grid-wrapper {
-    opacity: 0 !important;
+  html.js-feed-filtering body #feed-grid-wrapper {
+    opacity: 0;
   }
 </style>
 <div id="feed-grid-wrapper" style="width: 100%; clear: both; transition: opacity 0.2s ease;">
@@ -32,11 +32,11 @@ const currentItems = page.data;
   </div>
 ) : (
   <div id="feed-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
-    <div class="col-span-full flex flex-col items-center justify-center text-center py-32 text-white/70 gap-8" style="min-height: 40vh;">
+    <div class="col-span-full flex flex-col items-center justify-center text-center py-16 md:py-32 text-white/70 gap-8" style="min-height: 40vh;">
       <svg class="w-16 h-16 text-white/20" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
       </svg>
-      <p class="text-2xl font-display font-bold tracking-widest uppercase mt-4">No content found.</p>
+      <h3 class="text-2xl font-display font-bold tracking-widest uppercase mt-4">No content found.</h3>
       <a href="/feed" class="cta-button-primary mt-2" style="padding: 0.75rem 2.5rem; font-size: 1rem;">
         View All Content
       </a>
@@ -51,13 +51,25 @@ const currentItems = page.data;
   ))}
 </template>
 
+<template id="feed-empty-state">
+  <div class="col-span-full flex flex-col items-center justify-center text-center py-16 md:py-32 text-white/70 gap-8" style="min-height: 40vh;">
+    <svg class="w-16 h-16 text-white/20" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+    </svg>
+    <h3 class="text-2xl font-display font-bold tracking-widest uppercase mt-4">No items found for this filter.</h3>
+    <button onclick="window.history.pushState(null, '', window.location.pathname + window.location.search); window.dispatchEvent(new Event('hashchange'));" class="cta-button-primary mt-2" style="padding: 0.75rem 2.5rem; font-size: 1rem;">
+      Clear Filters
+    </button>
+  </div>
+</template>
+
 {currentItems.length > 0 && (
   <div class="mt-auto w-full" style="padding-top: 3.5rem;">
     <div id="standard-pagination">
       <Pagination page={page} />
     </div>
     <div id="load-more-container" style="display: none;" class="text-center w-full">
-      <button id="load-more-btn" class="cta-button-primary" style="margin: 0 auto; position: relative; z-index: 10;">
+      <button id="load-more-btn" class="cta-button-primary mx-auto relative z-10">
         Load More
       </button>
     </div>
@@ -68,7 +80,12 @@ const currentItems = page.data;
 
 <script>
   function initFeedClientFiltering() {
-    const isFeedPage = window.location.pathname.startsWith('/feed');
+    // Memory leak fix: Cleanup old hashchange listener before early returns on new pages
+    if ((window as any)._feedHashChangeListener) {
+      window.removeEventListener('hashchange', (window as any)._feedHashChangeListener);
+    }
+
+    const isFeedPage = window.location.pathname.startsWith('/feed') || window.location.pathname.startsWith('/category');
     if (!isFeedPage) return;
 
     const feedGrid = document.getElementById('feed-grid');
@@ -126,6 +143,13 @@ const currentItems = page.data;
           loadMoreContainer.style.display = 'none';
         }
       }
+
+      // Accessibility: Shift focus to the first newly added card
+      if (nextBatch.length > 0) {
+        const firstNewCard = nextBatch[0];
+        const focusable = firstNewCard.matches('a, button') ? firstNewCard : firstNewCard.querySelector('a, button');
+        if (focusable) (focusable as HTMLElement).focus();
+      }
     }
 
     function applyFilters() {
@@ -137,10 +161,11 @@ const currentItems = page.data;
           btn.setAttribute('data-base-href', btn.getAttribute('href') || '');
         }
         const baseHref = btn.getAttribute('data-base-href');
+        const search = window.location.search;
         if (hash) {
-          btn.setAttribute('href', `${baseHref}#${hash}`);
+          btn.setAttribute('href', `${baseHref}${search}#${hash}`);
         } else {
-          btn.setAttribute('href', baseHref || '');
+          btn.setAttribute('href', `${baseHref || ''}${search}`);
         }
       });
 
@@ -150,11 +175,12 @@ const currentItems = page.data;
           link.setAttribute('data-base-href', link.getAttribute('href') || '');
         }
         const baseHref = link.getAttribute('data-base-href');
+        const search = window.location.search;
         if (baseHref) {
           if (hash) {
-            link.setAttribute('href', `${baseHref}#${hash}`);
+            link.setAttribute('href', `${baseHref}${search}#${hash}`);
           } else {
-            link.setAttribute('href', baseHref);
+            link.setAttribute('href', `${baseHref}${search}`);
           }
         }
       });
@@ -164,8 +190,10 @@ const currentItems = page.data;
         const btnCategory = btn.getAttribute('data-category');
         if (hash && btnCategory === hash) {
           btn.classList.add('active');
+          btn.setAttribute('aria-current', 'true');
         } else {
           btn.classList.remove('active');
+          btn.removeAttribute('aria-current');
         }
       });
 
@@ -202,6 +230,14 @@ const currentItems = page.data;
               if (node) node.style.transitionDelay = '';
             }, (index * 50) + 600);
           });
+
+          // Accessibility: Move focus to the restored grid wrapper after "Clear Filters"
+          const wrapper = document.getElementById('feed-grid-wrapper');
+          if (wrapper) {
+            wrapper.tabIndex = -1;
+            wrapper.focus();
+            wrapper.style.outline = 'none'; // Prevent visual outline on programmatic focus
+          }
         }
         if (standardPagination) standardPagination.style.display = '';
         if (loadMoreContainer) loadMoreContainer.style.display = 'none';
@@ -232,17 +268,10 @@ const currentItems = page.data;
       if (feedGrid) {
         feedGrid.innerHTML = '';
         if (currentMatches.length === 0) {
-          feedGrid.innerHTML = `
-            <div class="col-span-full flex flex-col items-center justify-center text-center py-32 text-white/70 gap-8" style="min-height: 40vh;">
-              <svg class="w-16 h-16 text-white/20" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-              </svg>
-              <p class="text-2xl font-display font-bold tracking-widest uppercase mt-4">No items found for this filter.</p>
-              <button onclick="window.history.pushState(null, '', '/feed'); window.dispatchEvent(new Event('hashchange'));" class="cta-button-primary mt-2" style="padding: 0.75rem 2.5rem; font-size: 1rem;">
-                Clear Filters
-              </button>
-            </div>
-          `;
+          const emptyTemplate = document.getElementById('feed-empty-state') as HTMLTemplateElement;
+          if (emptyTemplate) {
+            feedGrid.appendChild(emptyTemplate.content.cloneNode(true));
+          }
           if (loadMoreContainer) loadMoreContainer.style.display = 'none';
         } else {
           renderMoreItems();
@@ -266,9 +295,9 @@ const currentItems = page.data;
             const currentHash = window.location.hash.replace('#', '').toLowerCase();
             
             if (currentHash === category) {
-              history.pushState(null, '', '/feed'); // Toggle off
+              history.pushState(null, '', window.location.pathname + window.location.search); // Toggle off
             } else {
-              history.pushState(null, '', `/feed#${category}`); // Toggle on
+              history.pushState(null, '', `${window.location.pathname}${window.location.search}#${category}`); // Toggle on
             }
             applyFilters();
           }
@@ -277,9 +306,6 @@ const currentItems = page.data;
       }
     });
 
-    if ((window as any)._feedHashChangeListener) {
-      window.removeEventListener('hashchange', (window as any)._feedHashChangeListener);
-    }
     (window as any)._feedHashChangeListener = applyFilters;
     window.addEventListener('hashchange', applyFilters);
     

@@ -442,7 +442,8 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
       // Max iPhones — MUST re-run the mount logic. Previously CSS swapped the
       // visible structure while JS mounted nothing, so the desktop poster sat
       // over an empty mount and tapping play produced a black screen.
-      mql.addEventListener('change', () => scheduleReconcile(true));
+      const onMqlChange = () => scheduleReconcile(true);
+      mql.addEventListener('change', onMqlChange);
 
       // Bug 2: same-breakpoint rotation. orientationchange fires BEFORE iOS
       // settles the viewport, so wait for the following visualViewport resize
@@ -460,6 +461,13 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
         setTimeout(finish, 400);
       };
       window.addEventListener('orientationchange', onOrientation);
+
+      root._htCleanup = () => {
+        window.removeEventListener('message', onMessage);
+        window.removeEventListener('orientationchange', onOrientation);
+        mql.removeEventListener('change', onMqlChange);
+        if (reconcileTimer) clearTimeout(reconcileTimer);
+      };
 
       // ---- Desktop interactions ----
       if (poster) {
@@ -487,6 +495,14 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
       }
     });
   }
+
+  document.addEventListener('astro:before-preparation', () => {
+    document.querySelectorAll('[data-hero-trailer]').forEach((root) => {
+      if (typeof root._htCleanup === 'function') {
+        root._htCleanup();
+      }
+    });
+  });
 
   document.addEventListener('astro:after-swap', () => {
     document.querySelectorAll('[data-hero-trailer]').forEach((root) => {

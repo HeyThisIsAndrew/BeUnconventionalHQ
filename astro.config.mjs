@@ -29,6 +29,19 @@ export default defineConfig({
     partytown({
       config: {
         forward: ['dataLayer.push'],
+        resolveUrl: function(url, location, type) {
+          if (
+            type === 'script' &&
+            (url.hostname === 'www.googletagmanager.com' ||
+             url.hostname === 'www.google-analytics.com' ||
+             url.hostname === 'analytics.google.com')
+          ) {
+            const proxyUrl = new URL('/api/proxy', location.origin);
+            proxyUrl.searchParams.append('url', url.href);
+            return proxyUrl;
+          }
+          return url;
+        }
       },
     }),
     react(),

@@ -82,19 +82,18 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
       document.documentElement.classList.add('js');
     </script>
     <!-- Google Tag Manager (Worker) -->
-    <script type="text/partytown" is:inline define:vars={{ gtmId }}>
-      if (gtmId) {
-        window.dataLayer = window.dataLayer || [];
-        window.dataLayer.push({
-          'gtm.start': new Date().getTime(),
-          event: 'gtm.js',
-        });
-        var gtmScript = document.createElement('script');
-        gtmScript.async = true;
-        gtmScript.src = 'https://www.googletagmanager.com/gtm.js?id=' + gtmId;
-        document.head.appendChild(gtmScript);
-      }
-    </script>
+    {gtmId && (
+      <>
+        <script type="text/partytown" is:inline>
+          window.dataLayer = window.dataLayer || [];
+          window.dataLayer.push({
+            'gtm.start': new Date().getTime(),
+            event: 'gtm.js',
+          });
+        </script>
+        <script type="text/partytown" src={`https://www.googletagmanager.com/gtm.js?id=${gtmId}`} />
+      </>
+    )}
 
     <!-- Google Tag Manager (Main Thread Navigation) -->
     <script is:inline>
@@ -105,13 +104,20 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
         // dashboard triggers on this event (not "All Pages") to avoid
         // double-counting the first view.
         document.addEventListener('astro:page-load', function () {
-          window.dataLayer = window.dataLayer || [];
-          window.dataLayer.push({
-            event: 'page_view',
-            page_location: window.location.href,
-            page_path: window.location.pathname,
-            page_title: document.title,
-          });
+          const pushGA = () => {
+            window.dataLayer = window.dataLayer || [];
+            window.dataLayer.push({
+              event: 'page_view',
+              page_location: window.location.href,
+              page_path: window.location.pathname,
+              page_title: document.title,
+            });
+          };
+          if ('requestIdleCallback' in window) {
+            requestIdleCallback(pushGA);
+          } else {
+            setTimeout(pushGA, 200);
+          }
         });
       }
     </script>
