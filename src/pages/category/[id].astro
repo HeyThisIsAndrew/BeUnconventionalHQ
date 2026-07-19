@@ -6,6 +6,7 @@ import { getVideosUnified } from '../../lib/videos-source';
 import { parseVideoId } from '../../lib/platforms/youtube';
 import PageTitle from '../../components/PageTitle.astro';
 import QuadrantFilter from '../../components/QuadrantFilter.astro';
+import ContentCard from '../../components/ContentCard.astro';
 
 export async function getStaticPaths() {
   return categories.map((cat) => ({
@@ -35,10 +36,10 @@ const categoryArticles = allArticles.filter(matchesCategory).slice(0, 4);
 
 <Layout title={`${category.label} | Be Unconventional HQ`}>
   <main
-    class="category-hub-page"
-    style="padding-top: 120px; min-height: 100vh;"
+    class="category-hub-page flex-1 flex flex-col w-full pb-16 md:pb-24"
+    style="padding-top: 120px;"
   >
-    <div class="container">
+    <div class="container flex-1 flex flex-col">
       <header class="section-header reveal" data-nav-anchor>
         <PageTitle
           as="h1"
@@ -57,32 +58,11 @@ const categoryArticles = allArticles.filter(matchesCategory).slice(0, 4);
         >
           LATEST VIDEOS
         </h2>
-        <div class="video-grid">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
           {
             categoryVideos.length > 0 ? (
               categoryVideos.map((video: any, index: number) => (
-                <div
-                  class="video-card reveal video-modal-trigger"
-                  data-delay={index * 100}
-                  data-video-id={parseVideoId(video.link)}
-                  style="cursor: pointer;"
-                >
-                  <div class="video-thumbnail-wrapper">
-                    <span class="content-badge">{video.category}</span>
-                    <img
-                      src={video.thumbnail}
-                      alt={video.title}
-                      loading="lazy"
-                      decoding="async"
-                      class="video-thumbnail"
-                      onerror="this.onerror=null;this.src=this.src.replace('maxresdefault','hqdefault')"
-                    />
-                  </div>
-                  <div class="video-info">
-                    <h3 class="video-title">{video.title}</h3>
-                    <span class="video-watch-btn">Watch Now →</span>
-                  </div>
-                </div>
+                <ContentCard item={video} index={index} />
               ))
             ) : (
               <p
@@ -103,32 +83,11 @@ const categoryArticles = allArticles.filter(matchesCategory).slice(0, 4);
         >
           LATEST ARTICLES
         </h2>
-        <div class="articles-grid">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
           {
             categoryArticles.length > 0 ? (
               categoryArticles.map((article: any, index: number) => (
-                <a
-                  href={article.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="article-card reveal"
-                  data-delay={index * 100}
-                >
-                  <div class="article-image-wrapper">
-                    <img
-                      src={article.image}
-                      alt={article.title}
-                      loading="lazy"
-                      decoding="async"
-                      class="article-image"
-                    />
-                  </div>
-                  <div class="article-content">
-                    <span class="article-date">{article.date}</span>
-                    <h3 class="article-title">{article.title}</h3>
-                    <span class="article-link">Read More →</span>
-                  </div>
-                </a>
+                <ContentCard item={article} index={index} />
               ))
             ) : (
               <p
@@ -150,23 +109,5 @@ const categoryArticles = allArticles.filter(matchesCategory).slice(0, 4);
     max-width: 1536px;
     margin: 0 auto;
     padding: 0 2rem;
-  }
-  
-  .video-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
-    gap: 2rem;
-  }
-
-  .articles-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
-    gap: 2rem;
-  }
-  
-  @media (max-width: 768px) {
-    .video-grid, .articles-grid {
-      grid-template-columns: 1fr;
-    }
   }
 </style>

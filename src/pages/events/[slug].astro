@@ -10,6 +10,7 @@ import { parseVideoId } from '../../lib/platforms/youtube';
 import { mapSanityVideo } from '../../lib/videos.ts';
 import { formatEventDateRange, formatLocation } from '../../lib/events';
 import EventStatusIndicator from '../../components/EventStatusIndicator.astro';
+import ContentCard from '../../components/ContentCard.astro';
 
 export async function getStaticPaths() {
   // Project image asset dimensions so we can reserve the logo's box and avoid CLS.
@@ -203,51 +204,10 @@ const trailerId = parseVideoId(trailerUrl);
             <button class="filter-btn type-btn" data-filter="video" aria-pressed="false">VIDEOS</button>
           </div>
 
-          <div class="mixed-grid" aria-live="polite">
-            {unifiedContent.map((item, index) => {
-              if (item.contentType === 'video') {
-                const videoId = parseVideoId(item.link);
-                return (
-                  <div
-                    class:list={['content-card', 'video-card', 'animate-on-scroll', { 'video-modal-trigger': !!videoId }]}
-                    data-type="video"
-                    data-video-id={videoId || undefined}
-                    role={videoId ? 'button' : undefined}
-                    tabindex={videoId ? '0' : undefined}
-                    aria-label={videoId ? `Play video: ${item.title}` : undefined}
-                    style={`--index: ${index}; cursor: ${videoId ? 'pointer' : 'default'};`}
-                  >
-                    <div class="thumbnail-wrapper">
-                      <img src={item.thumbnail} alt={item.title} loading="lazy" class="thumbnail" onerror="this.onerror=null;this.src=this.src.replace('maxresdefault','hqdefault')" />
-                      <div class="video-play-overlay">
-                        <div class="play-icon">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="card-info">
-                      <span class="content-type-subtle">VIDEO • {item.date}</span>
-                      <h3 class="card-title">{item.title}</h3>
-                    </div>
-                  </div>
-                );
-              } else {
-                return (
-                  <a href={item.link} target="_blank" rel="noopener noreferrer" class="content-card article-card animate-on-scroll" data-type="article" style={`--index: ${index};`}>
-                    {item.image && (
-                      <div class="thumbnail-wrapper">
-                        <img src={item.image} alt={item.title} loading="lazy" class="thumbnail" />
-                      </div>
-                    )}
-                    <div class="card-info">
-                      <span class="content-type-subtle">ARTICLE • {item.date}</span>
-                      <h3 class="card-title">{item.title}</h3>
-                      {item.excerpt && <p class="card-excerpt">{item.excerpt}</p>}
-                    </div>
-                  </a>
-                );
-              }
-            })}
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full" aria-live="polite">
+            {unifiedContent.map((item, index) => (
+              <ContentCard item={item} index={index} />
+            ))}
           </div>
         </section>
       ) : (
@@ -578,127 +538,10 @@ const trailerId = parseVideoId(trailerUrl);
     }
   }
   
-  /* Mixed Grid */
-  .mixed-grid {
-    display: grid;
-    /* min(100%, 320px) lets a single card shrink below 320px on narrow phones
-       instead of overflowing the padded container. */
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
-    gap: 2rem;
-  }
+  /* The styles for the cards themselves are now unified via ContentCard.astro 
+     and global tailwind classes */
 
 
-  .content-card {
-    background: #111;
-    overflow: hidden;
-    text-decoration: none;
-    color: white;
-    transition: transform 0.2s ease, border-color 0.2s ease;
-    border: 1px solid rgba(255,255,255,0.1);
-    display: flex;
-    flex-direction: column;
-  }
-  .content-card:hover {
-    transform: translateY(-5px);
-    border-color: var(--brand-color);
-  }
-  
-  .thumbnail-wrapper {
-    position: relative;
-    aspect-ratio: 16/9;
-    overflow: hidden;
-  }
-  .thumbnail {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.5s ease;
-  }
-  .content-card:hover .thumbnail {
-    transform: scale(1.05);
-  }
-  
-  .content-badge {
-    position: absolute;
-    top: 1rem;
-    left: 1rem;
-    background: rgba(0,0,0,0.8);
-    color: white;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    z-index: 10;
-    backdrop-filter: blur(4px);
-    border: 1px solid rgba(255,255,255,0.1);
-  }
-  
-  /* Video Specific */
-  .video-play-overlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    z-index: 5;
-  }
-  .content-card:hover .video-play-overlay,
-  .content-card:focus-visible .video-play-overlay {
-    opacity: 1;
-  }
-  .content-card:focus-visible {
-    outline: 2px solid var(--brand-color, #cc0000);
-    outline-offset: 3px;
-  }
-  .play-icon {
-    width: 60px;
-    height: 60px;
-    background: rgba(255,255,255,0.2);
-    backdrop-filter: blur(4px);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    border: 2px solid rgba(255,255,255,0.5);
-    transition: transform 0.3s ease, background 0.3s ease;
-  }
-  .content-card:hover .play-icon {
-    transform: scale(1.1);
-    background: var(--brand-color);
-    border-color: var(--brand-color);
-  }
-  
-  .card-info {
-    padding: 1.5rem;
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-  }
-  .card-date {
-    font-size: 0.8rem;
-    color: var(--brand-color);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 0.5rem;
-    font-weight: 700;
-  }
-  .card-title {
-    font-size: 1.25rem;
-    margin: 0;
-    line-height: 1.4;
-  }
-  .card-excerpt {
-    color: #a0a0a0;
-    font-size: 0.9rem;
-    line-height: 1.5;
-    margin: 0.75rem 0 0 0;
-    flex-grow: 1;
-  }
   
   .empty-state {
     text-align: center;

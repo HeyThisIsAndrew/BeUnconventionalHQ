@@ -1,6 +1,7 @@
 ---
 import { getArticles } from '../data/feeds.js';
 import PageTitle from './PageTitle.astro';
+import ContentCard from './ContentCard.astro';
 const allArticles = await getArticles();
 const latestArticles = allArticles.slice(0, 3);
 ---
@@ -13,31 +14,7 @@ const latestArticles = allArticles.slice(0, 3);
   <div class="latest-grid">
     {
       latestArticles.map((article, index) => (
-        <a
-          href={article.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="article-card animate-on-scroll"
-          data-delay={index * 100}
-          style="text-decoration: none;"
-        >
-          <div class="article-image-wrapper">
-            <span class="content-badge">{article.category}</span>
-            <img
-              src={article.image}
-              alt={article.title}
-              loading="lazy"
-              decoding="async"
-              class="article-image"
-            />
-          </div>
-          <div class="article-content">
-            <span class="article-date">{article.date}</span>
-            <h2 class="article-title">{article.title}</h2>
-            <p class="article-excerpt">{article.excerpt}</p>
-            <span class="article-link">Read Full Article</span>
-          </div>
-        </a>
+        <ContentCard item={article} index={index} />
       ))
     }
   </div>

@@ -6,7 +6,7 @@ import { getArticles } from '../../data/feeds.js';
 import { getVideosUnified } from '../../lib/videos-source';
 import QuadrantFilter from '../../components/QuadrantFilter.astro';
 import Pagination from '../../components/Pagination.astro';
-import { parseVideoId } from '../../lib/platforms/youtube';
+import ContentCard from '../../components/ContentCard.astro';
 import type { GetStaticPathsOptions } from 'astro';
 
 export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
@@ -30,8 +30,8 @@ const description = 'Discover all articles, videos, and events from Be Unconvent
 ---
 
 <Layout title={title} description={description} prevUrl={page.url.prev} nextUrl={page.url.next}>
-  <main class="feed-page" style="min-height: 100vh;">
-    <div class="container">
+  <main class="feed-page flex-1 flex flex-col w-full pb-16 md:pb-24">
+    <div class="container flex-1 flex flex-col">
       <header class="section-header animate-on-scroll" data-nav-anchor>
         <PageTitle as="h1" kicker="Explore The HQ" primary="The" secondary="Feed" />
       </header>
@@ -40,75 +40,17 @@ const description = 'Discover all articles, videos, and events from Be Unconvent
 
       {/* Structural h2 so card h3s don't skip a heading level (axe: heading-order). */}
       <h2 class="sr-only">All content</h2>
-      <div class="articles-grid max-w-screen-2xl mx-auto w-full">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-screen-2xl mx-auto px-4 md:px-8">
         {
-          allItems.map((item: any, index: number) => {
-            const isVideo = item.type === 'video';
-            const videoId = isVideo ? parseVideoId(item.link) : null;
-
-            const itemTags = Array.isArray(item.tags) ? item.tags : [item.category || 'General'];
-            const lowerTags = itemTags.map((t: string) => typeof t === 'string' ? t.toLowerCase() : '');
-            
-            let primaryLabel = 'General';
-            if (lowerTags.includes('tv')) primaryLabel = 'TV';
-            else if (lowerTags.includes('film')) primaryLabel = 'Film';
-            else if (lowerTags.includes('gaming')) primaryLabel = 'Gaming';
-            else if (lowerTags.includes('event') || lowerTags.includes('events')) primaryLabel = 'Event';
-            else primaryLabel = item.category || 'General';
-
-            const CardWrapper = isVideo ? 'div' : 'a';
-            const wrapperProps = isVideo
-              ? {
-                  class: 'article-card animate-on-scroll video-modal-trigger',
-                  'data-video-id': videoId,
-                  style: `--index: ${index}; text-decoration: none; cursor: pointer;`,
-                }
-              : {
-                  href: item.link || '#',
-                  target: '_blank',
-                  rel: 'noopener noreferrer',
-                  class: 'article-card animate-on-scroll',
-                  style: `--index: ${index}; text-decoration: none;`,
-                };
-
-            // Image loading strategy: Eager for first 6 items, lazy for the rest
-            const loadingStrategy = index < 6 ? 'eager' : 'lazy';
-
-            return (
-              <CardWrapper
-                {...wrapperProps}
-                data-type={(item.type || 'article').toLowerCase()}
-                data-category={lowerTags.join(',')}
-              >
-                <div class="article-image-wrapper">
-                  <img
-                    src={item.image}
-                    alt={item.title}
-                    loading={loadingStrategy}
-                    decoding="async"
-                    class="article-image"
-                  />
-                  <span class="content-badge">
-                    {primaryLabel.toUpperCase()}
-                  </span>
-                </div>
-                <div class="article-content">
-                  <span class="content-type-subtle">
-                    {(item.type || 'ARTICLE').toUpperCase()} • {item.date}
-                  </span>
-                  <h3 class="article-title">{item.title}</h3>
-                  <p class="article-excerpt">{item.excerpt}</p>
-                  <span class="article-link">
-                    {isVideo ? 'Watch Now →' : 'Explore →'}
-                  </span>
-                </div>
-              </CardWrapper>
-            );
-          })
+          allItems.map((item: any, index: number) => (
+            <ContentCard item={item} index={index} />
+          ))
         }
       </div>
 
-      <Pagination page={page} />
+      <div class="mt-auto w-full max-w-screen-2xl mx-auto px-4 md:px-8">
+        <Pagination page={page} />
+      </div>
     </div>
   </main>
 </Layout>
@@ -123,21 +65,9 @@ const description = 'Discover all articles, videos, and events from Be Unconvent
     padding: 120px 0 2rem;
   }
 
-  .articles-grid {
-    display: grid;
-    /* 4-column grid constraint adjusted */
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
-    gap: 3rem;
-    max-width: 1536px;
-    margin: 0 auto;
-  }
-
   @media (max-width: 768px) {
     .feed-page {
       padding: 80px 0 2rem;
-    }
-    .articles-grid {
-      grid-template-columns: 1fr;
     }
   }
 </style>
