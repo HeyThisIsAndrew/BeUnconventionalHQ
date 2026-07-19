@@ -12,7 +12,8 @@ const videoId = isVideo ? parseVideoId(item.link) : null;
 const isPlayable = isVideo && !!videoId;
 
 // Determine primary label for the badge
-const itemTags = Array.isArray(item.tags) ? item.tags : [item.category || 'General'];
+const baseTags = Array.isArray(item.tags) ? item.tags : [];
+const itemTags = [...baseTags, item.category || 'General'];
 const lowerTags = itemTags.map((t: string) => typeof t === 'string' ? t.toLowerCase() : '');
 let primaryLabel = 'General';
 if (isVideo) primaryLabel = 'Video';

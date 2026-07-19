@@ -20,12 +20,14 @@ const allArticles = await getArticles();
 
 const catLabel = category.label.toLowerCase();
 function matchesCategory(item: any) {
-  const itemTags = Array.isArray(item.tags) ? item.tags : [item.category || 'general'];
-  return itemTags.some((t: any) => {
-    const trimmed = typeof t === 'string' ? t.toLowerCase().trim() : '';
-    if (trimmed === catLabel) return true;
-    if (catLabel === 'events' && trimmed === 'event') return true;
-    if (catLabel === 'event' && trimmed === 'events') return true;
+  const tags = Array.isArray(item.tags) ? item.tags : [];
+  const cat = item.category || 'general';
+  const allTags = [...tags, cat].map(t => typeof t === 'string' ? t.toLowerCase().trim() : '');
+  
+  return allTags.some((t: string) => {
+    if (t === catLabel) return true;
+    if (catLabel === 'events' && t === 'event') return true;
+    if (catLabel === 'event' && t === 'events') return true;
     return false;
   });
 }
