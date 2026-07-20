@@ -182,11 +182,15 @@ async function run() {
   }
 
   const now = new Date();
-  const docs = videos.map((v) => {
+  const syncedDocs = videos.map((v) => {
     const match = matchVideoTags(v.tags, dict);
     const existingDoc = existingDocsMap.get(videoDocId(v.id));
     return planVideoSync(v, match, existingDoc, now);
   });
+
+  const syncedIds = new Set(syncedDocs.map(d => d._id));
+  const preservedDocs = Array.from(existingDocsMap.values()).filter(d => !syncedIds.has(d._id));
+  const docs = [...syncedDocs, ...preservedDocs];
 
   fs.writeFileSync(outPath, JSON.stringify(docs, null, 2));
   console.log(`\n✔ Synced ${docs.length} videos locally to ${outPath}.`);

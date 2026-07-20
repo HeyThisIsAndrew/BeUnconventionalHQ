@@ -91,8 +91,8 @@ export default function LocalCmsApp() {
       if (activeFilter === 'Videos') return type === 'video';
       if (activeFilter === 'Shorts') return type === 'short';
       if (activeFilter === 'Live') return type === 'live';
-      if (activeFilter === 'Events') return type === 'event';
-      if (activeFilter === 'Featured') return v.featured === true;
+      if (activeFilter === 'Events') return type === 'event' || v.manualTypeOverride === 'event';
+      if (activeFilter === 'Featured') return type === 'featuredBrand' || v.featured === true;
       return true;
     });
   }
@@ -101,17 +101,11 @@ export default function LocalCmsApp() {
   const selectedIndex = videos.findIndex(v => v._id === selectedVideoId);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Top Header - Save bar */}
       <div className="flex justify-between items-center bg-[#111] p-4 rounded-xl border border-white/10 sticky top-28 z-10 shadow-2xl shadow-black">
         <div className="text-sm text-gray-400 flex items-center space-x-4">
           <span>Managing <span className="font-mono text-white">{videos.length}</span> entries locally</span>
-          <input 
-            type="text" 
-            placeholder="Search videos..." 
-            className="bg-gray-900 border border-white/10 rounded-md px-3 py-1 text-white text-sm focus:ring-2 focus:ring-red-500 focus:outline-none"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
         </div>
         <div className="flex items-center space-x-4">
           {message && (
@@ -129,34 +123,49 @@ export default function LocalCmsApp() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
-        {/* Master List */}
-        <div className="w-full lg:w-1/3 bg-[#111] rounded-xl border border-white/10 overflow-hidden flex-shrink-0 flex flex-col lg:h-[80vh] max-h-[50vh] lg:max-h-none">
-          {/* Filter Tabs */}
-          <div className="flex flex-wrap gap-2 p-4 border-b border-white/10 bg-black/20">
-            {['All', 'Videos', 'Shorts', 'Live', 'Events', 'Featured'].map(filter => (
-              <button
-                key={filter}
-                onClick={() => setActiveFilter(filter)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  activeFilter === filter
-                    ? 'bg-red-600 text-white'
-                    : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                {filter}
-              </button>
-            ))}
+      <div className="flex flex-col lg:flex-row gap-4 items-start w-full">
+        {/* Column 1: Desk Structure / Navigation */}
+        <div className="w-full lg:w-48 flex-shrink-0 flex flex-col gap-1 bg-[#111] rounded-xl border border-white/10 p-2">
+          <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Content</div>
+          {['All', 'Videos', 'Shorts', 'Live', 'Events', 'Featured'].map(filter => (
+            <button
+              key={filter}
+              onClick={() => setActiveFilter(filter)}
+              className={`text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeFilter === filter
+                  ? 'bg-white/10 text-white'
+                  : 'text-gray-400 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              {filter}
+            </button>
+          ))}
+        </div>
+
+        {/* Column 2: Master List */}
+        <div className="w-full lg:w-1/3 xl:w-80 bg-[#111] rounded-xl border border-white/10 flex-shrink-0 flex flex-col lg:h-[80vh] max-h-[50vh] lg:max-h-none">
+          <div className="p-3 border-b border-white/10 bg-black/20">
+            <input 
+              type="text" 
+              placeholder="Search items..." 
+              className="w-full bg-gray-900 border border-white/10 rounded-md px-3 py-2 text-white text-sm focus:ring-2 focus:ring-red-500 focus:outline-none"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
           <ul className="divide-y divide-white/10 overflow-y-auto flex-1">
             {filteredVideos.map((vid) => (
               <li 
                 key={vid._id} 
-                className={`p-4 cursor-pointer hover:bg-white/[0.05] transition-colors ${selectedVideoId === vid._id ? 'bg-white/[0.05]' : ''}`}
+                className={`p-3 cursor-pointer hover:bg-white/[0.05] transition-colors ${selectedVideoId === vid._id ? 'bg-white/[0.05]' : ''}`}
                 onClick={() => setSelectedVideoId(vid._id)}
               >
                 <div className="flex items-center">
-                  <img src={`https://i.ytimg.com/vi/${vid.youtubeId}/mqdefault.jpg`} alt="" className="w-16 h-10 object-cover rounded bg-gray-800 flex-shrink-0" />
+                  {vid.youtubeId ? (
+                    <img src={`https://i.ytimg.com/vi/${vid.youtubeId}/mqdefault.jpg`} alt="" className="w-12 h-8 object-cover rounded bg-gray-800 flex-shrink-0" />
+                  ) : (
+                    <div className="w-12 h-8 rounded bg-gray-800 flex-shrink-0 flex items-center justify-center text-[10px] text-gray-500 font-bold uppercase">{vid._type}</div>
+                  )}
                   <div className="ml-3 min-w-0">
                     <p className="text-sm font-medium text-white truncate">{vid.title}</p>
                     <p className="text-xs text-gray-500 mt-1">
@@ -170,8 +179,8 @@ export default function LocalCmsApp() {
           </ul>
         </div>
 
-        {/* Detail View */}
-        <div className="w-full lg:w-2/3 bg-[#111] rounded-xl border border-white/10 p-4 sm:p-6">
+        {/* Column 3: Detail Editor */}
+        <div className="w-full lg:flex-1 bg-[#111] rounded-xl border border-white/10 p-4 sm:p-6 lg:h-[80vh] overflow-y-auto">
           {selectedVideo && selectedIndex >= 0 ? (
             <div className="space-y-6">
               <div>
@@ -354,8 +363,13 @@ export default function LocalCmsApp() {
               </div>
             </div>
           ) : (
-            <div className="h-full flex items-center justify-center text-gray-500">
-              Select a video from the list to edit its properties
+            <div className="h-full flex flex-col items-center justify-center text-gray-500 opacity-50">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="mb-4">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="3" y1="9" x2="21" y2="9"></line>
+                <line x1="9" y1="21" x2="9" y2="9"></line>
+              </svg>
+              <p>Select a document from the list to edit its properties</p>
             </div>
           )}
         </div>
