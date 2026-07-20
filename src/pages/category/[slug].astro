@@ -1,0 +1,15 @@
+---
+import { categories } from '../../data/categories.js';
+
+export async function getStaticPaths() {
+  return categories.map((cat) => ({
+    params: { slug: cat.slug },
+    props: { category: cat },
+  }));
+}
+
+const { category } = Astro.props;
+
+// Fallback Redirect: Instantly route legacy category URLs to the filtered feed
+return Astro.redirect(`/feed?category=${category.slug}`);
+---
