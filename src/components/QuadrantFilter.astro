@@ -102,6 +102,8 @@ const currentPath = Astro.url.pathname;
   </div>
 </div>
 
+<!-- LEGACY CATEGORY DIALOG (COMMENTED OUT FOR REVERT IF NEEDED) -->
+<!--
 <dialog
   id="category-modal"
   class="fade-in-overlay"
@@ -134,6 +136,38 @@ const currentPath = Astro.url.pathname;
     </div>
   </div>
 </dialog>
+-->
+
+<!-- NEW FULL-SCREEN IMMERSIVE OVERLAY -->
+<div id="category-fullscreen-overlay" class="category-fullscreen-overlay" aria-hidden="true">
+  <button class="close-fullscreen-btn nav-toggle menu-open" aria-label="Close categories" id="close-categories-btn">
+    <span class="line line-1"></span>
+    <span class="line line-2"></span>
+    <span class="line line-3"></span>
+  </button>
+  <div class="fullscreen-content filter-row category-row">
+    <div class="filter-grid">
+      {
+        categories.map((c) => {
+          const slug = c.toLowerCase();
+          const expectedHubPath = `/category/${slug}${Astro.url.search}`;
+          
+          const isFeedContext = currentPath.startsWith('/feed');
+          const isActive = !isFeedContext && currentPath.startsWith(`/category/${slug}`);
+          const className = `quadrant-btn cat-btn ${isActive ? 'active' : ''}`;
+          
+          const hrefTarget = isFeedContext ? `#${slug}` : expectedHubPath;
+
+          return (
+            <a href={hrefTarget} class={className} data-category={slug} aria-current={isActive ? 'true' : undefined}>
+              {c}
+            </a>
+          );
+        })
+      }
+    </div>
+  </div>
+</div>
 
 <style>
   .quadrant-filter-container {
@@ -314,7 +348,10 @@ const currentPath = Astro.url.pathname;
     }
   }
 
-  /* Dialog Styles for Category Overlay */
+  /* =========================================================================
+     LEGACY DIALOG STYLES (COMMENTED OUT FOR REVERT IF NEEDED)
+     ========================================================================= */
+  /*
   #category-modal {
     view-transition-name: cinematic-overlay;
     background: transparent;
@@ -343,23 +380,13 @@ const currentPath = Astro.url.pathname;
   }
 
   @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: scale(0.95) translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1) translateY(0);
-    }
+    from { opacity: 0; transform: scale(0.95) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
   }
 
   @keyframes fadeInBackdrop {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   #category-modal.closing {
@@ -371,23 +398,13 @@ const currentPath = Astro.url.pathname;
   }
 
   @keyframes fadeOut {
-    from {
-      opacity: 1;
-      transform: scale(1) translateY(0);
-    }
-    to {
-      opacity: 0;
-      transform: scale(0.95) translateY(10px);
-    }
+    from { opacity: 1; transform: scale(1) translateY(0); }
+    to { opacity: 0; transform: scale(0.95) translateY(10px); }
   }
 
   @keyframes fadeOutBackdrop {
-    from {
-      opacity: 1;
-    }
-    to {
-      opacity: 0;
-    }
+    from { opacity: 1; }
+    to { opacity: 0; }
   }
 
   #category-modal .modal-content {
@@ -403,8 +420,9 @@ const currentPath = Astro.url.pathname;
 
   .close-btn {
     position: absolute;
-    top: -40px;
-    right: 0;
+    top: -3rem;
+    right: -1rem;
+    padding: 1rem;
     background: transparent;
     border: none;
     color: white;
@@ -438,9 +456,121 @@ const currentPath = Astro.url.pathname;
     font-size: 1.3rem;
     letter-spacing: 0.1em;
   }
+  */
+
+  /* =========================================================================
+     FULL-SCREEN IMMERSIVE OVERLAY STYLES
+     ========================================================================= */
+  .category-fullscreen-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100dvh;
+    background: #000000;
+    z-index: 10005;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.4s ease;
+    padding-top: env(safe-area-inset-top);
+    overscroll-behavior: contain;
+  }
+
+  .category-fullscreen-overlay.is-open {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .close-fullscreen-btn {
+    position: absolute;
+    top: max(1rem, env(safe-area-inset-top, 1rem));
+    right: max(1rem, env(safe-area-inset-right, 1rem));
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    width: 44px;
+    height: 44px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    z-index: 10006;
+    padding: 0;
+  }
+
+  .close-fullscreen-btn .line {
+    display: block;
+    width: 24px;
+    height: 2px;
+    background: var(--color-white);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+  }
+
+  /* Pre-transformed into an X */
+  .close-fullscreen-btn .line:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .close-fullscreen-btn .line:nth-child(2) { opacity: 0; }
+  .close-fullscreen-btn .line:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+  .category-fullscreen-overlay .filter-grid {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem; /* Matched exactly to #navbar nav ul */
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .category-fullscreen-overlay .cat-btn {
+    position: relative;
+    display: block;
+    padding: 1.5rem 1.25rem;
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: rgba(245, 245, 245, 0.8);
+    text-transform: uppercase;
+    text-decoration: none;
+    letter-spacing: 0.15em;
+    transition: color 0.3s ease, text-shadow 0.3s ease;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  .category-fullscreen-overlay .cat-btn::after {
+    content: '';
+    position: absolute;
+    bottom: 0.75rem;
+    left: 1.25rem;
+    width: 0;
+    height: 1px;
+    background: var(--color-accent);
+    transition: width 0.35s cubic-bezier(0.25, 0.8, 0.2, 1);
+  }
+
+  .category-fullscreen-overlay .cat-btn:hover,
+  .category-fullscreen-overlay .cat-btn.active {
+    color: var(--color-accent);
+    text-shadow: 0 0 16px rgba(204, 0, 0, 0.45);
+    background: transparent;
+    box-shadow: none;
+    outline: none;
+    transform: none;
+  }
+
+  .category-fullscreen-overlay .cat-btn:hover::after,
+  .category-fullscreen-overlay .cat-btn.active::after {
+    width: calc(100% - 2.5rem);
+  }
 
   :global(body.modal-open) {
-    overflow: hidden;
+    overflow: hidden !important;
   }
 </style>
 
@@ -448,6 +578,10 @@ const currentPath = Astro.url.pathname;
   import { navigate } from 'astro:transitions/client';
 
   function initQuadrantFilter() {
+    /* =========================================================================
+       LEGACY DIALOG LOGIC (COMMENTED OUT FOR REVERT IF NEEDED)
+       ========================================================================= */
+    /*
     const categoryModal = document.getElementById('category-modal') as HTMLDialogElement;
     const openBtn = document.getElementById('open-categories-btn');
 
@@ -519,19 +653,6 @@ const currentPath = Astro.url.pathname;
       categoryModal.dataset.boundClick = 'true';
     }
 
-    // Update the Categories button text based on active route
-    const openCategoriesBtn = document.getElementById('open-categories-btn');
-    if (openCategoriesBtn) {
-      const activeCat = document.querySelector('.desktop-category-row .cat-btn.active');
-      if (activeCat) {
-        openCategoriesBtn.textContent = `Categories | ${activeCat.textContent?.trim()}`;
-        openCategoriesBtn.classList.add('active');
-      } else {
-        openCategoriesBtn.textContent = `Categories`;
-        openCategoriesBtn.classList.remove('active');
-      }
-    }
-
     // Close modal on link click during nav mode (Event Delegation)
     if (categoryModal && !categoryModal.dataset.boundNavDelegation) {
       categoryModal.addEventListener('click', (e) => {
@@ -557,6 +678,95 @@ const currentPath = Astro.url.pathname;
         }
       });
       categoryModal.dataset.boundNavDelegation = 'true';
+    }
+    */
+
+    /* =========================================================================
+       NEW FULL-SCREEN IMMERSIVE LOGIC
+       ========================================================================= */
+    const overlay = document.getElementById('category-fullscreen-overlay');
+    const openBtn = document.getElementById('open-categories-btn');
+    const closeBtn = document.getElementById('close-categories-btn');
+
+    function closeFullscreenOverlay() {
+      if (!overlay || !overlay.classList.contains('is-open')) return;
+      overlay.classList.remove('is-open');
+      document.body.classList.remove('modal-open');
+      
+      // Use the global scroll lock cleanup logic from the main nav
+      document.documentElement.classList.remove('menu-open');
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      document.body.style.overflowY = '';
+      
+      if (openBtn) {
+        openBtn.setAttribute('aria-expanded', 'false');
+        openBtn.focus();
+      }
+    }
+
+    function openFullscreenOverlay() {
+      if (!overlay) return;
+      
+      // Standardize scroll lock
+      const scrollY = window.scrollY;
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      document.body.style.overflowY = 'scroll';
+      
+      overlay.classList.add('is-open');
+      document.body.classList.add('modal-open'); // keep for backward compatibility
+      document.documentElement.classList.add('menu-open'); // global body lock
+      
+      if (openBtn) openBtn.setAttribute('aria-expanded', 'true');
+    }
+
+    if (closeBtn && !(closeBtn as HTMLElement).dataset.bound) {
+      closeBtn.addEventListener('click', closeFullscreenOverlay);
+      (closeBtn as HTMLElement).dataset.bound = 'true';
+    }
+
+    if (openBtn && overlay && !openBtn.dataset.bound) {
+      openBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (overlay.classList.contains('is-open')) {
+          closeFullscreenOverlay();
+        } else {
+          openFullscreenOverlay();
+        }
+      });
+      openBtn.dataset.bound = 'true';
+    }
+
+    // Close modal on link click during nav mode (Event Delegation)
+    if (overlay && !overlay.dataset.boundNavDelegation) {
+      overlay.addEventListener('click', (e) => {
+        const link = (e.target as HTMLElement).closest('a.cat-btn');
+        if (!link) return;
+
+        const hrefAttr = link.getAttribute('href');
+        closeFullscreenOverlay();
+        
+        if (hrefAttr && !hrefAttr.startsWith('#')) {
+          e.preventDefault();
+          navigate((link as HTMLAnchorElement).href);
+        }
+      });
+      overlay.dataset.boundNavDelegation = 'true';
+    }
+
+    // Update the Categories button text based on active route
+    if (openBtn) {
+      const activeCat = document.querySelector('.desktop-category-row .cat-btn.active');
+      if (activeCat) {
+        openBtn.textContent = `Categories | ${activeCat.textContent?.trim()}`;
+        openBtn.classList.add('active');
+      } else {
+        openBtn.textContent = `Categories`;
+        openBtn.classList.remove('active');
+      }
     }
   }
 
