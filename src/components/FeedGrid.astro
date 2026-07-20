@@ -88,6 +88,16 @@ const currentItems = page.data;
     const isFeedPage = window.location.pathname.startsWith('/feed') || window.location.pathname.startsWith('/category');
     if (!isFeedPage) return;
 
+    // URL Normalization: Consume ?category= and translate strictly to a Hash
+    const params = new URLSearchParams(window.location.search);
+    const queryCategory = params.get('category');
+    if (queryCategory) {
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('category');
+      newUrl.hash = queryCategory;
+      window.history.replaceState(null, '', newUrl.toString().replace(newUrl.origin, ''));
+    }
+
     const feedGrid = document.getElementById('feed-grid');
     const template = document.getElementById('full-dataset-cards') as HTMLTemplateElement;
     const standardPagination = document.getElementById('standard-pagination');
@@ -153,9 +163,7 @@ const currentItems = page.data;
     }
 
     function applyFilters() {
-      const params = new URLSearchParams(window.location.search);
-      const queryCategory = params.get('category');
-      const hash = (queryCategory || window.location.hash.replace('#', '')).toLowerCase();
+      const hash = window.location.hash.replace('#', '').toLowerCase();
 
       // Maintain hash on Type filter buttons
       typeBtns.forEach(btn => {
@@ -294,15 +302,19 @@ const currentItems = page.data;
           if (hrefAttr && hrefAttr.startsWith('#')) {
             e.preventDefault();
             const category = btn.getAttribute('data-category');
-            const params = new URLSearchParams(window.location.search);
-            const queryCategory = params.get('category');
-            const currentFilter = (queryCategory || window.location.hash.replace('#', '')).toLowerCase();
             
-            if (currentFilter === category) {
-              const newUrl = new URL(window.location.href);
-              newUrl.hash = '';
-              newUrl.searchParams.delete('category');
-              history.pushState(null, '', newUrl.toString().replace(newUrl.origin, '')); // Toggle off
+            // Explicitly strip active class from ALL siblings (UI Exclusivity enforcement)
+            categoryBtns.forEach(sibling => {
+              if (sibling !== btn) {
+                sibling.classList.remove('active');
+                sibling.removeAttribute('aria-current');
+              }
+            });
+
+            const currentHash = window.location.hash.replace('#', '').toLowerCase();
+            
+            if (currentHash === category) {
+              history.pushState(null, '', window.location.pathname + window.location.search); // Toggle off
             } else {
               history.pushState(null, '', `${window.location.pathname}${window.location.search}#${category}`); // Toggle on
             }
