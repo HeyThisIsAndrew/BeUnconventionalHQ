@@ -12,7 +12,7 @@ const currentItems = page.data;
 ---
 
 <script is:inline>
-  if (typeof window !== 'undefined' && window.location.hash) {
+  if (typeof window !== 'undefined' && (window.location.hash || window.location.search.includes('category='))) {
     document.documentElement.classList.add('js-feed-filtering');
   }
 </script>
@@ -57,7 +57,7 @@ const currentItems = page.data;
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
     </svg>
     <h3 class="text-2xl font-display font-bold tracking-widest uppercase mt-4">No items found for this filter.</h3>
-    <button onclick="window.history.pushState(null, '', window.location.pathname + window.location.search); window.dispatchEvent(new Event('hashchange'));" class="cta-button-primary mt-2" style="padding: 0.75rem 2.5rem; font-size: 1rem;">
+    <button onclick="const u = new URL(window.location.href); u.searchParams.delete('category'); u.hash=''; window.history.pushState(null, '', u.toString().replace(u.origin, '')); window.dispatchEvent(new Event('hashchange'));" class="cta-button-primary mt-2" style="padding: 0.75rem 2.5rem; font-size: 1rem;">
       Clear Filters
     </button>
   </div>
@@ -153,7 +153,9 @@ const currentItems = page.data;
     }
 
     function applyFilters() {
-      const hash = window.location.hash.replace('#', '').toLowerCase();
+      const params = new URLSearchParams(window.location.search);
+      const queryCategory = params.get('category');
+      const hash = (queryCategory || window.location.hash.replace('#', '')).toLowerCase();
 
       // Maintain hash on Type filter buttons
       typeBtns.forEach(btn => {
@@ -292,10 +294,15 @@ const currentItems = page.data;
           if (hrefAttr && hrefAttr.startsWith('#')) {
             e.preventDefault();
             const category = btn.getAttribute('data-category');
-            const currentHash = window.location.hash.replace('#', '').toLowerCase();
+            const params = new URLSearchParams(window.location.search);
+            const queryCategory = params.get('category');
+            const currentFilter = (queryCategory || window.location.hash.replace('#', '')).toLowerCase();
             
-            if (currentHash === category) {
-              history.pushState(null, '', window.location.pathname + window.location.search); // Toggle off
+            if (currentFilter === category) {
+              const newUrl = new URL(window.location.href);
+              newUrl.hash = '';
+              newUrl.searchParams.delete('category');
+              history.pushState(null, '', newUrl.toString().replace(newUrl.origin, '')); // Toggle off
             } else {
               history.pushState(null, '', `${window.location.pathname}${window.location.search}#${category}`); // Toggle on
             }
