@@ -225,9 +225,22 @@ import PageTitle from './PageTitle.astro';
             } finally {
               submitBtn.disabled = false;
               submitBtn.textContent = 'Send Message';
+              // Reset the Turnstile widget so the user can submit again if needed
+              if (typeof turnstile !== 'undefined') {
+                turnstile.reset();
+              }
             }
           });
           boundElements.add(form);
+        }
+        // Auto-open if linked directly via hash
+        if (window.location.hash === '#contact' && !window.contactModalHashChecked) {
+          setTimeout(() => {
+            openContactModal();
+            // Clear hash safely so it doesn't re-trigger on accidental reload
+            history.replaceState(null, null, window.location.pathname + window.location.search);
+          }, 100);
+          window.contactModalHashChecked = true;
         }
       });
       window.contactModalSetup = true;

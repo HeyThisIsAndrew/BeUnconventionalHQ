@@ -42,7 +42,7 @@ const isActive = (href: string) =>
           navItems.map((item) => (
             <li class="nav-item">
               <a
-                href={`/${item.href}`}
+                href={item.href === 'contact' ? '#contact' : `/${item.href}`}
                 class:list={[{ active: isActive(item.href) }]}
                 data-modal-trigger={item.href === 'contact' ? 'contact' : undefined}
               >
@@ -130,6 +130,12 @@ const isActive = (href: string) =>
       const navLinks = document.querySelectorAll('.nav-list .nav-item a');
 
       navLinks.forEach((link) => {
+        const rawHref = link.getAttribute('href');
+        if (rawHref && rawHref.startsWith('#')) {
+          link.classList.remove('active');
+          return;
+        }
+
         const linkPath = new URL(link.href).pathname.replace(/\/$/, '');
         if (currentPath === linkPath) {
           link.classList.add('active');
