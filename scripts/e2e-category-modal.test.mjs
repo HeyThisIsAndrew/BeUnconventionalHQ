@@ -32,11 +32,11 @@ async function runTests() {
     assert.ok(trigger, 'Mobile filter trigger found');
     await trigger.click();
 
-    const modalVisible = await page.waitForSelector('#category-modal', { visible: true, timeout: 3000 });
-    assert.ok(modalVisible, 'Category modal should become visible');
+    const modalVisible = await page.waitForSelector('#category-fullscreen-overlay', { visible: true, timeout: 3000 });
+    assert.ok(modalVisible, 'Category overlay should become visible');
 
-    console.log('Closing modal via close button...');
-    const closeBtn = await page.$('#category-modal .modal-close');
+    console.log('Closing overlay via close button...');
+    const closeBtn = await page.$('#category-fullscreen-overlay .close-fullscreen-btn');
     if (closeBtn) {
       await closeBtn.click();
     } else {
@@ -46,10 +46,10 @@ async function runTests() {
     await new Promise(r => setTimeout(r, 500));
     
     const isHidden = await page.evaluate(() => {
-      const modal = document.getElementById('category-modal');
+      const modal = document.getElementById('category-fullscreen-overlay');
       return !modal || window.getComputedStyle(modal).display === 'none' || window.getComputedStyle(modal).opacity === '0' || modal.hidden || modal.classList.contains('translate-y-full');
     });
-    assert.ok(isHidden, 'Category modal should be hidden after closing');
+    assert.ok(isHidden, 'Category overlay should be hidden after closing');
 
     console.log('✅ Category Modal E2E tests passed.');
   } catch (error) {
