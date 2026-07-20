@@ -31,6 +31,19 @@ export interface UnifiedVideo {
   publishedAt?: string;
   /** Marks which pipeline produced the entry. */
   source: 'sanity';
+
+  // Editorial & Taxonomy Extensions
+  contentStatus?: string;
+  manualTypeOverride?: string;
+  franchises?: string[];
+  characters?: string[];
+  coverageType?: string;
+  series?: string;
+  hubs?: string[];
+  editorialNotes?: string;
+  requiresReview?: boolean;
+  manualTaxonomyOverride?: boolean;
+  relatedMedia?: { title: string; mediaType: string }[];
 }
 
 /** Published queries. Kept minimal: pages do their own slicing. */
@@ -90,6 +103,19 @@ export function mapSanityVideo(doc: any, { categorize }: MapOptions = {}): Unifi
     featured: doc.featured ?? false,
     publishedAt: doc.publishedAt ?? undefined,
     source: 'sanity',
+    
+    // Extensions
+    contentStatus: doc.contentStatus,
+    manualTypeOverride: doc.manualTypeOverride,
+    franchises: doc.franchises ?? [],
+    characters: doc.characters ?? [],
+    coverageType: doc.coverageType,
+    series: doc.series,
+    hubs: doc.hubs ?? [],
+    editorialNotes: doc.editorialNotes,
+    requiresReview: doc.requiresReview ?? false,
+    manualTaxonomyOverride: doc.manualTaxonomyOverride ?? false,
+    relatedMedia: doc.relatedMedia ?? [],
   };
 }
 

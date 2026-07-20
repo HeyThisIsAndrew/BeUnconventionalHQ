@@ -1,5 +1,35 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import fs from 'node:fs';
+import path from 'node:path';
+
+function localCmsMiddleware() {
+  return {
+    name: 'local-cms-api',
+    /** @param {import('vite').ViteDevServer} server */
+    configureServer(server) {
+      server.middlewares.use('/api/local-cms/videos', /** @param {import('http').IncomingMessage} req @param {import('http').ServerResponse} res @param {Function} next */ (req, res, next) => {
+        const filePath = path.resolve(process.cwd(), 'src/data/videos.json');
+        if (req.method === 'GET') {
+          res.setHeader('Content-Type', 'application/json');
+          res.end(fs.readFileSync(filePath, 'utf-8'));
+          return;
+        }
+        if (req.method === 'POST') {
+          let body = '';
+          req.on('data', /** @param {Buffer} chunk */ chunk => body += chunk);
+          req.on('end', () => {
+            fs.writeFileSync(filePath, body, 'utf-8');
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true }));
+          });
+          return;
+        }
+        next();
+      });
+    }
+  };
+}
 import tailwindcss from '@tailwindcss/vite';
 import sitemap from '@astrojs/sitemap';
 import cloudflare from '@astrojs/cloudflare';
@@ -23,7 +53,7 @@ export default defineConfig({
     assets: 'assets',
   },
   vite: {
-    plugins: [tailwindcss()],
+    plugins: [tailwindcss(), localCmsMiddleware()],
   },
   integrations: [
     partytown({

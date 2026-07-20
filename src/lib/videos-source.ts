@@ -1,34 +1,30 @@
-/**
- * The one place pages get their video list (Frontend Video Migration Phase B).
- *
- * Wires the pure merge logic in ./videos.ts to the app's real sources:
- * Sanity-primary, legacy-cache fallback. With the video dataset still empty
- * (or Sanity unreachable) this returns exactly the legacy cache list — pages
- * render byte-identical to the pre-migration site. The day the sync runs and
- * docs are published, curated Sanity entries take over automatically, with no
- * further code changes.
- *
- * categorize() keeps legacy entries' behavior identical; Sanity entries only
- * consult it when their editorial topics don't name a site category.
- */
-// @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
-import { sanityClient } from 'sanity:client';
-// @ts-ignore - untyped JS modules
 import { categorize } from '../data/content-source.js';
-import { getUnifiedVideos, buildPublishedQuery, type UnifiedVideo } from './videos.ts';
+import { getUnifiedVideos, type UnifiedVideo } from './videos.ts';
+import localVideos from '../data/videos.json';
 
 export async function getVideosUnified(): Promise<UnifiedVideo[]> {
-  const query = `*[_type == "video" && contentStatus == "published" && !(_id in path("shorts.*")) && !(_id in path("live.*"))] | order(publishedAt desc) {
-    youtubeId, title, thumbnailUrl, durationSeconds, isShort, isLive, isEvent, publishedAt,
-    youtubeTags, "topics": topics[]->slug.current, featured
-  }`;
-  return await getUnifiedVideos(sanityClient, { categorize }, query);
+  const mockClient = {
+    fetch: async () => {
+      return localVideos.filter(v => v._type === "video" && v.contentStatus === "published");
+    }
+  };
+  return await getUnifiedVideos(mockClient, { categorize }, '');
 }
 
 export async function getShortsUnified(): Promise<UnifiedVideo[]> {
-  return await getUnifiedVideos(sanityClient, { categorize }, buildPublishedQuery('short'));
+  const mockClient = {
+    fetch: async () => {
+      return localVideos.filter(v => v._type === "short" && v.contentStatus === "published");
+    }
+  };
+  return await getUnifiedVideos(mockClient, { categorize }, '');
 }
 
 export async function getLiveStreamsUnified(): Promise<UnifiedVideo[]> {
-  return await getUnifiedVideos(sanityClient, { categorize }, buildPublishedQuery('live'));
+  const mockClient = {
+    fetch: async () => {
+      return localVideos.filter(v => v._type === "live" && v.contentStatus === "published");
+    }
+  };
+  return await getUnifiedVideos(mockClient, { categorize }, '');
 }
