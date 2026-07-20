@@ -57,7 +57,7 @@ const currentItems = page.data;
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
     </svg>
     <h3 class="text-2xl font-display font-bold tracking-widest uppercase mt-4">No items found for this filter.</h3>
-    <button onclick="const u = new URL(window.location.href); u.searchParams.delete('category'); u.hash=''; window.history.pushState(null, '', u.toString().replace(u.origin, '')); window.dispatchEvent(new Event('hashchange'));" class="cta-button-primary mt-2" style="padding: 0.75rem 2.5rem; font-size: 1rem;">
+    <button class="clear-filters-btn cta-button-primary mt-2" style="padding: 0.75rem 2.5rem; font-size: 1rem;">
       Clear Filters
     </button>
   </div>
@@ -280,7 +280,26 @@ const currentItems = page.data;
         if (currentMatches.length === 0) {
           const emptyTemplate = document.getElementById('feed-empty-state') as HTMLTemplateElement;
           if (emptyTemplate) {
-            feedGrid.appendChild(emptyTemplate.content.cloneNode(true));
+            const clone = emptyTemplate.content.cloneNode(true);
+            const clearBtn = (clone as DocumentFragment).querySelector('.clear-filters-btn');
+            
+            if (clearBtn) {
+              clearBtn.addEventListener('click', () => {
+                // Explicitly wipe the hash
+                history.pushState(null, '', window.location.pathname);
+                
+                // Explicitly loop through all QuadrantFilter buttons and strip the .active class
+                categoryBtns.forEach(btn => {
+                  btn.classList.remove('active');
+                  btn.removeAttribute('aria-current');
+                });
+                
+                // Trigger the filter reset
+                applyFilters();
+              });
+            }
+            
+            feedGrid.appendChild(clone);
           }
           if (loadMoreContainer) loadMoreContainer.style.display = 'none';
         } else {
