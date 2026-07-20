@@ -33,7 +33,7 @@ async function run() {
     }
   });
 
-  server.stderr.on('data', (data) => {
+  server.stderr.on('data', () => {
     // Astro might write info or errors to stderr
     // console.error(`Server stderr: ${data.toString()}`);
   });
