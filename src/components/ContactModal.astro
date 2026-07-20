@@ -13,7 +13,7 @@ import PageTitle from './PageTitle.astro';
         Send us a message.
       </p>
     </div>
-
+    <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <form id="contact-modal-form" class="contact-modal-form">
       <div class="form-group">
         <label for="modal-name" class="form-label">Full Name</label>
@@ -40,9 +40,12 @@ import PageTitle from './PageTitle.astro';
         <textarea id="modal-message" name="message" class="form-textarea" placeholder="How can we help?" required></textarea>
       </div>
 
-      <div id="modal-form-status" class="form-status-message" role="status" aria-live="polite">
-        Contact form is currently unavailable. Please use social links to get in touch.
+      <div class="form-group">
+        <!-- Turnstile widget -->
+        <div class="cf-turnstile" data-sitekey={import.meta.env.PUBLIC_TURNSTILE_SITE_KEY}></div>
       </div>
+
+      <div id="modal-form-status" class="form-status-message" role="status" aria-live="polite"></div>
 
       <button type="submit" class="form-submit cta-button-primary">Send Message</button>
     </form>
@@ -177,12 +180,52 @@ import PageTitle from './PageTitle.astro';
         // Form submission binding
         const form = document.getElementById('contact-modal-form');
         const status = document.getElementById('modal-form-status');
+        const submitBtn = form?.querySelector('.form-submit');
         
-        if (form && status && !boundElements.has(form)) {
-          form.addEventListener('submit', (e) => {
+        if (form && status && submitBtn && !boundElements.has(form)) {
+          form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            status.classList.add('is-visible');
-            form.reset();
+            
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Sending...';
+            status.classList.remove('is-visible');
+            status.innerHTML = '';
+            status.style.background = '';
+            status.style.borderColor = '';
+
+            try {
+              const res = await fetch('/api/contact', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+              });
+
+              const result = await res.json();
+
+              if (res.ok) {
+                status.innerHTML = '✅ Your message has been sent. We will get back to you soon!';
+                status.style.background = 'rgba(0, 204, 0, 0.1)';
+                status.style.borderColor = 'green';
+                status.classList.add('is-visible');
+                form.reset();
+              } else {
+                status.innerHTML = `❌ ${result.error || 'Something went wrong. Please try again.'}`;
+                status.style.background = 'rgba(204, 0, 0, 0.1)';
+                status.style.borderColor = 'red';
+                status.classList.add('is-visible');
+              }
+            } catch (err) {
+              status.innerHTML = '❌ Network error. Please try again.';
+              status.style.background = 'rgba(204, 0, 0, 0.1)';
+              status.style.borderColor = 'red';
+              status.classList.add('is-visible');
+            } finally {
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Send Message';
+            }
           });
           boundElements.add(form);
         }
