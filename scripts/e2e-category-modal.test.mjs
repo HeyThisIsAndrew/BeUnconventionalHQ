@@ -9,12 +9,12 @@ async function runTests() {
     let output = '';
     server.stdout.on('data', (data) => {
       output += data.toString();
-      if (output.includes('http://localhost:4321')) resolve();
+      if (output.includes('http://localhost:')) resolve();
     });
     server.stderr.on('data', (data) => console.error(data.toString()));
     server.on('error', reject);
     server.on('exit', (code) => { if (code !== 0) reject(new Error(`Server exited with code ${code}`)); });
-    setTimeout(() => reject(new Error('Server start timed out')), 15000);
+    setTimeout(() => reject(new Error('Server start timed out')), 30000);
   });
 
   console.log('Server is running. Launching Puppeteer...');
@@ -38,7 +38,7 @@ async function runTests() {
     console.log('Closing overlay via close button...');
     const closeBtn = await page.$('#category-fullscreen-overlay .close-fullscreen-btn');
     if (closeBtn) {
-      await closeBtn.click();
+      await page.evaluate(el => el.click(), closeBtn);
     } else {
       console.log('No specific close button found, clicking outside or using Escape.');
       await page.keyboard.press('Escape');

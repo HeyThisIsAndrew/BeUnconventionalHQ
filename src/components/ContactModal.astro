@@ -13,7 +13,7 @@ import PageTitle from './PageTitle.astro';
         Send us a message.
       </p>
     </div>
-
+    <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <form id="contact-modal-form" class="contact-modal-form">
       <div class="form-group">
         <label for="modal-name" class="form-label">Full Name</label>
@@ -40,21 +40,44 @@ import PageTitle from './PageTitle.astro';
         <textarea id="modal-message" name="message" class="form-textarea" placeholder="How can we help?" required></textarea>
       </div>
 
-      <div id="modal-form-status" class="form-status-message" role="status" aria-live="polite">
-        Contact form is currently unavailable. Please use social links to get in touch.
+      <div class="form-group" id="turnstile-container">
+        <!-- Turnstile widget -->
+        <div class="cf-turnstile" data-sitekey={import.meta.env.PUBLIC_TURNSTILE_SITE_KEY} data-size="flexible" data-callback="onTurnstileSuccess" data-error-callback="onTurnstileError" data-expired-callback="onTurnstileExpired"></div>
       </div>
 
-      <button type="submit" class="form-submit cta-button-primary">Send Message</button>
+      <div id="modal-form-status" class="form-status-message" role="status" aria-live="polite"></div>
+
+      <button type="submit" id="modal-submit-btn" class="form-submit cta-button-primary" disabled>Send Message</button>
     </form>
   </div>
 </div>
 
 <script is:inline>
+  // Turnstile callbacks must be strictly global
+  window.onTurnstileSuccess = function() {
+    sessionStorage.setItem('hq_verified', 'true');
+    const btn = document.getElementById('modal-submit-btn');
+    if (btn) btn.disabled = false;
+  };
+  window.onTurnstileError = function() {
+    sessionStorage.removeItem('hq_verified');
+    const btn = document.getElementById('modal-submit-btn');
+    if (btn) btn.disabled = true;
+  };
+  window.onTurnstileExpired = function() {
+    sessionStorage.removeItem('hq_verified');
+    const btn = document.getElementById('modal-submit-btn');
+    if (btn) btn.disabled = true;
+  };
+</script>
+
+<script is:inline>
   (function () {
-    const boundElements = new WeakSet();
-    // Remembers the trigger so focus can return to it on close.
+    // Ensure we only register global listeners once across view transitions
+    if (window.contactModalSetup) return;
+    window.contactModalSetup = true;
+    
     let lastFocused = null;
-    let interactivityTimer = null;
 
     // Clears the "state leak": typed text, validation and the status banner.
     function resetModalForm() {
@@ -67,7 +90,6 @@ import PageTitle from './PageTitle.astro';
     function openContactModal(e) {
       if (e) e.preventDefault();
       const modal = document.getElementById('contact-modal');
-      const form = document.getElementById('contact-modal-form');
       const closeBtn = document.getElementById('close-contact-modal');
       if (modal) {
         // Start clean every open — the modal is persisted across navigations,
@@ -90,22 +112,8 @@ import PageTitle from './PageTitle.astro';
 
         // iOS auto-zoom guard: the content animates transform: scale(0.9)->1,
         // which renders inputs below 16px mid-transition. Hold the form out of
-        // the tab order (inert) until the scale settles, and focus only the
-        // (non-input) close button — so Safari never sees a focused sub-16px
-        // input.
-        form?.setAttribute('inert', '');
-        const enableInputs = () => {
-          form?.removeAttribute('inert');
-          clearTimeout(interactivityTimer);
-        };
-        const content = modal.querySelector('.contact-modal-content');
-        content?.addEventListener('transitionend', enableInputs, { once: true });
-        clearTimeout(interactivityTimer);
-        interactivityTimer = setTimeout(enableInputs, 600);
-
         modal.classList.add('is-active');
         modal.setAttribute('aria-hidden', 'false');
-        document.documentElement.classList.add('modal-open');
         if (closeBtn) setTimeout(() => closeBtn.focus(), 100);
       }
     }
@@ -113,90 +121,157 @@ import PageTitle from './PageTitle.astro';
     function closeContactModal() {
       const modal = document.getElementById('contact-modal');
       if (modal && modal.classList.contains('is-active')) {
-        document.getElementById('app-wrapper')?.removeAttribute('inert');
-        document.getElementById('contact-modal-form')?.removeAttribute('inert');
-        clearTimeout(interactivityTimer);
         modal.classList.remove('is-active');
         modal.setAttribute('aria-hidden', 'true');
-
+        
         const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
         document.body.style.position = '';
         document.body.style.top = '';
         document.body.style.width = '';
         document.body.style.overflowY = '';
-
-        // Reset the (persisted) form so nothing leaks into the next open.
-        resetModalForm();
-
-        // Restore focus to the element that opened the modal.
-        if (lastFocused && typeof lastFocused.focus === 'function') {
-          lastFocused.focus();
-        }
-        lastFocused = null;
-
-        document.documentElement.classList.remove('modal-open');
-        const originalBehavior = document.documentElement.style.scrollBehavior;
-        document.documentElement.style.scrollBehavior = 'auto'; // Force instant snap
-        window.scrollTo(0, scrollY);
-
+        
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
+            const originalBehavior = document.documentElement.style.scrollBehavior;
+            document.documentElement.style.scrollBehavior = 'auto'; // Force instant snap
+            window.scrollTo(0, scrollY);
             document.documentElement.style.scrollBehavior = originalBehavior;
           });
         });
+
+        document.getElementById('app-wrapper')?.removeAttribute('inert');
+        if (lastFocused) lastFocused.focus();
       }
     }
 
-    // Direct binding for triggers inside astro:page-load
-    if (!window.contactModalSetup) {
-      document.addEventListener('astro:page-load', () => {
-        const triggers = document.querySelectorAll('[data-modal-trigger="contact"]');
-        triggers.forEach(trigger => {
-          if (!boundElements.has(trigger)) {
-            trigger.addEventListener('click', openContactModal);
-            boundElements.add(trigger);
-          }
-        });
-
-        // Bind close buttons and backdrop
-        const modal = document.getElementById('contact-modal');
-        const closeBtn = document.getElementById('close-contact-modal');
-        
-        if (closeBtn && !boundElements.has(closeBtn)) {
-          closeBtn.addEventListener('click', closeContactModal);
-          boundElements.add(closeBtn);
-        }
-
-        if (modal && !boundElements.has(modal)) {
-          modal.addEventListener('click', (e) => {
-            if (e.target === modal) closeContactModal();
-          });
-          boundElements.add(modal);
-        }
-
-        // Form submission binding
-        const form = document.getElementById('contact-modal-form');
-        const status = document.getElementById('modal-form-status');
-        
-        if (form && status && !boundElements.has(form)) {
-          form.addEventListener('submit', (e) => {
-            e.preventDefault();
-            status.classList.add('is-visible');
-            form.reset();
-          });
-          boundElements.add(form);
-        }
-      });
-      window.contactModalSetup = true;
+    function resetModalForm() {
+      const form = document.getElementById('contact-modal-form');
+      const status = document.getElementById('modal-form-status');
+      
+      form?.reset();
+      status?.classList.remove('is-visible');
+      
+      if (window.turnstile) {
+        try { window.turnstile.reset(); } catch(e) {}
+      }
     }
+
+    // Use event delegation for all contact modal triggers
+    document.addEventListener('click', (e) => {
+      const trigger = e.target.closest('[data-modal-trigger="contact"]');
+      if (trigger) {
+        e.preventDefault();
+        openContactModal(e);
+      }
+      
+      // Close on clicking backdrop
+      const modal = document.getElementById('contact-modal');
+      if (e.target === modal) closeContactModal();
+      
+      // Close on close button
+      if (e.target.closest('#close-contact-modal')) closeContactModal();
+    });
 
     // Handle Escape key globally
-    if (!window.contactModalEscSetup) {
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeContactModal();
-      });
-      window.contactModalEscSetup = true;
-    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeContactModal();
+    });
+
+    document.addEventListener('astro:page-load', () => {
+      // --- Session Caching Check ---
+      const isVerified = sessionStorage.getItem('hq_verified') === 'true';
+      const tsContainer = document.getElementById('turnstile-container');
+      const cachedSubmitBtn = document.getElementById('modal-submit-btn');
+      
+      if (isVerified) {
+        if (tsContainer) tsContainer.style.display = 'none';
+        if (cachedSubmitBtn) cachedSubmitBtn.disabled = false;
+      } else {
+        if (tsContainer) tsContainer.style.display = 'flex';
+        if (cachedSubmitBtn) cachedSubmitBtn.disabled = true;
+      }
+
+      // Form submission binding
+      const form = document.getElementById('contact-modal-form');
+      const status = document.getElementById('modal-form-status');
+      const submitBtn = document.getElementById('modal-submit-btn');
+      
+      if (form && status && submitBtn && !form.dataset.modalBound) {
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          
+          const formData = new FormData(form);
+          const data = Object.fromEntries(formData.entries());
+
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Sending...';
+          status.classList.remove('is-visible');
+          status.innerHTML = '';
+          status.style.background = '';
+          status.style.borderColor = '';
+
+          try {
+            const res = await fetch('/api/contact', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(data),
+            });
+
+            const result = await res.json();
+
+            if (res.ok) {
+              status.innerHTML = 'Thanks for reaching out. Your message is on its way.';
+              status.style.background = 'rgba(0, 204, 0, 0.1)';
+              status.style.borderColor = 'green';
+              status.classList.add('is-visible');
+              form.reset();
+              
+              if (window.turnstile) {
+                try { window.turnstile.reset(); } catch(err) {}
+              }
+              setTimeout(() => {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Send Message';
+              }, 2000);
+            } else {
+              status.innerHTML = `❌ ${result.error || 'Something went wrong. Please try again.'}`;
+              status.style.background = 'rgba(204, 0, 0, 0.1)';
+              status.style.borderColor = 'red';
+              status.classList.add('is-visible');
+              
+              if (window.turnstile) {
+                try { window.turnstile.reset(); } catch(err) {}
+              }
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Send Message';
+            }
+          } catch (err) {
+            status.innerHTML = '❌ Network error. Please try again.';
+            status.style.background = 'rgba(204, 0, 0, 0.1)';
+            status.style.borderColor = 'red';
+            status.classList.add('is-visible');
+            
+            if (window.turnstile) {
+              try { window.turnstile.reset(); } catch(err) {}
+            }
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Send Message';
+          }
+        });
+        form.dataset.modalBound = 'true';
+      }
+
+      // Auto-open if linked directly via hash
+      if (window.location.hash === '#contact' && !window.contactModalHashChecked) {
+        setTimeout(() => {
+          openContactModal();
+          if (window.location.hash === '#contact') {
+            history.replaceState(null, null, window.location.pathname + window.location.search);
+          }
+        }, 100);
+        window.contactModalHashChecked = true;
+      }
+    });
 
   })();
 </script>
@@ -234,18 +309,17 @@ import PageTitle from './PageTitle.astro';
       rgba(10, 10, 10, 0.95)
     );
     border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 2.5rem 2rem;
+    padding: 1.5rem 2rem;
     width: 100%;
     max-width: 500px;
     position: relative;
     transform: scale(0.9) translateY(20px);
     transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-    max-height: calc(100dvh - 2rem);
+    max-height: 100dvh;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    overflow: hidden;
   }
 
   .contact-modal-overlay.is-active .contact-modal-content {
@@ -282,7 +356,7 @@ import PageTitle from './PageTitle.astro';
 
   .contact-modal-header {
     text-align: center;
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
   }
 
   .contact-modal-desc {
@@ -313,13 +387,13 @@ import PageTitle from './PageTitle.astro';
   .contact-modal-form {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 0.75rem;
   }
 
   .form-group {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.3rem;
   }
 
   .form-label {
@@ -336,11 +410,10 @@ import PageTitle from './PageTitle.astro';
     width: 100%;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 0.8rem 1rem;
+    padding: 0.6rem 0.8rem;
     color: var(--color-white);
     font-family: var(--font-inter);
-    /* iOS auto-zoom guard: never render below 16px (combined with the
-       inert-until-scale-settles behavior in the script). */
+    /* iOS auto-zoom guard: never render below 16px */
     font-size: max(16px, 1rem);
     transition: all 0.3s ease;
   }
@@ -354,7 +427,7 @@ import PageTitle from './PageTitle.astro';
   }
 
   .form-textarea {
-    min-height: 100px;
+    min-height: 80px;
     resize: vertical;
   }
   
@@ -376,6 +449,14 @@ import PageTitle from './PageTitle.astro';
     margin-top: 0.5rem;
     width: 100%;
     justify-content: center;
+    transition: all 0.3s ease;
+  }
+
+  .form-submit:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
   }
 
   .form-status-message {

@@ -2,7 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import { getArticles } from '../../data/feeds.js';
 import { getVideosUnified } from '../../lib/videos-source';
-import EventBookingCTA from '../../components/EventBookingCTA.astro';
+// import SubscribeBox from '../../components/SubscribeBox.astro';
 import HeroTrailer from '../../components/HeroTrailer.astro';
 import ContentCard from '../../components/ContentCard.astro';
 import { parseVideoId } from '../../lib/platforms/youtube';
@@ -10,6 +10,8 @@ import { mapSanityVideo } from '../../lib/videos.ts';
 // @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
 import { sanityClient } from "sanity:client";
 import { createImageUrlBuilder } from "@sanity/image-url";
+import { site } from '../../data/site.js';
+import PageTitle from '../../components/PageTitle.astro'
 
 export async function getStaticPaths() {
   // Source of truth is Sanity. `defined(slug.current)` excludes drafts and
@@ -223,18 +225,75 @@ const trailerId = parseVideoId(trailerUrl);
         </div>
       )}
     </div>
-    <div>
-    <EventBookingCTA 
-      kicker="Collaborations" 
-      primary="Want to be" 
-      secondary="Featured?" 
-      description="Do you want us to feature your game, movie, show, or content? We're always looking for new stories."
-    />
+    <!-- <div>
+    <SubscribeBox subtitle="Keep up with the latest on things we like to cover." /></div> -->
+
+  <section
+    class="container"
+    style="margin-bottom: 2rem; position: relative; z-index: 10;"
+  >
+    <div
+      class="cta-band reveal"
+      style="flex-direction: column; justify-content: center; align-items: center; text-align: center;"
+    >
+      <div style="width: 100%;">
+        <div class="section-header" style="margin-bottom: 1rem;">
+          <PageTitle
+            kicker="Don't miss a drop"
+            primary="Subscribe"
+            secondary="For Updates"
+            scale="secondary"
+          />
+        </div>
+        <p style="color: var(--color-white-muted);">
+          New videos and articles, straight from Be Unconventional HQ.
+        </p>
+      </div>
+      <div class="cta-buttons-wrapper">
+        <a
+          class="cta-button-primary"
+          href={site.socials.substack}
+          target="_blank"
+          rel="noopener">Subscribe on Substack</a
+        >
+        <a
+          class="cta-button-primary"
+          href={site.socials.youtube}
+          target="_blank"
+          rel="noopener">Subscribe on YouTube</a
+        >
+      </div>
     </div>
+  </section>
+
   </main>
 </Layout>
 
 <style>
+
+  .cta-buttons-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 2rem;
+    width: 100%;
+  }
+
+  .cta-buttons-wrapper .cta-button-primary {
+    width: 100%;
+    text-align: center;
+  }
+
+  @media (min-width: 768px) {
+    .cta-buttons-wrapper {
+      flex-direction: row;
+    }
+
+    .cta-buttons-wrapper .cta-button-primary {
+      flex: 1;
+    }
+  }
+
   .event-dashboard {
     /* min-height removed to respect canonical footer spacing */
   }

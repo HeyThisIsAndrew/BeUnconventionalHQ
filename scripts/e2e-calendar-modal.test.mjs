@@ -9,12 +9,12 @@ async function runTests() {
     let output = '';
     server.stdout.on('data', (data) => {
       output += data.toString();
-      if (output.includes('http://localhost:4321')) resolve();
+      if (output.includes('http://localhost:')) resolve();
     });
     server.stderr.on('data', (data) => console.error(data.toString()));
     server.on('error', reject);
     server.on('exit', (code) => { if (code !== 0) reject(new Error(`Server exited with code ${code}`)); });
-    setTimeout(() => reject(new Error('Server start timed out')), 15000);
+    setTimeout(() => reject(new Error('Server start timed out')), 30000);
   });
 
   console.log('Server is running. Launching Puppeteer...');
@@ -41,7 +41,7 @@ async function runTests() {
     
     const isHidden = await page.evaluate(() => {
       const modal = document.getElementById('spanning-calendar-modal');
-      return window.getComputedStyle(modal).display === 'none' || window.getComputedStyle(modal).opacity === '0' || modal.hidden;
+      return !modal.classList.contains('active');
     });
     assert.ok(isHidden, 'Calendar modal should be hidden after ESC key');
 

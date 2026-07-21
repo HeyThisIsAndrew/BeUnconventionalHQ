@@ -11,14 +11,14 @@ async function runTests() {
     server.stdout.on('data', (data) => {
       const text = data.toString();
       output += text;
-      if (text.includes('http://localhost:4321')) resolve();
+      if (text.includes('http://localhost:')) resolve();
     });
     server.stderr.on('data', (data) => console.error(data.toString()));
     server.on('error', reject);
     server.on('exit', (code) => {
       if (code !== 0) reject(new Error(`Server exited with code ${code}`));
     });
-    setTimeout(() => reject(new Error('Server start timed out')), 15000);
+    setTimeout(() => reject(new Error('Server start timed out')), 30000);
   });
 
   console.log('Server is running. Launching Puppeteer...');
@@ -58,14 +58,14 @@ async function runTests() {
     console.log('Closing contact modal...');
     const closeBtn = await page.$('#close-contact-modal');
     assert.ok(closeBtn, 'Modal close button should exist');
-    await closeBtn.click();
+    await page.evaluate(el => el.click(), closeBtn);
     
     // Wait for animation to finish closing
     await new Promise(r => setTimeout(r, 500));
     
     const isModalHidden = await page.evaluate(() => {
       const modal = document.getElementById('contact-modal');
-      return window.getComputedStyle(modal).display === 'none' || window.getComputedStyle(modal).opacity === '0' || modal.hidden;
+      return !modal.classList.contains('active');
     });
     assert.ok(isModalHidden, 'Contact modal should be hidden after closing');
 

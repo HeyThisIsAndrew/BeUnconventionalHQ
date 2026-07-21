@@ -4,7 +4,7 @@ import PageTitle from '../components/PageTitle.astro';
 import FeaturedEvent from '../components/FeaturedEvent.astro';
 import UpcomingEventsList from '../components/UpcomingEventsList.astro';
 import EventCard from '../components/EventCard.astro';
-import EventBookingCTA from '../components/EventBookingCTA.astro';
+// import SubscribeBox from '../components/SubscribeBox.astro';
 import MiniCalendarSidebar from '../components/MiniCalendarSidebar.astro'; // Restored per blueprint
 import SpanningCalendarModal from '../components/SpanningCalendarModal.astro';
 import { site } from '../data/site.js';
@@ -82,7 +82,7 @@ const pastEvents = allEvents
                           feed's height, which would break position:sticky. Only
                           matters at lg, where sticky is active.
       */}
-      <div class="grid grid-cols-1 md:grid-cols-12 md:gap-8 lg:items-start max-w-screen-2xl mx-auto w-full" style="margin-top: 3.5rem;">
+      <div class="grid grid-cols-1 md:grid-cols-12 md:gap-8 lg:items-start w-full" style="margin-top: 3.5rem;">
         {/*
           OVERFLOW GUARDRAIL (min-w-0): grid/flex children default to
           min-width:auto and refuse to shrink below their intrinsic content, so a
@@ -166,10 +166,46 @@ const pastEvents = allEvents
   {/* Moved outside <main> so it becomes a direct child of #page-content. 
       Because #page-content is a flex column that spans the viewport, 
       margin-top: auto guarantees this box docks perfectly to the footer! */}
-  <div style="margin-top: auto; width: 100%; max-width: 1536px; margin-left: auto; margin-right: auto; padding-left: 2rem; padding-right: 2rem; margin-bottom: 2rem; position: relative; z-index: 10;">
-    <EventBookingCTA />
-  </div>
-
+  <!-- <div style="margin-top: auto; width: 100%; max-width: 1536px; margin-left: auto; margin-right: auto; padding-left: 2rem; padding-right: 2rem; margin-bottom: 2rem; position: relative; z-index: 10;">
+    <SubscribeBox subtitle="Subscribe to keep up with the latest events." />
+  </div> -->
+  <section
+    class="container"
+    style="margin-bottom: 2rem; position: relative; z-index: 10;"
+  >
+    <div
+      class="cta-band reveal"
+      style="flex-direction: column; justify-content: center; align-items: center; text-align: center;"
+    >
+      <div style="width: 100%;">
+        <div class="section-header" style="margin-bottom: 1rem;">
+          <PageTitle
+            kicker="Don't miss a drop"
+            primary="Subscribe"
+            secondary="For Updates"
+            scale="secondary"
+          />
+        </div>
+        <p style="color: var(--color-white-muted);">
+          New videos and articles, straight from Be Unconventional HQ.
+        </p>
+      </div>
+      <div class="cta-buttons-wrapper">
+        <a
+          class="cta-button-primary"
+          href={site.socials.substack}
+          target="_blank"
+          rel="noopener">Subscribe on Substack</a
+        >
+        <a
+          class="cta-button-primary"
+          href={site.socials.youtube}
+          target="_blank"
+          rel="noopener">Subscribe on YouTube</a
+        >
+      </div>
+    </div>
+  </section>
   <SpanningCalendarModal events={allEvents} />
 </Layout>
 
@@ -238,4 +274,28 @@ const pastEvents = allEvents
     gap: 2rem;
     margin-top: 2rem;
   }
+
+  .cta-buttons-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 2rem;
+    width: 100%;
+  }
+
+  .cta-buttons-wrapper .cta-button-primary {
+    width: 100%;
+    text-align: center;
+  }
+
+  @media (min-width: 768px) {
+    .cta-buttons-wrapper {
+      flex-direction: row;
+    }
+
+    .cta-buttons-wrapper .cta-button-primary {
+      flex: 1;
+    }
+  }
+  
 </style>
