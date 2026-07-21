@@ -1,11 +1,15 @@
 import type { APIRoute } from 'astro';
+// @ts-ignore - virtual module provided by @astrojs/cloudflare.
+// This is the official way to access bindings and secrets in Astro on Cloudflare.
+import { env as workerEnv } from 'cloudflare:workers';
 
-export const POST: APIRoute = async ({ request, cookies, locals }) => {
+export const POST: APIRoute = async ({ request, cookies }) => {
   try {
     // Parse the incoming JSON body
     const body = await request.json();
     const { email, 'cf-turnstile-response': turnstileToken } = body;
 
+    const env = (workerEnv ?? {}) as Record<string, any>;
     const hasSessionCookie = cookies.has('hq_verified');
 
     // Basic field validation
@@ -25,13 +29,23 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
 
     // ── Step 1: Validate Turnstile token (if no session cookie) ──────
     if (!hasSessionCookie) {
+      const secret = env.TURNSTILE_SECRET_KEY ?? import.meta.env.TURNSTILE_SECRET_KEY;
+
+      if (!secret) {
+        console.error('TURNSTILE_SECRET_KEY is not set.');
+        return new Response(
+          JSON.stringify({ error: 'Service is not configured correctly.' }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
       const turnstileRes = await fetch(
         'https://challenges.cloudflare.com/turnstile/v0/siteverify',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({
-            secret: import.meta.env.TURNSTILE_SECRET_KEY,
+            secret,
             response: turnstileToken,
           }),
         }
@@ -57,10 +71,8 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     }
 
     // ── Step 2: Store Subscriber Email ──────────────────────────
-    // Attempt to store in Cloudflare KV if binding exists
-    const KV = (locals as any)?.runtime?.env?.SUBSCRIBERS_KV;
+    const KV = env.SUBSCRIBERS;
     const timestamp = new Date().toISOString();
-    
     if (KV) {
       // Store in KV with email as key, timestamp as value (or a JSON object)
       await KV.put(`subscriber:${email}`, JSON.stringify({
