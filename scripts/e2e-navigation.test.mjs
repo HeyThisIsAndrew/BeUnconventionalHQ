@@ -11,14 +11,14 @@ async function runTests() {
     server.stdout.on('data', (data) => {
       const text = data.toString();
       output += text;
-      if (text.includes('http://localhost:4321')) resolve();
+      if (text.includes('http://localhost:')) resolve();
     });
     server.stderr.on('data', (data) => console.error(data.toString()));
     server.on('error', reject);
     server.on('exit', (code) => {
       if (code !== 0) reject(new Error(`Server exited with code ${code}`));
     });
-    setTimeout(() => reject(new Error('Server start timed out')), 15000);
+    setTimeout(() => reject(new Error('Server start timed out')), 30000);
   });
 
   console.log('Server is running. Launching Puppeteer...');

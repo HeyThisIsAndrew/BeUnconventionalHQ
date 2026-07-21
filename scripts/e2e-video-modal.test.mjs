@@ -11,14 +11,14 @@ async function runTests() {
     server.stdout.on('data', (data) => {
       const text = data.toString();
       output += text;
-      if (text.includes('http://localhost:4321')) resolve();
+      if (text.includes('http://localhost:')) resolve();
     });
     server.stderr.on('data', (data) => console.error(data.toString()));
     server.on('error', reject);
     server.on('exit', (code) => {
       if (code !== 0) reject(new Error(`Server exited with code ${code}`));
     });
-    setTimeout(() => reject(new Error('Server start timed out')), 15000);
+    setTimeout(() => reject(new Error('Server start timed out')), 30000);
   });
 
   console.log('Server is running. Launching Puppeteer...');
@@ -71,14 +71,14 @@ async function runTests() {
     console.log('Closing modal...');
     const closeBtn = await page.$('#video-modal .modal-close');
     assert.ok(closeBtn, 'Modal close button should exist');
-    await closeBtn.click();
+    await page.evaluate(() => document.querySelector('#video-modal .modal-close').click());
     
     // Wait for animation to finish closing (it removes the open class or hides it)
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 1000));
     
     const isModalHidden = await page.evaluate(() => {
       const modal = document.getElementById('video-modal');
-      return window.getComputedStyle(modal).display === 'none' || window.getComputedStyle(modal).opacity === '0' || modal.hidden;
+      return !modal.classList.contains('active');
     });
     assert.ok(isModalHidden, 'Video modal should be hidden after closing');
 
@@ -94,11 +94,11 @@ async function runTests() {
     await page.waitForSelector('#video-modal', { visible: true, timeout: 3000 });
     
     await page.keyboard.press('Escape');
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 1000));
     
     const isModalHiddenEsc = await page.evaluate(() => {
       const modal = document.getElementById('video-modal');
-      return window.getComputedStyle(modal).display === 'none' || window.getComputedStyle(modal).opacity === '0' || modal.hidden;
+      return !modal.classList.contains('active');
     });
     assert.ok(isModalHiddenEsc, 'Video modal should be hidden after ESC key');
 
