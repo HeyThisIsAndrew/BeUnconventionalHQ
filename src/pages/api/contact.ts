@@ -1,39 +1,59 @@
 import type { APIRoute } from 'astro';
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, cookies }) => {
   try {
     // Parse the incoming JSON body
     const body = await request.json();
     const { name, email, subject, message, 'cf-turnstile-response': turnstileToken } = body;
 
+    const hasSessionCookie = cookies.has('hq_verified');
+
     // Basic field validation
-    if (!name || !email || !subject || !message || !turnstileToken) {
+    if (!name || !email || !subject || !message) {
       return new Response(
-        JSON.stringify({ error: 'All fields are required, including the Turnstile token.' }),
+        JSON.stringify({ error: 'All fields are required.' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // ── Step 1: Validate Turnstile token ──────────────────────────
-    const turnstileRes = await fetch(
-      'https://challenges.cloudflare.com/turnstile/v0/siteverify',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          secret: import.meta.env.TURNSTILE_SECRET_KEY,
-          response: turnstileToken,
-        }),
-      }
-    );
-
-    const turnstileData = await turnstileRes.json();
-
-    if (!turnstileData.success) {
+    if (!hasSessionCookie && !turnstileToken) {
       return new Response(
-        JSON.stringify({ error: 'Turnstile verification failed. Please try again.' }),
+        JSON.stringify({ error: 'Turnstile token required.' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
+    }
+
+    // ── Step 1: Validate Turnstile token (if no session cookie) ──────
+    if (!hasSessionCookie) {
+      const turnstileRes = await fetch(
+        'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            secret: import.meta.env.TURNSTILE_SECRET_KEY,
+            response: turnstileToken,
+          }),
+        }
+      );
+
+      const turnstileData = await turnstileRes.json();
+
+      if (!turnstileData.success) {
+        return new Response(
+          JSON.stringify({ error: 'Turnstile verification failed. Please try again.' }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Set secure cookie so future requests in this session bypass Turnstile
+      cookies.set('hq_verified', 'true', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'strict',
+        path: '/',
+        maxAge: 60 * 60 * 24 // 24 hours
+      });
     }
 
     // ── Step 2: Send the email via Resend ──────────────────────────

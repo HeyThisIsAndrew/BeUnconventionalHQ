@@ -40,7 +40,7 @@ import PageTitle from './PageTitle.astro';
         <textarea id="modal-message" name="message" class="form-textarea" placeholder="How can we help?" required></textarea>
       </div>
 
-      <div class="form-group">
+      <div class="form-group" id="turnstile-container">
         <!-- Turnstile widget -->
         <div class="cf-turnstile" data-sitekey={import.meta.env.PUBLIC_TURNSTILE_SITE_KEY} data-size="flexible" data-callback="onTurnstileSuccess" data-error-callback="onTurnstileError" data-expired-callback="onTurnstileExpired"></div>
       </div>
@@ -55,14 +55,17 @@ import PageTitle from './PageTitle.astro';
 <script is:inline>
   // Turnstile callbacks must be strictly global
   window.onTurnstileSuccess = function() {
+    sessionStorage.setItem('hq_verified', 'true');
     const btn = document.getElementById('modal-submit-btn');
     if (btn) btn.disabled = false;
   };
   window.onTurnstileError = function() {
+    sessionStorage.removeItem('hq_verified');
     const btn = document.getElementById('modal-submit-btn');
     if (btn) btn.disabled = true;
   };
   window.onTurnstileExpired = function() {
+    sessionStorage.removeItem('hq_verified');
     const btn = document.getElementById('modal-submit-btn');
     if (btn) btn.disabled = true;
   };
@@ -181,6 +184,19 @@ import PageTitle from './PageTitle.astro';
         const modal = document.getElementById('contact-modal');
         const closeBtn = document.getElementById('close-contact-modal');
         
+        // --- Session Caching Check ---
+        const isVerified = sessionStorage.getItem('hq_verified') === 'true';
+        const tsContainer = document.getElementById('turnstile-container');
+        const cachedSubmitBtn = document.getElementById('modal-submit-btn');
+        
+        if (isVerified) {
+          if (tsContainer) tsContainer.style.display = 'none';
+          if (cachedSubmitBtn) cachedSubmitBtn.disabled = false;
+        } else {
+          if (tsContainer) tsContainer.style.display = 'flex';
+          if (cachedSubmitBtn) cachedSubmitBtn.disabled = true;
+        }
+        
         if (closeBtn && !boundElements.has(closeBtn)) {
           closeBtn.addEventListener('click', closeContactModal);
           boundElements.add(closeBtn);
@@ -242,7 +258,7 @@ import PageTitle from './PageTitle.astro';
               submitBtn.disabled = false;
               submitBtn.textContent = 'Send Message';
               // Reset the Turnstile widget so the user can submit again if needed
-              if (typeof turnstile !== 'undefined') {
+              if (typeof turnstile !== 'undefined' && !sessionStorage.getItem('hq_verified')) {
                 turnstile.reset();
                 const btn = document.getElementById('modal-submit-btn');
                 if (btn) btn.disabled = true; // require re-verification
