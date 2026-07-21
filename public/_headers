@@ -14,4 +14,4 @@
 /admin/*
   X-Robots-Tag: noindex, nofollow
   ! Content-Security-Policy
-  Content-Security-Policy: default-src 'none'; base-uri 'self'; style-src 'self' 'unsafe-inline' https://*.sanity.io; font-src 'self' data: https://*.sanity.io; img-src 'self' data: blob: https://*.sanity.io; frame-src 'self' https://*.sanity.io; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.sanity.io; connect-src 'self' https://*.sanity.io wss://*.sanity.io;
+  Content-Security-Policy: default-src 'none'; base-uri 'self'; style-src 'self' 'unsafe-inline' https://*.sanity.io; font-src 'self' data: https://*.sanity.io; img-src 'self' data: blob: https://*.sanity.io https://cdn.sanity.io; frame-src 'self' https://*.sanity.io; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.sanity.io; connect-src 'self' https://*.sanity.io wss://*.sanity.io;
