@@ -12,7 +12,6 @@ export const site = {
   nav: [
     { label: 'Feed', href: '/feed' },
     { label: 'About', href: '/about' },
-    { label: 'Contact', href: '#contact' },
   ],
 
   socials: {
