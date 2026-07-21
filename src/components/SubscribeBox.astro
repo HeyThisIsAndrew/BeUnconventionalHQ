@@ -1,0 +1,221 @@
+---
+import PageTitle from './PageTitle.astro';
+
+export interface Props {
+  kicker?: string;
+  primary?: string;
+  secondary?: string;
+  subtitle?: string;
+  buttonText?: string;
+}
+
+const {
+  kicker = "Stay Updated",
+  primary = "Don't miss a",
+  secondary = "Drop",
+  subtitle = "Get notified of new drops. No spam.",
+  buttonText = "Subscribe"
+} = Astro.props;
+---
+
+<section class="press-kit-section animate-on-scroll" style="text-align: center;">
+  <div class="section-header" style="margin-bottom: 2rem;">
+    <PageTitle kicker={kicker} primary={primary} secondary={secondary} scale="secondary" />
+  </div>
+  <p class="press-kit-desc" style="max-width: 800px; margin: 0 auto 2rem; color: #a0a0a0;">
+    {subtitle}
+  </p>
+  
+  <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  
+  <form id="subscribe-form" class="subscribe-form">
+    <div class="subscribe-input-group">
+      <input type="email" id="subscribe-email" name="email" class="form-input subscribe-input" placeholder="Email address" required />
+      <button type="submit" id="subscribe-submit-btn" class="cta-button-primary subscribe-btn" disabled>{buttonText}</button>
+    </div>
+    
+    <div class="form-group" id="subscribe-turnstile-container" style="margin-top: 1rem; display: flex; justify-content: center;">
+      <!-- Turnstile widget -->
+      <div class="cf-turnstile" data-sitekey={import.meta.env.PUBLIC_TURNSTILE_SITE_KEY} data-size="flexible" data-callback="onSubscribeTurnstileSuccess" data-error-callback="onSubscribeTurnstileError" data-expired-callback="onSubscribeTurnstileExpired"></div>
+    </div>
+    
+    <div id="subscribe-form-status" class="form-status-message" role="status" aria-live="polite"></div>
+  </form>
+</section>
+
+<script is:inline>
+  window.onSubscribeTurnstileSuccess = function() {
+    sessionStorage.setItem('hq_verified', 'true');
+    const btn = document.getElementById('subscribe-submit-btn');
+    if (btn) btn.disabled = false;
+  };
+  window.onSubscribeTurnstileError = function() {
+    sessionStorage.removeItem('hq_verified');
+    const btn = document.getElementById('subscribe-submit-btn');
+    if (btn) btn.disabled = true;
+  };
+  window.onSubscribeTurnstileExpired = function() {
+    sessionStorage.removeItem('hq_verified');
+    const btn = document.getElementById('subscribe-submit-btn');
+    if (btn) btn.disabled = true;
+  };
+
+  document.addEventListener('astro:page-load', () => {
+    const isVerified = sessionStorage.getItem('hq_verified') === 'true';
+    const tsContainer = document.getElementById('subscribe-turnstile-container');
+    const submitBtn = document.getElementById('subscribe-submit-btn');
+    
+    if (isVerified) {
+      if (tsContainer) tsContainer.style.display = 'none';
+      if (submitBtn) submitBtn.disabled = false;
+    } else {
+      if (tsContainer) tsContainer.style.display = 'flex';
+      if (submitBtn) submitBtn.disabled = true;
+    }
+
+    const form = document.getElementById('subscribe-form');
+    const status = document.getElementById('subscribe-form-status');
+    
+    if (form && status && submitBtn && !form.dataset.bound) {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+
+        submitBtn.disabled = true;
+        const originalText = submitBtn.textContent;
+        submitBtn.textContent = 'Sending...';
+        
+        status.classList.remove('is-visible');
+        status.innerHTML = '';
+        status.style.background = '';
+        status.style.borderColor = '';
+
+        try {
+          const res = await fetch('/api/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          });
+
+          const result = await res.json();
+
+          if (res.ok) {
+            status.innerHTML = "You're on the dispatch list.";
+            status.style.background = 'rgba(0, 204, 0, 0.1)';
+            status.style.borderColor = 'green';
+            status.classList.add('is-visible');
+            form.reset();
+            
+            if (window.turnstile && !isVerified) {
+              try { window.turnstile.reset(); } catch(err) {}
+            }
+            setTimeout(() => {
+              submitBtn.disabled = false;
+              submitBtn.textContent = originalText;
+            }, 2000);
+          } else {
+            status.innerHTML = `❌ ${result.error || 'Something went wrong. Please try again.'}`;
+            status.style.background = 'rgba(204, 0, 0, 0.1)';
+            status.style.borderColor = 'red';
+            status.classList.add('is-visible');
+            
+            if (window.turnstile && !isVerified) {
+              try { window.turnstile.reset(); } catch(err) {}
+            }
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+          }
+        } catch (err) {
+          status.innerHTML = '❌ Network error. Please try again.';
+          status.style.background = 'rgba(204, 0, 0, 0.1)';
+          status.style.borderColor = 'red';
+          status.classList.add('is-visible');
+          
+          if (window.turnstile && !isVerified) {
+            try { window.turnstile.reset(); } catch(err) {}
+          }
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
+        }
+      });
+      form.dataset.bound = 'true';
+    }
+  });
+</script>
+
+<style>
+  .subscribe-form {
+    max-width: 800px; /* Slightly wider to accommodate 70/30 split better */
+    margin: 0 auto;
+    width: 100%;
+  }
+  
+  .subscribe-input-group {
+    display: grid;
+    grid-template-columns: 7fr 3fr;
+    gap: 0.75rem;
+    align-items: stretch;
+  }
+  
+  @media (max-width: 480px) {
+    .subscribe-input-group {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .subscribe-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0.8rem 1rem;
+    color: var(--color-white);
+    font-family: var(--font-inter);
+    font-size: max(16px, 1rem);
+    transition: all 0.3s ease;
+  }
+  
+  .subscribe-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .subscribe-btn {
+    /* Overrides for the SubscribeBox context, keeping base .cta-button-primary */
+    height: 100%;
+    margin: 0;
+    width: 100%;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* Status message styles */
+  .form-status-message {
+    display: none;
+    padding: 1rem;
+    background: rgba(204, 0, 0, 0.1);
+    border: 1px solid var(--color-accent);
+    color: var(--color-white);
+    font-size: 0.85rem;
+    text-align: center;
+    margin-top: 1rem;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .form-status-message.is-visible {
+    display: block;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>

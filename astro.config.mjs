@@ -24,6 +24,12 @@ export default defineConfig({
   },
   vite: {
     plugins: [tailwindcss()],
+    ssr: {
+      noExternal: ['react', 'react-dom']
+    },
+    optimizeDeps: {
+      include: ['react', 'react-dom', 'react/jsx-runtime', '@sanity/client']
+    }
   },
   integrations: [
     partytown({

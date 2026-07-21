@@ -73,10 +73,11 @@ import PageTitle from './PageTitle.astro';
 
 <script is:inline>
   (function () {
-    const boundElements = new WeakSet();
-    // Remembers the trigger so focus can return to it on close.
+    // Ensure we only register global listeners once across view transitions
+    if (window.contactModalSetup) return;
+    window.contactModalSetup = true;
+    
     let lastFocused = null;
-    let interactivityTimer = null;
 
     // Clears the "state leak": typed text, validation and the status banner.
     function resetModalForm() {
@@ -89,7 +90,6 @@ import PageTitle from './PageTitle.astro';
     function openContactModal(e) {
       if (e) e.preventDefault();
       const modal = document.getElementById('contact-modal');
-      const form = document.getElementById('contact-modal-form');
       const closeBtn = document.getElementById('close-contact-modal');
       if (modal) {
         // Start clean every open — the modal is persisted across navigations,
@@ -112,22 +112,8 @@ import PageTitle from './PageTitle.astro';
 
         // iOS auto-zoom guard: the content animates transform: scale(0.9)->1,
         // which renders inputs below 16px mid-transition. Hold the form out of
-        // the tab order (inert) until the scale settles, and focus only the
-        // (non-input) close button — so Safari never sees a focused sub-16px
-        // input.
-        form?.setAttribute('inert', '');
-        const enableInputs = () => {
-          form?.removeAttribute('inert');
-          clearTimeout(interactivityTimer);
-        };
-        const content = modal.querySelector('.contact-modal-content');
-        content?.addEventListener('transitionend', enableInputs, { once: true });
-        clearTimeout(interactivityTimer);
-        interactivityTimer = setTimeout(enableInputs, 600);
-
         modal.classList.add('is-active');
         modal.setAttribute('aria-hidden', 'false');
-        document.documentElement.classList.add('modal-open');
         if (closeBtn) setTimeout(() => closeBtn.focus(), 100);
       }
     }
@@ -135,158 +121,157 @@ import PageTitle from './PageTitle.astro';
     function closeContactModal() {
       const modal = document.getElementById('contact-modal');
       if (modal && modal.classList.contains('is-active')) {
-        document.getElementById('app-wrapper')?.removeAttribute('inert');
-        document.getElementById('contact-modal-form')?.removeAttribute('inert');
-        clearTimeout(interactivityTimer);
         modal.classList.remove('is-active');
         modal.setAttribute('aria-hidden', 'true');
-
+        
         const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
         document.body.style.position = '';
         document.body.style.top = '';
         document.body.style.width = '';
         document.body.style.overflowY = '';
-
-        // Reset the (persisted) form so nothing leaks into the next open.
-        resetModalForm();
-
-        // Restore focus to the element that opened the modal.
-        if (lastFocused && typeof lastFocused.focus === 'function') {
-          lastFocused.focus();
-        }
-        lastFocused = null;
-
-        document.documentElement.classList.remove('modal-open');
-        const originalBehavior = document.documentElement.style.scrollBehavior;
-        document.documentElement.style.scrollBehavior = 'auto'; // Force instant snap
-        window.scrollTo(0, scrollY);
-
+        
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
+            const originalBehavior = document.documentElement.style.scrollBehavior;
+            document.documentElement.style.scrollBehavior = 'auto'; // Force instant snap
+            window.scrollTo(0, scrollY);
             document.documentElement.style.scrollBehavior = originalBehavior;
           });
         });
+
+        document.getElementById('app-wrapper')?.removeAttribute('inert');
+        if (lastFocused) lastFocused.focus();
       }
     }
 
-    // Direct binding for triggers inside astro:page-load
-    if (!window.contactModalSetup) {
-      document.addEventListener('astro:page-load', () => {
-        const triggers = document.querySelectorAll('[data-modal-trigger="contact"]');
-        triggers.forEach(trigger => {
-          if (!boundElements.has(trigger)) {
-            trigger.addEventListener('click', openContactModal);
-            boundElements.add(trigger);
-          }
-        });
+    function resetModalForm() {
+      const form = document.getElementById('contact-modal-form');
+      const status = document.getElementById('modal-form-status');
+      
+      form?.reset();
+      status?.classList.remove('is-visible');
+      
+      if (window.turnstile) {
+        try { window.turnstile.reset(); } catch(e) {}
+      }
+    }
 
-        // Bind close buttons and backdrop
-        const modal = document.getElementById('contact-modal');
-        const closeBtn = document.getElementById('close-contact-modal');
-        
-        // --- Session Caching Check ---
-        const isVerified = sessionStorage.getItem('hq_verified') === 'true';
-        const tsContainer = document.getElementById('turnstile-container');
-        const cachedSubmitBtn = document.getElementById('modal-submit-btn');
-        
-        if (isVerified) {
-          if (tsContainer) tsContainer.style.display = 'none';
-          if (cachedSubmitBtn) cachedSubmitBtn.disabled = false;
-        } else {
-          if (tsContainer) tsContainer.style.display = 'flex';
-          if (cachedSubmitBtn) cachedSubmitBtn.disabled = true;
-        }
-        
-        if (closeBtn && !boundElements.has(closeBtn)) {
-          closeBtn.addEventListener('click', closeContactModal);
-          boundElements.add(closeBtn);
-        }
+    // Use event delegation for all contact modal triggers
+    document.addEventListener('click', (e) => {
+      const trigger = e.target.closest('[data-modal-trigger="contact"]');
+      if (trigger) {
+        e.preventDefault();
+        openContactModal(e);
+      }
+      
+      // Close on clicking backdrop
+      const modal = document.getElementById('contact-modal');
+      if (e.target === modal) closeContactModal();
+      
+      // Close on close button
+      if (e.target.closest('#close-contact-modal')) closeContactModal();
+    });
 
-        if (modal && !boundElements.has(modal)) {
-          modal.addEventListener('click', (e) => {
-            if (e.target === modal) closeContactModal();
-          });
-          boundElements.add(modal);
-        }
+    // Handle Escape key globally
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeContactModal();
+    });
 
-        // Form submission binding
-        const form = document.getElementById('contact-modal-form');
-        const status = document.getElementById('modal-form-status');
-        const submitBtn = form?.querySelector('.form-submit');
-        
-        if (form && status && submitBtn && !boundElements.has(form)) {
-          form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const formData = new FormData(form);
-            const data = Object.fromEntries(formData.entries());
+    document.addEventListener('astro:page-load', () => {
+      // --- Session Caching Check ---
+      const isVerified = sessionStorage.getItem('hq_verified') === 'true';
+      const tsContainer = document.getElementById('turnstile-container');
+      const cachedSubmitBtn = document.getElementById('modal-submit-btn');
+      
+      if (isVerified) {
+        if (tsContainer) tsContainer.style.display = 'none';
+        if (cachedSubmitBtn) cachedSubmitBtn.disabled = false;
+      } else {
+        if (tsContainer) tsContainer.style.display = 'flex';
+        if (cachedSubmitBtn) cachedSubmitBtn.disabled = true;
+      }
 
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Sending...';
-            status.classList.remove('is-visible');
-            status.innerHTML = '';
-            status.style.background = '';
-            status.style.borderColor = '';
+      // Form submission binding
+      const form = document.getElementById('contact-modal-form');
+      const status = document.getElementById('modal-form-status');
+      const submitBtn = document.getElementById('modal-submit-btn');
+      
+      if (form && status && submitBtn && !form.dataset.modalBound) {
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          
+          const formData = new FormData(form);
+          const data = Object.fromEntries(formData.entries());
 
-            try {
-              const res = await fetch('/api/contact', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-              });
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Sending...';
+          status.classList.remove('is-visible');
+          status.innerHTML = '';
+          status.style.background = '';
+          status.style.borderColor = '';
 
-              const result = await res.json();
+          try {
+            const res = await fetch('/api/contact', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(data),
+            });
 
-              if (res.ok) {
-                status.innerHTML = 'Thanks for reaching out. Your message is on its way.';
-                status.style.background = 'rgba(0, 204, 0, 0.1)';
-                status.style.borderColor = 'green';
-                status.classList.add('is-visible');
-                form.reset();
-              } else {
-                status.innerHTML = `❌ ${result.error || 'Something went wrong. Please try again.'}`;
-                status.style.background = 'rgba(204, 0, 0, 0.1)';
-                status.style.borderColor = 'red';
-                status.classList.add('is-visible');
+            const result = await res.json();
+
+            if (res.ok) {
+              status.innerHTML = 'Thanks for reaching out. Your message is on its way.';
+              status.style.background = 'rgba(0, 204, 0, 0.1)';
+              status.style.borderColor = 'green';
+              status.classList.add('is-visible');
+              form.reset();
+              
+              if (window.turnstile) {
+                try { window.turnstile.reset(); } catch(err) {}
               }
-            } catch (err) {
-              status.innerHTML = '❌ Network error. Please try again.';
+              setTimeout(() => {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Send Message';
+              }, 2000);
+            } else {
+              status.innerHTML = `❌ ${result.error || 'Something went wrong. Please try again.'}`;
               status.style.background = 'rgba(204, 0, 0, 0.1)';
               status.style.borderColor = 'red';
               status.classList.add('is-visible');
-            } finally {
+              
+              if (window.turnstile) {
+                try { window.turnstile.reset(); } catch(err) {}
+              }
               submitBtn.disabled = false;
               submitBtn.textContent = 'Send Message';
-              // Reset the Turnstile widget so the user can submit again if needed
-              if (typeof turnstile !== 'undefined' && !sessionStorage.getItem('hq_verified')) {
-                turnstile.reset();
-                const btn = document.getElementById('modal-submit-btn');
-                if (btn) btn.disabled = true; // require re-verification
-              }
             }
-          });
-          boundElements.add(form);
-        }
-        // Auto-open if linked directly via hash
-        if (window.location.hash === '#contact' && !window.contactModalHashChecked) {
-          setTimeout(() => {
-            openContactModal();
-            // Clear hash safely so it doesn't re-trigger on accidental reload
-            history.replaceState(null, null, window.location.pathname + window.location.search);
-          }, 100);
-          window.contactModalHashChecked = true;
-        }
-      });
-      window.contactModalSetup = true;
-    }
+          } catch (err) {
+            status.innerHTML = '❌ Network error. Please try again.';
+            status.style.background = 'rgba(204, 0, 0, 0.1)';
+            status.style.borderColor = 'red';
+            status.classList.add('is-visible');
+            
+            if (window.turnstile) {
+              try { window.turnstile.reset(); } catch(err) {}
+            }
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Send Message';
+          }
+        });
+        form.dataset.modalBound = 'true';
+      }
 
-    // Handle Escape key globally
-    if (!window.contactModalEscSetup) {
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeContactModal();
-      });
-      window.contactModalEscSetup = true;
-    }
+      // Auto-open if linked directly via hash
+      if (window.location.hash === '#contact' && !window.contactModalHashChecked) {
+        setTimeout(() => {
+          openContactModal();
+          if (window.location.hash === '#contact') {
+            history.replaceState(null, null, window.location.pathname + window.location.search);
+          }
+        }, 100);
+        window.contactModalHashChecked = true;
+      }
+    });
 
   })();
 </script>
