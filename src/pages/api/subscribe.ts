@@ -1,14 +1,24 @@
 import type { APIRoute } from 'astro';
 // @ts-ignore - virtual module provided by @astrojs/cloudflare.
 // This is the official way to access bindings and secrets in Astro on Cloudflare.
+// AI-NOTE: This static import replaces a dynamic import() inside a try/catch
+// block. This resolves a `astro check` error and aligns with the pattern
+// used in other API routes like `live-status.json.ts`.
 import { env as workerEnv } from 'cloudflare:workers';
 
+// AI-NOTE: The unused `locals` parameter was removed from the function signature.
 export const POST: APIRoute = async ({ request, cookies }) => {
   try {
     // Parse the incoming JSON body
     const body = await request.json();
     const { email, 'cf-turnstile-response': turnstileToken } = body;
 
+    // AI-NOTE: This `env` object provides a unified way to access Cloudflare
+    // bindings and environment variables.
+    // - In production, `workerEnv` is injected by the Cloudflare adapter.
+    // - In local dev (`astro dev`), `workerEnv` is undefined, so we default to an
+    //   empty object. Secrets are then accessed via `import.meta.env`.
+    // - The `as any` cast is necessary because KV bindings are objects, not just strings.
     const env = (workerEnv ?? {}) as Record<string, any>;
     const hasSessionCookie = cookies.has('hq_verified');
 
@@ -29,6 +39,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
     // ── Step 1: Validate Turnstile token (if no session cookie) ──────
     if (!hasSessionCookie) {
+      // AI-NOTE: This safely retrieves the Turnstile secret. It prioritizes the
+      // Cloudflare environment (`env.TURNSTILE_SECRET_KEY`) but falls back to the
+      // local `.env` file (`import.meta.env.TURNSTILE_SECRET_KEY`) for `astro dev`.
       const secret = env.TURNSTILE_SECRET_KEY ?? import.meta.env.TURNSTILE_SECRET_KEY;
 
       if (!secret) {
@@ -71,6 +84,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
 
     // ── Step 2: Store Subscriber Email ──────────────────────────
+    // AI-NOTE: This directly accesses the `SUBSCRIBERS` KV namespace binding from
+    // the unified `env` object.
+    // In local dev, if the binding is not emulated, `KV` will be `undefined`,
+    // and the code will gracefully use the console.log fallback below.
     const KV = env.SUBSCRIBERS;
     const timestamp = new Date().toISOString();
     if (KV) {
