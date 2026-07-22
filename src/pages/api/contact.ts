@@ -1,5 +1,10 @@
 import type { APIRoute } from 'astro';
 
+// POST-only endpoint, not a page - same on-demand convention as
+// live-status.json.ts. Without this the static prerenderer tries (and
+// fails) to prerender a GET response for a route with no GET handler.
+export const prerender = false;
+
 export const POST: APIRoute = async ({ request, cookies }) => {
   try {
     // Parse the incoming JSON body

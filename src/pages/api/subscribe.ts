@@ -6,6 +6,11 @@ import type { APIRoute } from 'astro';
 // used in other API routes like `live-status.json.ts`.
 import { env as workerEnv } from 'cloudflare:workers';
 
+// POST-only endpoint, not a page - same on-demand convention as
+// live-status.json.ts. Without this the static prerenderer tries (and
+// fails) to prerender a GET response for a route with no GET handler.
+export const prerender = false;
+
 // AI-NOTE: The unused `locals` parameter was removed from the function signature.
 export const POST: APIRoute = async ({ request, cookies }) => {
   try {
