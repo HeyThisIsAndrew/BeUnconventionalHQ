@@ -70,6 +70,26 @@ const TYPE_META: Record<DocType, { label: string; badge: string }> = {
 const FILTERS = ['All', 'Videos', 'Shorts', 'Live', 'Events', 'Featured'] as const;
 type Filter = (typeof FILTERS)[number];
 
+const FILTER_LABELS: Record<Filter, string> = {
+  All: 'All Content',
+  Videos: 'Videos',
+  Shorts: 'Shorts',
+  Live: 'Live',
+  Events: 'Events',
+  Featured: 'Featured Brands',
+};
+
+// Grouped by what these actually are in our local schema - video/short/live
+// are YouTube-sourced content; event/featuredBrand are hand-curated hub
+// pages. No "Topic" or "Metrics" group: those are real Sanity doc types
+// (visible at /admin) that never made it into the local JSON pivot - Topics
+// here are hardcoded seeds in sync-youtube.mjs, not editable docs, and we
+// have no local equivalent of Sanity's computed Video Metrics at all.
+const FILTER_GROUPS: { label: string; filters: Filter[] }[] = [
+  { label: 'Content Library', filters: ['Videos', 'Shorts', 'Live'] },
+  { label: 'Hubs & Pages', filters: ['Events', 'Featured'] },
+];
+
 function slugify(value: string): string {
   return (
     value
@@ -154,6 +174,7 @@ function makeBlankDoc(type: DocType): Doc {
 
 const inputClass =
   'block w-full rounded-md border-0 py-2 px-3 bg-[#151515] text-white text-sm ring-1 ring-inset ring-white/10 placeholder:text-gray-600 focus:ring-2 focus:outline-none focus:ring-red-500';
+const textareaClass = `${inputClass} resize-y min-h-[140px] leading-relaxed`;
 const labelClass = 'block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5';
 const sectionClass = 'space-y-5';
 
@@ -348,23 +369,41 @@ export default function LocalCmsApp() {
       <div className="flex flex-col lg:flex-row gap-3 items-start w-full">
       {/* Structure pane */}
       <div className="w-full lg:w-56 flex-shrink-0 flex flex-col gap-6 bg-[#111214] rounded-lg border border-white/10 p-3 lg:h-[75vh] overflow-y-auto">
-        <div>
-          <div className="px-1 pb-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-            Content
+        <div className="flex flex-col gap-4">
+          <div>
+            <div className="px-1 pb-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+              Content
+            </div>
+            <button
+              onClick={() => setActiveFilter('All')}
+              className={`w-full text-left px-2.5 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeFilter === 'All' ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              {FILTER_LABELS.All}
+            </button>
           </div>
-          <div className="flex flex-col gap-1.5">
-            {FILTERS.map((filter) => (
-              <button
-                key={filter}
-                onClick={() => setActiveFilter(filter)}
-                className={`text-left px-2.5 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeFilter === filter ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                }`}
-              >
-                {filter}
-              </button>
-            ))}
-          </div>
+
+          {FILTER_GROUPS.map((group) => (
+            <div key={group.label}>
+              <div className="px-1 pb-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                {group.label}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {group.filters.map((filter) => (
+                  <button
+                    key={filter}
+                    onClick={() => setActiveFilter(filter)}
+                    className={`text-left px-2.5 py-2 rounded-md text-sm font-medium transition-colors ${
+                      activeFilter === filter ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                    }`}
+                  >
+                    {FILTER_LABELS[filter]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
 
         <div className="border-t border-white/10 pt-4">
@@ -589,7 +628,7 @@ function VideoForm({
               <Toggle label="Requires Review" checked={doc.requiresReview || false} onChange={(v) => update('requiresReview', v)} />
             </div>
             <Field label="Description">
-              <textarea rows={5} value={doc.description || ''} onChange={(e) => update('description', e.target.value)} className={inputClass} />
+              <textarea value={doc.description || ''} onChange={(e) => update('description', e.target.value)} className={textareaClass} placeholder="What the video is about..." />
             </Field>
           </div>
         )}
@@ -652,7 +691,7 @@ function VideoForm({
               </select>
             </Field>
             <Field label="Editorial Notes">
-              <textarea rows={3} value={doc.editorialNotes || ''} onChange={(e) => update('editorialNotes', e.target.value)} className={inputClass} />
+              <textarea value={doc.editorialNotes || ''} onChange={(e) => update('editorialNotes', e.target.value)} className={textareaClass} placeholder="Internal notes for editors..." />
             </Field>
           </div>
         )}
@@ -718,7 +757,7 @@ function EventForm({
       </div>
 
       <Field label="Description">
-        <textarea rows={3} value={doc.description || ''} onChange={(e) => update('description', e.target.value)} className={inputClass} />
+        <textarea value={doc.description || ''} onChange={(e) => update('description', e.target.value)} className={textareaClass} placeholder="What this event/brand is about..." />
       </Field>
 
       <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5">

@@ -7,7 +7,7 @@ const isDev = import.meta.env.DEV;
 ---
 
 <Layout title="Local Admin CMS" description="Manage local videos" noindex={true}>
-  <div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12" style="padding-top: 120px;">
+  <div class="local-cms-shell">
     <div class="border-b border-white/10 pb-5 mb-6 flex justify-between items-center">
       <div>
         <h1 class="text-3xl font-bold font-syne text-white uppercase tracking-wider">Local CMS Dashboard</h1>
@@ -37,3 +37,32 @@ const isDev = import.meta.env.DEV;
     )}
   </div>
 </Layout>
+
+<style>
+  /* Plain scoped CSS, not Tailwind utilities - several utility classes on
+     this specific wrapper (mx-auto, pt-28, px-4/sm:px-6/lg:px-8, pb-12) were
+     computing to 0px in dev despite being present in the class list; traced
+     it to Tailwind's JIT not generating rules for them here (className list
+     confirmed via getComputedStyle + a live CSSOM scan finding zero matching
+     rules across all 11 loaded stylesheets). Root cause undetermined after
+     real investigation; this sidesteps it entirely via a different code path
+     that doesn't depend on Tailwind's content scanning. */
+  .local-cms-shell {
+    width: 100%;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 120px 1rem 3rem;
+  }
+  @media (min-width: 640px) {
+    .local-cms-shell {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .local-cms-shell {
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+  }
+</style>
