@@ -166,6 +166,19 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-[#151515] px-3.5 py-3 cursor-pointer hover:border-white/25 transition-colors">
+      <span className="text-sm font-medium text-white">{label}</span>
+      <span className="relative inline-flex h-5 w-9 flex-shrink-0 items-center">
+        <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer sr-only" />
+        <span className="absolute inset-0 rounded-full bg-white/15 peer-checked:bg-red-600 transition-colors" />
+        <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white transition-transform peer-checked:translate-x-4" />
+      </span>
+    </label>
+  );
+}
+
 export default function LocalCmsApp() {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -334,17 +347,17 @@ export default function LocalCmsApp() {
 
       <div className="flex flex-col lg:flex-row gap-3 items-start w-full">
       {/* Structure pane */}
-      <div className="w-full lg:w-56 flex-shrink-0 flex flex-col gap-4 bg-[#111214] rounded-lg border border-white/10 p-3">
+      <div className="w-full lg:w-56 flex-shrink-0 flex flex-col gap-6 bg-[#111214] rounded-lg border border-white/10 p-3 lg:h-[75vh] overflow-y-auto">
         <div>
-          <div className="px-1 pb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+          <div className="px-1 pb-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
             Content
           </div>
-          <div className="flex flex-col gap-0.5">
+          <div className="flex flex-col gap-1.5">
             {FILTERS.map((filter) => (
               <button
                 key={filter}
                 onClick={() => setActiveFilter(filter)}
-                className={`text-left px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                className={`text-left px-2.5 py-2 rounded-md text-sm font-medium transition-colors ${
                   activeFilter === filter ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
                 }`}
               >
@@ -354,16 +367,16 @@ export default function LocalCmsApp() {
           </div>
         </div>
 
-        <div className="border-t border-white/10 pt-3">
-          <div className="px-1 pb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+        <div className="border-t border-white/10 pt-4">
+          <div className="px-1 pb-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
             Create
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5">
             {(['video', 'short', 'live', 'event', 'featuredBrand'] as DocType[]).map((type) => (
               <button
                 key={type}
                 onClick={() => createDoc(type)}
-                className="flex items-center gap-2 text-left px-2.5 py-1.5 rounded-md text-sm font-medium text-gray-300 border border-dashed border-white/15 hover:border-red-500/50 hover:text-white hover:bg-white/5 transition-colors"
+                className="flex items-center gap-2 text-left px-2.5 py-2 rounded-md text-sm font-medium text-gray-300 border border-dashed border-white/15 hover:border-red-500/50 hover:text-white hover:bg-white/5 transition-colors"
               >
                 <span className="text-red-400 font-bold">+</span> New {TYPE_META[type].label}
               </button>
@@ -384,7 +397,7 @@ export default function LocalCmsApp() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <ul className="divide-y divide-white/5 overflow-y-auto flex-1">
+          <ul className="divide-y divide-white/[0.07] overflow-y-auto flex-1">
             {filteredDocs.length === 0 && (
               <li className="p-4 text-center text-gray-600 text-sm">No documents match.</li>
             )}
@@ -393,7 +406,7 @@ export default function LocalCmsApp() {
               return (
                 <li
                   key={doc._id}
-                  className={`p-2.5 cursor-pointer hover:bg-white/[0.04] transition-colors ${
+                  className={`px-3.5 py-3.5 cursor-pointer hover:bg-white/[0.04] transition-colors ${
                     selectedId === doc._id ? 'bg-white/[0.06]' : ''
                   }`}
                   onClick={() => setSelectedId(doc._id)}
@@ -403,16 +416,16 @@ export default function LocalCmsApp() {
                       <img
                         src={`https://i.ytimg.com/vi/${doc.youtubeId}/mqdefault.jpg`}
                         alt=""
-                        className="w-12 h-8 object-cover rounded bg-gray-800 flex-shrink-0"
+                        className="w-14 h-9 object-cover rounded bg-gray-800 flex-shrink-0"
                       />
                     ) : (
-                      <div className="w-12 h-8 rounded bg-gray-800 flex-shrink-0 flex items-center justify-center text-[9px] text-gray-500 font-bold uppercase text-center leading-tight px-1">
+                      <div className="w-14 h-9 rounded bg-gray-800 flex-shrink-0 flex items-center justify-center text-[9px] text-gray-500 font-bold uppercase text-center leading-tight px-1">
                         {meta.label}
                       </div>
                     )}
-                    <div className="ml-3 min-w-0">
+                    <div className="ml-3.5 min-w-0 space-y-1">
                       <p className="text-sm font-medium text-white truncate">{doc.title || '(untitled)'}</p>
-                      <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5">
+                      <p className="text-xs text-gray-500 flex items-center gap-1.5">
                         <span className={`px-1.5 py-0.5 rounded ${meta.badge}`}>{meta.label}</span>
                         {doc.contentStatus && (
                           <span className={doc.contentStatus === 'published' ? 'text-green-400' : 'text-yellow-400'}>
@@ -563,7 +576,7 @@ function VideoForm({
 
       <div className="pt-1 min-h-[280px]">
         {activeTab === 'status' && (
-          <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5">
+          <div className="space-y-6">
             <Field label="Status">
               <select value={doc.contentStatus} onChange={(e) => update('contentStatus', e.target.value)} className={inputClass}>
                 <option value="published">Published</option>
@@ -571,34 +584,18 @@ function VideoForm({
                 <option value="archived">Archived</option>
               </select>
             </Field>
-            <div className="flex flex-col justify-center space-y-2.5">
-              <label className="flex items-center gap-2 text-sm font-medium text-white">
-                <input
-                  type="checkbox"
-                  checked={doc.featured || false}
-                  onChange={(e) => update('featured', e.target.checked)}
-                  className="rounded bg-[#151515] border-white/10 text-red-500 focus:ring-red-500"
-                />
-                Featured
-              </label>
-              <label className="flex items-center gap-2 text-sm font-medium text-white">
-                <input
-                  type="checkbox"
-                  checked={doc.requiresReview || false}
-                  onChange={(e) => update('requiresReview', e.target.checked)}
-                  className="rounded bg-[#151515] border-white/10 text-red-500 focus:ring-red-500"
-                />
-                Requires Review
-              </label>
+            <div className="grid grid-cols-1 @sm:grid-cols-2 gap-3">
+              <Toggle label="Featured" checked={doc.featured || false} onChange={(v) => update('featured', v)} />
+              <Toggle label="Requires Review" checked={doc.requiresReview || false} onChange={(v) => update('requiresReview', v)} />
             </div>
             <Field label="Description">
-              <textarea rows={3} value={doc.description || ''} onChange={(e) => update('description', e.target.value)} className={inputClass} />
+              <textarea rows={5} value={doc.description || ''} onChange={(e) => update('description', e.target.value)} className={inputClass} />
             </Field>
           </div>
         )}
 
         {activeTab === 'overrides' && (
-          <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5">
+          <div className="space-y-6">
             <Field label="Manual Type Override">
               <select value={doc.manualTypeOverride || ''} onChange={(e) => update('manualTypeOverride', e.target.value)} className={inputClass}>
                 <option value="">(None - Auto Detect)</option>
@@ -608,16 +605,12 @@ function VideoForm({
                 <option value="event">Event</option>
               </select>
             </Field>
-            <div className="flex flex-col justify-center">
-              <label className="flex items-center gap-2 text-sm font-medium text-white">
-                <input
-                  type="checkbox"
-                  checked={doc.manualTaxonomyOverride || false}
-                  onChange={(e) => update('manualTaxonomyOverride', e.target.checked)}
-                  className="rounded bg-[#151515] border-white/10 text-red-500 focus:ring-red-500"
-                />
-                Manual Taxonomy Override (Sync Lock)
-              </label>
+            <div>
+              <Toggle
+                label="Manual Taxonomy Override (Sync Lock)"
+                checked={doc.manualTaxonomyOverride || false}
+                onChange={(v) => update('manualTaxonomyOverride', v)}
+              />
               {!doc.manualTaxonomyOverride && (
                 <p className="text-xs text-yellow-500 mt-2">Lock required to edit Taxonomy tags.</p>
               )}
