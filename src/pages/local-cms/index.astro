@@ -1,0 +1,39 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import LocalCmsApp from '../../components/admin/LocalCmsApp.tsx';
+
+// A simple environment protection so the admin shell is purely a dev utility
+const isDev = import.meta.env.DEV;
+---
+
+<Layout title="Local Admin CMS" description="Manage local videos">
+  <div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 pt-28">
+    <div class="border-b border-white/10 pb-5 mb-8 flex justify-between items-center">
+      <div>
+        <h1 class="text-3xl font-bold font-syne text-white uppercase tracking-wider">Local CMS Dashboard</h1>
+        <p class="mt-2 text-sm text-gray-400">Directly managing src/data/videos.json</p>
+      </div>
+      {!isDev && (
+        <span class="inline-flex items-center rounded-md bg-red-400/10 px-2 py-1 text-xs font-medium text-red-400 ring-1 ring-inset ring-red-400/20">
+          Production Read-Only
+        </span>
+      )}
+      {isDev && (
+        <span class="inline-flex items-center rounded-md bg-green-500/10 px-2 py-1 text-xs font-medium text-green-400 ring-1 ring-inset ring-green-500/20">
+          Dev Mode Active
+        </span>
+      )}
+    </div>
+
+    {isDev ? (
+      <div class="mt-[120px] w-full h-full">
+        <LocalCmsApp client:only="react" />
+      </div>
+    ) : (
+      <div class="bg-red-500/10 border border-red-500/20 rounded-xl p-8 text-center">
+        <h3 class="text-lg font-medium text-red-400">Restricted Access</h3>
+        <p class="mt-2 text-gray-300">The visual CMS is a local-only utility that requires filesystem access. Run `npm run dev` to curate content.</p>
+      </div>
+    )}
+  </div>
+</Layout>

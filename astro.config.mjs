@@ -1,11 +1,44 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import fs from 'node:fs';
+import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import sitemap from '@astrojs/sitemap';
 import cloudflare from '@astrojs/cloudflare';
 import sanity from '@sanity/astro';
 import react from '@astrojs/react';
 import partytown from '@astrojs/partytown';
+
+// Dev-only Local CMS backing store: GET/POST src/data/videos.json straight off
+// disk. Only wired into the Vite DEV server (configureServer never runs for
+// `astro build`), so this never ships to the production worker bundle.
+function localCmsMiddleware() {
+  return {
+    name: 'local-cms-api',
+    /** @param {import('vite').ViteDevServer} server */
+    configureServer(server) {
+      server.middlewares.use('/api/local-cms/videos', /** @param {import('http').IncomingMessage} req @param {import('http').ServerResponse} res @param {Function} next */ (req, res, next) => {
+        const filePath = path.resolve(process.cwd(), 'src/data/videos.json');
+        if (req.method === 'GET') {
+          res.setHeader('Content-Type', 'application/json');
+          res.end(fs.readFileSync(filePath, 'utf-8'));
+          return;
+        }
+        if (req.method === 'POST') {
+          let body = '';
+          req.on('data', /** @param {Buffer} chunk */ chunk => body += chunk);
+          req.on('end', () => {
+            fs.writeFileSync(filePath, body, 'utf-8');
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true }));
+          });
+          return;
+        }
+        next();
+      });
+    }
+  };
+}
 
 export default defineConfig({
   site: 'https://beunconventionalhq.com',
@@ -23,7 +56,7 @@ export default defineConfig({
     assets: 'assets',
   },
   vite: {
-    plugins: [tailwindcss()],
+    plugins: [tailwindcss(), localCmsMiddleware()],
     ssr: {
       noExternal: ['react', 'react-dom']
     },
