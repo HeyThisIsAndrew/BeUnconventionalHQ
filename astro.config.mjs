@@ -28,7 +28,21 @@ function localCmsMiddleware() {
           let body = '';
           req.on('data', /** @param {Buffer} chunk */ chunk => body += chunk);
           req.on('end', () => {
-            fs.writeFileSync(filePath, body, 'utf-8');
+            try {
+              JSON.parse(body);
+            } catch (err) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: 'Invalid JSON, videos.json left untouched.' }));
+              return;
+            }
+            // Atomic write: write to a temp file in the same directory (so the
+            // rename is on the same filesystem, a true atomic swap), then
+            // rename over the real path. A crash mid-write leaves the temp
+            // file corrupted, never videos.json itself.
+            const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+            fs.writeFileSync(tmpPath, body, 'utf-8');
+            fs.renameSync(tmpPath, filePath);
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ success: true }));
           });
