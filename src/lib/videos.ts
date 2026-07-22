@@ -84,9 +84,14 @@ export function mapSanityVideo(doc: any, { categorize }: MapOptions = {}): Unifi
         published.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
       : '';
 
+  const effectiveType = doc.manualTypeOverride || doc._type || 'video';
+  const isShort = effectiveType === 'short' || (doc.isShort ?? false);
+  const isLive = effectiveType === 'live' || (doc.isLive ?? false);
+  const isEvent = effectiveType === 'event' || (doc.isEvent ?? false);
+
   return {
     title: doc.title,
-    link: doc.isShort
+    link: isShort
       ? `https://www.youtube.com/shorts/${id}`
       : `https://www.youtube.com/watch?v=${id}`,
     thumbnail: doc.thumbnailUrl || `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
@@ -94,10 +99,10 @@ export function mapSanityVideo(doc: any, { categorize }: MapOptions = {}): Unifi
     tags: (doc.topics ?? []).map(String),
     youtubeTags: doc.youtubeTags ?? [],
     date,
-    isShort: doc.isShort ?? false,
-    isLive: doc.isLive ?? false,
-    isEvent: doc.isEvent ?? false,
-    contentType: 'video',
+    isShort,
+    isLive,
+    isEvent,
+    contentType: effectiveType,
     youtubeId: id,
     durationSeconds: doc.durationSeconds,
     featured: doc.featured ?? false,
