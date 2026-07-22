@@ -83,7 +83,7 @@ export function planMetricsUpdate(youtubeId, viewCount, existing, todayYmd, now 
 
 const COMMIT_CHUNK = 100;
 
-async function run() {
+export async function run() {
   const dryRun = process.argv.includes('--dry-run');
   const {
     SANITY_PROJECT_ID = '38nhxsib',
