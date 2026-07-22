@@ -1,6 +1,5 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { site } from '../data/site.js';
 import Hero from '../components/Hero.astro';
 import Categories from '../components/Categories.astro';
 import LatestArticles from '../components/LatestArticles.astro';
@@ -9,6 +8,7 @@ import TakeoverBillboard from '../components/TakeoverBillboard.astro';
 import { getVideosUnified } from '../lib/videos-source';
 import PageTitle from '../components/PageTitle.astro';
 import ContentCard from '../components/ContentCard.astro';
+import SubscribeCTA from '../components/SubscribeCTA.astro';
 
 // Get the current path, stripping trailing slashes for safety
 const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
@@ -69,67 +69,6 @@ const isHomePage = currentPath === '/';
 
   <LatestArticles />
 
-  <section
-    class="container"
-    style="margin-bottom: 2rem; position: relative; z-index: 10;"
-  >
-    <div
-      class="cta-band reveal"
-      style="flex-direction: column; justify-content: center; align-items: center; text-align: center;"
-    >
-      <div style="width: 100%;">
-        <div class="section-header" style="margin-bottom: 1rem;">
-          <PageTitle
-            kicker="Don't miss a drop"
-            primary="Subscribe"
-            secondary="For Updates"
-            scale="secondary"
-          />
-        </div>
-        <p style="color: var(--color-white-muted);">
-          New videos and articles, straight from Be Unconventional HQ.
-        </p>
-      </div>
-      <div class="cta-buttons-wrapper">
-        <a
-          class="cta-button-primary"
-          href={site.socials.substack}
-          target="_blank"
-          rel="noopener">Subscribe on Substack</a
-        >
-        <a
-          class="cta-button-primary"
-          href={site.socials.youtube}
-          target="_blank"
-          rel="noopener">Subscribe on YouTube</a
-        >
-      </div>
-    </div>
-  </section>
+  <SubscribeCTA />
   </main>
 </Layout>
-
-<style>
-  .cta-buttons-wrapper {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    margin-top: 2rem;
-    width: 100%;
-  }
-
-  .cta-buttons-wrapper .cta-button-primary {
-    width: 100%;
-    text-align: center;
-  }
-
-  @media (min-width: 768px) {
-    .cta-buttons-wrapper {
-      flex-direction: row;
-    }
-
-    .cta-buttons-wrapper .cta-button-primary {
-      flex: 1;
-    }
-  }
-</style>
