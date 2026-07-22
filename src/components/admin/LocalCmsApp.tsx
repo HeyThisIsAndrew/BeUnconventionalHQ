@@ -212,17 +212,27 @@ export default function LocalCmsApp() {
   };
 
   const updateDoc = (id: string, field: keyof Doc, value: any) => {
-    if (field === 'youtubeId' && typeof value === 'string' && value.trim()) {
-      const newId = videoDocId(value.trim());
-      const collision = docs.find((d) => d._id === newId && d._id !== id);
-      if (collision) {
-        alert(
-          `"${collision.title}" already uses YouTube ID ${value.trim()}. Pick a different ID, or find and edit that existing document instead - two docs can't share the same ID.`,
-        );
+    if (field === 'youtubeId' && typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed) {
+        const newId = videoDocId(trimmed);
+        const collision = docs.find((d) => d._id === newId && d._id !== id);
+        if (collision) {
+          alert(
+            `"${collision.title}" already uses YouTube ID ${trimmed}. Pick a different ID, or find and edit that existing document instead - two docs can't share the same ID.`,
+          );
+          return;
+        }
+        setDocs((prev) => prev.map((d) => (d._id === id ? { ...d, youtubeId: value, _id: newId } : d)));
+        setSelectedId(newId);
         return;
       }
-      setDocs((prev) => prev.map((d) => (d._id === id ? { ...d, youtubeId: value, _id: newId } : d)));
-      setSelectedId(newId);
+      // Cleared to empty: regenerate _id so it doesn't keep squatting on the
+      // old youtube-<id> slot (a phantom lock - another doc could never use
+      // that YouTube ID again while this stale reference existed).
+      const freshId = `local-pending-${crypto.randomUUID()}`;
+      setDocs((prev) => prev.map((d) => (d._id === id ? { ...d, youtubeId: value, _id: freshId } : d)));
+      setSelectedId(freshId);
       return;
     }
     setDocs((prev) => prev.map((d) => (d._id === id ? { ...d, [field]: value } : d)));
@@ -419,7 +429,7 @@ export default function LocalCmsApp() {
         </div>
 
         {/* Document pane */}
-        <div className="w-full lg:flex-1 min-w-0 bg-[#111214] rounded-lg border border-white/10 lg:h-[75vh] flex flex-col">
+        <div className="@container w-full lg:flex-1 min-w-0 bg-[#111214] rounded-lg border border-white/10 lg:h-[75vh] flex flex-col">
           {!selected ? (
             <div className="h-full flex flex-col items-center justify-center text-gray-600 p-6">
               <svg
@@ -517,7 +527,7 @@ function VideoForm({
   const update = (field: keyof Doc, value: any) => updateDoc(doc._id, field, value);
   return (
     <div className={sectionClass}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 @lg:grid-cols-2 gap-4">
         <Field label="Title">
           <input type="text" value={doc.title || ''} onChange={(e) => update('title', e.target.value)} className={inputClass} />
         </Field>
@@ -553,7 +563,7 @@ function VideoForm({
 
       <div className="pt-1 min-h-[280px]">
         {activeTab === 'status' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5">
             <Field label="Status">
               <select value={doc.contentStatus} onChange={(e) => update('contentStatus', e.target.value)} className={inputClass}>
                 <option value="published">Published</option>
@@ -588,7 +598,7 @@ function VideoForm({
         )}
 
         {activeTab === 'overrides' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5">
             <Field label="Manual Type Override">
               <select value={doc.manualTypeOverride || ''} onChange={(e) => update('manualTypeOverride', e.target.value)} className={inputClass}>
                 <option value="">(None - Auto Detect)</option>
@@ -616,16 +626,16 @@ function VideoForm({
         )}
 
         {activeTab === 'taxonomy' && (
-          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-5 ${!doc.manualTaxonomyOverride ? 'opacity-50 pointer-events-none' : ''}`}>
-            <div className="col-span-full">
+          <div className={`grid grid-cols-1 @lg:grid-cols-2 gap-5 ${!doc.manualTaxonomyOverride ? 'opacity-50 pointer-events-none' : ''}`}>
+            <div className="@lg:col-span-full">
               <Field label="Series">
                 <input type="text" value={doc.series || ''} onChange={(e) => update('series', e.target.value)} className={inputClass} />
               </Field>
             </div>
-            <div className="col-span-full">
+            <div className="@lg:col-span-full">
               <TagsInput label="Franchises" value={doc.franchises} onChange={(v) => update('franchises', v)} />
             </div>
-            <div className="col-span-full">
+            <div className="@lg:col-span-full">
               <TagsInput label="Characters" value={doc.characters} onChange={(v) => update('characters', v)} />
             </div>
             <TagsInput label="Topics (slugs)" value={doc.topics} onChange={(v) => update('topics', v)} />
@@ -672,7 +682,7 @@ function EventForm({
   const update = (field: keyof Doc, value: any) => updateDoc(doc._id, field, value);
   return (
     <div className={sectionClass}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5">
         <Field label="Title">
           <input type="text" value={doc.title || ''} onChange={(e) => update('title', e.target.value)} className={inputClass} />
         </Field>
@@ -706,7 +716,7 @@ function EventForm({
 
       <div className="border-t border-white/10 pt-5">
         <div className={labelClass}>Location</div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 @lg:grid-cols-2 gap-3">
           <input type="text" value={doc.location?.venue || ''} onChange={(e) => updateLocation(doc._id, 'venue', e.target.value)} className={inputClass} placeholder="Venue" />
           <input type="text" value={doc.location?.city || ''} onChange={(e) => updateLocation(doc._id, 'city', e.target.value)} className={inputClass} placeholder="City" />
           <input type="text" value={doc.location?.region || ''} onChange={(e) => updateLocation(doc._id, 'region', e.target.value)} className={inputClass} placeholder="Region / State" />
@@ -718,7 +728,7 @@ function EventForm({
         <textarea rows={3} value={doc.description || ''} onChange={(e) => update('description', e.target.value)} className={inputClass} />
       </Field>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5">
         <Field label="Organizer">
           <input type="text" value={doc.organizer || ''} onChange={(e) => update('organizer', e.target.value)} className={inputClass} />
         </Field>
@@ -762,7 +772,7 @@ function BrandForm({
   const update = (field: keyof Doc, value: any) => updateDoc(doc._id, field, value);
   return (
     <div className={sectionClass}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5">
         <Field label="Title">
           <input type="text" value={doc.title || ''} onChange={(e) => update('title', e.target.value)} className={inputClass} />
         </Field>
