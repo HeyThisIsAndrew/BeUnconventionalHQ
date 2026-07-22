@@ -93,8 +93,9 @@ export default defineConfig({
       // links.astro) and shouldn't be advertised as a canonical destination.
       // /admin is the embedded Sanity Studio (injected by studioBasePath) —
       // a CMS interface must never be advertised to search engines.
+      // /local-cms is the dev-only Local CMS admin route — same reasoning.
       filter: (page) =>
-        !page.includes('/links') && !page.includes('/admin'),
+        !page.includes('/links') && !page.includes('/admin') && !page.includes('/local-cms'),
     }),
     sanity({
       projectId: '38nhxsib',

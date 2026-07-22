@@ -1,17 +1,20 @@
 # Be Unconventional HQ — agent guide
 
-Cinematic entertainment-media site. Astro 6 (static output + `@astrojs/cloudflare`),
-Tailwind v4 (via `@tailwindcss/vite`), Sanity CMS (`sanity:client` virtual module),
-GROQ. Deployed on Cloudflare.
+Cinematic entertainment-media site. Astro 7 (static output + `@astrojs/cloudflare`),
+Tailwind v4 (via `@tailwindcss/vite`). Video/short/live/event/featuredBrand content
+is a local JSON store (`src/data/videos.json`) — see "Data flow" below for the
+architecture pivot away from Sanity as the runtime data source. Deployed on Cloudflare.
 
 ## Commands
 
 - `npm test` — offline unit suites (no network/credentials): events date helpers,
-  live-status, video merge. Run before committing lib changes.
-- `npm run build` — production build. Sanity fetches may fail offline; pages
-  try/catch to empty data by design, so the build still proves compilation.
-- `npx astro check` — type check. **~65 pre-existing errors** live in untouched
-  files (DOM typing in inline scripts). The bar is: introduce zero NEW errors.
+  live-status, video merge, taxonomy sync. Run before committing lib changes.
+- `npm run build` — production build. Fully offline: video/short/live/event/
+  featuredBrand data is bundled from `src/data/videos.json` at build time, no
+  network fetch involved. (Article RSS fetches can still fail offline; those
+  pages try/catch to empty data by design, so the build still proves compilation.)
+- `npx astro check` — type check. The bar is: introduce zero NEW errors (baseline
+  is 0/0/0 as of the Astro 7 migration — CI will show any new count directly).
 - `npm run dev` — refreshes the content cache, then dev server.
 - `npm run deploy` — wrangler deploy of the built worker (`dist/server`).
   Production target is **Cloudflare Workers** (git-connected Workers Builds),
@@ -34,25 +37,56 @@ GROQ. Deployed on Cloudflare.
    wrappers (see `.event-hero-bg-wrapper` in the `[slug]` pages).
 4. **Never assign an iframe `src = ''`** — it resolves to the current page URL
    and silently reloads the site inside the iframe. Use `'about:blank'`.
-5. **Sanity `video` docs have THREE field classes** (epic #34): FACTUAL (YouTube
-   facts — synced every run), DERIVED (topics/hubs/requiresReview — recomputed
-   from YouTube tags every run UNLESS `manualTaxonomyOverride` is on: the Sync
-   Lock), EDITORIAL (featured, notes, … — seeded once, never overwritten).
-   Clean Tier-1 tag matches auto-publish; the sync never demotes a status a
-   human set. Taxonomy keywords live IN SANITY (`youtubeSyncKeywords` on
-   topic/featuredBrand/event) — never hardcode them in scripts.
+5. **`videos.json` docs have THREE field classes** (epic #34, pivoted off Sanity):
+   FACTUAL (YouTube facts — synced every run), DERIVED (topics/hubs/requiresReview
+   — recomputed from YouTube tags every run UNLESS `manualTaxonomyOverride` is on:
+   the Sync Lock), EDITORIAL (featured, notes, … — seeded once, never overwritten).
+   Clean Tier-1 tag matches auto-publish; the sync never demotes a status a human
+   set. Topic keywords are hardcoded seeds (`TIER1_TOPIC_SEEDS` in
+   `scripts/sync-youtube.mjs` — Tier-1 categories are fixed, not editor-managed).
+   Hub keywords (`youtubeSyncKeywords` on `event`/`featuredBrand` docs) are read
+   from `src/data/videos.json` itself (`extractHubSeeds()`) — this is the local
+   equivalent of the old "build the dictionary FROM SANITY every run"; still
+   never hardcode hub keywords in the script. `scripts/sync-youtube.mjs` is
+   dry-run by default — pass `--execute` to write.
 6. **No `filter: drop-shadow` on `<img>`** — known iOS Safari rendering bugs.
 7. **Rearrange layouts with responsive CSS / grid areas, not JS reordering or
    duplicated per-breakpoint markup.**
 
 ## Data flow
 
-- **Videos:** pages call `getVideosUnified()` (`src/lib/videos-source.ts`) —
-  Sanity `video` docs (published only) merged over the legacy RSS/scrape cache
-  (`src/data/cache/videos.json`, refreshed by `scripts/fetch-feeds.mjs`).
-  Sanity wins on id collision; Sanity failure degrades to legacy.
-- **Articles:** Substack RSS via `getArticles()` (no Sanity schema yet).
-- **Events / featured brands:** Sanity via GROQ in the page frontmatter.
+**Architecture pivot (in progress):** video/short/live/event/featuredBrand content
+moved from Sanity (live GROQ queries) to a local JSON store, `src/data/videos.json`
+— a statically-imported bundle, not a runtime fetch, so pages render real content
+with zero network access. `scripts/sync-youtube.mjs` is the YouTube → local JSON
+sync (see hard rule 5). Sanity is still used for two things: image hosting (event/
+featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
+`src/lib/local-content.ts` builds `cdn.sanity.io` URLs from a static
+`{projectId, dataset}` config — no live client needed) and the Studio at `/admin`.
+
+- **Videos/shorts/live:** pages call `getVideosUnified()` / `getShortsUnified()` /
+  `getLiveStreamsUnified()` (`src/lib/videos-source.ts`) — filters
+  `src/data/videos.json` through the same merge logic (`src/lib/videos.ts`) that
+  used to run against Sanity. The legacy RSS/scrape cache
+  (`src/data/cache/videos.json`, refreshed by `scripts/fetch-feeds.mjs`) is no
+  longer part of this merge.
+- **Articles:** Substack RSS via `getArticles()` (unchanged, no Sanity schema ever).
+- **Events / featured brands:** `getEventsLocal()` / `getFeaturedBrandsLocal()`
+  (`src/lib/local-content.ts`), filtering `src/data/videos.json` by `_type`. CLS-
+  prevention image dimensions are parsed from the Sanity asset `_ref`'s own
+  `image-<hash>-<W>x<H>-<ext>` naming convention, not a GROQ `asset->metadata`
+  dereference. "Hub coverage" (videos tagged to a specific event/brand) matches
+  `video.hubs` (slugs) against `event.slug.current` / `brand.slug.current` — hubs
+  are slugs in the local sync, not Sanity `_id` references, so this replaces the
+  old `references($hubId)` GROQ query, it isn't a shortcut around it.
+  **Known gap:** there's no local flow to create a *new* event/featuredBrand doc
+  — `src/data/videos.json`'s `event`/`featuredBrand` entries are a frozen export
+  from Sanity. LocalCmsApp only edits existing docs of any type.
+- **Local CMS:** `/local-cms` (dev-only route, `src/components/admin/LocalCmsApp.tsx`)
+  — master/detail editor over `src/data/videos.json`, backed by a dev-server-only
+  Vite middleware (`localCmsMiddleware` in `astro.config.mjs`) at
+  `/api/local-cms/videos` (GET reads the file, POST overwrites it). Never present
+  in the production build — `configureServer` doesn't run for `astro build`.
 - **Video IDs:** always `parseVideoId()` from `src/lib/platforms/youtube.ts` —
   never inline regex or URL parsing.
 - **Live status:** `/api/live-status.json` (on-demand edge route,
@@ -69,7 +103,8 @@ GROQ. Deployed on Cloudflare.
   sitemap filter in `astro.config.mjs`, robots.txt. Currently gated:
   `/events-new` (WIP, promotes to `/events` later), `/links` (bio-only,
   deliberately NOT robots-blocked so crawlers can read its noindex),
-  `/admin` (Sanity Studio, header-gated via `public/_headers`).
+  `/admin` (Sanity Studio, header-gated via `public/_headers`), `/local-cms`
+  (Local CMS, dev-only — shows a static "Restricted Access" message in prod).
 - The muted-grey text palette fails WCAG contrast in places — that is a known,
   deliberate design trade-off; don't "fix" it without the owner.
 - `.sr-only` is global (`src/styles/global-base.css`). Card grids under an h1
