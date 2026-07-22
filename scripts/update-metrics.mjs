@@ -149,8 +149,61 @@ async function run() {
   console.log(`\n✔ Updated ${written} metrics doc(s).`);
 }
 
+import fs from 'node:fs';
+import path from 'node:path';
+
+async function runLocal() {
+  const dryRun = process.argv.includes('--dry-run');
+  const videosPath = path.resolve(fileURLToPath(import.meta.url), '../../src/data/videos.json');
+  
+  // Read local JSON
+  const videosData = JSON.parse(fs.readFileSync(videosPath, 'utf8'));
+  const videos = videosData.filter(d => d._type === 'video');
+  
+  const todayYmd = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+
+  console.log(`${videos.length} video(s) found in local JSON. Day: ${todayYmd}`);
+
+  const now = new Date();
+  let updatedCount = 0;
+
+  for (const v of videos) {
+    if (typeof v.viewCount !== 'number') continue;
+    
+    // Existing metrics (if any) are stored on the doc itself now
+    const existing = v.metrics ? { snapshots: v.metrics.snapshots } : null;
+    const plan = planMetricsUpdate(v.youtubeId, v.viewCount, existing, todayYmd, now);
+    
+    // Assign new metrics directly to the document
+    v.metrics = {
+      snapshots: plan.patch.set.snapshots,
+      viewVelocity7d: plan.patch.set.viewVelocity7d,
+      lastComputedAt: plan.patch.set.lastComputedAt,
+    };
+    
+    console.log(`• ${v.youtubeId}  views ${v.viewCount}  velocity/7d ${v.metrics.viewVelocity7d}`);
+    updatedCount++;
+  }
+
+  if (dryRun) {
+    console.log(`\nDRY RUN — ${updatedCount} local metrics doc(s) would be updated.`);
+    return;
+  }
+
+  // Write back to videos.json
+  fs.writeFileSync(videosPath, JSON.stringify(videosData, null, 2));
+  console.log(`\n✔ Updated ${updatedCount} metrics directly in videos.json.`);
+}
+
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  run().catch((err) => {
+  // Use runLocal by default for the new local-cms paradigm.
+  // The Sanity run() function is preserved above for fallback/parity reference.
+  runLocal().catch((err) => {
     console.error('Metrics update failed:', err?.message || err);
     process.exit(1);
   });

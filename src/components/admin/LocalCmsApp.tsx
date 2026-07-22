@@ -52,6 +52,11 @@ type Doc = {
   youtubeSyncKeywords?: string[];
   brandColor?: { hex?: string };
   socialLinks?: { platform: string; url: string }[];
+  metrics?: {
+    snapshots: { date: string; viewCount: number }[];
+    viewVelocity7d: number;
+    lastComputedAt: string;
+  };
 
   // topic
   isTier1Category?: boolean;
@@ -704,8 +709,28 @@ function VideoForm({
 
       <div className="pt-1 min-h-[280px]">
         {activeTab === 'factual' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4 text-xs font-mono">
+          <div className="space-y-4">
+            <Field label="Content Status (Read Only)">
+              <div className="text-sm font-medium bg-white/5 border border-white/10 rounded px-3 py-2 text-gray-300">
+                {doc.contentStatus || 'PUBLISHED'}
+              </div>
+            </Field>
+            {doc.metrics && (
+              <div className="space-y-2 mt-4 pt-4 border-t border-white/10">
+                <h4 className="text-sm font-medium text-gray-300">Video Metrics</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white/5 border border-white/10 rounded p-3">
+                    <div className="text-xs text-gray-400 mb-1">Velocity (7d)</div>
+                    <div className="text-lg font-bold text-white">+{doc.metrics.viewVelocity7d} views</div>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded p-3">
+                    <div className="text-xs text-gray-400 mb-1">Last Computed</div>
+                    <div className="text-sm text-gray-200">{new Date(doc.metrics.lastComputedAt).toLocaleString()}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-4 text-xs font-mono pt-4">
               <div className="bg-white/5 p-3 rounded border border-white/5">
                 <span className="text-gray-500 block mb-1">Duration:</span>
                 {doc.durationSeconds ? `${Math.floor(doc.durationSeconds / 60)}m ${doc.durationSeconds % 60}s` : 'Unknown'}
