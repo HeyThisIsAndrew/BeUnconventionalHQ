@@ -368,11 +368,11 @@ export default function LocalCmsApp() {
   const selected = docs.find((d) => d._id === selectedId) || null;
 
   return (
-    <div className="flex flex-col gap-4 w-full text-[13px] text-gray-200">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto text-[13px] text-gray-200">
       {/* Save bar - own row, always full width */}
-      <div className="w-full flex justify-between items-center bg-black/40 backdrop-blur-2xl px-5 py-4 border border-white/10 rounded-2xl z-20 shadow-2xl">
+      <div className="w-full flex flex-wrap gap-4 justify-between items-center bg-black/40 backdrop-blur-2xl p-6 border border-white/10 rounded-2xl z-20 shadow-2xl">
         <div className="text-sm text-gray-400 font-medium tracking-wide">
-          Managing <span className="font-mono text-white bg-white/10 px-2 py-0.5 rounded-md">{docs.length}</span> documents locally
+          Managing <span className="font-mono text-white bg-white/10 px-2.5 py-1 rounded-md">{docs.length}</span> documents locally
         </div>
         <div className="flex items-center gap-5">
           {message && (
@@ -383,7 +383,7 @@ export default function LocalCmsApp() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="relative overflow-hidden group bg-gradient-to-br from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(220,38,38,0.3)] hover:shadow-[0_0_25px_rgba(220,38,38,0.5)] transform hover:-translate-y-0.5"
+            className="flex-shrink-0 relative overflow-hidden group bg-gradient-to-br from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(220,38,38,0.3)] hover:shadow-[0_0_25px_rgba(220,38,38,0.5)] transform hover:-translate-y-0.5"
           >
             <span className="relative z-10">{saving ? 'Saving to disk…' : 'Save to videos.json'}</span>
             <div className="absolute inset-0 h-full w-full bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
@@ -391,9 +391,9 @@ export default function LocalCmsApp() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-4 items-start w-full">
+      <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
       {/* Structure pane */}
-      <div className="w-full lg:w-60 flex-shrink-0 flex flex-col gap-8 bg-black/20 backdrop-blur-xl rounded-2xl border border-white/[0.08] p-4 lg:h-[75vh] overflow-y-auto shadow-2xl">
+      <div className="w-full lg:w-64 flex-shrink-0 flex flex-col gap-8 bg-black/20 backdrop-blur-xl rounded-2xl border border-white/[0.08] p-6 lg:h-[75vh] overflow-y-auto shadow-2xl">
         <div className="flex flex-col gap-6">
           <div>
             <div className="px-2 pb-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
@@ -450,10 +450,10 @@ export default function LocalCmsApp() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-4 items-start w-full lg:flex-1 min-w-0">
+      <div className="flex flex-col lg:flex-row gap-6 items-start w-full lg:flex-1 min-w-0">
         {/* Document list pane */}
         <div className="w-full lg:w-80 flex-shrink-0 bg-black/20 backdrop-blur-xl rounded-2xl border border-white/[0.08] flex flex-col lg:h-[75vh] max-h-[50vh] lg:max-h-none shadow-2xl overflow-hidden">
-          <div className="p-4 border-b border-white/10 bg-black/40">
+          <div className="p-5 border-b border-white/10 bg-black/40">
             <div className="relative">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
               <input
@@ -710,12 +710,12 @@ function VideoForm({
         </Field>
       </div>
 
-      <div className="flex space-x-1 border-b border-white/10 pb-px overflow-x-auto">
+      <div className="flex space-x-2 border-b border-white/10 pb-px overflow-x-auto custom-scrollbar">
         {CONTENT_TABS.map((tab) => (
           <button
             key={tab.id}
-            className={`px-3.5 py-2 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-              activeTab === tab.id ? 'border-red-500 text-red-500' : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-white/30'
+            className={`flex-shrink-0 px-4 py-2.5 text-sm font-bold tracking-wide border-b-2 whitespace-nowrap transition-colors ${
+              activeTab === tab.id ? 'border-red-500 text-red-500' : 'border-transparent text-gray-500 hover:text-gray-300 hover:border-white/30'
             }`}
             onClick={() => setActiveTab(tab.id)}
           >
