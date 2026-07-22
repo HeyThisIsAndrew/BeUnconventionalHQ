@@ -55,6 +55,18 @@ export function extractHubSeeds(existingDocs) {
     .map((d) => ({ slug: d.slug.current, keywords: d.youtubeSyncKeywords ?? [] }));
 }
 
+export function extractTopicSeeds(existingDocs) {
+  return existingDocs
+    .filter((d) => d?._type === 'topic' && d?.slug?.current)
+    .map((d) => ({
+      _id: d._id,
+      title: d.title,
+      slug: d.slug.current,
+      isTier1Category: d.isTier1Category ?? false,
+      keywords: d.youtubeSyncKeywords ?? []
+    }));
+}
+
 export function buildTaxonomyDictionary({ topics = [], hubs = [] }) {
   const tier1 = new Map();
   const hubMap = new Map();
@@ -199,8 +211,17 @@ async function run() {
     }
   }
 
-  const hubSeeds = extractHubSeeds(Array.from(existingDocsMap.values()));
-  const dict = buildTaxonomyDictionary({ topics: TIER1_TOPIC_SEEDS, hubs: hubSeeds });
+  const allDocs = Array.from(existingDocsMap.values());
+  const hubSeeds = extractHubSeeds(allDocs);
+  let topicSeeds = extractTopicSeeds(allDocs);
+  
+  let needsTopicBootstrap = false;
+  if (topicSeeds.length === 0) {
+    topicSeeds = TIER1_TOPIC_SEEDS;
+    needsTopicBootstrap = true;
+  }
+
+  const dict = buildTaxonomyDictionary({ topics: topicSeeds, hubs: hubSeeds });
 
   const yt = createYouTubeClient({ apiKey: YOUTUBE_API_KEY });
   console.log(`\nFetching uploads for channel ${YOUTUBE_CHANNEL_ID}…`);
@@ -217,7 +238,20 @@ async function run() {
 
   const syncedIds = new Set(syncedDocs.map(d => d._id));
   const preservedDocs = Array.from(existingDocsMap.values()).filter(d => !syncedIds.has(d._id));
-  const docs = [...syncedDocs, ...preservedDocs];
+  let docs = [...syncedDocs, ...preservedDocs];
+
+  if (needsTopicBootstrap) {
+    const bootstrapDocs = TIER1_TOPIC_SEEDS.map(t => ({
+      _id: t._id,
+      _type: 'topic',
+      title: t.title,
+      slug: { _type: 'slug', current: t.slug },
+      isTier1Category: t.isTier1Category,
+      youtubeSyncKeywords: [...t.keywords],
+      emptyStateMessage: ''
+    }));
+    docs = [...docs, ...bootstrapDocs];
+  }
 
   const needsReviewCount = syncedDocs.filter((d) => d.requiresReview).length;
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
-type DocType = 'video' | 'short' | 'live' | 'event' | 'featuredBrand';
+type DocType = 'video' | 'short' | 'live' | 'event' | 'featuredBrand' | 'topic';
 
 type LocationInfo = { venue?: string; city?: string; region?: string; country?: string };
 
@@ -50,9 +50,16 @@ type Doc = {
   logo?: any;
   heroImage?: any;
   youtubeSyncKeywords?: string[];
+  brandColor?: { hex?: string };
+  socialLinks?: { platform: string; url: string }[];
+
+  // topic
+  isTier1Category?: boolean;
+  emptyStateMessage?: string;
 };
 
 const CONTENT_TABS = [
+  { id: 'factual', label: 'Factual (Read-Only)' },
   { id: 'status', label: 'Status & Curation' },
   { id: 'overrides', label: 'Systems Overrides' },
   { id: 'taxonomy', label: 'Core Taxonomy' },
@@ -65,9 +72,10 @@ const TYPE_META: Record<DocType, { label: string; badge: string }> = {
   live: { label: 'Live', badge: 'bg-red-500/15 text-red-300' },
   event: { label: 'Event', badge: 'bg-amber-500/15 text-amber-300' },
   featuredBrand: { label: 'Featured Brand', badge: 'bg-emerald-500/15 text-emerald-300' },
+  topic: { label: 'Topic', badge: 'bg-zinc-500/15 text-zinc-300' },
 };
 
-const FILTERS = ['All', 'Videos', 'Shorts', 'Live', 'Events', 'Featured'] as const;
+const FILTERS = ['All', 'Videos', 'Shorts', 'Live', 'Events', 'Featured', 'Topics'] as const;
 type Filter = (typeof FILTERS)[number];
 
 const FILTER_LABELS: Record<Filter, string> = {
@@ -77,17 +85,16 @@ const FILTER_LABELS: Record<Filter, string> = {
   Live: 'Live',
   Events: 'Events',
   Featured: 'Featured Brands',
+  Topics: 'Topics',
 };
 
 // Grouped by what these actually are in our local schema - video/short/live
 // are YouTube-sourced content; event/featuredBrand are hand-curated hub
-// pages. No "Topic" or "Metrics" group: those are real Sanity doc types
-// (visible at /admin) that never made it into the local JSON pivot - Topics
-// here are hardcoded seeds in sync-youtube.mjs, not editable docs, and we
-// have no local equivalent of Sanity's computed Video Metrics at all.
+// pages. Topics are taxonomy nodes.
 const FILTER_GROUPS: { label: string; filters: Filter[] }[] = [
   { label: 'Content Library', filters: ['Videos', 'Shorts', 'Live'] },
   { label: 'Hubs & Pages', filters: ['Events', 'Featured'] },
+  { label: 'Taxonomy', filters: ['Topics'] },
 ];
 
 function slugify(value: string): string {
@@ -139,6 +146,17 @@ function makeBlankDoc(type: DocType): Doc {
       youtubeSyncKeywords: [],
     };
   }
+  if (type === 'topic') {
+    return {
+      _id: `topic-${crypto.randomUUID()}`,
+      _type: 'topic',
+      title: 'New Topic',
+      slug: { _type: 'slug', current: slugify(`new-topic-${Date.now()}`) },
+      isTier1Category: false,
+      youtubeSyncKeywords: [],
+      emptyStateMessage: '',
+    };
+  }
   return {
     _id: `local-pending-${crypto.randomUUID()}`,
     _type: type,
@@ -173,8 +191,8 @@ function makeBlankDoc(type: DocType): Doc {
 }
 
 const inputClass =
-  'block w-full rounded-md border-0 py-2 px-3 bg-[#151515] text-white text-sm ring-1 ring-inset ring-white/10 placeholder:text-gray-600 focus:ring-2 focus:outline-none focus:ring-red-500';
-const textareaClass = `${inputClass} resize-y min-h-[140px] leading-relaxed`;
+  'w-full bg-[#111112] text-sm text-gray-200 border border-white/10 rounded-md px-3 py-2.5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)] focus:outline-none focus:border-red-500/50 focus:bg-[#161618] focus:shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] transition-all placeholder:text-gray-600';
+const textareaClass = `${inputClass} resize-y min-h-[200px] leading-relaxed`;
 const labelClass = 'block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5';
 const sectionClass = 'space-y-5';
 
@@ -331,6 +349,7 @@ export default function LocalCmsApp() {
         if (activeFilter === 'Live') return type === 'live';
         if (activeFilter === 'Events') return type === 'event' || d.manualTypeOverride === 'event';
         if (activeFilter === 'Featured') return type === 'featuredBrand' || d.featured === true;
+        if (activeFilter === 'Topics') return type === 'topic';
         return true;
       });
     }
@@ -523,13 +542,24 @@ export default function LocalCmsApp() {
                     </a>
                   )}
                 </div>
-                <button
-                  onClick={() => deleteDoc(selected._id)}
-                  className="flex-shrink-0 text-xs font-medium text-gray-500 hover:text-red-400 border border-white/10 hover:border-red-500/40 rounded-md px-2.5 py-1.5 transition-colors"
-                >
-                  Delete
-                </button>
+                {!(selected._type === 'topic' && ['film', 'tv', 'gaming', 'events', 'uncategorized'].includes(selected.slug?.current || '')) ? (
+                  <button
+                    onClick={() => deleteDoc(selected._id)}
+                    className="flex-shrink-0 text-xs font-medium text-gray-500 hover:text-red-400 border border-white/10 hover:border-red-500/40 rounded-md px-2.5 py-1.5 transition-colors"
+                  >
+                    Delete
+                  </button>
+                ) : (
+                  <button
+                    disabled
+                    title="Core taxonomy nodes cannot be deleted."
+                    className="flex-shrink-0 text-xs font-medium text-gray-600 border border-white/5 bg-white/5 rounded-md px-2.5 py-1.5 cursor-not-allowed opacity-50"
+                  >
+                    Delete (Locked)
+                  </button>
+                )}
               </div>
+
 
               <div className="flex-1 overflow-y-auto p-4 sm:p-5">
                 {(selected._type === 'video' || selected._type === 'short' || selected._type === 'live') && (
@@ -540,6 +570,9 @@ export default function LocalCmsApp() {
                 )}
                 {selected._type === 'featuredBrand' && (
                   <BrandForm doc={selected} updateDoc={updateDoc} updateSlug={updateSlug} />
+                )}
+                {selected._type === 'topic' && (
+                  <TopicForm doc={selected} updateDoc={updateDoc} updateSlug={updateSlug} />
                 )}
               </div>
             </>
@@ -561,6 +594,62 @@ function TagsInput({ label, value, onChange }: { label: string; value?: string[]
         className={inputClass}
         placeholder="comma, separated, values"
       />
+    </Field>
+  );
+}
+
+function RelatedMediaArray({ value, onChange }: { value?: { title: string; mediaType: string }[]; onChange: (v: { title: string; mediaType: string }[]) => void }) {
+  const items = value || [];
+  return (
+    <Field label="Related Media">
+      <div className="space-y-2">
+        {items.map((item, i) => (
+          <div key={i} className="flex gap-2">
+            <input type="text" value={item.title || ''} onChange={(e) => {
+              const newItems = [...items];
+              newItems[i] = { ...newItems[i], title: e.target.value };
+              onChange(newItems);
+            }} className={inputClass} placeholder="Title" />
+            <select value={item.mediaType || 'article'} onChange={(e) => {
+              const newItems = [...items];
+              newItems[i] = { ...newItems[i], mediaType: e.target.value };
+              onChange(newItems);
+            }} className={inputClass}>
+              <option value="article">Article</option>
+              <option value="video">Video</option>
+              <option value="podcast">Podcast</option>
+            </select>
+            <button type="button" onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="px-3 py-2 bg-red-900/30 text-red-400 rounded hover:bg-red-900/50">X</button>
+          </div>
+        ))}
+        <button type="button" onClick={() => onChange([...items, { title: '', mediaType: 'article' }])} className="text-sm text-gray-400 hover:text-white">+ Add Media</button>
+      </div>
+    </Field>
+  );
+}
+
+function SocialLinksArray({ value, onChange }: { value?: { platform: string; url: string }[]; onChange: (v: { platform: string; url: string }[]) => void }) {
+  const items = value || [];
+  return (
+    <Field label="Social Links">
+      <div className="space-y-2">
+        {items.map((item, i) => (
+          <div key={i} className="flex gap-2">
+            <input type="text" value={item.platform || ''} onChange={(e) => {
+              const newItems = [...items];
+              newItems[i] = { ...newItems[i], platform: e.target.value };
+              onChange(newItems);
+            }} className={inputClass} placeholder="Platform" />
+            <input type="text" value={item.url || ''} onChange={(e) => {
+              const newItems = [...items];
+              newItems[i] = { ...newItems[i], url: e.target.value };
+              onChange(newItems);
+            }} className={inputClass} placeholder="URL" />
+            <button type="button" onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="px-3 py-2 bg-red-900/30 text-red-400 rounded hover:bg-red-900/50">X</button>
+          </div>
+        ))}
+        <button type="button" onClick={() => onChange([...items, { platform: '', url: '' }])} className="text-sm text-gray-400 hover:text-white">+ Add Link</button>
+      </div>
     </Field>
   );
 }
@@ -614,6 +703,49 @@ function VideoForm({
       </div>
 
       <div className="pt-1 min-h-[280px]">
+        {activeTab === 'factual' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4 text-xs font-mono">
+              <div className="bg-white/5 p-3 rounded border border-white/5">
+                <span className="text-gray-500 block mb-1">Duration:</span>
+                {doc.durationSeconds ? `${Math.floor(doc.durationSeconds / 60)}m ${doc.durationSeconds % 60}s` : 'Unknown'}
+              </div>
+              <div className="bg-white/5 p-3 rounded border border-white/5">
+                <span className="text-gray-500 block mb-1">Views:</span>
+                {doc.viewCount?.toLocaleString() || 'Unknown'}
+              </div>
+              <div className="bg-white/5 p-3 rounded border border-white/5">
+                <span className="text-gray-500 block mb-1">Published:</span>
+                {doc.publishedAt ? new Date(doc.publishedAt).toLocaleString() : 'Unknown'}
+              </div>
+              <div className="bg-white/5 p-3 rounded border border-white/5">
+                <span className="text-gray-500 block mb-1">Last Synced:</span>
+                {doc.lastSyncedAt ? new Date(doc.lastSyncedAt).toLocaleString() : 'Never'}
+              </div>
+            </div>
+            
+            <div className="bg-white/5 p-3 rounded border border-white/5 text-xs font-mono">
+              <span className="text-gray-500 block mb-2">Thumbnail URL:</span>
+              <a href={doc.thumbnailUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline break-all">
+                {doc.thumbnailUrl || 'None'}
+              </a>
+            </div>
+
+            <div className="bg-white/5 p-3 rounded border border-white/5 text-xs font-mono">
+              <span className="text-gray-500 block mb-2">Raw YouTube Tags:</span>
+              <div className="flex flex-wrap gap-1">
+                {doc.youtubeTags?.map((tag, i) => (
+                  <span key={i} className="bg-black/50 px-2 py-0.5 rounded text-gray-400">{tag}</span>
+                )) || 'None'}
+              </div>
+            </div>
+            
+            <p className="text-xs text-gray-500">
+              Factual fields are automatically synced from YouTube and cannot be manually edited here.
+            </p>
+          </div>
+        )}
+
         {activeTab === 'status' && (
           <div className="space-y-6">
             <Field label="Status">
@@ -690,9 +822,15 @@ function VideoForm({
                 <option value="other">Other</option>
               </select>
             </Field>
+
             <Field label="Editorial Notes">
-              <textarea value={doc.editorialNotes || ''} onChange={(e) => update('editorialNotes', e.target.value)} className={textareaClass} placeholder="Internal notes for editors..." />
+              <textarea value={doc.editorialNotes || ''} onChange={(e) => update('editorialNotes', e.target.value)} className={textareaClass} placeholder="Internal context..." />
             </Field>
+
+            <RelatedMediaArray 
+              value={doc.relatedMedia} 
+              onChange={(v) => update('relatedMedia', v)} 
+            />
           </div>
         )}
       </div>
@@ -728,11 +866,13 @@ function EventForm({
           <p className="text-xs text-gray-600 mt-1.5">/events/{doc.slug?.current || '…'}</p>
         </Field>
         <Field label="Status">
-          <select value={doc.status || 'scheduled'} onChange={(e) => update('status', e.target.value)} className={inputClass}>
-            <option value="scheduled">Scheduled</option>
+          <select value={doc.status || 'upcoming'} onChange={(e) => update('status', e.target.value)} className={inputClass}>
+            <option value="upcoming">Upcoming</option>
             <option value="live">Live</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
+            <option value="postponed">Postponed</option>
+            <option value="tbd">TBD</option>
           </select>
         </Field>
         <Field label="Event Type">
@@ -773,6 +913,9 @@ function EventForm({
         <Field label="Sign-up Link">
           <input type="text" value={doc.signUpLink || ''} onChange={(e) => update('signUpLink', e.target.value)} className={inputClass} />
         </Field>
+        <Field label="Brand Color (Hex)">
+          <input type="text" value={doc.brandColor?.hex || ''} onChange={(e) => update('brandColor', { hex: e.target.value })} className={inputClass} placeholder="#FF0000" />
+        </Field>
         <Field label="Logo URL">
           <input type="text" value={typeof doc.logo === 'string' ? doc.logo : ''} onChange={(e) => update('logo', e.target.value)} className={inputClass} placeholder="https://…" />
           {doc.logo && typeof doc.logo !== 'string' && (
@@ -787,7 +930,16 @@ function EventForm({
         </Field>
       </div>
 
-      <TagsInput label="YouTube Sync Keywords (hub auto-tagging)" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
+      <div className="mt-5">
+        <SocialLinksArray 
+          value={doc.socialLinks} 
+          onChange={(v) => update('socialLinks', v)} 
+        />
+      </div>
+
+      <div className="mt-5">
+        <TagsInput label="YouTube Sync Keywords (hub auto-tagging)" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
+      </div>
     </div>
   );
 }
@@ -835,6 +987,56 @@ function BrandForm({
       </div>
 
       <TagsInput label="YouTube Sync Keywords (hub auto-tagging)" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
+    </div>
+  );
+}
+
+function TopicForm({
+  doc,
+  updateDoc,
+  updateSlug,
+}: {
+  doc: Doc;
+  updateDoc: (id: string, field: keyof Doc, value: any) => void;
+  updateSlug: (id: string, value: string) => void;
+}) {
+  const update = (field: keyof Doc, value: any) => updateDoc(doc._id, field, value);
+  const isProtectedSlug = ['film', 'tv', 'gaming', 'events', 'uncategorized'].includes(doc.slug?.current || '');
+
+  return (
+    <div className={sectionClass}>
+      <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5">
+        <Field label="Title">
+          <input type="text" value={doc.title || ''} onChange={(e) => update('title', e.target.value)} className={inputClass} />
+        </Field>
+        <Field label="Slug">
+          <input
+            type="text"
+            value={doc.slug?.current || ''}
+            onChange={(e) => updateSlug(doc._id, e.target.value)}
+            disabled={isProtectedSlug}
+            className={`${inputClass} font-mono ${isProtectedSlug ? 'opacity-50 cursor-not-allowed' : ''}`}
+          />
+          {isProtectedSlug && <p className="text-xs text-amber-500 mt-1.5">Core slug cannot be modified.</p>}
+        </Field>
+      </div>
+
+      <div className="my-5">
+        <Toggle
+          label="Tier-1 Site Category"
+          checked={doc.isTier1Category || false}
+          onChange={(v) => update('isTier1Category', v)}
+        />
+        <p className="text-xs text-gray-400 mt-1.5">The top-level site categories. Videos must match at least one Tier-1 keyword.</p>
+      </div>
+
+      <TagsInput label="YouTube Sync Keywords" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
+      
+      <div className="mt-5">
+        <Field label="Empty-State Message">
+          <textarea value={doc.emptyStateMessage || ''} onChange={(e) => update('emptyStateMessage', e.target.value)} className={textareaClass} placeholder="First-person message shown when this category has no content yet..." />
+        </Field>
+      </div>
     </div>
   );
 }
