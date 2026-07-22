@@ -30,12 +30,31 @@ async function runTests() {
     
     console.log('Navigating to homepage to test Contact Modal...');
     await page.goto('http://localhost:4321/');
-    
-    // Wait for hydration
-    await page.waitForSelector('[data-modal-trigger="contact"]', { timeout: 5000 });
-    
-    const trigger = await page.$('[data-modal-trigger="contact"]');
-    assert.ok(trigger, 'Contact modal trigger should exist');
+
+    // The contact modal was intentionally hidden from the live UI (Footer's
+    // and press-kit's [data-modal-trigger="contact"] links are commented
+    // out) in favor of the Substack/YouTube subscribe CTA - no page ships a
+    // visible trigger anymore. This is a regression guard: if one reappears
+    // unintentionally, this test should be updated deliberately, not react
+    // to a silent markup change.
+    const liveTrigger = await page.$('[data-modal-trigger="contact"]');
+    assert.equal(liveTrigger, null, 'No page should ship a live contact modal trigger right now - update this test if that changes');
+
+    // The modal component and its open/close/inert logic are still intact
+    // (document-level delegated click listener on [data-modal-trigger],
+    // ContactModal.astro:159) - only the UI entry point was removed. Inject
+    // a trigger matching what a real one would look like to exercise that
+    // logic directly, rather than losing coverage of code the project still
+    // ships.
+    await page.evaluate(() => {
+      const el = document.createElement('button');
+      el.setAttribute('data-modal-trigger', 'contact');
+      el.id = 'e2e-injected-contact-trigger';
+      el.textContent = 'Contact (test-injected)';
+      document.body.appendChild(el);
+    });
+    const trigger = await page.$('#e2e-injected-contact-trigger');
+    assert.ok(trigger, 'Test-injected contact modal trigger should exist');
 
     console.log('Opening contact modal...');
     await trigger.click();
