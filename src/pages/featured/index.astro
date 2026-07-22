@@ -3,26 +3,15 @@ import Layout from '../../layouts/Layout.astro';
 import PageTitle from '../../components/PageTitle.astro';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
 import { site } from '../../data/site.js';
-// @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
-import { sanityClient } from "sanity:client";
-import { createImageUrlBuilder } from "@sanity/image-url";
+import { getFeaturedBrandsLocal, urlFor } from '../../lib/local-content';
 
 const title = `Featured | ${site.name}`;
 const description =
   'Deep dives and dedicated coverage hubs for our favorite brands and topics.';
 
-const builder = createImageUrlBuilder(sanityClient);
-const urlFor = (source: any) => builder.image(source);
-
 // Published, sluggable brands only — same defensive filter as the detail page,
 // so drafts/incomplete docs never break the listing or produce dead links.
-const query = `*[_type == "featuredBrand" && defined(slug.current)]{..., logo{..., "dimensions": asset->metadata.dimensions}} | order(title asc)`;
-let brands = [];
-try {
-  brands = await sanityClient.fetch(query);
-} catch (e) {
-  console.error("Failed to fetch featuredBrand docs", e);
-}
+const brands = getFeaturedBrandsLocal();
 ---
 
 <Layout title={title} description={description}>

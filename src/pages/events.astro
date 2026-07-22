@@ -8,20 +8,13 @@ import SubscribeCTA from '../components/SubscribeCTA.astro';
 import MiniCalendarSidebar from '../components/MiniCalendarSidebar.astro'; // Restored per blueprint
 import SpanningCalendarModal from '../components/SpanningCalendarModal.astro';
 import { site } from '../data/site.js';
-// @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
-import { sanityClient } from "sanity:client";
+import { getEventsLocal } from '../lib/local-content';
 import { toYMD } from '../lib/events';
 
 const title = `Events | ${site.name}`;
 const description = 'Live coverage, premieres, and press event highlights from Be Unconventional HQ.';
 
-const query = `*[_type == "event"] | order(startDate desc)`;
-let allEvents = [];
-try {
-  allEvents = await sanityClient.fetch(query);
-} catch (e) {
-  console.error("Failed to fetch Sanity events", e);
-}
+const allEvents = getEventsLocal();
 
 // Today's calendar date (YYYY-MM-DD) in the brand's reference timezone. Both
 // sides of the comparison are the SAME precision — comparing a bare

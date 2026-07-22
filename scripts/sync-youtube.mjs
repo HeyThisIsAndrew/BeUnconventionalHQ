@@ -1,6 +1,19 @@
 /**
  * YouTube → Local JSON ingestion sync — Taxonomy-as-Code edition.
- * Prototyping local JSON architecture.
+ *
+ * Local-JSON counterpart to the old Sanity sync: pulls the channel's uploads
+ * from the YouTube Data API v3 and upserts a video/short/live doc per video
+ * into src/data/videos.json, using the same three-field-class contract
+ * (FACTUAL/DERIVED/EDITORIAL - see planVideoSync).
+ *
+ * Hub taxonomy (topics is still Tier-1-seed-only; hubs come from the
+ * featuredBrand/event docs already living in videos.json) is rebuilt from
+ * each doc's `youtubeSyncKeywords`, keyed by `slug.current` - the local
+ * equivalent of the old "build the dictionary FROM SANITY every run".
+ *
+ * Dry-run by default; pass --execute to write src/data/videos.json. Pure
+ * planning functions are exported for offline tests; importing this module
+ * performs zero I/O.
  */
 import { fileURLToPath } from 'node:url';
 import { config } from 'dotenv';
@@ -29,6 +42,17 @@ export function normalizeTag(value) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
+}
+
+/**
+ * Local equivalent of the old `*[_type in ["featuredBrand", "event"]]`
+ * dictionary source: featuredBrand/event docs, keyed by slug, contribute
+ * their youtubeSyncKeywords as hub match keywords.
+ */
+export function extractHubSeeds(existingDocs) {
+  return existingDocs
+    .filter((d) => (d?._type === 'featuredBrand' || d?._type === 'event') && d?.slug?.current)
+    .map((d) => ({ slug: d.slug.current, keywords: d.youtubeSyncKeywords ?? [] }));
 }
 
 export function buildTaxonomyDictionary({ topics = [], hubs = [] }) {
@@ -159,13 +183,7 @@ async function run() {
   if (!YOUTUBE_API_KEY) return fail('YOUTUBE_API_KEY is required.');
   if (!YOUTUBE_CHANNEL_ID) return fail('YOUTUBE_CHANNEL_ID is required.');
 
-  const yt = createYouTubeClient({ apiKey: YOUTUBE_API_KEY });
-  const dict = buildTaxonomyDictionary({ topics: TIER1_TOPIC_SEEDS, hubs: [] });
-
-  console.log(`\nFetching uploads for channel ${YOUTUBE_CHANNEL_ID}…`);
-  const ids = await collectUploadIds(yt, YOUTUBE_CHANNEL_ID);
-  console.log(`Found ${ids.length} uploads. Fetching details…`);
-  const videos = await yt.getVideoDetails(ids);
+  const execute = process.argv.includes('--execute');
 
   const outPath = fileURLToPath(new URL('../src/data/videos.json', import.meta.url));
 
@@ -181,6 +199,15 @@ async function run() {
     }
   }
 
+  const hubSeeds = extractHubSeeds(Array.from(existingDocsMap.values()));
+  const dict = buildTaxonomyDictionary({ topics: TIER1_TOPIC_SEEDS, hubs: hubSeeds });
+
+  const yt = createYouTubeClient({ apiKey: YOUTUBE_API_KEY });
+  console.log(`\nFetching uploads for channel ${YOUTUBE_CHANNEL_ID}…`);
+  const ids = await collectUploadIds(yt, YOUTUBE_CHANNEL_ID);
+  console.log(`Found ${ids.length} uploads. Fetching details…`);
+  const videos = await yt.getVideoDetails(ids);
+
   const now = new Date();
   const syncedDocs = videos.map((v) => {
     const match = matchVideoTags(v.tags, dict);
@@ -191,6 +218,15 @@ async function run() {
   const syncedIds = new Set(syncedDocs.map(d => d._id));
   const preservedDocs = Array.from(existingDocsMap.values()).filter(d => !syncedIds.has(d._id));
   const docs = [...syncedDocs, ...preservedDocs];
+
+  const needsReviewCount = syncedDocs.filter((d) => d.requiresReview).length;
+
+  if (!execute) {
+    console.log(`\n[dry-run] Would sync ${docs.length} docs (${syncedDocs.length} from YouTube, ${preservedDocs.length} preserved) to ${outPath}.`);
+    console.log(`[dry-run] ${needsReviewCount} video(s) would need review (no Tier-1/hub tag match).`);
+    console.log('[dry-run] Pass --execute to write.');
+    return;
+  }
 
   fs.writeFileSync(outPath, JSON.stringify(docs, null, 2));
   console.log(`\n✔ Synced ${docs.length} videos locally to ${outPath}.`);

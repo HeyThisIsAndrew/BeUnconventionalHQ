@@ -1,31 +1,17 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-// @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
-import { sanityClient } from "sanity:client";
 import { getArticles } from '../../data/feeds.js';
-import { getVideosUnified } from '../../lib/videos-source';
+import { getVideosUnified, getShortsUnified, getLiveStreamsUnified } from '../../lib/videos-source';
+import { getEventsLocal, urlFor } from '../../lib/local-content';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
 import HeroTrailer from '../../components/HeroTrailer.astro';
 import { parseVideoId } from '../../lib/platforms/youtube';
-import { mapSanityVideo } from '../../lib/videos.ts';
 import { formatEventDateRange, formatLocation } from '../../lib/events';
 import EventStatusIndicator from '../../components/EventStatusIndicator.astro';
 import ContentCard from '../../components/ContentCard.astro';
 
 export async function getStaticPaths() {
-  // Project image asset dimensions so we can reserve the logo's box and avoid CLS.
-  const query = `*[_type == "event"]{
-    ...,
-    logo{ ..., "dimensions": asset->metadata.dimensions },
-    heroImage{ ..., "dimensions": asset->metadata.dimensions }
-  }`;
-  let events = [];
-  try {
-    events = await sanityClient.fetch(query);
-  } catch (e) {
-    console.error("Failed to fetch Sanity events in getStaticPaths", e);
-  }
-  
+  const events = getEventsLocal();
   return events.map((event: any) => ({
     params: { slug: event.slug?.current || 'unknown' },
     props: { event },
@@ -34,34 +20,22 @@ export async function getStaticPaths() {
 
 const { event } = Astro.props;
 
-import { createImageUrlBuilder } from "@sanity/image-url";
-const builder = createImageUrlBuilder(sanityClient);
-function urlFor(source: any) {
-  return builder.image(source);
-}
-
 // 1. Fetch Global Data
 const allVideos = await getVideosUnified();
 const allArticles = getArticles();
 
 // 1b. Phase C1 (epic #25): deterministic, editor-controlled coverage — videos
-// whose hubs[] reference THIS event doc. Empty until editors hub-tag published
-// docs, in which case the tag-match fallback below still runs, so behavior is
-// unchanged until real data exists (same activation pattern as Phase B).
-let hubCoverage: any[] = [];
-try {
-  const docs = await sanityClient.fetch(
-    `*[_type in ["video", "short", "live"] && contentStatus == "published" && references($hubId)] | order(publishedAt desc){
-      youtubeId, title, thumbnailUrl, durationSeconds, isShort, publishedAt, "topics": topics[]->slug.current, featured
-    }`,
-    { hubId: event._id },
-  );
-  hubCoverage = docs
-    .map((d: any) => mapSanityVideo(d))
-    .filter((v: any) => v !== null);
-} catch (e) {
-  console.error('Hub coverage fetch failed; falling back to tag matching', e);
-}
+// whose hubs[] reference THIS event doc (by slug - see sync-youtube.mjs's
+// taxonomy dictionary, which keys hub matches off event/featuredBrand slugs).
+// Spans video/short/live (the original Sanity query's `_type in [...]`),
+// unlike the `allVideos` fallback below which is video-only. Empty until
+// editors/sync hub-tag published docs, in which case the tag-match fallback
+// still runs, so behavior is unchanged until real data exists (same
+// activation pattern as Phase B).
+const [shortsForHubs, liveForHubs] = await Promise.all([getShortsUnified(), getLiveStreamsUnified()]);
+const hubCoverage = [...allVideos, ...shortsForHubs, ...liveForHubs]
+  .filter((v: any) => (v.hubs || []).includes(event.slug?.current))
+  .sort((a: any, b: any) => new Date(b.publishedAt ?? 0).getTime() - new Date(a.publishedAt ?? 0).getTime());
 
 // 2. Fallback: filter global data against hub tags (legacy heuristic; removed
 const eventTags = (event.youtubeSyncKeywords || []).filter((t: any) => typeof t === 'string');

@@ -2,34 +2,17 @@
 import Layout from '../../layouts/Layout.astro';
 import { getArticles } from '../../data/feeds.js';
 import { getVideosUnified } from '../../lib/videos-source';
+import { getFeaturedBrandsLocal, urlFor } from '../../lib/local-content';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
 import HeroTrailer from '../../components/HeroTrailer.astro';
 import ContentCard from '../../components/ContentCard.astro';
 import { parseVideoId } from '../../lib/platforms/youtube';
-import { mapSanityVideo } from '../../lib/videos.ts';
-// @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
-import { sanityClient } from "sanity:client";
-import { createImageUrlBuilder } from "@sanity/image-url";
 
 export async function getStaticPaths() {
-  // Source of truth is Sanity. `defined(slug.current)` excludes drafts and
-  // incomplete documents AT THE QUERY LEVEL, so a half-filled brand can never
-  // reach the map below and crash the build (the original #19 crash). Image
-  // dimensions are projected to reserve the logo box and avoid CLS.
-  const query = `*[_type == "featuredBrand" && defined(slug.current)]{
-    ...,
-    logo{ ..., "dimensions": asset->metadata.dimensions },
-    heroImage{ ..., "dimensions": asset->metadata.dimensions }
-  }`;
-  let brands = [];
-  try {
-    brands = await sanityClient.fetch(query);
-  } catch (e) {
-    console.error("Failed to fetch featuredBrand docs in getStaticPaths", e);
-  }
-
-  // Second guard (belt-and-suspenders): optional chaining + null filter, so
-  // even a query change can't reintroduce the undefined-slug crash.
+  // `defined(slug.current)` filtering happens in getFeaturedBrandsLocal, so a
+  // half-filled brand can never reach the map below and crash the build (the
+  // original #19 crash). Second guard here is belt-and-suspenders.
+  const brands = getFeaturedBrandsLocal();
   return brands
     .filter((brand: any) => brand?.slug?.current)
     .map((brand: any) => ({
@@ -40,32 +23,18 @@ export async function getStaticPaths() {
 
 const { event } = Astro.props;
 
-const builder = createImageUrlBuilder(sanityClient);
-function urlFor(source: any) {
-  return builder.image(source);
-}
-
 // 1. Fetch Global Data
 const allVideos = await getVideosUnified();
 const allArticles = getArticles();
 
 // 1b. Phase C1 (epic #25): deterministic, editor-controlled coverage — videos
-// whose hubs[] reference THIS brand doc. Empty until editors hub-tag published
-// docs; the tag-match fallback below keeps behavior unchanged until then.
-let hubCoverage: any[] = [];
-try {
-  const docs = await sanityClient.fetch(
-    `*[_type == "video" && contentStatus == "published" && references($hubId)] | order(publishedAt desc){
-      youtubeId, title, thumbnailUrl, durationSeconds, isShort, publishedAt, "topics": topics[]->slug.current, featured
-    }`,
-    { hubId: event._id },
-  );
-  hubCoverage = docs
-    .map((d: any) => mapSanityVideo(d))
-    .filter((v: any) => v !== null);
-} catch (e) {
-  console.error('Hub coverage fetch failed; falling back to tag matching', e);
-}
+// whose hubs[] reference THIS brand doc (by slug - see sync-youtube.mjs's
+// taxonomy dictionary, which keys hub matches off event/featuredBrand
+// slugs). Empty until editors/sync hub-tag published docs; the tag-match
+// fallback below keeps behavior unchanged until then.
+const hubCoverage = allVideos
+  .filter((v: any) => !v.isShort && !v.isLive && (v.hubs || []).includes(event.slug?.current))
+  .sort((a: any, b: any) => new Date(b.publishedAt ?? 0).getTime() - new Date(a.publishedAt ?? 0).getTime());
 
 // 2. Fallback: filter global data against hub tags (legacy heuristic; removed
 // in Phase C2 once hub-tagging covers the catalog)

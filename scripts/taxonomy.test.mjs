@@ -10,6 +10,7 @@ import {
   buildTaxonomyDictionary,
   matchVideoTags,
   planVideoSync,
+  extractHubSeeds,
   TIER1_TOPIC_SEEDS,
   UNCATEGORIZED_TOPIC_ID,
 } from './sync-youtube.mjs';
@@ -142,6 +143,35 @@ test('new video, no match → created NEEDS-REVIEW as Uncategorized', () => {
   const p = planVideoSync(VIDEO, reviewMatch);
   assert.equal(p.contentStatus, 'needs-review');
   assert.deepEqual(p.topics, ['uncategorized']);
+});
+
+// ── extractHubSeeds ──────────────────────────────────────────────────────────
+test('extractHubSeeds: pulls slug + youtubeSyncKeywords from featuredBrand/event docs', () => {
+  const seeds = extractHubSeeds([
+    { _type: 'featuredBrand', slug: { current: 'dc-comics' }, youtubeSyncKeywords: ['dc', 'dc comics'] },
+    { _type: 'event', slug: { current: 'sdcc-2026' }, youtubeSyncKeywords: ['sdcc 2026'] },
+    { _type: 'video', slug: { current: 'not-a-hub' }, youtubeSyncKeywords: ['ignored'] },
+    { _type: 'featuredBrand', youtubeSyncKeywords: ['no slug, should be dropped'] },
+  ]);
+  assert.deepEqual(seeds, [
+    { slug: 'dc-comics', keywords: ['dc', 'dc comics'] },
+    { slug: 'sdcc-2026', keywords: ['sdcc 2026'] },
+  ]);
+});
+
+test('extractHubSeeds: missing youtubeSyncKeywords defaults to empty array', () => {
+  const seeds = extractHubSeeds([{ _type: 'event', slug: { current: 'no-keywords' } }]);
+  assert.deepEqual(seeds, [{ slug: 'no-keywords', keywords: [] }]);
+});
+
+test('end-to-end: hub seeds from local docs feed matchVideoTags correctly', () => {
+  const hubSeeds = extractHubSeeds([
+    { _type: 'featuredBrand', slug: { current: 'dc-comics' }, youtubeSyncKeywords: ['dc', 'dc comics'] },
+  ]);
+  const dict = buildTaxonomyDictionary({ topics: TIER1_TOPIC_SEEDS, hubs: hubSeeds });
+  const m = matchVideoTags(['film', 'DC Comics'], dict);
+  assert.deepEqual(m.topicIds, ['film']);
+  assert.deepEqual(m.hubIds, ['dc-comics']);
 });
 
 console.log(
