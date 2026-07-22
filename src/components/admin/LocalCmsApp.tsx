@@ -196,10 +196,10 @@ function makeBlankDoc(type: DocType): Doc {
 }
 
 const inputClass =
-  'w-full bg-[#111112] text-sm text-gray-200 border border-white/10 rounded-md px-3 py-2.5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)] focus:outline-none focus:border-red-500/50 focus:bg-[#161618] focus:shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)] transition-all placeholder:text-gray-600';
+  'w-full bg-white/[0.03] text-sm text-gray-200 border border-white/[0.08] rounded-xl px-4 py-3 shadow-inner hover:bg-white/[0.05] focus:outline-none focus:border-red-500/50 focus:bg-white/[0.07] focus:ring-4 focus:ring-red-500/10 transition-all duration-300 placeholder:text-gray-600';
 const textareaClass = `${inputClass} resize-y min-h-[200px] leading-relaxed`;
-const labelClass = 'block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5';
-const sectionClass = 'space-y-5';
+const labelClass = 'block text-[11px] font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-gray-400 to-gray-600 mb-2';
+const sectionClass = 'space-y-6';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -212,12 +212,12 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-[#151515] px-3.5 py-3 cursor-pointer hover:border-white/25 transition-colors">
-      <span className="text-sm font-medium text-white">{label}</span>
+    <label className="group flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3.5 cursor-pointer hover:bg-white/[0.04] transition-all duration-300 shadow-sm">
+      <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">{label}</span>
       <span className="relative inline-flex h-5 w-9 flex-shrink-0 items-center">
         <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer sr-only" />
-        <span className="absolute inset-0 rounded-full bg-white/15 peer-checked:bg-red-600 transition-colors" />
-        <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white transition-transform peer-checked:translate-x-4" />
+        <span className="absolute inset-0 rounded-full bg-white/10 peer-checked:bg-gradient-to-r peer-checked:from-red-600 peer-checked:to-rose-500 transition-all duration-300 peer-checked:shadow-[0_0_12px_rgba(220,38,38,0.5)]" />
+        <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow-md transition-all duration-300 peer-checked:translate-x-4" />
       </span>
     </label>
   );
@@ -368,40 +368,41 @@ export default function LocalCmsApp() {
   const selected = docs.find((d) => d._id === selectedId) || null;
 
   return (
-    <div className="flex flex-col gap-3 w-full text-[13px]">
+    <div className="flex flex-col gap-4 w-full text-[13px] text-gray-200">
       {/* Save bar - own row, always full width */}
-      <div className="w-full flex justify-between items-center bg-[#0c0c0d]/95 backdrop-blur px-4 py-3 border border-white/10 rounded-lg z-20">
-        <div className="text-sm text-gray-400">
-          Managing <span className="font-mono text-white">{docs.length}</span> documents locally
+      <div className="w-full flex justify-between items-center bg-black/40 backdrop-blur-2xl px-5 py-4 border border-white/10 rounded-2xl z-20 shadow-2xl">
+        <div className="text-sm text-gray-400 font-medium tracking-wide">
+          Managing <span className="font-mono text-white bg-white/10 px-2 py-0.5 rounded-md">{docs.length}</span> documents locally
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-5">
           {message && (
-            <span className={`text-sm ${message.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+            <span className={`text-sm font-medium animate-pulse ${message.type === 'success' ? 'text-emerald-400' : 'text-rose-400'}`}>
               {message.text}
             </span>
           )}
           <button
             onClick={handleSave}
             disabled={saving}
-            className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            className="relative overflow-hidden group bg-gradient-to-br from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(220,38,38,0.3)] hover:shadow-[0_0_25px_rgba(220,38,38,0.5)] transform hover:-translate-y-0.5"
           >
-            {saving ? 'Saving to disk…' : 'Save to videos.json'}
+            <span className="relative z-10">{saving ? 'Saving to disk…' : 'Save to videos.json'}</span>
+            <div className="absolute inset-0 h-full w-full bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
           </button>
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-3 items-start w-full">
+      <div className="flex flex-col lg:flex-row gap-4 items-start w-full">
       {/* Structure pane */}
-      <div className="w-full lg:w-56 flex-shrink-0 flex flex-col gap-6 bg-[#111214] rounded-lg border border-white/10 p-3 lg:h-[75vh] overflow-y-auto">
-        <div className="flex flex-col gap-4">
+      <div className="w-full lg:w-60 flex-shrink-0 flex flex-col gap-8 bg-black/20 backdrop-blur-xl rounded-2xl border border-white/[0.08] p-4 lg:h-[75vh] overflow-y-auto shadow-2xl">
+        <div className="flex flex-col gap-6">
           <div>
-            <div className="px-1 pb-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+            <div className="px-2 pb-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
               Content
             </div>
             <button
               onClick={() => setActiveFilter('All')}
-              className={`w-full text-left px-2.5 py-2 rounded-md text-sm font-medium transition-colors ${
-                activeFilter === 'All' ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+              className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
+                activeFilter === 'All' ? 'bg-gradient-to-r from-red-500/20 to-transparent text-white border-l-2 border-red-500 shadow-[inset_0_0_20px_rgba(220,38,38,0.1)]' : 'text-gray-400 hover:bg-white-[0.03] hover:text-white border-l-2 border-transparent'
               }`}
             >
               {FILTER_LABELS.All}
@@ -410,7 +411,7 @@ export default function LocalCmsApp() {
 
           {FILTER_GROUPS.map((group) => (
             <div key={group.label}>
-              <div className="px-1 pb-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+              <div className="px-2 pb-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
                 {group.label}
               </div>
               <div className="flex flex-col gap-1.5">
@@ -418,8 +419,8 @@ export default function LocalCmsApp() {
                   <button
                     key={filter}
                     onClick={() => setActiveFilter(filter)}
-                    className={`text-left px-2.5 py-2 rounded-md text-sm font-medium transition-colors ${
-                      activeFilter === filter ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                    className={`text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
+                      activeFilter === filter ? 'bg-gradient-to-r from-white/10 to-transparent text-white border-l-2 border-white/50 shadow-[inset_0_0_15px_rgba(255,255,255,0.05)]' : 'text-gray-400 hover:bg-white/[0.03] hover:text-white border-l-2 border-transparent'
                     }`}
                   >
                     {FILTER_LABELS[filter]}
@@ -430,72 +431,83 @@ export default function LocalCmsApp() {
           ))}
         </div>
 
-        <div className="border-t border-white/10 pt-4">
-          <div className="px-1 pb-2.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+        <div className="border-t border-white/10 pt-6 mt-auto">
+          <div className="px-2 pb-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
             Create
           </div>
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             {(['video', 'short', 'live', 'event', 'featuredBrand'] as DocType[]).map((type) => (
               <button
                 key={type}
                 onClick={() => createDoc(type)}
-                className="flex items-center gap-2 text-left px-2.5 py-2 rounded-md text-sm font-medium text-gray-300 border border-dashed border-white/15 hover:border-red-500/50 hover:text-white hover:bg-white/5 transition-colors"
+                className="group flex items-center gap-3 text-left px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400 border border-white/5 bg-white/[0.02] hover:border-red-500/30 hover:text-white hover:bg-red-500/5 transition-all duration-300"
               >
-                <span className="text-red-400 font-bold">+</span> New {TYPE_META[type].label}
+                <div className="flex items-center justify-center w-6 h-6 rounded-md bg-white/5 text-red-400 font-bold group-hover:bg-red-500 group-hover:text-white transition-colors">+</div>
+                New {TYPE_META[type].label}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-3 items-start w-full lg:flex-1 min-w-0">
+      <div className="flex flex-col lg:flex-row gap-4 items-start w-full lg:flex-1 min-w-0">
         {/* Document list pane */}
-        <div className="w-full lg:w-80 flex-shrink-0 bg-[#111214] rounded-lg border border-white/10 flex flex-col lg:h-[75vh] max-h-[50vh] lg:max-h-none">
-          <div className="p-2.5 border-b border-white/10 bg-black/20">
-            <input
-              type="text"
-              placeholder="Search by title or YouTube ID…"
-              className="w-full bg-[#151515] border border-white/10 rounded-md px-3 py-1.5 text-white text-sm focus:ring-2 focus:ring-red-500 focus:outline-none"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+        <div className="w-full lg:w-80 flex-shrink-0 bg-black/20 backdrop-blur-xl rounded-2xl border border-white/[0.08] flex flex-col lg:h-[75vh] max-h-[50vh] lg:max-h-none shadow-2xl overflow-hidden">
+          <div className="p-4 border-b border-white/10 bg-black/40">
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+              <input
+                type="text"
+                placeholder="Search by title or ID…"
+                className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-white text-sm focus:ring-2 focus:ring-red-500/50 focus:bg-white/10 focus:border-red-500/50 transition-all duration-300 outline-none placeholder:text-gray-600"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
           </div>
-          <ul className="divide-y divide-white/[0.07] overflow-y-auto flex-1">
+          <ul className="divide-y divide-white/[0.04] overflow-y-auto flex-1 custom-scrollbar">
             {filteredDocs.length === 0 && (
-              <li className="p-4 text-center text-gray-600 text-sm">No documents match.</li>
+              <li className="p-8 flex flex-col items-center justify-center text-gray-500 text-sm gap-3">
+                <svg className="w-8 h-8 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                No documents match.
+              </li>
             )}
             {filteredDocs.map((doc) => {
               const meta = TYPE_META[doc._type] ?? TYPE_META.video;
               return (
                 <li
                   key={doc._id}
-                  className={`px-3.5 py-3.5 cursor-pointer hover:bg-white/[0.04] transition-colors ${
-                    selectedId === doc._id ? 'bg-white/[0.06]' : ''
+                  className={`px-4 py-4 cursor-pointer transition-all duration-200 border-l-2 ${
+                    selectedId === doc._id ? 'bg-white/[0.06] border-red-500' : 'hover:bg-white/[0.03] border-transparent'
                   }`}
                   onClick={() => setSelectedId(doc._id)}
                 >
-                  <div className="flex items-center">
+                  <div className="flex items-center gap-3.5">
                     {doc.youtubeId ? (
-                      <img
-                        src={`https://i.ytimg.com/vi/${doc.youtubeId}/mqdefault.jpg`}
-                        alt=""
-                        className="w-14 h-9 object-cover rounded bg-gray-800 flex-shrink-0"
-                      />
+                      <div className="relative group">
+                        <img
+                          src={`https://i.ytimg.com/vi/${doc.youtubeId}/mqdefault.jpg`}
+                          alt=""
+                          className="w-16 h-10 object-cover rounded-md bg-gray-900 flex-shrink-0 shadow-md group-hover:shadow-lg transition-shadow"
+                        />
+                        <div className="absolute inset-0 ring-1 ring-inset ring-white/10 rounded-md pointer-events-none" />
+                      </div>
                     ) : (
-                      <div className="w-14 h-9 rounded bg-gray-800 flex-shrink-0 flex items-center justify-center text-[9px] text-gray-500 font-bold uppercase text-center leading-tight px-1">
+                      <div className="w-16 h-10 rounded-md bg-gradient-to-br from-gray-800 to-gray-900 flex-shrink-0 flex items-center justify-center text-[10px] text-gray-400 font-bold uppercase text-center leading-tight shadow-inner ring-1 ring-inset ring-white/5">
                         {meta.label}
                       </div>
                     )}
-                    <div className="ml-3.5 min-w-0 space-y-1">
-                      <p className="text-sm font-medium text-white truncate">{doc.title || '(untitled)'}</p>
-                      <p className="text-xs text-gray-500 flex items-center gap-1.5">
-                        <span className={`px-1.5 py-0.5 rounded ${meta.badge}`}>{meta.label}</span>
+                    <div className="min-w-0 space-y-1.5 flex-1">
+                      <p className="text-sm font-semibold text-white truncate leading-tight group-hover:text-red-100 transition-colors">{doc.title || '(untitled)'}</p>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${meta.badge}`}>{meta.label}</span>
                         {doc.contentStatus && (
-                          <span className={doc.contentStatus === 'published' ? 'text-green-400' : 'text-yellow-400'}>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${doc.contentStatus === 'published' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${doc.contentStatus === 'published' ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`}></span>
                             {doc.contentStatus}
                           </span>
                         )}
-                      </p>
+                      </div>
                     </div>
                   </div>
                 </li>
@@ -505,44 +517,49 @@ export default function LocalCmsApp() {
         </div>
 
         {/* Document pane */}
-        <div className="@container w-full lg:flex-1 min-w-0 bg-[#111214] rounded-lg border border-white/10 lg:h-[75vh] flex flex-col">
+        <div className="@container w-full lg:flex-1 min-w-0 bg-black/20 backdrop-blur-xl rounded-2xl border border-white/[0.08] lg:h-[75vh] flex flex-col shadow-2xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
           {!selected ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-600 p-6">
-              <svg
-                width="40"
-                height="40"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="mb-3 opacity-50"
-              >
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <line x1="3" y1="9" x2="21" y2="9"></line>
-                <line x1="9" y1="21" x2="9" y2="9"></line>
-              </svg>
-              <p className="text-sm">Select a document, or create a new one from the left.</p>
+            <div className="h-full flex flex-col items-center justify-center text-gray-500 p-8 text-center relative z-10">
+              <div className="w-20 h-20 mb-6 rounded-full bg-white/5 flex items-center justify-center border border-white/10 shadow-[0_0_30px_rgba(255,255,255,0.03)]">
+                <svg
+                  width="40"
+                  height="40"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-gray-400"
+                >
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="3" y1="9" x2="21" y2="9"></line>
+                  <line x1="9" y1="21" x2="9" y2="9"></line>
+                </svg>
+              </div>
+              <p className="text-base font-medium text-gray-300">No document selected</p>
+              <p className="text-sm mt-2 max-w-[250px]">Choose a document from the list or create a new one to start editing.</p>
             </div>
           ) : (
             <>
-              <div className="flex items-start justify-between gap-3 p-4 border-b border-white/10">
+              <div className="flex items-start justify-between gap-4 p-5 border-b border-white/10 bg-white/[0.02] relative z-10">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${TYPE_META[selected._type]?.badge}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${TYPE_META[selected._type]?.badge}`}>
                       {TYPE_META[selected._type]?.label ?? selected._type}
                     </span>
-                    <span className="text-[11px] text-gray-600 font-mono truncate">{selected._id}</span>
+                    <span className="text-[11px] text-gray-500 font-mono truncate bg-black/30 px-2 py-0.5 rounded-md">{selected._id}</span>
                   </div>
-                  <h2 className="text-lg font-bold text-white truncate">{selected.title}</h2>
+                  <h2 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 truncate tracking-tight">{selected.title}</h2>
                   {selected.youtubeId && (
                     <a
                       href={`https://youtube.com/watch?v=${selected.youtubeId}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-blue-400 text-xs hover:underline"
+                      className="inline-flex items-center gap-1 text-red-400 text-xs font-semibold hover:text-red-300 mt-2 hover:underline transition-colors"
                     >
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
                       View on YouTube
                     </a>
                   )}
@@ -550,7 +567,7 @@ export default function LocalCmsApp() {
                 {!(selected._type === 'topic' && ['film', 'tv', 'gaming', 'events', 'uncategorized'].includes(selected.slug?.current || '')) ? (
                   <button
                     onClick={() => deleteDoc(selected._id)}
-                    className="flex-shrink-0 text-xs font-medium text-gray-500 hover:text-red-400 border border-white/10 hover:border-red-500/40 rounded-md px-2.5 py-1.5 transition-colors"
+                    className="flex-shrink-0 text-xs font-bold text-rose-500 hover:text-white border border-rose-500/30 hover:border-rose-500 hover:bg-rose-600 rounded-lg px-3 py-2 transition-all duration-300 shadow-sm hover:shadow-[0_0_15px_rgba(225,29,72,0.4)]"
                   >
                     Delete
                   </button>
@@ -558,7 +575,7 @@ export default function LocalCmsApp() {
                   <button
                     disabled
                     title="Core taxonomy nodes cannot be deleted."
-                    className="flex-shrink-0 text-xs font-medium text-gray-600 border border-white/5 bg-white/5 rounded-md px-2.5 py-1.5 cursor-not-allowed opacity-50"
+                    className="flex-shrink-0 text-xs font-bold text-gray-500 border border-white/5 bg-white/5 rounded-lg px-3 py-2 cursor-not-allowed opacity-50"
                   >
                     Delete (Locked)
                   </button>
@@ -566,7 +583,7 @@ export default function LocalCmsApp() {
               </div>
 
 
-              <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+              <div className="flex-1 overflow-y-auto p-5 sm:p-6 relative z-10 custom-scrollbar">
                 {(selected._type === 'video' || selected._type === 'short' || selected._type === 'live') && (
                   <VideoForm doc={selected} activeTab={activeTab} setActiveTab={setActiveTab} updateDoc={updateDoc} />
                 )}
