@@ -217,28 +217,26 @@ const viewsString = totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.X
         .pitch-container {
             display: flex;
             align-items: center;
-            gap: 0.2in; /* Added gap back so they don't overlap */
-            margin: 0.1in 0;
+            gap: 0; /* Using margin/padding for precise line placement */
+            margin: 0.15in 0;
         }
 
         .headshot-placeholder {
-            width: 2.4in; /* Still large, but not excessively wide for overlap */
-            height: 2.4in;
+            width: 2.4in; 
+            height: 2.4in; /* Fixed height to match text box */
             background-size: cover;
             background-position: center top;
             background-image: url('/profile.jpg');
             flex-shrink: 0;
             position: relative;
-            margin-right: 0; /* Removed negative margin */
-            z-index: 1; 
         }
 
-        /* Feather all 4 edges */
+        /* Feather all 4 edges aggressively */
         .headshot-placeholder::after {
             content: '';
             position: absolute;
             inset: 0;
-            box-shadow: inset 0 0 0.6in 0.1in var(--bg-color); /* Retained soft feathering on all sides */
+            box-shadow: inset 0 0 0.9in 0.15in var(--bg-color); /* Aggressive feathering */
             pointer-events: none;
         }
 
@@ -246,16 +244,23 @@ const viewsString = totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.X
            2. Elevator Pitch
            ------------------------------------- */
         .pitch {
+            height: 2.4in; /* Match the photo's exact height */
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* Vertically center the text */
+            
+            margin-left: 0.25in; /* Space between photo and the line */
+            padding-left: 0.25in; /* Space between the line and the text */
+            border-left: 1px solid rgba(255, 255, 255, 0.15); /* Subtle thin line */
+
             font-family: var(--font-display);
-            font-size: 0.12in; /* Reduced font size for a cleaner block */
+            font-size: 0.12in; 
             line-height: 1.6;
             font-weight: 600;
             color: rgba(255, 255, 255, 0.9);
             text-align: justify; /* Force text to be left and right justified evenly */
             text-transform: uppercase;
             letter-spacing: 0.1em;
-            position: relative;
-            z-index: 2; /* Sit on top of the feathered image edge */
         }
 
         /* -------------------------------------
