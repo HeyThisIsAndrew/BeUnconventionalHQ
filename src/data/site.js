@@ -5,7 +5,7 @@ export const site = {
   description:
     'A cinematic creator hub for film, TV, gaming, and live events: reviews, reactions, and deep dives from Be Unconventional HQ.',
   url: 'https://beunconventionalhq.com/',
-  image: 'https://beunconventionalhq.com/banner.jpg',
+  image: 'https://beunconventionalhq.com/og-image.png',
   ga4: 'G-CF16HJW04T',
 
   // Primary navigation (streamlined).
