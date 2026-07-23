@@ -90,9 +90,11 @@ const TYPE_META: Record<string, { label: string; badge: string }> = {
 // Helper for parsing sanity image references or plain strings
 const getImageUrl = (image: any) => {
   if (!image) return null;
-  if (typeof image === 'string') return image;
-  if (image.asset && image.asset._ref) {
-    const ref = image.asset._ref;
+  
+  // Extract the reference string whether it's a bare string or wrapped in an object
+  const ref = typeof image === 'string' ? image : (image.asset && image.asset._ref);
+  
+  if (ref && typeof ref === 'string' && ref.startsWith('image-')) {
     const parts = ref.split('-');
     if (parts.length >= 4) {
       const ext = parts.pop();
@@ -101,6 +103,10 @@ const getImageUrl = (image: any) => {
       return `https://cdn.sanity.io/images/38nhxsib/production/${hash}-${dim}.${ext}`;
     }
   }
+  
+  // If it's a string but doesn't look like a Sanity ref (e.g. a normal URL or /uploads/ path)
+  if (typeof image === 'string') return image;
+
   return null;
 };
 
