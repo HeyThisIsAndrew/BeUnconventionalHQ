@@ -31,10 +31,10 @@ there's an actual new video, so you never touch a keyboard at the con.
 Upload + tag on YouTube
         │
         ▼
-GitHub Action (cron, every 15 min) — .github/workflows/sync-youtube.yml
+GitHub Action (cron, hourly) — .github/workflows/sync-youtube.yml
         │  runs `npm run sync -- --execute`
         │  cost: ~2-4 YouTube quota units per run (playlistItems + videos.list)
-        │  — trivial against the 10,000/day free tier, even every 15 min
+        │  — trivial against the 10,000/day free tier
         ▼
 src/data/videos.json changed? ──no──▶ exit, no commit, no rebuild triggered
         │ yes
@@ -49,12 +49,14 @@ Live on the site — no human action after the YouTube upload
 The real constrained resource isn't YouTube quota (cheap, verified below) —
 it's Cloudflare build minutes, which is why the Action only commits (and
 therefore only triggers a deploy) when the sync actually produced a diff.
-Polling every 15 minutes costs nothing extra on quiet days because it's a
-no-op commit-free run.
-
-**During a live event**, if 15 minutes isn't tight enough, temporarily edit
-the cron in `.github/workflows/sync-youtube.yml` to `*/5 * * * *` and push —
-quota headroom supports it easily (see §3). Revert after.
+**Owner call (2026-07-23): hourly polling, deliberately not tighter** — one
+person can't realistically upload faster than that, and worst case there's
+an out-of-band trigger (workflow_dispatch, or ask Claude to fire it) if
+something needs to go up sooner. **Filed [#44](https://github.com/HeyThisIsAndrew/BeUnconventionalHQ/issues/44)**
+for the real fix to "up to an hour of latency" — YouTube WebSub/PubSubHubbub
+push notifications instead of polling. Deliberately deferred, not blocking
+this merge; hourly polling stays as the reliability backstop even after #44
+ships.
 
 ---
 
@@ -94,7 +96,7 @@ but worth a spot-check on the first real upload (§5).
 
 ---
 
-## 3. Quota math (why 15-minute polling is safe)
+## 3. Quota math (why hourly polling is comfortably safe)
 
 Per run, `scripts/sync-youtube.mjs` costs:
 - `channels.list` (1 unit) + `playlistItems.list` (1 unit per 50 uploads) —
@@ -102,11 +104,11 @@ Per run, `scripts/sync-youtube.mjs` costs:
 - `videos.list` (1 unit per 50 video ids) — fetches details for all of them
 
 For a channel with a few hundred videos, that's roughly 4-8 units per full
-run. Free tier is 10,000 units/day. Running every 15 minutes = 96 runs/day =
-well under 1,000 units/day even on the high end. There is headroom to run
-every 5 minutes during an event without any real risk — the number to
-actually watch is Cloudflare build minutes, gated by the commit-only-on-diff
-logic in the workflow.
+run. Free tier is 10,000 units/day. Running hourly = 24 runs/day = well
+under 200 units/day — trivial. This was tight enough to run every 5 minutes
+without quota risk if that's ever wanted again; the owner deliberately chose
+hourly instead (§1) since it's plenty for one person's upload cadence, with
+a manual `workflow_dispatch` trigger available as an escape hatch.
 
 (This is unrelated to and much cheaper than `/api/live-status.json`'s
 `search.list` calls at 100 units/call — those stay separately CDN-cached and

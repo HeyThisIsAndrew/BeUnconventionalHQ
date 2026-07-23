@@ -13,12 +13,16 @@
 #
 # Quota cost per run is tiny: collectUploadIds -> channels.list (1 unit) +
 # playlistItems.list (1 unit/page of 50), then videos.list (1 unit per 50
-# ids). A full-channel run costs low single/double-digit units against a
-# 10,000/day free-tier quota, so the cron interval below is intentionally
-# tight — see the header comment for how to make it tighter around a live
-# event without quota risk. Cloudflare *build* minutes are the actual
-# constrained resource, which is why this job only commits (and therefore
-# only triggers a redeploy) when videos.json actually changed.
+# ids) — a few units per run against a 10,000/day free-tier quota, so the
+# hourly cadence below has enormous headroom either direction. Cloudflare
+# *build* minutes are the actual constrained resource, which is why this
+# job only commits (and therefore only triggers a redeploy) when
+# videos.json actually changed.
+#
+# Owner call (2026-07-23): hourly, not tighter — one person can't realistically
+# upload more often than that, and an out-of-band sync is one message away
+# (trigger this workflow's workflow_dispatch manually, or ask Claude to fire
+# it) if something needs to go up faster than the next scheduled run.
 #
 # INERT UNTIL CONFIGURED: if YOUTUBE_API_KEY/YOUTUBE_CHANNEL_ID secrets are
 # absent, the job logs a skip and exits green (same convention as
@@ -31,10 +35,7 @@ name: Sync YouTube videos
 
 on:
   schedule:
-    # Every 15 minutes. Tune tighter (e.g. */5) temporarily during a live
-    # event by editing this cron and pushing to main — quota is not the
-    # constraint (see header), only how fresh you need it.
-    - cron: '*/15 * * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:
     inputs:
       execute:
