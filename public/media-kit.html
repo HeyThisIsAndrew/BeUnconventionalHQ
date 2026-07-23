@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Be Unconventional HQ - Digital Media Kit</title>
+    <!-- Importing Brand Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Syne:wght@600;800&display=swap" rel="stylesheet">
+    <style>
+        /* CSS reset and print setup */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Set the exact page size so it prints flawlessly to PDF */
+        @page {
+            size: 8.5in 11in;
+            margin: 0;
+        }
+
+        :root {
+            /* Brand Colors based on the site's dark mode and red accents */
+            --bg-color: #0a0a0a;
+            --surface-color: #111112;
+            --text-main: #f0f0f0;
+            --text-muted: #888888;
+            --accent-red: #cc0000;
+            --font-display: 'Syne', sans-serif;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        body {
+            width: 8.5in;
+            height: 11in;
+            margin: 0 auto;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-body);
+            /* Force background colors to print exactly as they appear */
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            display: flex;
+            flex-direction: column;
+            padding: 0.5in; /* Safe margin inside the printable page */
+            position: relative;
+            overflow: hidden; /* Prevent multi-page overflow */
+        }
+
+        /* Ambient cinematic background glow in the top right */
+        body::before {
+            content: '';
+            position: absolute;
+            top: -10%;
+            right: -10%;
+            width: 50%;
+            height: 50%;
+            background: radial-gradient(circle, rgba(204, 0, 0, 0.15) 0%, rgba(10, 10, 10, 0) 70%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35in; /* Consistent vertical spacing between sections */
+        }
+
+        /* -------------------------------------
+           1. Header Section
+           ------------------------------------- */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 0.25in;
+        }
+
+        .header-text {
+            flex: 1;
+        }
+
+        .header h1 {
+            font-family: var(--font-display);
+            font-weight: 800;
+            font-size: 0.45in;
+            line-height: 1.1;
+            text-transform: uppercase;
+            letter-spacing: -0.03em;
+            margin-bottom: 0.05in;
+            text-shadow: 0 4px 15px rgba(0,0,0,0.5); /* Cinematic text shadow */
+        }
+
+        .header h1 span {
+            color: var(--accent-red);
+        }
+
+        .header p {
+            font-size: 0.18in;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        /* Image placeholder blocks */
+        .header-images {
+            display: flex;
+            gap: 0.2in;
+        }
+
+        .image-placeholder {
+            width: 1.6in;
+            height: 1.6in;
+            background-color: var(--surface-color);
+            border: 1px dashed rgba(255, 255, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.12in;
+            text-align: center;
+            padding: 0.1in;
+            
+            /* INSTRUCTIONS FOR ADDING IMAGES:
+               To use a real image, replace background-color/border with:
+               background-image: url('YOUR_IMAGE_URL');
+               background-size: cover; (or contain for the logo)
+               background-position: center;
+               border: none;
+            */
+        }
+
+        .logo-placeholder {
+            border-radius: 0.1in;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+
+        .headshot-placeholder {
+            border-radius: 50%;
+            background-size: cover;
+            background-position: center;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        /* -------------------------------------
+           2. Elevator Pitch
+           ------------------------------------- */
+        .pitch {
+            font-family: var(--font-display);
+            font-size: 0.24in;
+            line-height: 1.5;
+            font-weight: 600;
+            color: var(--text-main);
+            text-align: left;
+            border-left: 4px solid var(--accent-red);
+            padding-left: 0.2in;
+            margin: 0.1in 0;
+        }
+
+        /* -------------------------------------
+           3. The Footprint (Metrics)
+           ------------------------------------- */
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 0.22in;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.1em;
+            margin-bottom: 0.15in;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.2in;
+        }
+
+        .metric-card {
+            background-color: var(--surface-color);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 0.25in 0.15in;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        /* Subtle glowing top border for cards */
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 3px;
+            background: var(--accent-red);
+            opacity: 0.7;
+        }
+
+        .metric-value {
+            font-family: var(--font-display);
+            font-size: 0.45in;
+            font-weight: 800;
+            line-height: 1;
+            margin-bottom: 0.08in;
+            color: var(--text-main);
+        }
+
+        .metric-label {
+            font-size: 0.13in;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        /* -------------------------------------
+           4 & 5. Audience and Capabilities Split
+           ------------------------------------- */
+        .split-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.4in;
+            flex: 1;
+        }
+
+        /* Audience Data List */
+        .data-list {
+            list-style: none;
+        }
+
+        .data-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.15in 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.16in;
+        }
+
+        .data-list li:last-child {
+            border-bottom: none;
+        }
+
+        .data-label {
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .data-value {
+            font-family: var(--font-display);
+            font-weight: 800;
+            font-size: 0.22in;
+            color: var(--accent-red);
+        }
+
+        /* Capabilities List */
+        .capabilities-list {
+            list-style: none;
+            padding-top: 0.05in;
+        }
+
+        .capabilities-list li {
+            position: relative;
+            padding-left: 0.25in;
+            margin-bottom: 0.15in;
+            font-size: 0.16in;
+            font-weight: 600;
+            line-height: 1.5;
+            color: var(--text-main);
+        }
+
+        /* Custom cinematic red bullet */
+        .capabilities-list li::before {
+            content: '►';
+            position: absolute;
+            left: 0;
+            top: 0.02in;
+            color: var(--accent-red);
+            font-size: 0.14in;
+        }
+
+        /* -------------------------------------
+           6. Footer
+           ------------------------------------- */
+        .footer {
+            margin-top: auto; /* Pushes footer to the exact bottom of the 11in page */
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 0.2in;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.13in;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .footer-item {
+            display: flex;
+            align-items: center;
+            gap: 0.05in;
+        }
+        
+        .footer a {
+            color: var(--text-main);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <!-- 1. Header Section -->
+        <div class="header">
+            <div class="header-text">
+                <h1>Be<br><span>Unconventional</span><br>HQ</h1>
+                <p>The Unconventional Truth in Pop Culture.</p>
+            </div>
+            
+            <div class="header-images">
+                <!-- LOGO PLACEHOLDER: 
+                     To add your logo, add: style="background-image: url('URL_HERE'); border: none;" 
+                -->
+                <div class="image-placeholder logo-placeholder">
+                    Drop Logo Here
+                </div>
+                
+                <!-- HEADSHOT PLACEHOLDER: 
+                     To add your photo, add: style="background-image: url('URL_HERE'); border: none;" 
+                -->
+                <div class="image-placeholder headshot-placeholder">
+                    Drop Headshot Here
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. The Elevator Pitch -->
+        <div class="pitch">
+            "Be Unconventional HQ is an independent, premium digital outlet delivering cinematic video essays, unfiltered reviews, and high-energy event coverage of the film, television, and gaming industries. We value authenticity over forced hype, slowing down to appreciate the craft of storytelling."
+        </div>
+
+        <!-- 3. The Footprint -->
+        <div>
+            <h2 class="section-title">The Footprint</h2>
+            <div class="metrics-grid">
+                
+                <div class="metric-card">
+                    <!-- EDIT THIS NUMBER -->
+                    <div class="metric-value">XX.Xk</div>
+                    <div class="metric-label">Total Network Reach</div>
+                </div>
+                
+                <div class="metric-card">
+                    <!-- EDIT THIS NUMBER -->
+                    <div class="metric-value">XX.Xk</div>
+                    <div class="metric-label">Avg. Monthly Views</div>
+                </div>
+                
+                <div class="metric-card">
+                    <!-- EDIT THIS NUMBER -->
+                    <div class="metric-value">XX%</div>
+                    <div class="metric-label">Avg. Viewer Retention</div>
+                </div>
+                
+            </div>
+        </div>
+
+        <!-- 4 & 5. Audience & Coverage Capabilities -->
+        <div class="split-section">
+            
+            <!-- The Audience Section -->
+            <div>
+                <h2 class="section-title">The Audience</h2>
+                <ul class="data-list">
+                    <li>
+                        <span class="data-label">Age Split (18-34)</span>
+                        <!-- EDIT THIS NUMBER -->
+                        <span class="data-value">XX%</span>
+                    </li>
+                    <li>
+                        <span class="data-label">Gender (Male / Female)</span>
+                        <!-- EDIT THIS NUMBER -->
+                        <span class="data-value">XX% / XX%</span>
+                    </li>
+                    <li>
+                        <span class="data-label">Top Geos</span>
+                        <!-- You can edit these locations if needed -->
+                        <span class="data-value" style="font-size: 0.16in;">US, UK, CA</span>
+                    </li>
+                </ul>
+            </div>
+            
+            <!-- Coverage Capabilities Section -->
+            <div>
+                <h2 class="section-title">Coverage Capabilities</h2>
+                <ul class="capabilities-list">
+                    <li>Cinematic Video Essays &amp; Reviews</li>
+                    <li>On-The-Ground Convention &amp; Premiere Coverage</li>
+                    <li>Tech &amp; Production Workflow Integrations</li>
+                    <li>Social Media Amplification</li>
+                </ul>
+            </div>
+            
+        </div>
+
+        <!-- 6. Contact & Footer -->
+        <div class="footer">
+            <div class="footer-item">
+                <span style="color: var(--accent-red);">EMAIL:</span> 
+                <a href="mailto:press@beunconventionalhq.com">press@beunconventionalhq.com</a>
+            </div>
+            <div class="footer-item">
+                <span style="color: var(--accent-red);">WEB:</span> 
+                <a href="https://beunconventionalhq.com">beunconventionalhq.com</a>
+            </div>
+            <div class="footer-item">
+                <span style="color: var(--accent-red);">SOCIAL:</span> 
+                @BeUnconventionalHQ
+            </div>
+        </div>
+        
+    </div>
+</body>
+</html>
