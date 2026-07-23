@@ -17,34 +17,65 @@ function localCmsMiddleware() {
     name: 'local-cms-api',
     /** @param {import('vite').ViteDevServer} server */
     configureServer(server) {
-      server.middlewares.use('/api/local-cms/videos', /** @param {import('http').IncomingMessage} req @param {import('http').ServerResponse} res @param {Function} next */ (req, res, next) => {
+      server.middlewares.use('/api/local-cms', /** @param {import('http').IncomingMessage} req @param {import('http').ServerResponse} res @param {Function} next */ (req, res, next) => {
         const filePath = path.resolve(process.cwd(), 'src/data/videos.json');
-        if (req.method === 'GET') {
-          res.setHeader('Content-Type', 'application/json');
-          res.end(fs.readFileSync(filePath, 'utf-8'));
-          return;
+        if (req.url === '/videos' || req.url === '/videos/') {
+          if (req.method === 'GET') {
+            res.setHeader('Content-Type', 'application/json');
+            res.end(fs.readFileSync(filePath, 'utf-8'));
+            return;
+          }
+          if (req.method === 'POST') {
+            let body = '';
+            req.on('data', /** @param {Buffer} chunk */ chunk => body += chunk);
+            req.on('end', () => {
+              try {
+                JSON.parse(body);
+              } catch (err) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: false, error: 'Invalid JSON, videos.json left untouched.' }));
+                return;
+              }
+              const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+              fs.writeFileSync(tmpPath, body, 'utf-8');
+              fs.renameSync(tmpPath, filePath);
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true }));
+            });
+            return;
+          }
         }
-        if (req.method === 'POST') {
+        if (req.url === '/upload' && req.method === 'POST') {
           let body = '';
           req.on('data', /** @param {Buffer} chunk */ chunk => body += chunk);
           req.on('end', () => {
             try {
-              JSON.parse(body);
-            } catch (err) {
-              res.statusCode = 400;
+              const parsed = JSON.parse(body);
+              if (!parsed.filename || !parsed.data) {
+                throw new Error('Missing filename or data');
+              }
+              const base64Data = parsed.data.split(',')[1];
+              if (!base64Data) throw new Error('Invalid base64');
+              
+              const buffer = Buffer.from(base64Data, 'base64');
+              const fileName = `${Date.now()}-${parsed.filename.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+              const uploadDir = path.resolve(process.cwd(), 'public/uploads');
+              
+              if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir, { recursive: true });
+              }
+              
+              const dest = path.join(uploadDir, fileName);
+              fs.writeFileSync(dest, buffer);
+              
               res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ success: false, error: 'Invalid JSON, videos.json left untouched.' }));
-              return;
+              res.end(JSON.stringify({ url: `/uploads/${fileName}` }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
             }
-            // Atomic write: write to a temp file in the same directory (so the
-            // rename is on the same filesystem, a true atomic swap), then
-            // rename over the real path. A crash mid-write leaves the temp
-            // file corrupted, never videos.json itself.
-            const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-            fs.writeFileSync(tmpPath, body, 'utf-8');
-            fs.renameSync(tmpPath, filePath);
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: true }));
           });
           return;
         }
@@ -75,7 +106,8 @@ export default defineConfig({
       noExternal: ['react', 'react-dom']
     },
     optimizeDeps: {
-      include: ['react', 'react-dom', 'react/jsx-runtime', '@sanity/client']
+      include: ['react', 'react-dom', 'react/jsx-runtime'],
+      exclude: ['@sanity/client']
     }
   },
   integrations: [

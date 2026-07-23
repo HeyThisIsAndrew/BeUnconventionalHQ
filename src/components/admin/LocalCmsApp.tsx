@@ -57,6 +57,12 @@ type Doc = {
     viewVelocity7d: number;
     lastComputedAt: string;
   };
+  videoAssets?: { title: string; url: string }[];
+  gallery?: { url: string; alt: string }[];
+  sponsors?: { name: string; logo: string; url: string }[];
+  pressAssets?: { label: string; url: string }[];
+  videoIds?: string[];
+  articleUrls?: string[];
 
   // topic
   isTier1Category?: boolean;
@@ -71,17 +77,34 @@ const CONTENT_TABS = [
   { id: 'editorial', label: 'Editorial' },
 ];
 
-const TYPE_META: Record<DocType, { label: string; badge: string }> = {
-  video: { label: 'Video', badge: 'bg-blue-500/15 text-blue-300' },
-  short: { label: 'Short', badge: 'bg-purple-500/15 text-purple-300' },
-  live: { label: 'Live', badge: 'bg-red-500/15 text-red-300' },
-  event: { label: 'Event', badge: 'bg-amber-500/15 text-amber-300' },
-  featuredBrand: { label: 'Featured Brand', badge: 'bg-emerald-500/15 text-emerald-300' },
-  topic: { label: 'Topic', badge: 'bg-zinc-500/15 text-zinc-300' },
+const TYPE_META: Record<string, { label: string; badge: string }> = {
+  video: { label: 'Video', badge: 'bg-blue-500/20 text-blue-300' },
+  short: { label: 'Short', badge: 'bg-purple-500/20 text-purple-300' },
+  live: { label: 'Live', badge: 'bg-red-500/20 text-red-300' },
+  event: { label: 'Event', badge: 'bg-amber-500/20 text-amber-300' },
+  featuredBrand: { label: 'Featured', badge: 'bg-emerald-500/20 text-emerald-300' },
+  topic: { label: 'Topic', badge: 'bg-indigo-500/20 text-indigo-300' },
+};
+
+// Helper for parsing sanity image references or plain strings
+const getImageUrl = (image: any) => {
+  if (!image) return null;
+  if (typeof image === 'string') return image;
+  if (image.asset && image.asset._ref) {
+    const ref = image.asset._ref;
+    const parts = ref.split('-');
+    if (parts.length >= 4) {
+      const ext = parts.pop();
+      const dim = parts.pop();
+      const hash = parts.slice(1).join('-');
+      return `https://cdn.sanity.io/images/38nhxsib/production/${hash}-${dim}.${ext}`;
+    }
+  }
+  return null;
 };
 
 const FILTERS = ['All', 'Videos', 'Shorts', 'Live', 'Events', 'Featured', 'Topics'] as const;
-type Filter = (typeof FILTERS)[number];
+type Filter = (typeof FILTERS)[number] | 'GlobalStatus';
 
 const FILTER_LABELS: Record<Filter, string> = {
   All: 'All Content',
@@ -91,13 +114,14 @@ const FILTER_LABELS: Record<Filter, string> = {
   Events: 'Events',
   Featured: 'Featured Brands',
   Topics: 'Topics',
+  GlobalStatus: 'Global Status',
 };
 
 // Grouped by what these actually are in our local schema - video/short/live
 // are YouTube-sourced content; event/featuredBrand are hand-curated hub
 // pages. Topics are taxonomy nodes.
 const FILTER_GROUPS: { label: string; filters: Filter[] }[] = [
-  { label: 'Content Library', filters: ['Videos', 'Shorts', 'Live'] },
+  { label: 'Content', filters: ['All', 'Videos', 'Shorts', 'Live'] },
   { label: 'Hubs & Pages', filters: ['Events', 'Featured'] },
   { label: 'Taxonomy', filters: ['Topics'] },
 ];
@@ -137,6 +161,10 @@ function makeBlankDoc(type: DocType): Doc {
       logo: '',
       heroImage: '',
       youtubeSyncKeywords: [],
+      videoAssets: [],
+      gallery: [],
+      sponsors: [],
+      pressAssets: [],
     };
   }
   if (type === 'featuredBrand') {
@@ -192,13 +220,15 @@ function makeBlankDoc(type: DocType): Doc {
     // Hand-authored, not sync-derived - lock taxonomy so a later sync run
     // can't quietly overwrite what was typed in here.
     manualTaxonomyOverride: true,
+    videoIds: [],
+    articleUrls: [],
   };
 }
 
 const inputClass =
-  'w-full bg-white/[0.03] text-sm text-gray-200 border border-white/[0.08] rounded-xl px-4 py-3 shadow-inner hover:bg-white/[0.05] focus:outline-none focus:border-red-500/50 focus:bg-white/[0.07] focus:ring-4 focus:ring-red-500/10 transition-all duration-300 placeholder:text-gray-600';
-const textareaClass = `${inputClass} resize-y min-h-[200px] leading-relaxed`;
-const labelClass = 'block text-[11px] font-bold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-gray-400 to-gray-600 mb-2';
+  'block w-full rounded-md border-0 py-2 px-3 bg-[#151515] text-white text-sm ring-1 ring-inset ring-white/10 placeholder:text-gray-600 focus:ring-2 focus:outline-none focus:ring-red-500';
+const textareaClass = `${inputClass} resize-y min-h-[140px] leading-relaxed`;
+const labelClass = 'block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2';
 const sectionClass = 'space-y-6';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -207,6 +237,48 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <label className={labelClass}>{label}</label>
       {children}
     </div>
+  );
+}
+
+function ImageUploadField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+  
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const res = await fetch('/api/local-cms/upload', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('Upload failed');
+      const data = await res.json();
+      onChange(data.url);
+    } catch (err) {
+      alert('Failed to upload image');
+      console.error(err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <Field label={label}>
+      <div className="flex gap-2">
+        <input type="text" value={value || ''} onChange={(e) => onChange(e.target.value)} className={`${inputClass} flex-1`} placeholder="https://... or /uploads/..." />
+        <label className={`flex-none flex items-center justify-center px-4 py-2 text-white font-bold text-xs rounded-xl transition-colors shadow-lg ${uploading ? 'bg-red-800 cursor-wait' : 'bg-red-600 hover:bg-red-500 cursor-pointer'}`}>
+          {uploading ? 'Uploading...' : 'Upload'}
+          <input type="file" accept="image/*" onChange={handleUpload} className="hidden" disabled={uploading} />
+        </label>
+      </div>
+      {value && typeof value === 'string' && !value.startsWith('image-') && (
+        <div className="mt-2">
+          <img src={value} alt="Preview" className="h-20 object-contain rounded-md bg-black/50 border border-white/10 p-1" />
+        </div>
+      )}
+    </Field>
   );
 }
 
@@ -232,13 +304,14 @@ export default function LocalCmsApp() {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('status');
-  const [activeFilter, setActiveFilter] = useState<Filter>('All');
+  const [activeFilter, setActiveFilter] = useState<Filter | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/local-cms/videos')
       .then((res) => res.json())
       .then((data) => {
-        setDocs(data);
+        setDocs(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch((err) => {
@@ -342,13 +415,29 @@ export default function LocalCmsApp() {
     if (selectedId === id) setSelectedId(null);
   };
 
+  const filterCounts = useMemo(() => {
+    let counts = { All: 0, Videos: 0, Shorts: 0, Live: 0, Events: 0, Featured: 0, Topics: 0 };
+    docs.forEach((d) => {
+      const type = d.manualTypeOverride || d._type;
+      if (['video', 'short', 'live'].includes(type as string)) counts.All++;
+      if (type === 'video') counts.Videos++;
+      if (type === 'short') counts.Shorts++;
+      if (type === 'live') counts.Live++;
+      if (type === 'event' || d.manualTypeOverride === 'event') counts.Events++;
+      if (type === 'featuredBrand' || d.featured === true) counts.Featured++;
+      if (type === 'topic') counts.Topics++;
+    });
+    return counts;
+  }, [docs]);
+
   const filteredDocs = useMemo(() => {
     let list = docs.filter(
       (d) => d.title?.toLowerCase().includes(search.toLowerCase()) || d.youtubeId?.includes(search),
     );
-    if (activeFilter !== 'All') {
+    if (activeFilter && activeFilter !== 'GlobalStatus') {
       list = list.filter((d) => {
         const type = d.manualTypeOverride || d._type;
+        if (activeFilter === 'All') return ['video', 'short', 'live'].includes(type as string);
         if (activeFilter === 'Videos') return type === 'video';
         if (activeFilter === 'Shorts') return type === 'short';
         if (activeFilter === 'Live') return type === 'live';
@@ -358,8 +447,34 @@ export default function LocalCmsApp() {
         return true;
       });
     }
+    if (statusFilter) {
+      list = list.filter((d) => {
+        if (d._type === 'topic') return false;
+        const status = d.contentStatus || d.status;
+        if (statusFilter === 'published') return status === 'published' || status === 'live' || status === 'completed';
+        if (statusFilter === 'needs-review') return status === 'needs-review';
+        return status !== 'published' && status !== 'live' && status !== 'completed' && status !== 'needs-review';
+      });
+    }
     return list;
-  }, [docs, search, activeFilter]);
+  }, [docs, search, activeFilter, statusFilter]);
+
+  const statusCounts = useMemo(() => {
+    let published = 0;
+    let needsReview = 0;
+    let other = 0;
+
+    docs.forEach((doc) => {
+      if (doc._type === 'topic') return; // Topics are taxonomy nodes without statuses
+      
+      const status = doc.contentStatus || doc.status;
+      if (status === 'published' || status === 'live' || status === 'completed') published++;
+      else if (status === 'needs-review') needsReview++;
+      else other++; // Drafts, scheduled, missing statuses
+    });
+
+    return { published, needsReview, other };
+  }, [docs]);
 
   if (loading) {
     return <div className="text-gray-400 text-sm p-6">Loading videos.json payload…</div>;
@@ -370,9 +485,46 @@ export default function LocalCmsApp() {
   return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto text-[13px] text-gray-200">
       {/* Save bar - own row, always full width */}
-      <div className="w-full flex flex-wrap gap-4 justify-between items-center bg-black/40 backdrop-blur-2xl p-6 border border-white/10 rounded-2xl z-20 shadow-2xl">
-        <div className="text-sm text-gray-400 font-medium tracking-wide">
-          Managing <span className="font-mono text-white bg-white/10 px-2.5 py-1 rounded-md">{docs.length}</span> documents locally
+      <div className="w-full flex flex-wrap gap-4 justify-between items-center bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl z-20 shadow-2xl" style={{ padding: '1.5rem' }}>
+        <div className="flex flex-col gap-4 flex-1">
+          <div className="text-xl text-white font-black tracking-widest uppercase flex items-center gap-4">
+            MANAGING <span className="font-mono text-white bg-white/10 px-4 py-1.5 rounded-lg border border-white/20 text-2xl leading-none">{docs.length}</span> DOCUMENTS LOCALLY
+          </div>
+          <div className="flex items-stretch gap-3 text-xs font-bold uppercase tracking-widest w-full">
+            {statusCounts.published > 0 && (
+              <button 
+                onClick={() => {
+                  setStatusFilter(statusFilter === 'published' ? null : 'published');
+                  setActiveFilter('GlobalStatus');
+                }}
+                className={`flex-1 px-4 py-2.5 rounded-lg border transition-all duration-200 text-center ${statusFilter === 'published' ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 ring-2 ring-emerald-500/30' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/15'}`}
+              >
+                {statusCounts.published} Published
+              </button>
+            )}
+            {statusCounts.needsReview > 0 && (
+              <button 
+                onClick={() => {
+                  setStatusFilter(statusFilter === 'needs-review' ? null : 'needs-review');
+                  setActiveFilter('GlobalStatus');
+                }}
+                className={`flex-1 px-4 py-2.5 rounded-lg border transition-all duration-200 text-center ${statusFilter === 'needs-review' ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 ring-2 ring-amber-500/30' : 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/15'}`}
+              >
+                {statusCounts.needsReview} Needs Review
+              </button>
+            )}
+            {statusCounts.other > 0 && (
+              <button 
+                onClick={() => {
+                  setStatusFilter(statusFilter === 'other' ? null : 'other');
+                  setActiveFilter('GlobalStatus');
+                }}
+                className={`flex-1 px-4 py-2.5 rounded-lg border transition-all duration-200 text-center ${statusFilter === 'other' ? 'bg-rose-500/20 border-rose-500/50 text-rose-300 ring-2 ring-rose-500/30' : 'bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/15'}`}
+              >
+                {statusCounts.other} Drafts / Other
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-5">
           {message && (
@@ -383,47 +535,38 @@ export default function LocalCmsApp() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-shrink-0 relative overflow-hidden group bg-gradient-to-br from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(220,38,38,0.3)] hover:shadow-[0_0_25px_rgba(220,38,38,0.5)] transform hover:-translate-y-0.5"
+            className="flex-shrink-0 relative group bg-gradient-to-br from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white rounded-xl text-base font-bold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(220,38,38,0.3)] hover:shadow-[0_0_25px_rgba(220,38,38,0.5)] transform hover:-translate-y-0.5"
+            style={{ padding: '1rem 2rem' }}
           >
             <span className="relative z-10">{saving ? 'Saving to disk…' : 'Save to videos.json'}</span>
-            <div className="absolute inset-0 h-full w-full bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
           </button>
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
+      <div className="flex flex-col lg:flex-row gap-3 items-start w-full">
       {/* Structure pane */}
-      <div className="w-full lg:w-64 flex-shrink-0 flex flex-col gap-8 bg-black/20 backdrop-blur-xl rounded-2xl border border-white/[0.08] p-6 lg:h-[75vh] overflow-y-auto shadow-2xl">
-        <div className="flex flex-col gap-6">
-          <div>
-            <div className="px-2 pb-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-              Content
-            </div>
-            <button
-              onClick={() => setActiveFilter('All')}
-              className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
-                activeFilter === 'All' ? 'bg-gradient-to-r from-red-500/20 to-transparent text-white border-l-2 border-red-500 shadow-[inset_0_0_20px_rgba(220,38,38,0.1)]' : 'text-gray-400 hover:bg-white-[0.03] hover:text-white border-l-2 border-transparent'
-              }`}
-            >
-              {FILTER_LABELS.All}
-            </button>
-          </div>
-
-          {FILTER_GROUPS.map((group) => (
-            <div key={group.label}>
-              <div className="px-2 pb-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+      <div className={`${activeFilter || selectedId ? 'hidden lg:flex' : 'flex'} w-full lg:w-64 flex-shrink-0 flex-col bg-[#111214] rounded-lg border border-white/10 lg:h-[75vh] overflow-y-auto`} style={{ paddingTop: '1.5rem', paddingBottom: '1.5rem' }}>
+        <div className="flex flex-col">
+          {FILTER_GROUPS.map((group, index) => (
+            <div key={group.label} className={index > 0 ? "mt-4" : ""} style={{ paddingBottom: '1.5rem' }}>
+              <div className="px-6 pb-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
                 {group.label}
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col">
                 {group.filters.map((filter) => (
                   <button
                     key={filter}
-                    onClick={() => setActiveFilter(filter)}
-                    className={`text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
-                      activeFilter === filter ? 'bg-gradient-to-r from-white/10 to-transparent text-white border-l-2 border-white/50 shadow-[inset_0_0_15px_rgba(255,255,255,0.05)]' : 'text-gray-400 hover:bg-white/[0.03] hover:text-white border-l-2 border-transparent'
+                    onClick={() => { setActiveFilter(filter); setSelectedId(null); }}
+                    className={`w-full text-left px-4 py-4 transition-all duration-200 border-l-2 border-b border-white/10 group ${
+                      activeFilter === filter && !selectedId ? 'bg-white/[0.06] border-l-red-500' : 'hover:bg-white/[0.03] border-l-transparent'
                     }`}
                   >
-                    {FILTER_LABELS[filter]}
+                    <div className="flex items-center justify-between min-h-[54px] w-full">
+                      <span className={`text-sm font-black uppercase tracking-widest ${activeFilter === filter && !selectedId ? 'text-white' : 'text-gray-400 group-hover:text-white'}`}>
+                        {FILTER_LABELS[filter]}
+                      </span>
+                      <span className="text-xs font-bold text-gray-600 bg-white/5 px-2 py-1 rounded-full">{filterCounts[filter as keyof typeof filterCounts]}</span>
+                    </div>
                   </button>
                 ))}
               </div>
@@ -431,41 +574,51 @@ export default function LocalCmsApp() {
           ))}
         </div>
 
-        <div className="border-t border-white/10 pt-6 mt-auto">
-          <div className="px-2 pb-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+        <div className="mt-auto" style={{ paddingTop: '1.5rem' }}>
+          <div className="px-6 pb-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
             Create
           </div>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col">
             {(['video', 'short', 'live', 'event', 'featuredBrand'] as DocType[]).map((type) => (
               <button
                 key={type}
                 onClick={() => createDoc(type)}
-                className="group flex items-center gap-3 text-left px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400 border border-white/5 bg-white/[0.02] hover:border-red-500/30 hover:text-white hover:bg-red-500/5 transition-all duration-300"
+                className="group w-full text-left px-4 py-4 transition-all duration-200 border-l-2 border-l-transparent border-b border-white/10 text-gray-300 hover:bg-white/[0.03] hover:text-white"
               >
-                <div className="flex items-center justify-center w-6 h-6 rounded-md bg-white/5 text-red-400 font-bold group-hover:bg-red-500 group-hover:text-white transition-colors">+</div>
-                New {TYPE_META[type].label}
+                <div className="flex items-center gap-3 min-h-[54px] w-full">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-md bg-white/5 text-red-400 font-bold group-hover:bg-red-500 group-hover:text-white transition-colors flex-shrink-0">+</div>
+                  <span className="font-black uppercase tracking-widest text-sm text-white">New {type === 'featuredBrand' ? 'Featured' : type}</span>
+                </div>
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start w-full lg:flex-1 min-w-0">
+      <div className={`${!activeFilter && !selectedId ? 'hidden' : 'flex'} flex-col lg:flex-row gap-3 items-start w-full lg:flex-1 min-w-0`}>
         {/* Document list pane */}
-        <div className="w-full lg:w-80 flex-shrink-0 bg-black/20 backdrop-blur-xl rounded-2xl border border-white/[0.08] flex flex-col lg:h-[75vh] max-h-[50vh] lg:max-h-none shadow-2xl overflow-hidden">
-          <div className="p-5 border-b border-white/10 bg-black/40">
-            <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        <div className={`${!activeFilter ? 'hidden' : (selectedId ? 'hidden lg:flex' : 'flex')} w-full lg:w-80 flex-shrink-0 bg-[#111214] rounded-lg border border-white/10 flex-col lg:h-[75vh] max-h-[50vh] lg:max-h-none overflow-hidden relative`}>
+          <div className="border-b border-white/10 bg-[#151515] z-10 relative flex items-center gap-3 p-3">
+            <button 
+              onClick={() => setActiveFilter(null)}
+              className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-gray-400 hover:text-white transition-colors flex-shrink-0"
+              title="Back to structure"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <div className="relative flex-1">
+              <svg className="absolute top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" style={{ left: '0.75rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
               <input
                 type="text"
                 placeholder="Search by title or ID…"
-                className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-white text-sm focus:ring-2 focus:ring-red-500/50 focus:bg-white/10 focus:border-red-500/50 transition-all duration-300 outline-none placeholder:text-gray-600"
+                className="w-full bg-white/5 border border-white/10 rounded-xl pr-3 py-2.5 text-white text-sm focus:ring-2 focus:ring-red-500/50 focus:bg-white/10 focus:border-red-500/50 transition-all duration-300 outline-none placeholder:text-gray-600"
+                style={{ paddingLeft: '2.5rem' }}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
           </div>
-          <ul className="divide-y divide-white/[0.04] overflow-y-auto flex-1 custom-scrollbar">
+          <ul className="overflow-y-auto flex-1 min-h-0 custom-scrollbar z-0 relative">
             {filteredDocs.length === 0 && (
               <li className="p-8 flex flex-col items-center justify-center text-gray-500 text-sm gap-3">
                 <svg className="w-8 h-8 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
@@ -477,30 +630,39 @@ export default function LocalCmsApp() {
               return (
                 <li
                   key={doc._id}
-                  className={`px-4 py-4 cursor-pointer transition-all duration-200 border-l-2 ${
-                    selectedId === doc._id ? 'bg-white/[0.06] border-red-500' : 'hover:bg-white/[0.03] border-transparent'
+                  className={`px-4 py-4 cursor-pointer transition-all duration-200 border-l-2 border-b border-white/10 ${
+                    selectedId === doc._id ? 'bg-white/[0.06] border-l-red-500' : 'hover:bg-white/[0.03] border-l-transparent'
                   }`}
                   onClick={() => setSelectedId(doc._id)}
                 >
-                  <div className="flex items-center gap-3.5">
-                    {doc.youtubeId ? (
-                      <div className="relative group">
-                        <img
-                          src={`https://i.ytimg.com/vi/${doc.youtubeId}/mqdefault.jpg`}
-                          alt=""
-                          className="w-16 h-10 object-cover rounded-md bg-gray-900 flex-shrink-0 shadow-md group-hover:shadow-lg transition-shadow"
-                        />
+                  <div 
+                    className={`flex items-center ${meta.label === 'Topic' ? 'min-h-[54px]' : 'gap-3.5'}`}
+                    style={meta.label === 'Topic' ? { paddingLeft: '1.5rem' } : undefined}
+                  >
+                    {meta.label !== 'Topic' && (
+                      <div className="relative group flex-shrink-0">
+                        {doc.youtubeId || getImageUrl(doc.heroImage) || getImageUrl(doc.logo) ? (
+                          <img
+                            src={doc.youtubeId ? `https://i.ytimg.com/vi/${doc.youtubeId}/mqdefault.jpg` : (getImageUrl(doc.heroImage) || getImageUrl(doc.logo) || undefined)}
+                            alt=""
+                            className="w-24 aspect-video object-cover rounded-md bg-gray-900 shadow-md group-hover:shadow-lg transition-shadow"
+                          />
+                        ) : (
+                          <div className="w-24 aspect-video rounded-md bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center text-[10px] text-gray-400 font-bold uppercase text-center leading-tight shadow-inner ring-1 ring-inset ring-white/5">
+                            {meta.label}
+                          </div>
+                        )}
                         <div className="absolute inset-0 ring-1 ring-inset ring-white/10 rounded-md pointer-events-none" />
-                      </div>
-                    ) : (
-                      <div className="w-16 h-10 rounded-md bg-gradient-to-br from-gray-800 to-gray-900 flex-shrink-0 flex items-center justify-center text-[10px] text-gray-400 font-bold uppercase text-center leading-tight shadow-inner ring-1 ring-inset ring-white/5">
-                        {meta.label}
                       </div>
                     )}
                     <div className="min-w-0 space-y-1.5 flex-1">
-                      <p className="text-sm font-semibold text-white truncate leading-tight group-hover:text-red-100 transition-colors">{doc.title || '(untitled)'}</p>
+                      <p className={`text-white truncate leading-tight group-hover:text-red-100 transition-colors ${
+                        meta.label === 'Topic' ? 'text-sm font-black uppercase tracking-widest' : 'text-sm font-semibold'
+                      }`}>{doc.title || '(untitled)'}</p>
                       <div className="flex items-center gap-2">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${meta.badge}`}>{meta.label}</span>
+                        {meta.label !== 'Topic' && (
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${meta.badge}`}>{meta.label}</span>
+                        )}
                         {doc.contentStatus && (
                           <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${doc.contentStatus === 'published' ? 'text-emerald-400' : 'text-amber-400'}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${doc.contentStatus === 'published' ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`}></span>
@@ -517,34 +679,37 @@ export default function LocalCmsApp() {
         </div>
 
         {/* Document pane */}
-        <div className="@container w-full lg:flex-1 min-w-0 bg-black/20 backdrop-blur-xl rounded-2xl border border-white/[0.08] lg:h-[75vh] flex flex-col shadow-2xl relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
+        <div className={`${!selectedId ? 'hidden lg:flex' : 'flex'} flex-col @container w-full lg:flex-1 min-w-0 bg-[#111214] rounded-lg border border-white/10 lg:h-[75vh] relative`}>
           {!selected ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-500 p-8 text-center relative z-10">
-              <div className="w-20 h-20 mb-6 rounded-full bg-white/5 flex items-center justify-center border border-white/10 shadow-[0_0_30px_rgba(255,255,255,0.03)]">
-                <svg
-                  width="40"
-                  height="40"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-gray-400"
-                >
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                  <line x1="3" y1="9" x2="21" y2="9"></line>
-                  <line x1="9" y1="21" x2="9" y2="9"></line>
-                </svg>
-              </div>
-              <p className="text-base font-medium text-gray-300">No document selected</p>
-              <p className="text-sm mt-2 max-w-[250px]">Choose a document from the list or create a new one to start editing.</p>
+            <div className="h-full flex flex-col items-center justify-center text-gray-600 p-6">
+              <svg
+                width="40"
+                height="40"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mb-3 opacity-50"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="3" y1="9" x2="21" y2="9"></line>
+                <line x1="9" y1="21" x2="9" y2="9"></line>
+              </svg>
+              <p className="text-sm">Select a document, or create a new one from the left.</p>
             </div>
           ) : (
             <>
-              <div className="flex items-start justify-between gap-4 p-5 border-b border-white/10 bg-white/[0.02] relative z-10">
-                <div className="min-w-0">
+              <div className="flex items-center gap-3 p-4 border-b border-white/10">
+                <button 
+                  onClick={() => setSelectedId(null)}
+                  className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-gray-400 hover:text-white transition-colors flex-shrink-0"
+                  title="Back to list"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${TYPE_META[selected._type]?.badge}`}>
                       {TYPE_META[selected._type]?.label ?? selected._type}
@@ -583,7 +748,7 @@ export default function LocalCmsApp() {
               </div>
 
 
-              <div className="flex-1 overflow-y-auto p-5 sm:p-6 relative z-10 custom-scrollbar">
+              <div className="flex-1 p-5 sm:p-6">
                 {(selected._type === 'video' || selected._type === 'short' || selected._type === 'live') && (
                   <VideoForm doc={selected} activeTab={activeTab} setActiveTab={setActiveTab} updateDoc={updateDoc} />
                 )}
@@ -607,15 +772,57 @@ export default function LocalCmsApp() {
 }
 
 function TagsInput({ label, value, onChange }: { label: string; value?: string[]; onChange: (v: string[]) => void }) {
+  const [inputValue, setInputValue] = useState('');
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const newTag = inputValue.trim().replace(/,$/, '');
+      if (newTag && !(value || []).includes(newTag)) {
+        onChange([...(value || []), newTag]);
+      }
+      setInputValue('');
+    } else if (e.key === 'Backspace' && inputValue === '' && (value?.length || 0) > 0) {
+      e.preventDefault();
+      onChange((value || []).slice(0, -1));
+    }
+  };
+
+  const removeTag = (indexToRemove: number) => {
+    onChange((value || []).filter((_, i) => i !== indexToRemove));
+  };
+
   return (
     <Field label={label}>
-      <input
-        type="text"
-        value={(value ?? []).join(', ')}
-        onChange={(e) => onChange(e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
-        className={inputClass}
-        placeholder="comma, separated, values"
-      />
+      <div className={`${inputClass} flex flex-wrap gap-2 items-center p-2 min-h-[46px]`}>
+        {(value || []).map((tag, index) => (
+          <span key={index} className="flex items-center gap-1.5 bg-red-500/20 text-red-200 px-2.5 py-1 rounded-md text-xs font-medium border border-red-500/30 shadow-sm">
+            {tag}
+            <button 
+              type="button" 
+              onClick={(e) => { e.preventDefault(); removeTag(index); }}
+              className="text-red-400 hover:text-white transition-colors focus:outline-none bg-black/20 rounded-full w-4 h-4 flex items-center justify-center ml-0.5"
+            >
+              &times;
+            </button>
+          </span>
+        ))}
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={() => {
+            const newTag = inputValue.trim().replace(/,$/, '');
+            if (newTag && !(value || []).includes(newTag)) {
+              onChange([...(value || []), newTag]);
+            }
+            setInputValue('');
+          }}
+          className="flex-1 bg-transparent outline-none min-w-[120px] text-sm text-gray-200 placeholder:text-gray-600"
+          placeholder={(value || []).length === 0 ? "Type and press enter..." : ""}
+        />
+      </div>
     </Field>
   );
 }
@@ -645,6 +852,116 @@ function RelatedMediaArray({ value, onChange }: { value?: { title: string; media
           </div>
         ))}
         <button type="button" onClick={() => onChange([...items, { title: '', mediaType: 'article' }])} className="text-sm text-gray-400 hover:text-white">+ Add Media</button>
+      </div>
+    </Field>
+  );
+}
+
+function VideoAssetsArray({ value, onChange }: { value?: { title: string; url: string }[]; onChange: (v: { title: string; url: string }[]) => void }) {
+  const items = value || [];
+  return (
+    <Field label="Video Assets">
+      <div className="space-y-2">
+        {items.map((item, i) => (
+          <div key={i} className="flex gap-2">
+            <input type="text" value={item.title || ''} onChange={(e) => {
+              const newItems = [...items];
+              newItems[i] = { ...newItems[i], title: e.target.value };
+              onChange(newItems);
+            }} className={`${inputClass} flex-1`} placeholder="Title" />
+            <input type="text" value={item.url || ''} onChange={(e) => {
+              const newItems = [...items];
+              newItems[i] = { ...newItems[i], url: e.target.value };
+              onChange(newItems);
+            }} className={`${inputClass} flex-[2]`} placeholder="YouTube URL" />
+            <button type="button" onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="px-3 py-2 bg-red-900/30 text-red-400 rounded hover:bg-red-900/50">X</button>
+          </div>
+        ))}
+        <button type="button" onClick={() => onChange([...items, { title: '', url: '' }])} className="text-sm text-gray-400 hover:text-white border border-white/10 rounded px-3 py-1">+ Add Video Asset</button>
+      </div>
+    </Field>
+  );
+}
+
+function GalleryArray({ value, onChange }: { value?: { url: string; alt: string }[]; onChange: (v: { url: string; alt: string }[]) => void }) {
+  const items = value || [];
+  return (
+    <Field label="Image Gallery">
+      <div className="space-y-2">
+        {items.map((item, i) => (
+          <div key={i} className="flex gap-2">
+            <input type="text" value={item.url || ''} onChange={(e) => {
+              const newItems = [...items];
+              newItems[i] = { ...newItems[i], url: e.target.value };
+              onChange(newItems);
+            }} className={`${inputClass} flex-1`} placeholder="Image URL" />
+            <input type="text" value={item.alt || ''} onChange={(e) => {
+              const newItems = [...items];
+              newItems[i] = { ...newItems[i], alt: e.target.value };
+              onChange(newItems);
+            }} className={`${inputClass} flex-1`} placeholder="Alt Text" />
+            <button type="button" onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="px-3 py-2 bg-red-900/30 text-red-400 rounded hover:bg-red-900/50">X</button>
+          </div>
+        ))}
+        <button type="button" onClick={() => onChange([...items, { url: '', alt: '' }])} className="text-sm text-gray-400 hover:text-white border border-white/10 rounded px-3 py-1">+ Add Image</button>
+      </div>
+    </Field>
+  );
+}
+
+function SponsorsArray({ value, onChange }: { value?: { name: string; logo: string; url: string }[]; onChange: (v: { name: string; logo: string; url: string }[]) => void }) {
+  const items = value || [];
+  return (
+    <Field label="Sponsor Logos">
+      <div className="space-y-2">
+        {items.map((item, i) => (
+          <div key={i} className="flex gap-2">
+            <input type="text" value={item.name || ''} onChange={(e) => {
+              const newItems = [...items];
+              newItems[i] = { ...newItems[i], name: e.target.value };
+              onChange(newItems);
+            }} className={`${inputClass} flex-1`} placeholder="Name" />
+            <input type="text" value={item.logo || ''} onChange={(e) => {
+              const newItems = [...items];
+              newItems[i] = { ...newItems[i], logo: e.target.value };
+              onChange(newItems);
+            }} className={`${inputClass} flex-1`} placeholder="Logo URL" />
+            <input type="text" value={item.url || ''} onChange={(e) => {
+              const newItems = [...items];
+              newItems[i] = { ...newItems[i], url: e.target.value };
+              onChange(newItems);
+            }} className={`${inputClass} flex-1`} placeholder="Website URL" />
+            <button type="button" onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="px-3 py-2 bg-red-900/30 text-red-400 rounded hover:bg-red-900/50">X</button>
+          </div>
+        ))}
+        <button type="button" onClick={() => onChange([...items, { name: '', logo: '', url: '' }])} className="text-sm text-gray-400 hover:text-white border border-white/10 rounded px-3 py-1">+ Add Sponsor</button>
+      </div>
+    </Field>
+  );
+}
+
+function PressAssetsArray({ value, onChange }: { value?: { label: string; url: string }[]; onChange: (v: { label: string; url: string }[]) => void }) {
+  const items = value || [];
+  return (
+    <Field label="Press Assets">
+      <div className="space-y-2">
+        {items.map((item, i) => (
+          <div key={i} className="flex gap-2">
+            <input type="text" value={item.label || ''} onChange={(e) => {
+              const newItems = [...items];
+              newItems[i] = { ...newItems[i], label: e.target.value };
+              onChange(newItems);
+            }} className={`${inputClass} flex-1`} placeholder="Label (e.g. One-sheet)" />
+            <input type="text" value={item.url || ''} onChange={(e) => {
+              const newItems = [...items];
+              newItems[i] = { ...newItems[i], url: e.target.value };
+              onChange(newItems);
+            }} className={`${inputClass} flex-[2]`} placeholder="File URL" />
+            <button type="button" onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="px-3 py-2 bg-red-900/30 text-red-400 rounded hover:bg-red-900/50">X</button>
+          </div>
+        ))}
+        <button type="button" onClick={() => onChange([...items, { label: '', url: '' }])} className="text-sm text-gray-400 hover:text-white border border-white/10 rounded px-3 py-1">+ Add Press Asset</button>
+
       </div>
     </Field>
   );
@@ -710,12 +1027,12 @@ function VideoForm({
         </Field>
       </div>
 
-      <div className="flex space-x-2 border-b border-white/10 pb-px overflow-x-auto custom-scrollbar">
+      <div className="flex flex-wrap gap-2 border-b border-white/10 pb-2">
         {CONTENT_TABS.map((tab) => (
           <button
             key={tab.id}
-            className={`flex-shrink-0 px-4 py-2.5 text-sm font-bold tracking-wide border-b-2 whitespace-nowrap transition-colors ${
-              activeTab === tab.id ? 'border-red-500 text-red-500' : 'border-transparent text-gray-500 hover:text-gray-300 hover:border-white/30'
+            className={`flex-none px-4 py-2 text-sm font-bold tracking-wide rounded-lg whitespace-nowrap transition-colors ${
+              activeTab === tab.id ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-white/5 text-gray-400 border border-white/5 hover:text-gray-200 hover:bg-white/10'
             }`}
             onClick={() => setActiveTab(tab.id)}
           >
@@ -873,6 +1190,9 @@ function VideoForm({
               value={doc.relatedMedia} 
               onChange={(v) => update('relatedMedia', v)} 
             />
+            
+            <TagsInput label="Legacy Video IDs" value={doc.videoIds} onChange={(v) => update('videoIds', v)} />
+            <TagsInput label="Legacy Article URLs" value={doc.articleUrls} onChange={(v) => update('articleUrls', v)} />
           </div>
         )}
       </div>
@@ -918,7 +1238,14 @@ function EventForm({
           </select>
         </Field>
         <Field label="Event Type">
-          <input type="text" value={doc.eventType || ''} onChange={(e) => update('eventType', e.target.value)} className={inputClass} placeholder="convention" />
+          <select value={doc.eventType || 'convention'} onChange={(e) => update('eventType', e.target.value)} className={inputClass}>
+            <option value="convention">Convention</option>
+            <option value="premiere">Premiere</option>
+            <option value="screening">Screening</option>
+            <option value="festival">Festival</option>
+            <option value="expo">Expo</option>
+            <option value="other">Other</option>
+          </select>
         </Field>
         <Field label="Start Date">
           <input type="date" value={doc.startDate || ''} onChange={(e) => update('startDate', e.target.value)} className={inputClass} />
@@ -958,18 +1285,16 @@ function EventForm({
         <Field label="Brand Color (Hex)">
           <input type="text" value={doc.brandColor?.hex || ''} onChange={(e) => update('brandColor', { hex: e.target.value })} className={inputClass} placeholder="#FF0000" />
         </Field>
-        <Field label="Logo URL">
-          <input type="text" value={typeof doc.logo === 'string' ? doc.logo : ''} onChange={(e) => update('logo', e.target.value)} className={inputClass} placeholder="https://…" />
-          {doc.logo && typeof doc.logo !== 'string' && (
-            <p className="text-xs text-gray-600 mt-1.5">Currently a Sanity asset reference - typing here replaces it with a plain URL.</p>
-          )}
-        </Field>
-        <Field label="Hero Image URL">
-          <input type="text" value={typeof doc.heroImage === 'string' ? doc.heroImage : ''} onChange={(e) => update('heroImage', e.target.value)} className={inputClass} placeholder="https://…" />
-          {doc.heroImage && typeof doc.heroImage !== 'string' && (
-            <p className="text-xs text-gray-600 mt-1.5">Currently a Sanity asset reference - typing here replaces it with a plain URL.</p>
-          )}
-        </Field>
+        <ImageUploadField 
+          label="Logo URL" 
+          value={typeof doc.logo === 'string' ? doc.logo : ''} 
+          onChange={(v) => update('logo', v)} 
+        />
+        <ImageUploadField 
+          label="Hero Image URL" 
+          value={typeof doc.heroImage === 'string' ? doc.heroImage : ''} 
+          onChange={(v) => update('heroImage', v)} 
+        />
       </div>
 
       <div className="mt-5">
@@ -981,6 +1306,14 @@ function EventForm({
 
       <div className="mt-5">
         <TagsInput label="YouTube Sync Keywords (hub auto-tagging)" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
+      </div>
+
+      <div className="mt-10 pt-10 border-t border-white/10 space-y-8">
+        <h3 className={labelClass}>Additional Media & Assets</h3>
+        <VideoAssetsArray value={doc.videoAssets} onChange={(v) => update('videoAssets', v)} />
+        <GalleryArray value={doc.gallery} onChange={(v) => update('gallery', v)} />
+        <SponsorsArray value={doc.sponsors} onChange={(v) => update('sponsors', v)} />
+        <PressAssetsArray value={doc.pressAssets} onChange={(v) => update('pressAssets', v)} />
       </div>
     </div>
   );
@@ -1014,18 +1347,16 @@ function BrandForm({
         <Field label="Trailer URL">
           <input type="text" value={doc.trailerUrl || ''} onChange={(e) => update('trailerUrl', e.target.value)} className={inputClass} placeholder="https://youtube.com/watch?v=…" />
         </Field>
-        <Field label="Logo URL">
-          <input type="text" value={typeof doc.logo === 'string' ? doc.logo : ''} onChange={(e) => update('logo', e.target.value)} className={inputClass} placeholder="https://…" />
-          {doc.logo && typeof doc.logo !== 'string' && (
-            <p className="text-xs text-gray-600 mt-1.5">Currently a Sanity asset reference - typing here replaces it with a plain URL.</p>
-          )}
-        </Field>
-        <Field label="Hero Image URL">
-          <input type="text" value={typeof doc.heroImage === 'string' ? doc.heroImage : ''} onChange={(e) => update('heroImage', e.target.value)} className={inputClass} placeholder="https://…" />
-          {doc.heroImage && typeof doc.heroImage !== 'string' && (
-            <p className="text-xs text-gray-600 mt-1.5">Currently a Sanity asset reference - typing here replaces it with a plain URL.</p>
-          )}
-        </Field>
+        <ImageUploadField 
+          label="Logo URL" 
+          value={typeof doc.logo === 'string' ? doc.logo : ''} 
+          onChange={(v) => update('logo', v)} 
+        />
+        <ImageUploadField 
+          label="Hero Image URL" 
+          value={typeof doc.heroImage === 'string' ? doc.heroImage : ''} 
+          onChange={(v) => update('heroImage', v)} 
+        />
       </div>
 
       <TagsInput label="YouTube Sync Keywords (hub auto-tagging)" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />

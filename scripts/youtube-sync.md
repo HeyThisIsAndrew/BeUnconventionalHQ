@@ -49,7 +49,7 @@ touching editorial curation**.
 | `description` | `snippet.description` |
 | `thumbnailUrl` | best of `snippet.thumbnails` |
 | `durationSeconds` | `contentDetails.duration` (ISO-8601 → seconds) |
-| `isShort` | derived (`durationSeconds` ≤ 60, heuristic) |
+| `isShort` | derived via ping check (`youtube.com/shorts/ID` returns `200`) |
 | `viewCount` | `statistics.viewCount` |
 | `publishedAt` | `snippet.publishedAt` |
 | `youtubeTags` | `snippet.tags` |
@@ -269,8 +269,7 @@ With `--execute`, the trailing line becomes `…committed 100/214`, `…committe
 
 ### Assumptions
 
-- `isShort` is a **heuristic** (`duration ≤ 60s`). Precise Shorts detection
-  requires probing the `/shorts/<id>` URL; not worth the extra requests yet.
+- `isShort` uses a **ping check** to `youtube.com/shorts/ID`. YouTube returns `200 OK` for valid Shorts and `303 Redirect` for standard videos. We no longer use the old `< 60s` heuristic.
 - The channel's full upload history fits comfortably under the daily quota
   (true for a typical creator channel).
 - One channel. Multi-channel would be a small loop over channel ids.
