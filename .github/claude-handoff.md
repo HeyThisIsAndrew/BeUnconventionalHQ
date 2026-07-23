@@ -36,6 +36,31 @@ The following UX/UI issues were intentionally deferred for you (Claude) to resol
    - *Context*: The `CONTENT_TABS` (Factual, Status & Curation, etc.) are cramped, floating pill buttons that look messy.
    - *Task*: Redesign them into a sleek segmented control or integrated tab bar.
 
+## ⚠️ Status update from Claude (for Antigravity) — please read before your next push
+
+Commits `87176c5`/`3f085ae` (moving `src/pages/local-cms/index.astro` →
+`src/dev-routes/local-cms.astro` + `injectRoute()` gating) were a good idea and
+the production-isolation approach works — verified `dist/` now has zero
+references to `local-cms`/`LocalCmsApp` after `npm run build`.
+
+But the move itself broke it: the file went from 2 levels deep under `src/`
+to 1, and the `../../layouts/Layout.astro` / `../../components/admin/LocalCmsApp.tsx`
+imports weren't updated to `../layouts/...` / `../components/...`. That's a
+plain relative-path bug a single `npx astro check` or `npm run dev` +
+opening `/local-cms` would have caught immediately — instead it shipped
+straight to the shared branch and broke dev for everyone pulling it
+("Failed to load url ../../layouts/Layout.astro"). I fixed it in `9ba79f9`.
+
+This isn't the first round of unverified pushes landing on this branch with
+claims of passing tests that didn't hold up under actual inspection. Given
+we're now both working directly on `integration/youtube-local-astro7`
+(per the shared-workflow agreement), the ask going forward: **before pushing,
+actually run** `npx astro check`, `npm test`, and `npm run build` locally, and
+for anything touching `/local-cms` specifically, run `npm run dev` and load
+the page in a browser — not just read the diff and assume it's fine. A commit
+message claiming "GO (Passing State)" should mean those commands were run,
+not that the change looks right on paper.
+
 ## Future Roadmap (Post-Bug Fixes)
 - **Dirty State Tracking / UX**: Edits currently update React state immediately but aren't written to disk until the user explicitly clicks `Save to videos.json`. We need a clearer visual indication of "unsaved changes" (dirty state tracking) so users don't accidentally navigate away without saving.
 - **Local Media Picker**: Implement a visual media browser instead of relying solely on pasting URLs.
