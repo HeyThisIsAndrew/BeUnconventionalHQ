@@ -199,7 +199,7 @@ const viewsString = totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.X
         .pitch-container {
             display: flex;
             align-items: center;
-            gap: 0.2in;
+            gap: 0.1in; /* slightly tighter gap since the image fades */
             margin: 0.1in 0;
         }
 
@@ -210,9 +210,9 @@ const viewsString = totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.X
             background-position: center top;
             background-image: url('/profile.jpg');
             flex-shrink: 0;
-            /* Feathered edges for square photo */
-            -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 72%);
-            mask-image: radial-gradient(circle at center, black 40%, transparent 72%);
+            /* Fade out as it approaches the text on the right */
+            -webkit-mask-image: linear-gradient(to right, black 50%, transparent 100%);
+            mask-image: linear-gradient(to right, black 50%, transparent 100%);
         }
 
         /* -------------------------------------
@@ -225,8 +225,6 @@ const viewsString = totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.X
             font-weight: 600;
             color: rgba(255, 255, 255, 0.9); /* Updated to match hero-subtitle color */
             text-align: left;
-            border-left: 4px solid var(--accent-red);
-            padding-left: 0.2in;
             text-transform: uppercase;
             letter-spacing: 0.1em;
         }
