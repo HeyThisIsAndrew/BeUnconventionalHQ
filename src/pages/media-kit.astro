@@ -1,3 +1,34 @@
+---
+import { createYouTubeClient } from '../lib/platforms/youtube';
+
+// Fetch API Key and Channel ID from environment variables
+const apiKey = import.meta.env.YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY;
+const channelId = import.meta.env.YOUTUBE_CHANNEL_ID || process.env.YOUTUBE_CHANNEL_ID;
+
+let followers = 0;
+let totalViews = 0;
+
+if (apiKey && channelId) {
+  try {
+    const yt = createYouTubeClient({ apiKey });
+    const stats = await yt.getChannelStats(channelId);
+    followers = stats.followers;
+    totalViews = stats.totalViews || 0;
+  } catch (error) {
+    console.error('Failed to fetch YouTube stats for Media Kit:', error);
+  }
+}
+
+// Formatter for numbers like 25.5K
+const compactFormatter = new Intl.NumberFormat('en-US', {
+  notation: 'compact',
+  compactDisplay: 'short',
+  maximumFractionDigits: 1,
+});
+
+const reachString = followers > 0 ? compactFormatter.format(followers) : 'XX.Xk';
+const viewsString = totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.Xk';
+---
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -176,7 +207,7 @@
             height: 1.8in;
             background-size: cover;
             background-position: center top;
-            background-image: url('profile.jpg');
+            background-image: url('/profile.jpg');
             flex-shrink: 0;
             /* Feathered edges for square photo */
             -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 72%);
@@ -188,13 +219,15 @@
            ------------------------------------- */
         .pitch {
             font-family: var(--font-display);
-            font-size: 0.22in;
-            line-height: 1.5;
+            font-size: 0.16in; /* Updated to match hero-subtitle scale */
+            line-height: 1.6;
             font-weight: 600;
-            color: var(--text-main);
+            color: rgba(255, 255, 255, 0.9); /* Updated to match hero-subtitle color */
             text-align: left;
             border-left: 4px solid var(--accent-red);
             padding-left: 0.2in;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
         }
 
         /* -------------------------------------
@@ -360,7 +393,7 @@
         .footer-logo {
             width: 2.5in;
             height: 0.8in;
-            background-image: url('logo.webp');
+            background-image: url('/logo.webp');
             background-size: contain;
             background-repeat: no-repeat;
             background-position: center;
@@ -397,19 +430,17 @@
             <div class="metrics-grid">
                 
                 <div class="metric-card">
-                    <!-- EDIT THIS NUMBER BEFORE EXPORTING -->
-                    <div class="metric-value">XX.Xk</div>
+                    <div class="metric-value">{reachString}</div>
                     <div class="metric-label">Total Network Reach</div>
                 </div>
                 
                 <div class="metric-card">
-                    <!-- EDIT THIS NUMBER BEFORE EXPORTING -->
-                    <div class="metric-value">XX.Xk</div>
-                    <div class="metric-label">Avg. Monthly Views</div>
+                    <div class="metric-value">{viewsString}</div>
+                    <div class="metric-label">Total Channel Views</div>
                 </div>
                 
                 <div class="metric-card">
-                    <!-- EDIT THIS NUMBER BEFORE EXPORTING -->
+                    <!-- Kept static since demographics aren't returned by basic channel API -->
                     <div class="metric-value">XX%</div>
                     <div class="metric-label">Avg. Viewer Retention</div>
                 </div>
@@ -426,12 +457,10 @@
                 <ul class="data-list">
                     <li>
                         <span class="data-label">Age Split (18-34)</span>
-                        <!-- EDIT THIS NUMBER BEFORE EXPORTING -->
                         <span class="data-value">XX%</span>
                     </li>
                     <li>
                         <span class="data-label">Gender (Male / Female)</span>
-                        <!-- EDIT THIS NUMBER BEFORE EXPORTING -->
                         <span class="data-value">XX% / XX%</span>
                     </li>
                     <li>
