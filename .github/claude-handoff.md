@@ -3,7 +3,7 @@
 ## Current Project State & Architecture
 - **Tech Stack**: Astro, React, TailwindCSS.
 - **Key Feature**: Local Content Management System (CMS) located at `src/components/admin/LocalCmsApp.tsx`.
-- **Data Architecture**: The CMS manages `_local_cms_data.json` directly from the filesystem during development, storing nodes (videos, shorts, topics, featuredBrands, events) in an interconnected graph.
+- **Data Architecture**: The CMS manages `src/data/videos.json` directly from the filesystem during development, storing nodes (videos, shorts, topics, featuredBrands, events) in an interconnected graph.
 
 ## Recent Updates & Stability (Go/No-Go)
 The site has undergone rigorous swarm testing, Chaos testing, and E2E simulation.
@@ -29,7 +29,7 @@ The following UX/UI issues were intentionally deferred for you (Claude) to resol
    - *Task*: Redesign `ImageUploadField` to use a flat, dark-mode integrated outline button style.
 
 4. **CONTENT METADATA HAS POOR STYLING NOT USER FRIENDLY**
-   - *Context*: The "Factual (Read-Only)" tab dumps raw text data (Video Metrics, Velocity, Duration) onto the screen without visual hierarchy.
+   - *Context*: Some tabs (like Status & Curation or Core Taxonomy) dump raw data or unstyled fields onto the screen without visual hierarchy.
    - *Task*: Refactor this into a clean dashboard-style card layout using CSS grid and subtle borders.
 
 5. **VIDEOS: TABS ARE POORLY DESIGNED AND TOO CLOSE**
@@ -37,6 +37,6 @@ The following UX/UI issues were intentionally deferred for you (Claude) to resol
    - *Task*: Redesign them into a sleek segmented control or integrated tab bar.
 
 ## Future Roadmap (Post-Bug Fixes)
-- **Dirty State Tracking**: The CMS currently saves immediately on every keystroke. Implement a dirty state tracking mechanism with explicit "Save" buttons.
+- **Dirty State Tracking / UX**: Edits currently update React state immediately but aren't written to disk until the user explicitly clicks `Save to videos.json`. We need a clearer visual indication of "unsaved changes" (dirty state tracking) so users don't accidentally navigate away without saving.
 - **Local Media Picker**: Implement a visual media browser instead of relying solely on pasting URLs.
 - **Strict Draft vs. Published State**: Create distinct UI states for content lifecycle management.
