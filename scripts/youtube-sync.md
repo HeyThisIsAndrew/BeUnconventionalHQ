@@ -1,5 +1,17 @@
 # YouTube → Sanity Sync Pipeline
 
+> ⚠️ **STALE as of the local-JSON pivot (epic #34).** Everything below
+> describes the old pipeline: `scripts/sync-youtube.mjs` writing to Sanity
+> via a write token, with review happening in the Sanity Studio. The current
+> script writes straight to `src/data/videos.json` on disk — no Sanity
+> writes, no `SANITY_WRITE_TOKEN`, no Studio review step, no chunked
+> commits. Review happens in `/local-cms` (dev-only). For the accurate,
+> verified-against-actual-code version of this pipeline, see
+> `scripts/youtube-automation-test-plan.md` and hard rule 5 in `CLAUDE.md`.
+> This file is kept for historical Google Cloud / API-key setup steps (§
+> "Google Cloud Setup" below is still accurate) but should be rewritten or
+> deleted rather than trusted as-is.
+
 Operator and maintainer guide for the video ingestion pipeline (#21, Increment 2).
 
 ---

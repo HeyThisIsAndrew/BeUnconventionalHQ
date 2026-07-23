@@ -1,0 +1,102 @@
+# Automated YouTube -> videos.json sync.
+#
+# Closes the loop that ticket #36 promised and never built: upload + tag a
+# video on YouTube, and it shows up on the site without anyone touching a
+# keyboard. This workflow just automates running `npm run sync -- --execute`
+# on a schedule and committing the result if anything changed — it does NOT
+# change the auto-publish rules themselves. Those already live in
+# scripts/sync-youtube.mjs (planVideoSync): a video only auto-publishes if
+# its YouTube tags produce a clean Tier-1 topic match; anything else lands in
+# contentStatus: "needs-review" and stays invisible on the site until a human
+# promotes it in the Local CMS. This workflow deliberately does not touch
+# that gate.
+#
+# Quota cost per run is tiny: collectUploadIds -> channels.list (1 unit) +
+# playlistItems.list (1 unit/page of 50), then videos.list (1 unit per 50
+# ids). A full-channel run costs low single/double-digit units against a
+# 10,000/day free-tier quota, so the cron interval below is intentionally
+# tight — see the header comment for how to make it tighter around a live
+# event without quota risk. Cloudflare *build* minutes are the actual
+# constrained resource, which is why this job only commits (and therefore
+# only triggers a redeploy) when videos.json actually changed.
+#
+# INERT UNTIL CONFIGURED: if YOUTUBE_API_KEY/YOUTUBE_CHANNEL_ID secrets are
+# absent, the job logs a skip and exits green (same convention as
+# daily-rebuild.yml).
+#
+# Cron schedules only fire for workflows on the repo's default branch, so
+# this stays fully dormant on integration/feature branches — safe to merge
+# and test via workflow_dispatch before it's ever live on a schedule.
+name: Sync YouTube videos
+
+on:
+  schedule:
+    # Every 15 minutes. Tune tighter (e.g. */5) temporarily during a live
+    # event by editing this cron and pushing to main — quota is not the
+    # constraint (see header), only how fresh you need it.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      execute:
+        description: 'Write videos.json (uncheck for a dry-run preview only)'
+        type: boolean
+        default: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check secrets configured
+        id: check
+        env:
+          HAS_KEY: ${{ secrets.YOUTUBE_API_KEY != '' }}
+          HAS_CHANNEL: ${{ secrets.YOUTUBE_CHANNEL_ID != '' }}
+        run: |
+          if [ "$HAS_KEY" != "true" ] || [ "$HAS_CHANNEL" != "true" ]; then
+            echo "YOUTUBE_API_KEY / YOUTUBE_CHANNEL_ID not configured — skipping (see workflow header to activate)."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.configured == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.configured == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.check.outputs.configured == 'true'
+        run: npm ci
+
+      - name: Run sync
+        if: steps.check.outputs.configured == 'true'
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.execute }}" = "false" ]; then
+            npm run sync
+          else
+            npm run sync -- --execute
+          fi
+
+      - name: Commit and push if videos.json changed
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          if git diff --quiet -- src/data/videos.json; then
+            echo "No changes — nothing to sync."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/data/videos.json
+          git commit -m "chore: automated YouTube sync
+
+Synced by the sync-youtube.yml workflow (run ${{ github.run_id }})."
+          git push origin HEAD:${{ github.ref }}
