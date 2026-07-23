@@ -268,7 +268,7 @@ function ImageUploadField({ label, value, onChange }: { label: string; value: st
     <Field label={label}>
       <div className="flex gap-2">
         <input type="text" value={value || ''} onChange={(e) => onChange(e.target.value)} className={`${inputClass} flex-1`} placeholder="https://... or /uploads/..." />
-        <label className={`flex-none flex items-center justify-center px-4 py-2 text-white font-bold text-xs rounded-xl transition-colors shadow-lg ${uploading ? 'bg-red-800 cursor-wait' : 'bg-red-600 hover:bg-red-500 cursor-pointer'}`}>
+        <label className={`flex-none flex items-center justify-center px-3 py-2 text-xs font-bold rounded-lg border transition-colors ${uploading ? 'text-gray-500 border-white/5 bg-white/5 cursor-wait' : 'text-gray-300 border-white/10 bg-white/5 hover:text-white hover:border-white/20 hover:bg-white/10 cursor-pointer'}`}>
           {uploading ? 'Uploading...' : 'Upload'}
           <input type="file" accept="image/*" onChange={handleUpload} className="hidden" disabled={uploading} />
         </label>
@@ -410,6 +410,18 @@ export default function LocalCmsApp() {
   const deleteDoc = (id: string) => {
     const doc = docs.find((d) => d._id === id);
     if (!doc) return;
+    // Tier-1 topics and Uncategorized are load-bearing: sync-youtube.mjs's
+    // taxonomy dictionary is rebuilt from whatever topic docs exist here
+    // once they're seeded, and 'uncategorized' is the hardcoded fallback
+    // every unmatched video lands in. Deleting one of these doesn't crash
+    // anything, but silently degrades tagging accuracy for every future
+    // sync (e.g. delete "Film" and every "film"/"movie" keyword match
+    // quietly falls through to Uncategorized instead) - worth blocking
+    // outright rather than a confirm() a user can click through.
+    if (doc._type === 'topic' && (doc.isTier1Category || doc._id === 'topic-uncategorized')) {
+      alert(`"${doc.title}" is a fixed Tier-1 category that sync-youtube.mjs's taxonomy depends on. Deleting it won't crash anything, but future syncs will silently mis-tag videos that would have matched it. Edit its keywords instead of deleting it.`);
+      return;
+    }
     if (!confirm(`Delete "${doc.title}"? This can't be undone until you Save, but it's gone from this session either way.`)) return;
     setDocs((prev) => prev.filter((d) => d._id !== id));
     if (selectedId === id) setSelectedId(null);
@@ -796,12 +808,12 @@ function TagsInput({ label, value, onChange }: { label: string; value?: string[]
     <Field label={label}>
       <div className={`${inputClass} flex flex-wrap gap-2 items-center p-2 min-h-[46px]`}>
         {(value || []).map((tag, index) => (
-          <span key={index} className="flex items-center gap-1.5 bg-red-500/20 text-red-200 px-2.5 py-1 rounded-md text-xs font-medium border border-red-500/30 shadow-sm">
-            {tag}
-            <button 
-              type="button" 
+          <span key={index} className="flex items-center gap-1.5 max-w-full min-w-0 bg-red-500/20 text-red-200 px-2.5 py-1 rounded-md text-xs font-medium border border-red-500/30 shadow-sm">
+            <span className="break-words min-w-0">{tag}</span>
+            <button
+              type="button"
               onClick={(e) => { e.preventDefault(); removeTag(index); }}
-              className="text-red-400 hover:text-white transition-colors focus:outline-none bg-black/20 rounded-full w-4 h-4 flex items-center justify-center ml-0.5"
+              className="flex-shrink-0 text-red-400 hover:text-white transition-colors focus:outline-none bg-black/20 rounded-full w-4 h-4 flex items-center justify-center ml-0.5"
             >
               &times;
             </button>
