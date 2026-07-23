@@ -172,8 +172,9 @@ export default defineConfig({
       // /admin is the embedded Sanity Studio (injected by studioBasePath) —
       // a CMS interface must never be advertised to search engines.
       // /local-cms is the dev-only Local CMS admin route — same reasoning.
+      // /media-kit is a direct-share-only PDF route.
       filter: (page) =>
-        !page.includes('/links') && !page.includes('/admin') && !page.includes('/local-cms'),
+        !page.includes('/links') && !page.includes('/admin') && !page.includes('/local-cms') && !page.includes('/media-kit'),
     }),
     sanity({
       projectId: '38nhxsib',
