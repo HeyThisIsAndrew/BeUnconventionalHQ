@@ -17,6 +17,21 @@ import localVideos from '../data/videos.json';
 const SANITY_PROJECT = { projectId: '38nhxsib', dataset: 'production' };
 const builder = createImageUrlBuilder(SANITY_PROJECT);
 
+/**
+ * Sanity asset ids are self-describing: `image-<hash>-<W>x<H>-<ext>`. The
+ * Local CMS's upload endpoint (astro.config.mjs) now uploads straight to
+ * Sanity and stores this bare id string as the field value (not a resolved
+ * URL, not a full asset-reference object) - keeps videos.json diffable and
+ * ImageUploadField's value contract a plain string. Detecting the shape here
+ * is what lets a bare ref resolve through urlFor() *and* keep CLS dimensions,
+ * identical to how a real frozen-export Sanity asset reference object does.
+ */
+const SANITY_IMAGE_REF_RE = /^image-[a-f0-9]+-\d+x\d+-\w+$/i;
+
+export function isSanityImageRef(value: unknown): value is string {
+  return typeof value === 'string' && SANITY_IMAGE_REF_RE.test(value);
+}
+
 /** Chainable no-op matching ImageUrlBuilder's fluent API, for plain URLs. */
 function plainUrlBuilder(url: string) {
   const chain: any = {
@@ -29,6 +44,7 @@ function plainUrlBuilder(url: string) {
 }
 
 export function urlFor(source: any) {
+  if (isSanityImageRef(source)) return builder.image({ asset: { _ref: source } });
   if (typeof source === 'string') return plainUrlBuilder(source);
   return builder.image(source);
 }
@@ -37,11 +53,11 @@ export function urlFor(source: any) {
  * Sanity image asset _refs are self-describing: `image-<hash>-<W>x<H>-<ext>`.
  * That lets us reserve the image box (CLS) without dereferencing
  * asset->metadata.dimensions the way the old GROQ projections did. Plain
- * URL strings (Local-CMS-created docs) have no embedded dimensions - callers
+ * URL strings (arbitrary external URLs) have no embedded dimensions - callers
  * fall back to an unconstrained box, same as any doc with no logo at all.
  */
 function imageDimensions(source: any): { width: number; height: number; aspectRatio: number } | null {
-  const ref = source?.asset?._ref;
+  const ref = isSanityImageRef(source) ? source : source?.asset?._ref;
   if (typeof ref !== 'string') return null;
   const match = /-(\d+)x(\d+)-/.exec(ref);
   if (!match) return null;
@@ -52,9 +68,15 @@ function imageDimensions(source: any): { width: number; height: number; aspectRa
 }
 
 function withDimensions(source: any): any {
-  // Plain URL strings (Local-CMS-created docs) carry no embedded dimensions -
-  // pass through unchanged rather than spreading string characters as keys.
-  if (!source || typeof source === 'string') return source;
+  if (!source) return source;
+  // Bare Sanity ref string from the Local CMS upload endpoint - promote to
+  // the same {asset:{_ref}} shape a real frozen-export doc already has, so
+  // urlFor() and .dimensions.aspectRatio work identically either way.
+  if (isSanityImageRef(source)) return { asset: { _ref: source }, dimensions: imageDimensions(source) };
+  // Arbitrary external URL string (hand-pasted, not uploaded) carries no
+  // embedded dimensions - pass through unchanged rather than spreading
+  // string characters as keys.
+  if (typeof source === 'string') return source;
   return { ...source, dimensions: imageDimensions(source) };
 }
 

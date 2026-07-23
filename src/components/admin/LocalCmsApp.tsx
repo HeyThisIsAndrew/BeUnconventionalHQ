@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { urlFor } from '../../lib/local-content.ts';
 
 type DocType = 'video' | 'short' | 'live' | 'event' | 'featuredBrand' | 'topic';
 
@@ -246,18 +247,31 @@ function ImageUploadField({ label, value, onChange }: { label: string; value: st
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     setUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    
     try {
-      const res = await fetch('/api/local-cms/upload', { method: 'POST', body: formData });
-      if (!res.ok) throw new Error('Upload failed');
+      // Base64 data URL, not FormData - the dev-server middleware
+      // (astro.config.mjs) reads a JSON {filename, data} body.
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+      const res = await fetch('/api/local-cms/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: file.name, data: dataUrl }),
+      });
       const data = await res.json();
-      onChange(data.url);
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      // Bare Sanity asset ref ("image-<hash>-<W>x<H>-<ext>"), not a resolved
+      // URL - urlFor() (used below for the preview, and by every page that
+      // renders this field) knows how to turn it into a real cdn.sanity.io
+      // URL with CLS dimensions, same as a real frozen-export asset reference.
+      onChange(data.ref);
     } catch (err) {
-      alert('Failed to upload image');
+      alert(err instanceof Error ? err.message : 'Failed to upload image');
       console.error(err);
     } finally {
       setUploading(false);
@@ -267,15 +281,15 @@ function ImageUploadField({ label, value, onChange }: { label: string; value: st
   return (
     <Field label={label}>
       <div className="flex gap-2">
-        <input type="text" value={value || ''} onChange={(e) => onChange(e.target.value)} className={`${inputClass} flex-1`} placeholder="https://... or /uploads/..." />
+        <input type="text" value={value || ''} onChange={(e) => onChange(e.target.value)} className={`${inputClass} flex-1`} placeholder="https://... or Upload below" />
         <label className={`flex-none flex items-center justify-center px-3 py-2 text-xs font-bold rounded-lg border transition-colors ${uploading ? 'text-gray-500 border-white/5 bg-white/5 cursor-wait' : 'text-gray-300 border-white/10 bg-white/5 hover:text-white hover:border-white/20 hover:bg-white/10 cursor-pointer'}`}>
           {uploading ? 'Uploading...' : 'Upload'}
           <input type="file" accept="image/*" onChange={handleUpload} className="hidden" disabled={uploading} />
         </label>
       </div>
-      {value && typeof value === 'string' && !value.startsWith('image-') && (
+      {value && typeof value === 'string' && (
         <div className="mt-2">
-          <img src={value} alt="Preview" className="h-20 object-contain rounded-md bg-black/50 border border-white/10 p-1" />
+          <img src={urlFor(value).width(400).url()} alt="Preview" className="h-20 object-contain rounded-md bg-black/50 border border-white/10 p-1" />
         </div>
       )}
     </Field>

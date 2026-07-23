@@ -8,6 +8,11 @@ import cloudflare from '@astrojs/cloudflare';
 import sanity from '@sanity/astro';
 import react from '@astrojs/react';
 import partytown from '@astrojs/partytown';
+import { createClient } from '@sanity/client';
+
+// Same project the Studio and urlFor() already point at (src/lib/local-content.ts).
+const SANITY_PROJECT_ID = '38nhxsib';
+const SANITY_DATASET = 'production';
 
 // Dev-only Local CMS backing store: GET/POST src/data/videos.json straight off
 // disk. Only wired into the Vite DEV server (configureServer never runs for
@@ -47,11 +52,19 @@ function localCmsMiddleware() {
         next();
       });
 
+      // Uploads straight to Sanity's asset store (already the image host for
+      // every existing event/featuredBrand doc - see urlFor() in
+      // local-content.ts) instead of public/uploads/, which is gitignored by
+      // design (dev-only tool, must never ship image files into the repo) and
+      // therefore could never actually serve an uploaded image in production.
+      // Returns the bare asset id ("image-<hash>-<W>x<H>-<ext>") - a plain
+      // string, kept out of resolving it to a CDN URL here so urlFor() stays
+      // the single place that happens, same as every other image on the site.
       server.middlewares.use('/api/local-cms/upload', /** @param {import('http').IncomingMessage} req @param {import('http').ServerResponse} res @param {Function} next */ (req, res, next) => {
         if (req.method === 'POST') {
           let body = '';
           req.on('data', /** @param {Buffer} chunk */ chunk => body += chunk);
-          req.on('end', () => {
+          req.on('end', async () => {
             try {
               const parsed = JSON.parse(body);
               if (!parsed.filename || !parsed.data) {
@@ -59,20 +72,24 @@ function localCmsMiddleware() {
               }
               const base64Data = parsed.data.split(',')[1];
               if (!base64Data) throw new Error('Invalid base64');
-              
               const buffer = Buffer.from(base64Data, 'base64');
-              const fileName = `${Date.now()}-${parsed.filename.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-              const uploadDir = path.resolve(process.cwd(), 'public/uploads');
-              
-              if (!fs.existsSync(uploadDir)) {
-                fs.mkdirSync(uploadDir, { recursive: true });
+
+              const token = process.env.SANITY_WRITE_TOKEN;
+              if (!token) {
+                throw new Error('SANITY_WRITE_TOKEN is not set in .env - required to upload images via the Local CMS. See .env.example.');
               }
-              
-              const dest = path.join(uploadDir, fileName);
-              fs.writeFileSync(dest, buffer);
-              
+
+              const client = createClient({
+                projectId: SANITY_PROJECT_ID,
+                dataset: SANITY_DATASET,
+                token,
+                apiVersion: '2024-03-01',
+                useCdn: false,
+              });
+              const asset = await client.assets.upload('image', buffer, { filename: parsed.filename });
+
               res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ url: `/uploads/${fileName}` }));
+              res.end(JSON.stringify({ ref: asset._id }));
             } catch (err) {
               res.statusCode = 500;
               res.setHeader('Content-Type', 'application/json');
