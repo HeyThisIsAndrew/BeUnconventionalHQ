@@ -17,36 +17,38 @@ function localCmsMiddleware() {
     name: 'local-cms-api',
     /** @param {import('vite').ViteDevServer} server */
     configureServer(server) {
-      server.middlewares.use('/api/local-cms', /** @param {import('http').IncomingMessage} req @param {import('http').ServerResponse} res @param {Function} next */ (req, res, next) => {
+      server.middlewares.use('/api/local-cms/videos', /** @param {import('http').IncomingMessage} req @param {import('http').ServerResponse} res @param {Function} next */ (req, res, next) => {
         const filePath = path.resolve(process.cwd(), 'src/data/videos.json');
-        if (req.url === '/videos' || req.url === '/videos/') {
-          if (req.method === 'GET') {
-            res.setHeader('Content-Type', 'application/json');
-            res.end(fs.readFileSync(filePath, 'utf-8'));
-            return;
-          }
-          if (req.method === 'POST') {
-            let body = '';
-            req.on('data', /** @param {Buffer} chunk */ chunk => body += chunk);
-            req.on('end', () => {
-              try {
-                JSON.parse(body);
-              } catch (err) {
-                res.statusCode = 400;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ success: false, error: 'Invalid JSON, videos.json left untouched.' }));
-                return;
-              }
-              const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-              fs.writeFileSync(tmpPath, body, 'utf-8');
-              fs.renameSync(tmpPath, filePath);
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ success: true }));
-            });
-            return;
-          }
+        if (req.method === 'GET') {
+          res.setHeader('Content-Type', 'application/json');
+          res.end(fs.readFileSync(filePath, 'utf-8'));
+          return;
         }
-        if (req.url === '/upload' && req.method === 'POST') {
+        if (req.method === 'POST') {
+          let body = '';
+          req.on('data', /** @param {Buffer} chunk */ chunk => body += chunk);
+          req.on('end', () => {
+            try {
+              JSON.parse(body);
+            } catch (err) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: 'Invalid JSON, videos.json left untouched.' }));
+              return;
+            }
+            const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+            fs.writeFileSync(tmpPath, body, 'utf-8');
+            fs.renameSync(tmpPath, filePath);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true }));
+          });
+          return;
+        }
+        next();
+      });
+
+      server.middlewares.use('/api/local-cms/upload', /** @param {import('http').IncomingMessage} req @param {import('http').ServerResponse} res @param {Function} next */ (req, res, next) => {
+        if (req.method === 'POST') {
           let body = '';
           req.on('data', /** @param {Buffer} chunk */ chunk => body += chunk);
           req.on('end', () => {

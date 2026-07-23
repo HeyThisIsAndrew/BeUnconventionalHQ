@@ -10,7 +10,7 @@ The site has undergone rigorous swarm testing, Chaos testing, and E2E simulation
 **Status: GO (Passing State).**
 - All critical UI overlapping bugs on the left/middle column of the CMS have been resolved.
 - Left row heights perfectly match the middle row heights.
-- React crash risks (e.g. invalid JSON arrays returned from the API) have been self-healed.
+- Fixed a regression in `astro.config.mjs` where Vite middleware mounting caused the `/api/local-cms/videos` JSON fetch to return a 404/HTML error, resulting in an empty CMS. The API now correctly returns `videos.json` data.
 - Build successfully passes `astro check`.
 
 ## 🐛 KNOWN BUGS FOR CLAUDE TO FIX
