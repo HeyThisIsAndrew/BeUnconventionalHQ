@@ -499,39 +499,39 @@ export default function LocalCmsApp() {
       {/* Save bar - own row, always full width */}
       <div className="w-full flex flex-wrap gap-4 justify-between items-center bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl z-20 shadow-2xl" style={{ padding: '1.5rem' }}>
         <div className="flex flex-col gap-4 flex-1">
-          <div className="text-xl text-white font-black tracking-widest uppercase flex items-center gap-4">
+          <div className="text-xl text-white font-black tracking-widest uppercase flex flex-wrap items-center gap-4">
             MANAGING <span className="font-mono text-white bg-white/10 px-4 py-1.5 rounded-lg border border-white/20 text-2xl leading-none">{docs.length}</span> DOCUMENTS LOCALLY
           </div>
-          <div className="flex items-stretch gap-3 text-xs font-bold uppercase tracking-widest w-full">
+          <div className="flex flex-wrap items-stretch gap-3 text-xs font-bold uppercase tracking-widest w-full">
             {statusCounts.published > 0 && (
-              <button 
+              <button
                 onClick={() => {
                   setStatusFilter(statusFilter === 'published' ? null : 'published');
                   setActiveFilter('GlobalStatus');
                 }}
-                className={`flex-1 px-4 py-2.5 rounded-lg border transition-all duration-200 text-center ${statusFilter === 'published' ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 ring-2 ring-emerald-500/30' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/15'}`}
+                className={`flex-1 min-w-[120px] px-4 py-2.5 rounded-lg border transition-all duration-200 text-center ${statusFilter === 'published' ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 ring-2 ring-emerald-500/30' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/15'}`}
               >
                 {statusCounts.published} Published
               </button>
             )}
             {statusCounts.needsReview > 0 && (
-              <button 
+              <button
                 onClick={() => {
                   setStatusFilter(statusFilter === 'needs-review' ? null : 'needs-review');
                   setActiveFilter('GlobalStatus');
                 }}
-                className={`flex-1 px-4 py-2.5 rounded-lg border transition-all duration-200 text-center ${statusFilter === 'needs-review' ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 ring-2 ring-amber-500/30' : 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/15'}`}
+                className={`flex-1 min-w-[120px] px-4 py-2.5 rounded-lg border transition-all duration-200 text-center ${statusFilter === 'needs-review' ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 ring-2 ring-amber-500/30' : 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/15'}`}
               >
                 {statusCounts.needsReview} Needs Review
               </button>
             )}
             {statusCounts.other > 0 && (
-              <button 
+              <button
                 onClick={() => {
                   setStatusFilter(statusFilter === 'other' ? null : 'other');
                   setActiveFilter('GlobalStatus');
                 }}
-                className={`flex-1 px-4 py-2.5 rounded-lg border transition-all duration-200 text-center ${statusFilter === 'other' ? 'bg-rose-500/20 border-rose-500/50 text-rose-300 ring-2 ring-rose-500/30' : 'bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/15'}`}
+                className={`flex-1 min-w-[120px] px-4 py-2.5 rounded-lg border transition-all duration-200 text-center ${statusFilter === 'other' ? 'bg-rose-500/20 border-rose-500/50 text-rose-300 ring-2 ring-rose-500/30' : 'bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/15'}`}
               >
                 {statusCounts.other} Drafts / Other
               </button>
