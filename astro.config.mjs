@@ -132,6 +132,19 @@ export default defineConfig({
       },
     }),
     react(),
+    {
+      name: 'dev-only-routes',
+      hooks: {
+        'astro:config:setup': ({ injectRoute, command }) => {
+          if (command === 'dev') {
+            injectRoute({
+              pattern: '/local-cms',
+              entrypoint: 'src/dev-routes/local-cms.astro'
+            });
+          }
+        }
+      }
+    },
     sitemap({
       // WIP routes are excluded from the sitemap so Google doesn't treat them
       // as canonical destinations. Paired with a noindex meta on the pages
