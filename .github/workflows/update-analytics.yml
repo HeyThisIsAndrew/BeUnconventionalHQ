@@ -2,17 +2,12 @@
 #
 # Runs `npm run refresh-analytics` (scripts/fetch-channel-stats.mjs) directly
 # and commits the result if it changed - same pattern as sync-youtube.yml.
-# Deliberately workflow_dispatch ONLY, no schedule: this used to just ping a
-# Cloudflare deploy hook on a weekly cron and hope the triggered rebuild's
-# build command re-fetched fresh stats. That was indirect - it silently did
-# nothing if Cloudflare's build command didn't happen to chain the fetch -
-# and, worse, meant *any* trigger of a Cloudflare rebuild (including the
-# automatic one Cloudflare runs on every git push to a connected branch)
-# could also fire the underlying OAuth + Analytics API calls, unrelated to
-# this workflow's own schedule entirely. Fire this by hand (Actions tab ->
-# Run workflow, or ask Claude to trigger it) whenever you actually want
-# fresh numbers - see #45 for wiring a recurring cadence back in later if
-# that's ever wanted again, deliberately, not as a side effect of deploys.
+# Runs on a weekly schedule (every Monday at 8AM UTC) and can also be fired
+# manually via workflow_dispatch.
+#
+# This replaces the old Cloudflare Deploy Hook pattern, ensuring we only
+# hit the YouTube Analytics API on a deliberate cadence rather than as a
+# side effect of every code push.
 #
 # Also regenerates the media kit's downloadable PDF (scripts/
 # generate-media-kit-pdf.mjs) so it stays in sync with whatever numbers
@@ -29,6 +24,8 @@ name: Update YouTube Analytics
 
 on:
   workflow_dispatch: {}
+  schedule:
+    - cron: '0 8 * * 1' # Every Monday at 8 AM UTC
 
 jobs:
   refresh-analytics:
