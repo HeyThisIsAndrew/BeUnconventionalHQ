@@ -37,8 +37,10 @@ const compactFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 1,
 });
 
-const igFollowers = sanityStats?.instagram?.followerCount || 337;
-const tiktokFollowers = sanityStats?.tiktok?.followerCount || 534;
+import socialStats from '../data/cache/social-stats.json';
+
+const igFollowers = sanityStats?.instagram?.followerCount || socialStats.instagram?.followerCount || 337;
+const tiktokFollowers = sanityStats?.tiktok?.followerCount || socialStats.tiktok?.followerCount || 534;
 
 const youtubeReachString = followers > 0 ? compactFormatter.format(followers) : 'XX.Xk';
 const viewsString = views30Days > 0 ? compactFormatter.format(views30Days) : (totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.Xk');
