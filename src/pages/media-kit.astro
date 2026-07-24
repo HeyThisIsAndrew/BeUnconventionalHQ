@@ -12,9 +12,13 @@ import logoImage from '../assets/logo.webp';
 const optimizedBg = await getImage({ src: logoImage, format: 'webp', width: 400 });
 
 import channelStats from '../data/cache/channel-stats.json';
+// @ts-ignore - sanity:client is an alias resolved by Astro
+import { sanityClient } from "sanity:client";
 
-let followers = channelStats.followers || 0;
-let totalViews = channelStats.totalViews || 0;
+const sanityStats = await sanityClient.fetch('*[_type == "mediaKitStats"][0]');
+
+let followers = sanityStats?.youtube?.followerCount || channelStats.followers || 0;
+let totalViews = sanityStats?.youtube?.viewCount || channelStats.totalViews || 0;
 let views30Days = channelStats.analytics?.views30Days || 0;
 let impressions = channelStats.analytics?.impressions || 0;
 let ageString = channelStats.analytics?.age18to34Percent > 0 ? Math.round(channelStats.analytics.age18to34Percent) + '%' : 'XX%';
@@ -33,8 +37,8 @@ const compactFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 1,
 });
 
-const igFollowers = 337;
-const tiktokFollowers = 534;
+const igFollowers = sanityStats?.instagram?.followerCount || 337;
+const tiktokFollowers = sanityStats?.tiktok?.followerCount || 534;
 
 const youtubeReachString = followers > 0 ? compactFormatter.format(followers) : 'XX.Xk';
 const viewsString = views30Days > 0 ? compactFormatter.format(views30Days) : (totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.Xk');
