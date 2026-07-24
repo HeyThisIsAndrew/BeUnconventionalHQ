@@ -43,12 +43,11 @@ async function runTests() {
       console.log('No specific close button found, clicking outside or using Escape.');
       await page.keyboard.press('Escape');
     }
-    await new Promise(r => setTimeout(r, 500));
-    
-    const isHidden = await page.evaluate(() => {
+    console.log('Waiting for overlay to hide...');
+    const isHidden = await page.waitForFunction(() => {
       const modal = document.getElementById('category-fullscreen-overlay');
-      return !modal || window.getComputedStyle(modal).display === 'none' || window.getComputedStyle(modal).opacity === '0' || modal.hidden || modal.classList.contains('translate-y-full');
-    });
+      return !modal || !modal.classList.contains('is-open');
+    }, { timeout: 5000 });
     assert.ok(isHidden, 'Category overlay should be hidden after closing');
 
     console.log('✅ Category Modal E2E tests passed.');

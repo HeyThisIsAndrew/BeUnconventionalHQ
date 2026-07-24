@@ -7,6 +7,9 @@
 // family) in the browser's fallback sans-serif.
 import '@fontsource-variable/syne';
 import { site } from '../data/site.js';
+import { Image, getImage } from 'astro:assets';
+import logoImage from '../assets/logo.webp';
+const optimizedBg = await getImage({ src: logoImage, format: 'webp', width: 400 });
 
 import channelStats from '../data/cache/channel-stats.json';
 
@@ -512,7 +515,7 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
         .footer-logo {
             width: 2.5in;
             height: 0.8in;
-            background-image: url('/logo.webp');
+            background-image: var(--bgUrl);
             background-size: contain;
             background-repeat: no-repeat;
             background-position: center;
@@ -678,7 +681,7 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
 
     </style>
 </head>
-<body>
+<body class="mk-body" style={`--bgUrl: url('${optimizedBg.src}')`}>
     <div class="page">
         <div class="container">
         
@@ -868,7 +871,7 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
 
             <!-- Bottom Logo (Centered between social icons and page padding) -->
             <div style="display: flex; justify-content: center;">
-                <img src="/logo.webp" alt="Be Unconventional HQ Logo" style="height: 0.45in; opacity: 0.8;" />
+                <Image src={logoImage} alt="Be Unconventional HQ Logo" style="height: 0.45in; width: auto; opacity: 0.8;" />
             </div>
         </div>
     </div>
