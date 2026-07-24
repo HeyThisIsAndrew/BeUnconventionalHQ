@@ -1,0 +1,22 @@
+name: Update YouTube Analytics
+
+on:
+  schedule:
+    # Runs every Monday at 8:00 AM UTC (approx. 1:00 AM / 4:00 AM in the US)
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+    # Allows you to manually click "Run workflow" in GitHub if needed
+
+jobs:
+  trigger-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Cloudflare Pages Rebuild
+        run: |
+          if [ -z "${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}" ]; then
+            echo "Error: CLOUDFLARE_DEPLOY_HOOK secret is not set!"
+            exit 1
+          fi
+          echo "Pinging Cloudflare Deploy Hook..."
+          curl -X POST "${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}"
+          echo "Success! Cloudflare is rebuilding the site with fresh analytics."
