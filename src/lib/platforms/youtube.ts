@@ -19,11 +19,22 @@ const API_BASE = 'https://www.googleapis.com/youtube/v3';
 
 export interface YouTubeClientOptions {
   apiKey: string;
+  clientId?: string;
+  clientSecret?: string;
+  refreshToken?: string;
   /**
    * Injectable fetch — defaults to the global. Lets tests run offline with a
    * stub, and lets an edge handler pass its runtime fetch if needed.
    */
   fetchImpl?: typeof fetch;
+}
+
+export interface YouTubeAnalytics {
+  retentionPercent: number;
+  age18to34Percent: number;
+  malePercent: number;
+  femalePercent: number;
+  topGeos: string[];
 }
 
 /** Rich, YouTube-specific video model (this is a CONTENT type, not shared). */
@@ -101,7 +112,8 @@ export function pickThumbnail(thumbnails: any): string {
 
 // ── Client factory ───────────────────────────────────────────────────────────
 
-export function createYouTubeClient({ apiKey, fetchImpl }: YouTubeClientOptions) {
+export function createYouTubeClient(opts: YouTubeClientOptions) {
+  const { apiKey, fetchImpl } = opts;
   if (!apiKey) throw new Error('createYouTubeClient: apiKey is required');
   const doFetch = fetchImpl || fetch;
 
@@ -249,6 +261,89 @@ export function createYouTubeClient({ apiKey, fetchImpl }: YouTubeClientOptions)
         return { isLive: true, videoId: item.id.videoId, title: item.snippet?.title };
       }
       return { isLive: false, videoId: null };
+    },
+
+    /**
+     * Fetch private channel analytics like retention, demographics, and top geos.
+     * Requires OAuth parameters to be passed in YouTubeClientOptions.
+     */
+    async getAnalytics(): Promise<YouTubeAnalytics | null> {
+      if (!opts.clientId || !opts.clientSecret || !opts.refreshToken) return null;
+      try {
+        const authRes = await doFetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: opts.clientId,
+            client_secret: opts.clientSecret,
+            refresh_token: opts.refreshToken,
+            grant_type: 'refresh_token'
+          })
+        });
+        const authData = await authRes.json();
+        const access_token = authData.access_token;
+        if (!access_token) return null;
+
+        const today = new Date().toISOString().split('T')[0];
+        const startDate = '2020-01-01'; // Safe baseline for lifetime stats
+
+        const fetchAnalytics = async (params: Record<string, string>) => {
+          const url = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
+          url.searchParams.append('ids', 'channel==MINE');
+          url.searchParams.append('startDate', startDate);
+          url.searchParams.append('endDate', today);
+          for (const [k, v] of Object.entries(params)) {
+             url.searchParams.append(k, v);
+          }
+          const res = await doFetch(url.toString(), { headers: { Authorization: `Bearer ${access_token}` } });
+          return res.json();
+        };
+
+        const [retentionData, demoData, geoData] = await Promise.all([
+          fetchAnalytics({ metrics: 'averageViewPercentage' }),
+          fetchAnalytics({ dimensions: 'ageGroup,gender', metrics: 'viewerPercentage' }),
+          fetchAnalytics({ dimensions: 'country', metrics: 'views', sort: '-views', maxResults: '3' })
+        ]);
+
+        let retentionPercent = 0;
+        if (retentionData?.rows?.[0]?.[0]) {
+           retentionPercent = retentionData.rows[0][0];
+        }
+
+        let age18to34Percent = 0;
+        let malePercent = 0;
+        let femalePercent = 0;
+        if (demoData?.rows) {
+           for (const row of demoData.rows) {
+               const age = row[0];
+               const gender = row[1];
+               const pct = row[2] || 0;
+               if (age === 'age18-24' || age === 'age25-34') {
+                   age18to34Percent += pct;
+               }
+               if (gender === 'male') malePercent += pct;
+               if (gender === 'female') femalePercent += pct;
+           }
+        }
+
+        const topGeos = [];
+        if (geoData?.rows) {
+           for (const row of geoData.rows) {
+               topGeos.push(row[0]);
+           }
+        }
+
+        return {
+           retentionPercent,
+           age18to34Percent,
+           malePercent,
+           femalePercent,
+           topGeos
+        };
+      } catch (err) {
+        console.error("Failed to fetch YouTube analytics", err);
+        return null;
+      }
     },
   };
 }

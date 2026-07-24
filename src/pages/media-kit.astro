@@ -4,16 +4,35 @@ import { createYouTubeClient } from '../lib/platforms/youtube';
 // Fetch API Key and Channel ID from environment variables
 const apiKey = import.meta.env.YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY;
 const channelId = import.meta.env.YOUTUBE_CHANNEL_ID || process.env.YOUTUBE_CHANNEL_ID;
+const clientId = import.meta.env.YOUTUBE_CLIENT_ID || process.env.YOUTUBE_CLIENT_ID;
+const clientSecret = import.meta.env.YOUTUBE_CLIENT_SECRET || process.env.YOUTUBE_CLIENT_SECRET;
+const refreshToken = import.meta.env.YOUTUBE_REFRESH_TOKEN || process.env.YOUTUBE_REFRESH_TOKEN;
 
 let followers = 0;
 let totalViews = 0;
+let retentionString = 'XX%';
+let ageString = 'XX%';
+let genderString = 'XX% / XX%';
+let geosString = 'US, UK, CA';
 
 if (apiKey && channelId) {
   try {
-    const yt = createYouTubeClient({ apiKey });
+    const yt = createYouTubeClient({ apiKey, clientId, clientSecret, refreshToken });
     const stats = await yt.getChannelStats(channelId);
     followers = stats.followers;
     totalViews = stats.totalViews || 0;
+    
+    const analytics = await yt.getAnalytics();
+    if (analytics) {
+      retentionString = analytics.retentionPercent > 0 ? analytics.retentionPercent.toFixed(1) + '%' : 'XX%';
+      ageString = analytics.age18to34Percent > 0 ? Math.round(analytics.age18to34Percent) + '%' : 'XX%';
+      const maleStr = analytics.malePercent > 0 ? Math.round(analytics.malePercent) + '%' : 'XX%';
+      const femaleStr = analytics.femalePercent > 0 ? Math.round(analytics.femalePercent) + '%' : 'XX%';
+      genderString = `${maleStr} / ${femaleStr}`;
+      if (analytics.topGeos.length > 0) {
+        geosString = analytics.topGeos.join(', ');
+      }
+    }
   } catch (error) {
     console.error('Failed to fetch YouTube stats for Media Kit:', error);
   }
@@ -508,14 +527,13 @@ const viewsString = totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.X
                 </div>
                 
                 <div class="metric-card">
-                    <div class="metric-value">{viewsString}</div>
-                    <div class="metric-label">Total Channel Views</div>
+                    <div class="metric-value">{retentionString}</div>
+                    <div class="metric-label">AVG. VIEWER RETENTION</div>
                 </div>
                 
                 <div class="metric-card">
-                    <!-- Kept static since demographics aren't returned by basic channel API -->
-                    <div class="metric-value">XX%</div>
-                    <div class="metric-label">Avg. Viewer Retention</div>
+                    <div class="metric-value">{viewsString}</div>
+                    <div class="metric-label">Total Channel Views</div>
                 </div>
                 
             </div>
@@ -548,18 +566,18 @@ const viewsString = totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.X
             <div>
                 <h2 class="section-title">AUDIENCE INSIGHTS</h2>
                 <ul class="data-list">
-                    <li>
+                    <div class="data-row">
                         <span class="data-label">Age Split (18-34)</span>
-                        <span class="data-value">XX%</span>
-                    </li>
-                    <li>
+                        <span class="data-value">{ageString}</span>
+                    </div>
+                    <div class="data-row">
                         <span class="data-label">Gender (Male / Female)</span>
-                        <span class="data-value">XX% / XX%</span>
-                    </li>
-                    <li>
+                        <span class="data-value">{genderString}</span>
+                    </div>
+                    <div class="data-row" style="border-bottom: none;">
                         <span class="data-label">Top Geos</span>
-                        <span class="data-value">US, UK, CA</span>
-                    </li>
+                        <span class="data-value" style="color: var(--accent-red);">{geosString}</span>
+                    </div>
                 </ul>
             </div>
             
