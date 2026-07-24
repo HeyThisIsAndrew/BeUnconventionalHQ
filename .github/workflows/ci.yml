@@ -1,12 +1,18 @@
-# CI: unit tests + production build on every push and PR.
+# CI: unit tests + production build + Lighthouse gate on every push and PR.
 #
-# Why these two jobs cover what matters:
+# Why these jobs cover what matters:
 # - `npm test` runs the offline suites (events date helpers, live-status,
 #   video merge) — 40 assertions, no credentials, no network.
 # - `astro build` compiles every page. Sanity fetches fail in CI (no token,
 #   and none should ever be added here) — pages try/catch to empty data by
 #   design, so a green build still proves templates, imports, Tailwind, and
 #   the worker bundle all compile.
+# - `npm run lighthouse` (scripts/lighthouse-check.mjs) boots the built
+#   worker via `astro preview` and audits Home/Feed/Events/Featured/About
+#   against a 90% floor across Performance, Accessibility, Best Practices,
+#   and SEO. This is the regression gate for the site's "always 90%+"
+#   Lighthouse goal — it fails the build, not just a dashboard somewhere,
+#   so a slow image or an eager client:load can't merge quietly.
 name: CI
 
 on:
@@ -33,3 +39,14 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      - name: Lighthouse gate (90%+)
+        run: npm run lighthouse
+
+      - name: Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: .lighthouse-reports/
+          retention-days: 14
