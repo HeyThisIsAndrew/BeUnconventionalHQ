@@ -1,3 +1,14 @@
+/**
+ * Refreshes src/data/cache/channel-stats.json from the YouTube Data +
+ * Analytics APIs. Deliberately its own `npm run refresh-analytics` command,
+ * NOT chained into `refresh-content` (which `dev`/`build:live`/`start:full`
+ * all run) - the Analytics half needs an OAuth token exchange plus 7
+ * parallel report queries per run, and running that on every local dev
+ * server start or every build would burn quota fast for no benefit, since
+ * the result is a committed file the build just reads statically. Run this
+ * on demand (locally, or via the "Update YouTube Analytics" GitHub Action's
+ * workflow_dispatch) and commit the result - that's the only trigger.
+ */
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
