@@ -134,4 +134,7 @@ async function runQA() {
   console.log('Finished QA tests.');
 }
 
-runQA().catch(console.error);
+runQA().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

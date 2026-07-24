@@ -30,10 +30,28 @@ function localCmsMiddleware() {
           return;
         }
         if (req.method === 'POST') {
-          let body = '';
-          req.on('data', /** @param {Buffer} chunk */ chunk => body += chunk);
+          /** @type {Buffer[]} */
+          let chunks = [];
+          let totalLength = 0;
+          let tooLarge = false;
+          req.on('data', /** @param {Buffer} chunk */ chunk => {
+            if (tooLarge) return;
+            chunks.push(chunk);
+            totalLength += chunk.length;
+            if (totalLength > 50 * 1024 * 1024) { // 50MB limit
+              tooLarge = true;
+              res.statusCode = 413;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: 'Payload Too Large' }));
+              req.on('error', () => {}); // Catch unhandled destroy errors
+              req.destroy();
+            }
+          });
           req.on('end', () => {
+            if (tooLarge) return;
+            let body = '';
             try {
+              body = Buffer.concat(chunks).toString('utf-8');
               JSON.parse(body);
             } catch (err) {
               res.statusCode = 400;
@@ -62,10 +80,27 @@ function localCmsMiddleware() {
       // the single place that happens, same as every other image on the site.
       server.middlewares.use('/api/local-cms/upload', /** @param {import('http').IncomingMessage} req @param {import('http').ServerResponse} res @param {Function} next */ (req, res, next) => {
         if (req.method === 'POST') {
-          let body = '';
-          req.on('data', /** @param {Buffer} chunk */ chunk => body += chunk);
+          /** @type {Buffer[]} */
+          let chunks = [];
+          let totalLength = 0;
+          let tooLarge = false;
+          req.on('data', /** @param {Buffer} chunk */ chunk => {
+            if (tooLarge) return;
+            chunks.push(chunk);
+            totalLength += chunk.length;
+            if (totalLength > 50 * 1024 * 1024) { // 50MB limit
+              tooLarge = true;
+              res.statusCode = 413;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: 'Payload Too Large' }));
+              req.on('error', () => {}); // Catch unhandled destroy errors
+              req.destroy();
+            }
+          });
           req.on('end', async () => {
+            if (tooLarge) return;
             try {
+              const body = Buffer.concat(chunks).toString('utf-8');
               const parsed = JSON.parse(body);
               if (!parsed.filename || !parsed.data) {
                 throw new Error('Missing filename or data');
@@ -179,7 +214,7 @@ export default defineConfig({
     sanity({
       projectId: '38nhxsib',
       dataset: 'production',
-      useCdn: false, // Set to false to ensure fresh data during development
+      useCdn: process.env.NODE_ENV === 'production', // Set to false in dev for fresh data, true in prod for CDN cache
       apiVersion: '2024-03-01',
       studioBasePath: '/admin',
     }),

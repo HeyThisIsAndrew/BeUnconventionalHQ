@@ -16,7 +16,7 @@ export async function GET({ request }) {
       'www.google-analytics.com',
       'analytics.google.com'
     ];
-    if (!allowedHosts.includes(parsedTarget.hostname)) {
+    if (parsedTarget.protocol !== 'https:' || !allowedHosts.includes(parsedTarget.hostname)) {
       return new Response('Forbidden proxy target', { status: 403 });
     }
   } catch (e) {
@@ -35,12 +35,15 @@ export async function GET({ request }) {
     }
     
     const body = await response.text();
+    const origin = url.origin; // Restrict CORS to our own origin
     return new Response(body, {
       status: 200,
       headers: {
         'Content-Type': response.headers.get('content-type') || 'application/javascript',
         'Cache-Control': 'public, max-age=3600',
-        'Access-Control-Allow-Origin': '*'
+        'Access-Control-Allow-Origin': origin,
+        'X-Content-Type-Options': 'nosniff',
+        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains'
       }
     });
   } catch (error) {

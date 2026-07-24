@@ -88,11 +88,9 @@ await test('getUnifiedVideos: strictly queries using buildPublishedQuery', async
   assert.equal(out[0].title, 'SDCC 2026 Floor Tour');
 });
 
-await test('getUnifiedVideos: Sanity failure never throws', async () => {
+await test('getUnifiedVideos: Sanity failure correctly re-throws', async () => {
   const client = { fetch: async () => { throw new Error('egress blocked'); } };
-  const out = await getUnifiedVideos(client);
-  assert.equal(out.length, 0);
-  assert.deepEqual(out, []);
+  await assert.rejects(async () => await getUnifiedVideos(client), /egress blocked/);
 });
 
 await test('getUnifiedVideos: empty everywhere → empty list', async () => {

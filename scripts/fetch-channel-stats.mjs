@@ -63,6 +63,9 @@ async function fetchStats() {
         grant_type: 'refresh_token',
       }),
     });
+    if (!authRes.ok) {
+      throw new Error(`Auth failed: ${authRes.status} ${await authRes.text()}`);
+    }
     const authData = await authRes.json();
     const access_token = authData.access_token;
 
@@ -81,6 +84,10 @@ async function fetchStats() {
           url.searchParams.append(k, v);
         }
         const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${access_token}` } });
+        if (!res.ok) {
+          const body = await res.text();
+          throw new Error(`Analytics API error: ${res.status} - ${body}`);
+        }
         return res.json();
       };
 
@@ -177,14 +184,22 @@ async function run() {
     console.log(`[channel-stats] Successfully cached channel stats to ${STATS_FILE}`);
   } catch (error) {
     console.error(`[channel-stats] Ingestion failed: ${error.message}`);
-    // Check if file exists, if not write empty object to avoid build crashes
     try {
       await fs.access(STATS_FILE);
       console.log('[channel-stats] Kept existing cache');
     } catch {
-      await fs.writeFile(STATS_FILE, JSON.stringify({}, null, 2));
-      console.log('[channel-stats] Wrote empty cache object');
+      const safeFallback = {
+        followers: 0, totalViews: 0, itemCount: 0, fetchedAt: new Date().toISOString(),
+        analytics: {
+          retentionPercent: 0, age18to34Percent: 0, malePercent: 0, femalePercent: 0,
+          topGeos: [], views30Days: 0, tvViewershipPercent: 0, searchTrafficPercent: 0,
+          unsubscribedPercent: 0, impressions: 0
+        }
+      };
+      await fs.writeFile(STATS_FILE, JSON.stringify(safeFallback, null, 2));
+      console.log('[channel-stats] Wrote safe fallback cache object to prevent NaN crashes');
     }
+    process.exit(1);
   }
 }
 

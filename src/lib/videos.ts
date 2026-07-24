@@ -48,7 +48,7 @@ export interface UnifiedVideo {
 
 /** Published queries. Kept minimal: pages do their own slicing. */
 export function buildPublishedQuery(docType: string = 'video') {
-  return `*[_type == "${docType}" && contentStatus == "published"] | order(publishedAt desc) {
+  return `*[_type == "${docType}" && contentStatus == "published"] | order(publishedAt desc) [0...1000] {
     youtubeId, title, thumbnailUrl, durationSeconds, isShort, isLive, isEvent, publishedAt,
     youtubeTags, "topics": topics[]->slug.current, featured
   }`;
@@ -81,7 +81,7 @@ export function mapSanityVideo(doc: any, { categorize }: MapOptions = {}): Unifi
   const date =
     published && !Number.isNaN(published.getTime())
       ? // Same long form the legacy cache stores ("July 12, 2026").
-        published.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        published.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric', year: 'numeric' })
       : '';
 
   const effectiveType = doc.manualTypeOverride || doc._type || 'video';
@@ -139,6 +139,6 @@ export async function getUnifiedVideos(
       .filter((v): v is UnifiedVideo => v !== null);
   } catch (e) {
     console.error('[videos] Sanity fetch failed.', e);
-    return [];
+    throw e;
   }
 }

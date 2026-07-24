@@ -645,7 +645,9 @@ const trailerId = parseVideoId(trailerUrl);
     }
     evaluate();
     if ((text as any).__ro) (text as any).__ro.disconnect();
-    const ro = new ResizeObserver(() => evaluate());
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(() => evaluate());
+    });
     ro.observe(text);
     (text as any).__ro = ro;
   }
