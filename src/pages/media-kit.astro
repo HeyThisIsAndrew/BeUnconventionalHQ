@@ -13,7 +13,11 @@ let totalViews = 0;
 let retentionString = 'XX%';
 let ageString = 'XX%';
 let genderString = 'XX% / XX%';
-let geosString = 'US, UK, CA';
+let geosString = 'US, GB, IN';
+let views30Days = 0;
+let tvString = 'XX%';
+let searchString = 'XX%';
+let unsubString = 'XX%';
 
 if (apiKey && channelId) {
   try {
@@ -32,6 +36,10 @@ if (apiKey && channelId) {
       if (analytics.topGeos.length > 0) {
         geosString = analytics.topGeos.join(', ');
       }
+      views30Days = analytics.views30Days || 0;
+      tvString = analytics.tvViewershipPercent > 0 ? Math.round(analytics.tvViewershipPercent) + '%' : 'XX%';
+      searchString = analytics.searchTrafficPercent > 0 ? Math.round(analytics.searchTrafficPercent) + '%' : 'XX%';
+      unsubString = analytics.unsubscribedPercent > 0 ? Math.round(analytics.unsubscribedPercent) + '%' : 'XX%';
     }
   } catch (error) {
     console.error('Failed to fetch YouTube stats for Media Kit:', error);
@@ -52,7 +60,7 @@ const totalReach = followers + igFollowers + tiktokFollowers + threadsFollowers;
 
 const totalReachString = totalReach > 0 ? compactFormatter.format(totalReach) : 'XX.Xk';
 const youtubeReachString = followers > 0 ? compactFormatter.format(followers) : 'XX.Xk';
-const viewsString = totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.Xk';
+const viewsString = views30Days > 0 ? compactFormatter.format(views30Days) : (totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.Xk');
 ---
 <!DOCTYPE html>
 <html lang="en">
@@ -391,7 +399,7 @@ const viewsString = totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.X
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 0.1in 0;
+            padding: 0.05in 0;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             font-size: 0.16in;
         }
@@ -401,7 +409,7 @@ const viewsString = totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.X
         }
 
         .data-label {
-            font-size: 0.12in;
+            font-size: 0.10in;
             line-height: 1.5;
             font-weight: 600;
             color: var(--text-main);
@@ -413,7 +421,7 @@ const viewsString = totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.X
         .data-value {
             font-family: var(--font-display);
             font-weight: 800;
-            font-size: 0.12in;
+            font-size: 0.11in;
             color: var(--accent-red);
             white-space: nowrap;
             text-align: right;
@@ -534,7 +542,7 @@ const viewsString = totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.X
                 
                 <div class="metric-card">
                     <div class="metric-value">{viewsString}</div>
-                    <div class="metric-label">Total Channel Views</div>
+                    <div class="metric-label">30-Day Views</div>
                 </div>
                 
             </div>
@@ -574,6 +582,18 @@ const viewsString = totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.X
                     <li>
                         <span class="data-label">Gender (Male / Female)</span>
                         <span class="data-value">{genderString}</span>
+                    </li>
+                    <li>
+                        <span class="data-label">Connected TV</span>
+                        <span class="data-value">{tvString}</span>
+                    </li>
+                    <li>
+                        <span class="data-label">YouTube Search Traffic</span>
+                        <span class="data-value">{searchString}</span>
+                    </li>
+                    <li>
+                        <span class="data-label">Non-Subscribed Reach</span>
+                        <span class="data-value">{unsubString}</span>
                     </li>
                     <li>
                         <span class="data-label">Top Geos</span>

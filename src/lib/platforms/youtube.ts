@@ -35,6 +35,10 @@ export interface YouTubeAnalytics {
   malePercent: number;
   femalePercent: number;
   topGeos: string[];
+  views30Days: number;
+  tvViewershipPercent: number;
+  searchTrafficPercent: number;
+  unsubscribedPercent: number;
 }
 
 /** Rich, YouTube-specific video model (this is a CONTENT type, not shared). */
@@ -284,14 +288,16 @@ export function createYouTubeClient(opts: YouTubeClientOptions) {
         const access_token = authData.access_token;
         if (!access_token) return null;
 
-        const today = new Date().toISOString().split('T')[0];
-        const startDate = '2020-01-01'; // Safe baseline for lifetime stats
+        const todayDate = new Date();
+        const todayStr = todayDate.toISOString().split('T')[0];
+        const thirtyDaysAgo = new Date(todayDate.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const startDateLifetime = '2020-01-01'; // Safe baseline for lifetime stats
 
-        const fetchAnalytics = async (params: Record<string, string>) => {
+        const fetchAnalytics = async (params: Record<string, string>, overrideStart?: string, overrideEnd?: string) => {
           const url = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
           url.searchParams.append('ids', 'channel==MINE');
-          url.searchParams.append('startDate', startDate);
-          url.searchParams.append('endDate', today);
+          url.searchParams.append('startDate', overrideStart || startDateLifetime);
+          url.searchParams.append('endDate', overrideEnd || todayStr);
           for (const [k, v] of Object.entries(params)) {
              url.searchParams.append(k, v);
           }
@@ -299,10 +305,22 @@ export function createYouTubeClient(opts: YouTubeClientOptions) {
           return res.json();
         };
 
-        const [retentionData, demoData, geoData] = await Promise.all([
+        const [
+          retentionData, 
+          demoData, 
+          geoData, 
+          views30DayData, 
+          deviceData, 
+          trafficData, 
+          subData
+        ] = await Promise.all([
           fetchAnalytics({ metrics: 'averageViewPercentage' }),
           fetchAnalytics({ dimensions: 'ageGroup,gender', metrics: 'viewerPercentage' }),
-          fetchAnalytics({ dimensions: 'country', metrics: 'views', sort: '-views', maxResults: '3' })
+          fetchAnalytics({ dimensions: 'country', metrics: 'views', sort: '-views', maxResults: '3' }),
+          fetchAnalytics({ metrics: 'views' }, thirtyDaysAgo, todayStr),
+          fetchAnalytics({ dimensions: 'deviceType', metrics: 'views' }, thirtyDaysAgo, todayStr),
+          fetchAnalytics({ dimensions: 'insightTrafficSourceType', metrics: 'views' }, thirtyDaysAgo, todayStr),
+          fetchAnalytics({ dimensions: 'subscribedStatus', metrics: 'views' }, thirtyDaysAgo, todayStr)
         ]);
 
         let retentionPercent = 0;
@@ -333,12 +351,54 @@ export function createYouTubeClient(opts: YouTubeClientOptions) {
            }
         }
 
+        let views30Days = 0;
+        if (views30DayData?.rows?.[0]?.[0]) {
+           views30Days = views30DayData.rows[0][0];
+        }
+
+        let totalDeviceViews = 0;
+        let tvViews = 0;
+        if (deviceData?.rows) {
+           for (const row of deviceData.rows) {
+               const views = row[1] || 0;
+               totalDeviceViews += views;
+               if (row[0] === 'TV') tvViews += views;
+           }
+        }
+        const tvViewershipPercent = totalDeviceViews > 0 ? (tvViews / totalDeviceViews) * 100 : 0;
+
+        let totalTrafficViews = 0;
+        let searchViews = 0;
+        if (trafficData?.rows) {
+           for (const row of trafficData.rows) {
+               const views = row[1] || 0;
+               totalTrafficViews += views;
+               if (row[0] === 'YT_SEARCH') searchViews += views;
+           }
+        }
+        const searchTrafficPercent = totalTrafficViews > 0 ? (searchViews / totalTrafficViews) * 100 : 0;
+
+        let totalSubViews = 0;
+        let unsubViews = 0;
+        if (subData?.rows) {
+           for (const row of subData.rows) {
+               const views = row[1] || 0;
+               totalSubViews += views;
+               if (row[0] === 'UNSUBSCRIBED') unsubViews += views;
+           }
+        }
+        const unsubscribedPercent = totalSubViews > 0 ? (unsubViews / totalSubViews) * 100 : 0;
+
         return {
            retentionPercent,
            age18to34Percent,
            malePercent,
            femalePercent,
-           topGeos
+           topGeos,
+           views30Days,
+           tvViewershipPercent,
+           searchTrafficPercent,
+           unsubscribedPercent,
         };
       } catch (err) {
         console.error("Failed to fetch YouTube analytics", err);
