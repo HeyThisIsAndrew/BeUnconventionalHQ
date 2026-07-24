@@ -73,7 +73,7 @@ async function fetchStats() {
         return res.json();
       };
 
-      const [retentionData, demoData, geoData, views30DayData, deviceData, trafficData, subData] = await Promise.all([
+      const [retentionData, demoData, geoData, views30DayData, deviceData, trafficData, subData, impressionsData] = await Promise.all([
         fetchAnalytics({ metrics: 'averageViewPercentage' }),
         fetchAnalytics({ dimensions: 'ageGroup,gender', metrics: 'viewerPercentage' }),
         fetchAnalytics({ dimensions: 'country', metrics: 'views', sort: '-views', maxResults: '3' }),
@@ -81,6 +81,10 @@ async function fetchStats() {
         fetchAnalytics({ dimensions: 'deviceType', metrics: 'views' }, thirtyDaysAgo, todayStr),
         fetchAnalytics({ dimensions: 'insightTrafficSourceType', metrics: 'views' }, thirtyDaysAgo, todayStr),
         fetchAnalytics({ dimensions: 'subscribedStatus', metrics: 'views' }, thirtyDaysAgo, todayStr),
+        // Lifetime, matching retention/age/gender's default range - "Total
+        // Impressions" is a from-the-beginning figure, distinct from the
+        // 30-day views card already on the page.
+        fetchAnalytics({ metrics: 'impressions' }),
       ]);
 
       let retentionPercent = retentionData?.rows?.[0]?.[0] || 0;
@@ -130,6 +134,8 @@ async function fetchStats() {
       }
       const unsubscribedPercent = totalSubViews > 0 ? (unsubViews / totalSubViews) * 100 : 0;
 
+      const impressions = impressionsData?.rows?.[0]?.[0] || 0;
+
       result.analytics = {
         retentionPercent,
         age18to34Percent,
@@ -140,6 +146,7 @@ async function fetchStats() {
         tvViewershipPercent,
         searchTrafficPercent,
         unsubscribedPercent,
+        impressions,
       };
     } else {
       console.warn('[channel-stats] Auth failed, skipping analytics');

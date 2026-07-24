@@ -13,7 +13,7 @@ import channelStats from '../data/cache/channel-stats.json';
 let followers = channelStats.followers || 0;
 let totalViews = channelStats.totalViews || 0;
 let views30Days = channelStats.analytics?.views30Days || 0;
-let retentionString = channelStats.analytics?.retentionPercent > 0 ? channelStats.analytics.retentionPercent.toFixed(1) + '%' : 'XX%';
+let impressions = channelStats.analytics?.impressions || 0;
 let ageString = channelStats.analytics?.age18to34Percent > 0 ? Math.round(channelStats.analytics.age18to34Percent) + '%' : 'XX%';
 let maleStr = channelStats.analytics?.malePercent > 0 ? Math.round(channelStats.analytics.malePercent) + '%' : 'XX%';
 let femaleStr = channelStats.analytics?.femalePercent > 0 ? Math.round(channelStats.analytics.femalePercent) + '%' : 'XX%';
@@ -32,12 +32,11 @@ const compactFormatter = new Intl.NumberFormat('en-US', {
 
 const igFollowers = 337;
 const tiktokFollowers = 534;
-const threadsFollowers = 28;
-const totalReach = followers + igFollowers + tiktokFollowers + threadsFollowers;
 
-const totalReachString = totalReach > 0 ? compactFormatter.format(totalReach) : 'XX.Xk';
 const youtubeReachString = followers > 0 ? compactFormatter.format(followers) : 'XX.Xk';
 const viewsString = views30Days > 0 ? compactFormatter.format(views30Days) : (totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.Xk');
+const impressionsString = impressions > 0 ? compactFormatter.format(impressions) : 'XX.Xk';
+const topGeoString = channelStats.analytics?.topGeos?.[0] || 'US';
 ---
 <!DOCTYPE html>
 <html lang="en">
@@ -545,39 +544,35 @@ const viewsString = views30Days > 0 ? compactFormatter.format(views30Days) : (to
             <div class="metrics-grid">
                 
                 <div class="metric-card">
-                    <div class="metric-value">{totalReachString}</div>
-                    <div class="metric-label">Total Network Reach</div>
+                    <div class="metric-value">{impressionsString}</div>
+                    <div class="metric-label">Total Impressions</div>
                 </div>
-                
-                <div class="metric-card">
-                    <div class="metric-value">{retentionString}</div>
-                    <div class="metric-label">AVG. VIEWER RETENTION</div>
-                </div>
-                
+
                 <div class="metric-card">
                     <div class="metric-value">{viewsString}</div>
                     <div class="metric-label">30-Day Views</div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-value">{topGeoString}</div>
+                    <div class="metric-label">Top Geo</div>
                 </div>
                 
             </div>
 
             <!-- Mini Platform Breakdown Mockup -->
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.1in; margin-top: 0.15in; text-align: center;">
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.1in; margin-top: 0.15in; text-align: center;">
                 <div style="border: 1px solid rgba(255,255,255,0.05); padding: 0.1in; background: rgba(255,255,255,0.02);">
                     <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">{youtubeReachString}</div>
                     <div style="font-family: var(--font-body); font-size: 0.08in; color: var(--text-muted); text-transform: uppercase; margin-top: 0.02in;">YOUTUBE SUBS</div>
                 </div>
                 <div style="border: 1px solid rgba(255,255,255,0.05); padding: 0.1in; background: rgba(255,255,255,0.02);">
-                    <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">337</div>
+                    <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">{igFollowers}</div>
                     <div style="font-family: var(--font-body); font-size: 0.08in; color: var(--text-muted); text-transform: uppercase; margin-top: 0.02in;">INSTAGRAM</div>
                 </div>
                 <div style="border: 1px solid rgba(255,255,255,0.05); padding: 0.1in; background: rgba(255,255,255,0.02);">
-                    <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">534</div>
+                    <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">{tiktokFollowers}</div>
                     <div style="font-family: var(--font-body); font-size: 0.08in; color: var(--text-muted); text-transform: uppercase; margin-top: 0.02in;">TIKTOK</div>
-                </div>
-                <div style="border: 1px solid rgba(255,255,255,0.05); padding: 0.1in; background: rgba(255,255,255,0.02);">
-                    <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">28</div>
-                    <div style="font-family: var(--font-body); font-size: 0.08in; color: var(--text-muted); text-transform: uppercase; margin-top: 0.02in;">THREADS</div>
                 </div>
             </div>
         </div>
