@@ -56,10 +56,10 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response('Invalid signature', { status: 403 });
   }
 
-  // Optional: check if body contains <yt:videoId>
-  if (!textBody.includes('<yt:videoId>')) {
-    console.log('Valid signature, but no videoId found. Ignoring.');
-    // Still return 200 so the hub doesn't retry
+  // Check if body contains <yt:videoId> (new/updated video) or <at:deleted-entry (deleted video)
+  if (!textBody.includes('<yt:videoId>') && !textBody.includes('<at:deleted-entry')) {
+    console.log('Valid signature, but no video update or deletion found. Ignoring.');
+    // Return 200 so the hub doesn't retry this irrelevant ping
     return new Response('OK', { status: 200 });
   }
 
@@ -83,11 +83,12 @@ export const POST: APIRoute = async ({ request }) => {
     if (!githubResponse.ok) {
       const errText = await githubResponse.text();
       console.error('GitHub API error:', githubResponse.status, errText);
-      // We don't want to fail the webhook just because GitHub failed, 
-      // but maybe we do. Returning 200 acknowledges receipt to YouTube.
+      // Return 500 to tell YouTube's hub to retry this webhook later! (Self-healing)
+      return new Response('GitHub API failed to trigger', { status: 500 });
     }
   } catch (error) {
     console.error('Failed to trigger GitHub Action:', error);
+    return new Response('Internal Server Error', { status: 500 });
   }
 
   return new Response('OK', { status: 200 });
