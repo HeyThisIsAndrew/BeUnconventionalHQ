@@ -1,6 +1,15 @@
 // This file is merged into the auto-generated wrangler.json during the build.
 // Use it to add or override configuration for your Cloudflare Worker.
 {
+  // Every internal link site-wide points to the no-trailing-slash form
+  // (/feed, /events/${slug}, ...). Cloudflare's default asset handling
+  // (auto-trailing-slash) 307-redirects those to add a slash before
+  // serving, which real users pay on every nav click (Lighthouse flagged
+  // ~610ms via the "redirects" audit). drop-trailing-slash makes the
+  // no-slash form canonical instead, matching what's actually linked.
+  "assets": {
+    "html_handling": "drop-trailing-slash"
+  },
   "kv_namespaces": [
     { "binding": "SESSION", "id": "c50225e13ddf4dbbaa6711c7b275bc21" },
     { "binding": "KV", "id": "39a5bcb599264b7b8cfffcd6c867bf16" }

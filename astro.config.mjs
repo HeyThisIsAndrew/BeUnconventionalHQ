@@ -142,9 +142,14 @@ function localCmsMiddleware() {
 export default defineConfig({
   site: 'https://beunconventionalhq.com',
   base: '/',
-  // 'ignore' (default): dev accepts links with or without a trailing slash,
-  // and Cloudflare Pages serves the canonical trailing-slash form in prod.
-  // Canonical <link> and the sitemap are normalized to trailing slashes.
+  // 'ignore' (default): dev accepts links with or without a trailing slash.
+  // Production (Cloudflare Workers, not Pages) serves the canonical
+  // no-trailing-slash form via assets.html_handling: "drop-trailing-slash"
+  // in wrangler.jsonc, matching how every internal link in this codebase
+  // is already written. Canonical <link> (Layout.astro) and the sitemap
+  // (serialize below) are normalized to match — a mismatch here means a
+  // canonical tag or sitemap entry points at a URL that immediately
+  // redirects elsewhere.
   trailingSlash: 'ignore',
   redirects: {
     '/articles': '/feed/articles',
@@ -210,6 +215,17 @@ export default defineConfig({
       // /media-kit is a direct-share-only PDF route.
       filter: (page) =>
         !page.includes('/links') && !page.includes('/admin') && !page.includes('/local-cms') && !page.includes('/media-kit'),
+      // Strip trailing slashes to match assets.html_handling:
+      // "drop-trailing-slash" — otherwise every sitemap entry sends
+      // crawlers through an extra redirect hop before reaching the
+      // canonical URL.
+      serialize: (item) => {
+        const url = new URL(item.url);
+        if (url.pathname !== '/' && url.pathname.endsWith('/')) {
+          url.pathname = url.pathname.slice(0, -1);
+        }
+        return { ...item, url: url.toString() };
+      },
     }),
     sanity({
       projectId: '38nhxsib',
