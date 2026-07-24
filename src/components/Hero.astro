@@ -31,7 +31,15 @@ import { site } from '../data/site.js';
     const hero = document.querySelector('.hero') as HTMLElement;
     const heroBackground = document.querySelector('.hero-bg') as HTMLElement;
 
-    if (heroBackground && hero) {
+    // Scroll-driven hero parallax/compress is desktop-only for now: it's
+    // unresolved-jittery on mobile and iPad WebKit (touch + narrow/short
+    // viewports), so skip wiring the listener there entirely rather than
+    // run it for an effect the CSS below also neutralizes.
+    const supportsHeroScrollEffects = window.matchMedia(
+      '(pointer: fine) and (min-width: 769px)'
+    ).matches;
+
+    if (heroBackground && hero && supportsHeroScrollEffects) {
       let ticking = false;
 
       const updateHeroCompression = () => {
