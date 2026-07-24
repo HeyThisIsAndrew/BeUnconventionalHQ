@@ -35,8 +35,18 @@ const tiktokFollowers = 534;
 
 const youtubeReachString = followers > 0 ? compactFormatter.format(followers) : 'XX.Xk';
 const viewsString = views30Days > 0 ? compactFormatter.format(views30Days) : (totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.Xk');
-const impressionsString = impressions > 0 ? compactFormatter.format(impressions) : 'XX.Xk';
 const topGeoString = channelStats.analytics?.topGeos?.[0] || 'US';
+
+// Impressions isn't populated for every channel (YouTube only reports it once
+// a channel has Suggested/Home-feed thumbnail-impression data). Rather than
+// show a literal "XX.Xk" as the single most prominent number on the page,
+// fall back to lifetime total views - always populated once the channel has
+// any view history at all - and relabel the card to match.
+const hasImpressions = impressions > 0;
+const headlineMetricValue = hasImpressions
+  ? compactFormatter.format(impressions)
+  : (totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.Xk');
+const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views';
 ---
 <!DOCTYPE html>
 <html lang="en">
@@ -122,6 +132,14 @@ const topGeoString = channelStats.analytics?.topGeos?.[0] || 'US';
             }
         }
 
+        /* -------------------------------------
+           Mobile screen layout. Everything above this point was sized for
+           an 8.5x11in printed sheet - fixed page width, in-unit type scale,
+           and a viewport-fixed FAB stack that overlapped content the moment
+           the canvas shrank to fit a phone. `screen` scopes all of this to
+           on-screen viewing only; @media print above is a separate media
+           type and is completely unaffected by anything in this block.
+           ------------------------------------- */
         /* Ambient cinematic background glow in the top right */
         .page::before {
             content: '';
@@ -511,6 +529,156 @@ const topGeoString = channelStats.analytics?.topGeos?.[0] || 'US';
         .social-icon-link:hover svg {
             fill: #ffffff !important;
         }
+
+        @media screen and (max-width: 720px) {
+            .page {
+                width: 100%;
+                height: auto;
+                min-height: 100vh;
+                margin: 0;
+                padding: 2rem 1.25rem 8rem; /* bottom clears the fixed action bar below */
+                box-shadow: none;
+                overflow-x: hidden; /* .page::before's ambient glow is positioned with a
+                   negative right offset by design (bleeds past the edge on the
+                   fixed-width desktop canvas); clip it here so it can't add
+                   horizontal scroll room on a fluid-width mobile page. */
+            }
+
+            .container {
+                gap: 1.5rem;
+            }
+
+            .hero-kicker {
+                font-size: 0.55rem;
+                letter-spacing: 0.15em;
+            }
+
+            .word-be {
+                font-size: clamp(0.75rem, 4vw, 1rem);
+                transform: translateX(-0.9rem);
+            }
+
+            .word-unconventional {
+                font-size: clamp(0.95rem, 6.2vw, 1.3rem);
+            }
+
+            .word-hq {
+                font-size: clamp(0.85rem, 5.5vw, 1.25rem);
+                margin-top: -0.4rem;
+                transform: translateX(0.9rem);
+            }
+
+            .hero-subtitle {
+                font-size: 0.6rem;
+                letter-spacing: 0.08em;
+            }
+
+            .pitch-container {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+
+            .headshot-placeholder {
+                width: 5rem;
+                height: 5rem;
+            }
+
+            .pitch {
+                height: auto;
+                margin-left: 0;
+                padding-left: 0;
+                border-left: none;
+                font-size: 0.7rem;
+                text-align: left;
+            }
+
+            .metrics-grid,
+            .split-section {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .metric-value {
+                font-size: 2.1rem;
+            }
+
+            .metric-label {
+                font-size: 0.7rem;
+            }
+
+            .mini-platform-grid {
+                grid-template-columns: repeat(3, 1fr) !important;
+                gap: 0.4rem !important;
+            }
+
+            .data-label {
+                white-space: normal;
+                font-size: 0.65rem;
+            }
+
+            .data-value {
+                font-size: 0.75rem;
+            }
+
+            .data-list li {
+                font-size: 0.75rem;
+            }
+
+            .capabilities-list li {
+                white-space: normal;
+                font-size: 0.75rem;
+            }
+
+            .gear-grid {
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 1rem !important;
+            }
+
+            .footer {
+                grid-template-columns: 1fr !important;
+                gap: 0.75rem;
+            }
+
+            .footer-logo {
+                width: 2in;
+                height: 0.65in;
+            }
+
+            /* A viewport-fixed vertical stack over an 816px canvas overlaps
+               content the instant that canvas shrinks to fit a phone.
+               Collapse to a bottom action bar instead - anchored to the
+               screen edge, never floating over content. Download PDF (the
+               primary action) gets its own full-width row; Press Kit /
+               Return to Site split the row below it. */
+            .fab-container {
+                top: auto;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                transform: none;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                width: 100%;
+                gap: 0.5rem;
+                padding: 0.75rem;
+                padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+                background: rgba(10, 10, 10, 0.95);
+                border-top: 1px solid var(--accent-red);
+            }
+
+            .fab-container .action-fab {
+                width: auto;
+                padding: 0.85rem 0.5rem;
+                font-size: 0.6rem;
+                border-radius: 8px;
+            }
+
+            .fab-container .action-fab:first-child {
+                grid-column: 1 / -1;
+            }
+        }
+
     </style>
 </head>
 <body>
@@ -544,8 +712,8 @@ const topGeoString = channelStats.analytics?.topGeos?.[0] || 'US';
             <div class="metrics-grid">
                 
                 <div class="metric-card">
-                    <div class="metric-value">{impressionsString}</div>
-                    <div class="metric-label">Total Impressions</div>
+                    <div class="metric-value">{headlineMetricValue}</div>
+                    <div class="metric-label">{headlineMetricLabel}</div>
                 </div>
 
                 <div class="metric-card">
@@ -561,7 +729,7 @@ const topGeoString = channelStats.analytics?.topGeos?.[0] || 'US';
             </div>
 
             <!-- Mini Platform Breakdown Mockup -->
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.1in; margin-top: 0.15in; text-align: center;">
+            <div class="mini-platform-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.1in; margin-top: 0.15in; text-align: center;">
                 <div style="border: 1px solid rgba(255,255,255,0.05); padding: 0.1in; background: rgba(255,255,255,0.02);">
                     <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">{youtubeReachString}</div>
                     <div style="font-family: var(--font-body); font-size: 0.08in; color: var(--text-muted); text-transform: uppercase; margin-top: 0.02in;">YOUTUBE SUBS</div>
@@ -628,7 +796,7 @@ const topGeoString = channelStats.analytics?.topGeos?.[0] || 'US';
         <!-- The Arsenal / Gear List -->
         <div style="margin-top: 0.05in;">
             <h2 class="section-title">PRODUCTION GEAR</h2>
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.1in; font-family: var(--font-body); font-size: 0.085in; color: var(--text-muted); line-height: 1.3;">
+            <div class="gear-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.1in; font-family: var(--font-body); font-size: 0.085in; color: var(--text-muted); line-height: 1.3;">
                 <div style="border-left: 1px solid rgba(255,255,255,0.1); padding-left: 0.1in;">
                     <strong style="color: #fff; font-size: 0.095in; letter-spacing: 0.05em;">CAMERAS</strong><br/>
                     Sony Alpha Cameras<br/>
