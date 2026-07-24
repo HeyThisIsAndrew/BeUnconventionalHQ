@@ -1,0 +1,64 @@
+name: Sync Media Kit Stats
+
+on:
+  schedule:
+    - cron: '0 3 * * 0' # Run every Sunday at 3:00 AM UTC
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check secrets configured
+        id: check
+        env:
+          HAS_YT_KEY: ${{ secrets.YOUTUBE_API_KEY != '' }}
+          HAS_YT_CH: ${{ secrets.YOUTUBE_CHANNEL_ID != '' }}
+          HAS_RAPID: ${{ secrets.RAPIDAPI_KEY != '' }}
+          HAS_META: ${{ secrets.META_ACCESS_TOKEN != '' }}
+          HAS_SANITY: ${{ secrets.SANITY_WRITE_TOKEN != '' }}
+        run: |
+          if [ "$HAS_YT_KEY" != "true" ] || [ "$HAS_RAPID" != "true" ] || [ "$HAS_META" != "true" ] || [ "$HAS_SANITY" != "true" ]; then
+            echo "Missing required API keys — skipping."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.configured == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.configured == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.check.outputs.configured == 'true'
+        run: npm ci
+
+      - name: Run sync
+        if: steps.check.outputs.configured == 'true'
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          SANITY_WRITE_TOKEN: ${{ secrets.SANITY_WRITE_TOKEN }}
+        run: npm run sync-media-kit
+
+      - name: Commit and push if social-stats.json changed
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          if git diff --quiet -- src/data/cache/social-stats.json; then
+            echo "No changes — nothing to sync."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/data/cache/social-stats.json
+          git commit -m "chore: automated media kit sync" -m "Synced by the sync-media-kit.yml workflow (run ${{ github.run_id }})."
+          git push origin HEAD:${{ github.ref }}
