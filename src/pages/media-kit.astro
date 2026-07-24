@@ -110,24 +110,51 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
             }
             .page {
                 margin: 0;
+                /* A modest reduction from the screen values (0.6in/0.2in) -
+                   on a real device this exact-fit 8.5x11in canvas has been
+                   observed spilling a near-empty second page by a small
+                   margin. Reclaiming a bit of the deliberately generous
+                   spacing here gets total content height back under one
+                   page without touching the page size itself. */
+                padding: 0.45in;
                 box-shadow: none;
                 overflow: hidden;
+            }
+            .container {
+                gap: 0.15in;
             }
             .action-fab, .fab-container {
                 display: none !important;
             }
-            /* .word-hq is the only header word combining `transform` with
-               `text-shadow` - that pairing renders as an opaque box in some
-               browsers' print/PDF rasterizer instead of a soft glow. Drop
-               the shadow for print; the red fill still reads fine without it. */
-            .word-hq {
+            /* Confirmed on a real device: this radial-gradient ambient glow
+               - subtle by design when spread across the full 8.5x11in
+               canvas on screen - rasterizes as a solid opaque red disc in
+               at least one real-world print pipeline instead of a soft
+               fade. Same underlying failure class as the two fixes below,
+               just on a background gradient instead of a shadow; hide it
+               for print rather than risk it. */
+            .page::before {
+                display: none !important;
+            }
+            /* .word-hq combines `transform` with `text-shadow`, and
+               `.word-unconventional` / `.hero-subtitle` carry blurred
+               text-shadow on their own - all three are the same risk
+               category as the gradient above (a soft rgba effect that a
+               real print pipeline can rasterize as a hard block instead of
+               a fade). Neutralizing all of them for print rather than
+               waiting for each to get individually reported broken. */
+            .word-hq,
+            .word-unconventional,
+            .hero-subtitle {
                 text-shadow: none !important;
             }
-            /* Same failure mode as .word-hq above, on box-shadow instead of
-               text-shadow: the blurred rgba drop shadow on each metric card
-               is the one shadow effect in this section not already
-               neutralized for print. */
+            /* Same failure class again, box-shadow this time: the blurred
+               rgba drop shadow on each metric card, and the large-blur
+               inset shadow that feathers the headshot's edges. */
             .metric-card {
+                box-shadow: none !important;
+            }
+            .headshot-placeholder::after {
                 box-shadow: none !important;
             }
         }
