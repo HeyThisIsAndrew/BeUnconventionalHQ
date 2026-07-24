@@ -178,8 +178,34 @@ async function fetchStats() {
 
 async function run() {
   await fs.mkdir(CACHE_DIR, { recursive: true });
+
+  // Last known good cache, used to avoid regressing it on a PARTIAL failure.
+  let previous = null;
+  try {
+    previous = JSON.parse(await fs.readFile(STATS_FILE, 'utf8'));
+  } catch {
+    // No readable cache yet — nothing to preserve.
+  }
+
   try {
     const stats = await fetchStats();
+
+    // fetchStats() only throws when the PUBLIC stats call fails. The analytics
+    // leg can fail on its own (OAuth refresh rejected, a single Analytics API
+    // call erroring) and is merely warned about, returning a result with no
+    // `analytics` block at all. Writing that straight out would erase
+    // demographics that were previously fetched successfully — and this file
+    // is auto-committed every Monday by update-analytics.yml, so the loss
+    // would be permanent. media-kit.astro renders 'XX%' for every missing
+    // analytics field, so the visible symptom is the whole media kit
+    // reverting to placeholders after one transient auth blip.
+    if (!stats.analytics && previous?.analytics) {
+      stats.analytics = previous.analytics;
+      console.warn(
+        '[channel-stats] Analytics unavailable this run — kept the previously cached analytics block rather than dropping it.'
+      );
+    }
+
     await fs.writeFile(STATS_FILE, JSON.stringify(stats, null, 2));
     console.log(`[channel-stats] Successfully cached channel stats to ${STATS_FILE}`);
   } catch (error) {
