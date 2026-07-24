@@ -31,9 +31,15 @@ interface CalendarSegment {
 }
 
 const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    setCurrentDate(new Date());
+  }, []);
+
+  if (!currentDate) return null; // Prevent hydration mismatch on initial SSR
+  
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 

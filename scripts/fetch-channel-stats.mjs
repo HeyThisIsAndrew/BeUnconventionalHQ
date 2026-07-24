@@ -81,6 +81,10 @@ async function fetchStats() {
           url.searchParams.append(k, v);
         }
         const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${access_token}` } });
+        if (!res.ok) {
+          const body = await res.text();
+          throw new Error(`Analytics API error: ${res.status} - ${body}`);
+        }
         return res.json();
       };
 

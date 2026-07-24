@@ -18,6 +18,7 @@
 import { fileURLToPath } from 'node:url';
 import { config } from 'dotenv';
 import fs from 'node:fs';
+import { withFileLock } from './file-lock.mjs';
 
 import { createYouTubeClient } from '../src/lib/platforms/youtube.ts';
 
@@ -199,17 +200,18 @@ async function run() {
 
   const outPath = fileURLToPath(new URL('../src/data/videos.json', import.meta.url));
 
-  let existingDocsMap = new Map();
-  if (fs.existsSync(outPath)) {
-    try {
-      const existing = JSON.parse(fs.readFileSync(outPath, 'utf8'));
-      for (const d of existing) {
-        existingDocsMap.set(d._id, d);
+  await withFileLock(outPath, async () => {
+    let existingDocsMap = new Map();
+    if (fs.existsSync(outPath)) {
+      try {
+        const existing = JSON.parse(fs.readFileSync(outPath, 'utf8'));
+        for (const d of existing) {
+          existingDocsMap.set(d._id, d);
+        }
+      } catch (e) {
+        return fail(`Catastrophic failure: Failed to parse existing ${outPath}. Halting to prevent data loss. Error: ${e.message}`);
       }
-    } catch (e) {
-      console.warn("Failed to parse existing videos.json. Proceeding with empty state.");
     }
-  }
 
   const allDocs = Array.from(existingDocsMap.values());
   const hubSeeds = extractHubSeeds(allDocs);
@@ -255,15 +257,16 @@ async function run() {
 
   const needsReviewCount = syncedDocs.filter((d) => d.requiresReview).length;
 
-  if (!execute) {
-    console.log(`\n[dry-run] Would sync ${docs.length} docs (${syncedDocs.length} from YouTube, ${preservedDocs.length} preserved) to ${outPath}.`);
-    console.log(`[dry-run] ${needsReviewCount} video(s) would need review (no Tier-1/hub tag match).`);
-    console.log('[dry-run] Pass --execute to write.');
-    return;
-  }
+    if (!execute) {
+      console.log(`\n[dry-run] Would sync ${docs.length} docs (${syncedDocs.length} from YouTube, ${preservedDocs.length} preserved) to ${outPath}.`);
+      console.log(`[dry-run] ${needsReviewCount} video(s) would need review (no Tier-1/hub tag match).`);
+      console.log('[dry-run] Pass --execute to write.');
+      return;
+    }
 
-  fs.writeFileSync(outPath, JSON.stringify(docs, null, 2));
-  console.log(`\n✔ Synced ${docs.length} videos locally to ${outPath}.`);
+    fs.writeFileSync(outPath, JSON.stringify(docs, null, 2));
+    console.log(`\n✔ Synced ${docs.length} videos locally to ${outPath}.`);
+  });
 }
 
 function fail(message) {
