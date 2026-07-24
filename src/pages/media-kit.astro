@@ -15,7 +15,22 @@ import channelStats from '../data/cache/channel-stats.json';
 // @ts-ignore - sanity:client is an alias resolved by Astro
 import { sanityClient } from "sanity:client";
 
-const sanityStats = await sanityClient.fetch('*[_type == "mediaKitStats"][0]');
+// Sanity is the preferred source, but it must never be able to fail the
+// build: the `||` chains below only cover a document that's missing or has
+// empty fields, not a request that throws. An outage, a rate limit, a
+// revoked token or a blocked egress host all reject here, and without this
+// catch the whole prerender dies instead of using the local
+// social-stats.json / channel-stats.json fallbacks that exist precisely for
+// this case. Same try/catch-to-empty contract the article RSS pages use.
+let sanityStats: any = null;
+try {
+  sanityStats = await sanityClient.fetch('*[_type == "mediaKitStats"][0]');
+} catch (err) {
+  console.warn(
+    '[media-kit] Sanity mediaKitStats fetch failed, falling back to local cache:',
+    err instanceof Error ? err.message : err
+  );
+}
 
 let followers = sanityStats?.youtube?.followerCount || channelStats.followers || 0;
 let totalViews = sanityStats?.youtube?.viewCount || channelStats.totalViews || 0;

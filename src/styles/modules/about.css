@@ -39,6 +39,16 @@
   object-fit: contain;
 }
 
+/* NOTE: a JS-driven fade-in was tried here and reverted. It hid the logo in
+   CSS and relied on a script to add `.is-loaded` — a fail-closed design, and
+   it did fail: Astro dropped the <script> from the build while the stylesheet
+   shipped, so the logo was hidden with nothing left to reveal it. Any future
+   attempt must fail OPEN (visible by default, JS only ever adds the
+   transition), and must be verified against a built bundle rather than source.
+   The underlying cause of the abrupt appearance is that this logo is served
+   from the runtime /_image transform endpoint and is slow on a cold cache;
+   pre-building it as a static asset fixes the cause rather than masking it. */
+
 .about-story {
   display: flex;
   flex-direction: column;
