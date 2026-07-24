@@ -62,32 +62,6 @@
     height: 100svh;
   }
 
-  /* Parallax/compress scroll effect is desktop-only until the mobile/iPad
-     jitter is root-caused — pin the background and content to their rest
-     state here so it holds even if the JS listener in Hero.astro ever
-     re-attaches on a touch/narrow viewport by mistake. */
-  .hero-bg {
-    transform: none !important;
-  }
-
-  .hero {
-    --hero-compress-progress: 0 !important;
-  }
-
-  /* These elements ask the compositor for a dedicated layer via
-     `will-change`, but on mobile nothing animates them any more (the
-     transforms above are pinned). Releasing the hint frees GPU memory
-     instead of holding promoted layers for effects that never run. */
-  .hero-bg,
-  .hero-content,
-  .hero-title-stack span,
-  .word-be,
-  .word-unconventional,
-  .word-hq,
-  .hero-cta {
-    will-change: auto !important;
-  }
-
   /* Force visibility on mobile to rule out IntersectionObserver failures */
   .animate-on-scroll,
   .reveal {
