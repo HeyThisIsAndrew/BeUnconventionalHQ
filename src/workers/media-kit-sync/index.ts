@@ -10,7 +10,7 @@ export interface Env {
 }
 
 export default {
-  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+  async scheduled(_event: any, env: Env, _ctx: any) {
     const SANITY_PROJECT_ID = env.SANITY_PROJECT_ID || '38nhxsib';
     const SANITY_DATASET = env.SANITY_DATASET || 'production';
 
