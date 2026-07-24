@@ -1,51 +1,20 @@
 ---
-import { createYouTubeClient } from '../lib/platforms/youtube';
 import { site } from '../data/site.js';
 
-// Fetch API Key and Channel ID from environment variables
-const apiKey = import.meta.env.YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY;
-const channelId = import.meta.env.YOUTUBE_CHANNEL_ID || process.env.YOUTUBE_CHANNEL_ID;
-const clientId = import.meta.env.YOUTUBE_CLIENT_ID || process.env.YOUTUBE_CLIENT_ID;
-const clientSecret = import.meta.env.YOUTUBE_CLIENT_SECRET || process.env.YOUTUBE_CLIENT_SECRET;
-const refreshToken = import.meta.env.YOUTUBE_REFRESH_TOKEN || process.env.YOUTUBE_REFRESH_TOKEN;
+import channelStats from '../data/cache/channel-stats.json';
 
-let followers = 0;
-let totalViews = 0;
-let retentionString = 'XX%';
-let ageString = 'XX%';
-let genderString = 'XX% / XX%';
-let geosString = 'US, GB, IN';
-let views30Days = 0;
-let tvString = 'XX%';
-let searchString = 'XX%';
-let unsubString = 'XX%';
-
-if (apiKey && channelId) {
-  try {
-    const yt = createYouTubeClient({ apiKey, clientId, clientSecret, refreshToken });
-    const stats = await yt.getChannelStats(channelId);
-    followers = stats.followers;
-    totalViews = stats.totalViews || 0;
-    
-    const analytics = await yt.getAnalytics();
-    if (analytics) {
-      retentionString = analytics.retentionPercent > 0 ? analytics.retentionPercent.toFixed(1) + '%' : 'XX%';
-      ageString = analytics.age18to34Percent > 0 ? Math.round(analytics.age18to34Percent) + '%' : 'XX%';
-      const maleStr = analytics.malePercent > 0 ? Math.round(analytics.malePercent) + '%' : 'XX%';
-      const femaleStr = analytics.femalePercent > 0 ? Math.round(analytics.femalePercent) + '%' : 'XX%';
-      genderString = `${maleStr} / ${femaleStr}`;
-      if (analytics.topGeos.length > 0) {
-        geosString = analytics.topGeos.join(', ');
-      }
-      views30Days = analytics.views30Days || 0;
-      tvString = analytics.tvViewershipPercent > 0 ? Math.round(analytics.tvViewershipPercent) + '%' : 'XX%';
-      searchString = analytics.searchTrafficPercent > 0 ? Math.round(analytics.searchTrafficPercent) + '%' : 'XX%';
-      unsubString = analytics.unsubscribedPercent > 0 ? Math.round(analytics.unsubscribedPercent) + '%' : 'XX%';
-    }
-  } catch (error) {
-    console.error('Failed to fetch YouTube stats for Media Kit:', error);
-  }
-}
+let followers = channelStats.followers || 0;
+let totalViews = channelStats.totalViews || 0;
+let views30Days = channelStats.analytics?.views30Days || 0;
+let retentionString = channelStats.analytics?.retentionPercent > 0 ? channelStats.analytics.retentionPercent.toFixed(1) + '%' : 'XX%';
+let ageString = channelStats.analytics?.age18to34Percent > 0 ? Math.round(channelStats.analytics.age18to34Percent) + '%' : 'XX%';
+let maleStr = channelStats.analytics?.malePercent > 0 ? Math.round(channelStats.analytics.malePercent) + '%' : 'XX%';
+let femaleStr = channelStats.analytics?.femalePercent > 0 ? Math.round(channelStats.analytics.femalePercent) + '%' : 'XX%';
+let genderString = `${maleStr} / ${femaleStr}`;
+let geosString = channelStats.analytics?.topGeos?.length > 0 ? channelStats.analytics.topGeos.join(', ') : 'US, GB, IN';
+let tvString = channelStats.analytics?.tvViewershipPercent > 0 ? Math.round(channelStats.analytics.tvViewershipPercent) + '%' : 'XX%';
+let searchString = channelStats.analytics?.searchTrafficPercent > 0 ? Math.round(channelStats.analytics.searchTrafficPercent) + '%' : 'XX%';
+let unsubString = channelStats.analytics?.unsubscribedPercent > 0 ? Math.round(channelStats.analytics.unsubscribedPercent) + '%' : 'XX%';
 
 // Formatter for numbers like 25.5K
 const compactFormatter = new Intl.NumberFormat('en-US', {
