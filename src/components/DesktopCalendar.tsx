@@ -38,59 +38,29 @@ const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
     setCurrentDate(new Date());
   }, []);
 
-  if (!currentDate) {
-    return (
-      <div className="dc-container dc-skeleton">
-        <aside className="dc-sidebar">
-          <div className="dc-sidebar-header">
-            <div className="dc-sidebar-title">
-              <h2 className="dc-month">Calendar</h2>
-              <span className="dc-year">...</span>
-            </div>
-          </div>
-          <div className="dc-event-list"></div>
-        </aside>
-        <main className="dc-main">
-          <div className="dc-calendar-grid-wrapper">
-            <div className="dc-calendar-header-row">
-              <span>Sun</span>
-              <span>Mon</span>
-              <span>Tue</span>
-              <span>Wed</span>
-              <span>Thu</span>
-              <span>Fri</span>
-              <span>Sat</span>
-            </div>
-            <div className="dc-calendar-grid">
-              {Array.from({ length: 35 }).map((_, i) => (
-                <div
-                  key={`skel-${i}`}
-                  className="dc-calendar-cell empty"
-                  style={{ gridColumn: (i % 7) + 1, gridRow: Math.floor(i / 7) + 1 }}
-                ></div>
-              ))}
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
-  
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-
-  const handlePrevMonth = () => {
-    setCurrentDate(new Date(year, month - 1, 1));
-  };
-
-  const handleNextMonth = () => {
-    setCurrentDate(new Date(year, month + 1, 1));
-  };
-
-  const realToday = new Date();
-  const isCurrentOrPastMonth = year < realToday.getFullYear() || (year === realToday.getFullYear() && month <= realToday.getMonth());
+  // `year`/`month` and the useMemo below MUST be evaluated on every render,
+  // above the `!currentDate` early return. `currentDate` starts null and is
+  // only filled in by the effect above (deliberately — reading the date
+  // during SSR would bake the server's timezone into the grid), so the first
+  // render returns the skeleton early. When the useMemo lived BELOW that
+  // return, render 1 ran three hooks and render 2 ran four, which is
+  // "Rendered more hooks than during the previous render" (React #310). React
+  // threw on the very first state update and unmounted the whole tree, so the
+  // calendar modal opened to an empty shell with only its close bar — on
+  // every device, in production. Keep all hooks above the early return.
+  const year = currentDate ? currentDate.getFullYear() : 0;
+  const month = currentDate ? currentDate.getMonth() : 0;
 
   const { days, calendarSegments, sortedEvents, todayDate } = useMemo(() => {
+    // Pre-hydration render: no date yet, and the result is discarded by the
+    // early return below. Bail rather than build a grid for year 0.
+    if (!currentDate) {
+      // todayDate stays a real Date rather than null so the consuming code
+      // below (which only ever runs once currentDate is set) keeps its
+      // non-nullable type; this value is never read.
+      return { days: [], calendarSegments: [], sortedEvents: [], todayDate: new Date() };
+    }
+
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const monthStart = new Date(year, month, 1);
@@ -205,7 +175,58 @@ const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
       sortedEvents: _sortedEvents,
       todayDate: _todayDate
     };
-  }, [events, year, month]);
+  }, [events, year, month, currentDate]);
+
+  if (!currentDate) {
+    return (
+      <div className="dc-container dc-skeleton">
+        <aside className="dc-sidebar">
+          <div className="dc-sidebar-header">
+            <div className="dc-sidebar-title">
+              <h2 className="dc-month">Calendar</h2>
+              <span className="dc-year">...</span>
+            </div>
+          </div>
+          <div className="dc-event-list"></div>
+        </aside>
+        <main className="dc-main">
+          <div className="dc-calendar-grid-wrapper">
+            <div className="dc-calendar-header-row">
+              <span>Sun</span>
+              <span>Mon</span>
+              <span>Tue</span>
+              <span>Wed</span>
+              <span>Thu</span>
+              <span>Fri</span>
+              <span>Sat</span>
+            </div>
+            <div className="dc-calendar-grid">
+              {Array.from({ length: 35 }).map((_, i) => (
+                <div
+                  key={`skel-${i}`}
+                  className="dc-calendar-cell empty"
+                  style={{ gridColumn: (i % 7) + 1, gridRow: Math.floor(i / 7) + 1 }}
+                ></div>
+              ))}
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+  
+  const handlePrevMonth = () => {
+    setCurrentDate(new Date(year, month - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(year, month + 1, 1));
+  };
+
+  const realToday = new Date();
+  const isCurrentOrPastMonth = year < realToday.getFullYear() || (year === realToday.getFullYear() && month <= realToday.getMonth());
+
+
 
   const formatDate = (dateStr: string) => formatEventDateRange(dateStr, undefined, { year: false });
 
