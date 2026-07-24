@@ -125,6 +125,30 @@
   }
 }
 
+/* The rest of the site honours reduced-motion (a11y.css, home-cards.css,
+   QuadrantFilter, TakeoverBillboard, EventStatusIndicator) but the hero did
+   not: both the scroll-driven parallax/compress AND the infinite kenburns
+   zoom kept running for users who asked their OS to reduce motion. The
+   kenburns animation is the one that matters most here — it never stops, so
+   it was perpetual background movement behind the page's largest text.
+   Hero.astro skips the scroll writes under the same query. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-bg {
+    transform: none !important;
+  }
+
+  .hero-content {
+    --hero-compress-progress: 0 !important;
+  }
+
+  .hero-bg-inner {
+    animation: none !important;
+    /* Hold the kenburns start scale so removing the animation doesn't snap
+       the background to an unscaled, visibly smaller crop. */
+    transform: scale(1.15);
+  }
+}
+
 .hero-overlay {
   position: absolute;
   inset: 0;

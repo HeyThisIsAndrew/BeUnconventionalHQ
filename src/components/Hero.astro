@@ -33,13 +33,14 @@ import { site } from '../data/site.js';
     const heroContent = document.querySelector('.hero-content') as HTMLElement;
     const heroBackground = document.querySelector('.hero-bg') as HTMLElement;
 
-    // Portrait touch viewports get no scroll-driven hero effects — see the
-    // matching @media block in hero.css for the device-tested reasoning.
-    // Evaluated per frame rather than once at setup so rotating the device
-    // switches behaviour without a reload; MediaQueryList.matches is a cheap
-    // cached read, not a layout query.
+    // No scroll-driven hero effects when EITHER applies:
+    //   - portrait touch viewport (device-tested; see hero.css for why)
+    //   - the user asked their OS to reduce motion
+    // Evaluated per frame rather than once at setup so rotating the device or
+    // toggling the OS setting switches behaviour without a reload;
+    // MediaQueryList.matches is a cheap cached read, not a layout query.
     const noScrollEffects = window.matchMedia(
-      '(orientation: portrait) and (pointer: coarse)'
+      '(orientation: portrait) and (pointer: coarse), (prefers-reduced-motion: reduce)'
     );
 
     if (heroBackground && heroContent) {
