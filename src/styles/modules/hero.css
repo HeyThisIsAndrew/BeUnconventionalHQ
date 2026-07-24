@@ -15,7 +15,11 @@
   --hero-cta-scale: calc(1 - var(--hero-compress-progress) * 0.1);
 }
 
-@media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
+@media (max-width: 768px), (orientation: landscape) and (max-height: 500px), (pointer: coarse) {
+  /* `pointer: coarse` catches iPad, where CSS width (744-1024px portrait,
+     up to 1366px landscape) is wider than the max-width/landscape-height
+     checks above, so the backdrop-filter/feTurbulence mitigations below
+     were silently skipped on tablets and jitter continued during scroll. */
   /* iOS Safari Rendering Fix: feTurbulence GPU crash prevention */
   body::before {
     display: none !important;
