@@ -154,31 +154,3 @@ const pillars = [
     }
   }
 </style>
-
-<script>
-  // Mark the logo as loaded so about.css can fade it in. On a client-side
-  // navigation the markup swaps in before the 800x800 derivative has
-  // downloaded, so without this the container sits visible around an empty
-  // <img> and the image then snaps in.
-  //
-  // Runs on astro:page-load (fires on both cold loads and ClientRouter
-  // navigations) and checks `complete && naturalWidth` first: a cached image
-  // is already decoded by the time this runs and would never fire `load`,
-  // which would leave it stuck at opacity 0.
-  function markAboutLogoLoaded() {
-    const img = document.querySelector('.about-profile-img') as HTMLImageElement | null;
-    if (!img) return;
-
-    if (img.complete && img.naturalWidth > 0) {
-      img.classList.add('is-loaded');
-      return;
-    }
-
-    const show = () => img.classList.add('is-loaded');
-    img.addEventListener('load', show, { once: true });
-    // Never leave the logo invisible if the request fails.
-    img.addEventListener('error', show, { once: true });
-  }
-
-  document.addEventListener('astro:page-load', markAboutLogoLoaded);
-</script>

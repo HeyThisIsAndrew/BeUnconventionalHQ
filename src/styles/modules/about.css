@@ -39,32 +39,15 @@
   object-fit: contain;
 }
 
-/* Fade the logo in once it has actually decoded.
-
-   ClientRouter swaps the About markup in immediately, but on a cold cache
-   the 800x800 logo derivative hasn't been downloaded yet — the navbar logo
-   is a different derivative URL, so visiting the homepage first doesn't warm
-   it. That leaves the container fully visible around an empty <img> for the
-   length of the download (measured at ~1.5s of frames on a throttled first
-   visit), after which the image snapped in. Reserving the box already
-   prevented layout shift; this stops the appearance itself from being abrupt.
-
-   Gated on `.js` (set by Layout.astro on <html>) so the logo is never hidden
-   for anyone without JavaScript to un-hide it. */
-.js .about-profile-img {
-  opacity: 0;
-  transition: opacity 600ms ease-out;
-}
-
-.js .about-profile-img.is-loaded {
-  opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .js .about-profile-img {
-    transition: none;
-  }
-}
+/* NOTE: a JS-driven fade-in was tried here and reverted. It hid the logo in
+   CSS and relied on a script to add `.is-loaded` — a fail-closed design, and
+   it did fail: Astro dropped the <script> from the build while the stylesheet
+   shipped, so the logo was hidden with nothing left to reveal it. Any future
+   attempt must fail OPEN (visible by default, JS only ever adds the
+   transition), and must be verified against a built bundle rather than source.
+   The underlying cause of the abrupt appearance is that this logo is served
+   from the runtime /_image transform endpoint and is slow on a cold cache;
+   pre-building it as a static asset fixes the cause rather than masking it. */
 
 .about-story {
   display: flex;
