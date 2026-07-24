@@ -3,7 +3,9 @@ import { site } from '../data/site.js';
 ---
 
 <section class="hero" data-nav-anchor>
-  <div class="hero-bg" aria-hidden="true"></div>
+  <div class="hero-bg" aria-hidden="true">
+    <div class="hero-bg-inner"></div>
+  </div>
   <div class="hero-overlay" aria-hidden="true"></div>
   <div class="hero-content">
     <div class="animate-on-scroll">
@@ -30,21 +32,33 @@ import { site } from '../data/site.js';
     const heroBackground = document.querySelector('.hero-bg') as HTMLElement;
 
     if (heroBackground && hero) {
+      let ticking = false;
+
       const updateHeroCompression = () => {
         const scrollY = window.scrollY;
         const parallaxValue = Math.min(scrollY * 0.4, 150);
         heroBackground.style.setProperty('--hero-parallax', `${parallaxValue}px`);
         const progress = Math.min(scrollY / 400, 1);
         hero.style.setProperty('--hero-compress-progress', progress.toFixed(3));
+        ticking = false;
+      };
+
+      // Throttle to one update per animation frame so rapid mobile scroll
+      // events don't each force a synchronous style recalc.
+      const onScroll = () => {
+        if (!ticking) {
+          ticking = true;
+          requestAnimationFrame(updateHeroCompression);
+        }
       };
 
       updateHeroCompression();
-      
+
       // Clean up previous listener if it exists (safety)
       if (currentScrollListener) {
         window.removeEventListener('scroll', currentScrollListener);
       }
-      currentScrollListener = updateHeroCompression;
+      currentScrollListener = onScroll;
       window.addEventListener('scroll', currentScrollListener, { passive: true });
     }
   });
