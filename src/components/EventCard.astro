@@ -2,7 +2,7 @@
 // @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
 import { sanityClient } from "sanity:client";
 import { createImageUrlBuilder } from "@sanity/image-url";
-import { parseEventDate } from '../lib/events';
+import { parseEventDate, getEventStatus } from '../lib/events';
 import { parseVideoId } from '../lib/platforms/youtube';
 
 
@@ -12,6 +12,7 @@ const urlFor = (source: any) => {
 };
 
 const { event, index = 0 } = Astro.props;
+const status = getEventStatus(event);
 const trailerId = parseVideoId(event.trailerUrl);
 
 const heroUrl = event.heroImage 
@@ -37,7 +38,15 @@ const heroUrl = event.heroImage
   <div class="flex flex-col flex-grow p-6">
     {/* Meta Row */}
     <div class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5">
-      <span>Event</span>
+      {status === 'completed' ? (
+        <span class="text-gray-500">Completed</span>
+      ) : status === 'live' ? (
+        <span class="text-red-500 animate-pulse">Live Now</span>
+      ) : status === 'cancelled' ? (
+        <span class="text-red-800">Cancelled</span>
+      ) : (
+        <span>Event</span>
+      )}
       <span>&bull;</span>
       <span>{parseEventDate(event.startDate)?.year ?? 'Recent'}</span>
     </div>
