@@ -93,7 +93,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     // the unified `env` object.
     // In local dev, if the binding is not emulated, `KV` will be `undefined`,
     // and the code will gracefully use the console.log fallback below.
-    const KV = env.SUBSCRIBERS;
+    const KV = env.KV;
     const timestamp = new Date().toISOString();
     if (KV) {
       // Store in KV with email as key, timestamp as value (or a JSON object)

@@ -184,5 +184,9 @@ export default defineConfig({
       studioBasePath: '/admin',
     }),
   ],
-  adapter: cloudflare(),
+  adapter: cloudflare({
+    platformProxy: {
+      enabled: true
+    }
+  }),
 });
