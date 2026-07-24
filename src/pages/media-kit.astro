@@ -12,9 +12,28 @@ import logoImage from '../assets/logo.webp';
 const optimizedBg = await getImage({ src: logoImage, format: 'webp', width: 400 });
 
 import channelStats from '../data/cache/channel-stats.json';
+// @ts-ignore - sanity:client is an alias resolved by Astro
+import { sanityClient } from "sanity:client";
 
-let followers = channelStats.followers || 0;
-let totalViews = channelStats.totalViews || 0;
+// Sanity is the preferred source, but it must never be able to fail the
+// build: the `||` chains below only cover a document that's missing or has
+// empty fields, not a request that throws. An outage, a rate limit, a
+// revoked token or a blocked egress host all reject here, and without this
+// catch the whole prerender dies instead of using the local
+// social-stats.json / channel-stats.json fallbacks that exist precisely for
+// this case. Same try/catch-to-empty contract the article RSS pages use.
+let sanityStats: any = null;
+try {
+  sanityStats = await sanityClient.fetch('*[_type == "mediaKitStats"][0]');
+} catch (err) {
+  console.warn(
+    '[media-kit] Sanity mediaKitStats fetch failed, falling back to local cache:',
+    err instanceof Error ? err.message : err
+  );
+}
+
+let followers = sanityStats?.youtube?.followerCount || channelStats.followers || 0;
+let totalViews = sanityStats?.youtube?.viewCount || channelStats.totalViews || 0;
 let views30Days = channelStats.analytics?.views30Days || 0;
 let impressions = channelStats.analytics?.impressions || 0;
 let ageString = channelStats.analytics?.age18to34Percent > 0 ? Math.round(channelStats.analytics.age18to34Percent) + '%' : 'XX%';
@@ -33,8 +52,10 @@ const compactFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 1,
 });
 
-const igFollowers = 337;
-const tiktokFollowers = 534;
+import socialStats from '../data/cache/social-stats.json';
+
+const igFollowers = sanityStats?.instagram?.followerCount || socialStats.instagram?.followerCount || 337;
+const tiktokFollowers = sanityStats?.tiktok?.followerCount || socialStats.tiktok?.followerCount || 534;
 
 const youtubeReachString = followers > 0 ? compactFormatter.format(followers) : 'XX.Xk';
 const viewsString = views30Days > 0 ? compactFormatter.format(views30Days) : (totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.Xk');

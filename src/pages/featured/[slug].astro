@@ -123,6 +123,11 @@ const trailerId = parseVideoId(trailerUrl);
           ]}
         >
           <div class="event-hero-content hero-copy animate-on-scroll">
+            {/* See the matching note in events/[slug].astro: when a logo
+                exists the visible title is an image, so without this the page
+                ships with no <h1> at all. sr-only keeps the visual design
+                identical while restoring the outline and SEO. */}
+            {event.logo && <h1 class="sr-only">{event.title}</h1>}
             {event.logo ? (
               <img
                 src={urlFor(event.logo).height(240).url()}
