@@ -109,6 +109,14 @@ const trailerId = parseVideoId(trailerUrl);
             <div class="flex flex-row items-center gap-3 md:flex-col md:items-start md:gap-0 w-full">
               {/* Logo */}
               <div class="flex-shrink-0 w-36 sm:w-40 md:w-auto md:mb-6">
+                {/* The visible title is the logo image, so the page would ship
+                    with NO <h1> at all whenever a logo exists — which is every
+                    real event. That breaks the document outline the sr-only
+                    section <h2> below explicitly assumes ("between the hero
+                    <h1> and card <h3>s") and leaves an indexable content page
+                    with no top-level heading. Carry it in an sr-only <h1>:
+                    correct outline and SEO, zero visual change. */}
+                {event.logo && <h1 class="sr-only">{event.title}</h1>}
                 {event.logo && (
                   <img
                     src={urlFor(event.logo).height(240).url()}
