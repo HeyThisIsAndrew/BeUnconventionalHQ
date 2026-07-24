@@ -26,9 +26,13 @@
     padding: 0.75rem 1rem;
     padding-top: env(safe-area-inset-top);
     padding-bottom: 0.75rem;
-    background: rgba(0, 0, 0, 0.8) !important;
-    backdrop-filter: blur(16px) !important;
-    -webkit-backdrop-filter: blur(16px) !important;
+    /* No backdrop-filter on mobile — a fixed, full-width blur re-samples
+       everything scrolling behind it every frame. hero.css also forces it
+       off for touch devices; not setting it here at all removes the
+       cascade/minifier fragility rather than relying on that override.
+       Alpha raised from 0.8 to compensate for the missing frosting so
+       sharp content doesn't read through the bar. */
+    background: rgba(0, 0, 0, 0.94) !important;
     max-width: 100%;
     overflow: visible;
     height: auto;
@@ -166,6 +170,18 @@
     transform: none !important;
     font-size: clamp(0.85rem, calc(0.425rem + 2.75vw), 1.4rem) !important;
     align-self: center;
+  }
+
+  /* The three rules above pin the lockup words to `transform: none` on
+     phones for layout containment, so their `will-change: transform` is
+     holding compositor layers for an animation that cannot run here.
+     Scoped to this phone-only query deliberately — on iPad the hero
+     compress effect DOES drive these transforms, and the hint is earned
+     there. */
+  .hero .word-be,
+  .word-unconventional,
+  .hero .word-hq {
+    will-change: auto !important;
   }
 
   .hero-kicker {

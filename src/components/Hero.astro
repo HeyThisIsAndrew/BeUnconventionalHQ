@@ -3,7 +3,9 @@ import { site } from '../data/site.js';
 ---
 
 <section class="hero" data-nav-anchor>
-  <div class="hero-bg" aria-hidden="true"></div>
+  <div class="hero-bg" aria-hidden="true">
+    <div class="hero-bg-inner"></div>
+  </div>
   <div class="hero-overlay" aria-hidden="true"></div>
   <div class="hero-content">
     <div class="animate-on-scroll">
@@ -24,28 +26,90 @@ import { site } from '../data/site.js';
 <script>
   // Keep track of the current listener so we can remove it on page exit
   let currentScrollListener: (() => void) | null = null;
+  let currentOrientationQuery: MediaQueryList | null = null;
+  let currentOrientationListener: (() => void) | null = null;
 
   document.addEventListener('astro:page-load', () => {
-    const hero = document.querySelector('.hero') as HTMLElement;
+    const heroContent = document.querySelector('.hero-content') as HTMLElement;
     const heroBackground = document.querySelector('.hero-bg') as HTMLElement;
 
-    if (heroBackground && hero) {
+    // No scroll-driven hero effects when EITHER applies:
+    //   - portrait touch viewport (device-tested; see hero.css for why)
+    //   - the user asked their OS to reduce motion
+    // Evaluated per frame rather than once at setup so rotating the device or
+    // toggling the OS setting switches behaviour without a reload;
+    // MediaQueryList.matches is a cheap cached read, not a layout query.
+    const noScrollEffects = window.matchMedia(
+      '(orientation: portrait) and (pointer: coarse), (prefers-reduced-motion: reduce)'
+    );
+
+    if (heroBackground && heroContent) {
+      let ticking = false;
+      let lastProgress = '';
+
       const updateHeroCompression = () => {
+        if (noScrollEffects.matches) {
+          // Drop back to the rest state so rotating from landscape doesn't
+          // strand the hero mid-parallax.
+          heroBackground.style.transform = '';
+          heroContent.style.removeProperty('--hero-compress-progress');
+          lastProgress = '';
+          ticking = false;
+          return;
+        }
+
         const scrollY = window.scrollY;
+
+        // Write the parallax offset straight to `transform` rather than to a
+        // custom property. Custom properties inherit, so the old
+        // `--hero-parallax` on .hero-bg invalidated style for its subtree —
+        // including .hero-bg-inner's blur(30px) + kenburns layer — on every
+        // scroll frame. translate3d on a will-change:transform element is a
+        // compositor-only update that never touches the blurred layer.
         const parallaxValue = Math.min(scrollY * 0.4, 150);
-        heroBackground.style.setProperty('--hero-parallax', `${parallaxValue}px`);
-        const progress = Math.min(scrollY / 400, 1);
-        hero.style.setProperty('--hero-compress-progress', progress.toFixed(3));
+        heroBackground.style.transform = `translate3d(0, ${parallaxValue}px, 0)`;
+
+        // The compress progress must stay a custom property (several
+        // descendants derive from it), but it now lives on .hero-content, so
+        // the invalidation it causes is scoped to the text — not the
+        // background. Skipping no-op writes also drops every frame past the
+        // 400px mark, where progress is pinned at 1.
+        const progress = Math.min(scrollY / 400, 1).toFixed(3);
+        if (progress !== lastProgress) {
+          lastProgress = progress;
+          heroContent.style.setProperty('--hero-compress-progress', progress);
+        }
+
+        ticking = false;
+      };
+
+      // Throttle to one update per animation frame so rapid mobile scroll
+      // events don't each force a synchronous style recalc.
+      const onScroll = () => {
+        if (!ticking) {
+          ticking = true;
+          requestAnimationFrame(updateHeroCompression);
+        }
       };
 
       updateHeroCompression();
-      
+
       // Clean up previous listener if it exists (safety)
       if (currentScrollListener) {
         window.removeEventListener('scroll', currentScrollListener);
       }
-      currentScrollListener = updateHeroCompression;
+      currentScrollListener = onScroll;
       window.addEventListener('scroll', currentScrollListener, { passive: true });
+
+      // Rotating the device crosses the portrait/landscape boundary without a
+      // scroll event, so re-run once on the change to apply or clear the
+      // effects immediately rather than on the next touch.
+      if (currentOrientationQuery && currentOrientationListener) {
+        currentOrientationQuery.removeEventListener('change', currentOrientationListener);
+      }
+      currentOrientationQuery = noScrollEffects;
+      currentOrientationListener = updateHeroCompression;
+      noScrollEffects.addEventListener('change', updateHeroCompression);
     }
   });
 
@@ -54,6 +118,11 @@ import { site } from '../data/site.js';
     if (currentScrollListener) {
       window.removeEventListener('scroll', currentScrollListener);
       currentScrollListener = null;
+    }
+    if (currentOrientationQuery && currentOrientationListener) {
+      currentOrientationQuery.removeEventListener('change', currentOrientationListener);
+      currentOrientationQuery = null;
+      currentOrientationListener = null;
     }
   });
 </script>

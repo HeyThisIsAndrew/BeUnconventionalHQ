@@ -384,27 +384,47 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
         els.forEach((el) => io.observe(el));
       }
 
+      // Reveal everything with no transition. `.animate-on-scroll` starts at
+      // `opacity: 0; filter: blur(4px)` the instant new markup exists, so on a
+      // client-side navigation this MUST run before the browser paints the
+      // swapped-in page — otherwise the page paints once with the content
+      // invisible and then snaps it visible, which reads as a pop-in (most
+      // obvious on a large above-the-fold element like the About logo).
+      function revealImmediately() {
+        document.querySelectorAll('.reveal, .animate-on-scroll').forEach((elem) => {
+          const el = elem as HTMLElement;
+          const originalTransition = el.style.transition;
+          el.style.transition = 'none';
+          el.setAttribute('data-state', 'in');
+          el.setAttribute('data-state', 'active');
+          el.style.opacity = '1';
+          el.style.transform = 'none';
+
+          // Restore transition for hover effects after rendering
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              el.style.transition = originalTransition;
+            });
+          });
+        });
+      }
+
+      // astro:after-swap fires after the new document replaces the old one but
+      // BEFORE it is painted — the only hook that can suppress the flash.
+      // astro:page-load is too late by one paint, which is what caused the
+      // pop-in. Keep the page-load call as an idempotent safety net for any
+      // path that reaches it without an after-swap.
+      document.addEventListener('astro:after-swap', revealImmediately);
+
       function handlePageLoad() {
         if (isInitialLoad) {
+          // A cold load has no swap: the markup is parsed with opacity 0
+          // already applied, so the IntersectionObserver fade-in is the
+          // intended entrance rather than a flash.
           initReveal();
           isInitialLoad = false;
         } else {
-          document.querySelectorAll('.reveal, .animate-on-scroll').forEach((elem) => {
-            const el = elem as HTMLElement;
-            const originalTransition = el.style.transition;
-            el.style.transition = 'none';
-            el.setAttribute('data-state', 'in');
-            el.setAttribute('data-state', 'active');
-            el.style.opacity = '1';
-            el.style.transform = 'none';
-
-            // Restore transition for hover effects after rendering
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                el.style.transition = originalTransition;
-              });
-            });
-          });
+          revealImmediately();
         }
       }
 

@@ -16,7 +16,20 @@ const { events } = Astro.props;
     <div class="modal-close-bar">
       <button class="close-btn" aria-label="Close Calendar">&times;</button>
     </div>
-    <DesktopCalendar client:idle events={events} />
+    {/*
+      MUST stay client:load. DesktopCalendar seeds `currentDate` from a
+      useEffect (deliberately — reading the date during SSR would bake the
+      server's timezone into the grid), so the server renders only the
+      `dc-skeleton` placeholder and the real calendar exists ONLY after
+      hydration. client:idle waits on requestIdleCallback, and this page
+      never reliably goes idle — infinite kenburns animation, scroll
+      handlers, IntersectionObservers, GTM/Partytown — so hydration could be
+      starved indefinitely and the modal opened to an empty shell with just
+      the close bar. That shipped to production (regression from 1694a5c).
+      client:visible is not an alternative either: this lives inside a closed
+      <dialog>, so it is never "visible" and would never hydrate at all.
+    */}
+    <DesktopCalendar client:load events={events} />
   </div>
 </dialog>
 
