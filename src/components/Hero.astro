@@ -26,16 +26,37 @@ import { site } from '../data/site.js';
 <script>
   // Keep track of the current listener so we can remove it on page exit
   let currentScrollListener: (() => void) | null = null;
+  let currentOrientationQuery: MediaQueryList | null = null;
+  let currentOrientationListener: (() => void) | null = null;
 
   document.addEventListener('astro:page-load', () => {
     const heroContent = document.querySelector('.hero-content') as HTMLElement;
     const heroBackground = document.querySelector('.hero-bg') as HTMLElement;
+
+    // Portrait touch viewports get no scroll-driven hero effects — see the
+    // matching @media block in hero.css for the device-tested reasoning.
+    // Evaluated per frame rather than once at setup so rotating the device
+    // switches behaviour without a reload; MediaQueryList.matches is a cheap
+    // cached read, not a layout query.
+    const noScrollEffects = window.matchMedia(
+      '(orientation: portrait) and (pointer: coarse)'
+    );
 
     if (heroBackground && heroContent) {
       let ticking = false;
       let lastProgress = '';
 
       const updateHeroCompression = () => {
+        if (noScrollEffects.matches) {
+          // Drop back to the rest state so rotating from landscape doesn't
+          // strand the hero mid-parallax.
+          heroBackground.style.transform = '';
+          heroContent.style.removeProperty('--hero-compress-progress');
+          lastProgress = '';
+          ticking = false;
+          return;
+        }
+
         const scrollY = window.scrollY;
 
         // Write the parallax offset straight to `transform` rather than to a
@@ -78,6 +99,16 @@ import { site } from '../data/site.js';
       }
       currentScrollListener = onScroll;
       window.addEventListener('scroll', currentScrollListener, { passive: true });
+
+      // Rotating the device crosses the portrait/landscape boundary without a
+      // scroll event, so re-run once on the change to apply or clear the
+      // effects immediately rather than on the next touch.
+      if (currentOrientationQuery && currentOrientationListener) {
+        currentOrientationQuery.removeEventListener('change', currentOrientationListener);
+      }
+      currentOrientationQuery = noScrollEffects;
+      currentOrientationListener = updateHeroCompression;
+      noScrollEffects.addEventListener('change', updateHeroCompression);
     }
   });
 
@@ -86,6 +117,11 @@ import { site } from '../data/site.js';
     if (currentScrollListener) {
       window.removeEventListener('scroll', currentScrollListener);
       currentScrollListener = null;
+    }
+    if (currentOrientationQuery && currentOrientationListener) {
+      currentOrientationQuery.removeEventListener('change', currentOrientationListener);
+      currentOrientationQuery = null;
+      currentOrientationListener = null;
     }
   });
 </script>

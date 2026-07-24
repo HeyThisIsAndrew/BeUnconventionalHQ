@@ -96,33 +96,32 @@
   will-change: transform;
 }
 
-/* PORTRAIT TOUCH: swap the runtime gaussian blur for a pre-blurred asset.
-   `blur(30px)` over this layer is ~5.5 Mpx at DPR 3 (~34 MB at the kenburns
-   scale peak), and WebKit re-rasterizes a filtered layer rather than reusing
-   the cached texture whenever the layer is disturbed — which, in portrait, is
-   the entire time the hero fills the screen (956 of 6081 scrollable px, vs
-   440 of 3849 in landscape; identical per-frame cost, ~2.2x the exposure).
-   banner-blur.webp is banner.webp at 960w with sigma 14 baked in; the
-   portrait cover-scale upscales it ~2.12x, landing at ~30 apparent CSS px.
-   saturate/brightness stay as live filters — they're per-pixel shader ops
-   with no convolution, and keeping them preserves how the gradient layer
-   above the image is tinted.
+/* PORTRAIT TOUCH: no scroll-driven hero effects.
+   Tested configurations, on device:
+     desktop            parallax on  -> smooth
+     phone landscape    parallax on  -> smooth
+     phone portrait     parallax on  -> jitters
+     phone portrait     parallax off -> smooth
+   Portrait and landscape have an IDENTICAL per-frame layer cost (5.5 Mpx at
+   DPR 3); what differs is exposure. The parallax range is 0-400px of scroll,
+   and a landscape hero is only ~440px tall, so it has already left the
+   viewport by the time the effect finishes — in portrait the hero is ~956px
+   and fills the screen for the whole animation. Same cost, ~2.2x the time on
+   screen, and only portrait shows it.
 
-   Deliberately PORTRAIT-ONLY: a baked blur scales with the background, so the
-   same asset reads at only ~17px in landscape. Landscape is confirmed smooth
-   with the runtime filter, so it keeps it rather than change what works. */
-@media (max-width: 768px) and (orientation: portrait),
-  (pointer: coarse) and (orientation: portrait) {
-  .hero-bg-inner {
-    background:
-      radial-gradient(
-        120% 90% at 50% 0%,
-        transparent 0%,
-        rgba(9, 9, 11, 0.55) 55%,
-        #0a0a0a 100%
-      ),
-      url('/banner-blur.webp') center / cover no-repeat;
-    filter: saturate(1.05) brightness(0.5);
+   A pre-blurred replacement asset was tried here and made portrait
+   measurably worse (a 960w source has to be upscaled ~6.4x to cover a tall
+   box, and saturate/brightness kept it a filtered layer anyway), so this is
+   deliberately the conservative option: keep every configuration confirmed
+   smooth, disable only the one confirmed bad. Hero.astro skips the scroll
+   writes under the same query; this is the CSS backstop. */
+@media (orientation: portrait) and (pointer: coarse) {
+  .hero-bg {
+    transform: none !important;
+  }
+
+  .hero-content {
+    --hero-compress-progress: 0 !important;
   }
 }
 
