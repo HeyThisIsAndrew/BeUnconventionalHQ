@@ -24,9 +24,12 @@ export default defineConfig({
             S.listItem()
               .title('Live Streams')
               .child(S.documentTypeList('live').title('Live Streams')),
+            S.listItem()
+              .title('Media Kit Stats')
+              .child(S.document().schemaType('mediaKitStats').documentId('mediaKitStats')),
             S.divider(),
             ...S.documentTypeListItems().filter(
-              (listItem) => !['video', 'short', 'live'].includes(listItem.getId() as string),
+              (listItem) => !['video', 'short', 'live', 'mediaKitStats'].includes(listItem.getId() as string),
             ),
           ]),
     }),
