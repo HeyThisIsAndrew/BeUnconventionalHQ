@@ -5,5 +5,6 @@ import video from './video';
 import short from './short';
 import live from './live';
 import videoMetrics from './videoMetrics';
+import mediaKitStats from './mediaKitStats';
 
-export const schemaTypes = [event, featuredBrand, topic, video, short, live, videoMetrics];
+export const schemaTypes = [event, featuredBrand, topic, video, short, live, videoMetrics, mediaKitStats];
