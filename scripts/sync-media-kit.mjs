@@ -30,9 +30,28 @@ async function run() {
     process.exit(1);
   }
 
-  let youtubeStats = { followerCount: 0, viewCount: 0, videoCount: 0 };
-  let tiktokStats = { followerCount: 0, heartCount: 0, videoCount: 0 };
-  let instagramStats = { followerCount: 0, mediaCount: 0 };
+  const outPath = fileURLToPath(new URL('../src/data/cache/social-stats.json', import.meta.url));
+
+  // Seed from the last known good values, NOT from zeros. Every fetch below
+  // is caught and swallowed, so on failure the platform keeps whatever it
+  // had rather than reporting 0 followers — a zero here would be patched
+  // into Sanity via `set` and committed over social-stats.json by the
+  // workflow, destroying real data because of one transient 429. The
+  // fallback file is the safety net; it must survive the outage it exists
+  // to cover.
+  let previous = {};
+  try {
+    previous = JSON.parse(fs.readFileSync(outPath, 'utf8'));
+  } catch {
+    console.warn('No readable social-stats.json yet — starting from zeros.');
+  }
+
+  let youtubeStats = previous.youtube ?? { followerCount: 0, viewCount: 0, videoCount: 0 };
+  let tiktokStats = previous.tiktok ?? { followerCount: 0, heartCount: 0, videoCount: 0 };
+  let instagramStats = previous.instagram ?? { followerCount: 0, mediaCount: 0 };
+
+  // Track which sources actually returned data this run.
+  const fetched = { youtube: false, tiktok: false, instagram: false };
 
   console.log('Fetching YouTube stats...');
   try {
@@ -46,6 +65,7 @@ async function run() {
           viewCount: parseInt(stats.viewCount || '0', 10),
           videoCount: parseInt(stats.videoCount || '0', 10),
         };
+        fetched.youtube = true;
       }
     } else {
       console.error('YouTube fetch failed:', ytRes.status);
@@ -71,6 +91,7 @@ async function run() {
           heartCount: stats.heartCount || 0,
           videoCount: stats.videoCount || 0,
         };
+        fetched.tiktok = true;
       }
     } else {
       console.error('TikTok fetch failed:', tikRes.status);
@@ -90,12 +111,29 @@ async function run() {
           followerCount: igAccount.followers_count || 0,
           mediaCount: igAccount.media_count || 0,
         };
+        fetched.instagram = true;
       }
     } else {
       console.error('Instagram fetch failed:', fbRes.status);
     }
   } catch (e) {
     console.error('Instagram error:', e);
+  }
+
+  const stale = Object.entries(fetched)
+    .filter(([, ok]) => !ok)
+    .map(([name]) => name);
+
+  // If nothing came back, there is nothing to sync — writing here would just
+  // republish the existing values with a fresh lastSyncedAt, making a totally
+  // failed run look successful. Fail loudly instead so the Action surfaces it.
+  if (stale.length === 3) {
+    console.error('All three stat sources failed — leaving Sanity and social-stats.json untouched.');
+    process.exit(1);
+  }
+
+  if (stale.length > 0) {
+    console.warn(`Kept last known good values for: ${stale.join(', ')} (fetch failed this run).`);
   }
 
   const payload = {
@@ -143,8 +181,7 @@ async function run() {
   }
 
   console.log('Writing fallback JSON to src/data/cache/social-stats.json...');
-  const outPath = fileURLToPath(new URL('../src/data/cache/social-stats.json', import.meta.url));
-  
+
   await withFileLock(outPath, async () => {
     const tmpPath = `${outPath}.${process.pid}.tmp`;
     fs.writeFileSync(tmpPath, JSON.stringify(payload, null, 2));
