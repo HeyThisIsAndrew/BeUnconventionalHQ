@@ -315,6 +315,16 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
         if (!window.videoModalEscSetup) {
           document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') closeModal();
+
+            if (e.key === 'Enter' || e.key === ' ') {
+              if (!(e.target instanceof Element)) return;
+              const trigger = e.target.closest('[data-action="open-video"]');
+              if (trigger) {
+                e.preventDefault();
+                const videoId = trigger.getAttribute('data-video-id');
+                if (videoId) openModal(videoId);
+              }
+            }
           });
           window.videoModalEscSetup = true;
         }
