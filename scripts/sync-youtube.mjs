@@ -264,7 +264,9 @@ async function run() {
       return;
     }
 
-    fs.writeFileSync(outPath, JSON.stringify(docs, null, 2));
+    const tmpPath = `${outPath}.${process.pid}.tmp`;
+    fs.writeFileSync(tmpPath, JSON.stringify(docs, null, 2));
+    fs.renameSync(tmpPath, outPath);
     console.log(`\n✔ Synced ${docs.length} videos locally to ${outPath}.`);
   });
 }

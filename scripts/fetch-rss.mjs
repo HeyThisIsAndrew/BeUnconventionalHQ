@@ -149,6 +149,7 @@ async function run() {
       );
       await fs.writeFile(CACHE_FILE, JSON.stringify([]));
     }
+    process.exit(1);
   }
 }
 

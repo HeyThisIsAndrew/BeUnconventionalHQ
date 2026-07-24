@@ -188,7 +188,12 @@ async function fetchVideosFromPage() {
   const match = html.match(/ytInitialData\s*=\s*(\{.+?\})\s*;\s*<\/script>/s);
   if (!match) throw new Error('ytInitialData not found');
 
-  const data = JSON.parse(match[1]);
+  let data;
+  try {
+    data = JSON.parse(match[1]);
+  } catch (e) {
+    throw new Error('Failed to parse ytInitialData JSON: ' + e.message);
+  }
   const videos = [];
   const seen = new Set();
 

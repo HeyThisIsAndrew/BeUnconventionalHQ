@@ -159,7 +159,12 @@ async function runLocal() {
   
   await withFileLock(videosPath, async () => {
     // Read local JSON
-    const videosData = JSON.parse(fs.readFileSync(videosPath, 'utf8'));
+    let videosData;
+    try {
+      videosData = JSON.parse(fs.readFileSync(videosPath, 'utf8'));
+    } catch (e) {
+      throw new Error('Failed to parse videos.json: ' + e.message);
+    }
     const videos = videosData.filter(d => d._type === 'video');
     
     const todayYmd = new Intl.DateTimeFormat('en-CA', {
@@ -197,8 +202,10 @@ async function runLocal() {
       return;
     }
 
-    // Write back to videos.json
-    fs.writeFileSync(videosPath, JSON.stringify(videosData, null, 2));
+    // Write back to videos.json atomically
+    const tmpPath = `${videosPath}.${process.pid}.tmp`;
+    fs.writeFileSync(tmpPath, JSON.stringify(videosData, null, 2));
+    fs.renameSync(tmpPath, videosPath);
     console.log(`\n✔ Updated ${updatedCount} metrics directly in videos.json.`);
   });
 }

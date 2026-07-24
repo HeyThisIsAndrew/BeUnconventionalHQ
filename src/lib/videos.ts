@@ -139,6 +139,6 @@ export async function getUnifiedVideos(
       .filter((v): v is UnifiedVideo => v !== null);
   } catch (e) {
     console.error('[videos] Sanity fetch failed.', e);
-    return [];
+    throw e;
   }
 }

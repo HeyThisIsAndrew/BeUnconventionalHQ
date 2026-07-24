@@ -39,18 +39,21 @@ async function ingest(label, fetcher, file) {
   try {
     const items = await fetcher();
     await writeCache(file, items, label);
+    return true;
   } catch (err) {
     console.error(`[feeds] ${label} ingestion failed: ${err.message}`);
     await writeCache(file, [], label); // preserves existing cache
+    return false;
   }
 }
 
 async function run() {
   await fs.mkdir(CACHE_DIR, { recursive: true });
-  await Promise.all([
+  const results = await Promise.all([
     ingest('articles', fetchArticles, ARTICLES_FILE),
     ingest('videos', fetchVideos, VIDEOS_FILE),
   ]);
+  if (results.includes(false)) process.exit(1);
 }
 
 run();
