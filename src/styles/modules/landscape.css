@@ -45,10 +45,15 @@
     font-size: clamp(1rem, 5vh, 1.5rem);
   }
 
-  /* Hero grows with its content instead of clipping it */
+  /* Hero grows with its content instead of clipping it.
+     `svh`, not `dvh` — see the note in hero.css. This rule is the
+     landscape twin of that bug: landscape.css is imported last, so a
+     `dvh` here re-subscribed the hero to iOS Safari's address bar even
+     after hero.css was fixed, and resizing `.hero` forces the blurred
+     `.hero-bg` layer to re-rasterize mid-scroll. */
   .hero {
     height: auto;
-    min-height: 100dvh;
+    min-height: 100svh;
     padding-top: 5.5rem;
     padding-bottom: 3rem;
   }

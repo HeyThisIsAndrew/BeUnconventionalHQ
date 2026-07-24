@@ -1,0 +1,20 @@
+name: Renew WebSub Subscription
+
+on:
+  schedule:
+    # Run every 3 days at 00:00 UTC
+    - cron: '0 0 */3 * *'
+  workflow_dispatch: # Allow manual trigger for testing
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Subscribe to YouTube WebSub Hub
+        run: |
+          curl -X POST https://pubsubhubbub.appspot.com/subscribe \
+          -d "hub.callback=https://beunconventionalhq.com/api/youtube-webhook" \
+          -d "hub.topic=https://www.youtube.com/xml/feeds/videos.xml?channel_id=${{ secrets.YOUTUBE_CHANNEL_ID }}" \
+          -d "hub.verify=async" \
+          -d "hub.mode=subscribe" \
+          -d "hub.secret=${{ secrets.WEBSUB_SECRET }}"

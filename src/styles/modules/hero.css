@@ -6,31 +6,53 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  --hero-compress-progress: 0;
-  /* Balanced fade for content */
-  --hero-content-opacity: calc(1 - var(--hero-compress-progress) * 1.8);
-  /* Subtler lift */
-  --hero-content-y: calc(var(--hero-compress-progress) * -120px);
-  /* Scale for CTA */
-  --hero-cta-scale: calc(1 - var(--hero-compress-progress) * 0.1);
 }
 
-@media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
+@media (max-width: 768px), (orientation: landscape) and (max-height: 500px), (pointer: coarse) {
+  /* `pointer: coarse` catches iPad, where CSS width (744-1024px portrait,
+     up to 1366px landscape) is wider than the max-width/landscape-height
+     checks above, so the backdrop-filter/feTurbulence mitigations below
+     were silently skipped on tablets and jitter continued during scroll. */
   /* iOS Safari Rendering Fix: feTurbulence GPU crash prevention */
   body::before {
     display: none !important;
   }
 
-  /* Disable heavy filters on mobile to prevent rendering crashes */
+  /* Disable heavy filters on mobile to prevent rendering crashes.
+     A fixed, full-width backdrop blur has to re-sample and re-blur every
+     pixel scrolling beneath it on EVERY frame — page-wide jank that has
+     nothing to do with the hero.
+
+     Do NOT collapse these back into one `#navbar, .hero-overlay { ... }`
+     rule with both the prefixed and unprefixed property: the CSS minifier
+     (lightningcss) treated the pair as redundant and emitted only
+     `-webkit-backdrop-filter: none !important`, while modern iOS Safari
+     (15.4+) reads the UNPREFIXED property — so the blur was never actually
+     disabled on the device and `#navbar` fell back to the base
+     `blur(16px)`. Keeping the unprefixed declaration in its own rule stops
+     it being folded away. Verify against `dist/` after changing this. */
   #navbar,
   .hero-overlay {
-    backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
 
-  /* iOS Safari Address Bar layout shift prevention */
+  #navbar,
+  .hero-overlay {
+    backdrop-filter: none !important;
+  }
+
+  /* Hero height must NOT be `dvh`. `dvh` is the *dynamic* viewport unit —
+     it re-resolves continuously as iOS Safari's address bar retracts and
+     re-expands during scroll, which is the opposite of address-bar
+     stability. Because `.hero-bg` is `inset: -10%` off `.hero`, every
+     address-bar movement resized the blurred background layer (+108px at
+     390x844), and a `filter: blur(30px)` layer cannot be cached across a
+     size change — it re-rasterizes from scratch mid-scroll. That was the
+     mobile jitter, and it's why scrolling UP (bar re-expanding) was worst.
+     `svh` is the small-viewport unit: fixed at the address-bar-visible
+     height, so it never changes during scroll. */
   .hero {
-    height: 100dvh;
+    height: 100svh;
   }
 
   /* Force visibility on mobile to rule out IntersectionObserver failures */
@@ -47,6 +69,19 @@
   position: absolute;
   inset: -10%;
   z-index: 0;
+  /* Rest state only. The parallax offset is written by Hero.astro straight
+     onto this element's inline `transform` as a `translate3d`, NOT through
+     a custom property: a custom property here would inherit into
+     `.hero-bg-inner` and invalidate the blurred layer's style every scroll
+     frame, whereas an inline transform on an already-promoted layer is a
+     compositor-only update. */
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+.hero-bg-inner {
+  position: absolute;
+  inset: 0;
   background:
     radial-gradient(
       120% 90% at 50% 0%,
@@ -59,6 +94,59 @@
   transform: scale(1.15);
   animation: kenburns 30s ease-in-out infinite alternate;
   will-change: transform;
+}
+
+/* PORTRAIT TOUCH: no scroll-driven hero effects.
+   Tested configurations, on device:
+     desktop            parallax on  -> smooth
+     phone landscape    parallax on  -> smooth
+     phone portrait     parallax on  -> jitters
+     phone portrait     parallax off -> smooth
+   Portrait and landscape have an IDENTICAL per-frame layer cost (5.5 Mpx at
+   DPR 3); what differs is exposure. The parallax range is 0-400px of scroll,
+   and a landscape hero is only ~440px tall, so it has already left the
+   viewport by the time the effect finishes — in portrait the hero is ~956px
+   and fills the screen for the whole animation. Same cost, ~2.2x the time on
+   screen, and only portrait shows it.
+
+   A pre-blurred replacement asset was tried here and made portrait
+   measurably worse (a 960w source has to be upscaled ~6.4x to cover a tall
+   box, and saturate/brightness kept it a filtered layer anyway), so this is
+   deliberately the conservative option: keep every configuration confirmed
+   smooth, disable only the one confirmed bad. Hero.astro skips the scroll
+   writes under the same query; this is the CSS backstop. */
+@media (orientation: portrait) and (pointer: coarse) {
+  .hero-bg {
+    transform: none !important;
+  }
+
+  .hero-content {
+    --hero-compress-progress: 0 !important;
+  }
+}
+
+/* The rest of the site honours reduced-motion (a11y.css, home-cards.css,
+   QuadrantFilter, TakeoverBillboard, EventStatusIndicator) but the hero did
+   not: both the scroll-driven parallax/compress AND the infinite kenburns
+   zoom kept running for users who asked their OS to reduce motion. The
+   kenburns animation is the one that matters most here — it never stops, so
+   it was perpetual background movement behind the page's largest text.
+   Hero.astro skips the scroll writes under the same query. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-bg {
+    transform: none !important;
+  }
+
+  .hero-content {
+    --hero-compress-progress: 0 !important;
+  }
+
+  .hero-bg-inner {
+    animation: none !important;
+    /* Hold the kenburns start scale so removing the animation doesn't snap
+       the background to an unscaled, visibly smaller crop. */
+    transform: scale(1.15);
+  }
 }
 
 .hero-overlay {
@@ -82,6 +170,23 @@
 }
 
 .hero-content {
+  /* These live HERE, not on `.hero`, and that placement is load-bearing.
+     Custom properties INHERIT, so writing `--hero-compress-progress` on
+     `.hero` every scroll frame invalidated style for the entire hero
+     subtree — including `.hero-bg-inner`, which carries `filter:
+     blur(30px)` and a running kenburns animation. That forced the most
+     expensive layer on the page to be re-evaluated on every frame of
+     every scroll. Every consumer of these variables is inside
+     `.hero-content`, so scoping them here keeps the blurred background
+     entirely out of the invalidation path. Do not hoist them back up. */
+  --hero-compress-progress: 0;
+  /* Balanced fade for content */
+  --hero-content-opacity: calc(1 - var(--hero-compress-progress) * 1.8);
+  /* Subtler lift */
+  --hero-content-y: calc(var(--hero-compress-progress) * -120px);
+  /* Scale for CTA */
+  --hero-cta-scale: calc(1 - var(--hero-compress-progress) * 0.1);
+
   position: relative;
   z-index: 2;
   text-align: center;
@@ -193,9 +298,9 @@
 
 @keyframes kenburns {
   from {
-    transform: translateY(var(--hero-parallax)) scale(1.15);
+    transform: scale(1.15);
   }
   to {
-    transform: translateY(var(--hero-parallax)) scale(1.25);
+    transform: scale(1.25);
   }
 }

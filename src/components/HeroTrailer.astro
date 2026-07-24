@@ -351,7 +351,14 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
         desktopFrame.addEventListener('load', () =>
           post({ event: 'listening', id: desktopFrame?.id, channel: 'widget' })
         );
-        desktopFrame.src = (mount as HTMLElement).dataset.src || "";
+        // Fallback is 'about:blank', never '' — an empty src resolves to the
+        // current page URL and loads the whole site inside this iframe (hard
+        // rule 4). Unreachable today since desktopSrc is always populated and
+        // callers gate on trailerId, but every sibling path here already
+        // guards (showMobile checks dataset.src, hideMobile uses
+        // removeAttribute, rebuildMobile checks dataSrc) and this was the odd
+        // one out.
+        desktopFrame.src = (mount as HTMLElement).dataset.src || 'about:blank';
         mount.appendChild(desktopFrame);
         nudge(desktopFrame);
       };
