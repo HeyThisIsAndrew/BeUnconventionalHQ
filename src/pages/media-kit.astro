@@ -1,4 +1,11 @@
 ---
+// Self-hosted, same-origin - see Layout.astro. media-kit.astro renders its
+// own standalone <html> (bypasses Layout), so it needs its own font import;
+// the Google Fonts <link> this replaced was a live external request that
+// window.print() doesn't reliably wait on, so a slow/blocked fetch printed
+// the whole page (both --font-display and --font-body resolve to this one
+// family) in the browser's fallback sans-serif.
+import '@fontsource-variable/syne';
 import { site } from '../data/site.js';
 
 import channelStats from '../data/cache/channel-stats.json';
@@ -39,8 +46,6 @@ const viewsString = views30Days > 0 ? compactFormatter.format(views30Days) : (to
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Be Unconventional HQ - Digital Media Kit</title>
     <meta name="robots" content="noindex">
-    <!-- Importing Brand Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Syne:wght@600;800&display=swap" rel="stylesheet">
     <style is:global>
         /* CSS reset and print setup */
         * {
@@ -62,8 +67,8 @@ const viewsString = views30Days > 0 ? compactFormatter.format(views30Days) : (to
             --text-main: #f0f0f0;
             --text-muted: #888888;
             --accent-red: #cc0000;
-            --font-display: 'Syne', sans-serif;
-            --font-body: 'Syne', sans-serif;
+            --font-display: 'Syne Variable', 'Syne', sans-serif;
+            --font-body: 'Syne Variable', 'Syne', sans-serif;
         }
 
         html, body {
