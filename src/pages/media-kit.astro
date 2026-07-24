@@ -130,7 +130,7 @@ const viewsString = views30Days > 0 ? compactFormatter.format(views30Days) : (to
                 box-shadow: none;
                 overflow: hidden;
             }
-            .download-fab {
+            .download-fab, .fab-container {
                 display: none !important;
             }
         }
@@ -148,12 +148,21 @@ const viewsString = views30Days > 0 ? compactFormatter.format(views30Days) : (to
             pointer-events: none;
         }
 
-        /* Floating Download Button */
-        .download-fab {
+        /* Floating Actions Container */
+        .fab-container {
             position: absolute;
             top: 50%;
             right: 2rem;
             transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 1rem;
+            z-index: 1000;
+        }
+
+        /* Floating Download Button */
+        .download-fab {
             background-color: transparent;
             color: #fff;
             padding: 1rem 2rem;
@@ -165,15 +174,42 @@ const viewsString = views30Days > 0 ? compactFormatter.format(views30Days) : (to
             border: 1px solid var(--accent-red);
             cursor: pointer;
             box-shadow: 0 0 15px rgba(204, 0, 0, 0.3);
-            z-index: 1000;
             transition: all 0.3s cubic-bezier(0.25, 0.8, 0.2, 1);
         }
 
         .download-fab:hover {
-            transform: translateY(calc(-50% - 2px));
+            transform: translateY(-2px);
             background-color: var(--accent-red);
             color: #fff;
             box-shadow: 0 0 30px rgba(204, 0, 0, 0.6);
+        }
+
+        /* Secondary FAB Row */
+        .fab-row {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .secondary-fab {
+            background-color: rgba(17, 17, 18, 0.9);
+            color: var(--text-muted);
+            padding: 0.75rem 1.25rem;
+            border-radius: 50px;
+            font-family: var(--font-display);
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .secondary-fab:hover {
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateY(-2px);
         }
 
         .container {
@@ -713,9 +749,15 @@ const viewsString = views30Days > 0 ? compactFormatter.format(views30Days) : (to
     </div>
     </div>
     
-    <!-- Floating Download Button -->
-    <button onclick="window.print()" class="download-fab">
-        Download PDF
-    </button>
+    <!-- Floating Actions Container -->
+    <div class="fab-container">
+        <button onclick="window.print()" class="download-fab">
+            Download PDF
+        </button>
+        <div class="fab-row">
+            <a href="/" class="secondary-fab">Return to Site</a>
+            <a href="/press-kit" class="secondary-fab">Return to Press Kit</a>
+        </div>
+    </div>
 </body>
 </html>
