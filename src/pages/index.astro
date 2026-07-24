@@ -9,6 +9,9 @@ import { getVideosUnified } from '../lib/videos-source';
 import PageTitle from '../components/PageTitle.astro';
 import ContentCard from '../components/ContentCard.astro';
 import SubscribeCTA from '../components/SubscribeCTA.astro';
+import Section from '../components/Section.astro';
+import Grid from '../components/Grid.astro';
+import SectionHeader from '../components/SectionHeader.astro';
 
 // Get the current path, stripping trailing slashes for safety
 const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
@@ -33,20 +36,15 @@ const isHomePage = currentPath === '/';
     )
   }
 
-  <section
-    class="container"
-    style="padding-top: 4rem; padding-bottom: 6rem; max-width: 1536px; margin: 0 auto;"
-  >
-    <div class="section-header reveal animate-on-scroll">
+  <Section pt="4rem" pb="6rem" maxWidth="1536px">
+    <SectionHeader>
       <PageTitle
         kicker="Latest From The Channel"
         primary="Recent"
         secondary="Videos"
       />
-    </div>
-    <div
-      style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 2.5rem;"
-    >
+    </SectionHeader>
+    <Grid minColWidth="min(100%, 400px)" gap="2.5rem">
       {
         (await getVideosUnified())
           .slice(0, 3)
@@ -54,18 +52,15 @@ const isHomePage = currentPath === '/';
             <ContentCard item={video} index={index} />
           ))
       }
-    </div>
-  </section>
+    </Grid>
+  </Section>
 
-  <section
-    class="container"
-    style="padding-bottom: 8rem; max-width: 1536px; margin: 0 auto;"
-  >
-    <div class="section-header reveal animate-on-scroll">
+  <Section pt="0" pb="8rem" maxWidth="1536px">
+    <SectionHeader>
       <PageTitle kicker="Explore The HQ" primary="What We" secondary="Cover" />
-    </div>
+    </SectionHeader>
     <Categories />
-  </section>
+  </Section>
 
   <LatestArticles />
 
