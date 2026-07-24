@@ -30,6 +30,7 @@ function localCmsMiddleware() {
           return;
         }
         if (req.method === 'POST') {
+          /** @type {Buffer[]} */
           let chunks = [];
           let totalLength = 0;
           let tooLarge = false;
@@ -79,6 +80,7 @@ function localCmsMiddleware() {
       // the single place that happens, same as every other image on the site.
       server.middlewares.use('/api/local-cms/upload', /** @param {import('http').IncomingMessage} req @param {import('http').ServerResponse} res @param {Function} next */ (req, res, next) => {
         if (req.method === 'POST') {
+          /** @type {Buffer[]} */
           let chunks = [];
           let totalLength = 0;
           let tooLarge = false;

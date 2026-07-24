@@ -12,7 +12,6 @@ function isProcessRunning(pid) {
 
 export async function withFileLock(filePath, fn) {
   const lockDir = `${filePath}.lock`;
-  const pidFile = path.join(lockDir, 'pid');
   const maxWait = 30000; // 30 seconds
   const start = Date.now();
   
