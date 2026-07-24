@@ -1,22 +1,81 @@
+# Manual-only YouTube channel-stats refresh.
+#
+# Runs `npm run refresh-analytics` (scripts/fetch-channel-stats.mjs) directly
+# and commits the result if it changed - same pattern as sync-youtube.yml.
+# Deliberately workflow_dispatch ONLY, no schedule: this used to just ping a
+# Cloudflare deploy hook on a weekly cron and hope the triggered rebuild's
+# build command re-fetched fresh stats. That was indirect - it silently did
+# nothing if Cloudflare's build command didn't happen to chain the fetch -
+# and, worse, meant *any* trigger of a Cloudflare rebuild (including the
+# automatic one Cloudflare runs on every git push to a connected branch)
+# could also fire the underlying OAuth + Analytics API calls, unrelated to
+# this workflow's own schedule entirely. Fire this by hand (Actions tab ->
+# Run workflow, or ask Claude to trigger it) whenever you actually want
+# fresh numbers - see #45 for wiring a recurring cadence back in later if
+# that's ever wanted again, deliberately, not as a side effect of deploys.
+#
+# INERT UNTIL CONFIGURED: needs YOUTUBE_API_KEY, YOUTUBE_CLIENT_ID,
+# YOUTUBE_CLIENT_SECRET, and YOUTUBE_REFRESH_TOKEN as repo secrets (same
+# values as your local .env - see .env.example). Missing any of them, the
+# job logs a skip and exits green, same convention as sync-youtube.yml.
 name: Update YouTube Analytics
 
 on:
-  schedule:
-    # Runs every Monday at 8:00 AM UTC (approx. 1:00 AM / 4:00 AM in the US)
-    - cron: '0 8 * * 1'
-  workflow_dispatch:
-    # Allows you to manually click "Run workflow" in GitHub if needed
+  workflow_dispatch: {}
 
 jobs:
-  trigger-build:
+  refresh-analytics:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Trigger Cloudflare Pages Rebuild
+      - name: Check secrets configured
+        id: check
+        env:
+          HAS_KEY: ${{ secrets.YOUTUBE_API_KEY != '' }}
+          HAS_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID != '' }}
+          HAS_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET != '' }}
+          HAS_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN != '' }}
         run: |
-          if [ -z "${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}" ]; then
-            echo "Error: CLOUDFLARE_DEPLOY_HOOK secret is not set!"
-            exit 1
+          if [ "$HAS_KEY" != "true" ] || [ "$HAS_CLIENT_ID" != "true" ] || [ "$HAS_CLIENT_SECRET" != "true" ] || [ "$HAS_REFRESH_TOKEN" != "true" ]; then
+            echo "One or more of YOUTUBE_API_KEY / YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET / YOUTUBE_REFRESH_TOKEN not configured — skipping (see workflow header)."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
-          echo "Pinging Cloudflare Deploy Hook..."
-          curl -X POST "${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}"
-          echo "Success! Cloudflare is rebuilding the site with fresh analytics."
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.configured == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.configured == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.check.outputs.configured == 'true'
+        run: npm ci
+
+      - name: Refresh channel stats
+        if: steps.check.outputs.configured == 'true'
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: npm run refresh-analytics
+
+      - name: Commit and push if channel-stats.json changed
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          if git diff --quiet -- src/data/cache/channel-stats.json; then
+            echo "No changes — nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/data/cache/channel-stats.json
+          git commit -m "chore: refresh YouTube channel stats" -m "Refreshed by the update-analytics.yml workflow (run ${{ github.run_id }})."
+          git push origin HEAD:${{ github.ref }}
