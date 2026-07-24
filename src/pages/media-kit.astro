@@ -110,63 +110,8 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
             }
             .page {
                 margin: 0;
-                /* Measured directly from a real print-to-PDF on iOS: that
-                   pipeline reserves ~0.56in top/side and ~1.35in at the
-                   bottom (its own URL/date/page-number footer band) no
-                   matter what @page margin says - leaving only ~9.1in of
-                   actually usable height out of the nominal 11in. This
-                   page's content was sized for the full 11in, so it spilled
-                   a sliver onto a second page. Capping .page itself at 9in
-                   (with the spacing trims below sized to fit inside that)
-                   keeps the whole design on the one usable page instead of
-                   trusting @page's declared size, which this pipeline
-                   doesn't fully honor.
-                   NOTE: not independently confirmed against a second device
-                   - this is calibrated from the one real PDF measured, not
-                   a documented iOS constant. */
-                height: 9in !important;
-                padding: 0.3in !important;
                 box-shadow: none;
                 overflow: hidden;
-            }
-            /* !important on every property below: this print block sits
-               near the top of the stylesheet, before the unconditional
-               (screen+print) base rules for these same selectors further
-               down the file - without !important the later, unrelated-to-
-               print base declaration wins the cascade regardless of the
-               media query, exactly like .page's height above would too if
-               its base rule weren't the one exception that happens to sit
-               earlier in the file. Confirmed empirically: before adding
-               !important here, these overrides silently did nothing. */
-            .container {
-                gap: 0.08in !important;
-            }
-            .pitch,
-            .headshot-placeholder {
-                height: 1in !important;
-            }
-            .headshot-placeholder {
-                width: 1in !important;
-            }
-            .section-title {
-                margin-bottom: 0.08in !important;
-            }
-            .metric-card {
-                padding: 0.1in !important;
-            }
-            .metric-value {
-                font-size: 0.28in !important;
-                margin-bottom: 0.05in !important;
-            }
-            .capabilities-list li {
-                margin-bottom: 0.06in !important;
-            }
-            .footer {
-                padding-top: 0.06in !important;
-            }
-            .footer-logo-container {
-                margin-top: 0.05in !important;
-                padding-bottom: 0.05in !important;
             }
             .action-fab, .fab-container {
                 display: none !important;
@@ -951,9 +896,9 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
     
     <!-- Floating Actions Container -->
     <div class="fab-container">
-        <button onclick="window.print()" class="action-fab">
+        <a href="/downloads/be-unconventional-hq-media-kit.pdf" class="action-fab" download>
             Download PDF
-        </button>
+        </a>
         <a href="/press-kit" class="action-fab">Press Kit</a>
         <a href="/" class="action-fab">Return to Site</a>
     </div>

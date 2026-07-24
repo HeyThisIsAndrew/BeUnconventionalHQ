@@ -14,6 +14,13 @@
 # fresh numbers - see #45 for wiring a recurring cadence back in later if
 # that's ever wanted again, deliberately, not as a side effect of deploys.
 #
+# Also regenerates the media kit's downloadable PDF (scripts/
+# generate-media-kit-pdf.mjs) so it stays in sync with whatever numbers
+# just got fetched - that PDF is rendered via headless Chromium directly
+# (not a visitor's own browser print pipeline, which is what caused the
+# margin/footer bugs this replaced), so it needs a real Chromium, which
+# `npm ci` fetches for Puppeteer automatically.
+#
 # INERT UNTIL CONFIGURED: needs YOUTUBE_API_KEY, YOUTUBE_CLIENT_ID,
 # YOUTUBE_CLIENT_SECRET, and YOUTUBE_REFRESH_TOKEN as repo secrets (same
 # values as your local .env - see .env.example). Missing any of them, the
@@ -67,15 +74,19 @@ jobs:
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
         run: npm run refresh-analytics
 
-      - name: Commit and push if channel-stats.json changed
+      - name: Regenerate media kit PDF
+        if: steps.check.outputs.configured == 'true'
+        run: npm run generate-media-kit-pdf
+
+      - name: Commit and push if anything changed
         if: steps.check.outputs.configured == 'true'
         run: |
-          if git diff --quiet -- src/data/cache/channel-stats.json; then
+          if git diff --quiet -- src/data/cache/channel-stats.json public/downloads/be-unconventional-hq-media-kit.pdf; then
             echo "No changes — nothing to commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add src/data/cache/channel-stats.json
-          git commit -m "chore: refresh YouTube channel stats" -m "Refreshed by the update-analytics.yml workflow (run ${{ github.run_id }})."
+          git add src/data/cache/channel-stats.json public/downloads/be-unconventional-hq-media-kit.pdf
+          git commit -m "chore: refresh YouTube channel stats + media kit PDF" -m "Refreshed by the update-analytics.yml workflow (run ${{ github.run_id }})."
           git push origin HEAD:${{ github.ref }}
