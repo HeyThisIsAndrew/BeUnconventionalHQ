@@ -151,53 +151,63 @@ export async function run() {
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { withFileLock } from './file-lock.mjs';
 
 async function runLocal() {
   const dryRun = process.argv.includes('--dry-run');
   const videosPath = path.resolve(fileURLToPath(import.meta.url), '../../src/data/videos.json');
   
-  // Read local JSON
-  const videosData = JSON.parse(fs.readFileSync(videosPath, 'utf8'));
-  const videos = videosData.filter(d => d._type === 'video');
-  
-  const todayYmd = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Los_Angeles',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
-
-  console.log(`${videos.length} video(s) found in local JSON. Day: ${todayYmd}`);
-
-  const now = new Date();
-  let updatedCount = 0;
-
-  for (const v of videos) {
-    if (typeof v.viewCount !== 'number') continue;
+  await withFileLock(videosPath, async () => {
+    // Read local JSON
+    let videosData;
+    try {
+      videosData = JSON.parse(fs.readFileSync(videosPath, 'utf8'));
+    } catch (e) {
+      throw new Error('Failed to parse videos.json: ' + e.message);
+    }
+    const videos = videosData.filter(d => d._type === 'video');
     
-    // Existing metrics (if any) are stored on the doc itself now
-    const existing = v.metrics ? { snapshots: v.metrics.snapshots } : null;
-    const plan = planMetricsUpdate(v.youtubeId, v.viewCount, existing, todayYmd, now);
-    
-    // Assign new metrics directly to the document
-    v.metrics = {
-      snapshots: plan.patch.set.snapshots,
-      viewVelocity7d: plan.patch.set.viewVelocity7d,
-      lastComputedAt: plan.patch.set.lastComputedAt,
-    };
-    
-    console.log(`• ${v.youtubeId}  views ${v.viewCount}  velocity/7d ${v.metrics.viewVelocity7d}`);
-    updatedCount++;
-  }
+    const todayYmd = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Los_Angeles',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
 
-  if (dryRun) {
-    console.log(`\nDRY RUN — ${updatedCount} local metrics doc(s) would be updated.`);
-    return;
-  }
+    console.log(`${videos.length} video(s) found in local JSON. Day: ${todayYmd}`);
 
-  // Write back to videos.json
-  fs.writeFileSync(videosPath, JSON.stringify(videosData, null, 2));
-  console.log(`\n✔ Updated ${updatedCount} metrics directly in videos.json.`);
+    const now = new Date();
+    let updatedCount = 0;
+
+    for (const v of videos) {
+      if (typeof v.viewCount !== 'number') continue;
+      
+      // Existing metrics (if any) are stored on the doc itself now
+      const existing = v.metrics ? { snapshots: v.metrics.snapshots } : null;
+      const plan = planMetricsUpdate(v.youtubeId, v.viewCount, existing, todayYmd, now);
+      
+      // Assign new metrics directly to the document
+      v.metrics = {
+        snapshots: plan.patch.set.snapshots,
+        viewVelocity7d: plan.patch.set.viewVelocity7d,
+        lastComputedAt: plan.patch.set.lastComputedAt,
+      };
+      
+      console.log(`• ${v.youtubeId}  views ${v.viewCount}  velocity/7d ${v.metrics.viewVelocity7d}`);
+      updatedCount++;
+    }
+
+    if (dryRun) {
+      console.log(`\nDRY RUN — ${updatedCount} local metrics doc(s) would be updated.`);
+      return;
+    }
+
+    // Write back to videos.json atomically
+    const tmpPath = `${videosPath}.${process.pid}.tmp`;
+    fs.writeFileSync(tmpPath, JSON.stringify(videosData, null, 2));
+    fs.renameSync(tmpPath, videosPath);
+    console.log(`\n✔ Updated ${updatedCount} metrics directly in videos.json.`);
+  });
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

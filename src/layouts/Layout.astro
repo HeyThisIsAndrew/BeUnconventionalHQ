@@ -13,6 +13,7 @@ import Navbar from '../components/Navbar.astro';
 import ContactModal from '../components/ContactModal.astro';
 import { site } from '../data/site.js';
 import { ClientRouter } from 'astro:transitions';
+import logoImage from '../assets/logo.webp';
 
 const {
   title = site.name,
@@ -29,12 +30,18 @@ const {
   preloadImage,
 } = Astro.props;
 
-// Self-referential canonical URL: absolute, always trailing-slashed to match
-// how Cloudflare Pages serves routes. og:url reuses the same value so search
-// engines never see a page advertise two different addresses for itself.
-const canonicalPath = Astro.url.pathname.endsWith('/')
-  ? Astro.url.pathname
-  : `${Astro.url.pathname}/`;
+// Self-referential canonical URL: absolute, no trailing slash (except root)
+// to match Cloudflare's asset html_handling: "drop-trailing-slash"
+// (wrangler.jsonc) — every internal link already points to the no-slash
+// form, and drop-trailing-slash serves that directly while redirecting
+// the slashed form away, so the canonical tag has to agree or it points
+// at a URL that immediately redirects elsewhere. og:url reuses the same
+// value so search engines never see a page advertise two different
+// addresses for itself.
+const canonicalPath =
+  Astro.url.pathname === '/' || !Astro.url.pathname.endsWith('/')
+    ? Astro.url.pathname
+    : Astro.url.pathname.slice(0, -1);
 const url = Astro.props.url ?? new URL(canonicalPath, site.url).toString();
 
 // Sitewide structured data: tells search engines who this brand is and
@@ -50,7 +57,7 @@ const structuredData = {
       '@id': orgId,
       name: site.name,
       url: site.url,
-      logo: new URL('logo.webp', site.url).toString(),
+      logo: new URL(logoImage.src, site.url).toString(),
       description: site.description,
       sameAs: [
         site.socials.youtube,

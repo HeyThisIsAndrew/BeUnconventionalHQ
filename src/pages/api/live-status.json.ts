@@ -48,7 +48,20 @@ function json(body: LiveStatusResult, cacheControl: string): Response {
   });
 }
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
+  // Cloudflare dynamic routes bypass CDN cache by default. Manually enforce it.
+  // @ts-ignore - caches is a Cloudflare global
+  const cache = typeof caches !== 'undefined' ? caches.default : null;
+  const cacheKey = new Request(new URL(request.url).toString());
+
+  if (cache) {
+    const cachedResponse = await cache.match(cacheKey);
+    if (cachedResponse) {
+      // The browser respects max-age=0 to revalidate, while the edge serves from cache.
+      return cachedResponse;
+    }
+  }
+
   // Production: secrets live on the Workers env (cloudflare:workers).
   // Local `astro dev`: a plain .env file surfaces via import.meta.env.
   const env = (workerEnv ?? {}) as Record<string, string | undefined>;
@@ -94,5 +107,19 @@ export const GET: APIRoute = async () => {
   // max-age=0: browsers revalidate against the edge (no stale tabs after a
   // stream starts); s-maxage=900: the edge is the quota gate; SWR keeps
   // responses instant while the edge refreshes in the background.
-  return json(result, 'public, max-age=0, s-maxage=900, stale-while-revalidate=300');
+  const finalResponse = json(result, 'public, max-age=0, s-maxage=900, stale-while-revalidate=300');
+
+  if (cache) {
+    // Cloudflare Cache API requires the response to have max-age > 0 for `put` to work
+    const cacheResponse = finalResponse.clone();
+    cacheResponse.headers.set('Cache-Control', 'public, max-age=900');
+    try {
+      // We await it here since context.waitUntil is not cleanly accessible without locals
+      await cache.put(cacheKey, cacheResponse);
+    } catch (e) {
+      console.error('Cache put failed', e);
+    }
+  }
+
+  return finalResponse;
 };

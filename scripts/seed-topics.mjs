@@ -1,7 +1,13 @@
 import fs from 'node:fs';
 
 const videosPath = new URL('../src/data/videos.json', import.meta.url).pathname;
-const videos = JSON.parse(fs.readFileSync(videosPath, 'utf8'));
+let videos = [];
+try {
+  videos = JSON.parse(fs.readFileSync(videosPath, 'utf8'));
+} catch (e) {
+  console.error('Failed to parse videos.json:', e.message);
+  process.exit(1);
+}
 
 const TIER1_TOPIC_SEEDS = [
   { _id: 'topic-film', _type: 'topic', title: 'Film', slug: { _type: 'slug', current: 'film' }, isTier1Category: true, youtubeSyncKeywords: ['film', 'movie', 'movies'] },
