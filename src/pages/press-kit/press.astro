@@ -387,17 +387,22 @@ const [filmArt, tvArt, gamingArt] = await Promise.all(
             pointer-events: none;
         }
 
-        /* 0.30in here where the media kit uses 0.35in. The media kit's card
+        /* 0.26in here where the media kit uses 0.35in. The media kit's card
            values are short formatted numbers (319.8K, US); this sheet's are
-           words. Measured in Syne 800, TELEVISION renders 2.177in against a
-           2.079in card content box at 0.35in, and because it's a single word
-           with no break opportunity it can't wrap, so .metric-card's
-           overflow:hidden clipped it mid-letter. 0.30in brings it to 1.867in,
-           clearing the box by 0.21in, and still sits well over twice the
-           .metric-label size so the hierarchy inside the card is unchanged. */
+           words, and Syne at weight 800 is very wide - roughly 1em of advance
+           per uppercase glyph. Measured off the font's own metrics (not a
+           browser, which will silently substitute and under-report), against
+           the 2.079in card content box: at 0.35in GAMING alone was already
+           2.499in, and the longest value cannot wrap because it's a single
+           word, so .metric-card's overflow:hidden clipped it mid-letter.
+           0.26in puts the longest (GAMING) at 1.856in, a 10% margin, and all
+           three share the one size. That in turn caps how long any value can
+           be: 'TV/STREAMING' would have forced every card down to 0.144in,
+           barely above the 0.13in label, so streaming lives in card two's
+           label instead of its headline. */
         .metric-value {
             font-family: var(--font-display);
-            font-size: 0.30in;
+            font-size: 0.26in;
             font-weight: 800;
             line-height: 1;
             margin-bottom: 0.08in;
@@ -755,8 +760,8 @@ const [filmArt, tvArt, gamingArt] = await Promise.all(
                 </div>
 
                 <div class="metric-card" style={`--cardArt: url('${tvArt.src}')`}>
-                    <div class="metric-value">TELEVISION</div>
-                    <div class="metric-label">Episodes &amp; Seasons</div>
+                    <div class="metric-value">TV</div>
+                    <div class="metric-label">Streaming &amp; Seasons</div>
                 </div>
 
                 <div class="metric-card" style={`--cardArt: url('${gamingArt.src}')`}>
