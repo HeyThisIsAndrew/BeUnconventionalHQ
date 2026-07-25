@@ -6,6 +6,8 @@ import { getVideosUnified } from '../lib/videos-source';
 import { parseVideoId } from '../lib/platforms/youtube';
 import '../styles/links.css';
 import SubscribeCTA from '../components/SubscribeCTA.astro';
+import { Image } from 'astro:assets';
+import logoImage from '../assets/logo.webp';
 
 const title = `Links | ${site.name}`;
 const description = 'Connect with Be Unconventional HQ across all platforms.';
@@ -173,23 +175,15 @@ const socialLinks = [
       <button id="close-modal" class="qr-modal-close" aria-label="Close modal"
         >&times;</button
       >
-      <div class="qr-placeholder">
-        <div class="qr-grid-box">
-          <div class="qr-scan-line"></div>
-          {
-            Array.from({ length: 144 }).map(() => (
-              <div class={Math.random() > 0.7 ? 'dot-active' : ''} />
-            ))
-          }
+      <div class="qr-container">
+        <div class="qr-image-wrapper">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=https://beunconventionalhq.com/collaborations&ecc=H" alt="Collaborations QR Code" class="qr-code-img" />
+          <Image src={logoImage} alt="Be Unconventional HQ Logo" class="qr-logo-overlay" />
         </div>
         <div class="qr-brand-stack">
-          <div class="qr-line-1">
-            <span class="qr-word-qr">QR</span>
-            <span class="qr-word-code">CODE</span>
-          </div>
-          <span class="qr-word-status">COMING SOON</span>
+          <a href="/collaborations" class="qr-collabs-link">COLLABS</a>
         </div>
-        <p class="qr-subtext">Scan to save digital contact card</p>
+        <p class="qr-subtext">Scan or click to view collaborations</p>
       </div>
     </div>
   </div>
