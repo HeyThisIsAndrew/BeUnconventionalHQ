@@ -188,7 +188,7 @@ const socialLinks = [
 </Layout>
 
 <script is:inline>
-  (function () {
+  document.addEventListener('astro:page-load', () => {
     const trigger = document.getElementById('qr-trigger');
     const modal = document.getElementById('qr-modal');
     const closeBtn = document.getElementById('close-modal');
@@ -210,6 +210,8 @@ const socialLinks = [
       trigger.focus();
     };
 
+    // Clean up old listeners by cloning or just rely on astro:page-load removing elements
+    // Astro replaces the DOM, so the elements are new and won't have the old listeners.
     trigger.addEventListener('click', openModal);
     closeBtn.addEventListener('click', closeModal);
 
@@ -222,7 +224,7 @@ const socialLinks = [
         closeModal();
       }
     });
-  })();
+  });
 </script>
 
 <style>
