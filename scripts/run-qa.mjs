@@ -22,7 +22,7 @@ async function runQA() {
   const routes = [
     '/', '/events', '/events/sdcc-2026', '/events/d23-2026', '/featured',
     '/featured/dc-comics', '/featured/marvel-comics', '/links', '/about',
-    '/press-kit', '/feed'
+    '/collaborations', '/feed'
   ];
 
   for (const route of routes) {

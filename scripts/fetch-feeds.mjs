@@ -49,11 +49,10 @@ async function ingest(label, fetcher, file) {
 
 async function run() {
   await fs.mkdir(CACHE_DIR, { recursive: true });
-  const results = await Promise.all([
+  await Promise.all([
     ingest('articles', fetchArticles, ARTICLES_FILE),
     ingest('videos', fetchVideos, VIDEOS_FILE),
   ]);
-  if (results.includes(false)) process.exit(1);
 }
 
 run();

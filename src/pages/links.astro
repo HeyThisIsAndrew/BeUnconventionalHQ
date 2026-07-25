@@ -4,8 +4,11 @@ import { site } from '../data/site.js';
 import { getArticles } from '../data/feeds.js';
 import { getVideosUnified } from '../lib/videos-source';
 import { parseVideoId } from '../lib/platforms/youtube';
+import { Image } from 'astro:assets';
+import logoImage from '../assets/logo.webp';
 import '../styles/links.css';
 import SubscribeCTA from '../components/SubscribeCTA.astro';
+
 
 const title = `Links | ${site.name}`;
 const description = 'Connect with Be Unconventional HQ across all platforms.';
@@ -53,19 +56,6 @@ const socialLinks = [
     <div class="links-container">
       <!-- Profile & Brand Section -->
       <section class="links-profile-header animate-on-scroll" data-nav-anchor>
-        <button
-          id="qr-trigger"
-          class="links-profile-trigger"
-          aria-label="Open QR Code Modal"
-        >
-          <img
-            src="/profile.jpg"
-            alt="Be Unconventional HQ"
-            class="links-profile-img"
-          />
-          <div class="links-profile-glow"></div>
-        </button>
-
         <a href="/" class="links-brand-link" aria-label="Return to homepage">
           <div class="links-brand-stack">
             <p class="links-kicker">WHERE NERD CULTURE GETS CINEMATIC</p>
@@ -75,7 +65,7 @@ const socialLinks = [
               <span class="links-word-hq">HQ</span>
             </h1>
             <p class="links-subtitle">
-              SOMETIMES UNCONVENTIONAL IS THE ONLY WAY FORWARD
+              Stories Craft and Culture Through A Different Lens
             </p>
           </div>
         </a>
@@ -157,7 +147,22 @@ const socialLinks = [
         </div>
       </section>
 
+      <section class="links-footer-logo animate-on-scroll" data-delay="400" style="display: flex; justify-content: center;">
+        <button
+          id="qr-trigger"
+          class="links-logo-trigger"
+          aria-label="Open QR Code Modal"
+        >
+          <Image src={logoImage} alt="Be Unconventional HQ Logo" class="links-main-logo"loading="lazy" />
+          <!-- <div class="links-logo-glow"></div> -->
+        </button>
+      </section>
+
       <SubscribeCTA variant="compact" />
+
+      <div class="links-copyright animate-on-scroll" data-delay="500">
+        <p>&copy; {new Date().getFullYear()} Be Unconventional HQ. All rights reserved.</p>
+      </div>
     </div>
   </main>
 
@@ -173,30 +178,21 @@ const socialLinks = [
       <button id="close-modal" class="qr-modal-close" aria-label="Close modal"
         >&times;</button
       >
-      <div class="qr-placeholder">
-        <div class="qr-grid-box">
-          <div class="qr-scan-line"></div>
-          {
-            Array.from({ length: 144 }).map(() => (
-              <div class={Math.random() > 0.7 ? 'dot-active' : ''} />
-            ))
-          }
+      <div class="qr-container">
+        <div class="qr-image-wrapper">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=https://beunconventionalhq.com/collaborations" alt="Collaborations QR Code" class="qr-code-img" />
         </div>
         <div class="qr-brand-stack">
-          <div class="qr-line-1">
-            <span class="qr-word-qr">QR</span>
-            <span class="qr-word-code">CODE</span>
-          </div>
-          <span class="qr-word-status">COMING SOON</span>
+          <a href="/collaborations" class="qr-collabs-link">COLLABS</a>
         </div>
-        <p class="qr-subtext">Scan to save digital contact card</p>
+        <p class="qr-subtext">Scan or click to view collaborations</p>
       </div>
     </div>
   </div>
 </Layout>
 
 <script is:inline>
-  (function () {
+  document.addEventListener('astro:page-load', () => {
     const trigger = document.getElementById('qr-trigger');
     const modal = document.getElementById('qr-modal');
     const closeBtn = document.getElementById('close-modal');
@@ -218,6 +214,8 @@ const socialLinks = [
       trigger.focus();
     };
 
+    // Clean up old listeners by cloning or just rely on astro:page-load removing elements
+    // Astro replaces the DOM, so the elements are new and won't have the old listeners.
     trigger.addEventListener('click', openModal);
     closeBtn.addEventListener('click', closeModal);
 
@@ -230,7 +228,7 @@ const socialLinks = [
         closeModal();
       }
     });
-  })();
+  });
 </script>
 
 <style>

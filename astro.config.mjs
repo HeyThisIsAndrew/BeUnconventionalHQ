@@ -155,6 +155,10 @@ export default defineConfig({
     '/articles': '/feed/articles',
     '/videos': '/feed/videos',
     '/events-new': '/events',
+    // The collaborations hub lived at /press-kit until it grew a second
+    // one-sheet and stopped being just a press kit. Anything already shared
+    // with a publicist or brand points at the old path.
+    '/press-kit': '/collaborations',
   },
   build: {
     assets: 'assets',
@@ -213,8 +217,13 @@ export default defineConfig({
       // a CMS interface must never be advertised to search engines.
       // /local-cms is the dev-only Local CMS admin route — same reasoning.
       // /media-kit is a direct-share-only PDF route.
+      // /collaborations/press-kit is the same: a direct-share one-sheet
+      // reached from /collaborations (which stays in the sitemap) and
+      // carrying its own noindex, so it must not be advertised as a separate
+      // canonical destination. The '/press-kit' test matches both it and the
+      // legacy /press-kit redirect stub, neither of which belongs here.
       filter: (page) =>
-        !page.includes('/links') && !page.includes('/admin') && !page.includes('/local-cms') && !page.includes('/media-kit'),
+        !page.includes('/links') && !page.includes('/admin') && !page.includes('/local-cms') && !page.includes('/media-kit') && !page.includes('/press-kit'),
       // Strip trailing slashes to match assets.html_handling:
       // "drop-trailing-slash" — otherwise every sitemap entry sends
       // crawlers through an extra redirect hop before reaching the

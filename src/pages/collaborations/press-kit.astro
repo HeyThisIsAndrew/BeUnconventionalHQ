@@ -1,82 +1,43 @@
 ---
-// Self-hosted, same-origin - see Layout.astro. media-kit.astro renders its
-// own standalone <html> (bypasses Layout), so it needs its own font import;
-// the Google Fonts <link> this replaced was a live external request that
+// Self-hosted, same-origin - see Layout.astro. press.astro renders its own
+// standalone <html> (bypasses Layout), so it needs its own font import; the
+// Google Fonts <link> this replaced was a live external request that
 // window.print() doesn't reliably wait on, so a slow/blocked fetch printed
 // the whole page (both --font-display and --font-body resolve to this one
 // family) in the browser's fallback sans-serif.
+//
+// UNLIKE media-kit.astro, this one-sheet is deliberately 100% static: every
+// value below the fold is editorial copy, not a metric. It must never import
+// sanity:client, channel-stats.json or social-stats.json - the press kit is
+// the document handed to publicists and credentialing bodies, and it has to
+// render identically whether or not the YouTube/Instagram/TikTok pipelines
+// are healthy. Audience numbers live on /media-kit; keep them there.
 import '@fontsource-variable/syne';
-import { site } from '../data/site.js';
+import { site } from '../../data/site.js';
 import { Image, getImage } from 'astro:assets';
-import logoImage from '../assets/logo.webp';
+import logoImage from '../../assets/logo.webp';
 const optimizedBg = await getImage({ src: logoImage, format: 'webp', width: 400 });
 
-import channelStats from '../data/cache/channel-stats.json';
-// @ts-ignore - sanity:client is an alias resolved by Astro
-import { sanityClient } from "sanity:client";
-
-// Sanity is the preferred source, but it must never be able to fail the
-// build: the `||` chains below only cover a document that's missing or has
-// empty fields, not a request that throws. An outage, a rate limit, a
-// revoked token or a blocked egress host all reject here, and without this
-// catch the whole prerender dies instead of using the local
-// social-stats.json / channel-stats.json fallbacks that exist precisely for
-// this case. Same try/catch-to-empty contract the article RSS pages use.
-let sanityStats: any = null;
-try {
-  sanityStats = await sanityClient.fetch('*[_type == "mediaKitStats"][0]');
-} catch (err) {
-  console.warn(
-    '[media-kit] Sanity mediaKitStats fetch failed, falling back to local cache:',
-    err instanceof Error ? err.message : err
-  );
-}
-
-let followers = sanityStats?.youtube?.followerCount || channelStats.followers || 0;
-let totalViews = sanityStats?.youtube?.viewCount || channelStats.totalViews || 0;
-let views30Days = channelStats.analytics?.views30Days || 0;
-let impressions = channelStats.analytics?.impressions || 0;
-let ageString = channelStats.analytics?.age18to34Percent > 0 ? Math.round(channelStats.analytics.age18to34Percent) + '%' : 'XX%';
-let maleStr = channelStats.analytics?.malePercent > 0 ? Math.round(channelStats.analytics.malePercent) + '%' : 'XX%';
-let femaleStr = channelStats.analytics?.femalePercent > 0 ? Math.round(channelStats.analytics.femalePercent) + '%' : 'XX%';
-let genderString = `${maleStr} / ${femaleStr}`;
-let geosString = channelStats.analytics?.topGeos?.length > 0 ? channelStats.analytics.topGeos.join(', ') : 'US, GB, IN';
-let tvString = channelStats.analytics?.tvViewershipPercent > 0 ? Math.round(channelStats.analytics.tvViewershipPercent) + '%' : 'XX%';
-let searchString = channelStats.analytics?.searchTrafficPercent > 0 ? Math.round(channelStats.analytics.searchTrafficPercent) + '%' : 'XX%';
-
-// Formatter for numbers like 25.5K
-const compactFormatter = new Intl.NumberFormat('en-US', {
-  notation: 'compact',
-  compactDisplay: 'short',
-  maximumFractionDigits: 1,
-});
-
-import socialStats from '../data/cache/social-stats.json';
-
-const igFollowers = sanityStats?.instagram?.followerCount || socialStats.instagram?.followerCount || 337;
-const tiktokFollowers = sanityStats?.tiktok?.followerCount || socialStats.tiktok?.followerCount || 534;
-
-const youtubeReachString = followers > 0 ? compactFormatter.format(followers) : 'XX.Xk';
-const viewsString = views30Days > 0 ? compactFormatter.format(views30Days) : (totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.Xk');
-const topGeoString = channelStats.analytics?.topGeos?.[0] || 'US';
-
-// Impressions isn't populated for every channel (YouTube only reports it once
-// a channel has Suggested/Home-feed thumbnail-impression data). Rather than
-// show a literal "XX.Xk" as the single most prominent number on the page,
-// fall back to lifetime total views - always populated once the channel has
-// any view history at all - and relabel the card to match.
-const hasImpressions = impressions > 0;
-const headlineMetricValue = hasImpressions
-  ? compactFormatter.format(impressions)
-  : (totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.Xk');
-const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views';
+// The three COVERAGE cards carry the same hand-drawn pillar artwork the
+// homepage uses, as a low-opacity watermark behind the text. Pulled from
+// data/categories.js rather than re-importing the PNGs directly so the two
+// surfaces can't drift: swap the homepage's film/tv/gaming art and this
+// sheet follows. Still fully static - categories.js is a local module of
+// static asset imports, no fetch of any kind.
+import { categories } from '../../data/categories.js';
+const categoryBySlug = Object.fromEntries(categories.map((cat) => [cat.slug, cat]));
+const [filmArt, tvArt, gamingArt] = await Promise.all(
+  ['film', 'tv', 'gaming'].map((slug) =>
+    getImage({ src: categoryBySlug[slug].image, format: 'webp', width: 400 })
+  )
+);
 ---
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Be Unconventional HQ - Digital Media Kit</title>
+    <title>Be Unconventional HQ - Digital Press Kit</title>
     <meta name="robots" content="noindex">
     <style is:global>
         /* CSS reset and print setup */
@@ -403,15 +364,51 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
             top: 0; left: 0; width: 100%; height: 3px;
             background: var(--accent-red);
             opacity: 0.7;
+            z-index: 2; /* stays above the watermark below */
         }
 
+        /* Pillar artwork watermark, set per card via --cardArt. The source
+           PNGs are a near-black torn-paper shape with white chalk linework
+           on transparency, so on this surface only the linework reads - it
+           sits behind the value/label as texture, never as an image. Scaled
+           past the card's height on purpose and clipped by the card's own
+           overflow:hidden, which is what keeps it feeling like a watermark
+           rather than a centered icon. */
+        .metric-card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: var(--cardArt);
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: auto 190%;
+            opacity: 0.18;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* 0.26in here where the media kit uses 0.35in. The media kit's card
+           values are short formatted numbers (319.8K, US); this sheet's are
+           words, and Syne at weight 800 is very wide - roughly 1em of advance
+           per uppercase glyph. Measured off the font's own metrics (not a
+           browser, which will silently substitute and under-report), against
+           the 2.079in card content box: at 0.35in GAMING alone was already
+           2.499in, and the longest value cannot wrap because it's a single
+           word, so .metric-card's overflow:hidden clipped it mid-letter.
+           0.26in puts the longest (GAMING) at 1.856in, a 10% margin, and all
+           three share the one size. That in turn caps how long any value can
+           be: 'TV/STREAMING' would have forced every card down to 0.144in,
+           barely above the 0.13in label, so streaming lives in card two's
+           label instead of its headline. */
         .metric-value {
             font-family: var(--font-display);
-            font-size: 0.35in; /* Reduced from 0.45in so that large numbers like 319.8K fit perfectly in their box */
+            font-size: 0.26in;
             font-weight: 800;
             line-height: 1;
             margin-bottom: 0.08in;
             color: var(--text-main);
+            position: relative;
+            z-index: 1; /* above the watermark */
         }
 
         .metric-label {
@@ -420,6 +417,8 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
             text-transform: uppercase;
             letter-spacing: 0.05em;
             color: var(--text-muted);
+            position: relative;
+            z-index: 1;
         }
 
         /* -------------------------------------
@@ -478,15 +477,7 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
         .capabilities-list li {
             position: relative;
             padding-left: 0.25in;
-            /* 0.06in, not the 0.1in this started at. The list grew from five
-               entries to seven; at the old spacing that column would stand
-               ~0.35in taller than the six-row AUDIENCE INSIGHTS column the
-               original 11in layout was proven against, and .split-section
-               has flex:1 with the footer block pinned by margin-top:auto, so
-               there is no slack to absorb it - the overflow would come off
-               the bottom of the sheet. Tightening the gap keeps seven
-               entries at roughly the height six rows used to occupy. */
-            margin-bottom: 0.06in;
+            margin-bottom: 0.1in;
             font-size: 0.12in; /* Reduced to fit all text on one line */
             white-space: nowrap; /* Strictly force single line */
             font-weight: 600;
@@ -759,93 +750,95 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
         <div class="pitch-container">
             <div class="headshot-placeholder"></div>
             <div class="pitch">
-                Be Unconventional HQ was created to share a passion for movies, games, technology, and storytelling with honesty, curiosity, and a cinematic perspective. Whether breaking down cinematography, exploring game mechanics, or geeking out over creative technology, our goal is to slow down, appreciate the craft, and foster a community built on genuine conversations.
+                Be Unconventional HQ is an independent outlet covering film, television, gaming, and creator culture through a cinematic editorial lens. Coverage spans reviews and criticism, industry and business analysis, and on-location premiere and convention reporting. Editorial decisions are made independently, and all provided materials are disclosed.
             </div>
         </div>
 
-        <!-- 3. Network Reach -->
+        <!-- 3. Coverage -->
         <div>
-            <h2 class="section-title">NETWORK REACH</h2>
+            <h2 class="section-title">COVERAGE</h2>
             <div class="metrics-grid">
-                
-                <div class="metric-card">
-                    <div class="metric-value">{searchString}</div>
-                    <div class="metric-label">Search Traffic</div>
+
+                <div class="metric-card" style={`--cardArt: url('${filmArt.src}')`}>
+                    <div class="metric-value">FILM</div>
+                    <div class="metric-label">Reviews &amp; Criticism</div>
                 </div>
 
-                <div class="metric-card">
-                    <div class="metric-value">{viewsString}</div>
-                    <div class="metric-label">30-Day Views</div>
+                <div class="metric-card" style={`--cardArt: url('${tvArt.src}')`}>
+                    <div class="metric-value">TV</div>
+                    <div class="metric-label">Streaming &amp; Seasons</div>
                 </div>
 
-                <div class="metric-card">
-                    <div class="metric-value">{topGeoString}</div>
-                    <div class="metric-label">Top Geo</div>
+                <div class="metric-card" style={`--cardArt: url('${gamingArt.src}')`}>
+                    <div class="metric-value">GAMING</div>
+                    <div class="metric-label">Coverage &amp; Analysis</div>
                 </div>
-                
+
             </div>
 
-            <!-- Mini Platform Breakdown Mockup -->
+            <!-- Mini Platform Breakdown -->
             <div class="mini-platform-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.1in; margin-top: 0.15in; text-align: center;">
                 <div style="border: 1px solid rgba(255,255,255,0.05); padding: 0.1in; background: rgba(255,255,255,0.02);">
-                    <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">{youtubeReachString}</div>
-                    <div style="font-family: var(--font-body); font-size: 0.08in; color: var(--text-muted); text-transform: uppercase; margin-top: 0.02in;">YOUTUBE SUBS</div>
+                    <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">YOUTUBE</div>
+                    <div style="font-family: var(--font-body); font-size: 0.08in; color: var(--text-muted); text-transform: uppercase; margin-top: 0.02in;">LONG-FORM &amp; SHORTS</div>
                 </div>
                 <div style="border: 1px solid rgba(255,255,255,0.05); padding: 0.1in; background: rgba(255,255,255,0.02);">
-                    <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">{igFollowers}</div>
-                    <div style="font-family: var(--font-body); font-size: 0.08in; color: var(--text-muted); text-transform: uppercase; margin-top: 0.02in;">INSTAGRAM</div>
+                    <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">SUBSTACK</div>
+                    <div style="font-family: var(--font-body); font-size: 0.08in; color: var(--text-muted); text-transform: uppercase; margin-top: 0.02in;">WRITTEN CRITICISM</div>
                 </div>
                 <div style="border: 1px solid rgba(255,255,255,0.05); padding: 0.1in; background: rgba(255,255,255,0.02);">
-                    <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">{tiktokFollowers}</div>
-                    <div style="font-family: var(--font-body); font-size: 0.08in; color: var(--text-muted); text-transform: uppercase; margin-top: 0.02in;">TIKTOK</div>
+                    <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">SOCIAL</div>
+                    <div style="font-family: var(--font-body); font-size: 0.08in; color: var(--text-muted); text-transform: uppercase; margin-top: 0.02in;">IG / TIKTOK / THREADS</div>
                 </div>
             </div>
         </div>
 
-        <!-- 4 & 5. Audience & Coverage Capabilities -->
+        <!-- 4 & 5. Coverage Areas & Editorial Standards -->
         <div class="split-section">
-            
-            <!-- The Audience Section -->
+
+            <!-- What We Cover Section -->
             <div>
-                <h2 class="section-title">AUDIENCE INSIGHTS</h2>
+                <h2 class="section-title">WHAT WE COVER</h2>
                 <ul class="data-list">
                     <li>
-                        <span class="data-label">Age Split (18-34)</span>
-                        <span class="data-value">{ageString}</span>
+                        <span class="data-label">Film</span>
+                        <span class="data-value">Reviews &amp; criticism</span>
                     </li>
                     <li>
-                        <span class="data-label">Gender (Male / Female)</span>
-                        <span class="data-value">{genderString}</span>
+                        <span class="data-label">Television</span>
+                        <span class="data-value">Episodes &amp; streaming</span>
                     </li>
                     <li>
-                        <span class="data-label">Connected TV</span>
-                        <span class="data-value">{tvString}</span>
+                        <span class="data-label">Gaming</span>
+                        <span class="data-value">Coverage &amp; analysis</span>
                     </li>
                     <li>
-                        <span class="data-label">{headlineMetricLabel}</span>
-                        <span class="data-value">{headlineMetricValue}</span>
+                        <span class="data-label">Media Industry</span>
+                        <span class="data-value">Business &amp; market</span>
                     </li>
                     <li>
-                        <span class="data-label">Top Geos</span>
-                        <span class="data-value" style="color: var(--accent-red);">{geosString}</span>
+                        <span class="data-label">Events</span>
+                        <span class="data-value">On-location</span>
+                    </li>
+                    <li>
+                        <span class="data-label">Format</span>
+                        <span class="data-value">Video, written &amp; photo</span>
                     </li>
                 </ul>
             </div>
-            
-            <!-- Coverage Capabilities Section -->
+
+            <!-- Editorial Standards Section -->
             <div>
-                <h2 class="section-title">PRODUCTION SERVICES</h2>
+                <h2 class="section-title">EDITORIAL STANDARDS</h2>
                 <ul class="capabilities-list">
-                    <li>Cinematic Video Essays &amp; Reviews</li>
-                    <li>On-The-Ground Convention &amp; Premiere Coverage</li>
-                    <li>Editorial &amp; Event Photography</li>
-                    <li>Tech &amp; Production Workflow Integrations</li>
-                    <li>Dedicated Social Campaigns</li>
-                    <li>Brand Integration &amp; Shoutouts</li>
-                    <li>Amazon Influencer Product Reviews</li>
+                    <li>Editorial independence on all coverage</li>
+                    <li>Full disclosure of provided materials</li>
+                    <li>Embargo terms honored in writing</li>
+                    <li>Corrections issued on the record</li>
+                    <li>Direct contact for press and publicists</li>
                 </ul>
             </div>
-            
+
         </div>
 
         <!-- The Arsenal / Gear List -->
@@ -934,10 +927,10 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
     
     <!-- Floating Actions Container -->
     <div class="fab-container">
-        <a href="/downloads/be-unconventional-hq-media-kit.pdf" class="action-fab" download="Be-Unconventional-HQ-Media-Kit.pdf">
-            &darr; Download PDF
+        <a href="/downloads/be-unconventional-hq-press-kit.pdf" class="action-fab" download="Be-Unconventional-HQ-Press-Kit.pdf">
+            <span class="icon" style="font-size: 1.2em;">&darr;</span> Download PDF
         </a>
-        <a href="/collaborations/press-kit" class="action-fab">Press Kit</a>
+        <a href="/media-kit" class="action-fab">Media Kit</a>
         <a href="/collaborations" class="action-fab">Collaborations</a>
         <a href="/" class="action-fab">Return to Site</a>
     </div>
