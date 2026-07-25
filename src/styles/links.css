@@ -99,11 +99,11 @@
   top: 50%;
   left: 50%;
   /* Tracks the logo instead of sitting at a fixed size: the button shrinks to
-     272px on a 320px screen, where a flat 320px halo would be wider than the
-     mark it is meant to sit behind. aspect-ratio keeps the ellipse in
-     proportion as the width clamps down. */
-  width: min(320px, 100%);
-  aspect-ratio: 320 / 190;
+     272px on a 320px screen, where a flat halo would be wider than the mark it
+     is meant to sit behind. aspect-ratio keeps the ellipse in proportion as
+     the width clamps down. */
+  width: min(400px, 100%);
+  aspect-ratio: 400 / 240;
   height: auto;
   transform: translate(-50%, -50%);
   background: radial-gradient(
@@ -113,16 +113,13 @@
     rgba(204, 0, 0, 0) 72%
   );
   filter: blur(16px);
-  /* Calibrated by measurement, not by eye. Rendered against the page and
-     diffed per-pixel, 0.22 moved the red channel by only 16/255 (~6%), which
-     is below the threshold of noticeability on most screens - it read as no
-     glow at all. Values were sampled at 0.22/0.35/0.5/0.65/0.8, and the
-     response is not linear because the gradient's own alpha caps it: they
-     measure 16, 17, 22, 35 and 62 respectively. 0.8 gives a peak delta of
-     62/255 - a soft halo that is clearly present without becoming a blob,
-     and most of the centre is covered by the logo artwork anyway, so what
-     actually shows is the rim. */
-  opacity: 0.8;
+  /* Hidden at rest; the glow is a hover affordance, not decoration.
+     The lit value was calibrated by measurement rather than by eye: rendered
+     against the page and diffed per-pixel, 0.22 moved the red channel by only
+     16/255 (~6%), below the threshold of noticeability on most screens.
+     Response is not linear because the gradient's own alpha caps it - 0.22,
+     0.35, 0.5, 0.65 and 0.8 measure 16, 17, 22, 35 and 62 respectively. */
+  opacity: 0;
   border-radius: 50%;
   /* Negative, so it paints above .links-hub's background and below the
      backgrounds of every in-flow tile above and below it. */
@@ -134,10 +131,31 @@
 /* Keyed off the button, not the section. The section is a full-width flex row,
    so hovering the empty space beside the logo would otherwise light the glow.
    The glow is a following sibling of the button, so a plain ~ combinator does
-   the job without needing :has(). */
+   the job without needing :has().
+
+   Deliberately NOT written as `@media (hover: hover) { ...:hover... }`. That
+   form fails closed: anything that misreports its input capability loses the
+   effect entirely, and plenty does - headless Chrome reports (hover: none)
+   with no pointer type at all, and it is not alone. Suppressing on the
+   explicit negative instead fails open, so the only devices that lose the
+   glow are the ones that positively declare they cannot hover, which is the
+   case we actually want to exclude: on touch, :hover latches after a tap and
+   would leave the glow stuck on until the next tap elsewhere.
+
+   Keyboard users get the same affordance via :focus-visible, never suppressed. */
 .links-logo-trigger:hover ~ .links-logo-glow,
 .links-logo-trigger:focus-visible ~ .links-logo-glow {
-  opacity: 0.95;
+  opacity: 0.85;
+}
+
+@media (hover: none) {
+  .links-logo-trigger:hover ~ .links-logo-glow {
+    opacity: 0;
+  }
+
+  .links-logo-trigger:focus-visible ~ .links-logo-glow {
+    opacity: 0.85;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
