@@ -156,7 +156,27 @@ const socialLinks = [
           class="links-logo-trigger"
           aria-label="Open QR Code Modal"
         >
-          <Image src={logoImage} alt="Be Unconventional HQ Logo" class="links-main-logo"loading="lazy" />
+          {/* width + densities matter here. logo.webp is a 2000x2000 source and
+              this <Image> carried no width, so Astro emitted width="2000" and
+              requested the image endpoint at w=2000 - a 4-megapixel render to
+              fill a box that is never wider than 340 CSS px. 340 with 1x/2x
+              densities gives a srcset topping out at 680px, which is exactly
+              what a retina screen needs and nothing more.
+
+              eager, not lazy: at the corrected size this is a small file, and
+              lazy-loading it meant the mark visibly popped in as you scrolled
+              to the bottom of the page. fetchpriority="low" keeps it from
+              competing with above-the-fold work while still loading up front. */}
+          <Image
+            src={logoImage}
+            alt="Be Unconventional HQ Logo"
+            class="links-main-logo"
+            width={340}
+            densities={[1, 2]}
+            loading="eager"
+            decoding="async"
+            fetchpriority="low"
+          />
         </button>
         {/* The glow is a sibling of the button, not a child of it, and that is
             deliberate. .links-logo-trigger scales on hover, and a non-none
