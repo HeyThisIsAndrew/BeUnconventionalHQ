@@ -50,15 +50,19 @@ jobs:
           SANITY_WRITE_TOKEN: ${{ secrets.SANITY_WRITE_TOKEN }}
         run: npm run sync-media-kit
 
-      - name: Commit and push if social-stats.json changed
+      - name: Regenerate media kit PDF
+        if: steps.check.outputs.configured == 'true'
+        run: npm run generate-media-kit-pdf
+
+      - name: Commit and push if files changed
         if: steps.check.outputs.configured == 'true'
         run: |
-          if git diff --quiet -- src/data/cache/social-stats.json; then
+          if git diff --quiet -- src/data/cache/social-stats.json public/downloads/be-unconventional-hq-media-kit.pdf; then
             echo "No changes — nothing to sync."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add src/data/cache/social-stats.json
+          git add src/data/cache/social-stats.json public/downloads/be-unconventional-hq-media-kit.pdf
           git commit -m "chore: automated media kit sync" -m "Synced by the sync-media-kit.yml workflow (run ${{ github.run_id }})."
           git push origin HEAD:${{ github.ref }}
