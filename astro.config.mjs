@@ -213,8 +213,11 @@ export default defineConfig({
       // a CMS interface must never be advertised to search engines.
       // /local-cms is the dev-only Local CMS admin route — same reasoning.
       // /media-kit is a direct-share-only PDF route.
+      // /press-kit/press is the same: a direct-share one-sheet reached from
+      // /press-kit (which stays in the sitemap) and carrying its own noindex,
+      // so it must not be advertised as a separate canonical destination.
       filter: (page) =>
-        !page.includes('/links') && !page.includes('/admin') && !page.includes('/local-cms') && !page.includes('/media-kit'),
+        !page.includes('/links') && !page.includes('/admin') && !page.includes('/local-cms') && !page.includes('/media-kit') && !page.includes('/press-kit/press'),
       // Strip trailing slashes to match assets.html_handling:
       // "drop-trailing-slash" — otherwise every sitemap entry sends
       // crawlers through an extra redirect hop before reaching the

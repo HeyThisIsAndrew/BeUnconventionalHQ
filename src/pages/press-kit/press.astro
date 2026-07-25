@@ -1,83 +1,29 @@
 ---
-// Self-hosted, same-origin - see Layout.astro. media-kit.astro renders its
-// own standalone <html> (bypasses Layout), so it needs its own font import;
-// the Google Fonts <link> this replaced was a live external request that
+// Self-hosted, same-origin - see Layout.astro. press.astro renders its own
+// standalone <html> (bypasses Layout), so it needs its own font import; the
+// Google Fonts <link> this replaced was a live external request that
 // window.print() doesn't reliably wait on, so a slow/blocked fetch printed
 // the whole page (both --font-display and --font-body resolve to this one
 // family) in the browser's fallback sans-serif.
+//
+// UNLIKE media-kit.astro, this one-sheet is deliberately 100% static: every
+// value below the fold is editorial copy, not a metric. It must never import
+// sanity:client, channel-stats.json or social-stats.json - the press kit is
+// the document handed to publicists and credentialing bodies, and it has to
+// render identically whether or not the YouTube/Instagram/TikTok pipelines
+// are healthy. Audience numbers live on /media-kit; keep them there.
 import '@fontsource-variable/syne';
-import { site } from '../data/site.js';
+import { site } from '../../data/site.js';
 import { Image, getImage } from 'astro:assets';
-import logoImage from '../assets/logo.webp';
+import logoImage from '../../assets/logo.webp';
 const optimizedBg = await getImage({ src: logoImage, format: 'webp', width: 400 });
-
-import channelStats from '../data/cache/channel-stats.json';
-// @ts-ignore - sanity:client is an alias resolved by Astro
-import { sanityClient } from "sanity:client";
-
-// Sanity is the preferred source, but it must never be able to fail the
-// build: the `||` chains below only cover a document that's missing or has
-// empty fields, not a request that throws. An outage, a rate limit, a
-// revoked token or a blocked egress host all reject here, and without this
-// catch the whole prerender dies instead of using the local
-// social-stats.json / channel-stats.json fallbacks that exist precisely for
-// this case. Same try/catch-to-empty contract the article RSS pages use.
-let sanityStats: any = null;
-try {
-  sanityStats = await sanityClient.fetch('*[_type == "mediaKitStats"][0]');
-} catch (err) {
-  console.warn(
-    '[media-kit] Sanity mediaKitStats fetch failed, falling back to local cache:',
-    err instanceof Error ? err.message : err
-  );
-}
-
-let followers = sanityStats?.youtube?.followerCount || channelStats.followers || 0;
-let totalViews = sanityStats?.youtube?.viewCount || channelStats.totalViews || 0;
-let views30Days = channelStats.analytics?.views30Days || 0;
-let impressions = channelStats.analytics?.impressions || 0;
-let ageString = channelStats.analytics?.age18to34Percent > 0 ? Math.round(channelStats.analytics.age18to34Percent) + '%' : 'XX%';
-let maleStr = channelStats.analytics?.malePercent > 0 ? Math.round(channelStats.analytics.malePercent) + '%' : 'XX%';
-let femaleStr = channelStats.analytics?.femalePercent > 0 ? Math.round(channelStats.analytics.femalePercent) + '%' : 'XX%';
-let genderString = `${maleStr} / ${femaleStr}`;
-let geosString = channelStats.analytics?.topGeos?.length > 0 ? channelStats.analytics.topGeos.join(', ') : 'US, GB, IN';
-let tvString = channelStats.analytics?.tvViewershipPercent > 0 ? Math.round(channelStats.analytics.tvViewershipPercent) + '%' : 'XX%';
-let searchString = channelStats.analytics?.searchTrafficPercent > 0 ? Math.round(channelStats.analytics.searchTrafficPercent) + '%' : 'XX%';
-let unsubString = channelStats.analytics?.unsubscribedPercent > 0 ? Math.round(channelStats.analytics.unsubscribedPercent) + '%' : 'XX%';
-
-// Formatter for numbers like 25.5K
-const compactFormatter = new Intl.NumberFormat('en-US', {
-  notation: 'compact',
-  compactDisplay: 'short',
-  maximumFractionDigits: 1,
-});
-
-import socialStats from '../data/cache/social-stats.json';
-
-const igFollowers = sanityStats?.instagram?.followerCount || socialStats.instagram?.followerCount || 337;
-const tiktokFollowers = sanityStats?.tiktok?.followerCount || socialStats.tiktok?.followerCount || 534;
-
-const youtubeReachString = followers > 0 ? compactFormatter.format(followers) : 'XX.Xk';
-const viewsString = views30Days > 0 ? compactFormatter.format(views30Days) : (totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.Xk');
-const topGeoString = channelStats.analytics?.topGeos?.[0] || 'US';
-
-// Impressions isn't populated for every channel (YouTube only reports it once
-// a channel has Suggested/Home-feed thumbnail-impression data). Rather than
-// show a literal "XX.Xk" as the single most prominent number on the page,
-// fall back to lifetime total views - always populated once the channel has
-// any view history at all - and relabel the card to match.
-const hasImpressions = impressions > 0;
-const headlineMetricValue = hasImpressions
-  ? compactFormatter.format(impressions)
-  : (totalViews > 0 ? compactFormatter.format(totalViews) : 'XX.Xk');
-const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views';
 ---
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Be Unconventional HQ - Digital Media Kit</title>
+    <title>Be Unconventional HQ - Digital Press Kit</title>
     <meta name="robots" content="noindex">
     <style is:global>
         /* CSS reset and print setup */
@@ -413,6 +359,17 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
             line-height: 1;
             margin-bottom: 0.08in;
             color: var(--text-main);
+            /* Identical to the media kit's scale, with one addition. The
+               media kit's card values are formatted numbers (319.8K, US);
+               this sheet's are words, and the longest of them, TELEVISION,
+               measures 2.080in against a 2.079in card content box in Syne
+               800 at 0.35in. It wrapped to a second line, which grew the
+               metrics row and pushed the footer past the 11in page edge.
+               Tightening the tracking by 0.015em buys ~0.05in of clearance
+               and is visually indistinguishable at this size; the font-size
+               is deliberately left alone so the three cards still read at
+               exactly the same weight as the media kit's. */
+            letter-spacing: -0.015em;
         }
 
         .metric-label {
@@ -670,7 +627,7 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
                content the instant that canvas shrinks to fit a phone.
                Collapse to a bottom action bar instead - anchored to the
                screen edge, never floating over content. Download PDF (the
-               primary action) gets its own full-width row; Press Kit /
+               primary action) gets its own full-width row; Media Kit /
                Return to Site split the row below it. */
             .fab-container {
                 top: auto;
@@ -723,91 +680,95 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
         <div class="pitch-container">
             <div class="headshot-placeholder"></div>
             <div class="pitch">
-                Be Unconventional HQ was created to share a passion for movies, games, technology, and storytelling with honesty, curiosity, and a cinematic perspective. Whether breaking down cinematography, exploring game mechanics, or geeking out over creative technology, our goal is to slow down, appreciate the craft, and foster a community built on genuine conversations.
+                Be Unconventional HQ is an independent outlet covering film, television, gaming, and creator culture through a cinematic editorial lens. Coverage spans reviews and criticism, industry and business analysis, and on-location premiere and convention reporting. Editorial decisions are made independently, and all provided materials are disclosed.
             </div>
         </div>
 
-        <!-- 3. Network Reach -->
+        <!-- 3. Coverage -->
         <div>
-            <h2 class="section-title">NETWORK REACH</h2>
+            <h2 class="section-title">COVERAGE</h2>
             <div class="metrics-grid">
-                
+
                 <div class="metric-card">
-                    <div class="metric-value">{searchString}</div>
-                    <div class="metric-label">Of Traffic From Search</div>
+                    <div class="metric-value">FILM</div>
+                    <div class="metric-label">Reviews &amp; Criticism</div>
                 </div>
 
                 <div class="metric-card">
-                    <div class="metric-value">{viewsString}</div>
-                    <div class="metric-label">30-Day Views</div>
+                    <div class="metric-value">TELEVISION</div>
+                    <div class="metric-label">Episodes &amp; Seasons</div>
                 </div>
 
                 <div class="metric-card">
-                    <div class="metric-value">{topGeoString}</div>
-                    <div class="metric-label">Top Geo</div>
+                    <div class="metric-value">GAMING</div>
+                    <div class="metric-label">Coverage &amp; Analysis</div>
                 </div>
-                
+
             </div>
 
-            <!-- Mini Platform Breakdown Mockup -->
+            <!-- Mini Platform Breakdown -->
             <div class="mini-platform-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.1in; margin-top: 0.15in; text-align: center;">
                 <div style="border: 1px solid rgba(255,255,255,0.05); padding: 0.1in; background: rgba(255,255,255,0.02);">
-                    <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">{youtubeReachString}</div>
-                    <div style="font-family: var(--font-body); font-size: 0.08in; color: var(--text-muted); text-transform: uppercase; margin-top: 0.02in;">YOUTUBE SUBS</div>
+                    <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">YOUTUBE</div>
+                    <div style="font-family: var(--font-body); font-size: 0.08in; color: var(--text-muted); text-transform: uppercase; margin-top: 0.02in;">LONG-FORM VIDEO</div>
                 </div>
                 <div style="border: 1px solid rgba(255,255,255,0.05); padding: 0.1in; background: rgba(255,255,255,0.02);">
-                    <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">{igFollowers}</div>
-                    <div style="font-family: var(--font-body); font-size: 0.08in; color: var(--text-muted); text-transform: uppercase; margin-top: 0.02in;">INSTAGRAM</div>
+                    <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">SUBSTACK</div>
+                    <div style="font-family: var(--font-body); font-size: 0.08in; color: var(--text-muted); text-transform: uppercase; margin-top: 0.02in;">WRITTEN CRITICISM</div>
                 </div>
                 <div style="border: 1px solid rgba(255,255,255,0.05); padding: 0.1in; background: rgba(255,255,255,0.02);">
-                    <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">{tiktokFollowers}</div>
-                    <div style="font-family: var(--font-body); font-size: 0.08in; color: var(--text-muted); text-transform: uppercase; margin-top: 0.02in;">TIKTOK</div>
+                    <div style="font-family: var(--font-display); font-size: 0.15in; font-weight: 800; letter-spacing: -0.02em; color: #fff;">SOCIAL</div>
+                    <div style="font-family: var(--font-body); font-size: 0.08in; color: var(--text-muted); text-transform: uppercase; margin-top: 0.02in;">IG / TIKTOK / THREADS</div>
                 </div>
             </div>
         </div>
 
-        <!-- 4 & 5. Audience & Coverage Capabilities -->
+        <!-- 4 & 5. Coverage Areas & Editorial Standards -->
         <div class="split-section">
-            
-            <!-- The Audience Section -->
+
+            <!-- What We Cover Section -->
             <div>
-                <h2 class="section-title">AUDIENCE INSIGHTS</h2>
+                <h2 class="section-title">WHAT WE COVER</h2>
                 <ul class="data-list">
                     <li>
-                        <span class="data-label">Age Split (18-34)</span>
-                        <span class="data-value">{ageString}</span>
+                        <span class="data-label">Film</span>
+                        <span class="data-value">Reviews and criticism</span>
                     </li>
                     <li>
-                        <span class="data-label">Gender (Male / Female)</span>
-                        <span class="data-value">{genderString}</span>
+                        <span class="data-label">Television</span>
+                        <span class="data-value">Episode and season coverage</span>
                     </li>
                     <li>
-                        <span class="data-label">Connected TV</span>
-                        <span class="data-value">{tvString}</span>
+                        <span class="data-label">Gaming</span>
+                        <span class="data-value">Coverage and industry analysis</span>
                     </li>
                     <li>
-                        <span class="data-label">{headlineMetricLabel}</span>
-                        <span class="data-value">{headlineMetricValue}</span>
+                        <span class="data-label">Media Industry</span>
+                        <span class="data-value">Business and market analysis</span>
                     </li>
                     <li>
-                        <span class="data-label">Top Geos</span>
-                        <span class="data-value" style="color: var(--accent-red);">{geosString}</span>
+                        <span class="data-label">Events</span>
+                        <span class="data-value">Premieres and conventions</span>
+                    </li>
+                    <li>
+                        <span class="data-label">Format</span>
+                        <span class="data-value">Long-form video and written</span>
                     </li>
                 </ul>
             </div>
-            
-            <!-- Coverage Capabilities Section -->
+
+            <!-- Editorial Standards Section -->
             <div>
-                <h2 class="section-title">PRODUCTION SERVICES</h2>
+                <h2 class="section-title">EDITORIAL STANDARDS</h2>
                 <ul class="capabilities-list">
-                    <li>Cinematic Video Essays &amp; Reviews</li>
-                    <li>On-The-Ground Convention &amp; Premiere Coverage</li>
-                    <li>Tech &amp; Production Workflow Integrations</li>
-                    <li>Dedicated Social Campaigns</li>
-                    <li>Brand Integration &amp; Shoutouts</li>
+                    <li>Editorial independence on all coverage</li>
+                    <li>Full disclosure of provided materials</li>
+                    <li>Embargo terms honored in writing</li>
+                    <li>Corrections issued on the record</li>
+                    <li>Direct contact for press and publicists</li>
                 </ul>
             </div>
-            
+
         </div>
 
         <!-- The Arsenal / Gear List -->
@@ -896,10 +857,10 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
     
     <!-- Floating Actions Container -->
     <div class="fab-container">
-        <a href="/downloads/be-unconventional-hq-media-kit.pdf" class="action-fab" download="Be-Unconventional-HQ-Media-Kit.pdf">
+        <a href="/downloads/be-unconventional-hq-press-kit.pdf" class="action-fab" download="Be-Unconventional-HQ-Press-Kit.pdf">
             Download PDF
         </a>
-        <a href="/press-kit" class="action-fab">Press Kit</a>
+        <a href="/media-kit" class="action-fab">Media Kit</a>
         <a href="/" class="action-fab">Return to Site</a>
     </div>
 </body>
