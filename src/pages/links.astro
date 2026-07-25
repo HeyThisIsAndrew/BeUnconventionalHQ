@@ -154,8 +154,14 @@ const socialLinks = [
           aria-label="Open QR Code Modal"
         >
           <Image src={logoImage} alt="Be Unconventional HQ Logo" class="links-main-logo"loading="lazy" />
-          <!-- <div class="links-logo-glow"></div> -->
         </button>
+        {/* The glow is a sibling of the button, not a child of it, and that is
+            deliberate. .links-logo-trigger scales on hover, and a non-none
+            transform creates a stacking context, which would trap the glow's
+            negative z-index inside the button and float it back over the
+            neighbouring tiles the moment the pointer landed on it. Out here it
+            stays in .links-hub's stacking context, underneath every tile. */}
+        <div class="links-logo-glow" aria-hidden="true"></div>
       </section>
 
       <SubscribeCTA variant="compact" />

@@ -5,6 +5,11 @@
 
 .links-hub {
   min-height: 100vh;
+  /* Establishes a stacking context so the logo glow's z-index: -1 lands
+     ABOVE this element's own background but BELOW every in-flow tile inside
+     it. Without a context here the glow resolves against the root and paints
+     underneath this opaque background instead, which makes it invisible. */
+  isolation: isolate;
   background-color: var(--color-black);
   background-image:
     radial-gradient(
@@ -41,6 +46,13 @@
   align-items: center;
 }
 
+/* Wraps the button and the glow. position: relative makes it the containing
+   block for the glow; it deliberately sets no z-index, so it does not become
+   a stacking context and the glow can still sit below the tiles. */
+.links-footer-logo {
+  position: relative;
+}
+
 .links-logo-trigger {
   background: none;
   border: none;
@@ -51,7 +63,6 @@
   height: auto;
   margin: -2.5rem auto -2.5rem auto;
   transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-  z-index: 10;
   display: block;
 }
 
@@ -68,32 +79,64 @@
   width: 100%;
   height: auto;
   object-fit: contain;
+  /* Positioned so it paints above the neighbouring tiles even where the
+     button's negative margins overlap them. */
   position: relative;
   z-index: 2;
-  filter: drop-shadow(0 0 10px rgba(0,0,0,0.5));
+  /* No filter: drop-shadow here - hard rule 6, it is a known iOS Safari
+     rendering bug on <img>. The glow below carries the depth instead. */
   pointer-events: none;
   display: block;
 }
 
+/* Sized to the logo artwork rather than its canvas: logo.webp is a 2000x2000
+   square whose opaque bounds are 1957x1333, i.e. 332x226 once the image is
+   drawn at 340px wide, centred, with transparent bands top and bottom. An
+   ellipse matched to the artwork reads as a halo around the mark instead of a
+   rectangle of light around the whole file. */
 .links-logo-glow {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 120%;
-  height: 200%;
+  /* Tracks the logo instead of sitting at a fixed size: the button shrinks to
+     272px on a 320px screen, where a flat 320px halo would be wider than the
+     mark it is meant to sit behind. aspect-ratio keeps the ellipse in
+     proportion as the width clamps down. */
+  width: min(320px, 100%);
+  aspect-ratio: 320 / 190;
+  height: auto;
   transform: translate(-50%, -50%);
-  background: var(--color-accent);
-  filter: blur(25px);
-  opacity: 0.15;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(204, 0, 0, 0.5) 0%,
+    rgba(204, 0, 0, 0.16) 45%,
+    rgba(204, 0, 0, 0) 72%
+  );
+  filter: blur(16px);
+  /* Peak alpha lands at roughly 0.5 * 0.22 = 0.11 against the near-black
+     background: present, but only just. */
+  opacity: 0.22;
   border-radius: 50%;
-  z-index: 1;
-  transition: opacity 0.4s ease, filter 0.4s ease;
+  /* Negative, so it paints above .links-hub's background and below the
+     backgrounds of every in-flow tile above and below it. */
+  z-index: -1;
+  transition: opacity 0.4s ease;
   pointer-events: none;
 }
 
-.links-logo-trigger:hover .links-logo-glow {
-  opacity: 0.35;
-  filter: blur(35px);
+/* Keyed off the button, not the section. The section is a full-width flex row,
+   so hovering the empty space beside the logo would otherwise light the glow.
+   The glow is a following sibling of the button, so a plain ~ combinator does
+   the job without needing :has(). */
+.links-logo-trigger:hover ~ .links-logo-glow,
+.links-logo-trigger:focus-visible ~ .links-logo-glow {
+  opacity: 0.34;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .links-logo-glow {
+    transition: none;
+  }
 }
 
 /* Brand Identity Stack */
