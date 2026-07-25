@@ -573,7 +573,7 @@ const [filmArt, tvArt, gamingArt] = await Promise.all(
                 height: auto;
                 min-height: 100vh;
                 margin: 0;
-                padding: 2rem 1.25rem 8rem; /* bottom clears the fixed action bar below */
+                padding: 2rem 1.25rem 12rem; /* bottom clears the fixed action bar below */
                 box-shadow: none;
                 overflow-x: hidden; /* .page::before's ambient glow is positioned with a
                    negative right offset by design (bleeds past the edge on the
@@ -691,9 +691,10 @@ const [filmArt, tvArt, gamingArt] = await Promise.all(
             /* A viewport-fixed vertical stack over an 816px canvas overlaps
                content the instant that canvas shrinks to fit a phone.
                Collapse to a bottom action bar instead - anchored to the
-               screen edge, never floating over content. Download PDF (the
-               primary action) gets its own full-width row; Media Kit /
-               Return to Site split the row below it. */
+               screen edge, never floating over content. Order is fixed: Download
+               PDF, then the sibling one-sheet, then the collaborations hub,
+               then the site. See the .action-fab rule for why it is one
+               column per row on this breakpoint. */
             .fab-container {
                 top: auto;
                 bottom: 0;
@@ -701,24 +702,28 @@ const [filmArt, tvArt, gamingArt] = await Promise.all(
                 right: 0;
                 transform: none;
                 display: grid;
-                grid-template-columns: 1fr 1fr;
+                grid-template-columns: 1fr;
                 width: 100%;
-                gap: 0.5rem;
-                padding: 0.75rem;
-                padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+                gap: 0.4rem;
+                padding: 0.6rem 0.75rem;
+                padding-bottom: calc(0.6rem + env(safe-area-inset-bottom, 0px));
                 background: rgba(10, 10, 10, 0.95);
                 border-top: 1px solid var(--accent-red);
             }
 
+            /* One column, not two. Measured in Syne 800 at this size,
+               COLLABORATIONS needs 165px and RETURN TO SITE 148px, against a
+               half-column content box of 163px at 390px wide, 148px at 360px
+               and 128px at 320px - so the long labels wrapped to two lines,
+               which the two-up layout then had to stretch its neighbour to
+               match. Full width gives every label 278px even on a 320px
+               screen. The tighter padding buys the fourth row back: this bar
+               is about the same height as the old two-row one. */
             .fab-container .action-fab {
                 width: auto;
-                padding: 0.85rem 0.5rem;
+                padding: 0.6rem 0.5rem;
                 font-size: 0.6rem;
                 border-radius: 8px;
-            }
-
-            .fab-container .action-fab:first-child {
-                grid-column: 1 / -1;
             }
         }
 
@@ -926,6 +931,7 @@ const [filmArt, tvArt, gamingArt] = await Promise.all(
             Download PDF
         </a>
         <a href="/media-kit" class="action-fab">Media Kit</a>
+        <a href="/collaborations" class="action-fab">Collaborations</a>
         <a href="/" class="action-fab">Return to Site</a>
     </div>
 </body>

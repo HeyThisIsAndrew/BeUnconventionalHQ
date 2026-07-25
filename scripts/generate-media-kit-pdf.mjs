@@ -23,7 +23,7 @@
  * Both one-sheets are rendered in a single run because they share the whole
  * expensive part of the job (one `astro build`, one preview server, one
  * browser). /media-kit is data-driven and needs regenerating whenever the
- * stats change; /press-kit/press is fully static editorial copy and only
+ * stats change; /collaborations/press-kit is fully static editorial copy and only
  * changes when the page does. Regenerating both every time is cheap and
  * keeps the two documents from drifting out of sync visually.
  *
@@ -42,7 +42,7 @@ const DOWNLOADS_DIR = path.join(__dirname, '../public/downloads');
 
 const SHEETS = [
   { route: '/media-kit/', outFile: path.join(DOWNLOADS_DIR, 'be-unconventional-hq-media-kit.pdf') },
-  { route: '/press-kit/press/', outFile: path.join(DOWNLOADS_DIR, 'be-unconventional-hq-press-kit.pdf') },
+  { route: '/collaborations/press-kit/', outFile: path.join(DOWNLOADS_DIR, 'be-unconventional-hq-press-kit.pdf') },
 ];
 
 console.log('[media-kit-pdf] Building the site...');
