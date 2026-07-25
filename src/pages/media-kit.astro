@@ -498,6 +498,24 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
             font-size: 0.14in;
         }
 
+        /* Gear columns. The hairline is a divider BETWEEN columns, so the
+           first column in each row doesn't get one - it used to, which left
+           a stray rule down the left edge with no matching rule on the right
+           edge of the last column. Was four inline border-lefts; moved to a
+           class so :first-child can drop it (an inline style would outrank
+           any stylesheet rule). The mobile rule further down matters because
+           .gear-grid drops to two columns there, which puts items 1 and 3 in
+           the left position. */
+        .gear-col {
+            border-left: 1px solid rgba(255,255,255,0.1);
+            padding-left: 0.1in;
+        }
+
+        .gear-col:first-child {
+            border-left: none;
+            padding-left: 0;
+        }
+
         /* -------------------------------------
            6. Footer
            ------------------------------------- */
@@ -654,6 +672,12 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
             .gear-grid {
                 grid-template-columns: repeat(2, 1fr) !important;
                 gap: 1rem !important;
+            }
+
+            /* Two columns here, so the left-hand column is items 1 and 3. */
+            .gear-col:nth-child(odd) {
+                border-left: none;
+                padding-left: 0;
             }
 
             .footer {
@@ -814,24 +838,24 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
         <div style="margin-top: 0.05in;">
             <h2 class="section-title">PRODUCTION GEAR</h2>
             <div class="gear-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.1in; font-family: var(--font-body); font-size: 0.085in; color: var(--text-muted); line-height: 1.3;">
-                <div style="border-left: 1px solid rgba(255,255,255,0.1); padding-left: 0.1in;">
+                <div class="gear-col">
                     <strong style="color: #fff; font-size: 0.095in; letter-spacing: 0.05em;">CAMERAS</strong><br/>
                     Sony Alpha Cameras<br/>
                     Sony a7IV<br/>
                     Sony a7CR
                 </div>
-                <div style="border-left: 1px solid rgba(255,255,255,0.1); padding-left: 0.1in;">
+                <div class="gear-col">
                     <strong style="color: #fff; font-size: 0.095in; letter-spacing: 0.05em;">LENSES</strong><br/>
                     Sony GM II Zoom Trinity<br/>
                     Sony G-Series Primes<br/>
                     Viltrox Lenses
                 </div>
-                <div style="border-left: 1px solid rgba(255,255,255,0.1); padding-left: 0.1in;">
+                <div class="gear-col">
                     <strong style="color: #fff; font-size: 0.095in; letter-spacing: 0.05em;">LIGHTING & GRIP</strong><br/>
                     Aputure Studio Lighting<br/>
                     Sony Pro Speedlights
                 </div>
-                <div style="border-left: 1px solid rgba(255,255,255,0.1); padding-left: 0.1in;">
+                <div class="gear-col">
                     <strong style="color: #fff; font-size: 0.095in; letter-spacing: 0.05em;">AUDIO</strong><br/>
                     Shure MV6 Dynamic Mic<br/>
                     Sony ECM-M1 & ECM-B1M

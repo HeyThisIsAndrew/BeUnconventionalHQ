@@ -9,7 +9,7 @@ const description =
 ---
 
 <Layout title={title} description={description}>
-  <main class="press-kit-page flex-1 flex flex-col w-full pb-16 md:pb-24">
+  <main class="press-kit-page flex-1 flex flex-col w-full pb-8 md:pb-12">
     <div class="container flex-1 flex flex-col">
       <header class="section-header animate-on-scroll" data-nav-anchor>
         <PageTitle as="h1" kicker="Collaborations" primary="Press" secondary="Kit" />
@@ -66,17 +66,12 @@ const description =
           <h2 class="press-kit-sub">Contact Information</h2>
           <div class="press-kit-content">
             <p class="hero-subtitle-style">
-                Press and editorial:
-                <a
-                  href="mailto:press@beunconventionalhq.com"
-                  class="press-kit-email hero-subtitle-style">press@beunconventionalhq.com</a
-                ><br />
-                Partnerships:
-                <a
-                  href="mailto:press@beunconventionalhq.com"
-                  class="press-kit-email hero-subtitle-style">press@beunconventionalhq.com</a
-                >
+                Press and editorial &nbsp;|&nbsp; Partnerships
             </p>
+            <a
+              href="mailto:press@beunconventionalhq.com"
+              class="press-kit-email hero-subtitle-style">press@beunconventionalhq.com</a
+            >
           </div>
         </div>
       </section>
@@ -105,11 +100,15 @@ const description =
     font-family: 'Inter', sans-serif;
   }
 
+  /* The trailing gap used to be 8rem, against 3rem between cards, which on a
+     tall display left the last card stranded far above the footer. Matching
+     it to the inter-card gap makes the whole stack evenly spaced. Everything
+     here is Astro-scoped to this page, so no other route is affected. */
   .press-kit-grid {
     display: flex;
     flex-direction: column;
     gap: 3rem;
-    margin-bottom: 8rem;
+    margin-bottom: 3rem;
   }
 
   .press-kit-card {
@@ -193,20 +192,19 @@ const description =
   
   .press-kit-btn:hover {
     background: var(--color-accent);
-    color: var(--bg-color);
+    color: white;
+    box-shadow: 0 0 24px rgba(204, 0, 0, 0.45);
   }
 
-  /* Solid-red primary treatment. The base .press-kit-btn is the outlined
-     secondary; exactly one button on this page carries the modifier, so the
-     page has a single unambiguous primary action. */
+  /* Solid-red primary treatment, the page's single primary action. The only
+     thing that separates it from the outlined secondary is the resting fill:
+     border, text colour, size, transition and hover state are all inherited
+     from .press-kit-btn untouched, so every button on the page lands on the
+     same filled-red hover. The earlier version inverted to transparent on
+     hover, which made the primary momentarily impersonate a secondary's
+     resting state. */
   .press-kit-btn-primary {
     background: var(--color-accent);
-    color: white;
-  }
-
-  .press-kit-btn-primary:hover {
-    background: transparent;
-    color: white;
   }
 
   @media (max-width: 768px) {
