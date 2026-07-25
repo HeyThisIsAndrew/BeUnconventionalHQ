@@ -40,6 +40,32 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DOWNLOADS_DIR = path.join(__dirname, '../public/downloads');
 
+/**
+ * Chromium stamps /CreationDate and /ModDate with the moment of the run, so
+ * two renders of a byte-identical page produced two different files. That made
+ * every scheduled run commit both PDFs whether or not anything had actually
+ * changed, and made "did this PDF change?" impossible to answer from a diff.
+ *
+ * Both dates are rewritten to a fixed timestamp of exactly the same length, so
+ * the byte offsets in the xref table stay valid - a shorter or longer
+ * replacement would corrupt the file. Content is untouched; identical input now
+ * yields an identical file, and a diff means the sheet really did change.
+ */
+const FIXED_PDF_DATE = "D:19700101000000+00'00'";
+async function normalisePdfTimestamps(file) {
+  const buf = await fs.readFile(file);
+  let out = buf.toString('latin1');
+  for (const key of ['CreationDate', 'ModDate']) {
+    out = out.replace(new RegExp(`/${key} \\(D:[^)]*\\)`, 'g'), (match) => {
+      const replacement = `/${key} (${FIXED_PDF_DATE})`;
+      // Only rewrite when the lengths line up, otherwise leave it alone rather
+      // than shift every offset after it.
+      return replacement.length === match.length ? replacement : match;
+    });
+  }
+  await fs.writeFile(file, Buffer.from(out, 'latin1'));
+}
+
 const SHEETS = [
   { route: '/media-kit/', outFile: path.join(DOWNLOADS_DIR, 'be-unconventional-hq-media-kit.pdf') },
   { route: '/collaborations/press-kit/', outFile: path.join(DOWNLOADS_DIR, 'be-unconventional-hq-press-kit.pdf') },
@@ -96,6 +122,7 @@ try {
       } finally {
         await page.close();
       }
+      await normalisePdfTimestamps(outFile);
       console.log(`[media-kit-pdf] Saved to ${outFile}`);
     }
   } finally {
