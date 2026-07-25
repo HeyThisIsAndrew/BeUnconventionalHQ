@@ -12,7 +12,12 @@ const description =
   <main class="press-kit-page flex-1 flex flex-col w-full pb-8 md:pb-12">
     <div class="container flex-1 flex flex-col">
       <header class="section-header animate-on-scroll" data-nav-anchor>
-        <PageTitle as="h1" kicker="Work With Us" primary="Press &amp;" secondary="Partnerships" />
+        {/* "Partners", not "Partnerships". PageTitle's secondary word is set
+            in vw-scaled display type with a negative margin-right stagger;
+            at 320px "Partnerships" rendered 317px wide and pushed the page
+            8px past the viewport. The longest secondary anywhere else on the
+            site is "Not Found" at 248px, which clears it. */}
+        <PageTitle as="h1" kicker="Work With Us" primary="Press &amp;" secondary="Partners" />
       </header>
 
       <section class="press-kit-grid">
@@ -113,6 +118,14 @@ const description =
      affected. */
   .press-kit-grid {
     display: grid;
+    /* minmax(0, 1fr), not a bare 1fr or an implicit column. An implicit grid
+       column is auto-sized, and auto floors at the widest item's min-content,
+       which here is the unbreakable contact email: on a 390px screen that
+       floor pushed the column to 424px and gave the whole page a horizontal
+       scrollbar. The flex column this replaced never had the problem because
+       flex items shrink. minmax(0, ...) drops the automatic minimum so the
+       column tracks the container instead. */
+    grid-template-columns: minmax(0, 1fr);
     grid-auto-rows: 1fr;
     gap: 3rem;
     flex: 1;
@@ -156,6 +169,10 @@ const description =
     display: inline-block;
     color: var(--color-white);
     font-weight: 500;
+    /* The address is one unbreakable token; without this it sets a min-content
+       floor wider than a narrow phone's card and forces the page to scroll
+       sideways. Belt-and-braces alongside the grid track fix above. */
+    overflow-wrap: anywhere;
     /* Declared after .hero-subtitle-style at equal specificity, so this is
        what the address actually renders at. Raised in step with it (was
        0.85rem) to keep the address a touch larger than the label above it. */
