@@ -1,5 +1,5 @@
 // @ts-check
-import { defineConfig } from 'astro/config';
+import { defineConfig, envField } from 'astro/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
@@ -160,6 +160,56 @@ export default defineConfig({
     // with a publicist or brand points at the old path.
     '/press-kit': '/collaborations',
   },
+  // ClientRouter already swaps pages without a full reload; prefetching the
+  // destination on hover/touch-start is what makes that swap feel instant
+  // rather than merely fast. 'hover' rather than 'load' so we are not pulling
+  // every linked page on a phone's data plan.
+  prefetch: {
+    prefetchAll: true,
+    defaultStrategy: 'hover',
+  },
+
+  image: {
+    // Every <Image> gets a srcset and sizes by default. This is the structural
+    // fix behind a real bug: the /links logo carried no width, so Astro used
+    // the source's intrinsic 2000x2000 and shipped a 413KB render into a
+    // 340px box. With a default layout an unsized image cannot silently go
+    // out at source resolution again.
+    layout: 'constrained',
+    responsiveStyles: true,
+  },
+
+  // Typed, validated env access. Replaces reading import.meta.env directly,
+  // where a missing variable is indistinguishable from an empty string and
+  // surfaces as a runtime error in the browser instead of a build failure.
+  // PUBLIC_TURNSTILE_SITE_KEY is optional on purpose: the subscribe widget is
+  // designed to omit itself when there is no key, so builds without one (CI,
+  // local, preview) must still succeed.
+  env: {
+    schema: {
+      PUBLIC_TURNSTILE_SITE_KEY: envField.string({
+        context: 'client',
+        access: 'public',
+        optional: true,
+      }),
+      TURNSTILE_SECRET_KEY: envField.string({
+        context: 'server',
+        access: 'secret',
+        optional: true,
+      }),
+      RESEND_API_KEY: envField.string({
+        context: 'server',
+        access: 'secret',
+        optional: true,
+      }),
+      WEBSUB_SECRET: envField.string({
+        context: 'server',
+        access: 'secret',
+        optional: true,
+      }),
+    },
+  },
+
   build: {
     assets: 'assets',
   },

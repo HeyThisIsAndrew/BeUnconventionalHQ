@@ -110,6 +110,18 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
             min-height: 100vh;
         }
 
+        /* .page::before is an ambient corner glow positioned at right: -10%,
+           so it bleeds ~82px past the sheet and, on viewports between the
+           breakpoint and roughly 940px, added that bleed to the scrollable
+           width. It is decoration with pointer-events: none, so clipping the
+           overflow costs nothing and removes the stray horizontal scrollbar.
+           Scoped to `screen` so the print pipeline is untouched. */
+        @media screen {
+            html, body {
+                overflow-x: hidden;
+            }
+        }
+
         /* The .page wrapper acts as the physical piece of paper */
         .page {
             width: 8.5in;
@@ -576,7 +588,12 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
             fill: #ffffff !important;
         }
 
-        @media screen and (max-width: 720px) {
+        /* 820px, not 720px. .page is a fixed 8.5in = 816px canvas, so every
+           viewport between the old breakpoint and 816px rendered a sheet wider
+           than the screen and scrolled sideways. The breakpoint now sits just
+           above the canvas width, so any viewport that cannot fit the paper
+           gets the fluid layout instead. */
+        @media screen and (max-width: 820px) {
             .page {
                 width: 100%;
                 height: auto;

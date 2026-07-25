@@ -80,12 +80,27 @@ by a Workers Builds check.
 
 ## Credentials (required before it goes live)
 
-| Variable | Where | Notes |
-|---|---|---|
-| `YOUTUBE_API_KEY` | Cloudflare Pages → Settings → Environment variables (encrypt) | Google Cloud → YouTube Data API v3 key. Same key the sync script uses. |
-| `YOUTUBE_CHANNEL_ID` | optional | Defaults to the HQ channel (`UCXqU6781pQgYXDExLvMw2Og`). |
+Cloudflare Pages and Cloudflare Workers have **separate, independent env var
+stores**, even when a Pages project and a Worker share the same custom
+domain during a migration. A variable set on the Pages project is invisible
+to `cloudflare:workers` `env.*` reads at Worker runtime — this is the exact
+bug that shipped with a missing `PUBLIC_TURNSTILE_SITE_KEY` (confirmed 2026-07,
+Lighthouse caught the resulting console error). Every variable below must be
+set on the **Worker** (dashboard → Workers & Pages → this Worker →
+Settings → Variables and Secrets), not the Pages project.
 
-For local `astro dev`, put them in `.env`.
+| Variable | Notes |
+|---|---|
+| `YOUTUBE_API_KEY` | Google Cloud → YouTube Data API v3 key. Same key the sync script uses. Encrypt. |
+| `YOUTUBE_CHANNEL_ID` | Optional. Defaults to the HQ channel (`UCXqU6781pQgYXDExLvMw2Og`). |
+| `PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare Turnstile site key. Public by design (ships in page HTML) — plain var, not a secret. |
+| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile secret key, read server-side by `api/contact.ts` and `api/subscribe.ts` to verify submissions. Encrypt. |
+| `RESEND_API_KEY` | Used by `api/contact.ts` / `api/subscribe.ts` to send mail. Encrypt. |
+| `WEBSUB_SECRET` | HMAC secret verifying `api/youtube-webhook.ts` push notifications. Encrypt. Must match the `hub.secret` used in `renew-websub.yml`. |
+| `GITHUB_DISPATCH_TOKEN` | Read by `api/youtube-webhook.ts` to trigger `sync-youtube.yml` on a push notification. Encrypt. |
+| `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` / `TWITCH_CHANNEL_LOGIN` | Only needed once the Twitch live provider (below) is activated. Encrypt the secret. |
+
+For local `astro dev`, put them in `.env` instead (see `.env.example`).
 
 ## Quota math (why the cache policy is what it is)
 

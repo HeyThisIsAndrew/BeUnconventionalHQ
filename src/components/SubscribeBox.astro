@@ -1,5 +1,6 @@
 ---
 import PageTitle from './PageTitle.astro';
+import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
 
 export interface Props {
   kicker?: string;
@@ -16,6 +17,11 @@ const {
   subtitle = "Get notified of new drops. No spam.",
   buttonText = "Subscribe"
 } = Astro.props;
+
+// Typed and validated via astro:env (see the `env` block in astro.config.mjs)
+// rather than read straight off import.meta.env, so a missing key is a defined
+// undefined instead of a silent empty attribute.
+const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
 ---
 
 <section class="press-kit-section animate-on-scroll" style="text-align: center;">
@@ -26,7 +32,15 @@ const {
     {subtitle}
   </p>
   
-  <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  {/* Only loaded when a site key exists. Turnstile's implicit renderer reads
+      data-sitekey off the widget; with the key unset the attribute is omitted,
+      getAttribute returns null, and typeof null === 'object' - which is the
+      literal "expected 'string', got 'object'" TurnstileError that was being
+      logged to the console on every page and costing a Lighthouse Best
+      Practices point. No key, no script, no widget, no error. */}
+  {turnstileSiteKey && (
+    <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  )}
   
   <form id="subscribe-form" class="subscribe-form">
     <div class="subscribe-input-group">
@@ -35,10 +49,12 @@ const {
       <button type="submit" id="subscribe-submit-btn" class="cta-button-primary subscribe-btn" disabled>{buttonText}</button>
     </div>
     
-    <div class="form-group" id="subscribe-turnstile-container" style="margin-top: 1rem; display: flex; justify-content: center;">
-      <!-- Turnstile widget -->
-      <div class="cf-turnstile" data-sitekey={import.meta.env.PUBLIC_TURNSTILE_SITE_KEY} data-size="flexible" data-callback="onSubscribeTurnstileSuccess" data-error-callback="onSubscribeTurnstileError" data-expired-callback="onSubscribeTurnstileExpired"></div>
-    </div>
+    {turnstileSiteKey && (
+      <div class="form-group" id="subscribe-turnstile-container" style="margin-top: 1rem; display: flex; justify-content: center;">
+        <!-- Turnstile widget -->
+        <div class="cf-turnstile" data-sitekey={turnstileSiteKey} data-size="flexible" data-callback="onSubscribeTurnstileSuccess" data-error-callback="onSubscribeTurnstileError" data-expired-callback="onSubscribeTurnstileExpired"></div>
+      </div>
+    )}
     
     <div id="subscribe-form-status" class="form-status-message" role="status" aria-live="polite"></div>
   </form>

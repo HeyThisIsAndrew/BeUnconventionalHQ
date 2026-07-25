@@ -1,5 +1,12 @@
 ---
 import PageTitle from './PageTitle.astro';
+import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
+
+// Same guard as SubscribeBox: with no site key the data-sitekey attribute is
+// omitted entirely, Turnstile's implicit renderer reads null off it, and
+// typeof null === 'object' - the "expected 'string', got 'object'"
+// TurnstileError logged on every page that mounts this modal.
+const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
 ---
 
 <div id="contact-modal" class="contact-modal-overlay" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Contact Us">
@@ -13,7 +20,9 @@ import PageTitle from './PageTitle.astro';
         Send us a message.
       </p>
     </div>
-    <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    {turnstileSiteKey && (
+      <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    )}
     <form id="contact-modal-form" class="contact-modal-form">
       <div class="form-group">
         <label for="modal-name" class="form-label">Full Name</label>
@@ -40,10 +49,12 @@ import PageTitle from './PageTitle.astro';
         <textarea id="modal-message" name="message" class="form-textarea" placeholder="How can we help?" required></textarea>
       </div>
 
-      <div class="form-group" id="turnstile-container">
-        <!-- Turnstile widget -->
-        <div class="cf-turnstile" data-sitekey={import.meta.env.PUBLIC_TURNSTILE_SITE_KEY} data-size="flexible" data-callback="onTurnstileSuccess" data-error-callback="onTurnstileError" data-expired-callback="onTurnstileExpired"></div>
-      </div>
+      {turnstileSiteKey && (
+        <div class="form-group" id="turnstile-container">
+          <!-- Turnstile widget -->
+          <div class="cf-turnstile" data-sitekey={turnstileSiteKey} data-size="flexible" data-callback="onTurnstileSuccess" data-error-callback="onTurnstileError" data-expired-callback="onTurnstileExpired"></div>
+        </div>
+      )}
 
       <div id="modal-form-status" class="form-status-message" role="status" aria-live="polite"></div>
 
