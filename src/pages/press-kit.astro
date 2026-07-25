@@ -92,7 +92,10 @@ const description =
 
   .hero-subtitle-style {
     color: rgba(255, 255, 255, 0.9);
-    font-size: 0.75rem;
+    /* Was 0.75rem. Uppercase at 0.15em tracking needs more size than
+       sentence case to stay readable, and at 12px it wasn't getting it.
+       This class is used nowhere outside this page. */
+    font-size: 0.875rem;
     letter-spacing: 0.15em;
     text-transform: uppercase;
     font-weight: 600;
@@ -100,21 +103,32 @@ const description =
     font-family: 'Inter', sans-serif;
   }
 
-  /* The trailing gap used to be 8rem, against 3rem between cards, which on a
-     tall display left the last card stranded far above the footer. Matching
-     it to the inter-card gap makes the whole stack evenly spaced. Everything
-     here is Astro-scoped to this page, so no other route is affected. */
+  /* Grid rather than a flex column so every card is the same height, and
+     `flex: 1` so the stack absorbs the leftover height in .container instead
+     of clustering at the top of a tall display and leaving a void above the
+     footer. `grid-auto-rows: 1fr` splits that height equally between the four
+     rows; 1fr resolves to minmax(auto, 1fr), so on a short viewport the rows
+     still fall back to their content height and nothing is ever clipped.
+     Everything here is Astro-scoped to this page, so no other route is
+     affected. */
   .press-kit-grid {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-auto-rows: 1fr;
     gap: 3rem;
+    flex: 1;
     margin-bottom: 3rem;
   }
 
+  /* Cards are stretched by the grid, so the contact card is as tall as the
+     others despite carrying less copy. Centring the content keeps that extra
+     height balanced above and below rather than pooling at the bottom. */
   .press-kit-card {
     background: var(--color-surface);
     border: 1px solid rgba(255, 255, 255, 0.05);
     padding: 3rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
 
   .press-kit-sub {
@@ -142,7 +156,10 @@ const description =
     display: inline-block;
     color: var(--color-white);
     font-weight: 500;
-    font-size: 0.85rem;
+    /* Declared after .hero-subtitle-style at equal specificity, so this is
+       what the address actually renders at. Raised in step with it (was
+       0.85rem) to keep the address a touch larger than the label above it. */
+    font-size: 1rem;
     text-decoration: none;
     position: relative;
     padding-bottom: 4px;
