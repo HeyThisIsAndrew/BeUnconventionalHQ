@@ -27,6 +27,48 @@ Prerequisite: `scripts/epic-000-audit.md` (component lock-in, Feed-item contract
 
 ---
 
+## The magazine layout
+
+`/intel` deliberately does not look like the rest of the site. Owner direction
+was that landing there should feel like arriving somewhere else, referencing
+Substack's magazine template (primary), Medium, and the PlayStation Blog.
+
+**Structure (page 1):**
+
+```
+filter bar        the Feed's own .quadrant-btn control
+magazine spread   rails left + right, swappable centre feature
+break strip       "Latest From The Channel" — 4 videos
+archive grid      the Feed's card, paginated
+```
+
+Page 2+ drops the magazine and break strip — they are an opening statement, and
+repeating them would just push the archive down. Category pages keep the
+magazine, so filtering reshapes the spread rather than collapsing to a grid.
+
+**The centre swaps in place.** Picking a rail item replaces the feature rather
+than navigating. This is a progressive enhancement, not a JS-only feature:
+
+- every rail item is a real `<a href="/intel/<slug>">`, so the page works with
+  scripting disabled, stays fully crawlable, and keyboard nav is native;
+- the script intercepts plain left-clicks only — modified clicks (new tab,
+  middle-click) behave normally;
+- the selection is mirrored into the URL hash, so a swapped state can be linked
+  and is restored on load;
+- the centre is an `aria-live="polite"` region with `aria-current` on the active
+  rail item, so the swap is announced rather than silently mutating.
+
+Covered by `scripts/e2e-intel-magazine.test.mjs` (9 assertions, registered in
+`npm run test:e2e`), including the no-JS fallback and hash restore.
+
+**Filter buttons use the Feed's actual control.** They were previously a
+lookalike. `.quadrant-btn` and its hover/focus/active states were promoted from
+`QuadrantFilter.astro`'s scoped `<style>` into `styles/modules/filters.css` so
+both surfaces share one definition — verified with a 60-capture parity run
+showing the Feed unchanged by the move.
+
+---
+
 ## Decisions taken, and why
 
 **Feed integration was one line, not a phase.** EPIC-000 established that the

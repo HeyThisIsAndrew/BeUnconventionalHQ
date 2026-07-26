@@ -1,31 +1,44 @@
 ---
 /**
- * The article section index.
+ * The article section index — a magazine, not another card grid.
  *
- * Built from the same pieces as the Feed rather than a second convention:
- * <FeedLayout /> for the chrome, <ContentCard /> for the cards,
- * <Pagination /> for paging.
+ * Structure, page 1:
+ *   filter bar (the Feed's own control)
+ *   magazine spread   — rails left/right, swappable centre feature
+ *   break strip       — latest from the channel, tying the section back to
+ *                       the rest of the site rather than dead-ending
+ *   archive grid      — everything below the fold, in the Feed's card, paginated
+ *
+ * Page 2+ drops the magazine and break strip: they are an opening statement,
+ * and repeating them on every page would just push the archive down.
  *
  * Section name and slug come from ARTICLE_SECTION — renaming the section is a
  * change to src/data/sections.js plus this directory's name, nowhere else.
- *
- * Coexists with /feed/articles by owner decision: /feed/articles stays the
- * type-filtered view of the main Feed; this is the dedicated section.
  */
 import FeedLayout from '../../layouts/FeedLayout.astro';
 import ContentCard from '../../components/ContentCard.astro';
 import Pagination from '../../components/Pagination.astro';
 import IntelFilters from '../../components/IntelFilters.astro';
+import IntelMagazine from '../../components/IntelMagazine.astro';
 import { site } from '../../data/site.js';
-import { ARTICLE_SECTION } from '../../data/sections.js';
+import { ARTICLE_SECTION, MAGAZINE_SIZE } from '../../data/sections.js';
 import { getArticleFeedItems } from '../../lib/articles';
+import { getVideoItems } from '../../lib/feed-items';
 import type { GetStaticPathsOptions } from 'astro';
 
+
 export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
-  return paginate(getArticleFeedItems(), { pageSize: 12 });
+  const all = getArticleFeedItems();
+  // The magazine shows the newest few, so the paginated archive starts after
+  // them — otherwise page 1 would repeat the same articles twice.
+  return paginate(all.slice(MAGAZINE_SIZE), { pageSize: 12 });
 }
 
 const { page } = Astro.props;
+const isFirstPage = page.currentPage === 1;
+
+const magazineArticles = isFirstPage ? getArticleFeedItems().slice(0, MAGAZINE_SIZE) : [];
+const latestVideos = isFirstPage ? (await getVideoItems()).slice(0, 4) : [];
 
 const pageNum = page.currentPage > 1 ? ` - Page ${page.currentPage}` : '';
 const title = `${ARTICLE_SECTION.name}${pageNum} | ${site.name}`;
@@ -43,17 +56,48 @@ const title = `${ARTICLE_SECTION.name}${pageNum} | ${site.name}`;
 >
   <IntelFilters slot="filters" active={null} />
 
+  {magazineArticles.length > 0 && <IntelMagazine articles={magazineArticles} />}
+
+  {
+    latestVideos.length > 0 && (
+      <section class="intel-break" aria-labelledby="intel-break-video">
+        <div class="intel-break-head">
+          <h2 class="intel-break-title" id="intel-break-video">
+            Latest From The Channel
+          </h2>
+          <a class="intel-break-link" href="/feed/videos">
+            All Videos &rarr;
+          </a>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 w-full">
+          {latestVideos.map((video: any, index: number) => (
+            <ContentCard item={video} index={index} />
+          ))}
+        </div>
+      </section>
+    )
+  }
+
   {
     page.data.length > 0 ? (
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
-        {page.data.map((item: any, index: number) => (
-          <ContentCard item={item} index={index} />
-        ))}
-      </div>
+      <section class="intel-archive" aria-labelledby="intel-archive-head">
+        <div class="intel-break-head">
+          <h2 class="intel-break-title" id="intel-archive-head">
+            {isFirstPage ? 'More From The Intel' : `The Intel — Page ${page.currentPage}`}
+          </h2>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
+          {page.data.map((item: any, index: number) => (
+            <ContentCard item={item} index={index} />
+          ))}
+        </div>
+      </section>
     ) : (
-      <div class="empty-state animate-on-scroll" style="text-align: center; padding: 4rem 0; opacity: 0.6;">
-        <p>No articles published yet.</p>
-      </div>
+      magazineArticles.length === 0 && (
+        <div class="empty-state animate-on-scroll" style="text-align: center; padding: 4rem 0; opacity: 0.6;">
+          <p>No articles published yet.</p>
+        </div>
+      )
     )
   }
 

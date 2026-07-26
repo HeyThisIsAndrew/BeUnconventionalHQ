@@ -2,6 +2,10 @@
 /**
  * Article section, filtered to one category.
  *
+ * Same magazine treatment as the section index — filtering reshapes the
+ * spread rather than dropping to a plain grid, so the section keeps its
+ * identity at every filter state.
+ *
  * Mirrors `/feed/[category]/[...page]` — a real static route per category with
  * its own pagination, rather than a client-side filter. Nested under `/topic/`
  * so it can never be mistaken for an article slug (see topicPath()).
@@ -10,27 +14,29 @@ import FeedLayout from '../../../../layouts/FeedLayout.astro';
 import ContentCard from '../../../../components/ContentCard.astro';
 import Pagination from '../../../../components/Pagination.astro';
 import IntelFilters from '../../../../components/IntelFilters.astro';
+import IntelMagazine from '../../../../components/IntelMagazine.astro';
 import { site } from '../../../../data/site.js';
-import { ARTICLE_SECTION } from '../../../../data/sections.js';
+import { ARTICLE_SECTION, MAGAZINE_SIZE } from '../../../../data/sections.js';
 import { getArticleFeedItems, getArticleCategories } from '../../../../lib/articles';
 import type { GetStaticPathsOptions } from 'astro';
+
 
 export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
   const items = getArticleFeedItems();
 
-  return getArticleCategories().flatMap((category) =>
-    paginate(
-      items.filter((item) => item.category === category),
-      {
-        params: { category: category.toLowerCase() },
-        props: { categoryLabel: category },
-        pageSize: 12,
-      },
-    ),
-  );
+  return getArticleCategories().flatMap((category) => {
+    const inCategory = items.filter((item) => item.category === category);
+    return paginate(inCategory.slice(MAGAZINE_SIZE), {
+      params: { category: category.toLowerCase() },
+      props: { categoryLabel: category, magazine: inCategory.slice(0, MAGAZINE_SIZE) },
+      pageSize: 12,
+    });
+  });
 }
 
-const { page, categoryLabel } = Astro.props;
+const { page, categoryLabel, magazine } = Astro.props;
+const isFirstPage = page.currentPage === 1;
+const magazineArticles = isFirstPage ? magazine : [];
 
 const pageNum = page.currentPage > 1 ? ` - Page ${page.currentPage}` : '';
 const title = `${categoryLabel} ${ARTICLE_SECTION.name}${pageNum} | ${site.name}`;
@@ -49,14 +55,27 @@ const description = `${categoryLabel} reporting and analysis from ${site.name}.`
 >
   <IntelFilters slot="filters" active={categoryLabel} />
 
+  {magazineArticles.length > 0 && <IntelMagazine articles={magazineArticles} />}
+
   {
-    page.data.length > 0 ? (
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
-        {page.data.map((item: any, index: number) => (
-          <ContentCard item={item} index={index} />
-        ))}
-      </div>
-    ) : (
+    page.data.length > 0 && (
+      <section class="intel-archive" aria-labelledby="intel-archive-head">
+        <div class="intel-break-head">
+          <h2 class="intel-break-title" id="intel-archive-head">
+            More {categoryLabel}
+          </h2>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
+          {page.data.map((item: any, index: number) => (
+            <ContentCard item={item} index={index} />
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  {
+    magazineArticles.length === 0 && page.data.length === 0 && (
       <div class="empty-state animate-on-scroll" style="text-align: center; padding: 4rem 0; opacity: 0.6;">
         <p>No {categoryLabel} articles yet.</p>
       </div>

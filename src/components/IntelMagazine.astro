@@ -1,0 +1,243 @@
+---
+/**
+ * Magazine layout for the article section — the piece that makes /intel not
+ * look like every other page on the site.
+ *
+ * Three columns: article rails left and right, a large feature in the middle.
+ * Selecting a rail item swaps the centre feature in place rather than
+ * navigating, so the page reads like a magazine spread you browse.
+ *
+ * Progressive enhancement, deliberately:
+ *   - every rail item is a real <a href="/intel/<slug>">, so the layout works
+ *     with JS disabled, is fully crawlable, and keyboard navigation is native;
+ *   - the script intercepts clicks only to swap the centre, and mirrors the
+ *     choice into the URL hash so a swapped state can be linked and restored;
+ *   - the centre is an aria-live region so the swap is announced rather than
+ *     silently changing under a screen reader.
+ *
+ * Every value the centre needs travels on the rail item's data-* attributes,
+ * so no article payload is duplicated into a second script block.
+ */
+import { CTA } from '../data/sections.js';
+import type { ArticleRecord } from '../lib/articles';
+
+interface Props {
+  /** Newest first. The first becomes the opening feature. */
+  articles: Array<ArticleRecord & { link: string; isExternal: boolean }>;
+}
+
+const { articles } = Astro.props;
+
+const [feature, ...rest] = articles;
+
+// Split the rails so reading order down the page is left, right, left, right —
+// which is also the order a screen reader and keyboard user will meet them.
+const railItems = rest.slice(0, 6);
+const leftRail = railItems.filter((_, i) => i % 2 === 0);
+const rightRail = railItems.filter((_, i) => i % 2 === 1);
+
+const dataFor = (a: (typeof articles)[number]) => ({
+  'data-slug': a.slug,
+  'data-title': a.title,
+  'data-excerpt': a.excerpt ?? '',
+  'data-image': a.image ?? '',
+  'data-category': a.category ?? '',
+  'data-date': a.date ?? '',
+  'data-href': a.link,
+  'data-external': a.isExternal ? 'true' : 'false',
+});
+---
+
+{
+  feature && (
+    <section class="intel-magazine" aria-label="Featured articles">
+      <div class="intel-rail intel-rail-left">
+        {leftRail.map((a) => (
+          <a class="intel-rail-item" href={a.link} {...dataFor(a)}>
+            <div class="intel-rail-thumb">
+              {a.image ? (
+                <img src={a.image} alt="" loading="lazy" decoding="async" />
+              ) : (
+                <span class="intel-rail-thumb-empty" aria-hidden="true" />
+              )}
+            </div>
+            <div class="intel-rail-copy">
+              <span class="intel-rail-meta">
+                {a.category} <span class="dot">&bull;</span> {a.date}
+              </span>
+              <h3 class="intel-rail-title">{a.title}</h3>
+            </div>
+          </a>
+        ))}
+      </div>
+
+      {/* The swappable feature. Initial content is the newest article, so this
+          is meaningful HTML before any script runs. */}
+      <article class="intel-feature" id="intel-feature" aria-live="polite">
+        <a class="intel-feature-link" id="intel-feature-link" href={feature.link}>
+          <div class="intel-feature-image">
+            {feature.image ? (
+              <img
+                id="intel-feature-img"
+                src={feature.image}
+                alt={`Cover image for ${feature.title}`}
+                width="1456"
+                height="816"
+                loading="eager"
+                decoding="async"
+              />
+            ) : (
+              <span id="intel-feature-img" class="intel-feature-image-empty" aria-hidden="true" />
+            )}
+          </div>
+
+          <div class="intel-feature-copy">
+            <span class="intel-feature-meta">
+              <span id="intel-feature-category">{feature.category}</span>
+              <span class="dot">&bull;</span>
+              <span id="intel-feature-date">{feature.date}</span>
+            </span>
+            <h2 class="intel-feature-title" id="intel-feature-title">{feature.title}</h2>
+            <p class="intel-feature-excerpt" id="intel-feature-excerpt">{feature.excerpt}</p>
+            <span class="intel-feature-cta">
+              {CTA.readNow} <span class="arrow">&rarr;</span>
+            </span>
+          </div>
+        </a>
+      </article>
+
+      <div class="intel-rail intel-rail-right">
+        {rightRail.map((a) => (
+          <a class="intel-rail-item" href={a.link} {...dataFor(a)}>
+            <div class="intel-rail-thumb">
+              {a.image ? (
+                <img src={a.image} alt="" loading="lazy" decoding="async" />
+              ) : (
+                <span class="intel-rail-thumb-empty" aria-hidden="true" />
+              )}
+            </div>
+            <div class="intel-rail-copy">
+              <span class="intel-rail-meta">
+                {a.category} <span class="dot">&bull;</span> {a.date}
+              </span>
+              <h3 class="intel-rail-title">{a.title}</h3>
+            </div>
+          </a>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+<script>
+  function initIntelMagazine() {
+    const feature = document.getElementById('intel-feature');
+    if (!feature) return;
+
+    const link = document.getElementById('intel-feature-link') as HTMLAnchorElement | null;
+    const img = document.getElementById('intel-feature-img');
+    const title = document.getElementById('intel-feature-title');
+    const excerpt = document.getElementById('intel-feature-excerpt');
+    const category = document.getElementById('intel-feature-category');
+    const date = document.getElementById('intel-feature-date');
+    const items = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>('.intel-rail-item'),
+    );
+    if (!link || items.length === 0) return;
+
+    // Snapshot the server-rendered feature so it can be restored, and so the
+    // opening article can be swapped back to after visiting a rail item.
+    const initial = {
+      href: link.getAttribute('href') ?? '',
+      title: title?.textContent ?? '',
+      excerpt: excerpt?.textContent ?? '',
+      category: category?.textContent ?? '',
+      date: date?.textContent ?? '',
+      image: img?.getAttribute('src') ?? '',
+      slug: '',
+    };
+
+    function paint(data: typeof initial & { external?: boolean }) {
+      link!.setAttribute('href', data.href);
+      if (data.external) {
+        link!.setAttribute('target', '_blank');
+        link!.setAttribute('rel', 'noopener noreferrer');
+      } else {
+        link!.removeAttribute('target');
+        link!.removeAttribute('rel');
+      }
+      if (title) title.textContent = data.title;
+      if (excerpt) excerpt.textContent = data.excerpt;
+      if (category) category.textContent = data.category;
+      if (date) date.textContent = data.date;
+      if (img && img.tagName === 'IMG' && data.image) {
+        img.setAttribute('src', data.image);
+        img.setAttribute('alt', `Cover image for ${data.title}`);
+      }
+
+      // Re-run the entrance transition so the swap reads as a deliberate
+      // change rather than text mutating in place.
+      feature!.classList.remove('is-swapping');
+      // Force a reflow so removing and re-adding the class actually restarts
+      // the transition.
+      void feature!.offsetWidth;
+      feature!.classList.add('is-swapping');
+    }
+
+    function setActive(slug: string) {
+      items.forEach((item) => {
+        const isActive = item.dataset.slug === slug;
+        item.classList.toggle('active', isActive);
+        if (isActive) item.setAttribute('aria-current', 'true');
+        else item.removeAttribute('aria-current');
+      });
+    }
+
+    function select(item: HTMLAnchorElement) {
+      paint({
+        href: item.dataset.href ?? item.getAttribute('href') ?? '',
+        title: item.dataset.title ?? '',
+        excerpt: item.dataset.excerpt ?? '',
+        category: item.dataset.category ?? '',
+        date: item.dataset.date ?? '',
+        image: item.dataset.image ?? '',
+        slug: item.dataset.slug ?? '',
+        external: item.dataset.external === 'true',
+      });
+      setActive(item.dataset.slug ?? '');
+    }
+
+    items.forEach((item) => {
+      if (item.dataset.bound) return;
+      item.dataset.bound = 'true';
+
+      item.addEventListener('click', (event) => {
+        // Let modified clicks (new tab, download, middle-click) behave normally.
+        if (
+          event.defaultPrevented ||
+          (event as MouseEvent).button !== 0 ||
+          (event as MouseEvent).metaKey ||
+          (event as MouseEvent).ctrlKey ||
+          (event as MouseEvent).shiftKey ||
+          (event as MouseEvent).altKey
+        ) {
+          return;
+        }
+        event.preventDefault();
+        select(item);
+        const slug = item.dataset.slug;
+        if (slug) history.replaceState(null, '', `#${slug}`);
+        feature!.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      });
+    });
+
+    // Restore a linked-to selection on load.
+    const hash = decodeURIComponent(window.location.hash.replace('#', ''));
+    if (hash) {
+      const match = items.find((i) => i.dataset.slug === hash);
+      if (match) select(match);
+    }
+  }
+
+  document.addEventListener('astro:page-load', initIntelMagazine);
+</script>

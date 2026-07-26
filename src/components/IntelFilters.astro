@@ -2,15 +2,16 @@
 /**
  * Category filter bar for the article section.
  *
- * Server-rendered links to real routes, mirroring how the Feed does category
- * filtering (`/feed/[category]/…` → a static route per category) rather than
- * inventing a second pattern. No hydration: every state is a crawlable URL and
- * is keyboard-operable for free.
+ * Uses the Feed's actual `.quadrant-btn` / `.cat-btn` control (promoted to
+ * styles/modules/filters.css) rather than a lookalike, so hover, focus and
+ * active states are identical to the Feed by construction.
  *
- * Categories live under `/intel/topic/<category>` rather than `/intel/<category>`
- * so they can never be mistaken for an article slug — `/intel/<slug>` is the
- * article route, and a post tagged "film" would otherwise collide with the
- * Film category page.
+ * Server-rendered links to real routes, mirroring how the Feed does category
+ * filtering (a static route per category). No hydration: every state is a
+ * crawlable URL and keyboard-operable for free.
+ *
+ * Categories live under `/intel/topic/<category>` rather than
+ * `/intel/<category>` so they can never be mistaken for an article slug.
  */
 import { ARTICLE_SECTION } from '../data/sections.js';
 import { getArticleCategories, topicPath } from '../lib/articles';
@@ -24,25 +25,50 @@ const { active } = Astro.props;
 const categories = getArticleCategories();
 ---
 
-{
-  categories.length > 0 && (
-    <nav class="intel-filters" aria-label={`${ARTICLE_SECTION.name} categories`}>
-      <a
-        href={ARTICLE_SECTION.path}
-        class:list={['intel-filter', { active: active === null }]}
-        aria-current={active === null ? 'page' : undefined}
-      >
-        All
-      </a>
-      {categories.map((category) => (
+<div class="intel-filter-nav" role="navigation" aria-label={`${ARTICLE_SECTION.name} categories`}>
+  <div class="filter-grid intel-filter-grid">
+    <a
+      href={ARTICLE_SECTION.path}
+      class:list={['quadrant-btn', 'cat-btn', { active: active === null }]}
+      aria-current={active === null ? 'true' : undefined}
+    >
+      ALL
+    </a>
+    {
+      categories.map((category) => (
         <a
           href={topicPath(category)}
-          class:list={['intel-filter', { active: active === category }]}
-          aria-current={active === category ? 'page' : undefined}
+          class:list={['quadrant-btn', 'cat-btn', { active: active === category }]}
+          aria-current={active === category ? 'true' : undefined}
         >
-          {category}
+          {category.toUpperCase()}
         </a>
-      ))}
-    </nav>
-  )
-}
+      ))
+    }
+  </div>
+</div>
+
+<style>
+  .intel-filter-nav {
+    width: 100%;
+    margin-bottom: 3.5rem;
+  }
+
+  /* Even columns so the bar reads as one control strip, matching the Feed's
+     quadrant grid rather than a row of pills. */
+  .intel-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1px;
+  }
+
+  @media (max-width: 768px) {
+    .intel-filter-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .intel-filter-nav {
+      margin-bottom: 2.5rem;
+    }
+  }
+</style>

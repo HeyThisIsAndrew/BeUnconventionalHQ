@@ -99,3 +99,83 @@
     flex-shrink: 0;
   }
 }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   QUADRANT BUTTON (shared filter control)
+
+   The Feed's filter button, promoted here from QuadrantFilter.astro's scoped
+   <style> so other surfaces can reuse the exact control instead of
+   re-declaring it. Used by <QuadrantFilter /> (the Feed) and
+   <IntelFilters /> (the article section).
+
+   Nothing else in the codebase defines .quadrant-btn, so lifting it to the
+   global sheet does not change which rule wins anywhere.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.quadrant-btn {
+  padding: 1.25rem 1rem;
+  background: rgba(10, 10, 10, 0.6);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--color-white);
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-family: var(--font-display);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  -webkit-tap-highlight-color: transparent;
+  text-decoration: none;
+  display: block;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .type-btn:hover,
+  .cat-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    outline: 2px solid var(--color-accent, #ef4444);
+    outline-offset: -2px;
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+    transform: translateY(-2px);
+  }
+
+  .quadrant-btn:not(.type-btn):not(.cat-btn):hover {
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  }
+}
+
+.type-btn:focus-visible,
+.cat-btn:focus-visible,
+.quadrant-btn:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 4px;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quadrant-btn,
+  .quadrant-btn:hover,
+  .quadrant-btn:focus-visible,
+  .type-btn:hover,
+  .cat-btn:hover,
+  .quadrant-btn:not(.type-btn):not(.cat-btn):hover {
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+.quadrant-btn.active {
+  background: rgba(239, 68, 68, 0.1);
+  outline: 2px solid var(--color-accent, #ef4444);
+  outline-offset: -2px;
+  border-color: transparent;
+  color: white;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+}

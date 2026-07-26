@@ -31,6 +31,14 @@ export const ARTICLE_SECTION = {
 export const articlePath = (slug) => `${ARTICLE_SECTION.path}/${slug}`;
 
 /**
+ * How many articles the magazine spread consumes before the paginated archive
+ * starts. Lives here rather than in the route because `getStaticPaths()` runs
+ * in its own isolated scope and cannot see a page's frontmatter constants —
+ * only imports.
+ */
+export const MAGAZINE_SIZE = 7;
+
+/**
  * Byline. Hardcoded to the founder for now — deliberately a named constant so
  * swapping it is a one-line change per author once a contributors system
  * exists. See follow-up #4 in scripts/epic-000-audit.md.

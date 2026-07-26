@@ -1,0 +1,354 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   INTEL — MAGAZINE LAYOUT
+
+   The article section deliberately does NOT look like the rest of the site's
+   card grids. Three columns: article rails left and right, a large feature in
+   the middle that swaps when you pick a rail item.
+
+   Everything uses the existing tokens (--font-display, --color-accent,
+   --color-surface) so it reads as the same publication in a different format,
+   not a different site.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.intel-magazine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2.15fr) minmax(0, 1fr);
+  gap: 0;
+  margin-bottom: 5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+/* ── Rails ──────────────────────────────────────────────────────────────── */
+
+.intel-rail {
+  display: flex;
+  flex-direction: column;
+}
+
+.intel-rail-left {
+  border-right: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.intel-rail-right {
+  border-left: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.intel-rail-item {
+  display: block;
+  padding: 1.75rem 1.5rem;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  transition:
+    background-color 0.3s ease,
+    transform 0.3s ease;
+}
+
+.intel-rail-item:last-child {
+  border-bottom: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .intel-rail-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .intel-rail-item:hover .intel-rail-title {
+    color: var(--color-accent);
+  }
+
+  .intel-rail-item:hover .intel-rail-thumb img {
+    transform: scale(1.06);
+  }
+}
+
+.intel-rail-item:focus-visible {
+  outline: 2px solid var(--color-white);
+  outline-offset: -2px;
+}
+
+/* The currently-featured rail item. An accent edge rather than a fill, so the
+   rail stays quiet next to the feature it is controlling. */
+.intel-rail-item.active {
+  background: rgba(204, 0, 0, 0.07);
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+
+.intel-rail-right .intel-rail-item.active {
+  box-shadow: inset -3px 0 0 var(--color-accent);
+}
+
+.intel-rail-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--color-surface);
+  margin-bottom: 1rem;
+}
+
+.intel-rail-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}
+
+.intel-rail-thumb-empty {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-surface) 100%);
+}
+
+.intel-rail-meta,
+.intel-feature-meta {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-white-muted);
+  margin-bottom: 0.6rem;
+}
+
+.intel-rail-meta .dot,
+.intel-feature-meta .dot {
+  margin-inline: 0.3rem;
+  opacity: 0.6;
+}
+
+.intel-rail-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--color-white);
+  transition: color 0.3s ease;
+  /* Rails are a scan surface — long headlines are clamped so the column keeps
+     an even rhythm rather than one item dominating it. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: break-word;
+}
+
+/* ── Centre feature ─────────────────────────────────────────────────────── */
+
+.intel-feature {
+  min-width: 0;
+}
+
+.intel-feature-link {
+  display: block;
+  height: 100%;
+  text-decoration: none;
+}
+
+.intel-feature-image {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.intel-feature-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.2, 1);
+}
+
+.intel-feature-image-empty {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-black) 100%);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .intel-feature-link:hover .intel-feature-image img {
+    transform: scale(1.03);
+  }
+
+  .intel-feature-link:hover .intel-feature-cta {
+    color: var(--color-accent);
+  }
+
+  .intel-feature-link:hover .intel-feature-cta .arrow {
+    transform: translateX(6px);
+  }
+}
+
+.intel-feature-link:focus-visible {
+  outline: 2px solid var(--color-white);
+  outline-offset: -2px;
+}
+
+.intel-feature-copy {
+  padding: 2.5rem 2.5rem 3rem;
+  text-align: center;
+}
+
+.intel-feature-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, calc(1rem + 1.9vw), 2.75rem);
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  color: var(--color-white);
+  margin-bottom: 1rem;
+  overflow-wrap: break-word;
+}
+
+.intel-feature-excerpt {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-white-muted);
+  max-width: 46ch;
+  margin: 0 auto 1.75rem;
+}
+
+.intel-feature-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-white);
+  transition: color 0.3s ease;
+}
+
+.intel-feature-cta .arrow {
+  color: var(--color-accent);
+  transition: transform 0.3s ease;
+}
+
+/* Swap transition. Applied by the magazine script each time the centre
+   changes, so a swap reads as a deliberate change rather than text mutating. */
+@keyframes intel-feature-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.intel-feature.is-swapping .intel-feature-copy,
+.intel-feature.is-swapping .intel-feature-image {
+  animation: intel-feature-in 0.45s cubic-bezier(0.25, 0.8, 0.2, 1) both;
+}
+
+/* ── Break strip (between the magazine and the archive) ─────────────────── */
+
+.intel-break {
+  margin-bottom: 4.5rem;
+}
+
+.intel-break-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.intel-break-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-white);
+}
+
+.intel-break-link {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-white-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.3s ease;
+}
+
+.intel-break-link:hover {
+  color: var(--color-accent);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+
+/* Tablet: drop to feature + a single rail below it, rather than squeezing
+   three columns into a width that makes the headlines unreadable. */
+@media (max-width: 1100px) {
+  .intel-magazine {
+    grid-template-columns: 1fr;
+  }
+
+  .intel-rail-left,
+  .intel-rail-right {
+    border-left: 0;
+    border-right: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+  }
+
+  /* Feature first — it is the point of the page. */
+  .intel-feature {
+    order: -1;
+  }
+
+  /* Rails become a two-up grid so they don't become an endless column. */
+  .intel-rail {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .intel-rail-item {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .intel-rail-right .intel-rail-item.active {
+    box-shadow: inset 3px 0 0 var(--color-accent);
+  }
+}
+
+@media (max-width: 640px) {
+  .intel-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .intel-feature-copy {
+    padding: 2rem 1.25rem 2.5rem;
+  }
+
+  .intel-rail-item {
+    padding: 1.5rem 1.25rem;
+  }
+
+  .intel-magazine {
+    margin-bottom: 3.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intel-feature.is-swapping .intel-feature-copy,
+  .intel-feature.is-swapping .intel-feature-image {
+    animation: none;
+  }
+
+  .intel-rail-thumb img,
+  .intel-feature-image img,
+  .intel-feature-cta .arrow {
+    transition: none;
+  }
+}
