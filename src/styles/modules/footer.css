@@ -7,6 +7,18 @@
   background: var(--color-surface);
   padding: 4rem 2rem 2rem;
   margin-top: 4rem;
+
+  /*
+    ONE knob for the footer logo, read by both `.footer-logo` and
+    `.footer-logo img` below.
+
+    The logo used to be sized by four separate declarations across two files,
+    half of them `!important`, which is how it ended up correct on desktop and
+    tiny on a phone: the mobile override won and nobody noticed the desktop
+    rule had stopped applying. Now every breakpoint sets this ONE value —
+    see the overrides in footer-brand.css.
+  */
+  --footer-logo-size: 300px;
 }
 
 .footer-inner {
@@ -22,30 +34,53 @@
 /*
    Footer logo.
 
-   Enlarged from 40px to fill the vertical space the old three-line text
-   lockup used to occupy (tagline + wordmark + strapline ≈ 88px tall). The
-   hover behaviour is unchanged — still the same fade — so the link feels
-   identical to before, just bigger.
+   TO RESIZE IT: change `--footer-logo-size` on `.site-footer` above, or the
+   per-breakpoint override in footer-brand.css. Do NOT add a width or height
+   here — that is exactly how the mobile and desktop sizes drifted apart.
 
-   To resize it, change BOTH heights below: `.footer-logo` sets the link box
-   and `.footer-logo img` sets the image inside it. They must match or the
-   hover target won't line up with what you can see.
+   The source art is a 2000x2000 square with the wordmark centred inside it,
+   so width and height are interchangeable; sizing by width keeps it from
+   overflowing its grid track on a narrow screen.
 */
 .footer-logo {
-  /* Sized to hold its third of the footer. The Explore and Follow columns are
-     ~198px tall, so the logo needs real presence to balance them rather than
-     floating as an afterthought. Change BOTH heights together — the link box
-     and the image — or the hover target stops matching what you can see. */
-  height: 300px;
-  width: auto;
+  width: var(--footer-logo-size);
+  /* Never wider than its column, whatever the size above says. This is what
+     keeps the brand column from pushing Explore and Follow around. */
+  max-width: 100%;
+
+  /*
+    THE BOX IS THE SHAPE OF THE ARTWORK, NOT OF THE FILE.
+
+    logo.webp is a 2000x2000 SQUARE, but the wordmark inside it only occupies
+    95.5% of the width and 41.9% of the height — the rest is transparent
+    padding. Sizing the box as a square therefore reserved more than twice the
+    height the mark actually needs, which is what made the logo look small and
+    adrift in a large empty area: the mark was the right size, the box around
+    it was not.
+
+    So the box takes the artwork's own ratio and the image overflows it
+    vertically, clipped by `overflow: hidden`. Only transparent pixels are
+    ever cut, so nothing is lost — and `--footer-logo-size` now controls the
+    size of the MARK YOU CAN SEE, which is what you actually want to tune.
+
+    (If the logo file is ever re-exported with the padding removed, delete
+    the aspect-ratio and overflow here and it will still be correct.)
+  */
+  aspect-ratio: 1909 / 839;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+
   margin-bottom: 0;
-  display: block;
   transition: opacity 0.3s ease;
 }
 
 .footer-logo img {
-  height: 300px;
-  width: auto;
+  /* Same grid cell, so the overflow is centred rather than pushed downward. */
+  grid-area: 1 / 1;
+  width: 100%;
+  height: auto;
+  max-width: none;
   display: block;
 }
 
@@ -86,15 +121,39 @@
   align-items: center;
 }
 
+/*
+   Explore links — ONE ROW, every device.
+
+   This list used to be `flex-wrap: wrap` inside `max-width: 300px`, so the
+   five nav items never fitted and "ABOUT" dropped onto a second line on
+   desktop AND mobile. It read as an accident rather than a layout.
+
+   The fix is `nowrap` plus a gap that shrinks with the viewport instead of a
+   width cap that forces a break. `clamp()` reads as
+   min / preferred / max: 0.4rem at the narrowest, 2vw as the screen grows,
+   never more than 2rem. At 320px — the narrowest width this site supports —
+   the five items measure ~229px and the four gaps ~26px, inside ~256px of
+   available space.
+
+   `max-width: 100%` is the safety net: if a sixth item is ever added and the
+   row genuinely cannot fit, it shrinks the gaps rather than widening the
+   column and shoving the Brand and Follow columns out of alignment.
+*/
 .footer-nav ul {
   list-style: none;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
-  gap: 0.75rem 2rem;
+  gap: 0.75rem clamp(0.4rem, 2vw, 2rem);
   align-items: center;
   padding: 0;
-  max-width: 300px;
+  max-width: 100%;
+}
+
+/* Individual items must not break mid-word either — "FEATURED" wrapping to
+   "FEATUR / ED" would defeat the point of keeping the row on one line. */
+.footer-nav ul li a {
+  white-space: nowrap;
 }
 
 .footer-socials {

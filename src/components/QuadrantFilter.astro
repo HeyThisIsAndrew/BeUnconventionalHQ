@@ -31,10 +31,31 @@ const overlayItems = categories.map((c) => {
 });
 ---
 
-<div
-  class="quadrant-filter-container animate-on-scroll"
-  id="quadrant-filter-wrapper"
->
+{/*
+  ⚠ DO NOT ADD `animate-on-scroll` TO THIS ELEMENT.
+
+  It used to be here, and it broke the mobile Categories overlay on the Feed
+  in a way that was very hard to see: the overlay opened, the close button
+  appeared, and the four category buttons were nowhere.
+
+  Why: `.animate-on-scroll` sets `transform` and `filter` (they stay at
+  `scale(1)` / `blur(0)` even when revealed — still not `none`). An element
+  with a transform or filter becomes the CONTAINING BLOCK for any
+  `position: fixed` descendant. So the overlay, which is meant to cover the
+  viewport, was instead sized and positioned against this filter row: 326px
+  wide, offset 230px down the page, with its contents pushed off-screen.
+
+  /intel never had the bug because IntelFilters renders <CategoryOverlay />
+  at the top level, with no transformed ancestor above it.
+
+  Nothing is lost by leaving it off: this row sits above the fold, so a
+  scroll reveal never actually played, and without it the row no longer
+  starts at opacity 0 — which is better for LCP.
+
+  scripts/e2e-category-modal.test.mjs asserts the overlay fills the viewport
+  on BOTH routes, so this cannot silently regress again.
+*/}
+<div class="quadrant-filter-container" id="quadrant-filter-wrapper">
   <div id="global-type-row" class={`type-row-wrapper ${showTypes ? 'is-open' : ''}`}>
     <div class="type-row-inner">
       <div class="mobile-top-bar">

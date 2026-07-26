@@ -2,23 +2,29 @@
 /**
  * ArticleSupportRail — the sticky right-hand rail on an article page.
  *
- * ─── WHAT GOES IN IT ──────────────────────────────────────────────────────
- * Affiliate links and a short "more reading" list. Deliberately restrained:
- * no third-party ad network, no tracking scripts, nothing that shifts layout.
- * Everything here is a plain link we control.
+ * ─── WHAT IS IN IT ────────────────────────────────────────────────────────
+ *   1. "More From Intel" — a few related articles.
+ *   2. "Support The HQ"  — the referral / gear links, at the BOTTOM.
  *
- * ─── THE DISCLOSURE IS NOT OPTIONAL ───────────────────────────────────────
- * Affiliate links legally require disclosure (FTC guidance in the US). The
- * note at the top of the block is that disclosure — do not remove it, and
- * keep it above the links rather than buried below them.
+ * That order is deliberate and was asked for directly: the reader came to
+ * read, so the rail leads with editorial and the commerce sits underneath it.
  *
- * ─── HOW TO ADD OR CHANGE A PARTNER ───────────────────────────────────────
- * Edit AFFILIATES below. `href` should be your tagged link. Anything without
- * a real URL is skipped, so a half-filled entry cannot ship a dead link.
+ * ─── WHERE THE REFERRAL LINKS COME FROM ───────────────────────────────────
+ * This file holds no partner names and no URLs. <ReferralLinks /> renders
+ * them from src/data/referrals.js — the single registry for every referral
+ * on the site. To add a partner, edit that file; nothing here changes.
+ *
+ * There is no third-party ad network here, no tracking script and nothing
+ * that shifts layout. Every link is one we control.
+ *
+ * ─── HOW TO RESTYLE IT ────────────────────────────────────────────────────
+ * `.article-rail*` in src/styles/modules/article.css for the rail shell, and
+ * `.referral-*` in src/styles/modules/referrals.css for the links.
  */
-import { site } from '../data/site.js';
+import ReferralLinks from './ReferralLinks.astro';
 import type { ArticleRecord } from '../lib/articles';
 import { ARTICLE_SECTION } from '../data/sections.js';
+import { REFERRAL_HEADING } from '../data/referrals.js';
 
 interface Props {
   /** A couple of further-reading links. Pass [] to omit that block. */
@@ -26,34 +32,14 @@ interface Props {
 }
 
 const { related = [] } = Astro.props;
-
-/*
-  Affiliate partners.
-
-  Amazon uses the storefront already configured in site.socials so there is one
-  source of truth for it. Add entries as partnerships are signed; entries with
-  no href are filtered out below.
-*/
-const AFFILIATES = [
-  {
-    label: 'Amazon Storefront',
-    blurb: 'Gear, films and shows we actually recommend.',
-    href: site.socials.amazon,
-  },
-  {
-    label: 'Mint Mobile',
-    blurb: 'The plan that funds on-location coverage.',
-    href: '', // TODO: add the tagged referral link when the partnership is live.
-  },
-].filter((item) => Boolean(item.href));
 ---
 
 <aside class="article-rail article-rail-right" aria-labelledby="article-support-head">
   <div class="article-rail-sticky">
     {/*
-      Further reading FIRST, affiliates second. The reader is here to read —
-      leading the rail with editorial rather than commerce respects that, and
-      keeps the "self-funded, not annoying with ads" promise honest.
+      Further reading FIRST, referrals second — see the note above. It also
+      keeps the "self-funded, not annoying with ads" promise honest: the
+      commercial block is the last thing in the rail, not the first.
     */}
     {related.length > 0 && (
       <div class="article-rail-related">
@@ -71,33 +57,13 @@ const AFFILIATES = [
       </div>
     )}
 
+    {/*
+      `compact` because the rail is narrow — it drops the one-line note under
+      each group heading. `headingId` is what the <aside>'s aria-labelledby
+      above points at, so the rail has an accessible name.
+    */}
     <div class="article-rail-support">
-      <p class="article-rail-head" id="article-support-head">Support The HQ</p>
-
-      {/* The disclosure. Above the links, plainly worded, always present —
-          affiliate links legally require it (FTC guidance). */}
-      <p class="article-rail-disclosure">
-        Self-funded &amp; independent. Some links below are affiliate links — using
-        them costs you nothing and helps fund coverage.
-      </p>
-
-      {AFFILIATES.length > 0 && (
-        <ul class="article-affiliate-list">
-          {AFFILIATES.map((item) => (
-            <li>
-              <a
-                class="article-affiliate"
-                href={item.href}
-                target="_blank"
-                rel="noopener noreferrer sponsored"
-              >
-                <span class="article-affiliate-label">{item.label}</span>
-                <span class="article-affiliate-blurb">{item.blurb}</span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
+      <ReferralLinks compact headingId="article-support-head" heading={REFERRAL_HEADING} />
     </div>
   </div>
 </aside>
