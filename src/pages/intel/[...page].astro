@@ -1,111 +1,68 @@
 ---
 /**
- * The article section index — a magazine, not another card grid.
+ * /intel  — the article section index (and /intel/2, /intel/3 …).
  *
- * Structure, page 1:
- *   filter bar (the Feed's own control)
- *   magazine spread   — rails left/right, swappable centre feature
- *   break strip       — latest from the channel, tying the section back to
- *                       the rest of the site rather than dead-ending
- *   archive grid      — everything below the fold, in the Feed's card, paginated
+ * This file's only job is to decide WHICH articles appear. The page's actual
+ * shape lives in src/layouts/IntelLayout.astro, so /intel and the category
+ * pages can't drift apart.
  *
- * Page 2+ drops the magazine and break strip: they are an opening statement,
- * and repeating them on every page would just push the archive down.
+ * ─── THE FILENAME ─────────────────────────────────────────────────────────
+ * `[...page].astro` is Astro's "rest" route. Combined with paginate() below
+ * it produces /intel, /intel/2, /intel/3 … from one file.
  *
- * Section name and slug come from ARTICLE_SECTION — renaming the section is a
- * change to src/data/sections.js plus this directory's name, nowhere else.
+ * ─── RENAMING THE SECTION ─────────────────────────────────────────────────
+ * "Intel" appears nowhere in this file as text. To rename it, change
+ * ARTICLE_SECTION in src/data/sections.js and rename this `intel/` folder.
  */
-import FeedLayout from '../../layouts/FeedLayout.astro';
-import ContentCard from '../../components/ContentCard.astro';
-import Pagination from '../../components/Pagination.astro';
-import IntelFilters from '../../components/IntelFilters.astro';
-import IntelMagazine from '../../components/IntelMagazine.astro';
+import IntelLayout from '../../layouts/IntelLayout.astro';
 import { site } from '../../data/site.js';
 import { ARTICLE_SECTION, MAGAZINE_SIZE } from '../../data/sections.js';
 import { getArticleFeedItems } from '../../lib/articles';
 import { getVideoItems } from '../../lib/feed-items';
 import type { GetStaticPathsOptions } from 'astro';
 
-
+/**
+ * getStaticPaths tells Astro every URL this file should build.
+ *
+ * ⚠️ IMPORTANT GOTCHA: this function runs in its own isolated scope. It can
+ * use `import`s from the top of the file, but it CANNOT see constants or
+ * helper functions declared in the frontmatter below it. That is why
+ * MAGAZINE_SIZE is imported from src/data/sections.js instead of being a
+ * `const` in this file — it caught us twice while building this section.
+ */
 export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
-  const all = getArticleFeedItems();
-  // The magazine shows the newest few, so the paginated archive starts after
-  // them — otherwise page 1 would repeat the same articles twice.
-  return paginate(all.slice(MAGAZINE_SIZE), { pageSize: 12 });
+  const allArticles = getArticleFeedItems();
+
+  // The magazine spread takes the newest MAGAZINE_SIZE articles, so the
+  // paginated archive starts after them — otherwise page 1 would show the
+  // same articles twice, once in the spread and again in the grid.
+  const archiveArticles = allArticles.slice(MAGAZINE_SIZE);
+
+  // pageSize 12 matches the Feed, so paging feels the same across the site.
+  return paginate(archiveArticles, { pageSize: 12 });
 }
 
 const { page } = Astro.props;
+
+// The magazine and video strip are an opening statement — page 1 only.
 const isFirstPage = page.currentPage === 1;
 
 const magazineArticles = isFirstPage ? getArticleFeedItems().slice(0, MAGAZINE_SIZE) : [];
-const latestVideos = isFirstPage ? (await getVideoItems()).slice(0, 4) : [];
+const videos = isFirstPage ? (await getVideoItems()).slice(0, 4) : [];
 
-const pageNum = page.currentPage > 1 ? ` - Page ${page.currentPage}` : '';
-const title = `${ARTICLE_SECTION.name}${pageNum} | ${site.name}`;
+const pageSuffix = page.currentPage > 1 ? ` - Page ${page.currentPage}` : '';
 ---
 
-<FeedLayout
-  title={title}
+<IntelLayout
+  title={`${ARTICLE_SECTION.name}${pageSuffix} | ${site.name}`}
   description={ARTICLE_SECTION.description}
   headingLabel={`All ${ARTICLE_SECTION.name} articles`}
   page={page}
-  kicker={ARTICLE_SECTION.kicker}
-  titlePrimary={ARTICLE_SECTION.titlePrimary}
-  titleSecondary={ARTICLE_SECTION.titleSecondary}
-  mainClass="pb-16 md:pb-24"
->
-  <IntelFilters slot="filters" active={null} />
-
-  {magazineArticles.length > 0 && <IntelMagazine articles={magazineArticles} />}
-
-  {
-    latestVideos.length > 0 && (
-      <section class="intel-break" aria-labelledby="intel-break-video">
-        <div class="intel-break-head">
-          <h2 class="intel-break-title" id="intel-break-video">
-            Latest From The Channel
-          </h2>
-          <a class="intel-break-link" href="/feed/videos">
-            All Videos &rarr;
-          </a>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 w-full">
-          {latestVideos.map((video: any, index: number) => (
-            <ContentCard item={video} index={index} />
-          ))}
-        </div>
-      </section>
-    )
-  }
-
-  {
-    page.data.length > 0 ? (
-      <section class="intel-archive" aria-labelledby="intel-archive-head">
-        <div class="intel-break-head">
-          <h2 class="intel-break-title" id="intel-archive-head">
-            {isFirstPage ? 'More From The Intel' : `The Intel — Page ${page.currentPage}`}
-          </h2>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
-          {page.data.map((item: any, index: number) => (
-            <ContentCard item={item} index={index} />
-          ))}
-        </div>
-      </section>
-    ) : (
-      magazineArticles.length === 0 && (
-        <div class="empty-state animate-on-scroll" style="text-align: center; padding: 4rem 0; opacity: 0.6;">
-          <p>No articles published yet.</p>
-        </div>
-      )
-    )
-  }
-
-  {
-    page.data.length > 0 && (
-      <div class="mt-auto w-full" style="padding-top: 3.5rem;">
-        <Pagination page={page} />
-      </div>
-    )
-  }
-</FeedLayout>
+  activeCategory={null}
+  magazineArticles={magazineArticles}
+  videos={videos}
+  archiveHeading={isFirstPage
+    ? `More From ${ARTICLE_SECTION.titlePrimary} ${ARTICLE_SECTION.titleSecondary}`
+    : `${ARTICLE_SECTION.titlePrimary} ${ARTICLE_SECTION.titleSecondary} — Page ${page.currentPage}`}
+  emptyMessage="No articles published yet."
+/>

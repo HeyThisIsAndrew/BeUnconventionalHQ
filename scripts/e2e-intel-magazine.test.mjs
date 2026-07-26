@@ -96,7 +96,17 @@ try {
     await noJs.setJavaScriptEnabled(false);
     await noJs.goto(`http://localhost:${port}/intel`, { waitUntil: 'domcontentloaded' });
     const hrefs = await noJs.$$eval('.intel-rail-item', (els) => els.map((e) => e.getAttribute('href')));
-    ok('rail items are real internal links without JS', hrefs.every((h) => h && h.startsWith('/')));
+    /*
+      The point is that each rail item is a REAL link, not a JS-only handle —
+      not that it is necessarily internal. An article we host resolves to
+      /intel/<slug>; one whose body Substack has not given us still resolves
+      to its Substack permalink. Both are legitimate, so accept either rather
+      than failing whenever the archive happens to contain an unhosted post.
+    */
+    ok(
+      'rail items are real links without JS (internal or Substack)',
+      hrefs.length > 0 && hrefs.every((h) => h && (h.startsWith('/') || /^https?:\/\//.test(h))),
+    );
     ok('centre feature is server-rendered', (await noJs.$eval('#intel-feature-title', (e) => e.textContent.trim())).length > 0);
   }
 } finally {

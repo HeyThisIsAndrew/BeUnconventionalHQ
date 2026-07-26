@@ -1,0 +1,154 @@
+---
+/**
+ * IntelLayout — the whole shape of an article-section page, in one place.
+ *
+ * ─── WHY THIS EXISTS ──────────────────────────────────────────────────────
+ * /intel and /intel/topic/<category> render the same page: filter bar,
+ * magazine spread, video strip, archive grid, pagination. They differ only in
+ * their title, which articles they show, and which filter is highlighted.
+ * Written as two route files they were ~90% identical — the exact fork that
+ * made the four /feed routes so painful before EPIC-000.
+ *
+ * So the page lives here, and each route becomes about 30 lines that just say
+ * *which* articles to show.
+ *
+ * ─── THE PAGE, TOP TO BOTTOM ──────────────────────────────────────────────
+ *   1. FeedLayout        page chrome — nav, big title, footer
+ *   2. IntelFilters      ALL / FILM / TV / GAMING / EVENTS
+ *   3. IntelMagazine     3-column spread (page 1 only)
+ *   4. video strip       "Latest From The Channel" (page 1 of /intel only)
+ *   5. CardGrid          the paginated archive
+ *   6. Pagination        numbered pages
+ *
+ * ─── WHY THE MAGAZINE ONLY APPEARS ON PAGE 1 ──────────────────────────────
+ * The spread is an opening statement. Repeating it on page 2, 3, 4 would push
+ * the actual archive further down every time and show the same newest
+ * articles again on each page. So pages 2+ are a plain, fast archive grid.
+ *
+ * ─── HOW PAGINATION IS SPLIT ──────────────────────────────────────────────
+ * The magazine uses the newest MAGAZINE_SIZE articles (see
+ * src/data/sections.js). The paginated archive therefore starts AFTER those,
+ * so page 1 never shows the same article twice — once in the spread and again
+ * in the grid below. The routes do that slicing in getStaticPaths.
+ */
+import FeedLayout from './FeedLayout.astro';
+import IntelFilters from '../components/IntelFilters.astro';
+import IntelMagazine from '../components/IntelMagazine.astro';
+import SectionHeading from '../components/SectionHeading.astro';
+import CardGrid from '../components/CardGrid.astro';
+import ContentCard from '../components/ContentCard.astro';
+import Pagination from '../components/Pagination.astro';
+import EmptyState from '../components/EmptyState.astro';
+import { ARTICLE_SECTION } from '../data/sections.js';
+
+interface Props {
+  /** Browser tab / SEO title. */
+  title: string;
+  /** Meta description. */
+  description: string;
+  /** sr-only heading naming the page's content, for screen readers. */
+  headingLabel: string;
+  /** Astro's pagination object for the archive grid. */
+  page: any;
+  /** Which filter button is highlighted. null = "ALL". */
+  activeCategory: string | null;
+  /** Articles for the magazine spread. Empty on pages 2+. */
+  magazineArticles: any[];
+  /** Videos for the break strip. Empty to hide the strip entirely. */
+  videos?: any[];
+  /** Heading above the archive grid, e.g. "More From The Intel". */
+  archiveHeading: string;
+  /** Shown when there is genuinely nothing on the page. */
+  emptyMessage: string;
+}
+
+const {
+  title,
+  description,
+  headingLabel,
+  page,
+  activeCategory,
+  magazineArticles = [],
+  videos = [],
+  archiveHeading,
+  emptyMessage,
+} = Astro.props;
+
+const hasMagazine = magazineArticles.length > 0;
+const hasArchive = page.data.length > 0;
+const hasVideos = videos.length > 0;
+
+// Nothing at all to show — not even one article in the spread.
+const isEmpty = !hasMagazine && !hasArchive;
+---
+
+<FeedLayout
+  title={title}
+  description={description}
+  headingLabel={headingLabel}
+  page={page}
+  kicker={ARTICLE_SECTION.kicker}
+  titlePrimary={ARTICLE_SECTION.titlePrimary}
+  titleSecondary={ARTICLE_SECTION.titleSecondary}
+  mainClass="pb-16 md:pb-24"
+>
+  {/* `slot="filters"` replaces the Feed's own filter bar with ours. */}
+  <IntelFilters slot="filters" active={activeCategory} />
+
+  {hasMagazine && <IntelMagazine articles={magazineArticles} />}
+
+  {
+    hasVideos && (
+      /* aria-labelledby points at the heading's id so screen readers announce
+         this region by name rather than as an anonymous "section". */
+      <section class="intel-break" aria-labelledby="intel-video-head">
+        <SectionHeading
+          title="Latest From The Channel"
+          id="intel-video-head"
+          linkLabel="All Videos"
+          linkHref="/feed/videos"
+        />
+        <CardGrid columns="video">
+          {videos.map((video: any, index: number) => (
+            <ContentCard item={video} index={index} />
+          ))}
+        </CardGrid>
+      </section>
+    )
+  }
+
+  {
+    hasArchive && (
+      <section class="intel-archive" aria-labelledby="intel-archive-head">
+        <SectionHeading title={archiveHeading} id="intel-archive-head" />
+        <CardGrid>
+          {page.data.map((item: any, index: number) => (
+            <ContentCard item={item} index={index} />
+          ))}
+        </CardGrid>
+      </section>
+    )
+  }
+
+  {
+    isEmpty && (
+      /* Same wording and same way out as the Feed: "Clear Filters" returns
+         to the unfiltered section. */
+      <EmptyState
+        message={emptyMessage}
+        actionLabel={activeCategory ? 'Clear Filters' : undefined}
+        actionHref={activeCategory ? ARTICLE_SECTION.path : undefined}
+      />
+    )
+  }
+
+  {
+    hasArchive && (
+      /* mt-auto pushes pagination to the bottom when the page is short, so it
+         never floats mid-screen above a large gap. */
+      <div class="intel-pagination mt-auto w-full">
+        <Pagination page={page} />
+      </div>
+    )
+  }
+</FeedLayout>

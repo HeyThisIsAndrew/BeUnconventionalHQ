@@ -5,6 +5,8 @@ import { getArticleItems } from '../../../lib/feed-items';
 import { getVideosUnified } from '../../../lib/videos-source';
 import Pagination from '../../../components/Pagination.astro';
 import ContentCard from '../../../components/ContentCard.astro';
+import CardGrid from '../../../components/CardGrid.astro';
+import EmptyState from '../../../components/EmptyState.astro';
 import { categories } from '../../../data/categories.js';
 import type { GetStaticPathsOptions } from 'astro';
 
@@ -56,15 +58,13 @@ const description = `Explore all ${categoryObj.label} articles, videos, and even
 >
   {
     allItems.length > 0 ? (
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
+      <CardGrid>
         {allItems.map((item: any, index: number) => (
           <ContentCard item={item} index={index} />
         ))}
-      </div>
+      </CardGrid>
     ) : (
-      <div class="empty-state animate-on-scroll" style="text-align: center; padding: 4rem 0; opacity: 0.6;">
-        <p>No items found for this category.</p>
-      </div>
+      <EmptyState message="No items found for this category." actionLabel="View All Content" actionHref="/feed" />
     )
   }
 

@@ -1,82 +1,90 @@
 ---
 /**
- * Magazine layout for the article section — the piece that makes /intel not
- * look like every other page on the site.
+ * IntelMagazine — the three-column magazine spread at the top of /intel.
  *
- * Three columns: article rails left and right, a large feature in the middle.
- * Selecting a rail item swaps the centre feature in place rather than
- * navigating, so the page reads like a magazine spread you browse.
+ * ─── THE LAYOUT ───────────────────────────────────────────────────────────
+ *     ┌──────────┬────────────────────┬──────────┐
+ *     │ left     │  CENTRE FEATURE    │ right    │
+ *     │ rail     │  big image         │ rail     │
+ *     │ (links)  │  title + standfirst│ (links)  │
+ *     └──────────┴────────────────────┴──────────┘
+ * Clicking a rail item swaps the CENTRE, rather than loading a new page.
  *
- * Progressive enhancement, deliberately:
- *   - every rail item is a real <a href="/intel/<slug>">, so the layout works
- *     with JS disabled, is fully crawlable, and keyboard navigation is native;
- *   - the script intercepts clicks only to swap the centre, and mirrors the
- *     choice into the URL hash so a swapped state can be linked and restored;
- *   - the centre is an aria-live region so the swap is announced rather than
- *     silently changing under a screen reader.
+ * ─── HOW THE SWAP WORKS (worth understanding before editing) ──────────────
+ * This is a "progressive enhancement". The page is built so it works with no
+ * JavaScript at all, and the script only makes it nicer:
  *
- * Every value the centre needs travels on the rail item's data-* attributes,
- * so no article payload is duplicated into a second script block.
+ *   1. Astro renders the newest article into the centre on the server. So the
+ *      centre is real HTML before any script runs — good for search engines
+ *      and for anyone whose JS fails to load.
+ *   2. Every rail item is a real <a href="/intel/…">. With JS off, clicking
+ *      one just navigates to that article. Nothing is broken.
+ *   3. With JS on, the script below intercepts the click, cancels the
+ *      navigation, and rewrites the centre using the data-* attributes the
+ *      rail item carries.
+ *
+ * That ordering is deliberate. If the rails were <button>s or <div>s with
+ * click handlers, Google could not follow them and the articles would lose
+ * the internal links that help them rank — which is the whole point of
+ * hosting articles here instead of on Substack.
+ *
+ * ─── HOW TO CHANGE WHAT THE CENTRE SHOWS ──────────────────────────────────
+ * Adding a field (say, a read time) takes three edits:
+ *   1. add the element in the centre markup below, with an id;
+ *   2. add a matching data-* attribute in MagazineRail.astro;
+ *   3. copy it across in the `paint()` function in the script below.
+ *
+ * ─── HOW TO CHANGE THE SIZE OF THE SPREAD ─────────────────────────────────
+ * MAGAZINE_SIZE in src/data/sections.js decides how many articles the spread
+ * uses in total (1 centre + the rest split between the rails).
+ *
+ * ─── HOW TO RESTYLE IT ────────────────────────────────────────────────────
+ * `.intel-magazine` and `.intel-feature-*` in src/styles/modules/intel.css.
  */
+import MagazineRail from './MagazineRail.astro';
 import { CTA } from '../data/sections.js';
 import type { ArticleRecord } from '../lib/articles';
 
+type MagazineArticle = ArticleRecord & { link: string; isExternal: boolean };
+
 interface Props {
-  /** Newest first. The first becomes the opening feature. */
-  articles: Array<ArticleRecord & { link: string; isExternal: boolean }>;
+  /** Newest first. The first article becomes the opening centre feature. */
+  articles: MagazineArticle[];
 }
 
 const { articles } = Astro.props;
 
+// The newest article opens the spread; everything after it fills the rails.
 const [feature, ...rest] = articles;
 
-// Split the rails so reading order down the page is left, right, left, right —
-// which is also the order a screen reader and keyboard user will meet them.
-const railItems = rest.slice(0, 6);
-const leftRail = railItems.filter((_, i) => i % 2 === 0);
-const rightRail = railItems.filter((_, i) => i % 2 === 1);
-
-const dataFor = (a: (typeof articles)[number]) => ({
-  'data-slug': a.slug,
-  'data-title': a.title,
-  'data-excerpt': a.excerpt ?? '',
-  'data-image': a.image ?? '',
-  'data-category': a.category ?? '',
-  'data-date': a.date ?? '',
-  'data-href': a.link,
-  'data-external': a.isExternal ? 'true' : 'false',
-});
+/*
+  Split the remainder by alternating sides (0→left, 1→right, 2→left …).
+  Alternating rather than "first half left, second half right" means the two
+  rails stay the same length even when the count is odd, and the DOM order
+  matches the visual order for keyboard and screen-reader users.
+*/
+const railArticles = rest.slice(0, 6);
+const leftRail = railArticles.filter((_, index) => index % 2 === 0);
+const rightRail = railArticles.filter((_, index) => index % 2 === 1);
 ---
 
 {
+  /* No articles at all → render nothing. The page shows an <EmptyState />. */
   feature && (
     <section class="intel-magazine" aria-label="Featured articles">
-      <div class="intel-rail intel-rail-left">
-        {leftRail.map((a) => (
-          <a class="intel-rail-item" href={a.link} {...dataFor(a)}>
-            <div class="intel-rail-thumb">
-              {a.image ? (
-                <img src={a.image} alt="" loading="lazy" decoding="async" />
-              ) : (
-                <span class="intel-rail-thumb-empty" aria-hidden="true" />
-              )}
-            </div>
-            <div class="intel-rail-copy">
-              <span class="intel-rail-meta">
-                {a.category} <span class="dot">&bull;</span> {a.date}
-              </span>
-              <h3 class="intel-rail-title">{a.title}</h3>
-            </div>
-          </a>
-        ))}
-      </div>
+      <MagazineRail side="left" articles={leftRail} />
 
-      {/* The swappable feature. Initial content is the newest article, so this
-          is meaningful HTML before any script runs. */}
+      {/*
+        The swappable centre.
+        aria-live="polite" tells a screen reader to announce the new headline
+        when the centre changes — without it, the swap would be silent and a
+        non-sighted reader would have no idea anything happened.
+      */}
       <article class="intel-feature" id="intel-feature" aria-live="polite">
         <a class="intel-feature-link" id="intel-feature-link" href={feature.link}>
           <div class="intel-feature-image">
             {feature.image ? (
+              /* width/height stop the page jumping as the image loads (CLS). */
               <img
                 id="intel-feature-img"
                 src={feature.image}
@@ -97,144 +105,146 @@ const dataFor = (a: (typeof articles)[number]) => ({
               <span class="dot">&bull;</span>
               <span id="intel-feature-date">{feature.date}</span>
             </span>
+
+            {/* h2: the page <h1> is the "THE INTEL" title in the header. */}
             <h2 class="intel-feature-title" id="intel-feature-title">{feature.title}</h2>
+
             <p class="intel-feature-excerpt" id="intel-feature-excerpt">{feature.excerpt}</p>
+
             <span class="intel-feature-cta">
-              {CTA.readNow} <span class="arrow">&rarr;</span>
+              {CTA.readNow} <span class="arrow" aria-hidden="true">&rarr;</span>
             </span>
           </div>
         </a>
       </article>
 
-      <div class="intel-rail intel-rail-right">
-        {rightRail.map((a) => (
-          <a class="intel-rail-item" href={a.link} {...dataFor(a)}>
-            <div class="intel-rail-thumb">
-              {a.image ? (
-                <img src={a.image} alt="" loading="lazy" decoding="async" />
-              ) : (
-                <span class="intel-rail-thumb-empty" aria-hidden="true" />
-              )}
-            </div>
-            <div class="intel-rail-copy">
-              <span class="intel-rail-meta">
-                {a.category} <span class="dot">&bull;</span> {a.date}
-              </span>
-              <h3 class="intel-rail-title">{a.title}</h3>
-            </div>
-          </a>
-        ))}
-      </div>
+      <MagazineRail side="right" articles={rightRail} />
     </section>
   )
 }
 
 <script>
+  /*
+    Magazine centre-swap.
+
+    Runs on `astro:page-load` rather than `DOMContentLoaded` because this site
+    uses Astro's ClientRouter for page transitions: on a client-side
+    navigation there is no new DOMContentLoaded, so a handler bound to it
+    would silently stop working after the first navigation.
+  */
   function initIntelMagazine() {
     const feature = document.getElementById('intel-feature');
-    if (!feature) return;
+    if (!feature) return; // Not on a page with a magazine — nothing to do.
 
+    // The parts of the centre that change when a rail item is picked.
     const link = document.getElementById('intel-feature-link') as HTMLAnchorElement | null;
-    const img = document.getElementById('intel-feature-img');
+    const image = document.getElementById('intel-feature-img');
     const title = document.getElementById('intel-feature-title');
     const excerpt = document.getElementById('intel-feature-excerpt');
     const category = document.getElementById('intel-feature-category');
     const date = document.getElementById('intel-feature-date');
-    const items = Array.from(
-      document.querySelectorAll<HTMLAnchorElement>('.intel-rail-item'),
-    );
+
+    const items = Array.from(document.querySelectorAll<HTMLAnchorElement>('.intel-rail-item'));
     if (!link || items.length === 0) return;
 
-    // Snapshot the server-rendered feature so it can be restored, and so the
-    // opening article can be swapped back to after visiting a rail item.
-    const initial = {
-      href: link.getAttribute('href') ?? '',
-      title: title?.textContent ?? '',
-      excerpt: excerpt?.textContent ?? '',
-      category: category?.textContent ?? '',
-      date: date?.textContent ?? '',
-      image: img?.getAttribute('src') ?? '',
-      slug: '',
-    };
+    /** Redraw the centre feature from one rail item's data-* attributes. */
+    function paint(item: HTMLAnchorElement) {
+      const data = item.dataset;
+      const href = data.href ?? item.getAttribute('href') ?? '';
 
-    function paint(data: typeof initial & { external?: boolean }) {
-      link!.setAttribute('href', data.href);
-      if (data.external) {
+      link!.setAttribute('href', href);
+
+      // An article we host is an internal link; one still living on Substack
+      // is external and should open in a new tab with a safe rel.
+      if (data.external === 'true') {
         link!.setAttribute('target', '_blank');
         link!.setAttribute('rel', 'noopener noreferrer');
       } else {
         link!.removeAttribute('target');
         link!.removeAttribute('rel');
       }
-      if (title) title.textContent = data.title;
-      if (excerpt) excerpt.textContent = data.excerpt;
-      if (category) category.textContent = data.category;
-      if (date) date.textContent = data.date;
-      if (img && img.tagName === 'IMG' && data.image) {
-        img.setAttribute('src', data.image);
-        img.setAttribute('alt', `Cover image for ${data.title}`);
+
+      if (title) title.textContent = data.title ?? '';
+      if (excerpt) excerpt.textContent = data.excerpt ?? '';
+      if (category) category.textContent = data.category ?? '';
+      if (date) date.textContent = data.date ?? '';
+
+      if (image && image.tagName === 'IMG' && data.image) {
+        image.setAttribute('src', data.image);
+        image.setAttribute('alt', `Cover image for ${data.title ?? ''}`);
       }
 
-      // Re-run the entrance transition so the swap reads as a deliberate
-      // change rather than text mutating in place.
+      /*
+        Restart the fade-in so the swap reads as a deliberate change rather
+        than text mutating in place. Removing the class, forcing the browser
+        to recalculate layout by reading offsetWidth, then re-adding it is the
+        standard way to replay a CSS animation — without the reflow the
+        browser batches both changes and nothing appears to happen.
+      */
       feature!.classList.remove('is-swapping');
-      // Force a reflow so removing and re-adding the class actually restarts
-      // the transition.
       void feature!.offsetWidth;
       feature!.classList.add('is-swapping');
     }
 
+    /** Mark which rail item is currently in the centre. */
     function setActive(slug: string) {
       items.forEach((item) => {
         const isActive = item.dataset.slug === slug;
         item.classList.toggle('active', isActive);
+        // aria-current is the accessible equivalent of the visual highlight.
         if (isActive) item.setAttribute('aria-current', 'true');
         else item.removeAttribute('aria-current');
       });
     }
 
     function select(item: HTMLAnchorElement) {
-      paint({
-        href: item.dataset.href ?? item.getAttribute('href') ?? '',
-        title: item.dataset.title ?? '',
-        excerpt: item.dataset.excerpt ?? '',
-        category: item.dataset.category ?? '',
-        date: item.dataset.date ?? '',
-        image: item.dataset.image ?? '',
-        slug: item.dataset.slug ?? '',
-        external: item.dataset.external === 'true',
-      });
+      paint(item);
       setActive(item.dataset.slug ?? '');
     }
 
     items.forEach((item) => {
+      // Guard against binding twice if this runs again after a navigation.
       if (item.dataset.bound) return;
       item.dataset.bound = 'true';
 
       item.addEventListener('click', (event) => {
-        // Let modified clicks (new tab, download, middle-click) behave normally.
+        /*
+          Let the browser handle anything that isn't a plain left-click:
+          cmd/ctrl-click opens a new tab, middle-click too, shift opens a
+          window. Hijacking those would break behaviour people rely on.
+        */
+        const mouseEvent = event as MouseEvent;
         if (
           event.defaultPrevented ||
-          (event as MouseEvent).button !== 0 ||
-          (event as MouseEvent).metaKey ||
-          (event as MouseEvent).ctrlKey ||
-          (event as MouseEvent).shiftKey ||
-          (event as MouseEvent).altKey
+          mouseEvent.button !== 0 ||
+          mouseEvent.metaKey ||
+          mouseEvent.ctrlKey ||
+          mouseEvent.shiftKey ||
+          mouseEvent.altKey
         ) {
           return;
         }
-        event.preventDefault();
+
+        event.preventDefault(); // Stay on the page; swap instead of navigating.
         select(item);
+
+        /*
+          Record the choice in the URL (#some-article-slug) with replaceState,
+          so the state can be shared or reloaded. replaceState rather than
+          pushState so the back button leaves /intel entirely instead of
+          stepping back through every swap the reader made.
+        */
         const slug = item.dataset.slug;
         if (slug) history.replaceState(null, '', `#${slug}`);
+
         feature!.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       });
     });
 
-    // Restore a linked-to selection on load.
+    // If the page was opened with a #slug, restore that selection.
     const hash = decodeURIComponent(window.location.hash.replace('#', ''));
     if (hash) {
-      const match = items.find((i) => i.dataset.slug === hash);
+      const match = items.find((item) => item.dataset.slug === hash);
       if (match) select(match);
     }
   }
