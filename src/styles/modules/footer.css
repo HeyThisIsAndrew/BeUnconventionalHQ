@@ -38,49 +38,38 @@
    per-breakpoint override in footer-brand.css. Do NOT add a width or height
    here — that is exactly how the mobile and desktop sizes drifted apart.
 
-   The source art is a 2000x2000 square with the wordmark centred inside it,
-   so width and height are interchangeable; sizing by width keeps it from
-   overflowing its grid track on a narrow screen.
+   ─── THE ASSET: src/assets/logo-mark.webp, NOT logo.webp ────────────────
+   logo.webp (used elsewhere on the site) is a 2000x2000 square with the
+   wordmark occupying only ~42% of its height — the rest is transparent
+   padding, off-centre within the square rather than centred in it.
+
+   An earlier version of this rule tried to fix that in CSS: force the box to
+   the mark's aspect ratio and `overflow: hidden` + `place-items: center` to
+   crop the padding away. That assumed the padding was even on all sides. It
+   was not — sharp's trim reported the content starting 420px down and ending
+   580px from the bottom of the 2000px square — so a centred crop sliced
+   straight through the wordmark itself. That shipped to production visibly
+   clipping the logo on every breakpoint.
+
+   logo-mark.webp is the fix done properly, once, in the asset instead of in
+   CSS: the same artwork pre-cropped to its real content box (sharp trim) plus
+   a small even margin, so its own dimensions ARE the shape to render at.
+   No overflow trick needed — width/height auto is correct on its own.
 */
 .footer-logo {
   width: var(--footer-logo-size);
   /* Never wider than its column, whatever the size above says. This is what
      keeps the brand column from pushing Explore and Follow around. */
   max-width: 100%;
-
-  /*
-    THE BOX IS THE SHAPE OF THE ARTWORK, NOT OF THE FILE.
-
-    logo.webp is a 2000x2000 SQUARE, but the wordmark inside it only occupies
-    95.5% of the width and 41.9% of the height — the rest is transparent
-    padding. Sizing the box as a square therefore reserved more than twice the
-    height the mark actually needs, which is what made the logo look small and
-    adrift in a large empty area: the mark was the right size, the box around
-    it was not.
-
-    So the box takes the artwork's own ratio and the image overflows it
-    vertically, clipped by `overflow: hidden`. Only transparent pixels are
-    ever cut, so nothing is lost — and `--footer-logo-size` now controls the
-    size of the MARK YOU CAN SEE, which is what you actually want to tune.
-
-    (If the logo file is ever re-exported with the padding removed, delete
-    the aspect-ratio and overflow here and it will still be correct.)
-  */
-  aspect-ratio: 1909 / 839;
-  overflow: hidden;
-  display: grid;
-  place-items: center;
-
+  height: auto;
   margin-bottom: 0;
+  display: block;
   transition: opacity 0.3s ease;
 }
 
 .footer-logo img {
-  /* Same grid cell, so the overflow is centred rather than pushed downward. */
-  grid-area: 1 / 1;
   width: 100%;
   height: auto;
-  max-width: none;
   display: block;
 }
 
@@ -122,29 +111,35 @@
 }
 
 /*
-   Explore links — ONE ROW, every device.
+   Explore links.
 
-   This list used to be `flex-wrap: wrap` inside `max-width: 300px`, so the
-   five nav items never fitted and "ABOUT" dropped onto a second line on
-   desktop AND mobile. It read as an accident rather than a layout.
+   Two things this used to get wrong, both reported directly:
 
-   The fix is `nowrap` plus a gap that shrinks with the viewport instead of a
-   width cap that forces a break. `clamp()` reads as
-   min / preferred / max: 0.4rem at the narrowest, 2vw as the screen grows,
-   never more than 2rem. At 320px — the narrowest width this site supports —
-   the five items measure ~229px and the four gaps ~26px, inside ~256px of
-   available space.
+   1. `flex-wrap: wrap` inside `max-width: 300px` meant the five items never
+      fitted, so "ABOUT" dropped to its own line on every device — it read as
+      an accident, not a layout.
+   2. The first fix for that used `nowrap` with a gap that shrank on a
+      narrow viewport (`clamp(0.4rem, 2vw, 2rem)`) to force one row no matter
+      what. At 390px that clamp resolved to ~8px between five short words,
+      which is cramped enough to misread as a single run of text.
 
-   `max-width: 100%` is the safety net: if a sixth item is ever added and the
-   row genuinely cannot fit, it shrinks the gaps rather than widening the
-   column and shoving the Brand and Follow columns out of alignment.
+   This gap is now a comfortable FIXED size — not shrunk to force a fit — and
+   `wrap` is back, but centred so a wrapped row still looks intentional rather
+   than ragged. At the widths this site is actually used at (375px and up)
+   five items at this gap still fit on one line; wrapping only kicks in on
+   very narrow phones, which is the accepted trade-off: readable spacing over
+   a forced single row.
 */
 .footer-nav ul {
   list-style: none;
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   justify-content: center;
-  gap: 0.75rem clamp(0.4rem, 2vw, 2rem);
+  /* Row gap / column gap. 1.25rem between items keeps a single row at every
+     width from 375px up (measured); below that, or in the narrow ~244px
+     columns a landscape phone gets from the 3-column desktop grid, it wraps
+     — deliberately, over squeezing the gap down to force a fit again. */
+  gap: 0.85rem 1.25rem;
   align-items: center;
   padding: 0;
   max-width: 100%;

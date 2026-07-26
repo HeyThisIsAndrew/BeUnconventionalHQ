@@ -36,9 +36,18 @@
  *     composited off the main thread, no layout and no repaint.
  *   • `will-change: opacity` promotes it to its own layer so the page beneath
  *     is never repainted as it breathes.
- *   • Disabled entirely under `prefers-reduced-motion`, and hidden below
- *     768px where a full-viewport gradient is pure paint cost on the weakest
- *     devices.
+ *   • Disabled entirely under `prefers-reduced-motion`.
+ *
+ * ─── MOBILE: STATIC, MATCHING /links EXACTLY ──────────────────────────────
+ * This used to be `display: none` below 768px — the glow was simply absent
+ * on every phone. Below 768px this now renders the SAME two-corner wash
+ * `.links-hub` uses (src/styles/links.css): top-right + a bottom-left
+ * counterweight, at fixed strength, with the breathing animation switched
+ * off. Not "hidden for cost reasons" — matched to a page that was already
+ * approved, deliberately static because a moving background is a bigger paint
+ * cost on the weakest devices than a static one and nobody asked for motion
+ * there. The per-page animated single-corner anchor (the POSITIONS logic
+ * below) stays a desktop-only treatment.
  *
  * ─── HOW TO TUNE IT ───────────────────────────────────────────────────────
  *   intensity  strength of the red at the corner (alpha)
@@ -145,11 +154,36 @@ const anchor = POSITIONS[hash % POSITIONS.length];
     }
   }
 
-  /* Phones: hidden. A full-viewport gradient costs paint on the devices least
-     able to afford it, and at that size the effect barely registers. */
+  /*
+    Phones: the /links treatment, static.
+
+    Same two gradients, same stops, same strengths as `.links-hub` in
+    src/styles/links.css — copied rather than shared because one is a CSS
+    background-image on a page element and this is a component with its own
+    animated custom properties; keeping both explicit means a change to one
+    can't silently retune the other. Overrides `--glow-anchor` entirely, so
+    the desktop per-page anchor variation does not apply here.
+  */
   @media (max-width: 768px) {
     .brand-glow {
-      display: none;
+      background-image:
+        radial-gradient(
+          circle at 100% 0%,
+          rgba(204, 0, 0, 0.13) 0%,
+          rgba(204, 0, 0, 0.04) 22%,
+          transparent 45%
+        ),
+        radial-gradient(
+          circle at 0% 100%,
+          rgba(204, 0, 0, 0.05) 0%,
+          transparent 40%
+        );
+    }
+
+    /* No breathing on mobile — static, exactly like /links. */
+    .brand-glow.is-animated {
+      animation: none;
+      opacity: 1;
     }
   }
 </style>
