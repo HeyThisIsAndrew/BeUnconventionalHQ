@@ -20,14 +20,20 @@
  * ─── WHERE THE WORDS COME FROM ────────────────────────────────────────────
  * Heading:  SECTIONS.subscribe   (src/data/content.js)
  * Subtitle: MESSAGES.subscribeSubtitle
- * Buttons:  LABELS.subscribeSubstack / LABELS.subscribeYouTube
- * Links:    site.socials          (src/data/site.js)
  *
- * To change any of that wording, edit those files — not this one.
+ * To change that wording, edit that file — not this one.
+ *
+ * ─── WHY THERE ARE NO PLATFORM BUTTONS ────────────────────────────────────
+ * "Subscribe on Substack" and "Subscribe on YouTube" used to sit here. They
+ * were removed once this band started capturing the address directly: three
+ * competing subscribe actions split the decision, and two of them sent the
+ * reader off-site — the exact leak the native form exists to close.
+ *
+ * The Substack and YouTube links remain in the FOOTER, so nothing is lost;
+ * they are simply no longer competing with the primary action.
  */
 import PageTitle from './PageTitle.astro';
-import { site } from '../data/site.js';
-import { SECTIONS, LABELS, MESSAGES } from '../data/content.js';
+import { SECTIONS, MESSAGES } from '../data/content.js';
 import NewsletterForm from './NewsletterForm.astro';
 
 export interface Props {
@@ -38,15 +44,6 @@ export interface Props {
 }
 
 const { subtitle = MESSAGES.subscribeSubtitle, variant = 'default' } = Astro.props;
-
-/**
- * The two subscribe destinations. Adding a third (say Patreon) is one entry
- * here — the markup below loops, so nothing else needs touching.
- */
-const subscribeLinks = [
-  { label: LABELS.subscribeSubstack, href: site.socials.substack },
-  { label: LABELS.subscribeYouTube, href: site.socials.youtube },
-];
 
 const isCompact = variant === 'compact';
 ---
@@ -63,20 +60,8 @@ const isCompact = variant === 'compact';
       <p class="subscribe-cta-subtitle">{subtitle}</p>
     </div>
 
-    {/* Primary action: capture the address on our own domain. The platform
-        links below remain as secondary options — this adds a path, it does
-        not remove the existing ones. */}
+    {/* The single action in this band: capture the address on our own domain. */}
     <NewsletterForm />
-
-    <div class="cta-buttons-wrapper">
-      {
-        subscribeLinks.map((link) => (
-          <a class="cta-button-primary" href={link.href} target="_blank" rel="noopener">
-            {link.label}
-          </a>
-        ))
-      }
-    </div>
   </div>
 </section>
 
@@ -120,13 +105,6 @@ const isCompact = variant === 'compact';
     font-size: 0.9rem;
   }
 
-  .subscribe-cta.is-compact .cta-buttons-wrapper {
-    flex-wrap: wrap;
-  }
-
-  .subscribe-cta.is-compact .cta-button-primary {
-    white-space: nowrap;
-  }
 
   /* ── buttons ────────────────────────────────────────────────────────────
      Stacked on phones, side by side from 768px. */

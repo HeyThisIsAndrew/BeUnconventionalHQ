@@ -189,10 +189,21 @@ for (let i = 0; i < COUNT; i += 1) {
       month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC',
     }),
     isoDate: published.toISOString(),
-    excerpt:
-      variant === 'long-title'
-        ? 'A deliberately long standfirst used to check how the centre feature handles more copy than usual, including where it wraps and whether the layout holds.'
-        : 'A short standfirst that sets up the piece and gives the reader a reason to click through.',
+    /*
+      A REAL preview, several sentences long.
+
+      The centre feature on /intel shows up to six lines, so a one-sentence
+      standfirst left most of that block empty — which is exactly what a
+      one-line excerpt would do with real content too. Derived from the body
+      here so mock records exercise the same "does the preview fill the
+      space" question the live pipeline's buildExcerpt() answers.
+    */
+    excerpt: bodyHtml
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 420)
+      .replace(/\s+\S*$/, '…'),
     // 'no-image' and 'long-title' variants intentionally ship no cover, to
     // exercise the branded logo/title fallback.
     image: variant === 'no-image' || variant === 'long-title' ? '' : coverFor(i),
