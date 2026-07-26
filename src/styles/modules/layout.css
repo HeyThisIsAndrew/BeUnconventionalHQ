@@ -1,0 +1,52 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   UI SYSTEM: LAYOUT PRIMITIVES
+
+   Single source for the page-width wrappers. `.container` previously lived in
+   latest.css while nine interior pages each re-declared their own scoped copy,
+   so a layout fix had to land in ten places.
+
+   THREE geometries exist, and they are NOT interchangeable. Verified by
+   measuring computed style on main before this extraction (note that a page
+   has more than one `.container` — the navbar has its own, so measure
+   `main .container`, not the first match):
+
+     .container        navbar + homepage + shared components
+                       padding-inline: clamp() -> 20px @320, 46px @1440
+     .container-page   feed / events / featured page bodies
+                       padding: 0 2rem -> 32px at every width
+     .container-narrow /collaborations page body, max-width 1000px
+
+   The interior pages carried `class="container"` plus a scoped override that
+   won on max-width and padding but inherited `width: 100%` from the global
+   rule — hence the explicit `width: 100%` on the variants below. Dropping it
+   let /events overflow its viewport by 9px at 320px.
+
+   Unifying the two gutters would change rendering on every interior page, so
+   it is left as an explicit decision rather than folded into this extraction.
+
+   Imported immediately after latest.css to preserve the original cascade
+   position of `.container` (import order matters — see global.css).
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.container {
+  width: 100%;
+  max-width: 1536px;
+  margin-inline: auto;
+  padding-inline: clamp(1.25rem, calc(0.625rem + 2.5vw), 3rem);
+}
+
+/* Interior content pages: feed, events, featured. */
+.container-page {
+  width: 100%;
+  max-width: 1536px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+/* Reading-width page: collaborations. */
+.container-narrow {
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}

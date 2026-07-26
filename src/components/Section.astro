@@ -1,11 +1,47 @@
 ---
+/**
+ * Structural page section: a centred, width-capped `<section>` with optional
+ * vertical padding.
+ *
+ * Spacing is passed as literal CSS values rather than a named scale. That is
+ * deliberate — this component was extracted from pages whose spacing was
+ * already inlined and slightly irregular, and inventing a scale here would
+ * change rendered output. Introducing a spacing scale is a separate,
+ * visual-review-gated change (see issue #50).
+ *
+ * `pt` / `pb` are only emitted when supplied, so a section that never declared
+ * a `padding-top` does not gain `padding-top: 0`.
+ */
 interface Props {
   pt?: string;
   pb?: string;
   maxWidth?: string;
+  container?: boolean;
+  class?: string;
+  [key: string]: any;
 }
-const { pt = '4rem', pb = '6rem', maxWidth = '1536px' } = Astro.props;
+
+const {
+  pt,
+  pb,
+  maxWidth = '1536px',
+  container = true,
+  class: className = '',
+  ...rest
+} = Astro.props;
+
+const style = [
+  pt !== undefined ? `padding-top: ${pt}` : '',
+  pb !== undefined ? `padding-bottom: ${pb}` : '',
+  `max-width: ${maxWidth}`,
+  'margin: 0 auto',
+]
+  .filter(Boolean)
+  .join('; ');
+
+const classes = [container ? 'container' : '', className].filter(Boolean).join(' ');
 ---
-<section class="container" style={`padding-top: ${pt}; padding-bottom: ${pb}; max-width: ${maxWidth}; margin: 0 auto;`}>
+
+<section class={classes} style={`${style};`} {...rest}>
   <slot />
 </section>

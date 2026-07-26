@@ -1,10 +1,8 @@
 ---
-import Layout from '../../../layouts/Layout.astro';
-import PageTitle from '../../../components/PageTitle.astro';
+import FeedLayout from '../../../layouts/FeedLayout.astro';
 import { site } from '../../../data/site.js';
 import { getArticles } from '../../../data/feeds.js';
 import { getVideosUnified } from '../../../lib/videos-source';
-import QuadrantFilter from '../../../components/QuadrantFilter.astro';
 import Pagination from '../../../components/Pagination.astro';
 import ContentCard from '../../../components/ContentCard.astro';
 import { categories } from '../../../data/categories.js';
@@ -16,7 +14,7 @@ export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
 
   return categories.flatMap((cat) => {
     const catLabel = cat.label.toLowerCase();
-    
+
     function matchesCategory(item: any) {
       const itemTags = Array.isArray(item.tags) ? item.tags : [item.category || 'general'];
       return itemTags.some((t: any) => {
@@ -49,51 +47,28 @@ const title = `${categoryObj.label} Feed${pageNum} | ${site.name}`;
 const description = `Explore all ${categoryObj.label} articles, videos, and events.`;
 ---
 
-<Layout title={title} description={description} prevUrl={page.url.prev} nextUrl={page.url.next}>
-  <main class="feed-page flex-1 flex flex-col w-full pb-16 md:pb-24">
-    <div class="container flex-1 flex flex-col">
-      <header class="section-header animate-on-scroll" data-nav-anchor>
-        <PageTitle as="h1" kicker="Explore The HQ" primary="The" secondary="Feed" />
-      </header>
-
-      <QuadrantFilter showTypes={true} />
-
-      <h2 class="sr-only">All {categoryObj.label} content</h2>
-      
-      {
-        allItems.length > 0 ? (
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
-            {allItems.map((item: any, index: number) => (
-              <ContentCard item={item} index={index} />
-            ))}
-          </div>
-        ) : (
-          <div class="empty-state animate-on-scroll" style="text-align: center; padding: 4rem 0; opacity: 0.6;">
-            <p>No items found for this category.</p>
-          </div>
-        )
-      }
-
-      <div class="mt-auto w-full">
-        <Pagination page={page} />
+<FeedLayout
+  title={title}
+  description={description}
+  headingLabel={`All ${categoryObj.label} content`}
+  page={page}
+  mainClass="pb-16 md:pb-24"
+>
+  {
+    allItems.length > 0 ? (
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
+        {allItems.map((item: any, index: number) => (
+          <ContentCard item={item} index={index} />
+        ))}
       </div>
-    </div>
-  </main>
-</Layout>
-
-<style>
-  .container {
-    max-width: 1536px;
-    margin: 0 auto;
-    padding: 0 2rem;
-  }
-  .feed-page {
-    padding: 120px 0 2rem;
+    ) : (
+      <div class="empty-state animate-on-scroll" style="text-align: center; padding: 4rem 0; opacity: 0.6;">
+        <p>No items found for this category.</p>
+      </div>
+    )
   }
 
-  @media (max-width: 768px) {
-    .feed-page {
-      padding: 80px 0 2rem;
-    }
-  }
-</style>
+  <div class="mt-auto w-full">
+    <Pagination page={page} />
+  </div>
+</FeedLayout>

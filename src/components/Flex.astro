@@ -1,0 +1,44 @@
+---
+/**
+ * Reusable flexbox wrapper for the common inline-layout patterns.
+ *
+ * Values map straight through to CSS, so this stays a thin structural helper
+ * rather than a design-system abstraction.
+ */
+interface Props {
+  direction?: 'row' | 'column' | 'row-reverse' | 'column-reverse';
+  justify?: string;
+  align?: string;
+  gap?: string;
+  wrap?: 'wrap' | 'nowrap' | 'wrap-reverse';
+  inline?: boolean;
+  class?: string;
+  [key: string]: any;
+}
+
+const {
+  direction = 'row',
+  justify,
+  align,
+  gap,
+  wrap,
+  inline = false,
+  class: className = '',
+  ...rest
+} = Astro.props;
+
+const style = [
+  `display: ${inline ? 'inline-flex' : 'flex'}`,
+  `flex-direction: ${direction}`,
+  justify ? `justify-content: ${justify}` : '',
+  align ? `align-items: ${align}` : '',
+  gap ? `gap: ${gap}` : '',
+  wrap ? `flex-wrap: ${wrap}` : '',
+]
+  .filter(Boolean)
+  .join('; ');
+---
+
+<div class={className} style={`${style};`} {...rest}>
+  <slot />
+</div>

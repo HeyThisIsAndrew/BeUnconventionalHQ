@@ -1,69 +1,28 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-import PageTitle from '../../components/PageTitle.astro';
+import FeedLayout from '../../layouts/FeedLayout.astro';
 import { site } from '../../data/site.js';
-import { getArticles } from '../../data/feeds.js';
-import { getVideosUnified } from '../../lib/videos-source';
-import QuadrantFilter from '../../components/QuadrantFilter.astro';
+import { getAllFeedItems } from '../../lib/feed-items';
 import FeedGrid from '../../components/FeedGrid.astro';
 import type { GetStaticPathsOptions } from 'astro';
 
 export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
-  const articles = getArticles();
-  const videos = await getVideosUnified();
-
-  const allItems = [
-    ...articles.map((a: any) => ({ ...a, type: 'article' })),
-    ...videos.map((v: any) => ({ ...v, type: 'video', image: v.thumbnail })),
-  ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-  return paginate(allItems, { pageSize: 12 });
+  return paginate(await getAllFeedItems(), { pageSize: 12 });
 }
 
 const { page } = Astro.props;
-const articles = getArticles();
-const videos = await getVideosUnified();
-
-const allItems = [
-  ...articles.map((a: any) => ({ ...a, type: 'article' })),
-  ...videos.map((v: any) => ({ ...v, type: 'video', image: v.thumbnail })),
-].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+const allItems = await getAllFeedItems();
 
 const pageNum = page.currentPage > 1 ? ` - Page ${page.currentPage}` : '';
 const title = `All Content${pageNum} | ${site.name}`;
 const description = 'Discover all articles, videos, and events from Be Unconventional HQ.';
 ---
 
-<Layout title={title} description={description} prevUrl={page.url.prev} nextUrl={page.url.next}>
-  <main class="feed-page flex-1 flex flex-col w-full">
-    <div class="container flex-1 flex flex-col">
-      <header class="section-header animate-on-scroll" data-nav-anchor>
-        <PageTitle as="h1" kicker="Explore The HQ" primary="The" secondary="Feed" />
-      </header>
-
-      <QuadrantFilter showTypes={true} isNavMode={true} />
-
-      {/* Structural h2 so card h3s don't skip a heading level (axe: heading-order). */}
-      <h2 class="sr-only">All content</h2>
-      
-      <FeedGrid page={page} allItems={allItems} />
-    </div>
-  </main>
-</Layout>
-
-<style>
-  .container {
-    max-width: 1536px;
-    margin: 0 auto;
-    padding: 0 2rem;
-  }
-  .feed-page {
-    padding: 120px 0 2rem;
-  }
-
-  @media (max-width: 768px) {
-    .feed-page {
-      padding: 80px 0 2rem;
-    }
-  }
-</style>
+<FeedLayout
+  title={title}
+  description={description}
+  headingLabel="All content"
+  page={page}
+  isNavMode={true}
+>
+  <FeedGrid page={page} allItems={allItems} />
+</FeedLayout>
