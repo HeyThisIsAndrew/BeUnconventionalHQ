@@ -25,6 +25,16 @@ else primaryLabel = item.category || 'Article';
 
 // Render anchor or div depending on type. We use 'video-card-home' for both
 // so they share the exact hover effects from home-cards.css.
+// Articles used to live only on Substack, so every non-video card opened in a
+// new tab. Now that an article can resolve to a page on this site, decide from
+// the href itself: absolute URLs leave the site and keep target/rel, relative
+// ones are internal navigation and must not. Video behaviour is unchanged.
+const cardHref = item.link || '#';
+const isExternalLink = /^https?:\/\//i.test(cardHref);
+const externalLinkProps = isExternalLink
+  ? { target: '_blank', rel: 'noopener noreferrer' }
+  : {};
+
 const CardWrapper = isPlayable ? 'div' : 'a';
 const wrapperProps = isPlayable
   ? {
@@ -39,9 +49,8 @@ const wrapperProps = isPlayable
       'aria-label': `Play video: ${item.title}`
     }
   : {
-      href: item.link || '#',
-      target: '_blank',
-      rel: 'noopener noreferrer',
+      href: cardHref,
+      ...externalLinkProps,
       class: `reveal video-card-home content-card w-full`,
       'data-categories': lowerTags.join(','),
       'data-type': isVideo ? 'video' : 'article',

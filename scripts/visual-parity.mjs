@@ -38,6 +38,8 @@ const ROUTES = [
   '/feed/articles',
   '/feed/film',
   '/feed/gaming',
+  '/intel',
+  '/intel/topic/film',
   '/events',
   '/featured',
   '/collaborations',

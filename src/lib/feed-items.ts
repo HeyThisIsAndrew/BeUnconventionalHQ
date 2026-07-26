@@ -10,7 +10,7 @@
  * plus a `type` discriminator — which is why articles already slot into the
  * same <ContentCard /> as videos with no visual variant.
  */
-import { getArticles } from '../data/feeds.js';
+import { getAllArticles, articleHref, isExternalArticle } from './articles.ts';
 import { getVideosUnified } from './videos-source.ts';
 
 export interface FeedItem {
@@ -31,9 +31,24 @@ function byNewest(a: FeedItem, b: FeedItem) {
   return (Number.isNaN(bt) ? 0 : bt) - (Number.isNaN(at) ? 0 : at);
 }
 
+/**
+ * Articles as Feed items.
+ *
+ * `link` is resolved through articleHref(), so an article we host locally
+ * points at its BUHQ page and one we have no body for still points at
+ * Substack. That single substitution is the whole of this epic's Feed
+ * integration — the card component, its markup and its styling are untouched,
+ * because the Feed-item contract was already generic enough to carry articles
+ * (see scripts/epic-000-audit.md §4).
+ */
 export function getArticleItems(): FeedItem[] {
-  return getArticles()
-    .map((a: any) => ({ ...a, type: 'article' as const }))
+  return getAllArticles()
+    .map((a) => ({
+      ...a,
+      link: articleHref(a),
+      isExternal: isExternalArticle(a),
+      type: 'article' as const,
+    }))
     .sort(byNewest);
 }
 

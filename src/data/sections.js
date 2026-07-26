@@ -1,0 +1,56 @@
+/**
+ * Content section definitions.
+ *
+ * The article section's name and slug live here as a single exported value,
+ * not typed into route files. Renaming the section is a change to this file
+ * plus the directory name under `src/pages/` — nowhere else.
+ *
+ * Convention note: this sits in `src/data/*.js` alongside site.js /
+ * constants.js / categories.js rather than in a new `src/consts.ts`, because
+ * that is the pattern this repo already uses for shared config.
+ */
+
+/** The written-word section. Substack is the writing tool; this is where it publishes. */
+export const ARTICLE_SECTION = {
+  /** Display name, used in nav, headings and <title>. */
+  name: 'Intel',
+  /** URL slug. Must match the directory name under src/pages/. */
+  slug: 'intel',
+  /** Section index path. */
+  path: '/intel',
+  /** Kicker above the section title, matching the site's PageTitle pattern. */
+  kicker: 'Read The HQ',
+  /** PageTitle splits its heading into two words. */
+  titlePrimary: 'The',
+  titleSecondary: 'Intel',
+  description:
+    'Long-form reviews, analysis and on-location reporting from Be Unconventional HQ.',
+};
+
+/** Path to a single article. Never build this by hand. */
+export const articlePath = (slug) => `${ARTICLE_SECTION.path}/${slug}`;
+
+/**
+ * Byline. Hardcoded to the founder for now — deliberately a named constant so
+ * swapping it is a one-line change per author once a contributors system
+ * exists. See follow-up #4 in scripts/epic-000-audit.md.
+ */
+export const DEFAULT_BYLINE = {
+  name: 'Andrew Baxter',
+  role: 'Founder & Editor',
+};
+
+/** Where the writing is authored. Attribution links point back here. */
+export const SOURCE_PUBLICATION = {
+  name: 'Be Unconventional HQ',
+  platform: 'Substack',
+  url: 'https://beunconventionalhq.substack.com/',
+};
+
+/** Shared CTA copy, previously repeated inline across card and section markup. */
+export const CTA = {
+  readNow: 'Read Now',
+  watchNow: 'Watch Now',
+  subscribe: 'Subscribe',
+  viewAll: 'View All Content',
+};

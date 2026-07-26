@@ -1,0 +1,280 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ARTICLE READER (/intel/<slug>)
+
+   Hand-written rather than Tailwind Typography: the plugin is not installed
+   and no `prose` class is used anywhere in this repo, so adopting it would
+   mean a new dependency plus a pile of overrides to drag its light-mode
+   defaults onto this site's dark cinematic palette. These rules use the
+   existing tokens (--font-display, --color-accent, --color-white-muted)
+   so the reader reads as the same publication as the rest of the site.
+
+   Scoped under .article-body so nothing here leaks into other pages.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.article-page {
+  padding-top: 120px;
+  padding-bottom: 4rem;
+}
+
+@media (max-width: 768px) {
+  .article-page {
+    padding-top: 80px;
+  }
+}
+
+/* Reading column. ~68ch is the comfortable measure for body copy; the site's
+   1536px container is far too wide to read at. */
+.article-column {
+  width: 100%;
+  max-width: 44rem;
+  margin-inline: auto;
+}
+
+/* ── Masthead ───────────────────────────────────────────────────────────── */
+
+.article-header {
+  margin-bottom: 3rem;
+}
+
+.article-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  margin-bottom: 1.25rem;
+}
+
+.article-eyebrow .dot {
+  color: var(--color-white-muted);
+}
+
+.article-eyebrow time {
+  color: var(--color-white-muted);
+}
+
+.article-title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, calc(1.25rem + 3vw), 3.5rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--color-white);
+  margin-bottom: 1.5rem;
+  overflow-wrap: break-word;
+}
+
+.article-standfirst {
+  font-size: 1.15rem;
+  line-height: 1.7;
+  color: var(--color-white-muted);
+  margin-bottom: 2rem;
+}
+
+.article-byline {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.85rem;
+  color: var(--color-white-muted);
+}
+
+.article-byline .author {
+  color: var(--color-white);
+  font-weight: 600;
+}
+
+.article-hero {
+  width: 100%;
+  height: auto;
+  margin-bottom: 3rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ── Body copy ──────────────────────────────────────────────────────────── */
+
+.article-body {
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  line-height: 1.8;
+  color: rgba(240, 240, 240, 0.92);
+}
+
+.article-body > * + * {
+  margin-top: 1.5rem;
+}
+
+.article-body h2,
+.article-body h3,
+.article-body h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--color-white);
+  margin-top: 3rem;
+  margin-bottom: 1rem;
+}
+
+.article-body h2 {
+  font-size: 1.75rem;
+}
+.article-body h3 {
+  font-size: 1.375rem;
+}
+.article-body h4 {
+  font-size: 1.125rem;
+  letter-spacing: 0.02em;
+}
+
+.article-body a {
+  color: var(--color-white);
+  text-decoration: underline;
+  text-decoration-color: var(--color-accent);
+  text-underline-offset: 3px;
+  transition: color 0.25s ease;
+}
+
+.article-body a:hover {
+  color: var(--color-accent);
+}
+
+.article-body strong {
+  color: var(--color-white);
+  font-weight: 700;
+}
+
+.article-body ul,
+.article-body ol {
+  padding-left: 1.5rem;
+}
+
+.article-body li + li {
+  margin-top: 0.5rem;
+}
+
+.article-body ul {
+  list-style: disc;
+}
+.article-body ol {
+  list-style: decimal;
+}
+
+.article-body blockquote {
+  border-left: 2px solid var(--color-accent);
+  padding: 0.25rem 0 0.25rem 1.5rem;
+  font-size: 1.15rem;
+  line-height: 1.6;
+  color: var(--color-white);
+  font-style: italic;
+}
+
+.article-body img {
+  width: 100%;
+  height: auto;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.article-body figure {
+  margin-block: 2.5rem;
+}
+
+.article-body figcaption {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--color-white-muted);
+  text-align: center;
+}
+
+.article-body pre {
+  background: var(--color-surface);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 1.25rem;
+  overflow-x: auto;
+  font-size: 0.9rem;
+}
+
+.article-body code {
+  font-size: 0.9em;
+  background: var(--color-surface-2);
+  padding: 0.15em 0.4em;
+}
+
+.article-body pre code {
+  background: none;
+  padding: 0;
+}
+
+.article-body hr {
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-block: 3rem;
+}
+
+/* ── Attribution + footer ───────────────────────────────────────────────── */
+
+.article-attribution {
+  margin-top: 4rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.9rem;
+  color: var(--color-white-muted);
+  line-height: 1.7;
+}
+
+.article-attribution a {
+  color: var(--color-white);
+  text-decoration: underline;
+  text-decoration-color: var(--color-accent);
+  text-underline-offset: 3px;
+}
+
+.article-attribution a:hover {
+  color: var(--color-accent);
+}
+
+.article-back {
+  margin-top: 3rem;
+}
+
+/* ── Section index rows ─────────────────────────────────────────────────── */
+
+.intel-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-bottom: 3rem;
+}
+
+.intel-filter {
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--color-white);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.6rem 1.4rem;
+  text-decoration: none;
+  transition:
+    border-color 0.3s ease,
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+.intel-filter:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.intel-filter.active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-white);
+}

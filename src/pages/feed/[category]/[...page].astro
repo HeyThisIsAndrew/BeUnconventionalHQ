@@ -1,7 +1,7 @@
 ---
 import FeedLayout from '../../../layouts/FeedLayout.astro';
 import { site } from '../../../data/site.js';
-import { getArticles } from '../../../data/feeds.js';
+import { getArticleItems } from '../../../lib/feed-items';
 import { getVideosUnified } from '../../../lib/videos-source';
 import Pagination from '../../../components/Pagination.astro';
 import ContentCard from '../../../components/ContentCard.astro';
@@ -9,7 +9,7 @@ import { categories } from '../../../data/categories.js';
 import type { GetStaticPathsOptions } from 'astro';
 
 export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
-  const articles = getArticles();
+  const articles = getArticleItems();
   const videos = await getVideosUnified();
 
   return categories.flatMap((cat) => {

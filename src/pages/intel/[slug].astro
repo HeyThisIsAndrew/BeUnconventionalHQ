@@ -1,0 +1,147 @@
+---
+/**
+ * Article reader.
+ *
+ * A dedicated page, never a modal — the whole point of this epic is that the
+ * article has its own indexable URL on this domain.
+ *
+ * Only articles with a full body get a page. A record whose feed item was
+ * truncated keeps its Feed card pointing at Substack instead, so we never
+ * publish a stub that reads as broken and ranks as duplicate content. See
+ * articleHref() in src/lib/articles.ts.
+ *
+ * Canonical: <Layout /> already emits a self-referencing canonical built from
+ * one place, so this page inherits the correct behaviour without a second
+ * implementation. Attribution to the Substack original is visible in the
+ * footer and expressed to search engines via `sameAs` in the JSON-LD below.
+ */
+import Layout from '../../layouts/Layout.astro';
+import SubscribeCTA from '../../components/SubscribeCTA.astro';
+import { site } from '../../data/site.js';
+import {
+  ARTICLE_SECTION,
+  DEFAULT_BYLINE,
+  SOURCE_PUBLICATION,
+} from '../../data/sections.js';
+import { getPublishedArticles, RESERVED_SLUGS, topicPath } from '../../lib/articles';
+import logoImage from '../../assets/logo.webp';
+
+export async function getStaticPaths() {
+  return getPublishedArticles()
+    // A slug that collides with a route segment would shadow that route.
+    .filter((article) => !RESERVED_SLUGS.has(article.slug))
+    .map((article) => ({
+      params: { slug: article.slug },
+      props: { article },
+    }));
+}
+
+const { article } = Astro.props;
+
+const canonical = new URL(`${ARTICLE_SECTION.path}/${article.slug}`, site.url).toString();
+// Cover images are expected; fall back to the site logo rather than digging an
+// image out of the body or shipping a text-only card.
+const heroImage = article.image || new URL(logoImage.src, site.url).toString();
+
+const articleSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: article.title,
+  description: article.excerpt,
+  image: heroImage,
+  datePublished: article.isoDate,
+  dateModified: article.lastUpdated ?? article.isoDate,
+  author: { '@type': 'Person', name: DEFAULT_BYLINE.name },
+  publisher: {
+    '@type': 'Organization',
+    name: site.name,
+    logo: { '@type': 'ImageObject', url: new URL(logoImage.src, site.url).toString() },
+  },
+  mainEntityOfPage: { '@type': 'WebPage', '@id': canonical },
+  articleSection: article.category,
+  // Declares the Substack original as the same work published elsewhere,
+  // without conceding canonical status to it.
+  sameAs: article.link || undefined,
+};
+
+const readableDate = new Date(article.isoDate).toLocaleDateString('en-US', {
+  month: 'long',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+---
+
+<Layout
+  title={`${article.title} | ${site.name}`}
+  description={article.excerpt}
+  image={heroImage}
+  type="article"
+>
+  <script
+    slot="head"
+    type="application/ld+json"
+    is:inline
+    set:html={JSON.stringify(articleSchema)}
+  />
+
+  <main class="article-page">
+    <div class="container">
+      <article class="article-column">
+        <header class="article-header">
+          <div class="article-eyebrow">
+            <a href={topicPath(article.category)} style="color: inherit;">{article.category}</a>
+            <span class="dot">&bull;</span>
+            <time datetime={article.isoDate}>{readableDate}</time>
+          </div>
+
+          <h1 class="article-title">{article.title}</h1>
+
+          {article.excerpt && <p class="article-standfirst">{article.excerpt}</p>}
+
+          <div class="article-byline">
+            <span>By <span class="author">{DEFAULT_BYLINE.name}</span></span>
+            <span class="dot">&bull;</span>
+            <span>{DEFAULT_BYLINE.role}</span>
+          </div>
+        </header>
+
+        {
+          article.image && (
+            <img
+              class="article-hero"
+              src={article.image}
+              alt={`Cover image for ${article.title}`}
+              width="1456"
+              height="816"
+              loading="eager"
+              decoding="async"
+            />
+          )
+        }
+
+        {/* Sanitized at sync time against a semantic allowlist — no scripts,
+            styles, classes or iframes survive. See articles-transform.ts. */}
+        <div class="article-body" set:html={article.bodyHtml} />
+
+        <footer class="article-attribution">
+          <p>
+            Originally published in{' '}
+            <a href={SOURCE_PUBLICATION.url} target="_blank" rel="noopener noreferrer">
+              {SOURCE_PUBLICATION.name}
+            </a>{' '}
+            on {SOURCE_PUBLICATION.platform}.
+          </p>
+        </footer>
+
+        <div class="article-back">
+          <a href={ARTICLE_SECTION.path} class="cta-button-primary">
+            &larr; All {ARTICLE_SECTION.name}
+          </a>
+        </div>
+      </article>
+    </div>
+
+    <SubscribeCTA />
+  </main>
+</Layout>

@@ -1,0 +1,67 @@
+---
+/**
+ * The article section index.
+ *
+ * Built from the same pieces as the Feed rather than a second convention:
+ * <FeedLayout /> for the chrome, <ContentCard /> for the cards,
+ * <Pagination /> for paging.
+ *
+ * Section name and slug come from ARTICLE_SECTION — renaming the section is a
+ * change to src/data/sections.js plus this directory's name, nowhere else.
+ *
+ * Coexists with /feed/articles by owner decision: /feed/articles stays the
+ * type-filtered view of the main Feed; this is the dedicated section.
+ */
+import FeedLayout from '../../layouts/FeedLayout.astro';
+import ContentCard from '../../components/ContentCard.astro';
+import Pagination from '../../components/Pagination.astro';
+import IntelFilters from '../../components/IntelFilters.astro';
+import { site } from '../../data/site.js';
+import { ARTICLE_SECTION } from '../../data/sections.js';
+import { getArticleFeedItems } from '../../lib/articles';
+import type { GetStaticPathsOptions } from 'astro';
+
+export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
+  return paginate(getArticleFeedItems(), { pageSize: 12 });
+}
+
+const { page } = Astro.props;
+
+const pageNum = page.currentPage > 1 ? ` - Page ${page.currentPage}` : '';
+const title = `${ARTICLE_SECTION.name}${pageNum} | ${site.name}`;
+---
+
+<FeedLayout
+  title={title}
+  description={ARTICLE_SECTION.description}
+  headingLabel={`All ${ARTICLE_SECTION.name} articles`}
+  page={page}
+  kicker={ARTICLE_SECTION.kicker}
+  titlePrimary={ARTICLE_SECTION.titlePrimary}
+  titleSecondary={ARTICLE_SECTION.titleSecondary}
+  mainClass="pb-16 md:pb-24"
+>
+  <IntelFilters slot="filters" active={null} />
+
+  {
+    page.data.length > 0 ? (
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
+        {page.data.map((item: any, index: number) => (
+          <ContentCard item={item} index={index} />
+        ))}
+      </div>
+    ) : (
+      <div class="empty-state animate-on-scroll" style="text-align: center; padding: 4rem 0; opacity: 0.6;">
+        <p>No articles published yet.</p>
+      </div>
+    )
+  }
+
+  {
+    page.data.length > 0 && (
+      <div class="mt-auto w-full" style="padding-top: 3.5rem;">
+        <Pagination page={page} />
+      </div>
+    )
+  }
+</FeedLayout>

@@ -1,16 +1,20 @@
 ---
 /**
- * Shared shell for every feed surface (`/feed`, `/feed/videos`,
- * `/feed/articles`, `/feed/[category]`).
+ * Shared shell for every paginated content surface — the four feed routes
+ * (`/feed`, `/feed/videos`, `/feed/articles`, `/feed/[category]`) and the
+ * article section (`/intel`).
  *
- * These four routes were near-identical copies of one another — same page
+ * The feed routes were near-identical copies of one another — same page
  * chrome, same heading, same filter bar, same `.feed-page` / `.container`
  * style block — differing only in their title, description and which loader
- * fed the grid. Adding a fifth article surface would have forked it again, so
- * the chrome lives here once and the routes supply only what actually varies.
+ * fed the grid. `/intel` would have forked them a fifth time, so the chrome
+ * lives here once and the routes supply only what actually varies.
  *
- * The grid itself stays in the caller via <slot />, because `/feed/[category]`
- * renders a plain grid while the others render the client-filtered <FeedGrid />.
+ * Two slots:
+ *   default   — the grid. `/feed/[category]` renders a plain grid while the
+ *               others render the client-filtered <FeedGrid />.
+ *   "filters" — the filter bar. Defaults to the feed's <QuadrantFilter />;
+ *               /intel supplies its own category links instead.
  */
 import Layout from './Layout.astro';
 import PageTitle from '../components/PageTitle.astro';
@@ -26,6 +30,10 @@ interface Props {
   isNavMode?: boolean;
   /** Extra utility classes for <main>, e.g. the category page's bottom padding. */
   mainClass?: string;
+  /** Visible page heading. Defaults to the Feed's wording. */
+  kicker?: string;
+  titlePrimary?: string;
+  titleSecondary?: string;
 }
 
 const {
@@ -35,6 +43,9 @@ const {
   page,
   isNavMode = false,
   mainClass = '',
+  kicker = 'Explore The HQ',
+  titlePrimary = 'The',
+  titleSecondary = 'Feed',
 } = Astro.props;
 ---
 
@@ -42,10 +53,12 @@ const {
   <main class:list={['feed-page', 'flex-1', 'flex', 'flex-col', 'w-full', mainClass]}>
     <div class="container-page flex-1 flex flex-col">
       <header class="section-header animate-on-scroll" data-nav-anchor>
-        <PageTitle as="h1" kicker="Explore The HQ" primary="The" secondary="Feed" />
+        <PageTitle as="h1" kicker={kicker} primary={titlePrimary} secondary={titleSecondary} />
       </header>
 
-      <QuadrantFilter showTypes={true} isNavMode={isNavMode} />
+      <slot name="filters">
+        <QuadrantFilter showTypes={true} isNavMode={isNavMode} />
+      </slot>
 
       <h2 class="sr-only">{headingLabel}</h2>
 

@@ -1,0 +1,343 @@
+/**
+ * Offline tests for the Substack → local JSON article pipeline.
+ *
+ * No network, no credentials. The feed is a fixture, so the parse →
+ * sanitize → merge path is exercised end to end exactly as it would run
+ * against the real thing.
+ */
+import assert from 'node:assert/strict';
+import { parseFeed, planArticleSync } from './sync-articles.mjs';
+import {
+  demoteHeadings,
+  sanitizeArticleHtml,
+  mapCategory,
+  toSlug,
+  looksTruncated,
+  buildArticleRecord,
+  mergeSnapshot,
+} from '../src/lib/articles-transform.ts';
+
+let passed = 0;
+let failed = 0;
+function test(name, fn) {
+  try {
+    fn();
+    console.log(`  ✓ ${name}`);
+    passed += 1;
+  } catch (err) {
+    console.error(`  ✗ ${name}`);
+    console.error(`    ${err.message}`);
+    failed += 1;
+    process.exitCode = 1;
+  }
+}
+
+console.log('articles.test.mjs');
+
+// ── Heading demotion ────────────────────────────────────────────────────────
+
+test('in-body h1 is demoted so the article title stays the only h1', () => {
+  assert.equal(demoteHeadings('<h1>Body</h1>'), '<h2>Body</h2>');
+});
+
+test('heading demotion shifts the whole hierarchy and closes tags', () => {
+  assert.equal(
+    demoteHeadings('<h1>A</h1><h2>B</h2><h3>C</h3>'),
+    '<h2>A</h2><h3>B</h3><h4>C</h4>',
+  );
+});
+
+test('heading demotion clamps at h4 rather than running to h5/h6', () => {
+  assert.equal(demoteHeadings('<h4>D</h4><h5>E</h5><h6>F</h6>'), '<h4>D</h4><h4>E</h4><h4>F</h4>');
+});
+
+test('heading demotion preserves attributes', () => {
+  assert.equal(demoteHeadings('<h2 id="x">T</h2>'), '<h3 id="x">T</h3>');
+});
+
+// ── Sanitization ────────────────────────────────────────────────────────────
+
+test('scripts are stripped entirely', () => {
+  const out = sanitizeArticleHtml('<p>ok</p><script>alert(1)</script>');
+  assert.ok(!out.includes('script'), out);
+  assert.ok(out.includes('ok'));
+});
+
+test('iframes and embeds are stripped', () => {
+  const out = sanitizeArticleHtml('<p>a</p><iframe src="https://evil.test"></iframe>');
+  assert.ok(!out.includes('iframe'), out);
+});
+
+test('inline styles, classes and ids are stripped from body markup', () => {
+  const out = sanitizeArticleHtml('<p style="color:red" class="x" id="y">text</p>');
+  assert.equal(out, '<p>text</p>');
+});
+
+test('event handlers are stripped', () => {
+  const out = sanitizeArticleHtml('<p onclick="steal()">text</p>');
+  assert.ok(!out.includes('onclick'), out);
+});
+
+test('semantic tags survive', () => {
+  const html = '<p>a</p><h2>h</h2><ul><li>i</li></ul><blockquote>q</blockquote><strong>s</strong>';
+  const out = sanitizeArticleHtml(html);
+  for (const tag of ['<p>', '<h3>', '<ul>', '<li>', '<blockquote>', '<strong>']) {
+    assert.ok(out.includes(tag), `${tag} missing from ${out}`);
+  }
+});
+
+test('external anchors are forced to rel="noopener noreferrer"', () => {
+  const out = sanitizeArticleHtml('<p><a href="https://example.test">x</a></p>');
+  assert.ok(out.includes('rel="noopener noreferrer"'), out);
+});
+
+test('javascript: URLs do not survive', () => {
+  const out = sanitizeArticleHtml('<p><a href="javascript:alert(1)">x</a></p>');
+  assert.ok(!out.includes('javascript:'), out);
+});
+
+test('empty paragraphs are dropped but image-bearing ones are kept', () => {
+  const out = sanitizeArticleHtml('<p>  </p><p><img src="https://x.test/a.png" alt="a"></p>');
+  assert.ok(!out.includes('<p>  </p>'), out);
+  assert.ok(out.includes('<img'), out);
+});
+
+// ── Category mapping ────────────────────────────────────────────────────────
+
+test('exact tag match wins and uses the site label Film, not Movies', () => {
+  assert.equal(mapCategory(['Film'], ''), 'Film');
+  assert.equal(mapCategory(['Movies'], ''), 'Film');
+});
+
+test('tag matching is case and punctuation insensitive', () => {
+  assert.equal(mapCategory(['comic-con'], ''), 'Events');
+  assert.equal(mapCategory(['GAMING'], ''), 'Gaming');
+});
+
+test('tags beat body text', () => {
+  assert.equal(mapCategory(['Gaming'], 'a movie review about cinema'), 'Gaming');
+});
+
+test('falls back to text scan when no tag is usable', () => {
+  assert.equal(mapCategory([], 'our review of the new season episode'), 'TV');
+});
+
+test('unmappable content lands in General rather than guessing', () => {
+  assert.equal(mapCategory([], 'thoughts on nothing in particular'), 'General');
+});
+
+// ── Slugs ───────────────────────────────────────────────────────────────────
+
+test('slug is taken from the Substack permalink', () => {
+  assert.equal(
+    toSlug('https://x.substack.com/p/mortal-kombat-2-review', 'Whatever'),
+    'mortal-kombat-2-review',
+  );
+});
+
+test('slug falls back to the title when the link has no /p/ segment', () => {
+  assert.equal(toSlug('', 'The Boys: Season 5!'), 'the-boys-season-5');
+});
+
+test('slug strips query strings and fragments', () => {
+  assert.equal(toSlug('https://x.substack.com/p/abc?utm=1#top', 'T'), 'abc');
+});
+
+// ── Truncation safety net ───────────────────────────────────────────────────
+
+test('a full-length body is not flagged as truncated', () => {
+  assert.equal(looksTruncated(`<p>${'word '.repeat(200)}</p>`), false);
+});
+
+test('a short teaser is flagged', () => {
+  assert.equal(looksTruncated('<p>Just a taste.</p>'), true);
+});
+
+test('a paywall marker is flagged even when long', () => {
+  const body = `<p>${'word '.repeat(200)} Subscribe to keep reading</p>`;
+  assert.equal(looksTruncated(body), true);
+});
+
+// ── Record building ─────────────────────────────────────────────────────────
+
+const NOW = new Date('2026-07-26T12:00:00Z');
+
+test('a well-formed item produces a complete record', () => {
+  const record = buildArticleRecord(
+    {
+      title: 'Mortal Kombat 2 Review',
+      link: 'https://x.substack.com/p/mortal-kombat-2-review',
+      guid: 'guid-1',
+      pubDate: 'Tue, 05 May 2026 02:08:53 GMT',
+      description: 'A review.',
+      contentEncoded: `<h1>Heading</h1><p>${'word '.repeat(200)}</p>`,
+      categories: ['Film'],
+    },
+    NOW,
+  );
+  assert.equal(record.guid, 'guid-1');
+  assert.equal(record.slug, 'mortal-kombat-2-review');
+  assert.equal(record.category, 'Film');
+  assert.equal(record.hasBody, true);
+  assert.ok(record.bodyHtml.startsWith('<h2>'), 'in-body h1 should be demoted');
+  assert.equal(record.date, 'May 5, 2026');
+});
+
+test('an item with no title is rejected rather than half-imported', () => {
+  assert.equal(buildArticleRecord({ link: 'https://x.test/p/a' }, NOW), null);
+});
+
+test('an item with no guid or link is rejected', () => {
+  assert.equal(buildArticleRecord({ title: 'Orphan' }, NOW), null);
+});
+
+test('an unparseable pubDate does not throw and does not produce Invalid Date', () => {
+  const record = buildArticleRecord(
+    { title: 'T', link: 'https://x.test/p/t', pubDate: 'not-a-date' },
+    NOW,
+  );
+  assert.equal(record.isoDate, NOW.toISOString());
+  assert.ok(!record.date.includes('Invalid'));
+});
+
+test('a truncated body yields hasBody:false so no local page is generated', () => {
+  const record = buildArticleRecord(
+    { title: 'T', link: 'https://x.test/p/t', contentEncoded: '<p>teaser</p>' },
+    NOW,
+  );
+  assert.equal(record.hasBody, false);
+});
+
+// ── Merge semantics (the archive-safety contract) ───────────────────────────
+
+const older = {
+  guid: 'a',
+  slug: 'a',
+  title: 'Old post',
+  link: 'l',
+  date: 'May 1, 2026',
+  isoDate: '2026-05-01T00:00:00.000Z',
+  excerpt: '',
+  image: '',
+  category: 'Film',
+  tags: [],
+  bodyHtml: '<p>full</p>',
+  hasBody: true,
+  firstSeen: '2026-05-01T00:00:00.000Z',
+  lastUpdated: '2026-05-01T00:00:00.000Z',
+};
+
+test('a record that has aged out of the feed window is NEVER deleted', () => {
+  const incoming = [{ ...older, guid: 'b', isoDate: '2026-06-01T00:00:00.000Z' }];
+  const { merged } = mergeSnapshot([older], incoming);
+  assert.equal(merged.length, 2);
+  assert.ok(merged.some((r) => r.guid === 'a'), 'aged-out record was dropped');
+});
+
+test('an empty feed leaves the entire archive intact', () => {
+  const { merged, added, updated } = mergeSnapshot([older], []);
+  assert.equal(merged.length, 1);
+  assert.equal(added, 0);
+  assert.equal(updated, 0);
+});
+
+test('an existing GUID is updated in place, not duplicated', () => {
+  const { merged, added, updated } = mergeSnapshot(
+    [older],
+    [{ ...older, title: 'Retitled' }],
+  );
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].title, 'Retitled');
+  assert.equal(added, 0);
+  assert.equal(updated, 1);
+});
+
+test('firstSeen survives an update', () => {
+  const { merged } = mergeSnapshot(
+    [older],
+    [{ ...older, firstSeen: '2026-07-26T00:00:00.000Z' }],
+  );
+  assert.equal(merged[0].firstSeen, '2026-05-01T00:00:00.000Z');
+});
+
+test('a feed that stops returning bodies does not blank an archived body', () => {
+  const { merged } = mergeSnapshot([older], [{ ...older, bodyHtml: '', hasBody: false }]);
+  assert.equal(merged[0].bodyHtml, '<p>full</p>');
+  assert.equal(merged[0].hasBody, true);
+});
+
+test('merged output is sorted newest first', () => {
+  const newer = { ...older, guid: 'b', isoDate: '2026-06-01T00:00:00.000Z' };
+  const { merged } = mergeSnapshot([older], [newer]);
+  assert.equal(merged[0].guid, 'b');
+});
+
+// ── Feed parsing, against a fixture ─────────────────────────────────────────
+
+const FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Be Unconventional HQ</title>
+    <item>
+      <title><![CDATA[Mortal Kombat 2 Review]]></title>
+      <link>https://beunconventionalhq.substack.com/p/mortal-kombat-2-review</link>
+      <guid isPermaLink="false">post-1</guid>
+      <pubDate>Tue, 05 May 2026 02:08:53 GMT</pubDate>
+      <description><![CDATA[A spoiler-free review.]]></description>
+      <category><![CDATA[Film]]></category>
+      <content:encoded><![CDATA[<h1>The Verdict</h1><p style="color:red">${'word '.repeat(200)}</p><script>bad()</script>]]></content:encoded>
+    </item>
+    <item>
+      <title><![CDATA[Broken Post]]></title>
+      <pubDate>garbage</pubDate>
+      <content:encoded><![CDATA[<p>short</p>]]></content:encoded>
+    </item>
+  </channel>
+</rss>`;
+
+test('fixture feed parses into raw items', () => {
+  const items = parseFeed(FIXTURE);
+  assert.equal(items.length, 2);
+  assert.equal(items[0].title, 'Mortal Kombat 2 Review');
+  assert.equal(items[0].guid, 'post-1');
+  assert.deepEqual(items[0].categories, ['Film']);
+  assert.ok(items[0].contentEncoded.includes('<h1>'));
+});
+
+test('a single-item feed still parses as an array', () => {
+  const single = FIXTURE.replace(/<item>[\s\S]*?<\/item>\s*<item>[\s\S]*?<\/item>/, `
+    <item><title>Only</title><link>https://x.substack.com/p/only</link><guid>g</guid></item>`);
+  assert.equal(parseFeed(single).length, 1);
+});
+
+test('a malformed item is skipped with a reason and the rest still import', () => {
+  const { merged, skipped, parsed } = planArticleSync(parseFeed(FIXTURE), [], NOW);
+  assert.equal(parsed, 1, 'only the well-formed item should parse');
+  assert.equal(skipped.length, 1);
+  assert.match(skipped[0].reason, /guid|title/);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].slug, 'mortal-kombat-2-review');
+});
+
+test('end-to-end: fixture import sanitizes, demotes and categorises', () => {
+  const { merged } = planArticleSync(parseFeed(FIXTURE), [], NOW);
+  const record = merged[0];
+  assert.equal(record.category, 'Film');
+  assert.equal(record.hasBody, true);
+  assert.ok(!record.bodyHtml.includes('script'), 'script survived sanitization');
+  assert.ok(!record.bodyHtml.includes('style='), 'inline style survived sanitization');
+  assert.ok(record.bodyHtml.includes('<h2>The Verdict</h2>'), record.bodyHtml.slice(0, 120));
+});
+
+test('re-running the same feed is idempotent', () => {
+  const first = planArticleSync(parseFeed(FIXTURE), [], NOW);
+  const second = planArticleSync(parseFeed(FIXTURE), first.merged, NOW);
+  assert.equal(second.merged.length, first.merged.length);
+  assert.equal(second.added, 0);
+});
+
+if (failed > 0) {
+  console.error(`\n${failed} test(s) FAILED, ${passed} passed.`);
+} else {
+  console.log(`All ${passed} tests passed.`);
+}

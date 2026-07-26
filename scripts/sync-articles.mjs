@@ -1,0 +1,196 @@
+/**
+ * Substack RSS → local JSON article sync.
+ *
+ * Counterpart to sync-youtube.mjs, and follows the same contract: dry-run by
+ * default, `--execute` to write, pure functions exported for offline tests,
+ * zero I/O on import.
+ *
+ * The critical behaviour is the merge. Substack's /feed returns a rolling
+ * window of recent posts, not the full history, so deriving the article list
+ * from a live fetch alone would silently delete the archive on the next
+ * deploy — live URLs 404, rankings die. Instead this merges into a durable,
+ * version-controlled snapshot (src/data/articles.json) where records are
+ * never removed. See mergeSnapshot() in src/lib/articles-transform.ts.
+ *
+ * A failed or garbage fetch is loud but non-fatal: the snapshot is left
+ * exactly as it was, so a Substack outage can never blank the archive or
+ * break the build.
+ *
+ * Usage:
+ *   node scripts/sync-articles.mjs              # dry run, prints the plan
+ *   node scripts/sync-articles.mjs --execute    # writes src/data/articles.json
+ */
+import fs from 'node:fs';
+import path from 'node:path';
+import { XMLParser } from 'fast-xml-parser';
+import { withFileLock } from './file-lock.mjs';
+import { buildArticleRecord, mergeSnapshot } from '../src/lib/articles-transform.ts';
+
+const RSS_URL = process.env.SUBSTACK_FEED_URL ?? 'https://beunconventionalhq.substack.com/feed';
+const SNAPSHOT_FILE = path.join(process.cwd(), 'src', 'data', 'articles.json');
+
+/** Coerce fast-xml-parser's "one item collapses to an object" into an array. */
+function asArray(value) {
+  if (value === undefined || value === null) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+/** Unwrap `{ '#text': 'x' }` / CDATA shapes into a plain string. */
+function asText(value) {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'object' && '#text' in value) return String(value['#text']);
+  return '';
+}
+
+/**
+ * Parse a Substack RSS document into raw feed items.
+ *
+ * XML only — never scrape the rendered page or depend on Substack's markup or
+ * CSS classes, which are theirs to change without notice.
+ */
+export function parseFeed(xml) {
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: '@_',
+    trimValues: true,
+    // Keep entity-encoded HTML inside content:encoded intact.
+    processEntities: true,
+    htmlEntities: true,
+  });
+
+  const doc = parser.parse(xml);
+  const items = asArray(doc?.rss?.channel?.item);
+
+  return items.map((item) => ({
+    title: asText(item.title),
+    link: asText(item.link),
+    guid: asText(item.guid) || asText(item.link),
+    pubDate: asText(item.pubDate),
+    description: asText(item.description),
+    contentEncoded: asText(item['content:encoded']),
+    categories: asArray(item.category).map(asText).filter(Boolean),
+    enclosureUrl: item.enclosure?.['@_url'] ?? '',
+  }));
+}
+
+/**
+ * Turn raw feed items into records, skipping anything malformed.
+ * Returns the records plus the skip reasons, so the caller can log loudly
+ * without the whole run failing on one bad post.
+ */
+export function planArticleSync(rawItems, existing = [], now = new Date()) {
+  const records = [];
+  const skipped = [];
+
+  for (const [index, raw] of rawItems.entries()) {
+    let record = null;
+    try {
+      record = buildArticleRecord(raw, now);
+    } catch (err) {
+      skipped.push({ index, title: raw?.title ?? '(untitled)', reason: err.message });
+      continue;
+    }
+    if (!record) {
+      skipped.push({
+        index,
+        title: raw?.title ?? '(untitled)',
+        reason: 'missing title or guid/link',
+      });
+      continue;
+    }
+    records.push(record);
+  }
+
+  const { merged, added, updated } = mergeSnapshot(existing, records);
+  return { merged, added, updated, skipped, parsed: records.length };
+}
+
+function readSnapshot() {
+  try {
+    const raw = fs.readFileSync(SNAPSHOT_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function fetchFeed() {
+  const response = await fetch(RSS_URL, {
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      Accept: 'application/rss+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.1',
+    },
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const body = await response.text();
+  if (!body.includes('<rss') && !body.includes('<channel')) {
+    throw new Error('response was not an RSS document');
+  }
+  return body;
+}
+
+async function run() {
+  const execute = process.argv.includes('--execute');
+  const existing = readSnapshot();
+
+  console.log(`[articles] Snapshot holds ${existing.length} record(s).`);
+  console.log(`[articles] Fetching ${RSS_URL}`);
+
+  let xml;
+  try {
+    xml = await fetchFeed();
+  } catch (err) {
+    // Loud, but never fatal — the snapshot is the source of truth for the build.
+    console.error(`[articles] ✗ FEED FETCH FAILED: ${err.message}`);
+    console.error('[articles] Snapshot left untouched; the build will use the last good copy.');
+    console.error('[articles] No records were removed. Re-run when the feed is reachable.');
+    process.exitCode = existing.length > 0 ? 0 : 1;
+    return;
+  }
+
+  let rawItems;
+  try {
+    rawItems = parseFeed(xml);
+  } catch (err) {
+    console.error(`[articles] ✗ FEED PARSE FAILED: ${err.message}`);
+    console.error('[articles] Snapshot left untouched.');
+    process.exitCode = existing.length > 0 ? 0 : 1;
+    return;
+  }
+
+  const { merged, added, updated, skipped, parsed } = planArticleSync(rawItems, existing);
+
+  console.log(`[articles] Feed returned ${rawItems.length} item(s); ${parsed} parsed cleanly.`);
+  for (const skip of skipped) {
+    console.warn(`[articles] ⚠ skipped item ${skip.index} "${skip.title}": ${skip.reason}`);
+  }
+  console.log(`[articles] ${added} new, ${updated} updated, ${merged.length} total after merge.`);
+
+  const withoutBody = merged.filter((r) => !r.hasBody);
+  if (withoutBody.length > 0) {
+    console.warn(
+      `[articles] ⚠ ${withoutBody.length} record(s) have no full body and will NOT get a local page ` +
+        '(their cards keep linking to Substack):',
+    );
+    for (const r of withoutBody) console.warn(`[articles]     - ${r.title}`);
+  }
+
+  if (!execute) {
+    console.log('[dry-run] Nothing written. Pass --execute to write src/data/articles.json.');
+    return;
+  }
+
+  await withFileLock(SNAPSHOT_FILE, async () => {
+    fs.writeFileSync(SNAPSHOT_FILE, `${JSON.stringify(merged, null, 2)}\n`);
+  });
+  console.log(`[articles] ✓ Wrote ${merged.length} record(s) to src/data/articles.json`);
+}
+
+// Only run when invoked directly, so importing this module for tests does no I/O.
+if (process.argv[1] && process.argv[1].endsWith('sync-articles.mjs')) {
+  run();
+}

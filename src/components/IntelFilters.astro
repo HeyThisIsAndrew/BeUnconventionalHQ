@@ -1,0 +1,48 @@
+---
+/**
+ * Category filter bar for the article section.
+ *
+ * Server-rendered links to real routes, mirroring how the Feed does category
+ * filtering (`/feed/[category]/…` → a static route per category) rather than
+ * inventing a second pattern. No hydration: every state is a crawlable URL and
+ * is keyboard-operable for free.
+ *
+ * Categories live under `/intel/topic/<category>` rather than `/intel/<category>`
+ * so they can never be mistaken for an article slug — `/intel/<slug>` is the
+ * article route, and a post tagged "film" would otherwise collide with the
+ * Film category page.
+ */
+import { ARTICLE_SECTION } from '../data/sections.js';
+import { getArticleCategories, topicPath } from '../lib/articles';
+
+interface Props {
+  /** Currently active category, or null on the "All" index. */
+  active: string | null;
+}
+
+const { active } = Astro.props;
+const categories = getArticleCategories();
+---
+
+{
+  categories.length > 0 && (
+    <nav class="intel-filters" aria-label={`${ARTICLE_SECTION.name} categories`}>
+      <a
+        href={ARTICLE_SECTION.path}
+        class:list={['intel-filter', { active: active === null }]}
+        aria-current={active === null ? 'page' : undefined}
+      >
+        All
+      </a>
+      {categories.map((category) => (
+        <a
+          href={topicPath(category)}
+          class:list={['intel-filter', { active: active === category }]}
+          aria-current={active === category ? 'page' : undefined}
+        >
+          {category}
+        </a>
+      ))}
+    </nav>
+  )
+}

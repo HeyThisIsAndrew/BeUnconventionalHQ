@@ -1,0 +1,73 @@
+---
+/**
+ * Article section, filtered to one category.
+ *
+ * Mirrors `/feed/[category]/[...page]` — a real static route per category with
+ * its own pagination, rather than a client-side filter. Nested under `/topic/`
+ * so it can never be mistaken for an article slug (see topicPath()).
+ */
+import FeedLayout from '../../../../layouts/FeedLayout.astro';
+import ContentCard from '../../../../components/ContentCard.astro';
+import Pagination from '../../../../components/Pagination.astro';
+import IntelFilters from '../../../../components/IntelFilters.astro';
+import { site } from '../../../../data/site.js';
+import { ARTICLE_SECTION } from '../../../../data/sections.js';
+import { getArticleFeedItems, getArticleCategories } from '../../../../lib/articles';
+import type { GetStaticPathsOptions } from 'astro';
+
+export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
+  const items = getArticleFeedItems();
+
+  return getArticleCategories().flatMap((category) =>
+    paginate(
+      items.filter((item) => item.category === category),
+      {
+        params: { category: category.toLowerCase() },
+        props: { categoryLabel: category },
+        pageSize: 12,
+      },
+    ),
+  );
+}
+
+const { page, categoryLabel } = Astro.props;
+
+const pageNum = page.currentPage > 1 ? ` - Page ${page.currentPage}` : '';
+const title = `${categoryLabel} ${ARTICLE_SECTION.name}${pageNum} | ${site.name}`;
+const description = `${categoryLabel} reporting and analysis from ${site.name}.`;
+---
+
+<FeedLayout
+  title={title}
+  description={description}
+  headingLabel={`All ${categoryLabel} articles`}
+  page={page}
+  kicker={ARTICLE_SECTION.kicker}
+  titlePrimary={ARTICLE_SECTION.titlePrimary}
+  titleSecondary={ARTICLE_SECTION.titleSecondary}
+  mainClass="pb-16 md:pb-24"
+>
+  <IntelFilters slot="filters" active={categoryLabel} />
+
+  {
+    page.data.length > 0 ? (
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
+        {page.data.map((item: any, index: number) => (
+          <ContentCard item={item} index={index} />
+        ))}
+      </div>
+    ) : (
+      <div class="empty-state animate-on-scroll" style="text-align: center; padding: 4rem 0; opacity: 0.6;">
+        <p>No {categoryLabel} articles yet.</p>
+      </div>
+    )
+  }
+
+  {
+    page.data.length > 0 && (
+      <div class="mt-auto w-full" style="padding-top: 3.5rem;">
+        <Pagination page={page} />
+      </div>
+    )
+  }
+</FeedLayout>
