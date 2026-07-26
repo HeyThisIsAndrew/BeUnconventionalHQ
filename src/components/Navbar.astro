@@ -1,14 +1,13 @@
 ---
+import { site } from '../data/site.js';
 import { Image } from 'astro:assets';
 import logoImage from '../assets/logo.webp';
 
 const currentPath = Astro.url.pathname;
-const navItems = [
-  { label: 'Feed', href: 'feed' },
-  { label: 'Events', href: 'events' },
-  { label: 'Featured', href: 'featured' },
-  { label: 'About', href: 'about' },
-];
+/* Navigation comes from site.nav (src/data/site.js) so the navbar and the
+   footer cannot disagree about what sections exist. Add a section there once
+   and it appears in both, plus the mobile menu. */
+const navItems = site.nav;
 
 const base = import.meta.env.BASE_URL === '/' ? '' : import.meta.env.BASE_URL;
 const isActive = (href: string) =>

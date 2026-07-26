@@ -1,4 +1,6 @@
 ---
+import CategoryOverlay from './CategoryOverlay.astro';
+
 export interface Props {
   showTypes?: boolean;
   isNavMode?: boolean; // Kept for backward compatibility, but we now always use Nav mode behavior.
@@ -13,6 +15,20 @@ const types = [
 
 const currentPath = Astro.url.pathname;
 
+
+/* The same category set the desktop row renders, shaped for the shared
+   mobile overlay. Hash links on the Feed (it filters client-side); the
+   /intel copy passes real routes instead. */
+const overlayItems = categories.map((c) => {
+  const slug = c.toLowerCase();
+  const isFeedContext = currentPath.startsWith('/feed');
+  return {
+    label: c.toUpperCase(),
+    href: isFeedContext ? `#${slug}` : `/feed?category=${slug}`,
+    slug,
+    active: !isFeedContext && currentPath.startsWith(`/category/${slug}`),
+  };
+});
 ---
 
 <div
@@ -71,11 +87,9 @@ const currentPath = Astro.url.pathname;
     </div>
   </div>
 
-  <div class="mobile-category-row">
-    <button id="open-categories-btn" class="quadrant-btn full-width-btn" aria-haspopup="dialog" aria-expanded="false"
-      >Categories</button
-    >
-  </div>
+
+  {/* Mobile: one button + full-screen menu. Shared with /intel. */}
+  <CategoryOverlay items={overlayItems} />
 
   <div class="filter-row category-row desktop-category-row">
     <div class="filter-grid">
@@ -102,72 +116,9 @@ const currentPath = Astro.url.pathname;
   </div>
 </div>
 
-<!-- LEGACY CATEGORY DIALOG (COMMENTED OUT FOR REVERT IF NEEDED) -->
-<!--
-<dialog
-  id="category-modal"
-  class="fade-in-overlay"
-  aria-label="Categories menu"
-  tabindex="-1"
->
-  <div class="modal-content relative">
-    <button class="close-btn" aria-label="Close categories">X</button>
-    <div class="filter-row category-row">
-      <div class="filter-grid">
-        {
-          categories.map((c) => {
-            const slug = c.toLowerCase();
-            const expectedHubPath = `/feed?category=${slug}`;
-            
-            const isFeedContext = currentPath.startsWith('/feed');
-            const isActive = !isFeedContext && currentPath.startsWith(`/category/${slug}`);
-            const className = `quadrant-btn cat-btn ${isActive ? 'active' : ''}`;
-            
-            const hrefTarget = isFeedContext ? `#${slug}` : expectedHubPath;
+{/* An earlier <dialog> implementation lived here. It was dead code —
+    superseded by <CategoryOverlay />, which is now shared with /intel. */}
 
-            return (
-              <a href={hrefTarget} class={className} data-category={slug} aria-current={isActive ? 'true' : undefined}>
-                {c}
-              </a>
-            );
-          })
-        }
-      </div>
-    </div>
-  </div>
-</dialog>
--->
-
-<!-- NEW FULL-SCREEN IMMERSIVE OVERLAY -->
-<div id="category-fullscreen-overlay" class="category-fullscreen-overlay" aria-hidden="true">
-  <button class="close-fullscreen-btn nav-toggle menu-open" aria-label="Close categories" id="close-categories-btn">
-    <span class="line line-1"></span>
-    <span class="line line-2"></span>
-    <span class="line line-3"></span>
-  </button>
-  <div class="fullscreen-content filter-row category-row">
-    <div class="filter-grid">
-      {
-        categories.map((c) => {
-          const slug = c.toLowerCase();
-          const expectedHubPath = `/feed?category=${slug}`;
-          
-          const isFeedContext = currentPath.startsWith('/feed');
-          const isActive = !isFeedContext && currentPath.startsWith(`/category/${slug}`);
-          const className = `quadrant-btn cat-btn ${isActive ? 'active' : ''}`;
-          
-          const hrefTarget = isFeedContext ? `#${slug}` : expectedHubPath;
-
-          return (
-            <a href={hrefTarget} class={className} data-category={slug} aria-current={isActive ? 'true' : undefined}>
-              {c.toUpperCase()}
-            </a>
-          );
-        })
-      }
-    </div>
-  </div>
-</div>
 
 <style>
   .quadrant-filter-container {
@@ -388,127 +339,8 @@ const currentPath = Astro.url.pathname;
   }
   */
 
-  /* =========================================================================
-     FULL-SCREEN IMMERSIVE OVERLAY STYLES
-     ========================================================================= */
-  .category-fullscreen-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100dvh;
-    background: #000000;
-    z-index: 10005;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.4s ease;
-    padding-top: env(safe-area-inset-top);
-    overscroll-behavior: contain;
-  }
-
-  .category-fullscreen-overlay.is-open {
-    opacity: 1;
-    visibility: visible;
-  }
-
-  .close-fullscreen-btn {
-    position: absolute;
-    top: max(1rem, env(safe-area-inset-top, 1rem));
-    right: max(1rem, env(safe-area-inset-right, 1rem));
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 5px;
-    width: 44px;
-    height: 44px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    z-index: 10006;
-    padding: 0;
-  }
-
-  .close-fullscreen-btn .line {
-    display: block;
-    width: 24px;
-    height: 2px;
-    background: var(--color-white);
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
-  }
-
-  /* Pre-transformed into an X */
-  .close-fullscreen-btn .line:nth-child(1) { transform: translateY(7px) rotate(45deg); }
-  .close-fullscreen-btn .line:nth-child(2) { opacity: 0; }
-  .close-fullscreen-btn .line:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
-
-  .category-fullscreen-overlay .filter-grid {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1.5rem; /* Matched exactly to #navbar nav ul */
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .category-fullscreen-overlay .cat-btn {
-    position: relative;
-    display: block;
-    padding: 1.5rem 1.25rem;
-    
-    /* NEW STYLING (matching Footer 'Explore' / 'Follow') */
-    font-family: var(--font-display);
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.2em;
-
-    /* OLD STYLING FALLBACK (uncomment to revert) */
-    /*
-    font-family: var(--font-body);
-    font-size: 0.85rem;
-    font-weight: 700;
-    letter-spacing: 0.15em;
-    */
-
-    color: rgba(245, 245, 245, 0.8);
-    text-transform: uppercase;
-    text-decoration: none;
-    transition: color 0.3s ease, text-shadow 0.3s ease;
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    backdrop-filter: none;
-  }
-
-  .category-fullscreen-overlay .cat-btn::after {
-    content: '';
-    position: absolute;
-    bottom: 0.75rem;
-    left: 1.25rem;
-    width: 0;
-    height: 1px;
-    background: var(--color-accent);
-    transition: width 0.35s cubic-bezier(0.25, 0.8, 0.2, 1);
-  }
-
-  .category-fullscreen-overlay .cat-btn:hover,
-  .category-fullscreen-overlay .cat-btn.active {
-    color: var(--color-accent);
-    text-shadow: 0 0 16px rgba(204, 0, 0, 0.45);
-    background: transparent;
-    box-shadow: none;
-    outline: none;
-    transform: none;
-  }
-
-  .category-fullscreen-overlay .cat-btn:hover::after,
-  .category-fullscreen-overlay .cat-btn.active::after {
-    width: calc(100% - 2.5rem);
-  }
+  /* Full-screen overlay styles moved to styles/modules/filters.css so
+     <CategoryOverlay /> can be shared by the Feed and /intel. */
 
   :global(body.modal-open) {
     overflow: hidden !important;

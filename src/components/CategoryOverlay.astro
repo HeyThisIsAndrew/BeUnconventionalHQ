@@ -1,0 +1,221 @@
+---
+/**
+ * CategoryOverlay — the mobile "Categories" button and the full-screen menu
+ * it opens.
+ *
+ * ─── WHY THIS EXISTS ──────────────────────────────────────────────────────
+ * On phones the four category buttons are too wide to sit in a row, so both
+ * the Feed and /intel collapse them behind one "Categories" button that opens
+ * a full-screen overlay. That behaviour used to live only inside
+ * QuadrantFilter.astro, which is why /intel didn't have it — the whole point
+ * of the component work was to be able to reuse this, so here it is.
+ *
+ * ─── HOW IT WORKS ─────────────────────────────────────────────────────────
+ * The overlay is always in the DOM; opening it toggles `.is-open`, which
+ * flips opacity/visibility via CSS. It is not a <dialog> — an earlier
+ * <dialog> version exists in QuadrantFilter as commented-out dead code and
+ * should not be revived; this replaced it.
+ *
+ * While open, the page behind is scroll-locked by pinning <body> with
+ * `position: fixed` and a negative `top` equal to the current scroll offset.
+ * That is the only reliable way to stop iOS Safari scrolling the page under
+ * a fixed overlay, and it is why closing has to restore those inline styles
+ * and the scroll position rather than just removing a class.
+ *
+ * ─── HOW TO USE IT ────────────────────────────────────────────────────────
+ *     <CategoryOverlay items={[
+ *       { label: 'FILM', href: '#film', slug: 'film', active: false },
+ *       ...
+ *     ]} />
+ *
+ * `href` is whatever that surface uses: the Feed passes a `#hash` (it filters
+ * client-side), /intel passes a real route. The component doesn't care.
+ *
+ * ─── HOW TO RESTYLE IT ────────────────────────────────────────────────────
+ * `.category-fullscreen-overlay`, `.close-fullscreen-btn`,
+ * `.mobile-category-row` in styles/modules/filters.css.
+ */
+
+interface CategoryItem {
+  /** Button text, already cased how it should display. */
+  label: string;
+  /** Where it goes — a hash for the Feed, a route for /intel. */
+  href: string;
+  /** Lowercase identifier; the Feed's filter script reads this. */
+  slug: string;
+  /** Whether this category is the current one. */
+  active?: boolean;
+}
+
+interface Props {
+  items: CategoryItem[];
+  /** Text on the closed button. The Feed's script rewrites this to
+   *  "Categories | Film" when a filter is applied. */
+  buttonLabel?: string;
+}
+
+const { items, buttonLabel = 'Categories' } = Astro.props;
+---
+
+{/* The closed state: one full-width button, mobile only (CSS hides it above
+    768px). `aria-expanded` is kept in sync by the script below. */}
+<div class="mobile-category-row">
+  <button
+    id="open-categories-btn"
+    class="quadrant-btn full-width-btn"
+    aria-haspopup="dialog"
+    aria-expanded="false"
+    aria-controls="category-fullscreen-overlay"
+  >
+    {buttonLabel}
+  </button>
+</div>
+
+{/* The open state. Always rendered; `.is-open` reveals it. */}
+<div id="category-fullscreen-overlay" class="category-fullscreen-overlay" aria-hidden="true">
+  <button
+    class="close-fullscreen-btn nav-toggle menu-open"
+    aria-label="Close categories"
+    id="close-categories-btn"
+  >
+    {/* Three bars pre-transformed into an X by CSS — the same close control
+        the main mobile nav uses, so the two feel identical. */}
+    <span class="line line-1"></span>
+    <span class="line line-2"></span>
+    <span class="line line-3"></span>
+  </button>
+
+  <div class="fullscreen-content filter-row category-row">
+    <div class="filter-grid">
+      {
+        items.map((item) => (
+          <a
+            href={item.href}
+            class:list={['quadrant-btn', 'cat-btn', { active: item.active }]}
+            data-category={item.slug}
+            aria-current={item.active ? 'true' : undefined}
+          >
+            {item.label}
+          </a>
+        ))
+      }
+    </div>
+  </div>
+</div>
+
+<script>
+  /*
+    Open/close for the mobile category overlay.
+
+    Bound on `astro:page-load` rather than DOMContentLoaded because this site
+    uses Astro's ClientRouter — after a client-side navigation there is no new
+    DOMContentLoaded, so a handler bound to it would stop working.
+  */
+  function initCategoryOverlay() {
+    const overlay = document.getElementById('category-fullscreen-overlay');
+    const openBtn = document.getElementById('open-categories-btn');
+    const closeBtn = document.getElementById('close-categories-btn');
+    if (!overlay || !openBtn) return;
+
+    function lockScroll() {
+      /*
+        Pin the body at its current offset. Simply setting `overflow: hidden`
+        is not enough on iOS Safari — it still rubber-bands the page behind a
+        fixed overlay. Storing the offset in a data attribute means close()
+        can restore it exactly.
+      */
+      const scrollY = window.scrollY;
+      document.body.dataset.scrollLock = String(scrollY);
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      document.body.style.overflowY = 'scroll';
+      document.body.classList.add('modal-open');
+      document.documentElement.classList.add('menu-open');
+    }
+
+    function unlockScroll() {
+      const stored = Number(document.body.dataset.scrollLock ?? '0');
+      document.body.style.top = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.overflowY = '';
+      document.body.classList.remove('modal-open');
+      document.documentElement.classList.remove('menu-open');
+      delete document.body.dataset.scrollLock;
+      // Put the reader back exactly where they were.
+      window.scrollTo({ top: stored, behavior: 'instant' as ScrollBehavior });
+    }
+
+    function close() {
+      if (!overlay!.classList.contains('is-open')) return;
+      overlay!.classList.remove('is-open');
+      overlay!.setAttribute('aria-hidden', 'true');
+      unlockScroll();
+      openBtn!.setAttribute('aria-expanded', 'false');
+      openBtn!.focus();
+    }
+
+    function open() {
+      overlay!.classList.add('is-open');
+      overlay!.setAttribute('aria-hidden', 'false');
+      lockScroll();
+      openBtn!.setAttribute('aria-expanded', 'true');
+      // Move focus into the overlay so keyboard users aren't left behind it.
+      (closeBtn as HTMLElement | null)?.focus();
+    }
+
+    if (!openBtn.dataset.bound) {
+      openBtn.dataset.bound = 'true';
+      openBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (overlay.classList.contains('is-open')) close();
+        else open();
+      });
+    }
+
+    if (closeBtn && !(closeBtn as HTMLElement).dataset.bound) {
+      (closeBtn as HTMLElement).dataset.bound = 'true';
+      closeBtn.addEventListener('click', close);
+    }
+
+    // Escape closes, matching every other overlay on the site.
+    if (!overlay.dataset.boundKeys) {
+      overlay.dataset.boundKeys = 'true';
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && overlay.classList.contains('is-open')) close();
+      });
+    }
+
+    /*
+      Close when a category is chosen.
+
+      On the Feed the links are `#hash` and filtering happens client-side, so
+      nothing would otherwise dismiss the overlay. On /intel they are real
+      routes and the navigation replaces the page anyway — closing first just
+      avoids a flash of the overlay during the transition. Either way the
+      scroll lock must be released, or the next page loads pinned.
+    */
+    if (!overlay.dataset.boundLinks) {
+      overlay.dataset.boundLinks = 'true';
+      overlay.addEventListener('click', (event) => {
+        const link = (event.target as HTMLElement).closest('a.cat-btn');
+        if (link) close();
+      });
+    }
+  }
+
+  document.addEventListener('astro:page-load', initCategoryOverlay);
+
+  /* A client-side navigation can leave the body pinned if the overlay was
+     open when the link was followed. Always release the lock on swap. */
+  document.addEventListener('astro:before-swap', () => {
+    document.body.style.top = '';
+    document.body.style.position = '';
+    document.body.style.width = '';
+    document.body.style.overflowY = '';
+    document.body.classList.remove('modal-open');
+    document.documentElement.classList.remove('menu-open');
+    delete document.body.dataset.scrollLock;
+  });
+</script>

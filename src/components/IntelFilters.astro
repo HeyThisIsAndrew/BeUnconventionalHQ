@@ -31,6 +31,7 @@
  * the video taxonomy and this row. 'General' is excluded here on purpose —
  * it is the fallback bucket for unmapped posts, not a thing to browse by.
  */
+import CategoryOverlay from './CategoryOverlay.astro';
 import { CATEGORIES } from '../data/constants.js';
 import { ARTICLE_SECTION } from '../data/sections.js';
 import { topicPath } from '../lib/articles';
@@ -45,7 +46,22 @@ const { active } = Astro.props;
 // 'General' is the catch-all for posts that matched no category; it is not a
 // browsable topic, so it never gets a button.
 const filterCategories = CATEGORIES.filter((category) => category !== 'General');
+
+/* The same categories, shaped for the shared mobile overlay. Unlike the Feed
+   (which uses #hash links and filters client-side) these are real routes, so
+   the active one links back to the unfiltered section — same click-to-toggle
+   behaviour as the desktop row. */
+const overlayItems = filterCategories.map((category) => ({
+  label: category.toUpperCase(),
+  href: active === category ? ARTICLE_SECTION.path : topicPath(category),
+  slug: category.toLowerCase(),
+  active: active === category,
+}));
 ---
+
+{/* Mobile: one "Categories" button + full-screen menu — the exact control
+    the Feed uses, from the same component. */}
+<CategoryOverlay items={overlayItems} />
 
 <div class="intel-filter-nav" role="navigation" aria-label={`${ARTICLE_SECTION.name} categories`}>
   <div class="filter-grid">
@@ -87,9 +103,11 @@ const filterCategories = CATEGORIES.filter((category) => category !== 'General')
     margin-bottom: 3.5rem;
   }
 
+  /* Below 768px the inline row is replaced by <CategoryOverlay />'s single
+     button, exactly as the Feed does with .desktop-category-row. */
   @media (max-width: 768px) {
     .intel-filter-nav {
-      margin-bottom: 2.5rem;
+      display: none;
     }
   }
 </style>
