@@ -150,7 +150,11 @@ Plus `npm test` 104/104 passing across 8 suites, and `npx astro check` at 0 erro
 3. **Move the global `.cta-button-primary` mobile override out of `about.css`** — button styles in a page module is why #5 was hard to spot.
 4. **Contributors/team CMS for byline** — EPIC-001 asked whether this already exists as an issue. **It does not.** #38 covers the *content* ("add Andrew Baxter as Founder & Editor") but there is no contributors data-layer ticket.
 5. **Sitewide hardcoded-string audit** — 24 literal `"Be Unconventional HQ"` occurrences despite `site.name` existing. Out of scope here per the epic's own instruction to log rather than absorb.
-6. **`/intel` vs the existing `/feed/articles` route** — EPIC-001 adds a dedicated article section while `/feed/articles` already exists. Decide whether `/intel` replaces it, or they coexist. Interacts with the orphan-destinations item in #30.
+6. **`/intel` and `/feed/articles` coexist — DECIDED (owner, this session).** EPIC-001's dedicated article section does *not* replace the existing `/feed/articles` route; both ship. `/feed/articles` stays the type-filtered view of the main Feed, `/intel` becomes the dedicated section with its own category filtering.
+
+   Two consequences EPIC-001 must handle rather than discover late:
+   - **Both routes list the same articles**, so they are duplicate-content candidates. `/feed/articles` is already in the sitemap. Decide the canonical relationship during EPIC-001's SEO phase — self-canonical on `/intel`, with `/feed/articles` left as a browse surface, is the obvious shape.
+   - **Both must link cards to the same place** (`/intel/<slug>`), or the two surfaces will disagree about where an article lives. Since both render through the shared `ContentCard`, this is one change, not two — see the Feed-item contract in §4.
 
 ---
 
