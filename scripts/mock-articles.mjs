@@ -113,8 +113,6 @@ const paragraphs = (n, seed) =>
 
 /** Body variants, so the article page is exercised against real shapes. */
 function bodyFor(variant, index, title) {
-  const cover = coverFor(index);
-
   if (variant === 'short') {
     // Trips the truncation safety net -> hasBody:false -> no local page,
     // card keeps pointing at Substack. This variant is here on purpose.
