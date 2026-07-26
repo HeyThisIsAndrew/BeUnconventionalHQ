@@ -3,6 +3,7 @@ import ContentCard from './ContentCard.astro';
 import CardGrid from './CardGrid.astro';
 import EmptyState from './EmptyState.astro';
 import Pagination from './Pagination.astro';
+import { LABELS, MESSAGES } from '../data/content.js';
 
 export interface Props {
   page: any;
@@ -34,7 +35,7 @@ const currentItems = page.data;
   </CardGrid>
 ) : (
   <CardGrid id="feed-grid">
-    <EmptyState message="No content found." actionLabel="View All Content" actionHref="/feed" />
+    <EmptyState message={MESSAGES.noContent} actionLabel={LABELS.viewAllContent} actionHref="/feed" />
   </CardGrid>
 )}
 </div>
@@ -46,7 +47,7 @@ const currentItems = page.data;
 </template>
 
 <template id="feed-empty-state">
-  <EmptyState message="No items found for this filter." actionLabel="Clear Filters" actionClass="clear-filters-btn" />
+  <EmptyState message={MESSAGES.noFilterMatch} actionLabel={LABELS.clearFilters} actionClass="clear-filters-btn" />
 </template>
 
 {currentItems.length > 0 && (
@@ -56,7 +57,7 @@ const currentItems = page.data;
     </div>
     <div id="load-more-container" style="display: none;" class="text-center w-full">
       <button id="load-more-btn" class="cta-button-primary mx-auto relative z-10">
-        Load More
+        {LABELS.loadMore}
       </button>
     </div>
   </div>

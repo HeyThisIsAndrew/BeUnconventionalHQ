@@ -1,6 +1,6 @@
 ---
 import FeedLayout from '../../../layouts/FeedLayout.astro';
-import { site } from '../../../data/site.js';
+import { META, pageTitle } from '../../../data/content.js';
 import { getVideoItems } from '../../../lib/feed-items';
 import FeedGrid from '../../../components/FeedGrid.astro';
 import type { GetStaticPathsOptions } from 'astro';
@@ -12,9 +12,8 @@ export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
 const { page } = Astro.props;
 const allItems = await getVideoItems();
 
-const pageNum = page.currentPage > 1 ? ` - Page ${page.currentPage}` : '';
-const title = `Videos${pageNum} | ${site.name}`;
-const description = 'Discover the latest videos from Be Unconventional HQ.';
+const title = pageTitle(META.feedVideos.title, page.currentPage);
+const description = META.feedVideos.description;
 ---
 
 <FeedLayout

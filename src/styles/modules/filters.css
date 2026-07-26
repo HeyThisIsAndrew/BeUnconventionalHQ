@@ -334,3 +334,35 @@
 body.modal-open {
   overflow: hidden !important;
 }
+
+/* ── Mobile "Categories" button (shared: Feed + /intel) ─────────────────────
+
+   These live here, NOT in a component's scoped <style>, because the markup
+   they style is in CategoryOverlay.astro while the rules were originally
+   written inside QuadrantFilter.astro. Astro scopes styles to the component
+   that declares the element, so a scoped rule in one file cannot style
+   markup rendered by another — which is exactly how the button ended up
+   visible on desktop.
+
+   Default: hidden. The button only exists below 768px, where the inline
+   category row is too wide to fit.
+*/
+.mobile-category-row {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-category-row {
+    display: flex;
+    width: 100%;
+    margin-bottom: 2rem;
+  }
+
+  .full-width-btn {
+    width: 100%;
+    flex: 1;
+    font-size: 0.9rem;
+    padding: 0.75rem 0.5rem;
+    text-transform: uppercase;
+  }
+}

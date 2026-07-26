@@ -1,86 +1,129 @@
 ---
+/**
+ * SubscribeCTA — the "Don't miss a drop" band.
+ *
+ * ─── WHY THIS LOOKS THE WAY IT DOES ───────────────────────────────────────
+ * This component used to be written twice: an `if compact / else default`
+ * with two complete copies of the heading, the subtitle and both subscribe
+ * buttons. The two branches differed only in a handful of inline styles, so
+ * changing the wording or adding a third button meant editing it in two
+ * places — and they had already started to drift.
+ *
+ * Now there is ONE piece of markup and the variant only switches a CSS class.
+ * That is the general rule to follow in this codebase: if two blocks differ
+ * only in styling, they should be one block with a class, never two blocks.
+ *
+ * ─── THE TWO VARIANTS ─────────────────────────────────────────────────────
+ *   default   full-width band with page margins — used at the bottom of pages
+ *   compact   tighter, smaller type — used inside narrower columns
+ *
+ * ─── WHERE THE WORDS COME FROM ────────────────────────────────────────────
+ * Heading:  SECTIONS.subscribe   (src/data/content.js)
+ * Subtitle: MESSAGES.subscribeSubtitle
+ * Buttons:  LABELS.subscribeSubstack / LABELS.subscribeYouTube
+ * Links:    site.socials          (src/data/site.js)
+ *
+ * To change any of that wording, edit those files — not this one.
+ */
 import PageTitle from './PageTitle.astro';
 import { site } from '../data/site.js';
+import { SECTIONS, LABELS, MESSAGES } from '../data/content.js';
 
 export interface Props {
+  /** Override the standard subtitle for a specific page. */
   subtitle?: string;
+  /** `compact` tightens spacing for use inside a narrow column. */
   variant?: 'default' | 'compact';
 }
 
-const {
-  subtitle = "New videos and articles, straight from Be Unconventional HQ.",
-  variant = 'default',
-} = Astro.props;
+const { subtitle = MESSAGES.subscribeSubtitle, variant = 'default' } = Astro.props;
+
+/**
+ * The two subscribe destinations. Adding a third (say Patreon) is one entry
+ * here — the markup below loops, so nothing else needs touching.
+ */
+const subscribeLinks = [
+  { label: LABELS.subscribeSubstack, href: site.socials.substack },
+  { label: LABELS.subscribeYouTube, href: site.socials.youtube },
+];
+
+const isCompact = variant === 'compact';
 ---
 
-{variant === 'compact' ? (
-  <section class="reveal" data-delay="400" style="margin-top: 1rem;">
-    <div
-      class="cta-band"
-      style="flex-direction: column; justify-content: center; align-items: center; text-align: center;"
-    >
-      <div style="text-align: center; width: 100%;">
-        <div class="section-header" style="margin-bottom: 1rem;">
-          <PageTitle kicker="Don't miss a drop" primary="Subscribe" secondary="For Updates" scale="secondary" />
-        </div>
-        <p style="color: var(--color-white-muted); font-size: 0.9rem;">
-          {subtitle}
-        </p>
+<section
+  class:list={['subscribe-cta', { 'is-compact': isCompact, container: !isCompact, reveal: isCompact }]}
+  data-delay={isCompact ? '400' : undefined}
+>
+  <div class:list={['cta-band', { reveal: !isCompact }]}>
+    <div class="subscribe-cta-copy">
+      <div class="section-header subscribe-cta-header">
+        <PageTitle {...SECTIONS.subscribe} scale="secondary" />
       </div>
-      <div class="cta-buttons-wrapper" style="flex-wrap: wrap;">
-        <a
-          class="cta-button-primary"
-          style="white-space: nowrap;"
-          href={site.socials.substack}
-          target="_blank"
-          rel="noopener">Subscribe on Substack</a
-        >
-        <a
-          class="cta-button-primary"
-          style="white-space: nowrap;"
-          href={site.socials.youtube}
-          target="_blank"
-          rel="noopener">Subscribe on YouTube</a
-        >
-      </div>
+      <p class="subscribe-cta-subtitle">{subtitle}</p>
     </div>
-  </section>
-) : (
-  <section
-    class="container"
-    style="margin-bottom: 2rem; position: relative; z-index: 10;"
-  >
-    <div
-      class="cta-band reveal"
-      style="flex-direction: column; justify-content: center; align-items: center; text-align: center;"
-    >
-      <div style="width: 100%;">
-        <div class="section-header" style="margin-bottom: 1rem;">
-          <PageTitle kicker="Don't miss a drop" primary="Subscribe" secondary="For Updates" scale="secondary" />
-        </div>
-        <p style="color: var(--color-white-muted);">
-          {subtitle}
-        </p>
-      </div>
-      <div class="cta-buttons-wrapper">
-        <a
-          class="cta-button-primary"
-          href={site.socials.substack}
-          target="_blank"
-          rel="noopener">Subscribe on Substack</a
-        >
-        <a
-          class="cta-button-primary"
-          href={site.socials.youtube}
-          target="_blank"
-          rel="noopener">Subscribe on YouTube</a
-        >
-      </div>
+
+    <div class="cta-buttons-wrapper">
+      {
+        subscribeLinks.map((link) => (
+          <a class="cta-button-primary" href={link.href} target="_blank" rel="noopener">
+            {link.label}
+          </a>
+        ))
+      }
     </div>
-  </section>
-)}
+  </div>
+</section>
 
 <style>
+  /* Shared by both variants — this is what used to be typed inline twice. */
+  .subscribe-cta {
+    position: relative;
+    z-index: 10;
+    margin-bottom: 2rem;
+  }
+
+  .subscribe-cta .cta-band {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+
+  .subscribe-cta-copy {
+    width: 100%;
+    text-align: center;
+  }
+
+  .subscribe-cta-header {
+    margin-bottom: 1rem;
+  }
+
+  .subscribe-cta-subtitle {
+    color: var(--color-white-muted);
+  }
+
+  /* ── compact variant ────────────────────────────────────────────────────
+     The ONLY differences from the default. Anything not listed here is
+     shared, which is the point of the refactor. */
+  .subscribe-cta.is-compact {
+    margin-top: 1rem;
+    margin-bottom: 0;
+  }
+
+  .subscribe-cta.is-compact .subscribe-cta-subtitle {
+    font-size: 0.9rem;
+  }
+
+  .subscribe-cta.is-compact .cta-buttons-wrapper {
+    flex-wrap: wrap;
+  }
+
+  .subscribe-cta.is-compact .cta-button-primary {
+    white-space: nowrap;
+  }
+
+  /* ── buttons ────────────────────────────────────────────────────────────
+     Stacked on phones, side by side from 768px. */
   .cta-buttons-wrapper {
     display: flex;
     flex-direction: column;

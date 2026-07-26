@@ -1,26 +1,22 @@
 ---
+import { SECTIONS, MESSAGES, LABELS, META, pageTitle } from '../data/content.js';
 import Layout from '../layouts/Layout.astro';
 import PageTitle from '../components/PageTitle.astro';
 import Button from '../components/Button.astro';
-import { site } from '../data/site.js';
 
-const title = `Page Not Found | ${site.name}`;
-const description =
-  'That page went off-script. Head back to Be Unconventional HQ.';
+const title = pageTitle(META.notFound.title);
+const description = META.notFound.description;
 ---
 
 <Layout title={title} description={description}>
   <main class="notfound-page">
     <div class="notfound-inner">
       <span class="notfound-code" aria-hidden="true">404</span>
-      <PageTitle as="h1" kicker="Off The Map" primary="Page" secondary="Not Found" />
-      <p class="notfound-text">
-        This one went off-script. The page you're after moved, vanished, or
-        never existed, but the good stuff is still one click away.
-      </p>
+      <PageTitle as="h1" {...SECTIONS.notFound} />
+      <p class="notfound-text">{MESSAGES.notFoundBody}</p>
       <div class="notfound-actions">
-        <Button href="/">Back to Home</Button>
-        <a class="notfound-link" href="/feed">Browse the Feed &rarr;</a>
+        <Button href="/">{LABELS.backHome}</Button>
+        <a class="notfound-link" href="/feed">{LABELS.browseFeed} &rarr;</a>
       </div>
     </div>
   </main>

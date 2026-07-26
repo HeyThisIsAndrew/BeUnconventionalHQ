@@ -119,6 +119,42 @@ try {
     );
     ok('centre feature is server-rendered', (await noJs.$eval('#intel-feature-title', (e) => e.textContent.trim())).length > 0);
   }
+  /*
+    Responsive visibility of the category controls.
+
+    Regression guard: the mobile "Categories" button and the inline category
+    row are mutually exclusive. The button's `display: none` default lives in
+    styles/modules/filters.css rather than a component's scoped <style> —
+    when the markup moved into CategoryOverlay.astro, a scoped rule in
+    QuadrantFilter.astro silently stopped applying and the button appeared on
+    desktop on BOTH the Feed and /intel.
+  */
+  const vis = await browser.newPage();
+  for (const route of ['/feed', '/intel']) {
+    for (const width of [1440, 390]) {
+      await vis.setViewport({ width, height: 900 });
+      await vis.goto(`http://localhost:${port}${route}`, { waitUntil: 'networkidle0' });
+      const state = await vis.evaluate(() => {
+        const row = document.querySelector('.mobile-category-row');
+        const inline = document.querySelector('.intel-filter-nav, .desktop-category-row');
+        return {
+          button: row ? getComputedStyle(row).display : 'missing',
+          inline: inline ? getComputedStyle(inline).display : 'missing',
+        };
+      });
+      const isMobile = width <= 768;
+      ok(
+        `${route} @${width}: Categories button ${isMobile ? 'shown' : 'hidden'}`,
+        state.button === (isMobile ? 'flex' : 'none'),
+        state.button,
+      );
+      ok(
+        `${route} @${width}: inline category row ${isMobile ? 'hidden' : 'shown'}`,
+        isMobile ? state.inline === 'none' : state.inline !== 'none',
+        state.inline,
+      );
+    }
+  }
 } finally {
   await browser.close();
   server.close();
