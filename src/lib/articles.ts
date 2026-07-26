@@ -21,6 +21,14 @@ export interface ArticleRecord {
   date: string;
   isoDate: string;
   excerpt: string;
+  /**
+   * The magazine lede — the article's opening paragraphs, one string each.
+   *
+   * Optional because snapshots written before this field existed do not carry
+   * it; every consumer falls back to `excerpt`. Built by buildPreview() in
+   * articles-transform.ts, which explains why it is separate from `excerpt`.
+   */
+  preview?: string[];
   image: string;
   category: string;
   /** What KIND of piece — Review, Analysis, Dispatch… (see articles-transform). */
@@ -104,6 +112,24 @@ export function getArticleCategories(): string[] {
  */
 export function articleHref(record: Pick<ArticleRecord, 'hasBody' | 'slug' | 'link'>): string {
   return record.hasBody && record.slug ? articlePath(record.slug) : record.link;
+}
+
+/**
+ * The paragraphs to show in the magazine's centre feature.
+ *
+ * Call this rather than reading `record.preview` directly. Two reasons:
+ *   1. `preview` is optional — snapshots written before the field existed do
+ *      not have it, and neither does a record whose body never arrived.
+ *   2. The fallback should be the same everywhere. One article rendering a
+ *      single stubby line while the rest render four paragraphs is exactly the
+ *      inconsistency this helper prevents.
+ */
+export function articlePreview(
+  record: Pick<ArticleRecord, 'preview' | 'excerpt'>,
+): string[] {
+  const paragraphs = (record.preview ?? []).filter((p) => typeof p === 'string' && p.trim());
+  if (paragraphs.length > 0) return paragraphs;
+  return record.excerpt ? [record.excerpt] : [];
 }
 
 /** True when the href leaves the site, so callers know to add target/rel. */

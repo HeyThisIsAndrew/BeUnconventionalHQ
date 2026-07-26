@@ -35,8 +35,12 @@ export const articlePath = (slug) => `${ARTICLE_SECTION.path}/${slug}`;
  * starts. Lives here rather than in the route because `getStaticPaths()` runs
  * in its own isolated scope and cannot see a page's frontmatter constants —
  * only imports.
+ *
+ * KEEP THIS EVEN. IntelMagazine deals the articles alternately (0→left,
+ * 1→right, 2→left …), so an odd number leaves the left rail one tile longer
+ * than the right and the spread looks lopsided. 8 gives four tiles a side.
  */
-export const MAGAZINE_SIZE = 7;
+export const MAGAZINE_SIZE = 8;
 
 /**
  * Byline. Hardcoded to the founder for now — deliberately a named constant so

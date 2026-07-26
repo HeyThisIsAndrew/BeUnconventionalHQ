@@ -22,6 +22,13 @@
  * At -1 it paints above the body's own background but beneath everything in
  * the flow, so the footer's opaque surface covers it — which is the intent.
  *
+ * ⚠ THIS ONLY WORKS BECAUSE `body` HAS `isolation: isolate`
+ * (src/styles/global-base.css). A negative z-index resolves against the
+ * nearest stacking context; without that line the context is the document
+ * root, where body's opaque black background paints AFTER negative-z-index
+ * layers and hid this component completely. If the glow ever vanishes
+ * site-wide, that is the first thing to check.
+ *
  * ─── PERFORMANCE ──────────────────────────────────────────────────────────
  *   • A CSS gradient, not an image: no request, and it can never be the LCP
  *     element.

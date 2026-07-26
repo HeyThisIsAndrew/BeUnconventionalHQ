@@ -261,3 +261,119 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONTENT CARD
+
+   The card used by the Feed, /intel, the homepage rows and the hub pages.
+
+   These rules replaced inline `style` attributes on the markup. Inline styles
+   beat every class rule, so while they were inlined it was impossible to give
+   the card a different shape on mobile without `!important` — which is why
+   the compact variant at the bottom of this block could not exist before.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.content-card-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.content-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}
+
+.content-card-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.content-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  margin-bottom: 0.75rem;
+}
+
+.content-card-title {
+  color: var(--color-white);
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.4;
+  margin-bottom: 1rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.content-card-arrow {
+  color: var(--color-accent);
+}
+
+/* ── COMPACT MOBILE CARD ────────────────────────────────────────────────────
+
+   WHY THIS EXISTS
+   On a phone the standard card is a full-width 16:9 image plus copy — roughly
+   380px tall. A page of twelve is over 4500px of scrolling, which is why the
+   Feed and /intel felt endless on mobile.
+
+   Below 560px the card turns on its side: a small fixed-width thumbnail on
+   the left, copy on the right, about 110px tall. That is a ~70% reduction in
+   page height for the same number of items, with no change to what is shown
+   or to the markup — purely a different arrangement of the same elements.
+
+   Desktop and tablet are untouched.
+*/
+@media (max-width: 560px) {
+  .content-card {
+    flex-direction: row;
+    align-items: stretch;
+    min-height: 0;
+  }
+
+  .content-card .content-card-media {
+    width: 140px;
+    flex: 0 0 140px;
+    aspect-ratio: 1 / 1;
+  }
+
+  .content-card .content-card-body {
+    padding: 0.85rem 1rem;
+    justify-content: center;
+  }
+
+  .content-card .content-card-meta {
+    font-size: 9px;
+    margin-bottom: 0.35rem;
+  }
+
+  .content-card .content-card-title {
+    font-size: 0.95rem;
+    line-height: 1.3;
+    margin-bottom: 0.4rem;
+    -webkit-line-clamp: 3;
+  }
+
+  /* The CTA is redundant at this size — the whole row is the link, and the
+     headline already says what it is. Removing it buys back a line per card. */
+  .content-card .watch-now-btn {
+    display: none;
+  }
+}

@@ -8,7 +8,7 @@
  * enhancement, not a JS-only feature: the rails must remain real links that
  * work with scripting disabled, and the centre must be server-rendered.
  */
-import puppeteer from 'puppeteer';
+import { launchTestBrowser } from './e2e-browser.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -50,7 +50,7 @@ const ok = (name, cond) => {
 
 console.log('e2e-intel-magazine.test.mjs');
 
-const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
+const browser = await launchTestBrowser();
 
 try {
   const page = await browser.newPage();
@@ -95,6 +95,25 @@ try {
       ok('exactly one rail item is marked active', (await page.$$eval('.intel-rail-item.active', (e) => e.length)) === 1);
       ok('active rail item exposes aria-current', (await page.$eval('.intel-rail-item.active', (e) => e.getAttribute('aria-current'))) === 'true');
 
+      /*
+        The lede must survive the swap as PARAGRAPHS.
+
+        The centre used to hold a single <p> whose text was replaced wholesale.
+        It now holds one <p> per paragraph, rebuilt by the script — so a swap
+        that quietly collapsed the lede back to one block, or left the previous
+        article's paragraphs behind, would look fine in a screenshot and be
+        wrong. Assert the count and that the text actually changed.
+      */
+      ok(
+        'lede is still multiple paragraphs after a swap',
+        (await page.$$eval('#intel-feature-excerpt p', (els) => els.length)) >= 2,
+      );
+      ok(
+        'lede is rebuilt as text, never as markup',
+        await page.$$eval('#intel-feature-excerpt p', (els) =>
+          els.every((el) => el.children.length === 0 && el.textContent.trim().length > 0)),
+      );
+
       const hash = await page.evaluate(() => location.hash);
       await page.goto(`http://localhost:${port}/intel${hash}`, { waitUntil: 'networkidle0' });
       await new Promise((r) => setTimeout(r, 400));
@@ -118,7 +137,68 @@ try {
       hrefs.length > 0 && hrefs.every((h) => h && (h.startsWith('/') || /^https?:\/\//.test(h))),
     );
     ok('centre feature is server-rendered', (await noJs.$eval('#intel-feature-title', (e) => e.textContent.trim())).length > 0);
+    ok(
+      'lede is server-rendered as multiple paragraphs',
+      (await noJs.$$eval('#intel-feature-excerpt p', (els) => els.length)) >= 2,
+    );
+
+    /*
+      Balanced rails.
+
+      IntelMagazine deals the spread alternately (0→left, 1→right, 2→left …),
+      so an ODD MAGAZINE_SIZE leaves one rail a tile shorter than the other and
+      the spread renders lopsided. This guards the pairing between that
+      constant (src/data/sections.js) and the dealing logic — either one
+      changing alone breaks the layout.
+    */
+    const railSplit = await noJs.evaluate(() => ({
+      left: document.querySelectorAll('.intel-rail-left .intel-rail-item').length,
+      right: document.querySelectorAll('.intel-rail-right .intel-rail-item').length,
+    }));
+    ok(
+      `rails are balanced (${railSplit.left}L / ${railSplit.right}R)`,
+      railSplit.left === railSplit.right,
+    );
   }
+
+  /*
+    The brand glow must actually paint.
+
+    It is a fixed layer at `z-index: -1`, which only lands above the page's
+    base colour because `body` carries `isolation: isolate`. Drop that one
+    declaration and the glow silently disappears from every page — no error,
+    no failing selector, just a site that has lost its signature. So this
+    checks the computed value AND samples the rendered corner, because the
+    CSS being present is not the same as the pixels being red.
+  */
+  const glowPage = await browser.newPage();
+  await glowPage.setViewport({ width: 1440, height: 900 });
+  await glowPage.goto(`http://localhost:${port}/intel`, { waitUntil: 'networkidle0' });
+
+  ok(
+    'body isolates, so the glow is not painted over',
+    (await glowPage.evaluate(() => getComputedStyle(document.body).isolation)) === 'isolate',
+  );
+
+  const corner = await glowPage.evaluate(() => {
+    const el = document.querySelector('.brand-glow');
+    if (!el) return null;
+    const cs = getComputedStyle(el);
+    return { display: cs.display, z: cs.zIndex };
+  });
+  ok('glow layer is present and behind the flow', corner?.display === 'block' && corner?.z === '-1');
+
+  const shot = await glowPage.screenshot({
+    clip: { x: 1432, y: 300, width: 4, height: 4 },
+    encoding: 'base64',
+  });
+  /* A PNG this small is trivially comparable against the same crop of the
+     far side of the viewport: the top-right must be redder than the left. */
+  const shotLeft = await glowPage.screenshot({
+    clip: { x: 4, y: 300, width: 4, height: 4 },
+    encoding: 'base64',
+  });
+  ok('top-right corner renders differently from the left edge', shot !== shotLeft);
   /*
     Responsive visibility of the category controls.
 

@@ -252,6 +252,19 @@ export interface ArticleRecord {
   date: string;
   isoDate: string;
   excerpt: string;
+  /**
+   * The magazine lede: the article's opening paragraphs, as an array of plain
+   * strings (one entry per paragraph).
+   *
+   * This is SEPARATE from `excerpt` on purpose. `excerpt` is a single short
+   * sentence-or-two used in card grids and — critically — as the page's meta
+   * description, where search engines truncate anything past ~160 characters.
+   * The magazine's centre feature is a different job: it is a full editorial
+   * block with several paragraphs of room beneath the headline, and a
+   * one-paragraph teaser left most of that space empty. Overloading `excerpt`
+   * to fill it would have made every meta description a wall of text.
+   */
+  preview: string[];
   image: string;
   category: string;
   /** What KIND of piece this is — Review, Analysis, Dispatch… */
@@ -282,6 +295,94 @@ function buildExcerpt(description: string, body: string, limit = 420): string {
   if (lastStop > limit * 0.5) return clipped.slice(0, lastStop + 1);
   const lastSpace = clipped.lastIndexOf(' ');
   return `${clipped.slice(0, lastSpace > 0 ? lastSpace : limit)}…`;
+}
+
+/**
+ * Build the magazine lede — the opening paragraphs of the article.
+ *
+ * ─── WHY THIS IS SEPARATE FROM buildExcerpt() ─────────────────────────────
+ * `excerpt` is one short block, reused as the meta description. This is the
+ * long form: several real paragraphs, so the centre feature on /intel fills
+ * the editorial space beneath its headline instead of leaving a void under
+ * the "Read More" link.
+ *
+ * ─── WHY IT RETURNS AN ARRAY, NOT HTML ────────────────────────────────────
+ * Paragraph text only, with the tags stripped. The component turns each entry
+ * into its own <p>. Keeping it as data rather than markup means the swap
+ * script can rebuild the block with `textContent` and never touch innerHTML —
+ * no HTML from the feed is ever re-parsed in the browser.
+ *
+ * ─── HOW MUCH IT TAKES ────────────────────────────────────────────────────
+ * Whole paragraphs until `limit` characters are reached, capped at
+ * `maxParagraphs`. Whole paragraphs, never a partial one, so the block always
+ * ends on a finished thought — except for the final safety trim below, which
+ * only fires when a single paragraph is longer than the whole budget.
+ *
+ * The 1000-character default is not arbitrary. Measured against the built
+ * page at 1440px: the centre column is ~583px of text width, so 1000
+ * characters sets about 17 lines, which brings the feature column to roughly
+ * the same height as the four-tile rails beside it. Raise it and the feature
+ * outgrows the rails; lower it and the empty space under "Read More" comes
+ * back.
+ *
+ * @param bodyHtml  sanitized article body
+ * @param fallback  used when the body has no usable paragraphs (e.g. a feed
+ *                  item that only gave us a description)
+ */
+export function buildPreview(
+  bodyHtml: string,
+  fallback = '',
+  limit = 1000,
+  maxParagraphs = 5,
+): string[] {
+  /*
+    Match <p>…</p> blocks. A regex is enough here because the body has already
+    been through sanitize-html, so the markup is well-formed and the tag set is
+    a known allowlist — this is not parsing arbitrary HTML from the wild.
+  */
+  const blocks = String(bodyHtml ?? '').match(/<p\b[^>]*>[\s\S]*?<\/p>/gi) ?? [];
+
+  const paragraphs: string[] = [];
+  let used = 0;
+
+  for (const block of blocks) {
+    const text = toPlainText(block);
+
+    // Skip furniture: empty paragraphs, and the one-line "Score: 8/10" style
+    // sign-offs, which read as noise at the top of a feature.
+    if (text.length < 40) continue;
+
+    paragraphs.push(text);
+    used += text.length;
+
+    if (paragraphs.length >= maxParagraphs || used >= limit) break;
+  }
+
+  if (paragraphs.length === 0) {
+    const plain = toPlainText(fallback);
+    return plain ? [plain] : [];
+  }
+
+  /*
+    Safety trim. If one paragraph blew past the budget on its own, cut the last
+    entry at a sentence boundary so the block does not run to a thousand words.
+  */
+  const last = paragraphs[paragraphs.length - 1];
+  if (used > limit * 1.4 && last.length > 200) {
+    const allowance = Math.max(200, limit - (used - last.length));
+    const clipped = last.slice(0, allowance);
+    const stop = Math.max(
+      clipped.lastIndexOf('. '),
+      clipped.lastIndexOf('! '),
+      clipped.lastIndexOf('? '),
+    );
+    paragraphs[paragraphs.length - 1] =
+      stop > allowance * 0.5
+        ? clipped.slice(0, stop + 1)
+        : `${clipped.slice(0, Math.max(clipped.lastIndexOf(' '), 0))}…`;
+  }
+
+  return paragraphs;
 }
 
 /** Display date in the format the existing cache and cards already use. */
@@ -330,6 +431,8 @@ export function buildArticleRecord(item: RawFeedItem, now = new Date()): Article
       is short, fall back to the opening of the body — that is the hook.
     */
     excerpt: buildExcerpt(toPlainText(excerptSource), toPlainText(bodyHtml)),
+    /* The long form, for the magazine centre feature. See buildPreview(). */
+    preview: buildPreview(bodyHtml, excerptSource),
     image: item.enclosureUrl || firstImage(item.contentEncoded ?? ''),
     category: mapCategory(tags, `${title} ${toPlainText(item.description ?? '')}`),
     contentType: mapContentType(tags, `${title} ${toPlainText(item.description ?? '')}`),

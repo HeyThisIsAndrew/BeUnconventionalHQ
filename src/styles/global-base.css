@@ -29,6 +29,30 @@ body {
   color: var(--color-white);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
+
+  /*
+    REQUIRED by <BrandGlow />. Do not remove.
+
+    The glow is a fixed layer at `z-index: -1`, so that the footer's opaque
+    surface covers it rather than the glow washing over the footer. But a
+    negative z-index resolves against the nearest STACKING CONTEXT, and
+    without this line that context is the document root — where the paint
+    order is:
+
+        1. the root's background
+        2. negative-z-index descendants   ← the glow
+        3. in-flow block backgrounds      ← body's opaque black
+        …
+
+    …so body's own black background painted straight over it and the glow
+    disappeared from the whole site.
+
+    `isolation: isolate` makes body a stacking context of its own. The glow's
+    -1 now resolves inside it: above body's background (step 1 here) and below
+    everything in the flow (nav, main, footer). Same fix, same reason, as the
+    documented one on `.links-hub` in src/styles/links.css.
+  */
+  isolation: isolate;
 }
 
 /*

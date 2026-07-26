@@ -11,12 +11,31 @@
      underneath this opaque background instead, which makes it invisible. */
   isolation: isolate;
   background-color: var(--color-black);
+  /*
+    Two corner washes, both anchored ON a corner (0% or 100%), both fading to
+    transparent well inside the element.
+
+    Anchoring on the corner is the whole trick. The top glow used to sit at
+    `50% -20%` — centred and pushed off the top edge — so what you saw was the
+    lower band of a circle whose centre was outside the box: a wide arc across
+    the top, not a corner glow. The bottom-left one has always been anchored
+    properly, which is why it reads as a soft round pool of light, and it is
+    the reference for the top-right one below.
+
+    Keep the falloff percentage (40–45%) comfortably below 100%: the gradient
+    must reach full transparency INSIDE the element, or the box edge shows as
+    a hard straight line. Same rule as <BrandGlow />.
+  */
   background-image:
+    /* Top-right — the hero corner. Same shape as the bottom-left, a little
+       stronger because it is the one you land on. */
     radial-gradient(
-      circle at 50% -20%,
-      rgba(204, 0, 0, 0.15) 0%,
-      transparent 50%
+      circle at 100% 0%,
+      rgba(204, 0, 0, 0.13) 0%,
+      rgba(204, 0, 0, 0.04) 22%,
+      transparent 45%
     ),
+    /* Bottom-left — the quiet counterweight. Unchanged. */
     radial-gradient(
       circle at 0% 100%,
       rgba(204, 0, 0, 0.05) 0%,

@@ -14,6 +14,7 @@ import {
   toSlug,
   looksTruncated,
   buildArticleRecord,
+  buildPreview,
   mergeSnapshot,
 } from '../src/lib/articles-transform.ts';
 
@@ -181,6 +182,84 @@ test('a well-formed item produces a complete record', () => {
   assert.equal(record.hasBody, true);
   assert.ok(record.bodyHtml.startsWith('<h2>'), 'in-body h1 should be demoted');
   assert.equal(record.date, 'May 5, 2026');
+});
+
+// ── The magazine lede (buildPreview) ────────────────────────────────────────
+//
+// This is what fills the centre feature on /intel. The failure it exists to
+// prevent is a one-line preview under a large headline, leaving an obvious
+// empty block above the fold — so these tests are mostly about SIZE.
+
+const PARA = (n) =>
+  `<p>${'This is a sentence of roughly forty characters. '.repeat(n).trim()}</p>`;
+
+test('the lede is several paragraphs, not one line', () => {
+  const preview = buildPreview(PARA(5) + PARA(5) + PARA(5) + PARA(5));
+  assert.ok(preview.length >= 2, `expected multiple paragraphs, got ${preview.length}`);
+  assert.ok(
+    preview.join(' ').length > 600,
+    `expected a substantial lede, got ${preview.join(' ').length} chars`,
+  );
+});
+
+test('the lede stops at the character budget rather than dumping the article', () => {
+  const preview = buildPreview(PARA(4).repeat(40));
+  assert.ok(preview.join(' ').length < 1600, 'lede should not run past its budget');
+});
+
+test('the paragraph cap is respected even with very short paragraphs', () => {
+  const short = `<p>${'A short but usable paragraph of text here. '.repeat(2).trim()}</p>`;
+  assert.ok(buildPreview(short.repeat(20)).length <= 5);
+});
+
+test('headings, lists and figures are not treated as lede paragraphs', () => {
+  const preview = buildPreview(`<h2>What Works</h2><ul><li>Direction</li></ul>${PARA(5)}`);
+  assert.equal(preview.length, 1);
+  assert.ok(!preview[0].includes('What Works'));
+  assert.ok(!preview[0].includes('Direction'));
+});
+
+test('one-line furniture paragraphs are skipped', () => {
+  // "Score: 8/10" style sign-offs read as noise at the top of a feature.
+  const preview = buildPreview(`<p>Score: 8/10</p>${PARA(5)}`);
+  assert.equal(preview.length, 1);
+  assert.ok(!preview[0].startsWith('Score'));
+});
+
+test('a body with no paragraphs falls back to the supplied text', () => {
+  assert.deepEqual(buildPreview('<h2>Only a heading</h2>', 'The fallback.'), ['The fallback.']);
+});
+
+test('a body with nothing usable and no fallback yields an empty lede, not a crash', () => {
+  assert.deepEqual(buildPreview('', ''), []);
+});
+
+test('markup never survives into the lede', () => {
+  const preview = buildPreview(`<p><strong>Bold</strong> ${'text here and more of it. '.repeat(4)}</p>`);
+  assert.ok(!preview[0].includes('<'), 'lede must be plain text — it is rendered via textContent');
+});
+
+test('a single over-long paragraph is trimmed at a sentence boundary', () => {
+  const giant = `<p>${'Sentence number one is here. '.repeat(120)}</p>`;
+  const preview = buildPreview(giant);
+  assert.equal(preview.length, 1);
+  assert.ok(preview[0].length < 1600, `expected a trim, got ${preview[0].length} chars`);
+  assert.ok(/[.…]$/.test(preview[0]), 'trimmed lede should end cleanly');
+});
+
+test('every built record carries a lede', () => {
+  const record = buildArticleRecord(
+    {
+      title: 'Review',
+      link: 'https://x.substack.com/p/review',
+      guid: 'g',
+      pubDate: 'Tue, 05 May 2026 02:08:53 GMT',
+      contentEncoded: PARA(6) + PARA(6),
+      categories: ['Film'],
+    },
+    NOW,
+  );
+  assert.ok(Array.isArray(record.preview) && record.preview.length >= 1);
 });
 
 test('an item with no title is rejected rather than half-imported', () => {

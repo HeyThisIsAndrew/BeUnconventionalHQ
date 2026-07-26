@@ -28,7 +28,14 @@ interface Props {
 const { author = DEFAULT_BYLINE } = Astro.props;
 ---
 
-<div class="article-byline" rel="author">
+{/*
+  No `rel="author"`. `rel` is only valid on <a>, <link> and <area> — Astro's
+  typed HTML attributes reject it on a <div>, and Google retired the
+  rel=author signal years ago. Authorship for this page is expressed properly
+  in the Person node of the article's JSON-LD (src/pages/intel/[slug].astro),
+  which is what actually gets read.
+*/}
+<div class="article-byline">
   {/* Placeholder portrait until a real headshot is uploaded — see the
       follow-up in scripts/epic-001-article-syndication.md. */}
   <Image

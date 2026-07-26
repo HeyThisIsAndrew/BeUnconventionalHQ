@@ -28,6 +28,7 @@
  * divider border and which side the active accent bar sits on.
  */
 import ArticleThumb from './ArticleThumb.astro';
+import { articlePreview } from '../lib/articles';
 import type { ArticleRecord } from '../lib/articles';
 
 /** The shape a rail item needs: an article plus its resolved link. */
@@ -57,6 +58,12 @@ const { side, articles, activeSlug = '' } = Astro.props;
         IntelMagazine.astro when this item is clicked, to repaint the centre
         feature. If you add a field to the centre feature, add it here too.
 
+        `data-preview` carries the article's opening PARAGRAPHS, joined with a
+        blank line. An HTML attribute can only hold a string, so the array is
+        flattened here and split back apart in the script. It is deliberately
+        not HTML: the script rebuilds each paragraph with `textContent`, so
+        nothing from the feed is ever re-parsed as markup in the browser.
+
         Note: a comment has to sit OUTSIDE the tag like this one. Astro cannot
         parse a comment placed between two attributes inside a tag.
       */
@@ -66,7 +73,7 @@ const { side, articles, activeSlug = '' } = Astro.props;
         href={article.link}
         data-slug={article.slug}
         data-title={article.title}
-        data-excerpt={article.excerpt}
+        data-preview={articlePreview(article).join('\n\n')}
         data-image={article.image}
         data-category={article.category}
         data-date={article.date}

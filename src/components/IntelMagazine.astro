@@ -45,6 +45,7 @@ import MagazineRail from './MagazineRail.astro';
 import { Image } from 'astro:assets';
 import logoImage from '../assets/logo.webp';
 import { LABELS } from '../data/content.js';
+import { articlePreview } from '../lib/articles';
 import type { ArticleRecord } from '../lib/articles';
 
 type MagazineArticle = ArticleRecord & { link: string; isExternal: boolean };
@@ -163,7 +164,22 @@ const activeSlug = feature?.slug ?? '';
             {/* h2: the page <h1> is the "THE INTEL" title in the header. */}
             <h2 class="intel-feature-title" id="intel-feature-title">{feature.title}</h2>
 
-            <p class="intel-feature-excerpt" id="intel-feature-excerpt">{feature.excerpt}</p>
+            {/*
+              THE LEDE — several real paragraphs, not a one-line teaser.
+
+              The centre feature is a full editorial block: on desktop it sits
+              beside two rails of article tiles, and on a phone it is the first
+              thing on the page. A single sentence left a large empty area
+              under the "Read More" link, which read as a rendering fault
+              rather than as design. articlePreview() returns the article's
+              opening paragraphs (see buildPreview in articles-transform.ts).
+
+              A <div> of <p>s rather than one <p>, because a paragraph cannot
+              legally contain other paragraphs.
+            */}
+            <div class="intel-feature-excerpt" id="intel-feature-excerpt">
+              {articlePreview(feature).map((paragraph) => <p>{paragraph}</p>)}
+            </div>
 
             {/* "Read More" rather than "Read Now": the excerpt above is a
                 real preview, so this continues reading rather than starting
@@ -222,7 +238,29 @@ const activeSlug = feature?.slug ?? '';
       }
 
       if (title) title.textContent = data.title ?? '';
-      if (excerpt) excerpt.textContent = data.excerpt ?? '';
+
+      /*
+        Rebuild the lede paragraph by paragraph.
+
+        `data-preview` is the paragraphs joined with a blank line, so split on
+        that and create one <p> per entry. Each paragraph's text is set with
+        `textContent`, never innerHTML — so even though this content came from
+        an RSS feed originally, it can never execute as markup here.
+      */
+      if (excerpt) {
+        excerpt.replaceChildren(
+          ...(data.preview ?? '')
+            .split('\n\n')
+            .map((text) => text.trim())
+            .filter(Boolean)
+            .map((text) => {
+              const p = document.createElement('p');
+              p.textContent = text;
+              return p;
+            }),
+        );
+      }
+
       if (category) category.textContent = data.category ?? '';
       if (date) date.textContent = data.date ?? '';
 

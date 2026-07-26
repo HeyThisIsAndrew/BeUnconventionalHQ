@@ -35,7 +35,12 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { sanitizeArticleHtml, mapContentType, extractScore } from '../src/lib/articles-transform.ts';
+import {
+  sanitizeArticleHtml,
+  mapContentType,
+  extractScore,
+  buildPreview,
+} from '../src/lib/articles-transform.ts';
 
 const SNAPSHOT = path.join(process.cwd(), 'src', 'data', 'articles.json');
 const BACKUP = path.join(process.cwd(), 'src', 'data', 'articles.real.json');
@@ -99,17 +104,42 @@ const HEADLINES = [
 const coverFor = (index) =>
   `https://picsum.photos/seed/buhq-intel-${index}/1456/816`;
 
+/*
+  Sentence pool.
+
+  Deliberately LONG sentences. The magazine's centre feature on /intel renders
+  the article's opening paragraphs at full length, so short filler sentences
+  would leave that block half empty and hide the very layout problem this mock
+  content exists to test. Each entry is roughly the length of a real sentence
+  of criticism.
+*/
 const LOREM = [
-  'The opening act does the heavy lifting here, and it earns the runtime it asks for.',
-  'What lands hardest is the restraint — the willingness to sit in a scene long after a lesser production would have cut away.',
-  'There is a version of this that plays as fan service and nothing else. This is not that version.',
-  'The craft on display is genuinely startling: the lighting alone carries more story than most scripts manage in an hour.',
-  'It stumbles in the middle stretch, and the pacing never fully recovers, but the ending re-earns the goodwill.',
-  'Watching it with an audience changes it completely, which is the highest compliment I can pay a release like this.',
+  'The opening act does the heavy lifting here, and it earns every minute of the runtime it asks for, which is not something you can say about most releases arriving at this scale.',
+  'What lands hardest is the restraint — the willingness to sit inside a scene long after a lesser production would have cut away to something louder and less interesting.',
+  'There is a version of this that plays as fan service and nothing else, a feature-length nod to the people already in the room, and it is worth saying plainly that this is not that version.',
+  'The craft on display is genuinely startling: the lighting alone carries more story than most scripts manage across an entire hour, and the sound mix is doing quiet, unglamorous work underneath all of it.',
+  'It stumbles in the middle stretch, and the pacing never fully recovers from the detour it takes there, but the final twenty minutes re-earn almost all of the goodwill it spends.',
+  'Watching it with an audience changes the experience completely, which is the highest compliment I know how to pay a release built for a room this size.',
+  'The performances are pitched several degrees below where you expect them to be, and that choice pays off repeatedly in scenes that would otherwise tip straight into melodrama.',
+  'Structurally it is far more confident than its marketing suggested, moving between timelines without ever stopping to explain itself, and trusting that you will keep up.',
+  'There is a real argument that the third act asks too much of a single character, and I go back and forth on whether the ending earns the weight it puts on that decision.',
+  'Technically it is the most ambitious thing the team has attempted, and the seams show in exactly two places, neither of which will register on a first viewing.',
+  'The score deserves separate mention: it never announces an emotion before the frame has arrived at it, which is rarer and harder than it sounds.',
+  'By the time the credits roll it has made a genuine case for itself as more than a franchise obligation, and that is the bar this kind of project almost never clears.',
 ];
 
+/**
+ * Build `n` paragraphs of two sentences each — roughly 350 characters, which
+ * is about what a real paragraph of criticism runs to. Keeping mock paragraphs
+ * the same size as real ones matters: buildPreview() fills the magazine lede
+ * by whole paragraphs, so oversized mock paragraphs would overshoot the block
+ * and make the layout look correct here but wrong in production.
+ */
 const paragraphs = (n, seed) =>
-  Array.from({ length: n }, (_, i) => `<p>${LOREM[(seed + i) % LOREM.length]} ${LOREM[(seed + i + 2) % LOREM.length]}</p>`).join('');
+  Array.from(
+    { length: n },
+    (_, i) => `<p>${LOREM[(seed + i) % LOREM.length]} ${LOREM[(seed + i + 5) % LOREM.length]}</p>`,
+  ).join('');
 
 /** Body variants, so the article page is exercised against real shapes. */
 function bodyFor(variant, index, title) {
@@ -190,13 +220,8 @@ for (let i = 0; i < COUNT; i += 1) {
     }),
     isoDate: published.toISOString(),
     /*
-      A REAL preview, several sentences long.
-
-      The centre feature on /intel shows up to six lines, so a one-sentence
-      standfirst left most of that block empty — which is exactly what a
-      one-line excerpt would do with real content too. Derived from the body
-      here so mock records exercise the same "does the preview fill the
-      space" question the live pipeline's buildExcerpt() answers.
+      The SHORT preview — one block, used in card grids and as the page's meta
+      description. Mirrors buildExcerpt()'s 420-character budget.
     */
     excerpt: bodyHtml
       .replace(/<[^>]+>/g, ' ')
@@ -204,6 +229,12 @@ for (let i = 0; i < COUNT; i += 1) {
       .trim()
       .slice(0, 420)
       .replace(/\s+\S*$/, '…'),
+    /*
+      The LONG preview — the opening paragraphs, for the magazine's centre
+      feature. Built with the SAME function the real sync uses, so a bug in
+      the lede shows up in mock content instead of waiting for live articles.
+    */
+    preview: buildPreview(bodyHtml),
     // 'no-image' and 'long-title' variants intentionally ship no cover, to
     // exercise the branded logo/title fallback.
     image: variant === 'no-image' || variant === 'long-title' ? '' : coverFor(i),

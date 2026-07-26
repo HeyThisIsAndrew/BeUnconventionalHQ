@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer';
+import { launchTestBrowser } from './e2e-browser.mjs';
 import { spawn } from 'child_process';
 import assert from 'node:assert/strict';
 
@@ -22,7 +22,7 @@ async function runTests() {
   });
 
   console.log('Server is running. Launching Puppeteer...');
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await launchTestBrowser();
   let exitCode = 0;
 
   try {

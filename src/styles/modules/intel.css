@@ -206,19 +206,45 @@
   overflow-wrap: break-word;
 }
 
+/* ── The lede ───────────────────────────────────────────────────────────────
+
+   NOT clamped, and NOT a single paragraph.
+
+   This used to be one <p> with `-webkit-line-clamp: 6`. Two problems, both
+   visible on the live page: with a short excerpt the clamp never engaged and
+   the block rendered one line, leaving a large empty area under the "Read
+   More" link; and the clamp meant more text could never fix it.
+
+   Now the pipeline supplies the article's opening paragraphs (buildPreview in
+   src/lib/articles-transform.ts) and this block renders all of them, so the
+   feature column carries real editorial weight beside the rails.
+
+   To make the lede shorter or longer, change `limit` / `maxParagraphs` in
+   buildPreview — not a clamp here. That way the HTML and the visible text stay
+   the same thing, which matters because this copy is indexable.
+*/
 .intel-feature-excerpt {
   font-size: 1rem;
   line-height: 1.7;
   color: var(--color-white-muted);
   /* ~68ch is the comfortable measure for reading; flush left, not centred. */
   max-width: 68ch;
-  margin: 0 0 1.5rem;
-  /* Show a real hook — up to six lines — rather than a one-line teaser.
-     Anything longer is what the article page is for. */
-  display: -webkit-box;
-  -webkit-line-clamp: 6;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  margin: 0 0 1.75rem;
+}
+
+.intel-feature-excerpt p {
+  margin: 0 0 1.15rem;
+}
+
+/* The first paragraph is the standfirst — slightly larger and brighter, the
+   way a magazine sets its opening line apart from the body beneath it. */
+.intel-feature-excerpt p:first-child {
+  font-size: 1.075rem;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.intel-feature-excerpt p:last-child {
+  margin-bottom: 0;
 }
 
 /* "Read More" affordance under the excerpt. */
@@ -489,4 +515,53 @@
 .intel-rail-thumb > .article-thumb-fallback {
   width: 100%;
   height: 100%;
+}
+
+/* ── MOBILE DENSITY ─────────────────────────────────────────────────────────
+
+   WHY
+   On a phone the magazine spread stacks: the feature, then all seven rail
+   tiles in a single column, then the video strip, then twelve archive cards.
+   That is over twenty full-width blocks before the footer — enough that the
+   page reads as endless rather than browsable.
+
+   WHAT THIS DOES
+   Below 560px the spread keeps the feature plus the two newest rail tiles and
+   hides the rest. Nothing is lost: every hidden article still appears in the
+   archive grid further down, and on the category pages. The magazine is an
+   opening statement, and on a phone a shorter statement is a better one.
+
+   `display: none` rather than a smaller render count so this stays a pure CSS
+   concern — the server output is identical at every width, which keeps the
+   page cacheable and avoids a layout shift on load.
+*/
+@media (max-width: 560px) {
+  /* Left rail holds indices 0,2,4,6 — keep the first (the feature's own tile
+     is index 0, so this is the first tile AFTER it in reading order). */
+  .intel-rail-left .intel-rail-item:nth-child(n + 3),
+  .intel-rail-right .intel-rail-item:nth-child(n + 2) {
+    display: none;
+  }
+
+  /*
+    The lede keeps its opening paragraphs and drops the rest.
+
+    On desktop the lede is sized to stand beside four rail tiles. On a phone
+    there is nothing beside it — the rails are below — so the full lede is
+    just a long scroll before the reader reaches anything else. Two paragraphs
+    is still a real preview, and the full text remains in the HTML for search
+    engines, which is why this is a CSS trim and not a shorter build.
+  */
+  .intel-feature-excerpt p:nth-child(n + 3) {
+    display: none;
+  }
+
+  /* Tighter rhythm for what remains. */
+  .intel-magazine {
+    margin-bottom: 2.5rem;
+  }
+
+  .intel-break {
+    margin-bottom: 3rem;
+  }
 }
