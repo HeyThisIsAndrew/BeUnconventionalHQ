@@ -1,0 +1,141 @@
+---
+/**
+ * BrandGlow — the cinematic red glow in the upper-right of every page.
+ *
+ * ─── WHAT IT IS ───────────────────────────────────────────────────────────
+ * A soft red radial wash, lifted from the Media Kit and Press Kit where it
+ * already existed, and promoted here to a site-wide brand signature.
+ *
+ * ─── WHY IT IS BUILT THIS WAY (performance) ───────────────────────────────
+ * This is decorative and sits behind everything, so it must cost as close to
+ * nothing as possible:
+ *
+ *   • It is a CSS `radial-gradient`, NOT an image. No extra network request,
+ *     nothing for Lighthouse to flag as an unoptimised asset, and it cannot
+ *     become the LCP element.
+ *   • `position: fixed` + `pointer-events: none` keeps it out of the layout
+ *     and out of the way of clicks.
+ *   • The animation moves ONLY `opacity` and `transform`. Those two are the
+ *     properties a browser can animate on the GPU without recalculating
+ *     layout or repainting, so the "breathing" costs no main-thread work and
+ *     will not move CLS or TBT.
+ *   • It is hidden entirely under `prefers-reduced-motion` and on small
+ *     screens, where it would eat paint area for no benefit.
+ *
+ * ─── WHY THE POSITION VARIES ──────────────────────────────────────────────
+ * A glow pinned to the exact same pixel on every page reads as a watermark.
+ * Each page picks one of a few positions so it feels organic. That choice is
+ * made at BUILD time from the page's URL, not with `Math.random()` at
+ * runtime — a random value would differ between the server-rendered HTML and
+ * the client, causing a hydration mismatch, and would make every page's HTML
+ * uncacheable. Same URL always gets the same offset; different pages differ.
+ *
+ * ─── HOW TO TUNE IT ───────────────────────────────────────────────────────
+ *   intensity   how strong the red is (opacity of the gradient's centre)
+ *   POSITIONS   the set of offsets a page can land on
+ *   Disable the motion entirely by setting `animate={false}`.
+ */
+
+interface Props {
+  /** 0–1. Higher is a stronger red. Default matches the Media Kit. */
+  intensity?: number;
+  /** Set false for pages where even a subtle drift would distract. */
+  animate?: boolean;
+}
+
+const { intensity = 0.15, animate = true } = Astro.props;
+
+/*
+  The offsets a glow can occupy — all within the top-right quadrant, which is
+  where the Media Kit established it. Add or adjust entries to change the
+  spread of possible placements.
+*/
+const POSITIONS = [
+  { top: '-12%', right: '-10%', size: '52%' },
+  { top: '-6%', right: '-14%', size: '46%' },
+  { top: '-16%', right: '-4%', size: '58%' },
+  { top: '-2%', right: '-8%', size: '50%' },
+];
+
+/*
+  Pick one deterministically from the page's path. A simple character-sum hash
+  is enough here — we only need "stable per URL and spread across the set",
+  not cryptographic quality.
+*/
+const path = Astro.url.pathname;
+let hash = 0;
+for (let i = 0; i < path.length; i += 1) hash = (hash + path.charCodeAt(i)) % 997;
+const pos = POSITIONS[hash % POSITIONS.length];
+---
+
+<div
+  class:list={['brand-glow', { 'is-animated': animate }]}
+  aria-hidden="true"
+  style={`
+    --glow-top: ${pos.top};
+    --glow-right: ${pos.right};
+    --glow-size: ${pos.size};
+    --glow-intensity: ${intensity};
+  `}
+>
+</div>
+
+<style>
+  .brand-glow {
+    position: fixed;
+    top: var(--glow-top);
+    right: var(--glow-right);
+    width: var(--glow-size);
+    height: var(--glow-size);
+
+    /* The wash itself. rgba(204,0,0) is --color-accent; it is written out
+       rather than referenced because a gradient colour stop cannot take a
+       bare custom property and apply an alpha to it. */
+    background: radial-gradient(
+      circle,
+      rgba(204, 0, 0, var(--glow-intensity)) 0%,
+      rgba(10, 10, 10, 0) 70%
+    );
+
+    /* Behind all content but above the page background. */
+    z-index: 0;
+    pointer-events: none;
+
+    /* Promote to its own compositor layer so the animation below never
+       triggers a repaint of the page underneath. */
+    will-change: opacity, transform;
+  }
+
+  /* Slow breathing drift. 24s is deliberately long — at this scale anything
+     faster reads as a distraction rather than atmosphere. */
+  @keyframes brand-glow-breathe {
+    0%,
+    100% {
+      opacity: 0.85;
+      transform: scale(1) translate3d(0, 0, 0);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.08) translate3d(-1.5%, 1.5%, 0);
+    }
+  }
+
+  .brand-glow.is-animated {
+    animation: brand-glow-breathe 24s ease-in-out infinite;
+  }
+
+  /* Anyone who has asked their OS to reduce motion gets a static glow. */
+  @media (prefers-reduced-motion: reduce) {
+    .brand-glow.is-animated {
+      animation: none;
+    }
+  }
+
+  /* Phones: hidden. A large fixed gradient is pure paint cost on the devices
+     least able to afford it, and at that size it is barely perceptible. */
+  @media (max-width: 768px) {
+    .brand-glow {
+      display: none;
+    }
+  }
+</style>

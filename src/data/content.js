@@ -138,6 +138,8 @@ export const SECTIONS = {
    ═══════════════════════════════════════════════════════════════════════════ */
 export const LABELS = {
   readNow: 'Read Now',
+  readMore: 'Read More',
+  nextArticle: 'Next Article',
   watchNow: 'Watch Now',
   viewAllContent: 'View All Content',
   viewAllVideos: 'All Videos',
@@ -147,6 +149,7 @@ export const LABELS = {
   backHome: 'Back to Home',
   browseFeed: 'Browse the Feed',
   categories: 'Categories',
+  subscribe: 'Subscribe',
   subscribeSubstack: 'Subscribe on Substack',
   subscribeYouTube: 'Subscribe on YouTube',
 };
@@ -162,6 +165,7 @@ export const MESSAGES = {
   notFoundBody:
     "This one went off-script. The page you're after moved, vanished, or never existed, but the good stuff is still one click away.",
   subscribeSubtitle: `New videos and articles, straight from ${site.name}.`,
+  newsletterFineprint: 'No spam. Unsubscribe any time.',
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════

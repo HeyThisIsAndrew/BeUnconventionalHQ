@@ -1,0 +1,131 @@
+---
+/**
+ * NewsletterForm — native email capture.
+ *
+ * ─── WHY THIS EXISTS ──────────────────────────────────────────────────────
+ * The subscribe band used to send readers to Substack. That is a traffic
+ * leak: the reader leaves, Substack owns the relationship, and we cannot mail
+ * our own audience. This captures the address here instead.
+ *
+ * The Substack and YouTube links are NOT removed — they still sit alongside
+ * as secondary options. This is an addition, not a replacement.
+ *
+ * ─── WHERE THE EMAIL GOES ─────────────────────────────────────────────────
+ * POSTs to `/api/subscribe` (src/pages/api/subscribe.ts), which stores the
+ * address in the Cloudflare `SUBSCRIBERS` KV namespace. That endpoint already
+ * existed; this form is simply a proper UI for it.
+ *
+ * Turnstile: the endpoint accepts a `cf-turnstile-response` token, and skips
+ * it when the visitor already has an `hq_verified` cookie. This form does not
+ * render a Turnstile widget yet — wiring that in is a follow-up, and until
+ * then submissions rely on the endpoint's own validation.
+ *
+ * ─── HOW THE STATES WORK ──────────────────────────────────────────────────
+ * idle → submitting → success | error. Each is a class on the form, so the
+ * CSS decides what is visible and no markup is created or destroyed. The
+ * status message is an `aria-live` region so screen readers hear the result.
+ *
+ * ─── HOW TO RESTYLE IT ────────────────────────────────────────────────────
+ * `.newsletter-form` and friends in styles/modules/newsletter.css.
+ */
+import { LABELS, MESSAGES } from '../data/content.js';
+---
+
+<form class="newsletter-form" id="newsletter-form" novalidate>
+  <div class="newsletter-row">
+    <label class="sr-only" for="newsletter-email">Email address</label>
+    <input
+      class="newsletter-input"
+      id="newsletter-email"
+      name="email"
+      type="email"
+      inputmode="email"
+      autocomplete="email"
+      required
+      placeholder="you@example.com"
+      aria-describedby="newsletter-status"
+    />
+    <button class="cta-button-primary newsletter-submit" type="submit">
+      <span class="newsletter-submit-label">{LABELS.subscribe ?? 'Subscribe'}</span>
+      <span class="newsletter-spinner" aria-hidden="true"></span>
+    </button>
+  </div>
+
+  {/* aria-live so the outcome is announced, not just shown. `role="status"`
+      keeps it polite rather than interrupting. */}
+  <p class="newsletter-status" id="newsletter-status" role="status" aria-live="polite"></p>
+
+  <p class="newsletter-fineprint">{MESSAGES.newsletterFineprint}</p>
+</form>
+
+<script>
+  /*
+    Newsletter submit handler.
+
+    Bound on astro:page-load because this site uses Astro's ClientRouter —
+    a handler bound to DOMContentLoaded would stop working after the first
+    client-side navigation.
+  */
+  function initNewsletterForm() {
+    const form = document.getElementById('newsletter-form') as HTMLFormElement | null;
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = 'true';
+
+    const input = form.querySelector<HTMLInputElement>('.newsletter-input');
+    const status = form.querySelector<HTMLElement>('.newsletter-status');
+    if (!input || !status) return;
+
+    /** Swap the form's state class. CSS handles everything visual from here. */
+    function setState(state: 'idle' | 'submitting' | 'success' | 'error', message = '') {
+      form!.classList.remove('is-submitting', 'is-success', 'is-error');
+      if (state !== 'idle') form!.classList.add(`is-${state}`);
+      status!.textContent = message;
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const email = input.value.trim();
+
+      // Validate before touching the network — `type="email"` gives us the
+      // browser's own check for free, which is stricter than any regex worth
+      // hand-writing here.
+      if (!email || !input.checkValidity()) {
+        setState('error', 'Please enter a valid email address.');
+        input.focus();
+        return;
+      }
+
+      setState('submitting', 'Subscribing…');
+
+      try {
+        const response = await fetch('/api/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (response.ok && data.success) {
+          setState('success', "You're on the list. Watch your inbox.");
+          form!.reset();
+        } else {
+          // Surface the endpoint's own message when it gives one — it knows
+          // more than we do about why it refused.
+          setState('error', data.error ?? 'Something went wrong. Please try again.');
+        }
+      } catch {
+        setState('error', 'Network error. Please try again.');
+      }
+    });
+
+    // Typing after a failure clears the error, so the message never lingers
+    // over input the reader has already corrected.
+    input.addEventListener('input', () => {
+      if (form!.classList.contains('is-error')) setState('idle');
+    });
+  }
+
+  document.addEventListener('astro:page-load', initNewsletterForm);
+</script>

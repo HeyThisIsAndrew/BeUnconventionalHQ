@@ -23,6 +23,10 @@ export interface ArticleRecord {
   excerpt: string;
   image: string;
   category: string;
+  /** What KIND of piece — Review, Analysis, Dispatch… (see articles-transform). */
+  contentType?: string;
+  /** Out-of-N score for reviews that state one. */
+  score?: { value: number; best: number } | null;
   tags: string[];
   bodyHtml: string;
   /** False when the feed gave us no usable body — see articleHref(). */
@@ -105,6 +109,33 @@ export function articleHref(record: Pick<ArticleRecord, 'hasBody' | 'slug' | 'li
 /** True when the href leaves the site, so callers know to add target/rel. */
 export function isExternalArticle(record: Pick<ArticleRecord, 'hasBody' | 'slug'>): boolean {
   return !(record.hasBody && record.slug);
+}
+
+/**
+ * The next article to read after this one.
+ *
+ * Returns the next-older published article, wrapping to the newest at the end
+ * of the archive so the reader is never handed a dead end.
+ */
+export function getNextArticle(slug: string): ArticleRecord | undefined {
+  const published = getPublishedArticles();
+  if (published.length < 2) return undefined;
+  const index = published.findIndex((a) => a.slug === slug);
+  if (index === -1) return published[0];
+  return published[(index + 1) % published.length];
+}
+
+/**
+ * Other articles worth surfacing beside this one.
+ *
+ * Prefers the same category (a Film reader most likely wants more Film), then
+ * tops up with the newest from anywhere so the rail is never half empty.
+ */
+export function getRelatedArticles(slug: string, category: string, limit = 4): ArticleRecord[] {
+  const published = getPublishedArticles().filter((a) => a.slug !== slug);
+  const sameCategory = published.filter((a) => a.category === category);
+  const rest = published.filter((a) => a.category !== category);
+  return [...sameCategory, ...rest].slice(0, limit);
 }
 
 /**

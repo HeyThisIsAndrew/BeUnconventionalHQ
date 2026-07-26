@@ -119,6 +119,82 @@ export function mapCategory(tags: string[] = [], text = ''): string {
   return FALLBACK_CATEGORY;
 }
 
+/**
+ * CONTENT TYPE — what KIND of article this is, as distinct from its subject.
+ *
+ * `category` answers "what is it about" (Film / TV / Gaming / Events).
+ * `contentType` answers "what is it" (a Review, an Analysis, a Dispatch...).
+ *
+ * Both are needed. Search engines treat a review very differently from a news
+ * piece — a Review can carry a rating and appear in rich results, while news
+ * belongs in NewsArticle. See the schema selection in src/pages/intel/[slug].
+ *
+ * Detection order mirrors mapCategory(): explicit tag first, then keywords in
+ * the title. Tagging a Substack post `Review` is the reliable path; the title
+ * scan is a fallback so untagged posts still get something sensible.
+ */
+export const CONTENT_TYPES = ['Review', 'Analysis', 'Dispatch', 'Announcement', 'Interview'] as const;
+export type ContentType = (typeof CONTENT_TYPES)[number];
+
+const CONTENT_TYPE_KEYWORDS: Record<string, string[]> = {
+  Review: ['review', 'reviewed', 'verdict', 'rating'],
+  // "Dispatch" is on-the-ground reporting: conventions, premieres, set visits.
+  Dispatch: ['dispatch', 'onlocation', 'hallh', 'sdcc', 'd23', 'nycc', 'premiere', 'recap', 'coverage'],
+  Announcement: ['announced', 'announcement', 'revealed', 'confirms', 'confirmed', 'trailer', 'release date'],
+  Interview: ['interview', 'sitdown', 'conversation with', 'talks'],
+  // Analysis is the default for opinion/essay pieces, so its keywords are the
+  // broadest and it is checked last.
+  Analysis: ['analysis', 'why', 'explained', 'breakdown', 'deepdive', 'essay', 'the case for'],
+};
+
+/** Default when nothing matches — most editorial writing is analysis. */
+const FALLBACK_CONTENT_TYPE: ContentType = 'Analysis';
+
+export function mapContentType(tags: string[] = [], text = ''): ContentType {
+  const normalizedTags = tags.map(normalizeToken).filter(Boolean);
+
+  // 1. An explicit tag naming the type outright.
+  for (const type of CONTENT_TYPES) {
+    if (normalizedTags.includes(normalizeToken(type))) return type;
+  }
+
+  // 2. A tag matching that type's keyword set.
+  for (const [type, keywords] of Object.entries(CONTENT_TYPE_KEYWORDS)) {
+    if (normalizedTags.some((t) => keywords.map(normalizeToken).includes(t))) {
+      return type as ContentType;
+    }
+  }
+
+  // 3. Title/description scan. Checked in CONTENT_TYPES order so the more
+  //    specific types win over the broad Analysis keywords.
+  const haystack = ` ${String(text).toLowerCase()} `;
+  for (const type of CONTENT_TYPES) {
+    const keywords = CONTENT_TYPE_KEYWORDS[type] ?? [];
+    if (keywords.some((k) => haystack.includes(` ${k} `) || haystack.includes(k))) {
+      return type as ContentType;
+    }
+  }
+
+  return FALLBACK_CONTENT_TYPE;
+}
+
+/**
+ * Pull an out-of-10 (or out-of-5) score from a review body, if present.
+ *
+ * Reviews that state a score can carry it into Review schema, which is what
+ * makes a rating eligible for rich results. Matches "8.5/10", "Score: 9/10",
+ * "4/5". Returns null when there is no score — most posts.
+ */
+export function extractScore(html: string): { value: number; best: number } | null {
+  const text = toPlainText(html);
+  const match = text.match(/(?:score|rating)?\s*:?\s*\b(\d{1,2}(?:\.\d)?)\s*\/\s*(10|5)\b/i);
+  if (!match) return null;
+  const value = Number(match[1]);
+  const best = Number(match[2]);
+  if (!Number.isFinite(value) || value < 0 || value > best) return null;
+  return { value, best };
+}
+
 /** URL-safe slug. Derived from the Substack permalink when possible. */
 export function toSlug(link: string, title: string): string {
   const fromLink = String(link ?? '').match(/\/p\/([^/?#]+)/);
@@ -178,11 +254,34 @@ export interface ArticleRecord {
   excerpt: string;
   image: string;
   category: string;
+  /** What KIND of piece this is — Review, Analysis, Dispatch… */
+  contentType: string;
+  /** Out-of-N score for reviews that state one, else null. */
+  score: { value: number; best: number } | null;
   tags: string[];
   bodyHtml: string;
   hasBody: boolean;
   firstSeen: string;
   lastUpdated: string;
+}
+
+/**
+ * Build the preview excerpt.
+ *
+ * Prefers the feed's own description, but falls back to the article's opening
+ * paragraphs when that description is too short to fill the preview block.
+ * Trimmed at a sentence boundary where possible so it never ends mid-word.
+ */
+function buildExcerpt(description: string, body: string, limit = 420): string {
+  const source = description.length >= 160 ? description : body || description;
+  if (source.length <= limit) return source;
+
+  const clipped = source.slice(0, limit);
+  // Prefer to end on a sentence; otherwise the last whole word.
+  const lastStop = Math.max(clipped.lastIndexOf('. '), clipped.lastIndexOf('! '), clipped.lastIndexOf('? '));
+  if (lastStop > limit * 0.5) return clipped.slice(0, lastStop + 1);
+  const lastSpace = clipped.lastIndexOf(' ');
+  return `${clipped.slice(0, lastSpace > 0 ? lastSpace : limit)}…`;
 }
 
 /** Display date in the format the existing cache and cards already use. */
@@ -225,9 +324,16 @@ export function buildArticleRecord(item: RawFeedItem, now = new Date()): Article
     link,
     date: formatDisplayDate(isoDate),
     isoDate,
-    excerpt: toPlainText(excerptSource).slice(0, 280),
+    /*
+      A real preview, not a teaser. The section page shows up to six lines, so
+      280 characters left the block half empty. If the feed's own description
+      is short, fall back to the opening of the body — that is the hook.
+    */
+    excerpt: buildExcerpt(toPlainText(excerptSource), toPlainText(bodyHtml)),
     image: item.enclosureUrl || firstImage(item.contentEncoded ?? ''),
     category: mapCategory(tags, `${title} ${toPlainText(item.description ?? '')}`),
+    contentType: mapContentType(tags, `${title} ${toPlainText(item.description ?? '')}`),
+    score: extractScore(bodyHtml),
     tags,
     bodyHtml,
     hasBody: Boolean(bodyHtml) && !looksTruncated(bodyHtml),

@@ -1,0 +1,95 @@
+---
+/**
+ * ArticleSupportRail — the sticky right-hand rail on an article page.
+ *
+ * ─── WHAT GOES IN IT ──────────────────────────────────────────────────────
+ * Affiliate links and a short "more reading" list. Deliberately restrained:
+ * no third-party ad network, no tracking scripts, nothing that shifts layout.
+ * Everything here is a plain link we control.
+ *
+ * ─── THE DISCLOSURE IS NOT OPTIONAL ───────────────────────────────────────
+ * Affiliate links legally require disclosure (FTC guidance in the US). The
+ * note at the top of the block is that disclosure — do not remove it, and
+ * keep it above the links rather than buried below them.
+ *
+ * ─── HOW TO ADD OR CHANGE A PARTNER ───────────────────────────────────────
+ * Edit AFFILIATES below. `href` should be your tagged link. Anything without
+ * a real URL is skipped, so a half-filled entry cannot ship a dead link.
+ */
+import { site } from '../data/site.js';
+import type { ArticleRecord } from '../lib/articles';
+import { ARTICLE_SECTION } from '../data/sections.js';
+
+interface Props {
+  /** A couple of further-reading links. Pass [] to omit that block. */
+  related?: ArticleRecord[];
+}
+
+const { related = [] } = Astro.props;
+
+/*
+  Affiliate partners.
+
+  Amazon uses the storefront already configured in site.socials so there is one
+  source of truth for it. Add entries as partnerships are signed; entries with
+  no href are filtered out below.
+*/
+const AFFILIATES = [
+  {
+    label: 'Amazon Storefront',
+    blurb: 'Gear, films and shows we actually recommend.',
+    href: site.socials.amazon,
+  },
+  {
+    label: 'Mint Mobile',
+    blurb: 'The plan that funds on-location coverage.',
+    href: '', // TODO: add the tagged referral link when the partnership is live.
+  },
+].filter((item) => Boolean(item.href));
+---
+
+<aside class="article-rail article-rail-right" aria-labelledby="article-support-head">
+  <div class="article-rail-sticky">
+    <p class="article-rail-head" id="article-support-head">Support The HQ</p>
+
+    {/* The disclosure. Above the links, plainly worded, always present. */}
+    <p class="article-rail-disclosure">
+      Self-funded &amp; independent. Some links below are affiliate links — using
+      them costs you nothing and helps fund coverage.
+    </p>
+
+    {AFFILIATES.length > 0 && (
+      <ul class="article-affiliate-list">
+        {AFFILIATES.map((item) => (
+          <li>
+            <a
+              class="article-affiliate"
+              href={item.href}
+              target="_blank"
+              rel="noopener noreferrer sponsored"
+            >
+              <span class="article-affiliate-label">{item.label}</span>
+              <span class="article-affiliate-blurb">{item.blurb}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    )}
+
+    {related.length > 0 && (
+      <div class="article-rail-related">
+        <p class="article-rail-head">More From {ARTICLE_SECTION.name}</p>
+        <ul class="article-related-list">
+          {related.map((item) => (
+            <li>
+              <a href={`${ARTICLE_SECTION.path}/${item.slug}`} class="article-related-item">
+                <span class="article-related-meta">{item.category}</span>
+                <span class="article-related-title">{item.title}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
+  </div>
+</aside>

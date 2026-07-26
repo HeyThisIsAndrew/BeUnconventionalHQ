@@ -237,6 +237,316 @@
   color: var(--color-accent);
 }
 
-.article-back {
+/* .article-back replaced by .article-actions below — the old bare margin-top
+   is what allowed the button to overlap the subscribe band. */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THREE-COLUMN ARTICLE LAYOUT
+
+   ┌───────────┬──────────────────────┬───────────┐
+   │ CONTENTS  │  reading column      │ SUPPORT   │
+   │ (sticky)  │  ~44rem              │ (sticky)  │
+   └───────────┴──────────────────────┴───────────┘
+
+   The centre column keeps its 44rem cap — that is the readable measure and it
+   does not change just because there is now space either side. The rails take
+   the leftover width.
+
+   Below 1200px both rails are removed and the reading column becomes the page.
+   They are `display: none`, not merely hidden, so their content is not read
+   out to screen readers as an empty region on mobile.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.article-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) minmax(0, 17rem);
+  gap: 3rem;
+  align-items: start;
+  width: 100%;
+}
+
+/* The reading column sits centred within its (wider) middle track. */
+.article-layout > .article-column {
+  justify-self: center;
+}
+
+@media (max-width: 1200px) {
+  .article-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .article-rail {
+    display: none;
+  }
+}
+
+/* ── Rails ──────────────────────────────────────────────────────────────── */
+
+.article-rail {
+  /* `top` clears the fixed navbar so a sticky rail never slides under it. */
+  position: sticky;
+  top: 7rem;
+  align-self: start;
+  max-height: calc(100vh - 9rem);
+  overflow-y: auto;
+  /* Thin scrollbar only when the rail actually overflows. */
+  scrollbar-width: thin;
+}
+
+.article-rail-head {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-white);
+  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ── Contents (left rail) ───────────────────────────────────────────────── */
+
+.article-toc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.article-toc-item.is-sub {
+  padding-left: 0.9rem;
+}
+
+.article-toc-list a {
+  display: block;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--color-white-muted);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  padding-left: 0.75rem;
+  transition:
+    color 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.article-toc-list a:hover {
+  color: var(--color-white);
+}
+
+/* The section currently on screen, set by the rail's IntersectionObserver. */
+.article-toc-list a.active {
+  color: var(--color-white);
+  border-left-color: var(--color-accent);
+}
+
+/* ── Support (right rail) ───────────────────────────────────────────────── */
+
+.article-rail-disclosure {
+  font-size: 0.7rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 1.25rem;
+}
+
+.article-affiliate-list,
+.article-related-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.article-affiliate {
+  display: block;
+  padding: 0.9rem 1rem;
+  background: var(--color-surface);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  text-decoration: none;
+  transition:
+    border-color 0.3s ease,
+    background-color 0.3s ease;
+}
+
+.article-affiliate:hover {
+  border-color: var(--color-accent);
+  background: rgba(204, 0, 0, 0.06);
+}
+
+.article-affiliate-label {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--color-white);
+  margin-bottom: 0.25rem;
+}
+
+.article-affiliate-blurb {
+  display: block;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--color-white-muted);
+}
+
+.article-rail-related {
+  margin-top: 2rem;
+}
+
+/* ── Suggested reading (in-column, below the article) ───────────────────── */
+
+.article-related {
+  margin-top: 3.5rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.article-related .intel-break-title {
+  margin-bottom: 1.25rem;
+}
+
+.article-related-item {
+  display: block;
+  padding: 0.85rem 0;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.article-related-meta {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-white-muted);
+  margin-bottom: 0.3rem;
+}
+
+.article-related-title {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--color-white);
+  transition: color 0.25s ease;
+}
+
+.article-related-item:hover .article-related-title {
+  color: var(--color-accent);
+}
+
+/* ── Taxonomy tags in the eyebrow ───────────────────────────────────────── */
+
+.article-eyebrow {
+  flex-wrap: wrap;
+}
+
+.article-tag {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid currentColor;
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-decoration: none;
+  line-height: 1.4;
+}
+
+/* Subject (Film / TV / Gaming) — accent, and a link to that topic page. */
+.article-tag-category {
+  color: var(--color-accent);
+}
+
+.article-tag-category:hover {
+  background: rgba(204, 0, 0, 0.12);
+}
+
+/* Kind (Review / Analysis / Dispatch) — quieter, not a link. */
+.article-tag-type {
+  color: var(--color-white-muted);
+}
+
+.article-score {
+  margin-left: auto;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--color-white);
+  letter-spacing: 0.05em;
+}
+
+/* ── Byline ─────────────────────────────────────────────────────────────── */
+
+.article-byline {
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.article-byline-avatar {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  object-fit: contain;
+  background: var(--color-surface);
+  padding: 4px;
+}
+
+.article-byline-copy {
+  min-width: 0;
+}
+
+.article-byline-name {
+  font-size: 0.9rem;
+  color: var(--color-white-muted);
+}
+
+.article-byline-role {
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  margin-top: 0.15rem;
+}
+
+.article-byline-bio {
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--color-white-muted);
+  margin-top: 0.5rem;
+  max-width: 46ch;
+}
+
+/* ── End-of-article actions ─────────────────────────────────────────────── */
+
+/*
+   The overlap fix.
+
+   This row used to be a single button with a bare `margin-top`, which let it
+   collide with the subscribe band underneath. A grid with its own bottom
+   margin cannot overlap what follows it, however long the article is.
+*/
+.article-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
   margin-top: 3rem;
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 560px) {
+  .article-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.article-actions .cta-button-primary {
+  text-align: center;
+  padding-inline: 1.5rem;
 }

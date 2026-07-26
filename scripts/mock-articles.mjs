@@ -35,7 +35,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { sanitizeArticleHtml } from '../src/lib/articles-transform.ts';
+import { sanitizeArticleHtml, mapContentType, extractScore } from '../src/lib/articles-transform.ts';
 
 const SNAPSHOT = path.join(process.cwd(), 'src', 'data', 'articles.json');
 const BACKUP = path.join(process.cwd(), 'src', 'data', 'articles.real.json');
@@ -149,6 +149,7 @@ function bodyFor(variant, index, title) {
     <ol><li>The second act sags</li><li>One subplot goes nowhere</li></ol>
     <h3>The Verdict</h3>
     ${paragraphs(2, index + 4)}
+    <p><strong>Score: ${(6 + (index % 4)) + (index % 2 ? '.5' : '')}/10</strong></p>
     <hr>
     <p>Read more coverage on <a href="https://beunconventionalhq.substack.com/">the Substack</a>.</p>`;
 
@@ -196,6 +197,10 @@ for (let i = 0; i < COUNT; i += 1) {
     // exercise the branded logo/title fallback.
     image: variant === 'no-image' || variant === 'long-title' ? '' : coverFor(i),
     category,
+    /* Derived with the SAME functions the real sync uses, so mock records
+       exercise the live taxonomy rather than a parallel guess. */
+    contentType: mapContentType([category], title),
+    score: extractScore(bodyHtml),
     tags: [category],
     bodyHtml,
     hasBody,

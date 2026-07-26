@@ -1,10 +1,12 @@
 ---
 import { SECTIONS } from '../data/content.js';
+import { ARTICLE_SECTION } from '../data/sections.js';
 import { getArticleItems } from '../lib/feed-items';
 import PageTitle from './PageTitle.astro';
 import ContentCard from './ContentCard.astro';
 const allArticles = getArticleItems();
-const latestArticles = allArticles.slice(0, 3);
+// Four, so the row divides evenly into 2x2 on mobile landscape.
+const latestArticles = allArticles.slice(0, 4);
 ---
 
 <section class="latest-section">
@@ -20,7 +22,11 @@ const latestArticles = allArticles.slice(0, 3);
     }
   </div>
 
+  {/* Routes to /intel — this row is the article section's shopfront, so the
+      link goes to the article section, not the mixed Feed. */}
   <div class="latest-view-all animate-on-scroll">
-    <a href={`/feed`} class="view-all-link"> View All Content → </a>
+    <a href={ARTICLE_SECTION.path} class="view-all-link">
+      All {ARTICLE_SECTION.name} &rarr;
+    </a>
   </div>
 </section>

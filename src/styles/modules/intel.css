@@ -187,9 +187,12 @@
   outline-offset: -2px;
 }
 
+/* Left-aligned, not centred. Centred headlines and body copy read as a
+   marketing splash; every editorial outlet (Deadline, Collider, IGN) sets
+   article furniture flush left because it is what the eye tracks down. */
 .intel-feature-copy {
   padding: 2.5rem 2.5rem 3rem;
-  text-align: center;
+  text-align: left;
 }
 
 .intel-feature-title {
@@ -207,10 +210,18 @@
   font-size: 1rem;
   line-height: 1.7;
   color: var(--color-white-muted);
-  max-width: 46ch;
-  margin: 0 auto 1.75rem;
+  /* ~68ch is the comfortable measure for reading; flush left, not centred. */
+  max-width: 68ch;
+  margin: 0 0 1.5rem;
+  /* Show a real hook — up to six lines — rather than a one-line teaser.
+     Anything longer is what the article page is for. */
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
+/* "Read More" affordance under the excerpt. */
 .intel-feature-cta {
   display: inline-flex;
   align-items: center;
@@ -455,16 +466,27 @@
 
 /* The feature's image box is a fixed 16:9 area; both the <img> and the
    fallback must fill it so the swap doesn't resize the spread. */
-.intel-feature-image > img,
-.intel-feature-image > .article-thumb-fallback {
+/* Real cover photos crop to fill (cover); the branded fallback must NOT be
+   cropped — it is a logo and a headline, and `cover` was slicing the edges
+   off. The fallback is a flex box, so it simply fills the area instead. */
+.intel-feature-image > img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.intel-rail-thumb > img,
-.intel-rail-thumb > .article-thumb-fallback {
+.intel-feature-image > .article-thumb-fallback {
+  width: 100%;
+  height: 100%;
+}
+
+.intel-rail-thumb > img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.intel-rail-thumb > .article-thumb-fallback {
+  width: 100%;
+  height: 100%;
 }

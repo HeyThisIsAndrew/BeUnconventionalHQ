@@ -15,11 +15,8 @@
     #111111;
 }
 
-.cat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
-  gap: 1.5rem;
-}
+/* .cat-grid's column math is defined once at the bottom of this file,
+   together with the other two homepage rows. */
 .cat {
   position: relative;
   min-height: 260px;
@@ -209,5 +206,58 @@
 @media (max-width: 820px) {
   .nav-identity-wrapper {
     display: none !important;
+  }
+}
+
+/* ── Homepage tile grid (shared by all three homepage rows) ─────────────────
+
+   ONE definition of the homepage's column math, used by:
+     .cat-grid      "What We Cover" category tiles
+     .latest-grid   "From The Feed Latest" article tiles
+     .home-video-grid  "Recent Videos" tiles
+
+   WHY THIS EXISTS
+   Each row previously had its own `auto-fit minmax(...)` track. auto-fit packs
+   in as many columns as fit, so at mobile-landscape width (844px) four tiles
+   became a row of 3 and a row of 1 — the bug Andrew reported. Explicit column
+   counts remove the guesswork: the layout is the same at every width for every
+   row, and four tiles always divide evenly.
+
+   Note: a `.categories-grid` rule with the correct counts already existed in
+   categories.css but no markup ever used that class, so it never applied. It
+   is dead and superseded by this.
+
+   TO CHANGE HOW MANY TILES PER ROW: edit the three counts below. Nothing else.
+*/
+.cat-grid,
+.latest-grid,
+.home-video-grid {
+  display: grid;
+  /* Desktop: 4 across. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 1536px;
+  margin-inline: auto;
+}
+
+/* Tablet + mobile landscape: 2 across, so four tiles read as a clean 2x2
+   instead of 3 + 1. 1100px covers landscape phones (844px) and small tablets. */
+@media (max-width: 1100px) {
+  .cat-grid,
+  .latest-grid,
+  .home-video-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+}
+
+/* Mobile portrait: single column — two tiles side by side at 390px would make
+   the titles unreadable. */
+@media (max-width: 560px) {
+  .cat-grid,
+  .latest-grid,
+  .home-video-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

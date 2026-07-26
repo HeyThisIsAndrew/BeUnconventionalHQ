@@ -46,6 +46,11 @@ export const MAGAZINE_SIZE = 7;
 export const DEFAULT_BYLINE = {
   name: 'Andrew Baxter',
   role: 'Founder & Editor',
+  /* One line establishing why this byline is worth trusting. Kept short — it
+     appears under every article. Signals editorial standing rather than
+     enthusiasm, which is what accreditation boards and Google's quality
+     guidance both look for. */
+  bio: 'Covering film, television and gaming with on-location reporting, long-form criticism and industry analysis.',
 };
 
 /** Where the writing is authored. Attribution links point back here. */
