@@ -27,6 +27,7 @@
  * `.intel-rail-left` / `.intel-rail-right`, which control which edge gets the
  * divider border and which side the active accent bar sits on.
  */
+import ArticleThumb from './ArticleThumb.astro';
 import type { ArticleRecord } from '../lib/articles';
 
 /** The shape a rail item needs: an article plus its resolved link. */
@@ -37,9 +38,15 @@ interface Props {
   side: 'left' | 'right';
   /** The articles to list, already in display order. */
   articles: RailArticle[];
+  /**
+   * Slug of the article currently in the centre. That tile renders already
+   * highlighted, so the active state is correct on first paint and is still
+   * visible with JavaScript disabled.
+   */
+  activeSlug?: string;
 }
 
-const { side, articles } = Astro.props;
+const { side, articles, activeSlug = '' } = Astro.props;
 ---
 
 <div class:list={['intel-rail', `intel-rail-${side}`]}>
@@ -54,28 +61,22 @@ const { side, articles } = Astro.props;
         parse a comment placed between two attributes inside a tag.
       */
       <a
-        class="intel-rail-item"
+        class:list={['intel-rail-item', { active: article.slug === activeSlug }]}
+        aria-current={article.slug === activeSlug ? 'true' : undefined}
         href={article.link}
         data-slug={article.slug}
         data-title={article.title}
-        data-excerpt={article.excerpt ?? ''}
-        data-image={article.image ?? ''}
-        data-category={article.category ?? ''}
-        data-date={article.date ?? ''}
+        data-excerpt={article.excerpt}
+        data-image={article.image}
+        data-category={article.category}
+        data-date={article.date}
         data-href={article.link}
         data-external={article.isExternal ? 'true' : 'false'}
       >
         <div class="intel-rail-thumb">
-          {article.image ? (
-            /*
-              alt="" on purpose: the headline directly below already names the
-              article, so describing the image too would make a screen reader
-              announce the same thing twice.
-            */
-            <img src={article.image} alt="" loading="lazy" decoding="async" />
-          ) : (
-            <span class="intel-rail-thumb-empty" aria-hidden="true" />
-          )}
+          {/* decorative: the headline directly below already names the article,
+              so describing the image too would announce it twice. */}
+          <ArticleThumb image={article.image} title={article.title} size="rail" decorative />
         </div>
 
         <div class="intel-rail-copy">

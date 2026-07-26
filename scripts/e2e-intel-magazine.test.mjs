@@ -69,10 +69,20 @@ try {
     } else {
       const before = await page.$eval('#intel-feature-title', (e) => e.textContent.trim());
       const beforeHref = await page.$eval('#intel-feature-link', (e) => e.getAttribute('href'));
-      const railTitle = await page.$eval('.intel-rail-item .intel-rail-title', (e) => e.textContent.trim());
-      const railHref = await page.$eval('.intel-rail-item', (e) => e.getAttribute('href'));
 
-      await page.click('.intel-rail-item');
+      /*
+        Target a tile that is NOT already the centre feature.
+
+        Every article in the spread has a rail tile, including the one
+        currently featured — so the first tile is usually the feature itself,
+        and clicking it correctly changes nothing. Picking a non-active tile
+        is what actually exercises the swap.
+      */
+      const TARGET = '.intel-rail-item:not(.active)';
+      const railTitle = await page.$eval(`${TARGET} .intel-rail-title`, (e) => e.textContent.trim());
+      const railHref = await page.$eval(TARGET, (e) => e.getAttribute('href'));
+
+      await page.click(TARGET);
       await new Promise((r) => setTimeout(r, 500));
 
       const after = await page.$eval('#intel-feature-title', (e) => e.textContent.trim());

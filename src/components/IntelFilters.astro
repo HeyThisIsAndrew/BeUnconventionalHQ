@@ -48,7 +48,7 @@ const filterCategories = CATEGORIES.filter((category) => category !== 'General')
 ---
 
 <div class="intel-filter-nav" role="navigation" aria-label={`${ARTICLE_SECTION.name} categories`}>
-  <div class="filter-grid intel-filter-grid">
+  <div class="filter-grid">
     {
       filterCategories.map((category) => {
         const isActive = active === category;
@@ -75,28 +75,19 @@ const filterCategories = CATEGORIES.filter((category) => category !== 'General')
 </div>
 
 <style>
+  /*
+    Spacing only. The grid itself (columns AND the 1rem gap between buttons)
+    comes from the shared `.filter-grid` rule in styles/modules/filters.css,
+    which the Feed uses too — so the two rows are identical by construction.
+    Do NOT re-declare grid-template-columns or gap here; that is exactly how
+    they drifted apart the first time.
+  */
   .intel-filter-nav {
     width: 100%;
     margin-bottom: 3.5rem;
   }
 
-  /*
-    One column per category so the row reads as a single control strip, the
-    same way the Feed's quadrant grid does — not a row of loose pills.
-    `gap: 1px` gives the hairline between buttons.
-  */
-  .intel-filter-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1px;
-  }
-
-  /* Two-up on phones, matching the Feed's mobile filter grid. */
   @media (max-width: 768px) {
-    .intel-filter-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-
     .intel-filter-nav {
       margin-bottom: 2.5rem;
     }

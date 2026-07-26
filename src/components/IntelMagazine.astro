@@ -42,6 +42,8 @@
  * `.intel-magazine` and `.intel-feature-*` in src/styles/modules/intel.css.
  */
 import MagazineRail from './MagazineRail.astro';
+import { Image } from 'astro:assets';
+import logoImage from '../assets/logo.webp';
 import { CTA } from '../data/sections.js';
 import type { ArticleRecord } from '../lib/articles';
 
@@ -54,25 +56,49 @@ interface Props {
 
 const { articles } = Astro.props;
 
-// The newest article opens the spread; everything after it fills the rails.
-const [feature, ...rest] = articles;
+/*
+  The newest article opens the spread in the centre.
+
+  Typed explicitly as possibly-undefined: TypeScript assumes indexing an array
+  always yields an element, but `articles` can legitimately be empty (no
+  articles published yet), and the markup below guards on `feature` for
+  exactly that reason.
+*/
+const feature: MagazineArticle | undefined = articles[0];
 
 /*
-  Split the remainder by alternating sides (0→left, 1→right, 2→left …).
-  Alternating rather than "first half left, second half right" means the two
-  rails stay the same length even when the count is odd, and the DOM order
-  matches the visual order for keyboard and screen-reader users.
+  EVERY article in the spread gets a rail tile — including the one currently
+  in the centre.
+
+  This was a bug worth understanding: the rails used to hold only the articles
+  *after* the feature. So the opening article had no tile, and once you clicked
+  a rail item the article you had just navigated away from vanished from the
+  page entirely — you could not get back to it without reloading. Now the rails
+  are the full, stable set and the centre simply reflects whichever one is
+  selected, with that tile marked active.
+
+  Split by alternating sides (0→left, 1→right, 2→left …) rather than
+  "first half left, second half right", so the two rails stay the same length
+  when the count is odd and DOM order matches visual order for keyboard and
+  screen-reader users.
 */
-const railArticles = rest.slice(0, 6);
+const railArticles = articles;
 const leftRail = railArticles.filter((_, index) => index % 2 === 0);
 const rightRail = railArticles.filter((_, index) => index % 2 === 1);
+
+/*
+  The slug of the article currently in the centre, so its rail tile can render
+  already-active on the server. Without this the highlight would only appear
+  after the first click, and a no-JS visitor would never see it at all.
+*/
+const activeSlug = feature?.slug ?? '';
 ---
 
 {
   /* No articles at all → render nothing. The page shows an <EmptyState />. */
   feature && (
     <section class="intel-magazine" aria-label="Featured articles">
-      <MagazineRail side="left" articles={leftRail} />
+      <MagazineRail side="left" articles={leftRail} activeSlug={activeSlug} />
 
       {/*
         The swappable centre.
@@ -83,20 +109,48 @@ const rightRail = railArticles.filter((_, index) => index % 2 === 1);
       <article class="intel-feature" id="intel-feature" aria-live="polite">
         <a class="intel-feature-link" id="intel-feature-link" href={feature.link}>
           <div class="intel-feature-image">
-            {feature.image ? (
-              /* width/height stop the page jumping as the image loads (CLS). */
-              <img
-                id="intel-feature-img"
-                src={feature.image}
-                alt={`Cover image for ${feature.title}`}
-                width="1456"
-                height="816"
-                loading="eager"
+            {/*
+              BOTH states are rendered, and the script toggles between them.
+
+              Why: the centre swaps between articles, and some have a cover
+              image while others don't. If only one state existed in the DOM,
+              switching from a no-image article to one with a cover would have
+              nothing to put the image into. Rendering both and flipping a
+              `hidden` attribute keeps the swap a simple attribute change
+              instead of rebuilding markup in JavaScript.
+
+              width/height reserve the space before the image loads, which is
+              what stops the page jumping (cumulative layout shift).
+            */}
+            <img
+              id="intel-feature-img"
+              src={feature.image || ''}
+              alt={feature.image ? `Cover image for ${feature.title}` : ''}
+              width="1456"
+              height="816"
+              loading="eager"
+              decoding="async"
+              hidden={!feature.image}
+            />
+            <div
+              id="intel-feature-fallback"
+              class="article-thumb-fallback is-feature"
+              hidden={!!feature.image}
+            >
+              <Image
+                src={logoImage}
+                alt=""
+                width={160}
+                height={160}
+                class="article-thumb-fallback-logo"
+                loading="lazy"
                 decoding="async"
+                aria-hidden="true"
               />
-            ) : (
-              <span id="intel-feature-img" class="intel-feature-image-empty" aria-hidden="true" />
-            )}
+              <span class="article-thumb-fallback-title" id="intel-feature-fallback-title">
+                {feature.title}
+              </span>
+            </div>
           </div>
 
           <div class="intel-feature-copy">
@@ -118,7 +172,7 @@ const rightRail = railArticles.filter((_, index) => index % 2 === 1);
         </a>
       </article>
 
-      <MagazineRail side="right" articles={rightRail} />
+      <MagazineRail side="right" articles={rightRail} activeSlug={activeSlug} />
     </section>
   )
 }
@@ -169,9 +223,25 @@ const rightRail = railArticles.filter((_, index) => index % 2 === 1);
       if (category) category.textContent = data.category ?? '';
       if (date) date.textContent = data.date ?? '';
 
-      if (image && image.tagName === 'IMG' && data.image) {
-        image.setAttribute('src', data.image);
-        image.setAttribute('alt', `Cover image for ${data.title ?? ''}`);
+      /*
+        Show the cover image when the article has one, otherwise show the
+        branded fallback. `hidden` is a plain HTML attribute — setting it is
+        equivalent to display:none, with no CSS class bookkeeping.
+      */
+      const fallback = document.getElementById('intel-feature-fallback');
+      const fallbackTitle = document.getElementById('intel-feature-fallback-title');
+
+      if (data.image) {
+        if (image) {
+          image.setAttribute('src', data.image);
+          image.setAttribute('alt', `Cover image for ${data.title ?? ''}`);
+          image.removeAttribute('hidden');
+        }
+        if (fallback) fallback.setAttribute('hidden', '');
+      } else {
+        if (image) image.setAttribute('hidden', '');
+        if (fallbackTitle) fallbackTitle.textContent = data.title ?? '';
+        if (fallback) fallback.removeAttribute('hidden');
       }
 
       /*
