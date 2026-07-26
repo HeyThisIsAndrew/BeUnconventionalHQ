@@ -10,33 +10,19 @@ const { href, type = 'button', class: className = '', ...rest } = Astro.props;
 const Tag = href ? 'a' : 'button';
 ---
 
+{/*
+  No scoped <style> here on purpose. Presentation comes entirely from the
+  global `.cta-button-primary` rule in styles/modules/buttons.css, which the
+  other 17 hand-written call sites already use.
+
+  This component used to re-declare that rule locally. The copy was identical
+  except that it omitted `white-space: nowrap` — and, because it sat later in
+  the cascade at equal specificity, it also suppressed the `@media (max-width:
+  768px)` override in about.css that shrinks every button on mobile
+  (padding 1rem 2rem, font-size 0.75rem). The single <Button /> instance (the
+  404 page) was therefore the only button on the site that stayed desktop-sized
+  on a phone. Re-adding a local copy would reintroduce that bug.
+*/}
 <Tag href={href} type={href ? undefined : type} class={`cta-button-primary ${className}`} {...rest}>
   <slot />
 </Tag>
-
-<style>
-  .cta-button-primary {
-    display: inline-block;
-    background: transparent;
-    border: 1px solid var(--color-accent);
-    color: var(--color-white);
-    text-decoration: none;
-    font-size: 0.8rem;
-    font-weight: 600;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    padding: 1rem 3rem;
-    cursor: pointer;
-    text-align: center;
-    transition:
-      background-color 0.3s cubic-bezier(0.25, 0.8, 0.2, 1),
-      box-shadow 0.3s cubic-bezier(0.25, 0.8, 0.2, 1),
-      transform 0.3s cubic-bezier(0.25, 0.8, 0.2, 1),
-      opacity 0.3s cubic-bezier(0.25, 0.8, 0.2, 1);
-  }
-
-  .cta-button-primary:hover {
-    background-color: var(--color-accent);
-    box-shadow: 0 0 30px rgba(204, 0, 0, 0.4);
-  }
-</style>

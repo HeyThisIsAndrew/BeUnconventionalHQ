@@ -113,15 +113,22 @@ Verified properties:
 
 ---
 
-## 5. Deliberately not done
+## 5. The one intentional visual change — `Button.astro` (APPROVED, shipped)
 
-**`Button.astro` duplicate — reverted, needs an owner decision.**
+`Button.astro` re-declared `.cta-button-primary` in a scoped `<style>`, duplicating `styles/modules/buttons.css`. The copy was identical except that it omitted `white-space: nowrap`.
 
-`Button.astro` re-declared `.cta-button-primary` in a scoped `<style>`, duplicating `styles/modules/buttons.css`. Removing the duplicate is correct in principle but **changes rendering**, so it was reverted to hold parity.
+The duplicate was not inert. `about.css:240` holds a *global* `@media (max-width: 768px)` override (`padding: 1rem 2rem; font-size: 0.75rem`) that shrinks every button on mobile. `Button.astro`'s scoped copy sat later in the cascade at equal specificity and suppressed it. 17 buttons are written with the raw class and obeyed the mobile rule; the single `<Button />` instance — "Back to Home" on the 404 page — did not, and rendered at desktop size on phones.
 
-Why it changes rendering: `about.css:240` contains a *global* mobile override (`padding: 1rem 2rem; font-size: 0.75rem`). `Button.astro`'s scoped copy sits later in the cascade at equal specificity and was silently suppressing it. So today the 404 page's button is the only button on the site that ignores the site's mobile button sizing.
+**Owner approved the fix; the duplicate is deleted.** Verified after:
 
-Deleting the duplicate makes it consistent with every other button — measured as a ~50px narrower button at ≤768px, and the only visual delta in 52 screenshots. **That is a fix, not a regression, but it is a visual change and therefore an owner call.** Related smell: a global `.cta-button-primary` override living in `about.css`.
+| viewport | `/404` | `/about` | `/collaborations` |
+|---|---|---|---|
+| 390px | `16px 32px` / `12px` | `16px 32px` / `12px` | `16px 32px` / `12px` |
+| 1440px | `16px 48px` / `12.8px` | `16px 48px` / `12.8px` | `16px 48px` / `12.8px` |
+
+Blast radius, measured: **3 of 52 captures changed** — `404@320`, `404@390`, `404@768`. `404@1440` is unchanged, confirming the change is confined to the mobile breakpoint, and the other 12 routes are untouched.
+
+Remaining smell, logged below: a global `.cta-button-primary` override living inside `about.css` is why this was hard to spot in the first place.
 
 ---
 
@@ -138,7 +145,7 @@ node scripts/visual-parity.mjs --compare baseline after
 
 The harness was validated for determinism first (two consecutive captures with no code change: 52/52 identical), so a hash mismatch is a real signal rather than rendering noise.
 
-**Result: 52/52 byte-identical, baseline → final.**
+**Result: 52/52 byte-identical for the extraction work** (`baseline` → `final`), then **3 intended changes** from the approved Button fix (`final` → `button-fix`), all three confined to the 404 page below 768px. Net against the original baseline: 49 identical, 3 intentionally changed.
 Plus `npm test` 104/104 passing across 8 suites, and `npx astro check` at 0 errors / 0 warnings / 0 hints (unchanged from baseline).
 
 ---
@@ -146,8 +153,8 @@ Plus `npm test` 104/104 passing across 8 suites, and `npx astro check` at 0 erro
 ## 7. Follow-up tickets to log
 
 1. **Reconcile the two container gutters** — `.container` (responsive clamp) vs `.container-page` (fixed 2rem). Visual change on every interior page; needs a deliberate pass. §3.
-2. **`Button.astro` duplicate + the 404 mobile button inconsistency** — §5. One-line change, needs a yes/no.
-3. **Move the global `.cta-button-primary` mobile override out of `about.css`** — button styles in a page module is why #5 was hard to spot.
+2. ~~**`Button.astro` duplicate + the 404 mobile button inconsistency**~~ — **DONE.** Approved and shipped, see §5.
+3. **Move the global `.cta-button-primary` mobile override out of `about.css`** into `buttons.css`, where the base rule lives. A site-wide button rule sitting in a page-specific module is exactly why the §5 bug survived unnoticed. Pure move, but it changes cascade order, so it wants its own visual-parity run.
 4. **Contributors/team CMS for byline** — EPIC-001 asked whether this already exists as an issue. **It does not.** #38 covers the *content* ("add Andrew Baxter as Founder & Editor") but there is no contributors data-layer ticket.
 5. **Sitewide hardcoded-string audit** — 24 literal `"Be Unconventional HQ"` occurrences despite `site.name` existing. Out of scope here per the epic's own instruction to log rather than absorb.
 6. **`/intel` and `/feed/articles` coexist — DECIDED (owner, this session).** EPIC-001's dedicated article section does *not* replace the existing `/feed/articles` route; both ship. `/feed/articles` stays the type-filtered view of the main Feed, `/intel` becomes the dedicated section with its own category filtering.
