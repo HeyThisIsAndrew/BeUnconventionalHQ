@@ -341,71 +341,6 @@ import { site } from '../data/site.js';
       setTimeout(once, 1100);
     }
 
-    /** Drop the curtain back down over the page. */
-    function drop() {
-      if (busy || root.classList.contains('splash-armed')) return;
-      if (!shouldArmLocation()) return;
-      busy = true;
-
-      const hero = document.querySelector('.hero') as HTMLElement | null;
-      const distance = hero ? hero.offsetHeight : window.innerHeight;
-
-      if (reduceMotion()) {
-        window.scrollTo(0, 0);
-        arm();
-        busy = false;
-        return;
-      }
-
-      /*
-        Play the lift backwards: jump to the top with the wrapper still held
-        up by a transform (so nothing appears to move), then release the
-        transform and let CSS transition it home.
-      */
-      const previousBehavior = root.style.scrollBehavior;
-      root.style.scrollBehavior = 'auto';
-      root.style.setProperty('--splash-lift', `${distance}px`);
-      root.classList.add('splash-armed', 'splash-lifting');
-      window.scrollTo(0, 0);
-      root.style.setProperty(
-        '--splash-gutter',
-        `${Math.max(0, window.innerWidth - root.clientWidth)}px`
-      );
-      root.style.scrollBehavior = previousBehavior;
-
-      const wrapper = document.getElementById('app-wrapper');
-      /* Force a reflow so the browser registers the lifted position as the
-         transition's starting point. Without it both class changes are
-         batched into one style resolution and nothing animates. */
-      void wrapper?.offsetHeight;
-
-      root.classList.remove('splash-lifting');
-      root.classList.add('splash-dropping');
-
-      let done = false;
-      const once = (event?: TransitionEvent) => {
-        /*
-          BOTH checks are required, and the target check is the one that was
-          missing. `transitionend` BUBBLES, so this listener on #app-wrapper
-          also received every transition finishing anywhere inside it — the
-          hero copy fading, a card's hover transform, a category tile's slide.
-          Several of those carry `propertyName === 'transform'` too, so the
-          property filter alone let a descendant's event end the curtain
-          early: traced firing at ~338ms into a 900ms lift, which snapped the
-          animation and is what made the reveal look like it jumped.
-        */
-        if (event && (event.target !== wrapper || event.propertyName !== 'transform')) return;
-        if (done) return;
-        done = true;
-        wrapper?.removeEventListener('transitionend', once);
-        root.classList.remove('splash-dropping');
-        if (wrapper) wrapper.style.willChange = '';
-        busy = false;
-      };
-      wrapper?.addEventListener('transitionend', once);
-      setTimeout(once, 1100);
-    }
-
     /** Location test only — `drop` runs while scrolled, so no scrollY check. */
     function shouldArmLocation() {
       return window.location.pathname === '/' && !!document.querySelector('.hero');
@@ -502,13 +437,17 @@ import { site } from '../data/site.js';
           return;
         }
 
-        /* The header logo drops it back — but only when already at the top of
-           the homepage. Anywhere else it stays an ordinary "go home" link,
-           which is what a masthead is supposed to be. */
+        /*
+          The header logo takes you back to the splash. On the homepage that
+          is simply "scroll to the top" — reaching the top re-arms the curtain
+          on its own (see the scroll listener below), so there is no separate
+          drop animation to keep in step with this one. Anywhere else it stays
+          an ordinary "go home" link, which is what a masthead should be.
+        */
         const brand = target.closest('#navbar a[href="/"], #navbar a[href="/#"]');
-        if (brand && shouldArmLocation() && window.scrollY < 4 && !root.classList.contains('splash-armed')) {
+        if (brand && shouldArmLocation() && !root.classList.contains('splash-armed')) {
           event.preventDefault();
-          drop();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }
       });
 
@@ -521,12 +460,8 @@ import { site } from '../data/site.js';
             if (event.deltaY > 0) lift();
             return;
           }
-          /* Reverse pull-down: at the very top, a deliberate upward gesture
-             brings the splash back. Accumulated against a threshold so a
-             single stray notch on a trackpad does not trigger it. */
-          if (window.scrollY === 0 && event.deltaY < 0) {
-            pullUp(-event.deltaY);
-          }
+          /* Nothing to do when the curtain is already up — reaching the top
+             re-arms it on its own, from the scroll listener below. */
         },
         { passive: true }
       );
@@ -537,7 +472,6 @@ import { site } from '../data/site.js';
         'touchstart',
         (event) => {
           touchStartY = event.touches[0]?.clientY ?? 0;
-          pullAccum = 0;
         },
         { passive: true }
       );
@@ -548,9 +482,7 @@ import { site } from '../data/site.js';
           const delta = y - touchStartY;
           if (root.classList.contains('splash-armed')) {
             if (delta < -40) lift(); // Swiping up = "get me past this".
-            return;
           }
-          if (window.scrollY === 0 && delta > 0) pullUp(delta * 0.6);
         },
         { passive: true }
       );
@@ -564,23 +496,40 @@ import { site } from '../data/site.js';
           lift();
         }
       });
-    }
 
-    /* Accumulator for the reverse pull-down. Needs to survive across events
-       but reset whenever the gesture stops making sense. */
-    let pullAccum = 0;
-    let pullTimer: number | undefined;
-    function pullUp(amount: number) {
-      if (busy || root.classList.contains('splash-armed')) return;
-      pullAccum += amount;
-      window.clearTimeout(pullTimer);
-      /* A pull is a sustained gesture. Idle for 220ms and the accumulator
-         resets, so slow incidental scrolling never adds up to a trigger. */
-      pullTimer = window.setTimeout(() => { pullAccum = 0; }, 220);
-      if (pullAccum > 140) {
-        pullAccum = 0;
-        drop();
-      }
+      /*
+        ─── REACHING THE TOP RE-ARMS THE CURTAIN ──────────────────────────
+        The navbar's visibility is now a function of ONE thing: is the hero
+        on screen. It used to depend on whether you had performed a
+        particular gesture, which is a hidden mode — the same picture (hero
+        filling the screen) could have chrome or not depending on how you got
+        there. That mode is what produced the bouncing: scroll up, the navbar
+        is still showing over the hero, then keep scrolling to cross a
+        threshold and it disappears. Two animations for one intent.
+
+        Deriving it from scroll position removes the mode. Scroll to the top
+        and you are back on the splash, every time, by every route.
+
+        NO ANIMATION HERE, deliberately. The reader's own scroll has already
+        brought the hero into view, so there is nothing left to move — the
+        curtain only needs to *be* down. This replaced an animated drop()
+        that played a 900ms transition over content that was already in
+        place, which is the other half of what felt jarring.
+
+        Arming at the boundary is also why locking here is safe: at scrollY 0
+        there is nowhere further to scroll, so `overflow: hidden` cannot cut
+        a gesture short the way it would mid-page.
+      */
+      window.addEventListener(
+        'scroll',
+        () => {
+          if (busy) return; // A lift is mid-flight; it owns the scroll.
+          if (window.scrollY > 0) return;
+          if (root.classList.contains('splash-armed')) return;
+          arm();
+        },
+        { passive: true }
+      );
     }
 
     // ── Lifecycle ────────────────────────────────────────────────────────

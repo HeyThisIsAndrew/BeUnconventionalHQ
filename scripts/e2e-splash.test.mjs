@@ -353,74 +353,84 @@ try {
     await page.close();
   }
 
-  // ── Reverse pull-down ─────────────────────────────────────────────────
+  // ── Scrolling back to the top re-arms the splash ──────────────────────
   /*
-    Lift the curtain, scroll back to the very top, then pull down. The splash
-    must come back — otherwise the effect is one-way and the brand moment is
-    gone for the rest of the session.
+    The navbar's visibility is derived from ONE thing: is the hero on screen.
+
+    It used to depend on whether a pull-down gesture had crossed a threshold,
+    which meant the same picture — hero filling the screen — could have chrome
+    or not depending on how you arrived. Scrolling up showed the hero WITH a
+    navbar, and only a further deliberate pull made it disappear: two
+    animations for one intent, which is what read as bouncing.
+
+    So this asserts the derived state directly: get to the top by ordinary
+    scrolling, and the splash must be back with no navbar, no leftover
+    transform, and the page locked again.
   */
   {
     const page = await browser.newPage();
     await page.setViewport({ width: 390, height: 844 });
     await page.goto(`http://localhost:${port}/`, { waitUntil: 'networkidle0' });
-    await new Promise((r) => setTimeout(r, 300));
-    await page.evaluate(() => document.querySelector('[data-splash-trigger]').click());
-    await new Promise((r) => setTimeout(r, 1400));
+    await new Promise((r) => setTimeout(r, 400));
 
+    await page.evaluate(() => document.querySelector('[data-splash-trigger]').click());
+    await new Promise((r) => setTimeout(r, 1600));
     ok(
-      'reverse: curtain is up before the pull',
+      're-arm: curtain is up before scrolling back',
       (await page.evaluate(() => document.documentElement.classList.contains('splash-armed'))) === false,
     );
 
-    // Back to the absolute top, which is the only place a pull-down applies.
+    /* Ordinary scrolling, no special gesture — that is the whole point. */
     await page.evaluate(() => {
       document.documentElement.style.scrollBehavior = 'auto';
       window.scrollTo(0, 0);
     });
-    await new Promise((r) => setTimeout(r, 200));
-
-    /* Put the cursor over the page first — Puppeteer dispatches wheel events
-       at the current mouse position, which starts at (0,0) and does not
-       reliably land on the document. */
-    await page.mouse.move(195, 400);
 
     /*
-      Keep pulling until it takes, up to a bound.
-
-      The gesture is deliberately threshold-based (140px accumulated, reset
-      after 220ms idle) so a single stray trackpad notch cannot fire it. A
-      fixed number of synthetic wheel events is therefore the wrong shape for
-      this test — whether it crosses the threshold depends on how many events
-      land inside the idle window, which made it flaky. A real user simply
-      keeps pulling, so the test does too, and the bound is what fails if the
-      gesture is genuinely broken.
+      Wait for the CONDITION, not a fixed sleep. Two variable durations sit
+      between the scroll and the end state — the scroll itself can animate
+      (the site sets `scroll-behavior: smooth` globally, and a real reader's
+      momentum takes as long as it takes), and the navbar then fades over
+      300ms before `visibility` flips at 400ms. A fixed wait was landing
+      mid-fade and reporting the navbar as still visible.
     */
-    for (let i = 0; i < 20; i += 1) {
-      await page.mouse.wheel({ deltaY: -60 });
-      await new Promise((r) => setTimeout(r, 25));
-      const armed = await page.evaluate(() =>
-        document.documentElement.classList.contains('splash-armed')
-      );
-      if (armed) break;
-    }
-    await new Promise((r) => setTimeout(r, 1400));
+    await page.waitForFunction(
+      () => {
+        const nav = document.getElementById('navbar');
+        return (
+          document.documentElement.classList.contains('splash-armed') &&
+          getComputedStyle(nav).visibility === 'hidden'
+        );
+      },
+      { timeout: 5000 }
+    );
 
     const back = await page.evaluate(() => ({
       armed: document.documentElement.classList.contains('splash-armed'),
-      dropping: document.documentElement.classList.contains('splash-dropping'),
+      navVisible: getComputedStyle(document.getElementById('navbar')).visibility,
+      overflow: getComputedStyle(document.documentElement).overflow,
       scrollY: Math.round(window.scrollY),
       transform: getComputedStyle(document.getElementById('app-wrapper')).transform,
-      navVisible: getComputedStyle(document.getElementById('navbar')).visibility,
     }));
-    ok('reverse: pull-down re-arms the splash', back.armed === true);
-    ok('reverse: drop animation finished', back.dropping === false);
-    ok('reverse: back at the top', back.scrollY === 0, String(back.scrollY));
+    ok('re-arm: reaching the top re-arms without any gesture', back.armed === true);
+    ok('re-arm: navbar hidden again', back.navVisible === 'hidden', back.navVisible);
+    ok('re-arm: page is locked again', back.overflow === 'hidden', back.overflow);
+    ok('re-arm: still at the top', back.scrollY === 0, String(back.scrollY));
     ok(
-      'reverse: wrapper transform released again',
+      're-arm: no leftover transform',
       back.transform === 'none' || back.transform === 'matrix(1, 0, 0, 1, 0, 0)',
       back.transform,
     );
-    ok('reverse: navbar hidden again', back.navVisible === 'hidden', back.navVisible);
+
+    /* And it must still be liftable afterwards — re-arming that could not be
+       undone would be a trap. */
+    await page.evaluate(() => document.querySelector('[data-splash-trigger]').click());
+    await new Promise((r) => setTimeout(r, 1600));
+    const heroH = await page.evaluate(() => Math.round(document.querySelector('.hero').offsetHeight));
+    ok(
+      're-arm: lifts again cleanly after re-arming',
+      Math.abs((await page.evaluate(() => Math.round(window.scrollY))) - heroH) <= 2,
+    );
     await page.close();
   }
 

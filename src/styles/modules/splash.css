@@ -101,22 +101,25 @@ html.splash-armed #app-wrapper {
   padding-right: var(--splash-gutter, 0px);
 }
 
-html.splash-lifting #app-wrapper,
-html.splash-dropping #app-wrapper {
-  will-change: transform;
-}
-
 html.splash-lifting #app-wrapper {
   transform: translate3d(0, calc(-1 * var(--splash-lift)), 0);
   transition: transform var(--splash-duration) var(--splash-ease);
+  will-change: transform;
 }
 
-/* The reverse: the curtain drops back down. Starts already lifted (set by the
-   script) and transitions home to 0. */
-html.splash-dropping #app-wrapper {
-  transform: translate3d(0, 0, 0);
-  transition: transform var(--splash-duration) var(--splash-ease);
-}
+/*
+   There is no reverse ANIMATION any more, and that is the point.
+
+   The curtain used to be dropped back with a 900ms transition triggered by a
+   pull-down gesture. But by the time it played, the reader's own scroll had
+   already brought the hero into view — so it animated content that was
+   already in place, on top of a navbar that was still fading out from a
+   separate threshold. Two animations for one intent, which is what read as
+   bouncing.
+
+   Reaching the top now simply re-arms: the hero is already there, so the
+   curtain only needs to BE down. See the scroll listener in Hero.astro.
+*/
 
 /* ── Hero contents during the lift ─────────────────────────────────────────
 
@@ -133,12 +136,6 @@ html.splash-lifting .hero-content {
   transition:
     opacity 420ms ease-out,
     transform 620ms var(--splash-ease);
-}
-
-/* Coming back down, the content fades in a touch late so it "arrives". */
-html.splash-dropping .hero-content {
-  opacity: 1;
-  transition: opacity 500ms ease-in 200ms;
 }
 
 /* ── Navbar during the splash ──────────────────────────────────────────────
@@ -347,9 +344,7 @@ html:not(.splash-armed) .hero-cta::after {
 */
 @media (prefers-reduced-motion: reduce) {
   html.splash-lifting #app-wrapper,
-  html.splash-dropping #app-wrapper,
   html.splash-lifting .hero-content,
-  html.splash-dropping .hero-content,
   html.splash-armed #navbar,
   #navbar {
     transition-duration: 1ms !important;
