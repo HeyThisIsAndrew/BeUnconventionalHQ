@@ -122,6 +122,9 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
   /** Widget id from turnstile.render(), needed to read its token back. */
   let widgetId: string | null = null;
 
+  /** True when a site key IS configured but the Turnstile script never loaded. */
+  let turnstileUnavailable = false;
+
   /**
    * Mount the Turnstile widget.
    *
@@ -152,7 +155,23 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
         });
         return;
       }
-      if ((attempts += 1) < 100) setTimeout(tryRender, 100); // ~10s ceiling.
+      if ((attempts += 1) < 100) {
+        setTimeout(tryRender, 100); // ~10s ceiling.
+        return;
+      }
+      /*
+        Gave up. The API script never arrived — an ad blocker, a corporate
+        proxy, or Cloudflare being unreachable.
+
+        This has to be recorded, because the server now requires a token
+        (both keys are configured in production). Without this flag the submit
+        below would post an empty token and the reader would get "Please
+        complete the verification challenge" pointing at a challenge that does
+        not exist — the exact dead end this whole feature was fixing, just
+        arrived at from the other direction. Knowing WHY lets us say something
+        true instead.
+      */
+      turnstileUnavailable = true;
     };
     tryRender();
   }
@@ -210,6 +229,20 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
         widgetId && window.turnstile
           ? (window.turnstile.getResponse(widgetId) ?? '')
           : '';
+
+      /*
+        Distinguish "you haven't done the challenge yet" from "the challenge
+        could not load". They need different words: one is a prompt, the other
+        is an apology with a way out.
+      */
+      if (turnstileUnavailable) {
+        setState(
+          'error',
+          "Our bot check couldn't load — an ad blocker or network filter may be " +
+            'blocking it. Disable it for this page, or subscribe on Substack instead.'
+        );
+        return;
+      }
 
       if (widgetId && !token) {
         setState('error', 'Please complete the verification challenge above.');

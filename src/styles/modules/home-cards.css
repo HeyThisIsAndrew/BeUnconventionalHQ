@@ -386,31 +386,63 @@
     min-height: 0;
   }
 
-  /*
-     THUMBNAIL SHARE: 38% of the row.
+  /* ── THUMBNAIL GEOMETRY, BUILT AROUND A 16:9 SOURCE ──────────────────────
 
-     This was a fixed 140px, which on a 390px screen worked out at roughly a
-     70/30 split in the copy's favour. Combined with `object-fit: cover` on a
-     1/1 box, a 16:9 thumbnail was being cropped to a narrow square — enough
-     that anything not dead-centre in the frame (a face at the edge, text in a
-     corner) got cut off.
+     Every thumbnail on this site is a YouTube still, so the source is ALWAYS
+     16:9. That single fact should decide this box, and until now it didn't.
 
-     38% is both wider AND a proportion rather than a fixed size, so it scales
-     with the device instead of squeezing further on a small phone. The
-     4/3 box crops a 16:9 source far less aggressively than 1/1 did while
-     still keeping the row short.
+     WHAT WAS WRONG
+     The rule set `aspect-ratio: 4 / 3` and assumed it applied. It did not:
+     `.content-card` is `align-items: stretch`, and for a flex item stretch
+     wins over `aspect-ratio` on the cross axis. So the box actually rendered
+     123x110 — an aspect of 1.12 — and `object-fit: cover` on a 1.78 source
+     inside a 1.12 box slices **37% of the image width away**. Measured, not
+     estimated. Anything off-centre in the frame (a face at the edge, a title
+     card, a reaction) was simply gone.
+
+     THE FIX, IN TWO PARTS
+     1. `align-self: center` opts this item out of the stretch, which is what
+        finally lets `aspect-ratio` mean anything here.
+     2. The box is 16 / 9 — the source's own ratio — so the crop is ZERO and
+        the whole frame is visible.
+
+     WHY 42% AND NOT MORE
+     A horizontal card cannot show a wide image AND be tall: at a fixed width
+     share, 16:9 fixes the height too (42% of 326px = 137px wide, so 77px
+     tall). Going wider to gain height quickly becomes the 50/50 split that
+     was explicitly not wanted — 16:9 filling a 110px-tall card would need a
+     71% column. 42/58 keeps the copy dominant while giving the image ~11%
+     more width than before and, far more importantly, all of its content.
   */
   .content-card .content-card-media {
-    flex: 0 0 38%;
-    width: 38%;
-    aspect-ratio: 4 / 3;
+    flex: 0 0 42%;
+    width: 42%;
+    aspect-ratio: 16 / 9;
+    /* Without this the flex stretch overrides the ratio above — see note. */
+    align-self: center;
+    height: auto;
   }
 
   .content-card .content-card-body {
-    /* Slightly tighter than before to give the extra thumbnail width back
-       to the copy, so the headline still gets its three lines. */
-    padding: 0.8rem 0.9rem;
+    /*
+      The copy now sets the row height, because the image keeps its own 16:9
+      shape instead of stretching. So this padding is really a control for how
+      much clear space sits around the thumbnail.
+
+      0.85rem lands the card at ~101px against a 77px image — about 12px above
+      and below it. Enough to read as a deliberate margin; at the 1rem it was
+      briefly set to, the gap grew to 21px and started to look like the image
+      had failed to fill its column.
+    */
+    padding: 0.85rem 1rem;
     justify-content: center;
+  }
+
+  /* Keeps rows even when a headline runs short, so the image column does not
+     change size down the list. Just above the 77px the media occupies, so the
+     thumbnail always sits centred with a small, even margin. */
+  .content-card {
+    min-height: 100px;
   }
 
   .content-card .content-card-meta {
@@ -431,52 +463,4 @@
     display: none;
   }
 
-  /* ── FULL-BLEED CARD ROWS ────────────────────────────────────────────────
-
-     The card grids break out of their container's side gutter and run edge to
-     edge. Every pixel of that gutter (20px a side at 320px, ~30px at 560px)
-     was coming out of the thumbnail, which is the part of the row worth the
-     space.
-
-     `margin-inline: calc(50% - 50vw)` is the container-agnostic way to do it:
-     it works out to exactly the parent's own side padding whatever that
-     padding is, and there are THREE different gutters on this site
-     (`.container` uses a clamp, `.container-page` and `.container-narrow` use
-     2rem — see styles/modules/layout.css). Hard-coding a negative margin
-     would be right on one of them and wrong on the other two.
-
-     Deliberately scoped to card grids only. HEADINGS keep their gutter — text
-     jammed against the screen edge is hard to read, and the contrast between
-     an indented heading and a full-bleed row is what makes the row read as a
-     deliberate list rather than a broken layout.
-
-     Safe at this width because `50vw` counts the scrollbar: on a desktop
-     browser with classic scrollbars that would overflow by the scrollbar's
-     width, but this only ever applies below 560px, where scrollbars are
-     overlaid and take no layout space.
-  */
-  .card-grid,
-  .home-video-grid,
-  .latest-grid {
-    /*
-      `width: auto` is required, not decorative. CardGrid ships Tailwind's
-      `w-full` (`width: 100%`), and on a FIXED-width element negative margins
-      only shift the box sideways — they cannot widen it. The result was a grid
-      that bled off the left edge and stopped 32px short on the right.
-      Releasing the width lets the negative margins expand it symmetrically.
-    */
-    width: auto;
-    margin-inline: calc(50% - 50vw);
-    /* The side borders would now sit flush against the screen edge, which
-       reads as a rendering fault rather than a frame. Rows are separated by
-       their top/bottom borders instead. */
-    border-inline: 0;
-  }
-
-  .card-grid > *,
-  .home-video-grid > *,
-  .latest-grid > * {
-    border-left: 0;
-    border-right: 0;
-  }
 }
