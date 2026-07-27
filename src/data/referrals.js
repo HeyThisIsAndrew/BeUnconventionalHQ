@@ -62,7 +62,7 @@ import { site } from './site.js';
  */
 
 export const REFERRAL_DISCLOSURE =
-  'Self-funded and independent. Some links below are affiliate or referral links — using them costs you nothing and helps fund coverage.';
+  'Self-funded and independent. Some links below are affiliate links at no extra cost to you.';
 
 /** Heading for the whole block, wherever it is rendered. */
 export const REFERRAL_HEADING = 'Support The HQ';
@@ -108,53 +108,28 @@ export const REFERRAL_GROUPS = [
     note: 'The exact kit behind the deep dives.',
     items: [
       {
-        label: 'Sony A7 IV',
-        href: 'https://amzn.to/3RAmcEy',
-        blurb: 'Primary cinema camera.',
+        label: 'Gear Shop',
+        href: 'https://a.co/d/0aczEbZw',
+        blurb: 'Behind the desk All The Camera Gear.',
         icon: 'aperture',
-      },
-      {
-        label: 'Sony A7C R',
-        href: 'https://amzn.to/4dWoUeT',
-        blurb: 'B-roll and second body.',
-        icon: 'camera',
-      },
-      {
-        label: 'Moment',
-        href: 'https://partner.shopmoment.com/Ao14xD',
-        blurb: 'Mobile lenses and filtration.',
-        icon: 'aperture',
-      },
+        affiliate: true,
+      }
     ],
   },
   {
     id: 'software',
-    title: 'The Software Stack',
-    note: 'Post-production and live streaming.',
+    title: 'Behind The Desk',
+    note: 'Post-production and the tools I use to create.',
     items: [
       {
         label: 'DaVinci Resolve',
         href: 'https://www.blackmagicdesign.com/products/davinciresolve',
-        blurb: 'Colour and edit.',
+        blurb: 'Best FREE Editor for creators',
         icon: 'colorWheel',
         /* Blackmagic runs no affiliate programme — this is a straight
            recommendation, and the flag keeps the disclosure truthful. */
         affiliate: false,
-      },
-      {
-        label: 'Adobe Lightroom & Photoshop',
-        href: 'https://www.adobe.com',
-        blurb: 'Thumbnails and visual assets.',
-        icon: 'layers',
-        affiliate: false,
-      },
-      {
-        label: 'OBS Studio',
-        href: 'https://obsproject.com',
-        blurb: 'High-bitrate streaming and capture.',
-        icon: 'broadcast',
-        affiliate: false,
-      },
+      }
     ],
   },
 ];
