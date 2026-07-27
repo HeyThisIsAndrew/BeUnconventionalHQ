@@ -104,9 +104,21 @@ try {
         article's paragraphs behind, would look fine in a screenshot and be
         wrong. Assert the count and that the text actually changed.
       */
+      /*
+        Compare against the DATA, not a hard-coded count. The rail item the
+        swap came from carries its lede in `data-preview` (paragraphs joined
+        with a blank line), so the contract is: every paragraph the data
+        provides is rendered. A fixed ">= 2" here was really asserting a
+        property of the mock content — the real snapshot has articles whose
+        feed body was truncated, whose lede is legitimately one paragraph.
+      */
+      const expectedParas = await page.$eval(
+        '.intel-rail-item.active',
+        (el) => (el.dataset.preview ?? '').split('\n\n').filter(Boolean).length,
+      );
       ok(
-        'lede is still multiple paragraphs after a swap',
-        (await page.$$eval('#intel-feature-excerpt p', (els) => els.length)) >= 2,
+        `lede renders every paragraph the data provides (${expectedParas})`,
+        (await page.$$eval('#intel-feature-excerpt p', (els) => els.length)) === Math.max(1, expectedParas),
       );
       ok(
         'lede is rebuilt as text, never as markup',
@@ -137,9 +149,14 @@ try {
       hrefs.length > 0 && hrefs.every((h) => h && (h.startsWith('/') || /^https?:\/\//.test(h))),
     );
     ok('centre feature is server-rendered', (await noJs.$eval('#intel-feature-title', (e) => e.textContent.trim())).length > 0);
+    /* Same data-aware contract as the swap assertion above. */
+    const ssrExpected = await noJs.$eval(
+      '.intel-rail-item[aria-current="true"], .intel-rail-item.active',
+      (el) => (el.dataset.preview ?? '').split('\n\n').filter(Boolean).length,
+    ).catch(() => 1);
     ok(
-      'lede is server-rendered as multiple paragraphs',
-      (await noJs.$$eval('#intel-feature-excerpt p', (els) => els.length)) >= 2,
+      `lede is server-rendered with every data paragraph (${ssrExpected})`,
+      (await noJs.$$eval('#intel-feature-excerpt p', (els) => els.length)) === Math.max(1, ssrExpected),
     );
 
     /*

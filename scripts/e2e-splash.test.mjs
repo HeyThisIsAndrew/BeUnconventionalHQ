@@ -434,6 +434,82 @@ try {
     await page.close();
   }
 
+  // ── Opening an overlay must never arm the splash ──────────────────────
+  /*
+    Reported: from the homepage with the navbar visible, pressing the
+    hamburger made the menu never appear and killed scrolling entirely.
+
+    Cause: every overlay (menu, video modal, contact modal) pins <body> via
+    the shared scroll lock, and a PINNED body reads window.scrollY === 0.
+    That fired a scroll event, the re-arm listener read "reader reached the
+    top", and armed the splash — which hides #navbar. The menu overlay LIVES
+    INSIDE #navbar, so the reader got an invisible open menu plus
+    overflow:hidden with no visible control left. The splash controller now
+    refuses to arm while isScrollLocked() is true.
+
+    Asserted for the menu and the video modal — same lock, same trap.
+  */
+  {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 390, height: 844 });
+    await page.goto(`http://localhost:${port}/`, { waitUntil: 'networkidle0' });
+    await new Promise((r) => setTimeout(r, 400));
+    await page.evaluate(() => document.querySelector('[data-splash-trigger]').click());
+    await new Promise((r) => setTimeout(r, 1600));
+
+    // Hamburger.
+    await page.waitForSelector('.nav-toggle[data-mobile-click-bound]', { timeout: 5000 });
+    await page.click('.nav-toggle');
+    await new Promise((r) => setTimeout(r, 500));
+    const menuOpen = await page.evaluate(() => ({
+      armed: document.documentElement.classList.contains('splash-armed'),
+      navVisible: getComputedStyle(document.getElementById('navbar')).visibility,
+      menuOpen: document.getElementById('navbar').classList.contains('menu-open'),
+    }));
+    ok('overlay guard: hamburger does not arm the splash', menuOpen.armed === false);
+    ok('overlay guard: menu overlay is actually visible', menuOpen.navVisible === 'visible' && menuOpen.menuOpen === true, JSON.stringify(menuOpen));
+
+    await page.click('.nav-toggle');
+    await new Promise((r) => setTimeout(r, 500));
+    const closed = await page.evaluate(() => ({
+      scrollY: Math.round(window.scrollY),
+      armed: document.documentElement.classList.contains('splash-armed'),
+      bodyPinned: document.body.style.position === 'fixed',
+      overflow: getComputedStyle(document.documentElement).overflow,
+    }));
+    ok('overlay guard: closing the menu restores the page', closed.scrollY > 800 && !closed.armed && !closed.bodyPinned && closed.overflow !== 'hidden', JSON.stringify(closed));
+
+    // The page must genuinely scroll afterwards — "scrolling completely
+    // breaks" was the other half of the report.
+    await page.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; window.scrollBy(0, 300); });
+    await new Promise((r) => setTimeout(r, 200));
+    ok('overlay guard: scrolling works after the round-trip', (await page.evaluate(() => Math.round(window.scrollY))) > 1000);
+
+    // Video modal — same lock, so assert it too.
+    const hasVideo = await page.evaluate(() => {
+      const t = document.querySelector('[data-action="open-video"]');
+      if (t) t.click();
+      return !!t;
+    });
+    if (hasVideo) {
+      await new Promise((r) => setTimeout(r, 600));
+      ok('overlay guard: video modal does not arm the splash',
+        (await page.evaluate(() => document.documentElement.classList.contains('splash-armed'))) === false);
+      await page.click('#video-modal .modal-close');
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
+    // And the guard must not have cost the feature: top still re-arms.
+    await page.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; window.scrollTo(0, 0); });
+    let rearmed = true;
+    await page.waitForFunction(
+      () => document.documentElement.classList.contains('splash-armed'),
+      { timeout: 4000 }
+    ).catch(() => { rearmed = false; });
+    ok('overlay guard: reaching the top still re-arms', rearmed);
+    await page.close();
+  }
+
   // ── The pulse must not bleed outside the button ───────────────────────
   /*
     A hard constraint, so it is measured in PIXELS rather than inferred from

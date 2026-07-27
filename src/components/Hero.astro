@@ -44,6 +44,15 @@ import { site } from '../data/site.js';
 </section>
 
 <script>
+  /*
+    Only the PROBE is imported, not lock/unlock — the splash deliberately does
+    not use the shared lock for itself (see splash.css: pinning the body kills
+    the wrapper's transform transition). But it must know when someone ELSE
+    holds it: pinning the body makes window.scrollY read 0, and 0 is the
+    splash's arming condition. See shouldArm().
+  */
+  import { isScrollLocked } from '../lib/scroll-lock';
+
   // Keep track of the current listener so we can remove it on page exit
   declare global {
     interface Window {
@@ -185,6 +194,17 @@ import { site } from '../data/site.js';
         window.location.pathname === '/' &&
         !window.location.hash &&
         window.scrollY < 4 &&
+        /*
+          NOT while an overlay holds the scroll lock. The lock pins <body>
+          with position:fixed, and a pinned body reads window.scrollY === 0 —
+          so without this check, opening the hamburger menu (or the video or
+          contact modal) anywhere on the homepage looked exactly like
+          "reader reached the top" and armed the splash. Arming hides
+          #navbar, and the menu overlay LIVES INSIDE #navbar: the reader got
+          an invisible open menu and an overflow-hidden page with no visible
+          control left to undo either. Reproduced and traced before fixing.
+        */
+        !isScrollLocked() &&
         !!document.querySelector('.hero')
       );
     }
@@ -525,6 +545,10 @@ import { site } from '../data/site.js';
         () => {
           if (busy) return; // A lift is mid-flight; it owns the scroll.
           if (window.scrollY > 0) return;
+          /* scrollY 0 because an overlay PINNED the body, not because the
+             reader scrolled here — see the note in shouldArm(). The unlock
+             restores the real offset, so no state is missed by skipping. */
+          if (isScrollLocked()) return;
           if (root.classList.contains('splash-armed')) return;
           arm();
         },
