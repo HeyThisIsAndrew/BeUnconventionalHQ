@@ -227,6 +227,66 @@ try {
     await page.close();
   }
 
+  // ── The BUTTON path must be as smooth as the scroll path ──────────────
+  /*
+    Reported: pressing the button was jarring, while scrolling to lift the
+    same curtain was perfect — even though both call the same lift().
+
+    The difference was the hash. Astro's ClientRouter sets `#hq-content`
+    despite preventDefault, so the browser smooth-scrolled to that section
+    while the curtain animated. Two motions, so the content overshot to
+    ~1688px — double the 844px it should travel — and then snapped back:
+
+      scrollY     0 → 506 → 737 → 808 → 844   (fragment scroll)
+      translateY  0 →  -33 →  -96 → … → -844   (curtain)
+      visible     0 → 539 → 833 → … → 1688 → 844
+
+    The end state was correct throughout, so only measuring where the page
+    lands would have passed against this. The assertion that matters is that
+    the content never travels FURTHER than the curtain does.
+  */
+  {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 390, height: 844 });
+    await page.goto(`http://localhost:${port}/`, { waitUntil: 'networkidle0' });
+    await new Promise((r) => setTimeout(r, 400));
+
+    await page.evaluate(() => {
+      window.__c = [];
+      let n = 0;
+      const tick = () => {
+        const w = document.getElementById('app-wrapper');
+        const m = new DOMMatrixReadOnly(getComputedStyle(w).transform);
+        window.__c.push([Math.round(window.scrollY), Math.round(m.m42)]);
+        if ((n += 1) < 80) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+
+    await page.evaluate(() => document.querySelector('[data-splash-trigger]').click());
+    await new Promise((r) => setTimeout(r, 1800));
+
+    const c = await page.evaluate(() => window.__c);
+    const heroH = await page.evaluate(() => Math.round(document.querySelector('.hero').offsetHeight));
+
+    const scrollMidLift = c.filter(([, ty]) => ty < -8).map(([sy]) => sy);
+    ok(
+      'button lift: no fragment scroll while the curtain moves',
+      scrollMidLift.every((sy) => sy === 0),
+      `saw scrollY ${[...new Set(scrollMidLift)].join(',')} mid-lift`,
+    );
+
+    /* The overshoot check. `visible` is how far the content has actually
+       travelled; it must never exceed the curtain's own distance. */
+    const peak = Math.max(...c.map(([sy, ty]) => sy - ty));
+    ok(
+      'button lift: content never overshoots the curtain distance',
+      peak <= heroH + 8,
+      `peak travel ${peak}px vs hero ${heroH}px`,
+    );
+    await page.close();
+  }
+
   // ── The CTA must still work once the splash is dismissed ──────────────
   /*
     Reported: dismiss the splash, scroll back to the top so the navbar is
