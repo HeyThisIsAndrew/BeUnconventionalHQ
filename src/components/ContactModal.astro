@@ -1,4 +1,5 @@
 ---
+import { SECTIONS } from '../data/content.js';
 import PageTitle from './PageTitle.astro';
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
 
@@ -14,7 +15,7 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
     <button id="close-contact-modal" class="contact-modal-close" aria-label="Close modal"><span aria-hidden="true">&times;</span></button>
     
     <div class="contact-modal-header">
-      <PageTitle kicker="Get In Touch" primary="Contact" secondary="Us" scale="secondary" />
+      <PageTitle {...SECTIONS.contact} scale="secondary" />
       <p class="contact-modal-desc">
         Have a question or collaboration idea? <br class="mobile-break" />
         Send us a message.
@@ -82,12 +83,19 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
   };
 </script>
 
+{/*
+  Stays `is:inline`. This script is plain untyped DOM code and converting it
+  to a bundled module (the only way to use `import`) would mean type-annotating
+  every query in it — a large, risky change to a working contact form for no
+  user-visible gain. It reaches the shared scroll lock through the small
+  `window.__hqScrollLock` bridge instead; see src/lib/scroll-lock.ts.
+*/}
 <script is:inline>
   (function () {
     // Ensure we only register global listeners once across view transitions
     if (window.contactModalSetup) return;
     window.contactModalSetup = true;
-    
+
     let lastFocused = null;
 
 
@@ -106,14 +114,17 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
         // #page-content, so Tab can't escape the modal.
         document.getElementById('app-wrapper')?.setAttribute('inert', '');
 
-        // Only capture and lock scroll if it isn't already locked by the mobile menu
-        if (document.body.style.position !== 'fixed') {
-          const scrollY = window.scrollY;
-          document.body.style.top = `-${scrollY}px`;
-          document.body.style.position = 'fixed';
-          document.body.style.width = '100%';
-          document.body.style.overflowY = 'scroll';
-        }
+        /*
+          Shared scroll lock — src/lib/scroll-lock.ts.
+
+          The `if (document.body.style.position !== 'fixed')` guard that used
+          to be here was trying to avoid double-locking when the mobile menu
+          was already open. It half-worked: the lock was skipped, but the
+          matching close still ran its full teardown, releasing the menu's
+          lock too. The utility reference-counts instead, so nesting is
+          handled properly and this call needs no guard at all.
+        */
+        window.__hqScrollLock.lock();
 
         // iOS auto-zoom guard: the content animates transform: scale(0.9)->1,
         // which renders inputs below 16px mid-transition. Hold the form out of
@@ -129,23 +140,16 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
         modal.classList.remove('is-active');
         modal.setAttribute('aria-hidden', 'true');
         
-        const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
-        document.body.style.position = '';
-        document.body.style.top = '';
-        document.body.style.width = '';
-        document.body.style.overflowY = '';
-        
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            const originalBehavior = document.documentElement.style.scrollBehavior;
-            document.documentElement.style.scrollBehavior = 'auto'; // Force instant snap
-            window.scrollTo(0, scrollY);
-            document.documentElement.style.scrollBehavior = originalBehavior;
-          });
-        });
+        /* Unpins the body and restores the offset in ONE frame. The double
+           requestAnimationFrame this replaces let the browser paint the page
+           unpinned-but-not-yet-restored, which is the flash of wrong scroll
+           position on close. */
+        window.__hqScrollLock.unlock();
 
         document.getElementById('app-wrapper')?.removeAttribute('inert');
-        if (lastFocused) lastFocused.focus();
+        /* preventScroll — focusing the trigger otherwise scrolls it into
+           view and undoes the restore above. */
+        if (lastFocused) lastFocused.focus({ preventScroll: true });
       }
     }
 
@@ -355,7 +359,7 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
   }
 
   .contact-modal-close:hover {
-    color: var(--color-accent);
+    color: var(--color-accent-text);
     transform: rotate(90deg);
   }
 

@@ -1,0 +1,368 @@
+---
+/**
+ * IntelMagazine — the three-column magazine spread at the top of /intel.
+ *
+ * ─── THE LAYOUT ───────────────────────────────────────────────────────────
+ *     ┌──────────┬────────────────────┬──────────┐
+ *     │ left     │  CENTRE FEATURE    │ right    │
+ *     │ rail     │  big image         │ rail     │
+ *     │ (links)  │  title + standfirst│ (links)  │
+ *     └──────────┴────────────────────┴──────────┘
+ * Clicking a rail item swaps the CENTRE, rather than loading a new page.
+ *
+ * ─── HOW THE SWAP WORKS (worth understanding before editing) ──────────────
+ * This is a "progressive enhancement". The page is built so it works with no
+ * JavaScript at all, and the script only makes it nicer:
+ *
+ *   1. Astro renders the newest article into the centre on the server. So the
+ *      centre is real HTML before any script runs — good for search engines
+ *      and for anyone whose JS fails to load.
+ *   2. Every rail item is a real <a href="/intel/…">. With JS off, clicking
+ *      one just navigates to that article. Nothing is broken.
+ *   3. With JS on, the script below intercepts the click, cancels the
+ *      navigation, and rewrites the centre using the data-* attributes the
+ *      rail item carries.
+ *
+ * That ordering is deliberate. If the rails were <button>s or <div>s with
+ * click handlers, Google could not follow them and the articles would lose
+ * the internal links that help them rank — which is the whole point of
+ * hosting articles here instead of on Substack.
+ *
+ * ─── HOW TO CHANGE WHAT THE CENTRE SHOWS ──────────────────────────────────
+ * Adding a field (say, a read time) takes three edits:
+ *   1. add the element in the centre markup below, with an id;
+ *   2. add a matching data-* attribute in MagazineRail.astro;
+ *   3. copy it across in the `paint()` function in the script below.
+ *
+ * ─── HOW TO CHANGE THE SIZE OF THE SPREAD ─────────────────────────────────
+ * MAGAZINE_SIZE in src/data/sections.js decides how many articles the spread
+ * uses in total (1 centre + the rest split between the rails).
+ *
+ * ─── HOW TO RESTYLE IT ────────────────────────────────────────────────────
+ * `.intel-magazine` and `.intel-feature-*` in src/styles/modules/intel.css.
+ */
+import MagazineRail from './MagazineRail.astro';
+import { Image } from 'astro:assets';
+/* Pre-cropped mark, matching ArticleThumb — see the note there for why the
+   padded square version renders blurry at fallback sizes. */
+import logoImage from '../assets/logo-mark.webp';
+import { LABELS } from '../data/content.js';
+import { articlePreview } from '../lib/articles';
+import type { ArticleRecord } from '../lib/articles';
+
+type MagazineArticle = ArticleRecord & { link: string; isExternal: boolean };
+
+interface Props {
+  /** Newest first. The first article becomes the opening centre feature. */
+  articles: MagazineArticle[];
+}
+
+const { articles } = Astro.props;
+
+/*
+  The newest article opens the spread in the centre.
+
+  Typed explicitly as possibly-undefined: TypeScript assumes indexing an array
+  always yields an element, but `articles` can legitimately be empty (no
+  articles published yet), and the markup below guards on `feature` for
+  exactly that reason.
+*/
+const feature: MagazineArticle | undefined = articles[0];
+
+/*
+  EVERY article in the spread gets a rail tile — including the one currently
+  in the centre.
+
+  This was a bug worth understanding: the rails used to hold only the articles
+  *after* the feature. So the opening article had no tile, and once you clicked
+  a rail item the article you had just navigated away from vanished from the
+  page entirely — you could not get back to it without reloading. Now the rails
+  are the full, stable set and the centre simply reflects whichever one is
+  selected, with that tile marked active.
+
+  Split by alternating sides (0→left, 1→right, 2→left …) rather than
+  "first half left, second half right", so the two rails stay the same length
+  when the count is odd and DOM order matches visual order for keyboard and
+  screen-reader users.
+*/
+const railArticles = articles;
+const leftRail = railArticles.filter((_, index) => index % 2 === 0);
+const rightRail = railArticles.filter((_, index) => index % 2 === 1);
+
+/*
+  The slug of the article currently in the centre, so its rail tile can render
+  already-active on the server. Without this the highlight would only appear
+  after the first click, and a no-JS visitor would never see it at all.
+*/
+const activeSlug = feature?.slug ?? '';
+---
+
+{
+  /* No articles at all → render nothing. The page shows an <EmptyState />. */
+  feature && (
+    <section class="intel-magazine" aria-label="Featured articles">
+      <MagazineRail side="left" articles={leftRail} activeSlug={activeSlug} />
+
+      {/*
+        The swappable centre.
+        aria-live="polite" tells a screen reader to announce the new headline
+        when the centre changes — without it, the swap would be silent and a
+        non-sighted reader would have no idea anything happened.
+      */}
+      <article class="intel-feature" id="intel-feature" aria-live="polite">
+        <a class="intel-feature-link" id="intel-feature-link" href={feature.link}>
+          <div class="intel-feature-image">
+            {/*
+              BOTH states are rendered, and the script toggles between them.
+
+              Why: the centre swaps between articles, and some have a cover
+              image while others don't. If only one state existed in the DOM,
+              switching from a no-image article to one with a cover would have
+              nothing to put the image into. Rendering both and flipping a
+              `hidden` attribute keeps the swap a simple attribute change
+              instead of rebuilding markup in JavaScript.
+
+              width/height reserve the space before the image loads, which is
+              what stops the page jumping (cumulative layout shift).
+            */}
+            <img
+              id="intel-feature-img"
+              src={feature.image || ''}
+              alt={feature.image ? `Cover image for ${feature.title}` : ''}
+              width="1456"
+              height="816"
+              loading="eager"
+              decoding="async"
+              hidden={!feature.image}
+            />
+            <div
+              id="intel-feature-fallback"
+              class="article-thumb-fallback is-feature"
+              hidden={!!feature.image}
+            >
+              {/* 2x the displayed width, at the mark's own ratio — same
+                  reasoning as ArticleThumb.astro. */}
+              <Image
+                src={logoImage}
+                alt=""
+                width={520}
+                height={239}
+                class="article-thumb-fallback-logo"
+                loading="lazy"
+                decoding="async"
+                aria-hidden="true"
+              />
+              <span class="article-thumb-fallback-title" id="intel-feature-fallback-title">
+                {feature.title}
+              </span>
+            </div>
+          </div>
+
+          <div class="intel-feature-copy">
+            <span class="intel-feature-meta">
+              <span id="intel-feature-category">{feature.category}</span>
+              <span class="dot">&bull;</span>
+              <span id="intel-feature-date">{feature.date}</span>
+            </span>
+
+            {/* h2: the page <h1> is the "THE INTEL" title in the header. */}
+            <h2 class="intel-feature-title" id="intel-feature-title">{feature.title}</h2>
+
+            {/*
+              THE LEDE — several real paragraphs, not a one-line teaser.
+
+              The centre feature is a full editorial block: on desktop it sits
+              beside two rails of article tiles, and on a phone it is the first
+              thing on the page. A single sentence left a large empty area
+              under the "Read More" link, which read as a rendering fault
+              rather than as design. articlePreview() returns the article's
+              opening paragraphs (see buildPreview in articles-transform.ts).
+
+              A <div> of <p>s rather than one <p>, because a paragraph cannot
+              legally contain other paragraphs.
+            */}
+            <div class="intel-feature-excerpt" id="intel-feature-excerpt">
+              {articlePreview(feature).map((paragraph) => <p>{paragraph}</p>)}
+            </div>
+
+            {/* "Read More" rather than "Read Now": the excerpt above is a
+                real preview, so this continues reading rather than starting
+                it. Wording lives in LABELS (src/data/content.js). */}
+            <span class="intel-feature-cta">
+              {LABELS.readMore} <span class="arrow" aria-hidden="true">&rarr;</span>
+            </span>
+          </div>
+        </a>
+      </article>
+
+      <MagazineRail side="right" articles={rightRail} activeSlug={activeSlug} />
+    </section>
+  )
+}
+
+<script>
+  /*
+    Magazine centre-swap.
+
+    Runs on `astro:page-load` rather than `DOMContentLoaded` because this site
+    uses Astro's ClientRouter for page transitions: on a client-side
+    navigation there is no new DOMContentLoaded, so a handler bound to it
+    would silently stop working after the first navigation.
+  */
+  function initIntelMagazine() {
+    const feature = document.getElementById('intel-feature');
+    if (!feature) return; // Not on a page with a magazine — nothing to do.
+
+    // The parts of the centre that change when a rail item is picked.
+    const link = document.getElementById('intel-feature-link') as HTMLAnchorElement | null;
+    const image = document.getElementById('intel-feature-img');
+    const title = document.getElementById('intel-feature-title');
+    const excerpt = document.getElementById('intel-feature-excerpt');
+    const category = document.getElementById('intel-feature-category');
+    const date = document.getElementById('intel-feature-date');
+
+    const items = Array.from(document.querySelectorAll<HTMLAnchorElement>('.intel-rail-item'));
+    if (!link || items.length === 0) return;
+
+    /** Redraw the centre feature from one rail item's data-* attributes. */
+    function paint(item: HTMLAnchorElement) {
+      const data = item.dataset;
+      const href = data.href ?? item.getAttribute('href') ?? '';
+
+      link!.setAttribute('href', href);
+
+      // An article we host is an internal link; one still living on Substack
+      // is external and should open in a new tab with a safe rel.
+      if (data.external === 'true') {
+        link!.setAttribute('target', '_blank');
+        link!.setAttribute('rel', 'noopener noreferrer');
+      } else {
+        link!.removeAttribute('target');
+        link!.removeAttribute('rel');
+      }
+
+      if (title) title.textContent = data.title ?? '';
+
+      /*
+        Rebuild the lede paragraph by paragraph.
+
+        `data-preview` is the paragraphs joined with a blank line, so split on
+        that and create one <p> per entry. Each paragraph's text is set with
+        `textContent`, never innerHTML — so even though this content came from
+        an RSS feed originally, it can never execute as markup here.
+      */
+      if (excerpt) {
+        excerpt.replaceChildren(
+          ...(data.preview ?? '')
+            .split('\n\n')
+            .map((text) => text.trim())
+            .filter(Boolean)
+            .map((text) => {
+              const p = document.createElement('p');
+              p.textContent = text;
+              return p;
+            }),
+        );
+      }
+
+      if (category) category.textContent = data.category ?? '';
+      if (date) date.textContent = data.date ?? '';
+
+      /*
+        Show the cover image when the article has one, otherwise show the
+        branded fallback. `hidden` is a plain HTML attribute — setting it is
+        equivalent to display:none, with no CSS class bookkeeping.
+      */
+      const fallback = document.getElementById('intel-feature-fallback');
+      const fallbackTitle = document.getElementById('intel-feature-fallback-title');
+
+      if (data.image) {
+        if (image) {
+          image.setAttribute('src', data.image);
+          image.setAttribute('alt', `Cover image for ${data.title ?? ''}`);
+          image.removeAttribute('hidden');
+        }
+        if (fallback) fallback.setAttribute('hidden', '');
+      } else {
+        if (image) image.setAttribute('hidden', '');
+        if (fallbackTitle) fallbackTitle.textContent = data.title ?? '';
+        if (fallback) fallback.removeAttribute('hidden');
+      }
+
+      /*
+        Restart the fade-in so the swap reads as a deliberate change rather
+        than text mutating in place. Removing the class, forcing the browser
+        to recalculate layout by reading offsetWidth, then re-adding it is the
+        standard way to replay a CSS animation — without the reflow the
+        browser batches both changes and nothing appears to happen.
+      */
+      feature!.classList.remove('is-swapping');
+      void feature!.offsetWidth;
+      feature!.classList.add('is-swapping');
+    }
+
+    /** Mark which rail item is currently in the centre. */
+    function setActive(slug: string) {
+      items.forEach((item) => {
+        const isActive = item.dataset.slug === slug;
+        item.classList.toggle('active', isActive);
+        // aria-current is the accessible equivalent of the visual highlight.
+        if (isActive) item.setAttribute('aria-current', 'true');
+        else item.removeAttribute('aria-current');
+      });
+    }
+
+    function select(item: HTMLAnchorElement) {
+      paint(item);
+      setActive(item.dataset.slug ?? '');
+    }
+
+    items.forEach((item) => {
+      // Guard against binding twice if this runs again after a navigation.
+      if (item.dataset.bound) return;
+      item.dataset.bound = 'true';
+
+      item.addEventListener('click', (event) => {
+        /*
+          Let the browser handle anything that isn't a plain left-click:
+          cmd/ctrl-click opens a new tab, middle-click too, shift opens a
+          window. Hijacking those would break behaviour people rely on.
+        */
+        const mouseEvent = event as MouseEvent;
+        if (
+          event.defaultPrevented ||
+          mouseEvent.button !== 0 ||
+          mouseEvent.metaKey ||
+          mouseEvent.ctrlKey ||
+          mouseEvent.shiftKey ||
+          mouseEvent.altKey
+        ) {
+          return;
+        }
+
+        event.preventDefault(); // Stay on the page; swap instead of navigating.
+        select(item);
+
+        /*
+          Record the choice in the URL (#some-article-slug) with replaceState,
+          so the state can be shared or reloaded. replaceState rather than
+          pushState so the back button leaves /intel entirely instead of
+          stepping back through every swap the reader made.
+        */
+        const slug = item.dataset.slug;
+        if (slug) history.replaceState(null, '', `#${slug}`);
+
+        feature!.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      });
+    });
+
+    // If the page was opened with a #slug, restore that selection.
+    const hash = decodeURIComponent(window.location.hash.replace('#', ''));
+    if (hash) {
+      const match = items.find((item) => item.dataset.slug === hash);
+      if (match) select(match);
+    }
+  }
+
+  document.addEventListener('astro:page-load', initIntelMagazine);
+</script>

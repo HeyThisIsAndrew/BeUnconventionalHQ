@@ -1,0 +1,365 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   CINEMATIC SPLASH & CURTAIN REVEAL
+
+   The homepage hero doubles as a splash screen. Tapping "Explore The HQ"
+   lifts it like a curtain and the page content rises into view underneath.
+
+   ─── WHY THIS EXISTS ────────────────────────────────────────────────────
+   Mobile bounce: the old CTA linked straight to /feed, so the homepage was a
+   doorway people walked through without ever seeing what was on it. The
+   button now reveals the homepage instead of leaving it.
+
+   ─── THE ONE IDEA THAT MAKES IT CHEAP ───────────────────────────────────
+   The curtain is not a new overlay element. It is the hero that was already
+   there, and the "lift" is a SINGLE transform on #app-wrapper that slides the
+   whole document up by exactly the hero's height. One compositor-only
+   property, on one element, for the entire effect — the hero exits the top of
+   the screen and the content rises at the same time because they are the same
+   movement. When it finishes, JS swaps the transform for a real scroll
+   offset, which is visually identical and leaves the page in a normal state.
+
+   ─── PROGRESSIVE ENHANCEMENT ────────────────────────────────────────────
+   Nothing here blocks content. Without JS `html` never gets `.splash-armed`,
+   the navbar is visible, the CTA is a plain anchor to #page-content, and the
+   page is an ordinary scrolling document. There is no overlay that can trap
+   anyone if a script fails.
+
+   ─── NO SCROLL-LINKED ANIMATION ─────────────────────────────────────────
+   Every motion here is a discrete, self-contained transition triggered by an
+   event. Nothing recalculates on scroll, which is what keeps this off the
+   main thread and out of the LCP path (see GitHub #49).
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+:root {
+  /*
+     THE CURTAIN TIMING — one place, used by every part of the effect.
+
+     900ms with cubic-bezier(0.76, 0, 0.24, 1) — an ease-in-out quart. The
+     slow start gives the curtain WEIGHT (it reads as heavy fabric being
+     raised, not a panel being deleted), the fast middle keeps it from feeling
+     sluggish, and the eased landing stops it dead rather than bouncing.
+
+     Snappier curves (0.22, 1, 0.36, 1 — the site's usual "back out") were
+     rejected: on a full-viewport move that reads as a glitch rather than a
+     reveal. This is the one moment on the site where slow is the point.
+  */
+  --splash-duration: 900ms;
+  --splash-ease: cubic-bezier(0.76, 0, 0.24, 1);
+
+  /* Set by the splash script from the hero's measured height. Falls back to
+     100dvh, which is correct before JS runs and on browsers that never get
+     the class. dvh, not vh — a mobile address bar makes vh lie. */
+  --splash-lift: 100dvh;
+}
+
+/* ── The lift ──────────────────────────────────────────────────────────────
+
+   Applied to #app-wrapper, which contains the navbar, the page content and
+   the footer. Transforming the wrapper rather than the hero is what makes the
+   content rise INTO the space the hero vacates instead of leaving a hole.
+*/
+/*
+   ─── THE PAGE DOES NOT SCROLL WHILE THE CURTAIN IS DOWN ───────────────────
+   Without this the document stayed natively scrollable behind the splash, so
+   a scroll gesture did TWO things at once: scrolled the page AND triggered
+   the lift. Both move content upward, so it travelled at roughly double speed
+   and then snapped. Measured, wheeling down with the curtain armed:
+
+     scrollY     0 → 180 → 360 → 540 → 844   (native scroll)
+     translateY  0 →  -2 →  -41 → -182 →   0   (curtain transform)
+     visible     0 → 182 → 401 → 722 → 844   ← 118px jumps between frames
+
+   That is the reported "jumps around on the screen". Locking makes a scroll
+   gesture a TRIGGER rather than a scroll — the curtain owns the viewport
+   until it has finished lifting.
+
+   `overflow: hidden` ONLY — deliberately not the shared scroll lock in
+   src/lib/scroll-lock.ts. That utility pins <body> with `position: fixed`,
+   which re-parents #app-wrapper's containing block mid-animation and made the
+   browser drop the transform transition outright (measured: translateY never
+   left 0 and transitionend fired immediately). Overflow alone stops the
+   scrolling without touching the animated element's layout.
+*/
+html.splash-armed {
+  overflow: hidden;
+}
+
+/*
+   Scrollbar compensation.
+
+   Hiding the overflow removes the document scrollbar, so on a desktop browser
+   with classic scrollbars the content would widen by ~15px the instant the
+   curtain lifts. The splash script measures that width before hiding it and
+   publishes it here; padding the wrapper by the same amount means releasing
+   the lock changes nothing.
+
+   Zero on every touch device and on macOS, where scrollbars are overlaid and
+   occupy no layout space — which is why the reported case (mobile, landscape)
+   never saw a sideways shift, only the vertical jumping fixed above.
+*/
+html.splash-armed #app-wrapper {
+  padding-right: var(--splash-gutter, 0px);
+}
+
+html.splash-lifting #app-wrapper {
+  transform: translate3d(0, calc(-1 * var(--splash-lift)), 0);
+  transition: transform var(--splash-duration) var(--splash-ease);
+  will-change: transform;
+}
+
+/*
+   There is no reverse ANIMATION any more, and that is the point.
+
+   The curtain used to be dropped back with a 900ms transition triggered by a
+   pull-down gesture. But by the time it played, the reader's own scroll had
+   already brought the hero into view — so it animated content that was
+   already in place, on top of a navbar that was still fading out from a
+   separate threshold. Two animations for one intent, which is what read as
+   bouncing.
+
+   Reaching the top now simply re-arms: the hero is already there, so the
+   curtain only needs to BE down. See the scroll listener in Hero.astro.
+*/
+
+/* ── Hero contents during the lift ─────────────────────────────────────────
+
+   The logo, tagline and button fade and scale back slightly as the curtain
+   rises, so the panel is empty by the time it clears the screen — the
+   curtain recedes rather than sliding a fully-lit poster off the top.
+
+   Faster than the lift itself (420ms vs 900ms) and eased out, so the fade is
+   finished early and the remaining travel is pure movement.
+*/
+html.splash-lifting .hero-content {
+  opacity: 0;
+  transform: translateY(var(--hero-content-y, 0)) scale(0.94);
+  transition:
+    opacity 420ms ease-out,
+    transform 620ms var(--splash-ease);
+}
+
+/* ── Navbar during the splash ──────────────────────────────────────────────
+
+   HIDDEN, not dimmed. The splash is a full-screen brand moment and a
+   hamburger sitting on top of it breaks the "app launching" illusion — it
+   also offers an escape hatch from the exact screen we want people to engage
+   with, which is the bounce problem restated.
+
+   `visibility: hidden` (not just opacity) is deliberate: an invisible but
+   focusable navbar would let a keyboard user tab into controls they cannot
+   see. visibility removes it from the tab order and the accessibility tree,
+   and the splash script lifts the curtain on the first Tab press so the nav
+   is never more than one keystroke away.
+*/
+html.splash-armed #navbar {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-100%);
+  transition:
+    opacity 300ms ease,
+    transform 400ms var(--splash-ease),
+    visibility 0s linear 400ms;
+}
+
+/* Reveal as the curtain clears — delayed so it arrives with the content
+   rather than racing it. */
+#navbar {
+  transition:
+    opacity 400ms ease 350ms,
+    transform 500ms var(--splash-ease) 300ms,
+    visibility 0s;
+}
+
+/* ── The CTA ───────────────────────────────────────────────────────────────
+
+   SHAPE DECISION: the square button stays, and gains a chevron.
+
+   A bare downward arrow was considered and rejected. Every interactive
+   surface on this site is a sharp-cornered rectangle — `.quadrant-btn` sets
+   `border-radius: 0`, the social tiles force it with !important — so a
+   floating circular arrow would read as imported from another design system.
+   The square also keeps a real text label, which an icon-only control cannot
+   do without leaning on an aria-label.
+
+   What the button DID need was to stop looking like navigation. It used to
+   link away to /feed; it now reveals this page. The chevron says "down", the
+   label says where, and the pulse says "press me" — the affordance changes
+   without discarding the brand's visual language.
+*/
+.hero-cta {
+  position: relative;
+  /* Guarantees the pulse cannot escape — see the note on ::after below. */
+  overflow: hidden;
+  /* Own stacking context so the glow layer cannot interact with anything
+     painted outside the button. */
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+}
+
+/*
+   THE PULSE — contained by construction, not by luck.
+
+   The brief's constraint is that the glow must not bleed into the hero behind
+   it. An outer `box-shadow` cannot satisfy that: it is drawn OUTSIDE the
+   border box by definition, and no amount of tuning keeps it in.
+
+   So the glow is an INSET shadow on a pseudo-element that exactly covers the
+   button, inside `overflow: hidden`. An inset shadow is painted within the
+   element's own box, and the clip is a second guarantee on top of that. The
+   light falls on the button's interior edges and stops at them.
+
+   Only `opacity` animates. That is a compositor-only property — no layout, no
+   repaint, no main-thread work — which is what keeps a permanently-running
+   animation off the performance budget.
+*/
+.hero-cta::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 22px 2px rgba(239, 68, 68, 0.6),
+    inset 0 0 6px 0 rgba(239, 68, 68, 0.45);
+  opacity: 0.25;
+  animation: splash-cta-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes splash-cta-pulse {
+  0%,
+  100% {
+    opacity: 0.22;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* The chevron. Sits after the label and drifts down and back — a small,
+   repeating hint of the direction the press will take you. transform only. */
+.hero-cta-chevron {
+  display: inline-block;
+  width: 0.62em;
+  height: 0.62em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translate3d(0, 0, 0);
+  /* The glyph is drawn from two borders on a rotated box, so its optical
+     centre sits above the text baseline; nudge it back down. */
+  margin-top: -0.28em;
+  animation: splash-chevron-drift 2.6s ease-in-out infinite;
+}
+
+@keyframes splash-chevron-drift {
+  0%,
+  100% {
+    transform: rotate(45deg) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: rotate(45deg) translate3d(2px, 2px, 0);
+  }
+}
+
+/* Pressing it should feel like it takes. */
+.hero-cta:active {
+  transform: scale(calc(var(--hero-cta-scale, 1) - 0.02));
+}
+
+/* Once the curtain is up the button has done its job — stop the animation so
+   nothing is running on a page the reader has moved past. */
+html:not(.splash-armed) .hero-cta::after,
+html:not(.splash-armed) .hero-cta-chevron {
+  animation: none;
+}
+
+html:not(.splash-armed) .hero-cta::after {
+  opacity: 0.28;
+}
+
+/* ── Staggered category tiles ──────────────────────────────────────────────
+
+   The tiles slide up from beneath one another as the row enters the viewport,
+   which is what tells a reader arriving from the curtain that there is more
+   below.
+
+   The stagger is PURE CSS: `nth-child` transition delays. JavaScript's only
+   job is to add `.in-view` once — it does not time, measure or animate
+   anything, so there is no per-frame work and no animation library.
+*/
+.cat-stagger {
+  opacity: 0;
+  transform: translate3d(0, 20px, 0);
+  will-change: opacity, transform;
+}
+
+/*
+   AN ANIMATION, NOT A TRANSITION — and the distinction matters.
+
+   The obvious build is `transition` + `nth-child { transition-delay }`. It has
+   a real defect: `transition-delay` applies to EVERY transitioned property on
+   the element for the rest of its life, so once revealed, the fourth tile's
+   hover would also sit idle for 270ms before responding. The reveal's timing
+   would leak into an unrelated interaction.
+
+   `animation-delay` belongs to the animation alone. Hover transitions stay
+   instant, and the stagger still comes from pure CSS `nth-child` — no index
+   passed through the markup, no JS timing.
+
+   `both` fill holds a delayed tile at opacity 0 until its turn and pins it
+   open afterwards. It must be ONE keyword: `backwards forwards` is not valid
+   in the shorthand, and an invalid shorthand drops the WHOLE declaration —
+   which left every tile sitting at the base opacity of 0 with no animation
+   to raise it.
+*/
+.cat-stagger.in-view {
+  animation: cat-stagger-rise 620ms cubic-bezier(0.22, 0.8, 0.2, 1) both;
+}
+
+@keyframes cat-stagger-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* 90ms apart: reads as a sequence without the last tile feeling abandoned —
+   four tiles all start within 270ms of the first. */
+.cat-stagger.in-view:nth-child(1) { animation-delay: 0ms; }
+.cat-stagger.in-view:nth-child(2) { animation-delay: 90ms; }
+.cat-stagger.in-view:nth-child(3) { animation-delay: 180ms; }
+.cat-stagger.in-view:nth-child(4) { animation-delay: 270ms; }
+.cat-stagger.in-view:nth-child(n + 5) { animation-delay: 360ms; }
+
+/* ── Reduced motion ────────────────────────────────────────────────────────
+
+   Not "faster" — OFF. Someone who has asked their OS to reduce motion should
+   not be shown a full-viewport slide at all. The curtain still works, it just
+   arrives instantly, and the tiles are simply present.
+*/
+@media (prefers-reduced-motion: reduce) {
+  html.splash-lifting #app-wrapper,
+  html.splash-lifting .hero-content,
+  html.splash-armed #navbar,
+  #navbar {
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+  }
+
+  .hero-cta::after,
+  .hero-cta-chevron {
+    animation: none !important;
+  }
+
+  .cat-stagger,
+  .cat-stagger.in-view {
+    opacity: 1;
+    transform: none;
+    animation: none !important;
+  }
+}

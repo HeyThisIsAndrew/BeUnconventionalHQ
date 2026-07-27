@@ -1,4 +1,5 @@
 ---
+import { SECTIONS, LABELS } from '../data/content.js';
 import Layout from '../layouts/Layout.astro';
 import Hero from '../components/Hero.astro';
 import Categories from '../components/Categories.astro';
@@ -9,6 +10,8 @@ import { getVideosUnified } from '../lib/videos-source';
 import PageTitle from '../components/PageTitle.astro';
 import ContentCard from '../components/ContentCard.astro';
 import SubscribeCTA from '../components/SubscribeCTA.astro';
+import Section from '../components/Section.astro';
+import SectionHeader from '../components/SectionHeader.astro';
 
 // Get the current path, stripping trailing slashes for safety
 const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
@@ -33,39 +36,70 @@ const isHomePage = currentPath === '/';
     )
   }
 
-  <section
-    class="container"
-    style="padding-top: 4rem; padding-bottom: 6rem; max-width: 1536px; margin: 0 auto;"
-  >
-    <div class="section-header reveal animate-on-scroll">
-      <PageTitle
-        kicker="Latest From The Channel"
-        primary="Recent"
-        secondary="Videos"
-      />
+  {/*
+    ─── HOMEPAGE SECTION ORDER ─────────────────────────────────────────────
+    Deliberate, and the reason is navigational rather than aesthetic:
+
+      1. What We Cover   ("Explore The HQ")  — orientation. What IS this site?
+      2. Recent Videos   ("Latest From The Channel") — the newest work.
+      3. The Intel       — the written side.
+
+    Categories now come FIRST. A visitor landing here cold used to meet four
+    video tiles before anything told them what the site covers; leading with
+    the four category tiles answers that question before asking them to pick
+    an individual piece of content.
+
+    To reorder again, move these <Section> blocks — the order on screen is
+    just their order in this file. The headings themselves are not written
+    here; they come from SECTIONS in src/data/content.js.
+  */}
+
+  {/*
+    `id="hq-content"` is the hero CTA's anchor target.
+
+    It has to be the first thing BELOW the hero, not the page wrapper. The CTA
+    used to point at `#page-content`, which wraps <main> and therefore starts
+    at offset 0 — so once the splash had been dismissed and the reader
+    scrolled back to the top, pressing the button "scrolled" to where they
+    already were and appeared to do nothing at all.
+  */}
+  <Section id="hq-content" pt="4rem" pb="6rem" maxWidth="1536px">
+    <SectionHeader>
+      {/* Copy lives in src/data/content.js -> SECTIONS.whatWeCover */}
+      <PageTitle {...SECTIONS.whatWeCover} />
+    </SectionHeader>
+    <Categories />
+
+    {/* Sits under the category tiles — they are the thing it invites you to
+        explore past. */}
+    <div class="latest-view-all animate-on-scroll">
+      <a href="/feed" class="view-all-link">{LABELS.viewAllContent} &rarr;</a>
     </div>
-    <div
-      style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 2.5rem;"
-    >
+  </Section>
+
+  <Section pb="8rem" maxWidth="1536px">
+    <SectionHeader>
+      {/* Copy lives in src/data/content.js -> SECTIONS.recentVideos */}
+      <PageTitle {...SECTIONS.recentVideos} />
+    </SectionHeader>
+    {/* Four tiles: the row divides evenly into 2x2 on mobile landscape.
+        Column math is `.home-video-grid` in styles/modules/home-cards.css,
+        shared with the other two homepage rows. */}
+    <div class="home-video-grid">
       {
         (await getVideosUnified())
-          .slice(0, 3)
+          .slice(0, 4)
           .map((video, index) => (
             <ContentCard item={video} index={index} />
           ))
       }
     </div>
-  </section>
 
-  <section
-    class="container"
-    style="padding-bottom: 8rem; max-width: 1536px; margin: 0 auto;"
-  >
-    <div class="section-header reveal animate-on-scroll">
-      <PageTitle kicker="Explore The HQ" primary="What We" secondary="Cover" />
+    {/* Matches the "View All Content" link under the category tiles. */}
+    <div class="latest-view-all animate-on-scroll">
+      <a href="/feed/videos" class="view-all-link">{LABELS.viewAllVideos} &rarr;</a>
     </div>
-    <Categories />
-  </section>
+  </Section>
 
   <LatestArticles />
 

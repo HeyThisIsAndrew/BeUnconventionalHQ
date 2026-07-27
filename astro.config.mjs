@@ -294,5 +294,32 @@ export default defineConfig({
       studioBasePath: '/admin',
     }),
   ],
-  adapter: cloudflare(),
+  adapter: cloudflare({
+    /*
+      ─── BUILD-TIME IMAGE OPTIMISATION, NOT RUNTIME ─────────────────────────
+      This is the fix for the ~938KB mobile image payload behind the 3.4s LCP.
+
+      The adapter's DEFAULT is `'cloudflare'`, which defers resizing to a
+      runtime `/_image` route backed by a Cloudflare Images binding. The build
+      log announces it cheerfully — "Enabling image processing with Cloudflare
+      Images ... with the 'IMAGES' Images binding" — but wrangler.jsonc
+      declares no such binding, and Cloudflare Images is a paid add-on that was
+      never provisioned. So every `/_image?href=…` request had nothing to
+      serve it, and the browser fell back to the untouched originals in
+      `/assets/`: logo.webp at 466KB and logo-mark.webp at 414KB. Two logos,
+      880KB, on a page that displays them at 150px.
+
+      `'compile'` runs the same sharp pipeline Astro uses locally, at BUILD
+      time, and emits plain static files. No binding, no paid add-on, no
+      runtime hop — and it also fixes local `astro preview`, where those
+      `/_image` requests were returning 404 and rendering broken logos.
+
+      Trade-off, stated plainly: builds do more work up front, and only images
+      Astro can see at build time are optimised. Every `<Image>` on this site
+      imports from `src/assets/`, so that covers all of them; remote thumbnails
+      (YouTube, article covers) are plain `<img>` tags and were never in scope
+      for this pipeline either way.
+    */
+    imageService: 'compile',
+  }),
 });

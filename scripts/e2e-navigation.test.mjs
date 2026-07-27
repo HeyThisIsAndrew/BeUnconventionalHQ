@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer';
+import { launchTestBrowser } from './e2e-browser.mjs';
 import { spawn } from 'child_process';
 import assert from 'node:assert/strict';
 
@@ -22,7 +22,7 @@ async function runTests() {
   });
 
   console.log('Server is running. Launching Puppeteer...');
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await launchTestBrowser();
   let exitCode = 0;
 
   try {
@@ -30,9 +30,23 @@ async function runTests() {
     // Simulate mobile viewport to test the mobile toggle
     await page.setViewport({ width: 375, height: 667 });
     
-    console.log('Navigating to homepage to test Navigation...');
-    await page.goto('http://localhost:4321/');
-    
+    /*
+      Tested on /feed, NOT the homepage.
+
+      The homepage now opens as a splash screen and deliberately hides the
+      navbar until the curtain is lifted (styles/modules/splash.css). Driving
+      that reveal first made this file depend on the splash's timing — the
+      navbar fades in on a delay so it lands with the content, and clicking
+      mid-fade was intermittently missed, which made this suite flaky.
+
+      The mobile menu is identical on every route, so it is tested on one
+      where no curtain is in the way. The splash's own behaviour — navbar
+      hidden while armed, restored after the lift — is asserted directly in
+      scripts/e2e-splash.test.mjs, which is where it belongs.
+    */
+    console.log('Navigating to /feed to test Navigation...');
+    await page.goto('http://localhost:4321/feed');
+
     await page.waitForSelector('#navbar', { timeout: 5000 });
     
     const navbar = await page.$('#navbar');
@@ -40,6 +54,21 @@ async function runTests() {
 
     const toggle = await page.$('.nav-toggle');
     assert.ok(toggle, 'Nav toggle button should exist');
+
+    /*
+      Wait for the CLICK HANDLER, not just the element.
+
+      Navbar.astro binds the toggle inside `astro:page-load`, so the button
+      exists in the served HTML well before anything is listening to it.
+      `waitForSelector('#navbar')` only proved the markup had arrived, so this
+      suite clicked an inert button roughly half the time — a ~50% flake that
+      had nothing to do with what it was testing.
+
+      The bind sets `toggle.dataset.mobileClickBound`, so waiting for that
+      attribute waits for the exact thing the next line depends on. No sleep,
+      no guess.
+    */
+    await page.waitForSelector('.nav-toggle[data-mobile-click-bound]', { timeout: 5000 });
 
     console.log('Opening mobile menu...');
     await toggle.click();

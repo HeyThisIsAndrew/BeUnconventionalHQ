@@ -35,27 +35,68 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       );
     }
 
-    if (!hasSessionCookie && !turnstileToken) {
+    /*
+      Turnstile gate.
+
+      The bot check only applies when Turnstile is actually CONFIGURED. If no
+      secret key is present — local `astro dev`, or a preview deploy without
+      the binding — requiring a token would make the form impossible to submit
+      with no way for the user to resolve it, which is exactly the dead end
+      this used to produce.
+
+      When the secret IS set, the token remains mandatory: skipping validation
+      because a client forgot to send one would defeat the whole point.
+    */
+    const turnstileSecret =
+      env.TURNSTILE_SECRET_KEY ?? import.meta.env.TURNSTILE_SECRET_KEY;
+
+    /*
+      BOTH keys, not just the secret.
+
+      The secret alone is what the server needs to VERIFY a token. The public
+      site key is what the browser needs to PRODUCE one. With only the secret
+      set, this endpoint demanded a token that no form on the site could
+      possibly generate — every subscribe attempt failed with "Please complete
+      the verification challenge" and there was no challenge on the page to
+      complete. That is not a bot check, it is an outage.
+
+      Requiring both means a half-configured environment degrades to "no bot
+      check" (loudly warned below) instead of "nobody can subscribe". When
+      both are present the token stays mandatory and is fully verified.
+    */
+    const turnstileSiteKey =
+      env.PUBLIC_TURNSTILE_SITE_KEY ?? import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
+    const turnstileConfigured = Boolean(turnstileSecret) && Boolean(turnstileSiteKey);
+
+    if (turnstileSecret && !turnstileSiteKey) {
+      console.warn(
+        '[subscribe] TURNSTILE_SECRET_KEY is set but PUBLIC_TURNSTILE_SITE_KEY is not. ' +
+          'The browser cannot render a widget without the public key, so the bot check ' +
+          'is DISABLED rather than blocking every submission. Set the public key to ' +
+          'turn it back on.'
+      );
+    }
+
+    if (turnstileConfigured && !hasSessionCookie && !turnstileToken) {
       return new Response(
-        JSON.stringify({ error: 'Turnstile verification token required.' }),
+        JSON.stringify({ error: 'Please complete the verification challenge.' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // ── Step 1: Validate Turnstile token (if no session cookie) ──────
-    if (!hasSessionCookie) {
+    if (!turnstileConfigured) {
+      console.warn(
+        '[subscribe] TURNSTILE_SECRET_KEY is not set — accepting without a bot check. ' +
+          'Set it in production or the form is unprotected.'
+      );
+    }
+
+    // ── Step 1: Validate Turnstile token (only when configured) ──────
+    if (turnstileConfigured && !hasSessionCookie) {
       // AI-NOTE: This safely retrieves the Turnstile secret. It prioritizes the
       // Cloudflare environment (`env.TURNSTILE_SECRET_KEY`) but falls back to the
       // local `.env` file (`import.meta.env.TURNSTILE_SECRET_KEY`) for `astro dev`.
-      const secret = env.TURNSTILE_SECRET_KEY ?? import.meta.env.TURNSTILE_SECRET_KEY;
-
-      if (!secret) {
-        console.error('TURNSTILE_SECRET_KEY is not set.');
-        return new Response(
-          JSON.stringify({ error: 'Service is not configured correctly.' }),
-          { status: 500, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
+      const secret = turnstileSecret as string;
 
       const turnstileRes = await fetch(
         'https://challenges.cloudflare.com/turnstile/v0/siteverify',

@@ -1,0 +1,107 @@
+---
+/**
+ * ArticleThumb — an article's cover image, with a branded fallback.
+ *
+ * ─── WHY THIS EXISTS ──────────────────────────────────────────────────────
+ * Every post is expected to have a cover image, but Substack does not
+ * guarantee one. Rather than shipping an empty grey box (or worse, a broken
+ * image icon), a post without a cover gets the site logo over the article
+ * title — so it still reads as intentional, branded content.
+ *
+ * This is a temporary treatment. The proper fix is running article images
+ * through Astro's image pipeline at sync time (logged as a follow-up in
+ * scripts/epic-001-article-syndication.md); until then this keeps the grid
+ * looking deliberate.
+ *
+ * ─── HOW TO USE IT ────────────────────────────────────────────────────────
+ *     <ArticleThumb image={a.image} title={a.title} />          // rail size
+ *     <ArticleThumb image={a.image} title={a.title} size="feature" id="x" />
+ *
+ * ─── HOW TO RESTYLE IT ────────────────────────────────────────────────────
+ * `.article-thumb-fallback` and friends in src/styles/modules/intel.css.
+ */
+import { Image } from 'astro:assets';
+/*
+  The PRE-CROPPED mark (src/assets/logo-mark.webp), not logo.webp.
+
+  logo.webp is a 2000x2000 square in which the artwork occupies only ~42% of
+  the height — the rest is transparent padding. Rendering it into a 44px-wide
+  fallback box therefore spent most of those pixels on nothing and left the
+  wordmark itself around 18px tall: the "incredibly low, blurry resolution"
+  this fallback was reported for. logo-mark.webp is the same artwork trimmed
+  to its real content box, so the box size IS the mark size.
+*/
+import logoImage from '../assets/logo-mark.webp';
+
+interface Props {
+  /** Cover image URL. Empty/missing triggers the branded fallback. */
+  image?: string;
+  /** Article title — shown in the fallback, and used for the alt text. */
+  title: string;
+  /** `rail` is the small thumbnail; `feature` is the large centre image. */
+  size?: 'rail' | 'feature';
+  /** DOM id for the <img>, so the magazine script can swap its src. */
+  id?: string;
+  /**
+   * When true the image is decorative (a nearby heading already names the
+   * article), so alt is empty and screen readers skip it.
+   */
+  decorative?: boolean;
+}
+
+const { image, title, size = 'rail', id, decorative = false } = Astro.props;
+
+const isFeature = size === 'feature';
+---
+
+{
+  image ? (
+    /*
+      width/height are set on the feature so the browser reserves the right
+      space before the image loads — that is what prevents the page jumping
+      (cumulative layout shift) as covers stream in.
+    */
+    <img
+      id={id}
+      src={image}
+      alt={decorative ? '' : `Cover image for ${title}`}
+      width={isFeature ? 1456 : 640}
+      height={isFeature ? 816 : 360}
+      loading={isFeature ? 'eager' : 'lazy'}
+      decoding="async"
+    />
+  ) : (
+    /*
+      Branded fallback. aria-hidden on the logo because the title text beside
+      it already carries the meaning, and the surrounding link is labelled by
+      the article headline.
+    */
+    <div
+      id={id}
+      class:list={['article-thumb-fallback', { 'is-feature': isFeature }]}
+      data-fallback="true"
+    >
+      {/*
+        Emitted at 2x the size it is displayed at, and at the artwork's own
+        2.17:1 ratio rather than a square.
+
+        The old values asked Astro for a 160x160 (or 72x72) square and CSS then
+        drew it at 96px / 44px wide. Between the distorted aspect ratio and the
+        downscale, the wordmark was rendered from a handful of real pixels.
+        Doubling the intrinsic size is what makes it crisp on the 2x and 3x
+        displays every phone has — the file is a few KB either way.
+      */}
+      <Image
+        src={logoImage}
+        alt=""
+        width={isFeature ? 440 : 240}
+        height={isFeature ? 202 : 110}
+        class="article-thumb-fallback-logo"
+        loading="lazy"
+        decoding="async"
+        aria-hidden="true"
+      />
+      <span class="article-thumb-fallback-title">{title}</span>
+    </div>
+  )
+}

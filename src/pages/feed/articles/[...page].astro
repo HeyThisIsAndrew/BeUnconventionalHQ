@@ -1,63 +1,27 @@
 ---
-import Layout from '../../../layouts/Layout.astro';
-import PageTitle from '../../../components/PageTitle.astro';
-import { site } from '../../../data/site.js';
-import { getArticles } from '../../../data/feeds.js';
-import QuadrantFilter from '../../../components/QuadrantFilter.astro';
+import FeedLayout from '../../../layouts/FeedLayout.astro';
+import { META, pageTitle } from '../../../data/content.js';
+import { getArticleItems } from '../../../lib/feed-items';
 import FeedGrid from '../../../components/FeedGrid.astro';
 import type { GetStaticPathsOptions } from 'astro';
 
 export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
-  const articles = getArticles();
-
-  const allItems = [
-    ...articles.map((a: any) => ({ ...a, type: 'article' }))
-  ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-  return paginate(allItems, { pageSize: 12 });
+  return paginate(getArticleItems(), { pageSize: 12 });
 }
 
 const { page } = Astro.props;
-const articlesData = getArticles();
-const allItems = [
-  ...articlesData.map((a: any) => ({ ...a, type: 'article' }))
-].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+const allItems = getArticleItems();
 
-const pageNum = page.currentPage > 1 ? ` - Page ${page.currentPage}` : '';
-const title = `Articles${pageNum} | ${site.name}`;
-const description = 'Discover the latest articles from Be Unconventional HQ.';
+const title = pageTitle(META.feedArticles.title, page.currentPage);
+const description = META.feedArticles.description;
 ---
 
-<Layout title={title} description={description} prevUrl={page.url.prev} nextUrl={page.url.next}>
-  <main class="feed-page flex-1 flex flex-col w-full">
-    <div class="container flex-1 flex flex-col">
-      <header class="section-header animate-on-scroll" data-nav-anchor>
-        <PageTitle as="h1" kicker="Explore The HQ" primary="The" secondary="Feed" />
-      </header>
-
-      <QuadrantFilter showTypes={true} isNavMode={true} />
-
-      {/* Structural h2 so card h3s don't skip a heading level (axe: heading-order). */}
-      <h2 class="sr-only">All articles</h2>
-      
-      <FeedGrid page={page} allItems={allItems} />
-    </div>
-  </main>
-</Layout>
-
-<style>
-  .container {
-    max-width: 1536px;
-    margin: 0 auto;
-    padding: 0 2rem;
-  }
-  .feed-page {
-    padding: 120px 0 2rem;
-  }
-
-  @media (max-width: 768px) {
-    .feed-page {
-      padding: 80px 0 2rem;
-    }
-  }
-</style>
+<FeedLayout
+  title={title}
+  description={description}
+  headingLabel="All articles"
+  page={page}
+  isNavMode={true}
+>
+  <FeedGrid page={page} allItems={allItems} />
+</FeedLayout>

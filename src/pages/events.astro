@@ -1,4 +1,5 @@
 ---
+import { SECTIONS, META, pageTitle } from '../data/content.js';
 import Layout from '../layouts/Layout.astro';
 import PageTitle from '../components/PageTitle.astro';
 import FeaturedEvent from '../components/FeaturedEvent.astro';
@@ -7,12 +8,11 @@ import EventCard from '../components/EventCard.astro';
 import SubscribeCTA from '../components/SubscribeCTA.astro';
 import MiniCalendarSidebar from '../components/MiniCalendarSidebar.astro'; // Restored per blueprint
 import SpanningCalendarModal from '../components/SpanningCalendarModal.astro';
-import { site } from '../data/site.js';
 import { getEventsLocal } from '../lib/local-content';
 import { toYMD } from '../lib/events';
 
-const title = `Events | ${site.name}`;
-const description = 'Live coverage, premieres, and press event highlights from Be Unconventional HQ.';
+const title = pageTitle(META.events.title);
+const description = META.events.description;
 
 const allEvents = getEventsLocal();
 
@@ -48,14 +48,14 @@ const pastEvents = allEvents
 
 <Layout title={title} description={description}>
   <main class="events-page flex-1 flex flex-col w-full">
-    <div class="container">
+    <div class="container-page">
       {/*
         FULL-WIDTH HERO: header + FeaturedEvent sit outside/above the 12-col grid
         so they span the full .container width as the page's visual anchor. The
         70/30 split begins only below this section. (JSX comment — not shipped.)
       */}
       <header class="section-header animate-on-scroll" data-nav-anchor style="text-align: center; margin-bottom: 2.5rem;">
-        <PageTitle as="h1" kicker="Coverage" primary="Upcoming" secondary="Events" />
+        <PageTitle as="h1" {...SECTIONS.events} />
       </header>
       {/* Featured hero: the single nearest upcoming event. */}
           {featuredEvent ? (
@@ -111,7 +111,7 @@ const pastEvents = allEvents
           {pastEvents.length > 0 && (
             <section class="past-events-section animate-on-scroll">
               <header class="section-header">
-                <PageTitle as="h2" kicker="Portfolio" primary="Coverage" secondary="Hubs" scale="secondary" />
+                <PageTitle as="h2" {...SECTIONS.eventHubs} scale="secondary" />
               </header>
               <div class="event-grid">
                 {pastEvents.map((event: any, index: number) => (
@@ -161,11 +161,7 @@ const pastEvents = allEvents
 </Layout>
 
 <style>
-  .container {
-    max-width: 1536px;
-    margin: 0 auto;
-    padding: 0 2rem;
-  }
+  /* Page width wrapper now shared: `.container-page` in modules/layout.css */
 
   .events-none {
     text-align: center;

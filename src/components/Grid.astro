@@ -1,0 +1,36 @@
+---
+/**
+ * Reusable CSS Grid wrapper.
+ *
+ * Defaults to the responsive auto-fill track the content grids use. Pass
+ * `cols` for a fixed column count instead (e.g. `cols={3}`), or `template`
+ * for an arbitrary `grid-template-columns` value.
+ */
+interface Props {
+  gap?: string;
+  minColWidth?: string;
+  cols?: number;
+  template?: string;
+  class?: string;
+  [key: string]: any;
+}
+
+const {
+  gap = '2.5rem',
+  minColWidth = 'min(100%, 400px)',
+  cols,
+  template,
+  class: className = '',
+  ...rest
+} = Astro.props;
+
+const columns =
+  template ??
+  (cols !== undefined
+    ? `repeat(${cols}, 1fr)`
+    : `repeat(auto-fill, minmax(${minColWidth}, 1fr))`);
+---
+
+<div class={className} style={`display: grid; grid-template-columns: ${columns}; gap: ${gap};`} {...rest}>
+  <slot />
+</div>

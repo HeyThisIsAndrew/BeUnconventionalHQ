@@ -1,0 +1,69 @@
+---
+/**
+ * ArticleSupportRail — the sticky right-hand rail on an article page.
+ *
+ * ─── WHAT IS IN IT ────────────────────────────────────────────────────────
+ *   1. "More From Intel" — a few related articles.
+ *   2. "Support The HQ"  — the referral / gear links, at the BOTTOM.
+ *
+ * That order is deliberate and was asked for directly: the reader came to
+ * read, so the rail leads with editorial and the commerce sits underneath it.
+ *
+ * ─── WHERE THE REFERRAL LINKS COME FROM ───────────────────────────────────
+ * This file holds no partner names and no URLs. <ReferralLinks /> renders
+ * them from src/data/referrals.js — the single registry for every referral
+ * on the site. To add a partner, edit that file; nothing here changes.
+ *
+ * There is no third-party ad network here, no tracking script and nothing
+ * that shifts layout. Every link is one we control.
+ *
+ * ─── HOW TO RESTYLE IT ────────────────────────────────────────────────────
+ * `.article-rail*` in src/styles/modules/article.css for the rail shell, and
+ * `.referral-*` in src/styles/modules/referrals.css for the links.
+ */
+import ReferralLinks from './ReferralLinks.astro';
+import type { ArticleRecord } from '../lib/articles';
+import { ARTICLE_SECTION } from '../data/sections.js';
+import { REFERRAL_HEADING } from '../data/referrals.js';
+
+interface Props {
+  /** A couple of further-reading links. Pass [] to omit that block. */
+  related?: ArticleRecord[];
+}
+
+const { related = [] } = Astro.props;
+---
+
+<aside class="article-rail article-rail-right" aria-labelledby="article-support-head">
+  <div class="article-rail-sticky">
+    {/*
+      Further reading FIRST, referrals second — see the note above. It also
+      keeps the "self-funded, not annoying with ads" promise honest: the
+      commercial block is the last thing in the rail, not the first.
+    */}
+    {related.length > 0 && (
+      <div class="article-rail-related">
+        <p class="article-rail-head">More From {ARTICLE_SECTION.name}</p>
+        <ul class="article-related-list">
+          {related.map((item) => (
+            <li>
+              <a href={`${ARTICLE_SECTION.path}/${item.slug}`} class="article-related-item">
+                <span class="article-related-meta">{item.category}</span>
+                <span class="article-related-title">{item.title}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
+
+    {/*
+      `compact` because the rail is narrow — it drops the one-line note under
+      each group heading. `headingId` is what the <aside>'s aria-labelledby
+      above points at, so the rail has an accessible name.
+    */}
+    <div class="article-rail-support">
+      <ReferralLinks compact headingId="article-support-head" heading={REFERRAL_HEADING} />
+    </div>
+  </div>
+</aside>

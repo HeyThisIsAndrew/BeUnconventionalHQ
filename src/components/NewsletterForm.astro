@@ -1,0 +1,317 @@
+---
+/**
+ * NewsletterForm — native email capture.
+ *
+ * ─── WHY THIS EXISTS ──────────────────────────────────────────────────────
+ * The subscribe band used to send readers to Substack. That is a traffic
+ * leak: the reader leaves, Substack owns the relationship, and we cannot mail
+ * our own audience. This captures the address here instead.
+ *
+ * The Substack and YouTube links are NOT removed — they still sit alongside
+ * as secondary options. This is an addition, not a replacement.
+ *
+ * ─── WHERE THE EMAIL GOES ─────────────────────────────────────────────────
+ * POSTs to `/api/subscribe` (src/pages/api/subscribe.ts), which stores the
+ * address in the Cloudflare `SUBSCRIBERS` KV namespace. That endpoint already
+ * existed; this form is simply a proper UI for it.
+ *
+ * ─── TURNSTILE ────────────────────────────────────────────────────────────
+ * This form used to render NO widget while `/api/subscribe` still demanded a
+ * `cf-turnstile-response` token whenever a secret key was configured. The
+ * result was an unwinnable form: "Please complete the verification challenge"
+ * with no challenge anywhere on the page to complete.
+ *
+ * The widget is now rendered EXPLICITLY (`turnstile.render()`) rather than by
+ * Turnstile's implicit `.cf-turnstile` scan. The implicit renderer only scans
+ * the DOM once, when its script loads — and this site uses Astro's
+ * ClientRouter, so on every client-side navigation the form is replaced with
+ * a fresh, unrendered element and the widget silently never appears again.
+ * Explicit rendering on `astro:page-load` survives that.
+ *
+ * The widget only mounts when a PUBLIC site key exists. See the matching
+ * guard in src/pages/api/subscribe.ts: the endpoint now requires a token only
+ * when BOTH keys are configured, so a half-configured environment degrades to
+ * "no bot check" instead of "nobody can subscribe".
+ *
+ * ─── HOW THE STATES WORK ──────────────────────────────────────────────────
+ * idle → submitting → success | error. Each is a class on the form, so the
+ * CSS decides what is visible and no markup is created or destroyed. The
+ * status message is an `aria-live` region so screen readers hear the result.
+ *
+ * ─── HOW TO RESTYLE IT ────────────────────────────────────────────────────
+ * `.newsletter-form` and friends in styles/modules/newsletter.css.
+ */
+import { LABELS, MESSAGES } from '../data/content.js';
+import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
+
+/*
+  No key → no script, no widget, and (see subscribe.ts) no server-side
+  requirement for a token either. Same guard SubscribeBox and ContactModal
+  use: with the key unset, Turnstile's renderer reads null off the missing
+  data-sitekey and logs a TurnstileError on every page.
+*/
+const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
+---
+
+{turnstileSiteKey && (
+  <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+)}
+
+{/*
+  `data-sitekey` on the form is how the bundled script below learns the key —
+  a script tag cannot read Astro frontmatter, and inlining the key into the
+  script would mean marking it `is:inline` and losing bundling.
+*/}
+<form
+  class="newsletter-form"
+  id="newsletter-form"
+  novalidate
+  data-sitekey={turnstileSiteKey ?? ''}
+>
+  <div class="newsletter-row">
+    <label class="sr-only" for="newsletter-email">Email address</label>
+    <input
+      class="newsletter-input"
+      id="newsletter-email"
+      name="email"
+      type="email"
+      inputmode="email"
+      autocomplete="email"
+      required
+      placeholder="you@example.com"
+      aria-describedby="newsletter-status"
+    />
+    <button class="cta-button-primary newsletter-submit" type="submit">
+      <span class="newsletter-submit-label">{LABELS.subscribe ?? 'Subscribe'}</span>
+      <span class="newsletter-spinner" aria-hidden="true"></span>
+    </button>
+  </div>
+
+  {/* Mount point for the explicitly-rendered Turnstile widget. Empty in the
+      HTML; the script below fills it. Rendered only when a key exists, so
+      there is no empty gap in the layout when Turnstile is not configured. */}
+  {turnstileSiteKey && <div class="newsletter-turnstile" id="newsletter-turnstile"></div>}
+
+  {/* aria-live so the outcome is announced, not just shown. `role="status"`
+      keeps it polite rather than interrupting. */}
+  <p class="newsletter-status" id="newsletter-status" role="status" aria-live="polite"></p>
+
+  <p class="newsletter-fineprint">{MESSAGES.newsletterFineprint}</p>
+</form>
+
+<script>
+  /*
+    Newsletter submit handler.
+
+    Bound on astro:page-load because this site uses Astro's ClientRouter —
+    a handler bound to DOMContentLoaded would stop working after the first
+    client-side navigation.
+  */
+  /* Minimal shape of the bits of the Turnstile API this component uses. */
+  interface TurnstileApi {
+    render: (el: HTMLElement, opts: Record<string, unknown>) => string;
+    getResponse: (widgetId?: string) => string | undefined;
+    reset: (widgetId?: string) => void;
+  }
+  declare global {
+    interface Window {
+      turnstile?: TurnstileApi;
+    }
+  }
+
+  /** Widget id from turnstile.render(), needed to read its token back. */
+  let widgetId: string | null = null;
+
+  /** True when a site key IS configured but the Turnstile script never loaded. */
+  let turnstileUnavailable = false;
+
+  /**
+   * Mount the Turnstile widget.
+   *
+   * The API script is `async defer`, so `window.turnstile` may not exist yet
+   * when this runs. Rather than depend on Turnstile's `onload` callback —
+   * which has to be a global defined before the script tag, and so would force
+   * this whole script inline — poll briefly for the API to appear. It is a
+   * handful of frames in practice, and it fails silently and harmlessly if
+   * the script is blocked (an ad blocker, an offline preview).
+   */
+  function mountTurnstile(form: HTMLFormElement) {
+    const siteKey = form.dataset.sitekey;
+    const holder = document.getElementById('newsletter-turnstile');
+    if (!siteKey || !holder) return; // Not configured — nothing to mount.
+    if (holder.dataset.rendered) return; // Already mounted on this page.
+
+    let attempts = 0;
+    const tryRender = () => {
+      if (window.turnstile) {
+        holder.dataset.rendered = 'true';
+        widgetId = window.turnstile.render(holder, {
+          sitekey: siteKey,
+          /* Matches the other forms on the site. `flexible` fills the
+             container width rather than forcing a fixed 300px box, which
+             would overflow the narrow mobile subscribe band. */
+          size: 'flexible',
+          theme: 'dark',
+        });
+        return;
+      }
+      if ((attempts += 1) < 100) {
+        setTimeout(tryRender, 100); // ~10s ceiling.
+        return;
+      }
+      /*
+        Gave up. The API script never arrived — an ad blocker, a corporate
+        proxy, or Cloudflare being unreachable.
+
+        This has to be recorded, because the server now requires a token
+        (both keys are configured in production). Without this flag the submit
+        below would post an empty token and the reader would get "Please
+        complete the verification challenge" pointing at a challenge that does
+        not exist — the exact dead end this whole feature was fixing, just
+        arrived at from the other direction. Knowing WHY lets us say something
+        true instead.
+      */
+      turnstileUnavailable = true;
+    };
+    tryRender();
+  }
+
+  function initNewsletterForm() {
+    const form = document.getElementById('newsletter-form') as HTMLFormElement | null;
+    if (!form) return;
+
+    /*
+      The widget must be re-mounted after every client-side navigation, even
+      though the submit handler only binds once — ClientRouter swaps in a
+      brand new (empty) holder element each time.
+    */
+    mountTurnstile(form);
+
+    if (form.dataset.bound) return;
+    form.dataset.bound = 'true';
+
+    const input = form.querySelector<HTMLInputElement>('.newsletter-input');
+    const status = form.querySelector<HTMLElement>('.newsletter-status');
+    if (!input || !status) return;
+
+    /** Swap the form's state class. CSS handles everything visual from here. */
+    function setState(state: 'idle' | 'submitting' | 'success' | 'error', message = '') {
+      form!.classList.remove('is-submitting', 'is-success', 'is-error');
+      if (state !== 'idle') form!.classList.add(`is-${state}`);
+      status!.textContent = message;
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const email = input.value.trim();
+
+      // Validate before touching the network — `type="email"` gives us the
+      // browser's own check for free, which is stricter than any regex worth
+      // hand-writing here.
+      if (!email || !input.checkValidity()) {
+        setState('error', 'Please enter a valid email address.');
+        input.focus();
+        return;
+      }
+
+      /*
+        Read the bot-check token BEFORE showing the submitting state, so a
+        missing token surfaces as an actionable message rather than a spinner
+        that turns into a server error.
+
+        `getResponse()` returns '' until the challenge completes. When
+        Turnstile is not configured at all there is no widget, the token stays
+        undefined, and the endpoint does not ask for one — see the matching
+        guard in src/pages/api/subscribe.ts.
+      */
+      const token =
+        widgetId && window.turnstile
+          ? (window.turnstile.getResponse(widgetId) ?? '')
+          : '';
+
+      /*
+        Distinguish "you haven't done the challenge yet" from "the challenge
+        could not load". They need different words: one is a prompt, the other
+        is an apology with a way out.
+      */
+      if (turnstileUnavailable) {
+        setState(
+          'error',
+          "Our bot check couldn't load — an ad blocker or network filter may be " +
+            'blocking it. Disable it for this page, or subscribe on Substack instead.'
+        );
+        return;
+      }
+
+      if (widgetId && !token) {
+        setState('error', 'Please complete the verification challenge above.');
+        return;
+      }
+
+      setState('submitting', 'Subscribing…');
+
+      try {
+        const response = await fetch('/api/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          /* The endpoint reads this exact key — it is the name Turnstile
+             itself uses for the token field. */
+          body: JSON.stringify({ email, 'cf-turnstile-response': token }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (response.ok && data.success) {
+          /*
+            Pin the height BEFORE switching state.
+
+            Success hides the input row and the bot-check widget, which would
+            otherwise collapse the band and leave the confirmation sitting
+            just under the subtitle — or, with the widget still occupying its
+            space, pushed hard against the bottom edge. Recording the height
+            the form already has lets the CSS hold that exact size and centre
+            the message inside it, so nothing moves and the confirmation sits
+            in the middle of the space the form used to fill.
+
+            Read here, in the same tick, while the form is still laid out —
+            after the class lands the row is gone and this measures nothing.
+          */
+          const formStyle = getComputedStyle(form!);
+          form!.style.setProperty(
+            '--newsletter-locked-height',
+            /*
+              Height PLUS the top margin, because the success rule zeroes that
+              margin. Rolling it into the locked height keeps the total space
+              identical, and — the point of doing it this way — it means the
+              centred message is equidistant from the subtitle above and the
+              band's bottom edge. Measuring the height alone left the margin
+              outside the centred area and the message ~27px low.
+            */
+            `${form!.offsetHeight + parseFloat(formStyle.marginTop || '0')}px`
+          );
+          setState('success', "You're on the list. Watch your inbox.");
+          form!.reset();
+          /* A token is single-use. Reset so a second subscribe from the same
+             page gets a fresh one instead of a silent server rejection. */
+          if (widgetId && window.turnstile) window.turnstile.reset(widgetId);
+        } else {
+          if (widgetId && window.turnstile) window.turnstile.reset(widgetId);
+          // Surface the endpoint's own message when it gives one — it knows
+          // more than we do about why it refused.
+          setState('error', data.error ?? 'Something went wrong. Please try again.');
+        }
+      } catch {
+        setState('error', 'Network error. Please try again.');
+      }
+    });
+
+    // Typing after a failure clears the error, so the message never lingers
+    // over input the reader has already corrected.
+    input.addEventListener('input', () => {
+      if (form!.classList.contains('is-error')) setState('idle');
+    });
+  }
+
+  document.addEventListener('astro:page-load', initNewsletterForm);
+</script>

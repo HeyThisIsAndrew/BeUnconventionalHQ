@@ -15,11 +15,8 @@
     #111111;
 }
 
-.cat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
-  gap: 1.5rem;
-}
+/* .cat-grid's column math is defined once at the bottom of this file,
+   together with the other two homepage rows. */
 .cat {
   position: relative;
   min-height: 260px;
@@ -121,7 +118,7 @@
   transition: width 0.35s cubic-bezier(0.25, 0.8, 0.2, 1);
 }
 .cat:hover .cat-cta {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   text-shadow: 0 0 16px rgba(204, 0, 0, 0.5);
   letter-spacing: 0.2em;
   transform: translateX(8px);
@@ -187,7 +184,7 @@
   transform: scale(1.05);
 }
 .video-card-home:hover .watch-now-btn {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 .video-card-home:hover .btn-underline {
   width: 100%;
@@ -210,4 +207,260 @@
   .nav-identity-wrapper {
     display: none !important;
   }
+}
+
+/* ── Homepage tile grid (shared by all three homepage rows) ─────────────────
+
+   ONE definition of the homepage's column math, used by:
+     .cat-grid      "What We Cover" category tiles
+     .latest-grid   "From The Feed Latest" article tiles
+     .home-video-grid  "Recent Videos" tiles
+
+   WHY THIS EXISTS
+   Each row previously had its own `auto-fit minmax(...)` track. auto-fit packs
+   in as many columns as fit, so at mobile-landscape width (844px) four tiles
+   became a row of 3 and a row of 1 — the bug Andrew reported. Explicit column
+   counts remove the guesswork: the layout is the same at every width for every
+   row, and four tiles always divide evenly.
+
+   Note: a `.categories-grid` rule with the correct counts already existed in
+   categories.css but no markup ever used that class, so it never applied. It
+   is dead and superseded by this.
+
+   TO CHANGE HOW MANY TILES PER ROW: edit the three counts below. Nothing else.
+*/
+.cat-grid,
+.latest-grid,
+.home-video-grid {
+  display: grid;
+  /* Desktop: 4 across. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 1536px;
+  margin-inline: auto;
+}
+
+/* Tablet + mobile landscape: 2 across, so four tiles read as a clean 2x2
+   instead of 3 + 1. 1100px covers landscape phones (844px) and small tablets. */
+@media (max-width: 1100px) {
+  .cat-grid,
+  .latest-grid,
+  .home-video-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+}
+
+/* Mobile portrait: single column — two tiles side by side at 390px would make
+   the titles unreadable. */
+@media (max-width: 560px) {
+  .cat-grid,
+  .latest-grid,
+  .home-video-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONTENT CARD
+
+   The card used by the Feed, /intel, the homepage rows and the hub pages.
+
+   These rules replaced inline `style` attributes on the markup. Inline styles
+   beat every class rule, so while they were inlined it was impossible to give
+   the card a different shape on mobile without `!important` — which is why
+   the compact variant at the bottom of this block could not exist before.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.content-card-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* ── BROKEN-IMAGE FAIL-SAFE ──────────────────────────────────────────────────
+
+   A card whose cover URL is present but FAILS TO LOAD — a remote host that is
+   down, an expired CDN link, a blocked request — used to render as a plain
+   empty box. The branded fallback in ArticleThumb only covers a MISSING field;
+   nothing covered a field that was there and simply did not resolve.
+
+   `data-img-failed` is set by the global error listener in Layout.astro (image
+   `error` events do not bubble, so it listens in the capture phase). This turns
+   the container into the same brand-tinted panel the missing-image fallback
+   uses, so a dead link degrades to something deliberate instead of a hole in
+   the grid.
+
+   Deliberately scoped to the KNOWN MEDIA CONTAINERS rather than applied to
+   `[data-img-failed]` on its own. The marker is set on the parent of any
+   broken image anywhere on the page, so an unscoped rule would also paint a
+   red gradient behind — and hide — something like the navbar logo. Content
+   thumbnails are the only place a branded stand-in is the right answer;
+   everywhere else, default browser behaviour is left alone.
+*/
+.content-card-media[data-img-failed],
+.intel-rail-thumb[data-img-failed],
+.intel-feature-image[data-img-failed],
+.article-thumb-fallback[data-img-failed] {
+  background:
+    radial-gradient(circle at 50% 35%, rgba(204, 0, 0, 0.12) 0%, transparent 62%),
+    linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-black) 100%);
+}
+
+/* The broken <img> itself must go, or the browser paints its alt text and/or
+   a broken-image glyph on top of the panel above. */
+.content-card-media[data-img-failed] > img,
+.intel-rail-thumb[data-img-failed] > img,
+.intel-feature-image[data-img-failed] > img,
+.article-thumb-fallback[data-img-failed] > img {
+  display: none;
+}
+
+.content-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}
+
+.content-card-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.content-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  margin-bottom: 0.75rem;
+}
+
+.content-card-title {
+  color: var(--color-white);
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.4;
+  margin-bottom: 1rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.content-card-arrow {
+  color: var(--color-accent-text);
+}
+
+/* ── COMPACT MOBILE CARD ────────────────────────────────────────────────────
+
+   WHY THIS EXISTS
+   On a phone the standard card is a full-width 16:9 image plus copy — roughly
+   380px tall. A page of twelve is over 4500px of scrolling, which is why the
+   Feed and /intel felt endless on mobile.
+
+   Below 560px the card turns on its side: a small fixed-width thumbnail on
+   the left, copy on the right, about 110px tall. That is a ~70% reduction in
+   page height for the same number of items, with no change to what is shown
+   or to the markup — purely a different arrangement of the same elements.
+
+   Desktop and tablet are untouched.
+*/
+@media (max-width: 560px) {
+  .content-card {
+    flex-direction: row;
+    align-items: stretch;
+    min-height: 0;
+  }
+
+  /* ── THUMBNAIL GEOMETRY, BUILT AROUND A 16:9 SOURCE ──────────────────────
+
+     Every thumbnail on this site is a YouTube still, so the source is ALWAYS
+     16:9. That single fact should decide this box, and until now it didn't.
+
+     WHAT WAS WRONG
+     The rule set `aspect-ratio: 4 / 3` and assumed it applied. It did not:
+     `.content-card` is `align-items: stretch`, and for a flex item stretch
+     wins over `aspect-ratio` on the cross axis. So the box actually rendered
+     123x110 — an aspect of 1.12 — and `object-fit: cover` on a 1.78 source
+     inside a 1.12 box slices **37% of the image width away**. Measured, not
+     estimated. Anything off-centre in the frame (a face at the edge, a title
+     card, a reaction) was simply gone.
+
+     THE FIX, IN TWO PARTS
+     1. `align-self: center` opts this item out of the stretch, which is what
+        finally lets `aspect-ratio` mean anything here.
+     2. The box is 16 / 9 — the source's own ratio — so the crop is ZERO and
+        the whole frame is visible.
+
+     WHY 42% AND NOT MORE
+     A horizontal card cannot show a wide image AND be tall: at a fixed width
+     share, 16:9 fixes the height too (42% of 326px = 137px wide, so 77px
+     tall). Going wider to gain height quickly becomes the 50/50 split that
+     was explicitly not wanted — 16:9 filling a 110px-tall card would need a
+     71% column. 42/58 keeps the copy dominant while giving the image ~11%
+     more width than before and, far more importantly, all of its content.
+  */
+  .content-card .content-card-media {
+    flex: 0 0 42%;
+    width: 42%;
+    aspect-ratio: 16 / 9;
+    /* Without this the flex stretch overrides the ratio above — see note. */
+    align-self: center;
+    height: auto;
+  }
+
+  .content-card .content-card-body {
+    /*
+      The copy now sets the row height, because the image keeps its own 16:9
+      shape instead of stretching. So this padding is really a control for how
+      much clear space sits around the thumbnail.
+
+      0.85rem lands the card at ~101px against a 77px image — about 12px above
+      and below it. Enough to read as a deliberate margin; at the 1rem it was
+      briefly set to, the gap grew to 21px and started to look like the image
+      had failed to fill its column.
+    */
+    padding: 0.85rem 1rem;
+    justify-content: center;
+  }
+
+  /* Keeps rows even when a headline runs short, so the image column does not
+     change size down the list. Just above the 77px the media occupies, so the
+     thumbnail always sits centred with a small, even margin. */
+  .content-card {
+    min-height: 100px;
+  }
+
+  .content-card .content-card-meta {
+    font-size: 9px;
+    margin-bottom: 0.35rem;
+  }
+
+  .content-card .content-card-title {
+    font-size: 0.95rem;
+    line-height: 1.3;
+    margin-bottom: 0.4rem;
+    -webkit-line-clamp: 3;
+  }
+
+  /* The CTA is redundant at this size — the whole row is the link, and the
+     headline already says what it is. Removing it buys back a line per card. */
+  .content-card .watch-now-btn {
+    display: none;
+  }
+
 }

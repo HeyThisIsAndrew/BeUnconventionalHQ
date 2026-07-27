@@ -1,0 +1,270 @@
+---
+/**
+ * Article reader — /intel/<slug>
+ *
+ * ─── THE LAYOUT ───────────────────────────────────────────────────────────
+ *     ┌───────────┬──────────────────────┬───────────┐
+ *     │ CONTENTS  │  the article         │ SUPPORT   │
+ *     │ (sticky)  │  ~44rem reading col  │ (sticky)  │
+ *     └───────────┴──────────────────────┴───────────┘
+ * Both rails are sticky on desktop and collapse away on tablet/mobile, where
+ * the reading column becomes the whole page.
+ *
+ * ─── WHY THE READING COLUMN IS CAPPED ─────────────────────────────────────
+ * ~68 characters per line is the comfortable measure for body text. The site
+ * container is 1536px, which at this font size would be ~180 characters — the
+ * eye loses its place returning to the start of the next line.
+ *
+ * ─── SCHEMA (why it branches) ─────────────────────────────────────────────
+ * A Review and a news dispatch are different things to a search engine. A
+ * Review can carry a rating and become a rich result; news belongs in
+ * NewsArticle. The `contentType` on each record (see articles-transform.ts)
+ * selects which is emitted. Everything else falls back to Article.
+ *
+ * ─── AUTHOR BLOCK (E-E-A-T) ───────────────────────────────────────────────
+ * Google's quality guidance leans on Experience, Expertise, Authoritativeness
+ * and Trust. A visible, named author with a role and a credential line is the
+ * on-page half of that; the `author` node in the JSON-LD is the machine half.
+ * Both read from DEFAULT_BYLINE in src/data/sections.js.
+ */
+import Layout from '../../layouts/Layout.astro';
+import SubscribeCTA from '../../components/SubscribeCTA.astro';
+import ArticleToc from '../../components/ArticleToc.astro';
+import ArticleSupportRail from '../../components/ArticleSupportRail.astro';
+import ArticleAuthorBlock from '../../components/ArticleAuthorBlock.astro';
+import { site } from '../../data/site.js';
+import { LABELS } from '../../data/content.js';
+import {
+  ARTICLE_SECTION,
+  DEFAULT_BYLINE,
+  SOURCE_PUBLICATION,
+} from '../../data/sections.js';
+import {
+  getPublishedArticles,
+  getNextArticle,
+  getRelatedArticles,
+  RESERVED_SLUGS,
+  topicPath,
+} from '../../lib/articles';
+import { buildToc } from '../../lib/article-toc';
+import logoImage from '../../assets/logo.webp';
+
+export async function getStaticPaths() {
+  return getPublishedArticles()
+    // A slug matching a route segment would shadow that route.
+    .filter((article) => !RESERVED_SLUGS.has(article.slug))
+    .map((article) => ({ params: { slug: article.slug }, props: { article } }));
+}
+
+const { article } = Astro.props;
+
+// Headings get ids so the contents rail can anchor-scroll to them; `html` is
+// the body with those ids injected.
+const { entries: tocEntries, html: bodyHtml } = buildToc(article.bodyHtml);
+
+const nextArticle = getNextArticle(article.slug);
+const related = getRelatedArticles(article.slug, article.category, 4);
+
+const canonical = new URL(`${ARTICLE_SECTION.path}/${article.slug}`, site.url).toString();
+const logoUrl = new URL(logoImage.src, site.url).toString();
+const heroImage = article.image || logoUrl;
+
+const readableDate = new Date(article.isoDate).toLocaleDateString('en-US', {
+  month: 'long',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+
+/*
+  Schema selection.
+
+  Shared fields first, then the type-specific wrapper. `sameAs` declares the
+  Substack original as the same work published elsewhere WITHOUT conceding
+  canonical status to it — the canonical tag still points here.
+*/
+const publisher = {
+  '@type': 'Organization',
+  name: site.name,
+  logo: { '@type': 'ImageObject', url: logoUrl },
+};
+
+const author = {
+  '@type': 'Person',
+  name: DEFAULT_BYLINE.name,
+  jobTitle: DEFAULT_BYLINE.role,
+  description: DEFAULT_BYLINE.bio,
+  url: new URL('/about', site.url).toString(),
+};
+
+const shared = {
+  headline: article.title,
+  description: article.excerpt,
+  image: heroImage,
+  datePublished: article.isoDate,
+  dateModified: article.lastUpdated ?? article.isoDate,
+  author,
+  publisher,
+  mainEntityOfPage: { '@type': 'WebPage', '@id': canonical },
+  articleSection: article.category,
+  sameAs: article.link || undefined,
+};
+
+let articleSchema: Record<string, any>;
+
+if (article.contentType === 'Review') {
+  /*
+    Review schema. `itemReviewed` is required — without it Google rejects the
+    markup. We only know the subject loosely (the headline names it), so it is
+    declared as a CreativeWork with the article's title.
+
+    reviewRating is only included when the body actually states a score;
+    inventing one would be structured-data spam.
+  */
+  articleSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Review',
+    ...shared,
+    itemReviewed: { '@type': 'CreativeWork', name: article.title },
+    ...(article.score
+      ? {
+          reviewRating: {
+            '@type': 'Rating',
+            ratingValue: article.score.value,
+            bestRating: article.score.best,
+            worstRating: 0,
+          },
+        }
+      : {}),
+  };
+} else if (article.contentType === 'Dispatch' || article.contentType === 'Announcement') {
+  // Time-sensitive reporting → NewsArticle.
+  articleSchema = { '@context': 'https://schema.org', '@type': 'NewsArticle', ...shared };
+} else {
+  // Analysis, Interview and anything unmapped → the general Article type.
+  articleSchema = { '@context': 'https://schema.org', '@type': 'Article', ...shared };
+}
+---
+
+<Layout
+  title={`${article.title} | ${site.name}`}
+  description={article.excerpt}
+  image={heroImage}
+  type="article"
+>
+  <script
+    slot="head"
+    type="application/ld+json"
+    is:inline
+    set:html={JSON.stringify(articleSchema)}
+  />
+
+  <main class="article-page">
+    <div class="container">
+      {/* Three columns on desktop; the rails drop away below 1200px and the
+          reading column becomes the page. */}
+      <div class="article-layout">
+        <ArticleToc entries={tocEntries} />
+
+        <article class="article-column">
+          <header class="article-header">
+            {/*
+              Two tags, not one: the SUBJECT (Film / TV / Gaming) and the
+              KIND (Review / Analysis / Dispatch). A reader scanning wants to
+              know both, and the content type is what selects the schema above.
+            */}
+            <div class="article-eyebrow">
+              <a class="article-tag article-tag-category" href={topicPath(article.category)}>
+                {article.category}
+              </a>
+              {article.contentType && (
+                <span class="article-tag article-tag-type">{article.contentType}</span>
+              )}
+              <span class="dot">&bull;</span>
+              <time datetime={article.isoDate}>{readableDate}</time>
+              {article.score && (
+                <span class="article-score">
+                  {article.score.value}/{article.score.best}
+                </span>
+              )}
+            </div>
+
+            <h1 class="article-title">{article.title}</h1>
+
+            {article.excerpt && <p class="article-standfirst">{article.excerpt}</p>}
+
+            <ArticleAuthorBlock />
+          </header>
+
+          {article.image && (
+            <img
+              class="article-hero"
+              src={article.image}
+              alt={`Cover image for ${article.title}`}
+              width="1456"
+              height="816"
+              loading="eager"
+              decoding="async"
+            />
+          )}
+
+          {/* Sanitized at sync time against a semantic allowlist — no scripts,
+              styles, classes or iframes survive. Heading ids added by buildToc. */}
+          <div class="article-body" set:html={bodyHtml} />
+
+          <footer class="article-attribution">
+            <p>
+              Originally published in{' '}
+              <a href={SOURCE_PUBLICATION.url} target="_blank" rel="noopener noreferrer">
+                {SOURCE_PUBLICATION.name}
+              </a>{' '}
+              on {SOURCE_PUBLICATION.platform}.
+            </p>
+          </footer>
+
+          {/*
+            End-of-article actions.
+
+            These used to be a single button with a bare `margin-top`, which
+            let it collide with the subscribe band below. `.article-actions` is
+            a grid with its own bottom margin, so the two can no longer overlap
+            regardless of how long the article is.
+          */}
+          <nav class="article-actions" aria-label="Continue reading">
+            <a href={ARTICLE_SECTION.path} class="cta-button-primary">
+              &larr; All {ARTICLE_SECTION.name}
+            </a>
+            {nextArticle && (
+              <a href={`${ARTICLE_SECTION.path}/${nextArticle.slug}`} class="cta-button-primary">
+                {LABELS.nextArticle} &rarr;
+              </a>
+            )}
+          </nav>
+
+          {related.length > 0 && (
+            <section class="article-related" aria-labelledby="article-related-head">
+              <h2 class="intel-break-title" id="article-related-head">Suggested Reading</h2>
+              <ul class="article-related-list">
+                {related.map((item) => (
+                  <li>
+                    <a href={`${ARTICLE_SECTION.path}/${item.slug}`} class="article-related-item">
+                      <span class="article-related-meta">
+                        {item.category}
+                        {item.contentType ? ` • ${item.contentType}` : ''}
+                      </span>
+                      <span class="article-related-title">{item.title}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </article>
+
+        <ArticleSupportRail related={related.slice(0, 2)} />
+      </div>
+    </div>
+
+    <SubscribeCTA />
+  </main>
+</Layout>

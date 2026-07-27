@@ -1,0 +1,597 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   INTEL — MAGAZINE LAYOUT
+
+   The article section deliberately does NOT look like the rest of the site's
+   card grids. Three columns: article rails left and right, a large feature in
+   the middle that swaps when you pick a rail item.
+
+   Everything uses the existing tokens (--font-display, --color-accent,
+   --color-surface) so it reads as the same publication in a different format,
+   not a different site.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.intel-magazine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2.15fr) minmax(0, 1fr);
+  gap: 0;
+  margin-bottom: 5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+/* ── Rails ──────────────────────────────────────────────────────────────── */
+
+.intel-rail {
+  display: flex;
+  flex-direction: column;
+}
+
+.intel-rail-left {
+  border-right: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.intel-rail-right {
+  border-left: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.intel-rail-item {
+  display: block;
+  padding: 1.75rem 1.5rem;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  transition:
+    background-color 0.3s ease,
+    transform 0.3s ease;
+}
+
+.intel-rail-item:last-child {
+  border-bottom: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .intel-rail-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .intel-rail-item:hover .intel-rail-title {
+    color: var(--color-accent-text);
+  }
+
+  .intel-rail-item:hover .intel-rail-thumb img {
+    transform: scale(1.06);
+  }
+}
+
+.intel-rail-item:focus-visible {
+  outline: 2px solid var(--color-white);
+  outline-offset: -2px;
+}
+
+/* The currently-featured rail item. An accent edge rather than a fill, so the
+   rail stays quiet next to the feature it is controlling. */
+.intel-rail-item.active {
+  background: rgba(204, 0, 0, 0.07);
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+
+.intel-rail-right .intel-rail-item.active {
+  box-shadow: inset -3px 0 0 var(--color-accent);
+}
+
+.intel-rail-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--color-surface);
+  margin-bottom: 1rem;
+}
+
+.intel-rail-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}
+
+.intel-rail-thumb-empty {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-surface) 100%);
+}
+
+.intel-rail-meta,
+.intel-feature-meta {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-white-muted);
+  margin-bottom: 0.6rem;
+}
+
+.intel-rail-meta .dot,
+.intel-feature-meta .dot {
+  margin-inline: 0.3rem;
+  opacity: 0.6;
+}
+
+.intel-rail-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--color-white);
+  transition: color 0.3s ease;
+  /* Rails are a scan surface — long headlines are clamped so the column keeps
+     an even rhythm rather than one item dominating it. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: break-word;
+}
+
+/* ── Centre feature ─────────────────────────────────────────────────────── */
+
+.intel-feature {
+  min-width: 0;
+}
+
+.intel-feature-link {
+  display: block;
+  height: 100%;
+  text-decoration: none;
+}
+
+.intel-feature-image {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.intel-feature-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.2, 1);
+}
+
+.intel-feature-image-empty {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-black) 100%);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .intel-feature-link:hover .intel-feature-image img {
+    transform: scale(1.03);
+  }
+
+  .intel-feature-link:hover .intel-feature-cta {
+    color: var(--color-accent-text);
+  }
+
+  .intel-feature-link:hover .intel-feature-cta .arrow {
+    transform: translateX(6px);
+  }
+}
+
+.intel-feature-link:focus-visible {
+  outline: 2px solid var(--color-white);
+  outline-offset: -2px;
+}
+
+/* Left-aligned, not centred. Centred headlines and body copy read as a
+   marketing splash; every editorial outlet (Deadline, Collider, IGN) sets
+   article furniture flush left because it is what the eye tracks down. */
+.intel-feature-copy {
+  padding: 2.5rem 2.5rem 3rem;
+  text-align: left;
+}
+
+.intel-feature-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, calc(1rem + 1.9vw), 2.75rem);
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  color: var(--color-white);
+  margin-bottom: 1rem;
+  overflow-wrap: break-word;
+}
+
+/* ── The lede ───────────────────────────────────────────────────────────────
+
+   NOT clamped, and NOT a single paragraph.
+
+   This used to be one <p> with `-webkit-line-clamp: 6`. Two problems, both
+   visible on the live page: with a short excerpt the clamp never engaged and
+   the block rendered one line, leaving a large empty area under the "Read
+   More" link; and the clamp meant more text could never fix it.
+
+   Now the pipeline supplies the article's opening paragraphs (buildPreview in
+   src/lib/articles-transform.ts) and this block renders all of them, so the
+   feature column carries real editorial weight beside the rails.
+
+   To make the lede shorter or longer, change `limit` / `maxParagraphs` in
+   buildPreview — not a clamp here. That way the HTML and the visible text stay
+   the same thing, which matters because this copy is indexable.
+*/
+.intel-feature-excerpt {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-white-muted);
+  /* ~68ch is the comfortable measure for reading; flush left, not centred. */
+  max-width: 68ch;
+  margin: 0 0 1.75rem;
+}
+
+.intel-feature-excerpt p {
+  margin: 0 0 1.15rem;
+}
+
+/* The first paragraph is the standfirst — slightly larger and brighter, the
+   way a magazine sets its opening line apart from the body beneath it. */
+.intel-feature-excerpt p:first-child {
+  font-size: 1.075rem;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.intel-feature-excerpt p:last-child {
+  margin-bottom: 0;
+}
+
+/* "Read More" affordance under the excerpt. */
+.intel-feature-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-white);
+  transition: color 0.3s ease;
+}
+
+.intel-feature-cta .arrow {
+  color: var(--color-accent-text);
+  transition: transform 0.3s ease;
+}
+
+/* Swap transition. Applied by the magazine script each time the centre
+   changes, so a swap reads as a deliberate change rather than text mutating. */
+@keyframes intel-feature-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.intel-feature.is-swapping .intel-feature-copy,
+.intel-feature.is-swapping .intel-feature-image {
+  animation: intel-feature-in 0.45s cubic-bezier(0.25, 0.8, 0.2, 1) both;
+}
+
+/* ── Break strip (between the magazine and the archive) ─────────────────── */
+
+.intel-break {
+  margin-bottom: 4.5rem;
+}
+
+.intel-break-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.intel-break-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-white);
+}
+
+.intel-break-link {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-white-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.3s ease;
+}
+
+.intel-break-link:hover {
+  color: var(--color-accent-text);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+
+/* Tablet: drop to feature + a single rail below it, rather than squeezing
+   three columns into a width that makes the headlines unreadable. */
+@media (max-width: 1100px) {
+  .intel-magazine {
+    grid-template-columns: 1fr;
+  }
+
+  .intel-rail-left,
+  .intel-rail-right {
+    border-left: 0;
+    border-right: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+  }
+
+  /* Feature first — it is the point of the page. */
+  .intel-feature {
+    order: -1;
+  }
+
+  /* Rails become a two-up grid so they don't become an endless column. */
+  .intel-rail {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .intel-rail-item {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .intel-rail-right .intel-rail-item.active {
+    box-shadow: inset 3px 0 0 var(--color-accent);
+  }
+}
+
+@media (max-width: 640px) {
+  .intel-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .intel-feature-copy {
+    padding: 2rem 1.25rem 2.5rem;
+  }
+
+  .intel-rail-item {
+    padding: 1.5rem 1.25rem;
+  }
+
+  .intel-magazine {
+    margin-bottom: 3.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intel-feature.is-swapping .intel-feature-copy,
+  .intel-feature.is-swapping .intel-feature-image {
+    animation: none;
+  }
+
+  .intel-rail-thumb img,
+  .intel-feature-image img,
+  .intel-feature-cta .arrow {
+    transition: none;
+  }
+}
+
+/* ── Empty state + pagination spacing ───────────────────────────────────────
+
+   These were previously typed inline as style="..." on each page, which meant
+   they couldn't be changed in one place or adjusted per breakpoint. They are
+   used by <EmptyState /> and by IntelLayout's pagination wrapper.
+*/
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  text-align: center;
+  padding: 4rem 0;
+  min-height: 30vh;
+  justify-content: center;
+}
+
+.empty-state-message {
+  color: var(--color-white-muted);
+  font-size: 1.05rem;
+}
+
+.empty-state-action {
+  /* Slightly tighter than the default CTA so it reads as a secondary action. */
+  padding: 0.75rem 2.5rem;
+  font-size: 0.75rem;
+}
+
+/* Breathing room between the last row of cards and the page numbers. */
+.intel-pagination {
+  padding-top: 3.5rem;
+}
+
+/* ── Missing-cover fallback ─────────────────────────────────────────────────
+
+   When an article has no cover image we show the site logo over the article
+   title instead of an empty box, so the grid still reads as deliberate,
+   branded content. Used by <ArticleThumb /> and by the magazine's centre
+   feature.
+
+   TEMPORARY: the proper fix is pulling article images through Astro's image
+   pipeline at sync time (see scripts/epic-001-article-syndication.md).
+*/
+
+.article-thumb-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  height: 100%;
+  padding: 1rem;
+  text-align: center;
+  /* A subtle brand-tinted wash so it reads as intentional, not as a failure. */
+  background:
+    radial-gradient(circle at 50% 35%, rgba(204, 0, 0, 0.12) 0%, transparent 62%),
+    linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-black) 100%);
+}
+
+/* Width only — the asset is the pre-cropped mark (see ArticleThumb.astro), so
+   its natural 2.17:1 ratio gives the height. Larger than the old 44px because
+   that was sized for the padded square, where most of the box was empty. */
+.article-thumb-fallback-logo {
+  width: 120px;
+  max-width: 70%;
+  height: auto;
+  opacity: 0.85;
+}
+
+.article-thumb-fallback-title {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-white);
+  /* Keep long headlines from overflowing a small thumbnail. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: break-word;
+}
+
+/* The large centre feature gets a bigger logo and headline. */
+.article-thumb-fallback.is-feature {
+  gap: 1.5rem;
+  padding: 2rem;
+}
+
+/* The centre feature is a much larger box than a rail thumbnail, so the mark
+   scales up with it rather than floating small in the middle. */
+.article-thumb-fallback.is-feature .article-thumb-fallback-logo {
+  width: 260px;
+  max-width: 60%;
+}
+
+.article-thumb-fallback.is-feature .article-thumb-fallback-title {
+  font-size: 1.05rem;
+  letter-spacing: 0.1em;
+  -webkit-line-clamp: 4;
+  max-width: 32ch;
+}
+
+/* The feature's image box is a fixed 16:9 area; both the <img> and the
+   fallback must fill it so the swap doesn't resize the spread. */
+/* Real cover photos crop to fill (cover); the branded fallback must NOT be
+   cropped — it is a logo and a headline, and `cover` was slicing the edges
+   off. The fallback is a flex box, so it simply fills the area instead. */
+.intel-feature-image > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.intel-feature-image > .article-thumb-fallback {
+  width: 100%;
+  height: 100%;
+}
+
+.intel-rail-thumb > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.intel-rail-thumb > .article-thumb-fallback {
+  width: 100%;
+  height: 100%;
+}
+
+/* ── MOBILE DENSITY ─────────────────────────────────────────────────────────
+
+   WHY
+   On a phone the magazine spread stacks: the feature, then all seven rail
+   tiles in a single column, then the video strip, then twelve archive cards.
+   That is over twenty full-width blocks before the footer — enough that the
+   page reads as endless rather than browsable.
+
+   WHAT THIS DOES
+   Below 560px the spread keeps the feature plus the two newest rail tiles and
+   hides the rest. Nothing is lost: every hidden article still appears in the
+   archive grid further down, and on the category pages. The magazine is an
+   opening statement, and on a phone a shorter statement is a better one.
+
+   `display: none` rather than a smaller render count so this stays a pure CSS
+   concern — the server output is identical at every width, which keeps the
+   page cacheable and avoids a layout shift on load.
+*/
+@media (max-width: 560px) {
+  /* Left rail holds indices 0,2,4,6 — keep the first (the feature's own tile
+     is index 0, so this is the first tile AFTER it in reading order). */
+  .intel-rail-left .intel-rail-item:nth-child(n + 3),
+  .intel-rail-right .intel-rail-item:nth-child(n + 2) {
+    display: none;
+  }
+
+  /*
+    MOBILE LEDE: one paragraph, clamped.
+
+    On desktop the lede runs to three paragraphs because it has to hold its own
+    beside four rail tiles. On a phone there is nothing beside it, so the full
+    lede was ~580px of unbroken body copy standing between the reader and every
+    other article on the page — scroll fatigue before they have chosen anything.
+
+    So the phone gets the shape of a headline card: title, a short standfirst,
+    Read More. One paragraph, clamped to four lines, and the rest hidden.
+
+    A CSS trim rather than a shorter build, deliberately: the full lede stays in
+    the HTML, so search engines still index the whole preview and the desktop
+    and mobile pages remain the same document. `-webkit-line-clamp` degrades to
+    "show the whole paragraph" in anything that does not support it, which is
+    the pre-existing behaviour and therefore safe.
+  */
+  .intel-feature-excerpt p:nth-child(n + 2) {
+    display: none;
+  }
+
+  .intel-feature-excerpt p:first-child {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    /* Match the body size — the desktop standfirst is set slightly larger,
+       which at this width costs a line for no gain. */
+    font-size: 1rem;
+    margin-bottom: 0;
+  }
+
+  .intel-feature-excerpt {
+    margin-bottom: 1.25rem;
+  }
+
+  /* Tighter rhythm for what remains. */
+  .intel-magazine {
+    margin-bottom: 2.5rem;
+  }
+
+  .intel-break {
+    margin-bottom: 3rem;
+  }
+}

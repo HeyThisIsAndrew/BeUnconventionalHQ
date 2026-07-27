@@ -1,14 +1,13 @@
 ---
+import { site } from '../data/site.js';
 import { Image } from 'astro:assets';
 import logoImage from '../assets/logo.webp';
 
 const currentPath = Astro.url.pathname;
-const navItems = [
-  { label: 'Feed', href: 'feed' },
-  { label: 'Events', href: 'events' },
-  { label: 'Featured', href: 'featured' },
-  { label: 'About', href: 'about' },
-];
+/* Navigation comes from site.nav (src/data/site.js) so the navbar and the
+   footer cannot disagree about what sections exist. Add a section there once
+   and it appears in both, plus the mobile menu. */
+const navItems = site.nav;
 
 const base = import.meta.env.BASE_URL === '/' ? '' : import.meta.env.BASE_URL;
 const isActive = (href: string) =>
@@ -165,44 +164,33 @@ const isActive = (href: string) =>
           toggle.addEventListener('click', () => {
             const isOpened = navbar.classList.contains('menu-open');
             if (isOpened) {
-              if (!document.documentElement.classList.contains('menu-open')) {
+              /* Menu is visually open but nothing is actually locked (a
+                 navigation released it, say). Close the panel and stop —
+                 calling unlock() here would decrement a counter that no
+                 longer has this menu in it. Asking the lock itself is
+                 accurate; the old check read `html.menu-open`, a class the
+                 shared utility no longer owns. */
+              if (!window.__hqScrollLock.isLocked()) {
                 navbar.classList.remove('menu-open');
                 toggle.setAttribute('aria-expanded', 'false');
                 return;
               }
 
-              const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
               navbar.classList.remove('menu-open');
-              document.documentElement.classList.remove('menu-open');
               toggle.setAttribute('aria-expanded', 'false');
 
-            document.body.style.position = '';
-            document.body.style.top = '';
-            document.body.style.width = '';
-            document.body.style.overflowY = '';
+              /* Shared scroll lock — src/lib/scroll-lock.ts, reached through
+                 the window bridge because this script is `is:inline` and so
+                 cannot import. Replaces a local copy that cleared the four
+                 inline styles by hand and restored the offset across a double
+                 requestAnimationFrame. */
+              window.__hqScrollLock.unlock();
+            } else {
+              window.__hqScrollLock.lock();
 
-            const originalBehavior = document.documentElement.style.scrollBehavior;
-            document.documentElement.style.scrollBehavior = 'auto'; // Force instant
-            window.scrollTo(0, scrollY);
-
-            // Double requestAnimationFrame for native thread safety
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                document.documentElement.style.scrollBehavior = originalBehavior;
-              });
-            });
-          } else {
-            // Capture scroll position
-            const scrollY = window.scrollY;
-            document.body.style.top = `-${scrollY}px`;
-            document.body.style.position = 'fixed';
-            document.body.style.width = '100%';
-            document.body.style.overflowY = 'scroll';
-
-            navbar.classList.add('menu-open');
-            document.documentElement.classList.add('menu-open');
-            toggle.setAttribute('aria-expanded', 'true');
-          }
+              navbar.classList.add('menu-open');
+              toggle.setAttribute('aria-expanded', 'true');
+            }
         });
         toggle.dataset.mobileClickBound = 'true';
       }

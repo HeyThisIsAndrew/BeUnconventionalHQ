@@ -1,0 +1,94 @@
+---
+/**
+ * ArticleToc — the sticky "Contents" rail on the left of an article.
+ *
+ * ─── WHAT IT DOES ─────────────────────────────────────────────────────────
+ * Lists the article's H2/H3 headings as anchor links, and highlights whichever
+ * section is currently on screen as you scroll.
+ *
+ * ─── WHERE THE ENTRIES COME FROM ──────────────────────────────────────────
+ * buildToc() in src/lib/article-toc.ts, which reads the headings out of the
+ * sanitized body and injects matching `id`s so these links have something to
+ * jump to. If a heading has no id, it is because buildToc did not see it.
+ *
+ * ─── WHY IT DISAPPEARS ON SHORT ARTICLES ──────────────────────────────────
+ * A contents list with two entries is noise. Below MIN_ENTRIES the rail is not
+ * rendered at all.
+ */
+import type { TocEntry } from '../lib/article-toc';
+
+interface Props {
+  entries: TocEntry[];
+}
+
+const { entries } = Astro.props;
+
+/** Fewer headings than this and a contents list is not worth the space. */
+const MIN_ENTRIES = 3;
+const show = entries.length >= MIN_ENTRIES;
+---
+
+{
+  show && (
+    <aside class="article-rail article-rail-left" aria-labelledby="article-toc-head">
+      <nav class="article-toc">
+        <p class="article-rail-head" id="article-toc-head">Contents</p>
+        <ul class="article-toc-list">
+          {entries.map((entry) => (
+            <li class:list={['article-toc-item', { 'is-sub': entry.level === 3 }]}>
+              <a href={`#${entry.id}`} data-toc-link={entry.id}>{entry.text}</a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </aside>
+  )
+}
+
+<script>
+  /*
+    Highlight the section currently in view.
+
+    IntersectionObserver rather than a scroll listener: the browser does the
+    work off the main thread and only tells us when a heading crosses the
+    threshold, so this costs nothing while scrolling.
+
+    rootMargin pulls the detection line up to ~30% from the top of the
+    viewport, so a heading counts as "current" once it reaches the upper third
+    rather than only at the very top edge.
+  */
+  function initArticleToc() {
+    const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-toc-link]'));
+    if (links.length === 0) return;
+
+    const headings = links
+      .map((link) => document.getElementById(link.dataset.tocLink ?? ''))
+      .filter((el): el is HTMLElement => Boolean(el));
+    if (headings.length === 0) return;
+
+    const setActive = (id: string) => {
+      links.forEach((link) => {
+        const isActive = link.dataset.tocLink === id;
+        link.classList.toggle('active', isActive);
+        if (isActive) link.setAttribute('aria-current', 'true');
+        else link.removeAttribute('aria-current');
+      });
+    };
+
+    const observer = new IntersectionObserver(
+      (records) => {
+        // Prefer the topmost heading currently intersecting.
+        const visible = records
+          .filter((r) => r.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (visible?.target.id) setActive(visible.target.id);
+      },
+      { rootMargin: '-30% 0px -60% 0px', threshold: 0 },
+    );
+
+    headings.forEach((heading) => observer.observe(heading));
+    setActive(headings[0].id);
+  }
+
+  document.addEventListener('astro:page-load', initArticleToc);
+</script>

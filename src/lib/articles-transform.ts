@@ -1,0 +1,499 @@
+/**
+ * Substack RSS → article record pipeline.
+ *
+ * Build-time only. Imported by `scripts/sync-articles.mjs` and its test suite,
+ * never by a page — the snapshot stores already-sanitized HTML, so
+ * `sanitize-html` stays out of the site bundle entirely.
+ *
+ * Every function here is pure so the whole pipeline is testable offline
+ * against a fixture feed, with no network.
+ */
+import sanitizeHtml from 'sanitize-html';
+import { CATEGORIES } from '../data/constants.js';
+
+/** Semantic tags only. No styling, no embeds, no scripts. */
+const ALLOWED_TAGS = [
+  'p', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'blockquote', 'hr',
+  'a', 'img', 'figure', 'figcaption', 'em', 'strong', 'code', 'pre', 'br',
+];
+
+const ALLOWED_ATTRS: Record<string, string[]> = {
+  a: ['href', 'title', 'rel', 'target'],
+  img: ['src', 'alt', 'title', 'width', 'height'],
+};
+
+/**
+ * Demote in-body headings by one level.
+ *
+ * The page's own <h1> is the article title, so a Substack body that opens with
+ * an h1 would produce two. h1→h2, h2→h3, h3→h4; h4 and below are clamped at
+ * h4 rather than pushed to h5/h6, which keeps the outline shallow and valid.
+ *
+ * Runs BEFORE sanitization so the allowlist (which has no h1) sees the
+ * already-demoted markup rather than silently dropping the heading text.
+ */
+export function demoteHeadings(html: string): string {
+  if (!html) return '';
+  return html.replace(
+    /<(\/?)h([1-6])\b([^>]*)>/gi,
+    (_m, slash: string, level: string, rest: string) => {
+      const demoted = Math.min(Number(level) + 1, 4);
+      return `<${slash}h${demoted}${rest}>`;
+    },
+  );
+}
+
+/** Sanitize imported HTML down to the semantic allowlist. */
+export function sanitizeArticleHtml(html: string): string {
+  if (!html) return '';
+  return sanitizeHtml(demoteHeadings(html), {
+    allowedTags: ALLOWED_TAGS,
+    allowedAttributes: ALLOWED_ATTRS,
+    // Strip Substack's tracking/CDN query junk but keep the URL usable.
+    allowedSchemes: ['http', 'https', 'mailto'],
+    transformTags: {
+      // Force safe rel on every anchor that leaves the site.
+      a: (tagName, attribs) => {
+        const href = attribs.href ?? '';
+        const isExternal = /^https?:\/\//i.test(href);
+        return {
+          tagName,
+          attribs: isExternal
+            ? { ...attribs, rel: 'noopener noreferrer', target: '_blank' }
+            : attribs,
+        };
+      },
+    },
+    // Drop empty paragraphs Substack leaves behind between blocks.
+    exclusiveFilter: (frame) =>
+      frame.tag === 'p' && !frame.text.trim() && !frame.mediaChildren.length,
+  }).trim();
+}
+
+/**
+ * Map a post to one of the site's canonical categories.
+ *
+ * Tag-driven by design: the owner tags Substack posts with matching keywords,
+ * so this reads tags first and only falls back to title/description text when
+ * a post carries no usable tag. Note the site's film category is `Film`, not
+ * `Movies` — see src/data/constants.js.
+ */
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  // Deliberately excludes 'review' and 'trailer': TV and games get reviewed and
+  // trailered too, so those words carry no category signal and, being checked
+  // first, would have swallowed everything into Film.
+  Film: ['film', 'films', 'movie', 'movies', 'cinema', 'boxoffice'],
+  TV: ['tv', 'television', 'series', 'season', 'episode', 'streaming', 'show'],
+  Gaming: ['gaming', 'game', 'games', 'videogame', 'playstation', 'xbox', 'nintendo', 'steam'],
+  Events: ['event', 'events', 'convention', 'con', 'comiccon', 'comic-con', 'sdcc', 'd23', 'premiere', 'expo'],
+};
+
+const FALLBACK_CATEGORY = 'General';
+
+function normalizeToken(value: string): string {
+  return String(value).toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+export function mapCategory(tags: string[] = [], text = ''): string {
+  const normalizedTags = tags.map(normalizeToken).filter(Boolean);
+
+  // 1. Exact tag match against a canonical category name (Film, TV, ...).
+  for (const category of CATEGORIES) {
+    if (normalizedTags.includes(normalizeToken(category))) return category;
+  }
+
+  // 2. Tag match against that category's keyword set.
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (normalizedTags.some((t) => keywords.map(normalizeToken).includes(t))) {
+      return category;
+    }
+  }
+
+  // 3. Last resort: keyword scan of title/description. Weakest signal, which
+  //    is exactly why tagging posts is the documented workflow.
+  const haystack = ` ${String(text).toLowerCase()} `;
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (keywords.some((k) => haystack.includes(` ${k} `))) return category;
+  }
+
+  return FALLBACK_CATEGORY;
+}
+
+/**
+ * CONTENT TYPE — what KIND of article this is, as distinct from its subject.
+ *
+ * `category` answers "what is it about" (Film / TV / Gaming / Events).
+ * `contentType` answers "what is it" (a Review, an Analysis, a Dispatch...).
+ *
+ * Both are needed. Search engines treat a review very differently from a news
+ * piece — a Review can carry a rating and appear in rich results, while news
+ * belongs in NewsArticle. See the schema selection in src/pages/intel/[slug].
+ *
+ * Detection order mirrors mapCategory(): explicit tag first, then keywords in
+ * the title. Tagging a Substack post `Review` is the reliable path; the title
+ * scan is a fallback so untagged posts still get something sensible.
+ */
+export const CONTENT_TYPES = ['Review', 'Analysis', 'Dispatch', 'Announcement', 'Interview'] as const;
+export type ContentType = (typeof CONTENT_TYPES)[number];
+
+const CONTENT_TYPE_KEYWORDS: Record<string, string[]> = {
+  Review: ['review', 'reviewed', 'verdict', 'rating'],
+  // "Dispatch" is on-the-ground reporting: conventions, premieres, set visits.
+  Dispatch: ['dispatch', 'onlocation', 'hallh', 'sdcc', 'd23', 'nycc', 'premiere', 'recap', 'coverage'],
+  Announcement: ['announced', 'announcement', 'revealed', 'confirms', 'confirmed', 'trailer', 'release date'],
+  Interview: ['interview', 'sitdown', 'conversation with', 'talks'],
+  // Analysis is the default for opinion/essay pieces, so its keywords are the
+  // broadest and it is checked last.
+  Analysis: ['analysis', 'why', 'explained', 'breakdown', 'deepdive', 'essay', 'the case for'],
+};
+
+/** Default when nothing matches — most editorial writing is analysis. */
+const FALLBACK_CONTENT_TYPE: ContentType = 'Analysis';
+
+export function mapContentType(tags: string[] = [], text = ''): ContentType {
+  const normalizedTags = tags.map(normalizeToken).filter(Boolean);
+
+  // 1. An explicit tag naming the type outright.
+  for (const type of CONTENT_TYPES) {
+    if (normalizedTags.includes(normalizeToken(type))) return type;
+  }
+
+  // 2. A tag matching that type's keyword set.
+  for (const [type, keywords] of Object.entries(CONTENT_TYPE_KEYWORDS)) {
+    if (normalizedTags.some((t) => keywords.map(normalizeToken).includes(t))) {
+      return type as ContentType;
+    }
+  }
+
+  // 3. Title/description scan. Checked in CONTENT_TYPES order so the more
+  //    specific types win over the broad Analysis keywords.
+  const haystack = ` ${String(text).toLowerCase()} `;
+  for (const type of CONTENT_TYPES) {
+    const keywords = CONTENT_TYPE_KEYWORDS[type] ?? [];
+    if (keywords.some((k) => haystack.includes(` ${k} `) || haystack.includes(k))) {
+      return type as ContentType;
+    }
+  }
+
+  return FALLBACK_CONTENT_TYPE;
+}
+
+/**
+ * Pull an out-of-10 (or out-of-5) score from a review body, if present.
+ *
+ * Reviews that state a score can carry it into Review schema, which is what
+ * makes a rating eligible for rich results. Matches "8.5/10", "Score: 9/10",
+ * "4/5". Returns null when there is no score — most posts.
+ */
+export function extractScore(html: string): { value: number; best: number } | null {
+  const text = toPlainText(html);
+  const match = text.match(/(?:score|rating)?\s*:?\s*\b(\d{1,2}(?:\.\d)?)\s*\/\s*(10|5)\b/i);
+  if (!match) return null;
+  const value = Number(match[1]);
+  const best = Number(match[2]);
+  if (!Number.isFinite(value) || value < 0 || value > best) return null;
+  return { value, best };
+}
+
+/** URL-safe slug. Derived from the Substack permalink when possible. */
+export function toSlug(link: string, title: string): string {
+  const fromLink = String(link ?? '').match(/\/p\/([^/?#]+)/);
+  const raw = fromLink ? fromLink[1] : String(title ?? '');
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+/** Strip tags/entities down to plain text, for excerpts and alt fallbacks. */
+export function toPlainText(html: string): string {
+  return sanitizeHtml(String(html ?? ''), { allowedTags: [], allowedAttributes: {} })
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function firstImage(html: string): string {
+  const match = String(html ?? '').match(/<img[^>]+src=["']([^"']+)["']/i);
+  return match ? match[1] : '';
+}
+
+/**
+ * Substack sometimes truncates a paid post's `content:encoded` to a teaser.
+ * This is a safety net against that, NOT a paywall feature — every article is
+ * meant to render in full. A record that trips this keeps its metadata (so it
+ * still appears in the Feed, linking out to Substack) but is not given a local
+ * page, rather than publishing a stub that reads as broken.
+ */
+const MIN_BODY_CHARS = 400;
+
+export function looksTruncated(bodyHtml: string): boolean {
+  const text = toPlainText(bodyHtml);
+  if (text.length < MIN_BODY_CHARS) return true;
+  return /subscribe to (keep reading|read more)|this post is for (paid|paying)|upgrade to continue/i.test(text);
+}
+
+export interface RawFeedItem {
+  title?: string;
+  link?: string;
+  guid?: string;
+  pubDate?: string;
+  description?: string;
+  contentEncoded?: string;
+  categories?: string[];
+  enclosureUrl?: string;
+}
+
+export interface ArticleRecord {
+  guid: string;
+  slug: string;
+  title: string;
+  link: string;
+  date: string;
+  isoDate: string;
+  excerpt: string;
+  /**
+   * The magazine lede: the article's opening paragraphs, as an array of plain
+   * strings (one entry per paragraph).
+   *
+   * This is SEPARATE from `excerpt` on purpose. `excerpt` is a single short
+   * sentence-or-two used in card grids and — critically — as the page's meta
+   * description, where search engines truncate anything past ~160 characters.
+   * The magazine's centre feature is a different job: it is a full editorial
+   * block with several paragraphs of room beneath the headline, and a
+   * one-paragraph teaser left most of that space empty. Overloading `excerpt`
+   * to fill it would have made every meta description a wall of text.
+   */
+  preview: string[];
+  image: string;
+  category: string;
+  /** What KIND of piece this is — Review, Analysis, Dispatch… */
+  contentType: string;
+  /** Out-of-N score for reviews that state one, else null. */
+  score: { value: number; best: number } | null;
+  tags: string[];
+  bodyHtml: string;
+  hasBody: boolean;
+  firstSeen: string;
+  lastUpdated: string;
+}
+
+/**
+ * Build the preview excerpt.
+ *
+ * Prefers the feed's own description, but falls back to the article's opening
+ * paragraphs when that description is too short to fill the preview block.
+ * Trimmed at a sentence boundary where possible so it never ends mid-word.
+ */
+function buildExcerpt(description: string, body: string, limit = 420): string {
+  const source = description.length >= 160 ? description : body || description;
+  if (source.length <= limit) return source;
+
+  const clipped = source.slice(0, limit);
+  // Prefer to end on a sentence; otherwise the last whole word.
+  const lastStop = Math.max(clipped.lastIndexOf('. '), clipped.lastIndexOf('! '), clipped.lastIndexOf('? '));
+  if (lastStop > limit * 0.5) return clipped.slice(0, lastStop + 1);
+  const lastSpace = clipped.lastIndexOf(' ');
+  return `${clipped.slice(0, lastSpace > 0 ? lastSpace : limit)}…`;
+}
+
+/**
+ * Build the magazine lede — the opening paragraphs of the article.
+ *
+ * ─── WHY THIS IS SEPARATE FROM buildExcerpt() ─────────────────────────────
+ * `excerpt` is one short block, reused as the meta description. This is the
+ * long form: several real paragraphs, so the centre feature on /intel fills
+ * the editorial space beneath its headline instead of leaving a void under
+ * the "Read More" link.
+ *
+ * ─── WHY IT RETURNS AN ARRAY, NOT HTML ────────────────────────────────────
+ * Paragraph text only, with the tags stripped. The component turns each entry
+ * into its own <p>. Keeping it as data rather than markup means the swap
+ * script can rebuild the block with `textContent` and never touch innerHTML —
+ * no HTML from the feed is ever re-parsed in the browser.
+ *
+ * ─── HOW MUCH IT TAKES ────────────────────────────────────────────────────
+ * Whole paragraphs until `limit` characters are reached, capped at
+ * `maxParagraphs`. Whole paragraphs, never a partial one, so the block always
+ * ends on a finished thought — except for the final safety trim below, which
+ * only fires when a single paragraph is longer than the whole budget.
+ *
+ * The 1000-character default is not arbitrary. Measured against the built
+ * page at 1440px: the centre column is ~583px of text width, so 1000
+ * characters sets about 17 lines, which brings the feature column to roughly
+ * the same height as the four-tile rails beside it. Raise it and the feature
+ * outgrows the rails; lower it and the empty space under "Read More" comes
+ * back.
+ *
+ * @param bodyHtml  sanitized article body
+ * @param fallback  used when the body has no usable paragraphs (e.g. a feed
+ *                  item that only gave us a description)
+ */
+export function buildPreview(
+  bodyHtml: string,
+  fallback = '',
+  limit = 1000,
+  maxParagraphs = 5,
+): string[] {
+  /*
+    Match <p>…</p> blocks. A regex is enough here because the body has already
+    been through sanitize-html, so the markup is well-formed and the tag set is
+    a known allowlist — this is not parsing arbitrary HTML from the wild.
+  */
+  const blocks = String(bodyHtml ?? '').match(/<p\b[^>]*>[\s\S]*?<\/p>/gi) ?? [];
+
+  const paragraphs: string[] = [];
+  let used = 0;
+
+  for (const block of blocks) {
+    const text = toPlainText(block);
+
+    // Skip furniture: empty paragraphs, and the one-line "Score: 8/10" style
+    // sign-offs, which read as noise at the top of a feature.
+    if (text.length < 40) continue;
+
+    paragraphs.push(text);
+    used += text.length;
+
+    if (paragraphs.length >= maxParagraphs || used >= limit) break;
+  }
+
+  if (paragraphs.length === 0) {
+    const plain = toPlainText(fallback);
+    return plain ? [plain] : [];
+  }
+
+  /*
+    Safety trim. If one paragraph blew past the budget on its own, cut the last
+    entry at a sentence boundary so the block does not run to a thousand words.
+  */
+  const last = paragraphs[paragraphs.length - 1];
+  if (used > limit * 1.4 && last.length > 200) {
+    const allowance = Math.max(200, limit - (used - last.length));
+    const clipped = last.slice(0, allowance);
+    const stop = Math.max(
+      clipped.lastIndexOf('. '),
+      clipped.lastIndexOf('! '),
+      clipped.lastIndexOf('? '),
+    );
+    paragraphs[paragraphs.length - 1] =
+      stop > allowance * 0.5
+        ? clipped.slice(0, stop + 1)
+        : `${clipped.slice(0, Math.max(clipped.lastIndexOf(' '), 0))}…`;
+  }
+
+  return paragraphs;
+}
+
+/** Display date in the format the existing cache and cards already use. */
+function formatDisplayDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/**
+ * Build a durable record from one feed item.
+ * Returns null for items too malformed to be useful (no title, or no
+ * guid/link to key on) so the caller can skip and log them.
+ */
+export function buildArticleRecord(item: RawFeedItem, now = new Date()): ArticleRecord | null {
+  const title = toPlainText(item.title ?? '');
+  const link = String(item.link ?? '').trim();
+  const guid = String(item.guid ?? link).trim();
+
+  if (!title || !guid) return null;
+
+  const parsedDate = new Date(item.pubDate ?? '');
+  const isoDate = Number.isNaN(parsedDate.getTime())
+    ? now.toISOString()
+    : parsedDate.toISOString();
+
+  const bodyHtml = sanitizeArticleHtml(item.contentEncoded ?? '');
+  const tags = (item.categories ?? []).map((t) => String(t).trim()).filter(Boolean);
+  const excerptSource = item.description ?? bodyHtml;
+
+  return {
+    guid,
+    slug: toSlug(link, title),
+    title,
+    link,
+    date: formatDisplayDate(isoDate),
+    isoDate,
+    /*
+      A real preview, not a teaser. The section page shows up to six lines, so
+      280 characters left the block half empty. If the feed's own description
+      is short, fall back to the opening of the body — that is the hook.
+    */
+    excerpt: buildExcerpt(toPlainText(excerptSource), toPlainText(bodyHtml)),
+    /* The long form, for the magazine centre feature. See buildPreview(). */
+    preview: buildPreview(bodyHtml, excerptSource),
+    image: item.enclosureUrl || firstImage(item.contentEncoded ?? ''),
+    category: mapCategory(tags, `${title} ${toPlainText(item.description ?? '')}`),
+    contentType: mapContentType(tags, `${title} ${toPlainText(item.description ?? '')}`),
+    score: extractScore(bodyHtml),
+    tags,
+    bodyHtml,
+    hasBody: Boolean(bodyHtml) && !looksTruncated(bodyHtml),
+    firstSeen: now.toISOString(),
+    lastUpdated: now.toISOString(),
+  };
+}
+
+/**
+ * Merge freshly parsed records into the durable snapshot.
+ *
+ * Semantics, per the epic: new GUIDs are appended, existing GUIDs are updated
+ * in place, and **records are never deleted**. Substack's /feed returns only a
+ * rolling window, so anything that ages out of it must survive here or its
+ * live URL 404s on the next deploy.
+ *
+ * Editorial fields a human may have set (`editorial`) are preserved across
+ * updates; feed-derived fields are refreshed.
+ */
+export function mergeSnapshot(
+  existing: ArticleRecord[],
+  incoming: ArticleRecord[],
+): { merged: ArticleRecord[]; added: number; updated: number } {
+  const byGuid = new Map<string, ArticleRecord>();
+  for (const record of existing ?? []) {
+    if (record?.guid) byGuid.set(record.guid, record);
+  }
+
+  let added = 0;
+  let updated = 0;
+
+  for (const record of incoming) {
+    const prior = byGuid.get(record.guid);
+    if (!prior) {
+      byGuid.set(record.guid, record);
+      added += 1;
+      continue;
+    }
+    byGuid.set(record.guid, {
+      ...prior,
+      ...record,
+      // Never let a re-sync rewrite when we first saw a post.
+      firstSeen: prior.firstSeen ?? record.firstSeen,
+      // A feed that stops returning bodies must not blank an archived one.
+      bodyHtml: record.bodyHtml || prior.bodyHtml,
+      hasBody: record.hasBody || prior.hasBody,
+      // Editorial overrides win over anything the feed says.
+      ...(prior as any).editorial ? { editorial: (prior as any).editorial } : {},
+    });
+    updated += 1;
+  }
+
+  return {
+    merged: [...byGuid.values()].sort(
+      (a, b) => new Date(b.isoDate).getTime() - new Date(a.isoDate).getTime(),
+    ),
+    added,
+    updated,
+  };
+}

@@ -7,6 +7,18 @@
   background: var(--color-surface);
   padding: 4rem 2rem 2rem;
   margin-top: 4rem;
+
+  /*
+    ONE knob for the footer logo, read by both `.footer-logo` and
+    `.footer-logo img` below.
+
+    The logo used to be sized by four separate declarations across two files,
+    half of them `!important`, which is how it ended up correct on desktop and
+    tiny on a phone: the mobile override won and nobody noticed the desktop
+    rule had stopped applying. Now every breakpoint sets this ONE value —
+    see the overrides in footer-brand.css.
+  */
+  --footer-logo-size: 300px;
 }
 
 .footer-inner {
@@ -19,17 +31,45 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+/*
+   Footer logo.
+
+   TO RESIZE IT: change `--footer-logo-size` on `.site-footer` above, or the
+   per-breakpoint override in footer-brand.css. Do NOT add a width or height
+   here — that is exactly how the mobile and desktop sizes drifted apart.
+
+   ─── THE ASSET: src/assets/logo-mark.webp, NOT logo.webp ────────────────
+   logo.webp (used elsewhere on the site) is a 2000x2000 square with the
+   wordmark occupying only ~42% of its height — the rest is transparent
+   padding, off-centre within the square rather than centred in it.
+
+   An earlier version of this rule tried to fix that in CSS: force the box to
+   the mark's aspect ratio and `overflow: hidden` + `place-items: center` to
+   crop the padding away. That assumed the padding was even on all sides. It
+   was not — sharp's trim reported the content starting 420px down and ending
+   580px from the bottom of the 2000px square — so a centred crop sliced
+   straight through the wordmark itself. That shipped to production visibly
+   clipping the logo on every breakpoint.
+
+   logo-mark.webp is the fix done properly, once, in the asset instead of in
+   CSS: the same artwork pre-cropped to its real content box (sharp trim) plus
+   a small even margin, so its own dimensions ARE the shape to render at.
+   No overflow trick needed — width/height auto is correct on its own.
+*/
 .footer-logo {
-  height: 40px;
-  width: auto;
-  margin-bottom: 1.25rem;
+  width: var(--footer-logo-size);
+  /* Never wider than its column, whatever the size above says. This is what
+     keeps the brand column from pushing Explore and Follow around. */
+  max-width: 100%;
+  height: auto;
+  margin-bottom: 0;
   display: block;
   transition: opacity 0.3s ease;
 }
 
 .footer-logo img {
-  height: 40px;
-  width: auto;
+  width: 100%;
+  height: auto;
   display: block;
 }
 
@@ -38,7 +78,7 @@
 }
 
 .footer-tagline {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-size: 0.7rem;
   letter-spacing: 0.25em;
   text-transform: uppercase;
@@ -70,15 +110,45 @@
   align-items: center;
 }
 
+/*
+   Explore links.
+
+   Two things this used to get wrong, both reported directly:
+
+   1. `flex-wrap: wrap` inside `max-width: 300px` meant the five items never
+      fitted, so "ABOUT" dropped to its own line on every device — it read as
+      an accident, not a layout.
+   2. The first fix for that used `nowrap` with a gap that shrank on a
+      narrow viewport (`clamp(0.4rem, 2vw, 2rem)`) to force one row no matter
+      what. At 390px that clamp resolved to ~8px between five short words,
+      which is cramped enough to misread as a single run of text.
+
+   This gap is now a comfortable FIXED size — not shrunk to force a fit — and
+   `wrap` is back, but centred so a wrapped row still looks intentional rather
+   than ragged. At the widths this site is actually used at (375px and up)
+   five items at this gap still fit on one line; wrapping only kicks in on
+   very narrow phones, which is the accepted trade-off: readable spacing over
+   a forced single row.
+*/
 .footer-nav ul {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.75rem 2rem;
+  /* Row gap / column gap. 1.25rem between items keeps a single row at every
+     width from 375px up (measured); below that, or in the narrow ~244px
+     columns a landscape phone gets from the 3-column desktop grid, it wraps
+     — deliberately, over squeezing the gap down to force a fit again. */
+  gap: 0.85rem 1.25rem;
   align-items: center;
   padding: 0;
-  max-width: 300px;
+  max-width: 100%;
+}
+
+/* Individual items must not break mid-word either — "FEATURED" wrapping to
+   "FEATUR / ED" would defeat the point of keeping the row on one line. */
+.footer-nav ul li a {
+  white-space: nowrap;
 }
 
 .footer-socials {
@@ -185,6 +255,12 @@
   width: 100%;
 }
 
+/*
+   Bottom bar: copyright on the left, tagline on the right, on the same line.
+   `justify-content: space-between` is what pushes them to opposite ends — if
+   you ever drop one of them, switch this to `center` so the survivor doesn't
+   sit awkwardly against one edge.
+*/
 .footer-bottom {
   max-width: 1536px;
   margin: 0 auto;
@@ -192,6 +268,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 1rem;
 }
 
 .footer-copy {
@@ -200,7 +277,7 @@
 }
 
 .footer-credit {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-size: 0.7rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;

@@ -1,23 +1,22 @@
 ---
+import { SECTIONS, META, pageTitle } from '../data/content.js';
 import Layout from '../layouts/Layout.astro';
-import { site } from '../data/site.js';
 import PageTitle from '../components/PageTitle.astro';
 
-const title = `Collaborations | ${site.name}`;
-const description =
-  'Press kit, media kit, brand assets, and contact information for Be Unconventional HQ.';
+const title = pageTitle(META.collaborations.title);
+const description = META.collaborations.description;
 ---
 
 <Layout title={title} description={description}>
   <main class="press-kit-page flex-1 flex flex-col w-full pb-8 md:pb-12">
-    <div class="container flex-1 flex flex-col">
+    <div class="container-narrow flex-1 flex flex-col">
       <header class="section-header animate-on-scroll" data-nav-anchor>
         {/* "Partners", not "Partnerships". PageTitle's secondary word is set
             in vw-scaled display type with a negative margin-right stagger;
             at 320px "Partnerships" rendered 317px wide and pushed the page
             8px past the viewport. The longest secondary anywhere else on the
             site is "Not Found" at 248px, which clears it. */}
-        <PageTitle as="h1" kicker="Work With Us" primary="Press &" secondary="Partners" />
+        <PageTitle as="h1" {...SECTIONS.collaborations} />
       </header>
 
       <section class="press-kit-grid">
@@ -89,11 +88,7 @@ const description =
     padding-top: 120px;
   }
 
-  .container {
-    max-width: 1000px;
-    margin: 0 auto;
-    padding: 0 2rem;
-  }
+  /* Reading-width wrapper now shared: `.container-narrow` in modules/layout.css */
 
   .hero-subtitle-style {
     color: rgba(255, 255, 255, 0.9);
@@ -148,7 +143,7 @@ const description =
     font-family: var(--font-display);
     font-size: 1.5rem;
     font-weight: 700;
-    color: var(--color-accent);
+    color: var(--color-accent-text);
     margin-bottom: 1.5rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -197,7 +192,7 @@ const description =
   }
 
   .press-kit-email:hover {
-    color: var(--color-accent);
+    color: var(--color-accent-text);
     text-shadow: 0 0 16px rgba(204, 0, 0, 0.5);
   }
 

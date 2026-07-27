@@ -1,0 +1,35 @@
+---
+/**
+ * Centred, width-capped content wrapper.
+ *
+ * Two gutter conventions exist on this site and they are NOT interchangeable:
+ *   - `.container` (default) uses a responsive `clamp()` gutter and is what the
+ *     homepage and shared components use;
+ *   - interior pages (feed, events, featured) historically declared their own
+ *     scoped `.container` with a fixed `0 2rem` gutter, now `.container-page`.
+ *
+ * `variant="page"` keeps those interiors rendering exactly as before.
+ * Reconciling the two gutters is a visual change and is deliberately not done
+ * here — see scripts/epic-000-audit.md.
+ *
+ * All three variants live in styles/modules/layout.css.
+ */
+interface Props {
+  variant?: 'default' | 'page' | 'narrow';
+  class?: string;
+}
+
+const { variant = 'default', class: className = '', ...rest } = Astro.props;
+
+const VARIANT_CLASS: Record<string, string | undefined> = {
+  default: 'container',
+  page: 'container-page',
+  narrow: 'container-narrow',
+};
+
+const classes = [VARIANT_CLASS[variant] ?? 'container', className].filter(Boolean).join(' ');
+---
+
+<div class={classes} {...rest}>
+  <slot />
+</div>

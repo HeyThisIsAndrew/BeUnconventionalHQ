@@ -1,6 +1,9 @@
 ---
 import ContentCard from './ContentCard.astro';
+import CardGrid from './CardGrid.astro';
+import EmptyState from './EmptyState.astro';
 import Pagination from './Pagination.astro';
+import { LABELS, MESSAGES } from '../data/content.js';
 
 export interface Props {
   page: any;
@@ -23,25 +26,17 @@ const currentItems = page.data;
 </style>
 <div id="feed-grid-wrapper" style="width: 100%; clear: both; transition: opacity 0.2s ease;">
 {currentItems.length > 0 ? (
-  <div id="feed-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
+  <CardGrid id="feed-grid">
     {
       currentItems.map((item: any, index: number) => (
         <ContentCard item={item} index={index} />
       ))
     }
-  </div>
+  </CardGrid>
 ) : (
-  <div id="feed-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full">
-    <div class="col-span-full flex flex-col items-center justify-center text-center py-16 md:py-32 text-white/70 gap-8" style="min-height: 40vh;">
-      <svg class="w-16 h-16 text-white/20" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-      </svg>
-      <h3 class="text-2xl font-display font-bold tracking-widest uppercase mt-4">No content found.</h3>
-      <a href="/feed" class="cta-button-primary mt-2" style="padding: 0.75rem 2.5rem; font-size: 1rem;">
-        View All Content
-      </a>
-    </div>
-  </div>
+  <CardGrid id="feed-grid">
+    <EmptyState message={MESSAGES.noContent} actionLabel={LABELS.viewAllContent} actionHref="/feed" />
+  </CardGrid>
 )}
 </div>
 
@@ -52,15 +47,7 @@ const currentItems = page.data;
 </template>
 
 <template id="feed-empty-state">
-  <div class="col-span-full flex flex-col items-center justify-center text-center py-16 md:py-32 text-white/70 gap-8" style="min-height: 40vh;">
-    <svg class="w-16 h-16 text-white/20" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-    </svg>
-    <h3 class="text-2xl font-display font-bold tracking-widest uppercase mt-4">No items found for this filter.</h3>
-    <button class="clear-filters-btn cta-button-primary mt-2" style="padding: 0.75rem 2.5rem; font-size: 1rem;">
-      Clear Filters
-    </button>
-  </div>
+  <EmptyState message={MESSAGES.noFilterMatch} actionLabel={LABELS.clearFilters} actionClass="clear-filters-btn" />
 </template>
 
 {currentItems.length > 0 && (
@@ -70,7 +57,7 @@ const currentItems = page.data;
     </div>
     <div id="load-more-container" style="display: none;" class="text-center w-full">
       <button id="load-more-btn" class="cta-button-primary mx-auto relative z-10">
-        Load More
+        {LABELS.loadMore}
       </button>
     </div>
   </div>
@@ -120,7 +107,14 @@ const currentItems = page.data;
     let hasFiltered = false;
     const PAGE_SIZE = 12;
 
-    function renderMoreItems() {
+    /**
+     * Append the next page of matching cards.
+     *
+     * @param moveFocus Move keyboard focus to the first newly added card.
+     *   TRUE only when the reader pressed "Load More" — see the note at the
+     *   focus call below for why this must not happen on an automatic render.
+     */
+    function renderMoreItems(moveFocus = false) {
       const fragment = document.createDocumentFragment();
       const nextBatch = currentMatches.slice(currentlyDisplayedCount, currentlyDisplayedCount + PAGE_SIZE);
       
@@ -154,11 +148,35 @@ const currentItems = page.data;
         }
       }
 
-      // Accessibility: Shift focus to the first newly added card
-      if (nextBatch.length > 0) {
+      /*
+        Accessibility: after "Load More", move focus to the first new card so
+        a keyboard or screen-reader user lands on the content they just asked
+        for instead of being left on a button that may have disappeared.
+
+        ─── WHY THIS IS GUARDED ────────────────────────────────────────────
+        It used to run on EVERY render, including the automatic one that fires
+        on page load when the URL carries a category hash. Nobody had asked for
+        focus to move, but the browser still treats a programmatic focus that
+        soon after load as keyboard-driven, so `:focus-visible` matched and the
+        card painted the global 3px white focus ring (styles/modules/a11y.css).
+
+        That is the "rogue white border box on the top tile" seen on
+        /feed/articles#film. It only appeared under the Articles toggle because
+        article cards ARE `<a>` elements, so `matches('a, button')` found one to
+        focus; video cards are `<div>` wrappers that open the modal, nothing
+        focusable was found, and no ring was drawn. Same code, different markup
+        — which is exactly why it looked like a state bug.
+
+        `preventScroll` because a filtered render can place that card anywhere;
+        focusing it would otherwise scroll the reader away from the filter row
+        they just used.
+      */
+      if (moveFocus && nextBatch.length > 0) {
         const firstNewCard = nextBatch[0];
-        const focusable = firstNewCard.matches('a, button') ? firstNewCard : firstNewCard.querySelector('a, button');
-        if (focusable) (focusable as HTMLElement).focus();
+        const focusable = firstNewCard.matches('a, button')
+          ? firstNewCard
+          : firstNewCard.querySelector('a, button');
+        if (focusable) (focusable as HTMLElement).focus({ preventScroll: true });
       }
     }
 
@@ -309,7 +327,10 @@ const currentItems = page.data;
     }
 
     if (loadMoreBtn && !loadMoreBtn.dataset.bound) {
-      loadMoreBtn.addEventListener('click', renderMoreItems);
+      /* Wrapped, NOT passed directly: addEventListener would hand the
+         MouseEvent to the first parameter, and any event object is truthy —
+         so `renderMoreItems` would think every automatic render was a click. */
+      loadMoreBtn.addEventListener('click', () => renderMoreItems(true));
       loadMoreBtn.dataset.bound = 'true';
     }
 

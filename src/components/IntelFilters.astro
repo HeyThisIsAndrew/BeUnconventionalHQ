@@ -1,0 +1,113 @@
+---
+/**
+ * IntelFilters — the category filter row on /intel.
+ *
+ * ─── IT MUST MATCH THE FEED ───────────────────────────────────────────────
+ * Same four buttons, same look, same behaviour:
+ *
+ *   • The four canonical categories are ALWAYS shown — FILM, TV, GAMING,
+ *     EVENTS — even when a category has no articles yet. A filter row that
+ *     grows and shrinks as content arrives makes the site feel unfinished,
+ *     and picking an empty category is a valid thing to do: you get the
+ *     "no items found" screen with a way back, exactly like the Feed.
+ *
+ *   • There is NO "All" button. You clear a filter by clicking the active
+ *     one again — click to filter, click again to unfilter. That is why the
+ *     active button's link points back at /intel rather than at itself.
+ *
+ *   • The buttons are the Feed's own control (`.quadrant-btn .cat-btn`,
+ *     defined in styles/modules/filters.css), so hover, focus and the red
+ *     active glow are identical by construction, not by copying.
+ *
+ * ─── HOW IT DIFFERS FROM THE FEED UNDER THE HOOD ──────────────────────────
+ * The Feed filters client-side using a URL hash. These are real links to real
+ * pages (/intel/topic/film). The visible behaviour is the same, but each
+ * filter state is a genuine crawlable URL — which matters here, because the
+ * entire point of hosting articles on this domain is search visibility. It
+ * also means filtering works with JavaScript disabled.
+ *
+ * ─── HOW TO CHANGE THE CATEGORY LIST ──────────────────────────────────────
+ * Edit CATEGORIES in src/data/constants.js. That single list feeds the Feed,
+ * the video taxonomy and this row. 'General' is excluded here on purpose —
+ * it is the fallback bucket for unmapped posts, not a thing to browse by.
+ */
+import CategoryOverlay from './CategoryOverlay.astro';
+import { CATEGORIES } from '../data/constants.js';
+import { ARTICLE_SECTION } from '../data/sections.js';
+import { topicPath } from '../lib/articles';
+
+interface Props {
+  /** The active category label, or null when nothing is filtered. */
+  active: string | null;
+}
+
+const { active } = Astro.props;
+
+// 'General' is the catch-all for posts that matched no category; it is not a
+// browsable topic, so it never gets a button.
+const filterCategories = CATEGORIES.filter((category) => category !== 'General');
+
+/* The same categories, shaped for the shared mobile overlay. Unlike the Feed
+   (which uses #hash links and filters client-side) these are real routes, so
+   the active one links back to the unfiltered section — same click-to-toggle
+   behaviour as the desktop row. */
+const overlayItems = filterCategories.map((category) => ({
+  label: category.toUpperCase(),
+  href: active === category ? ARTICLE_SECTION.path : topicPath(category),
+  slug: category.toLowerCase(),
+  active: active === category,
+}));
+---
+
+{/* Mobile: one "Categories" button + full-screen menu — the exact control
+    the Feed uses, from the same component. */}
+<CategoryOverlay items={overlayItems} />
+
+<div class="intel-filter-nav" role="navigation" aria-label={`${ARTICLE_SECTION.name} categories`}>
+  <div class="filter-grid">
+    {
+      filterCategories.map((category) => {
+        const isActive = active === category;
+        /*
+          Click-to-toggle: an inactive button filters to its category; the
+          active one links back to the unfiltered section, so clicking it
+          again clears the filter. This is what replaces an "All" button.
+        */
+        const href = isActive ? ARTICLE_SECTION.path : topicPath(category);
+
+        return (
+          <a
+            href={href}
+            class:list={['quadrant-btn', 'cat-btn', { active: isActive }]}
+            data-category={category.toLowerCase()}
+            aria-current={isActive ? 'true' : undefined}
+          >
+            {category.toUpperCase()}
+          </a>
+        );
+      })
+    }
+  </div>
+</div>
+
+<style>
+  /*
+    Spacing only. The grid itself (columns AND the 1rem gap between buttons)
+    comes from the shared `.filter-grid` rule in styles/modules/filters.css,
+    which the Feed uses too — so the two rows are identical by construction.
+    Do NOT re-declare grid-template-columns or gap here; that is exactly how
+    they drifted apart the first time.
+  */
+  .intel-filter-nav {
+    width: 100%;
+    margin-bottom: 3.5rem;
+  }
+
+  /* Below 768px the inline row is replaced by <CategoryOverlay />'s single
+     button, exactly as the Feed does with .desktop-category-row. */
+  @media (max-width: 768px) {
+    .intel-filter-nav {
+      display: none;
+    }
+  }
+</style>

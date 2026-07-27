@@ -1,6 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { getArticles } from '../../data/feeds.js';
+import { getArticleItems } from '../../lib/feed-items';
 import { getVideosUnified } from '../../lib/videos-source';
 import { getFeaturedBrandsLocal, urlFor } from '../../lib/local-content';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
@@ -25,7 +25,7 @@ const { event } = Astro.props;
 
 // 1. Fetch Global Data
 const allVideos = await getVideosUnified();
-const allArticles = getArticles();
+const allArticles = getArticleItems();
 
 // 1b. Phase C1 (epic #25): deterministic, editor-controlled coverage — videos
 // whose hubs[] reference THIS brand doc (by slug - see sync-youtube.mjs's
@@ -171,7 +171,7 @@ const trailerId = parseVideoId(trailerUrl);
       </div>
     </section>
 
-    <div class="container content-container">
+    <div class="container-page content-container">
       {unifiedContent.length > 0 ? (
         <section class="content-section">
           <h2 class="sr-only">Event coverage</h2>
@@ -203,11 +203,7 @@ const trailerId = parseVideoId(trailerUrl);
   .event-dashboard {
     /* min-height removed to respect canonical footer spacing */
   }
-  .container {
-    max-width: 1536px;
-    margin: 0 auto;
-    padding: 0 2rem;
-  }
+  /* Page width wrapper now shared: `.container-page` in modules/layout.css */
   
   /* Hero */
   .event-hero {
@@ -406,7 +402,7 @@ const trailerId = parseVideoId(trailerUrl);
 
   /* TODO: Revisit stateful color logic. Caused color to reset on scroll.
   .hero-read-more:hover, .hero-read-more:focus-visible {
-    color: var(--color-accent);
+    color: var(--color-accent-text);
   } */
 
   .hero-rsvp-btn {
