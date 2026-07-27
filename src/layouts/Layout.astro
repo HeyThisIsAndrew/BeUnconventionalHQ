@@ -226,60 +226,85 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
       </div>
     </div>
 
-    <script is:inline>
-      // Guarded so this page-load listener binds exactly once, not once per
-      // client-side navigation (Astro re-executes <body> scripts on every swap).
-        if (!window['setup']) {
-          window['setup'] = true;
-        console.log('Layout script initialized');
-        document.addEventListener('astro:page-load', () =>
-          console.log('Astro Page Load')
-        );
+    {/*
+      NOT `is:inline` any more.
+
+      This block needs `import`, and an inline script is copied verbatim into
+      the HTML without going through the bundler, so imports are unavailable
+      there. As a bundled module it can pull in the shared scroll-lock utility
+      instead of carrying its own (broken) copy — see src/lib/scroll-lock.ts.
+
+      Nothing here depends on running before paint: every listener below is
+      delegated from `document`, so a deferred module attaches them long
+      before any click can happen.
+    */}
+    <script>
+      import { lockScroll, unlockScroll } from '../lib/scroll-lock';
+
+      /* The listeners below are attached to `document` once and must never be
+         attached twice, so the "already bound" flags live on `window` rather
+         than in module scope — module scope would reset if this script were
+         ever re-evaluated, window will not. Declared here because a bundled
+         script is type-checked, unlike the inline one this replaced. */
+      declare global {
+        interface Window {
+          videoModalSetup?: boolean;
+          videoModalEscSetup?: boolean;
+          videoModalNavSetup?: boolean;
+        }
       }
 
       (function () {
         // Remembers what had focus before the modal opened, to restore it on
         // close instead of dropping keyboard users at the top of the page.
-        let lastFocused = null;
+        let lastFocused: HTMLElement | null = null;
 
-        function openModal(videoId) {
+        function openModal(videoId: string) {
           const modal = document.getElementById('video-modal');
-          const modalIframe = document.getElementById('modal-iframe');
+          const modalIframe = document.getElementById(
+            'modal-iframe'
+          ) as HTMLIFrameElement | null;
 
           if (videoId && modal && modalIframe) {
             // Save focus + trap it: inert the whole app wrapper (navbar,
             // content, footer), not just #page-content.
-            lastFocused = document.activeElement;
+            lastFocused = document.activeElement as HTMLElement | null;
 
-            // Capture scroll position
-            const scrollY = window.scrollY;
-            document.body.style.top = `-${scrollY}px`;
+            /*
+              Hold the page still. This replaces a hand-rolled lock that set
+              `body.style.top` but left the scrollbar gutter uncompensated, so
+              opening the modal shifted every desktop page sideways by the
+              width of the scrollbar. The utility measures and pads that gap.
+            */
+            lockScroll();
 
             // ACTION 2.1 & 2.2: No autoplay, use rel=0 and modestbranding=1
             modalIframe.src = `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`;
             modal.classList.add('active');
-            document.documentElement.classList.add('modal-open');
             modal.setAttribute('aria-hidden', 'false');
             document.getElementById('app-wrapper')?.setAttribute('inert', '');
 
-            const closeBtn = modal.querySelector('.modal-close');
+            const closeBtn = modal.querySelector<HTMLElement>('.modal-close');
             if (closeBtn) setTimeout(() => closeBtn.focus(), 100);
           }
         }
 
         function closeModal() {
           const modal = document.getElementById('video-modal');
-          const modalIframe = document.getElementById('modal-iframe');
+          const modalIframe = document.getElementById(
+            'modal-iframe'
+          ) as HTMLIFrameElement | null;
 
           if (modal && modalIframe) {
-            // Guard clause to prevent state corruption
-            if (!document.documentElement.classList.contains('modal-open'))
-              return;
-
-            const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
+            /*
+              Guard on THIS modal's own state, not on the global `modal-open`
+              class. That class is set by whichever overlay is open — keying
+              off it meant closing the video modal could release a lock the
+              mobile menu or contact modal had taken.
+            */
+            if (!modal.classList.contains('active')) return;
 
             modal.classList.remove('active');
-            document.documentElement.classList.remove('modal-open');
             modal.setAttribute('aria-hidden', 'true');
             document.getElementById('app-wrapper')?.removeAttribute('inert');
             // 'about:blank', NOT '' — an empty src resolves to the current
@@ -287,28 +312,31 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
             // iframe on every close.
             modalIframe.src = 'about:blank';
 
-            document.body.style.position = '';
-            document.body.style.top = '';
-            document.body.style.width = '';
-            document.body.style.overflowY = '';
+            /*
+              ─── THIS IS THE LAYOUT-SHIFT FIX ───────────────────────────────
+              What was here before unpinned the body, then restored the scroll
+              position inside a DOUBLE requestAnimationFrame. Those are two
+              different frames: for ~32ms the body was already unpinned and
+              back at offset 0, and the browser painted it there. That painted
+              intermediate state IS the jump — the page visibly snapped to a
+              different position and then slid back.
 
-            // Restore focus to the element that opened the modal.
+              unlockScroll() does both halves synchronously, in one frame, so
+              there is never a paint at the wrong offset.
+            */
+            unlockScroll();
+
+            /*
+              `preventScroll: true` matters as much as the line above. Calling
+              focus() on the card that opened the modal makes the browser
+              scroll that element into view — which fought the restore and is
+              why the landing position depended on WHICH video you had tapped,
+              i.e. why the jump looked inconsistent rather than constant.
+            */
             if (lastFocused && typeof lastFocused.focus === 'function') {
-              lastFocused.focus();
+              lastFocused.focus({ preventScroll: true });
             }
             lastFocused = null;
-
-            // Double requestAnimationFrame for native thread safety
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                const originalBehavior =
-                  document.documentElement.style.scrollBehavior;
-                document.documentElement.style.scrollBehavior = 'auto'; // Force instant
-                window.scrollTo(0, scrollY);
-                document.documentElement.style.scrollBehavior =
-                  originalBehavior;
-              });
-            });
           }
         }
 
@@ -444,22 +472,77 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
       document.addEventListener('astro:page-load', handlePageLoad);
     </script>
     <script>
+      /*
+        BROKEN-IMAGE FAIL-SAFE
+
+        Marks the container of any image that fails to load, so CSS can put a
+        branded panel there instead of leaving an empty box in the grid (see
+        `[data-img-failed]` in styles/modules/home-cards.css).
+
+        Registered ONCE on `document` in the CAPTURE phase, which is the only
+        way to catch this: `error` events from <img> do not bubble, so a normal
+        delegated listener on document never sees them. Capture also means it
+        covers images added later by the Feed's client-side filtering, without
+        re-binding on every render.
+      */
+      function markFailed(img: HTMLImageElement) {
+        /* An image with no src is not a load failure — components render a
+           branded fallback instead of an <img> when they have no cover, so
+           there is nothing to rescue here. */
+        if (!img.currentSrc && !img.getAttribute('src')) return;
+        img.parentElement?.setAttribute('data-img-failed', 'true');
+      }
+
+      document.addEventListener(
+        'error',
+        (event) => {
+          const target = event.target;
+          if (target instanceof HTMLImageElement) markFailed(target);
+        },
+        true
+      );
+
+      /*
+        Catch-up sweep.
+
+        This is a bundled module and therefore DEFERRED, so images that were
+        already requested during parsing can finish — and fail — before the
+        listener above exists. Those errors are gone by the time we register,
+        which is why a sweep is needed and not just the listener.
+
+        `complete && naturalWidth === 0` is the standard test for "finished,
+        with nothing decoded", i.e. broken. Re-run on `astro:page-load` so it
+        also covers pages arriving via client-side navigation.
+      */
+      function sweepBrokenImages() {
+        document.querySelectorAll('img').forEach((img) => {
+          if (img.complete && img.naturalWidth === 0) markFailed(img);
+        });
+      }
+
+      sweepBrokenImages();
+      document.addEventListener('astro:page-load', sweepBrokenImages);
+    </script>
+    <script>
+      import { releaseScrollLock } from '../lib/scroll-lock';
+
       // Step 1: Strip mobile scroll locks BEFORE Astro takes its snapshot
       document.addEventListener('astro:before-preparation', () => {
-        document.documentElement.classList.remove('modal-open', 'menu-open');
+        /*
+          One call replaces the hand-rolled teardown that used to live here
+          (clear four inline styles, re-parse `body.style.top` to recover the
+          offset, scrollTo). It also resets the lock COUNTER — without that, a
+          navigation performed while an overlay was open left the count above
+          zero, and the next page could never be unlocked because every
+          unlockScroll() decremented to a still-positive number.
+
+          It deliberately does NOT restore the scroll position: the page is
+          being replaced, so the old offset is meaningless, and Step 2 below
+          scrolls to top for the incoming page.
+        */
+        releaseScrollLock();
+
         const body = document.body;
-        // Class-based locks (html.modal-open body { position: fixed }) leave the
-        // inline body.style.position empty, so `=== 'fixed'` misses the video
-        // modal and its scroll offset leaks into the snapshot. The inline
-        // `top: -[scrollY]px` is set for every lock type — key off that.
-        if (body.style.top) {
-          const scrollY = Math.abs(parseInt(body.style.top || '0', 10));
-          body.style.position = '';
-          body.style.top = '';
-          body.style.width = '';
-          body.style.overflowY = '';
-          window.scrollTo(0, scrollY);
-        }
         if (body.style.overflow === 'hidden') {
           body.style.overflow = '';
         }

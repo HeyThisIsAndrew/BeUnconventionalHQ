@@ -65,10 +65,46 @@
   }
 }
 
+/*
+   BOTTOM FEATHER
+
+   The hero's background used to end on a hard horizontal line where it met
+   the page beneath it — `.hero` is `overflow: hidden`, so the blurred banner
+   was simply sliced off at the section's bottom edge, and that cut sat
+   directly against the red brand glow below.
+
+   A mask fades the layer's own alpha out before it reaches that cut, so there
+   is nothing left to slice. Masking `.hero-bg` rather than `.hero` keeps the
+   headline, subtitle and CTA at full opacity — they are children of
+   `.hero-content`, a sibling.
+
+   The stop positions account for this element being TALLER than the hero:
+   `inset: -10%` makes it 120% of the hero's height, so the hero's actual
+   bottom edge lands at ~92% of this element. The fade therefore has to be
+   complete by ~92%, not 100%, or the tail would still be visible at the cut.
+
+   Static mask on an already-promoted layer (`will-change: transform` below),
+   so this composites for free — it is not re-rasterised on scroll.
+*/
 .hero-bg {
   position: absolute;
   inset: -10%;
   z-index: 0;
+
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 62%,
+    rgba(0, 0, 0, 0.55) 78%,
+    transparent 92%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 62%,
+    rgba(0, 0, 0, 0.55) 78%,
+    transparent 92%
+  );
   /* Rest state only. The parallax offset is written by Hero.astro straight
      onto this element's inline `transform` as a `translate3d`, NOT through
      a custom property: a custom property here would inherit into
@@ -161,11 +197,22 @@
   */
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
+  /*
+     Lands on `#0a0a0a` — FULLY opaque, and the exact colour of the page
+     behind the hero (`--color-black`, see styles/global-base.css).
+
+     It used to stop at `0.95`. That last 5% of transparency let the blurred
+     banner show through just enough to read as a slightly different shade
+     from the page below, which is a hard seam even though both are near
+     black. Matching the page colour exactly is what makes the join invisible;
+     the mask on `.hero-bg` above then softens the image itself into it.
+  */
   background: linear-gradient(
     to bottom,
     rgba(10, 10, 10, 0.3) 0%,
     rgba(10, 10, 10, 0.5) 50%,
-    rgba(10, 10, 10, 0.95) 100%
+    rgba(10, 10, 10, 0.88) 85%,
+    #0a0a0a 100%
   );
 }
 

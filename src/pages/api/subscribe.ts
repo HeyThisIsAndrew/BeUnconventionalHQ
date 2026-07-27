@@ -49,7 +49,33 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     */
     const turnstileSecret =
       env.TURNSTILE_SECRET_KEY ?? import.meta.env.TURNSTILE_SECRET_KEY;
-    const turnstileConfigured = Boolean(turnstileSecret);
+
+    /*
+      BOTH keys, not just the secret.
+
+      The secret alone is what the server needs to VERIFY a token. The public
+      site key is what the browser needs to PRODUCE one. With only the secret
+      set, this endpoint demanded a token that no form on the site could
+      possibly generate — every subscribe attempt failed with "Please complete
+      the verification challenge" and there was no challenge on the page to
+      complete. That is not a bot check, it is an outage.
+
+      Requiring both means a half-configured environment degrades to "no bot
+      check" (loudly warned below) instead of "nobody can subscribe". When
+      both are present the token stays mandatory and is fully verified.
+    */
+    const turnstileSiteKey =
+      env.PUBLIC_TURNSTILE_SITE_KEY ?? import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
+    const turnstileConfigured = Boolean(turnstileSecret) && Boolean(turnstileSiteKey);
+
+    if (turnstileSecret && !turnstileSiteKey) {
+      console.warn(
+        '[subscribe] TURNSTILE_SECRET_KEY is set but PUBLIC_TURNSTILE_SITE_KEY is not. ' +
+          'The browser cannot render a widget without the public key, so the bot check ' +
+          'is DISABLED rather than blocking every submission. Set the public key to ' +
+          'turn it back on.'
+      );
+    }
 
     if (turnstileConfigured && !hasSessionCookie && !turnstileToken) {
       return new Response(

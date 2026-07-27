@@ -15,10 +15,23 @@
  * address in the Cloudflare `SUBSCRIBERS` KV namespace. That endpoint already
  * existed; this form is simply a proper UI for it.
  *
- * Turnstile: the endpoint accepts a `cf-turnstile-response` token, and skips
- * it when the visitor already has an `hq_verified` cookie. This form does not
- * render a Turnstile widget yet — wiring that in is a follow-up, and until
- * then submissions rely on the endpoint's own validation.
+ * ─── TURNSTILE ────────────────────────────────────────────────────────────
+ * This form used to render NO widget while `/api/subscribe` still demanded a
+ * `cf-turnstile-response` token whenever a secret key was configured. The
+ * result was an unwinnable form: "Please complete the verification challenge"
+ * with no challenge anywhere on the page to complete.
+ *
+ * The widget is now rendered EXPLICITLY (`turnstile.render()`) rather than by
+ * Turnstile's implicit `.cf-turnstile` scan. The implicit renderer only scans
+ * the DOM once, when its script loads — and this site uses Astro's
+ * ClientRouter, so on every client-side navigation the form is replaced with
+ * a fresh, unrendered element and the widget silently never appears again.
+ * Explicit rendering on `astro:page-load` survives that.
+ *
+ * The widget only mounts when a PUBLIC site key exists. See the matching
+ * guard in src/pages/api/subscribe.ts: the endpoint now requires a token only
+ * when BOTH keys are configured, so a half-configured environment degrades to
+ * "no bot check" instead of "nobody can subscribe".
  *
  * ─── HOW THE STATES WORK ──────────────────────────────────────────────────
  * idle → submitting → success | error. Each is a class on the form, so the
@@ -29,9 +42,32 @@
  * `.newsletter-form` and friends in styles/modules/newsletter.css.
  */
 import { LABELS, MESSAGES } from '../data/content.js';
+import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
+
+/*
+  No key → no script, no widget, and (see subscribe.ts) no server-side
+  requirement for a token either. Same guard SubscribeBox and ContactModal
+  use: with the key unset, Turnstile's renderer reads null off the missing
+  data-sitekey and logs a TurnstileError on every page.
+*/
+const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
 ---
 
-<form class="newsletter-form" id="newsletter-form" novalidate>
+{turnstileSiteKey && (
+  <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+)}
+
+{/*
+  `data-sitekey` on the form is how the bundled script below learns the key —
+  a script tag cannot read Astro frontmatter, and inlining the key into the
+  script would mean marking it `is:inline` and losing bundling.
+*/}
+<form
+  class="newsletter-form"
+  id="newsletter-form"
+  novalidate
+  data-sitekey={turnstileSiteKey ?? ''}
+>
   <div class="newsletter-row">
     <label class="sr-only" for="newsletter-email">Email address</label>
     <input
@@ -51,6 +87,11 @@ import { LABELS, MESSAGES } from '../data/content.js';
     </button>
   </div>
 
+  {/* Mount point for the explicitly-rendered Turnstile widget. Empty in the
+      HTML; the script below fills it. Rendered only when a key exists, so
+      there is no empty gap in the layout when Turnstile is not configured. */}
+  {turnstileSiteKey && <div class="newsletter-turnstile" id="newsletter-turnstile"></div>}
+
   {/* aria-live so the outcome is announced, not just shown. `role="status"`
       keeps it polite rather than interrupting. */}
   <p class="newsletter-status" id="newsletter-status" role="status" aria-live="polite"></p>
@@ -66,9 +107,68 @@ import { LABELS, MESSAGES } from '../data/content.js';
     a handler bound to DOMContentLoaded would stop working after the first
     client-side navigation.
   */
+  /* Minimal shape of the bits of the Turnstile API this component uses. */
+  interface TurnstileApi {
+    render: (el: HTMLElement, opts: Record<string, unknown>) => string;
+    getResponse: (widgetId?: string) => string | undefined;
+    reset: (widgetId?: string) => void;
+  }
+  declare global {
+    interface Window {
+      turnstile?: TurnstileApi;
+    }
+  }
+
+  /** Widget id from turnstile.render(), needed to read its token back. */
+  let widgetId: string | null = null;
+
+  /**
+   * Mount the Turnstile widget.
+   *
+   * The API script is `async defer`, so `window.turnstile` may not exist yet
+   * when this runs. Rather than depend on Turnstile's `onload` callback —
+   * which has to be a global defined before the script tag, and so would force
+   * this whole script inline — poll briefly for the API to appear. It is a
+   * handful of frames in practice, and it fails silently and harmlessly if
+   * the script is blocked (an ad blocker, an offline preview).
+   */
+  function mountTurnstile(form: HTMLFormElement) {
+    const siteKey = form.dataset.sitekey;
+    const holder = document.getElementById('newsletter-turnstile');
+    if (!siteKey || !holder) return; // Not configured — nothing to mount.
+    if (holder.dataset.rendered) return; // Already mounted on this page.
+
+    let attempts = 0;
+    const tryRender = () => {
+      if (window.turnstile) {
+        holder.dataset.rendered = 'true';
+        widgetId = window.turnstile.render(holder, {
+          sitekey: siteKey,
+          /* Matches the other forms on the site. `flexible` fills the
+             container width rather than forcing a fixed 300px box, which
+             would overflow the narrow mobile subscribe band. */
+          size: 'flexible',
+          theme: 'dark',
+        });
+        return;
+      }
+      if ((attempts += 1) < 100) setTimeout(tryRender, 100); // ~10s ceiling.
+    };
+    tryRender();
+  }
+
   function initNewsletterForm() {
     const form = document.getElementById('newsletter-form') as HTMLFormElement | null;
-    if (!form || form.dataset.bound) return;
+    if (!form) return;
+
+    /*
+      The widget must be re-mounted after every client-side navigation, even
+      though the submit handler only binds once — ClientRouter swaps in a
+      brand new (empty) holder element each time.
+    */
+    mountTurnstile(form);
+
+    if (form.dataset.bound) return;
     form.dataset.bound = 'true';
 
     const input = form.querySelector<HTMLInputElement>('.newsletter-input');
@@ -96,13 +196,35 @@ import { LABELS, MESSAGES } from '../data/content.js';
         return;
       }
 
+      /*
+        Read the bot-check token BEFORE showing the submitting state, so a
+        missing token surfaces as an actionable message rather than a spinner
+        that turns into a server error.
+
+        `getResponse()` returns '' until the challenge completes. When
+        Turnstile is not configured at all there is no widget, the token stays
+        undefined, and the endpoint does not ask for one — see the matching
+        guard in src/pages/api/subscribe.ts.
+      */
+      const token =
+        widgetId && window.turnstile
+          ? (window.turnstile.getResponse(widgetId) ?? '')
+          : '';
+
+      if (widgetId && !token) {
+        setState('error', 'Please complete the verification challenge above.');
+        return;
+      }
+
       setState('submitting', 'Subscribing…');
 
       try {
         const response = await fetch('/api/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
+          /* The endpoint reads this exact key — it is the name Turnstile
+             itself uses for the token field. */
+          body: JSON.stringify({ email, 'cf-turnstile-response': token }),
         });
 
         const data = await response.json().catch(() => ({}));
@@ -110,7 +232,11 @@ import { LABELS, MESSAGES } from '../data/content.js';
         if (response.ok && data.success) {
           setState('success', "You're on the list. Watch your inbox.");
           form!.reset();
+          /* A token is single-use. Reset so a second subscribe from the same
+             page gets a fresh one instead of a silent server rejection. */
+          if (widgetId && window.turnstile) window.turnstile.reset(widgetId);
         } else {
+          if (widgetId && window.turnstile) window.turnstile.reset(widgetId);
           // Surface the endpoint's own message when it gives one — it knows
           // more than we do about why it refused.
           setState('error', data.error ?? 'Something went wrong. Please try again.');

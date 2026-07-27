@@ -107,7 +107,14 @@ const currentItems = page.data;
     let hasFiltered = false;
     const PAGE_SIZE = 12;
 
-    function renderMoreItems() {
+    /**
+     * Append the next page of matching cards.
+     *
+     * @param moveFocus Move keyboard focus to the first newly added card.
+     *   TRUE only when the reader pressed "Load More" — see the note at the
+     *   focus call below for why this must not happen on an automatic render.
+     */
+    function renderMoreItems(moveFocus = false) {
       const fragment = document.createDocumentFragment();
       const nextBatch = currentMatches.slice(currentlyDisplayedCount, currentlyDisplayedCount + PAGE_SIZE);
       
@@ -141,11 +148,35 @@ const currentItems = page.data;
         }
       }
 
-      // Accessibility: Shift focus to the first newly added card
-      if (nextBatch.length > 0) {
+      /*
+        Accessibility: after "Load More", move focus to the first new card so
+        a keyboard or screen-reader user lands on the content they just asked
+        for instead of being left on a button that may have disappeared.
+
+        ─── WHY THIS IS GUARDED ────────────────────────────────────────────
+        It used to run on EVERY render, including the automatic one that fires
+        on page load when the URL carries a category hash. Nobody had asked for
+        focus to move, but the browser still treats a programmatic focus that
+        soon after load as keyboard-driven, so `:focus-visible` matched and the
+        card painted the global 3px white focus ring (styles/modules/a11y.css).
+
+        That is the "rogue white border box on the top tile" seen on
+        /feed/articles#film. It only appeared under the Articles toggle because
+        article cards ARE `<a>` elements, so `matches('a, button')` found one to
+        focus; video cards are `<div>` wrappers that open the modal, nothing
+        focusable was found, and no ring was drawn. Same code, different markup
+        — which is exactly why it looked like a state bug.
+
+        `preventScroll` because a filtered render can place that card anywhere;
+        focusing it would otherwise scroll the reader away from the filter row
+        they just used.
+      */
+      if (moveFocus && nextBatch.length > 0) {
         const firstNewCard = nextBatch[0];
-        const focusable = firstNewCard.matches('a, button') ? firstNewCard : firstNewCard.querySelector('a, button');
-        if (focusable) (focusable as HTMLElement).focus();
+        const focusable = firstNewCard.matches('a, button')
+          ? firstNewCard
+          : firstNewCard.querySelector('a, button');
+        if (focusable) (focusable as HTMLElement).focus({ preventScroll: true });
       }
     }
 
@@ -296,7 +327,10 @@ const currentItems = page.data;
     }
 
     if (loadMoreBtn && !loadMoreBtn.dataset.bound) {
-      loadMoreBtn.addEventListener('click', renderMoreItems);
+      /* Wrapped, NOT passed directly: addEventListener would hand the
+         MouseEvent to the first parameter, and any event object is truthy —
+         so `renderMoreItems` would think every automatic render was a click. */
+      loadMoreBtn.addEventListener('click', () => renderMoreItems(true));
       loadMoreBtn.dataset.bound = 'true';
     }
 

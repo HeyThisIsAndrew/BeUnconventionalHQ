@@ -36,7 +36,39 @@ const isHomePage = currentPath === '/';
     )
   }
 
+  {/*
+    ─── HOMEPAGE SECTION ORDER ─────────────────────────────────────────────
+    Deliberate, and the reason is navigational rather than aesthetic:
+
+      1. What We Cover   ("Explore The HQ")  — orientation. What IS this site?
+      2. Recent Videos   ("Latest From The Channel") — the newest work.
+      3. The Intel       — the written side.
+
+    Categories now come FIRST. A visitor landing here cold used to meet four
+    video tiles before anything told them what the site covers; leading with
+    the four category tiles answers that question before asking them to pick
+    an individual piece of content.
+
+    To reorder again, move these <Section> blocks — the order on screen is
+    just their order in this file. The headings themselves are not written
+    here; they come from SECTIONS in src/data/content.js.
+  */}
+
   <Section pt="4rem" pb="6rem" maxWidth="1536px">
+    <SectionHeader>
+      {/* Copy lives in src/data/content.js -> SECTIONS.whatWeCover */}
+      <PageTitle {...SECTIONS.whatWeCover} />
+    </SectionHeader>
+    <Categories />
+
+    {/* Sits under the category tiles — they are the thing it invites you to
+        explore past. */}
+    <div class="latest-view-all animate-on-scroll">
+      <a href="/feed" class="view-all-link">{LABELS.viewAllContent} &rarr;</a>
+    </div>
+  </Section>
+
+  <Section pb="8rem" maxWidth="1536px">
     <SectionHeader>
       {/* Copy lives in src/data/content.js -> SECTIONS.recentVideos */}
       <PageTitle {...SECTIONS.recentVideos} />
@@ -57,19 +89,6 @@ const isHomePage = currentPath === '/';
     {/* Matches the "View All Content" link under the category tiles. */}
     <div class="latest-view-all animate-on-scroll">
       <a href="/feed/videos" class="view-all-link">{LABELS.viewAllVideos} &rarr;</a>
-    </div>
-  </Section>
-
-  <Section pb="8rem" maxWidth="1536px">
-    <SectionHeader>
-      <PageTitle {...SECTIONS.whatWeCover} />
-    </SectionHeader>
-    <Categories />
-
-    {/* Moved here from the article row — it belongs under the category tiles,
-        which are the thing it is inviting you to explore past. */}
-    <div class="latest-view-all animate-on-scroll">
-      <a href="/feed" class="view-all-link">{LABELS.viewAllContent} &rarr;</a>
     </div>
   </Section>
 

@@ -105,6 +105,8 @@ const { items, buttonLabel = LABELS.categories } = Astro.props;
 </div>
 
 <script>
+  import { lockScroll, unlockScroll, releaseScrollLock } from '../lib/scroll-lock';
+
   /*
     Open/close for the mobile category overlay.
 
@@ -118,35 +120,12 @@ const { items, buttonLabel = LABELS.categories } = Astro.props;
     const closeBtn = document.getElementById('close-categories-btn');
     if (!overlay || !openBtn) return;
 
-    function lockScroll() {
-      /*
-        Pin the body at its current offset. Simply setting `overflow: hidden`
-        is not enough on iOS Safari — it still rubber-bands the page behind a
-        fixed overlay. Storing the offset in a data attribute means close()
-        can restore it exactly.
-      */
-      const scrollY = window.scrollY;
-      document.body.dataset.scrollLock = String(scrollY);
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.position = 'fixed';
-      document.body.style.width = '100%';
-      document.body.style.overflowY = 'scroll';
-      document.body.classList.add('modal-open');
-      document.documentElement.classList.add('menu-open');
-    }
-
-    function unlockScroll() {
-      const stored = Number(document.body.dataset.scrollLock ?? '0');
-      document.body.style.top = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
-      document.body.style.overflowY = '';
-      document.body.classList.remove('modal-open');
-      document.documentElement.classList.remove('menu-open');
-      delete document.body.dataset.scrollLock;
-      // Put the reader back exactly where they were.
-      window.scrollTo({ top: stored, behavior: 'instant' as ScrollBehavior });
-    }
+    /*
+      Scroll locking is shared — see src/lib/scroll-lock.ts, imported at the
+      top of this script. This component used to carry its own copy; four
+      near-identical copies existed across the site and the video modal's had
+      drifted far enough to cause a visible layout shift on every close.
+    */
 
     function close() {
       if (!overlay!.classList.contains('is-open')) return;
@@ -210,13 +189,5 @@ const { items, buttonLabel = LABELS.categories } = Astro.props;
 
   /* A client-side navigation can leave the body pinned if the overlay was
      open when the link was followed. Always release the lock on swap. */
-  document.addEventListener('astro:before-swap', () => {
-    document.body.style.top = '';
-    document.body.style.position = '';
-    document.body.style.width = '';
-    document.body.style.overflowY = '';
-    document.body.classList.remove('modal-open');
-    document.documentElement.classList.remove('menu-open');
-    delete document.body.dataset.scrollLock;
-  });
+  document.addEventListener('astro:before-swap', releaseScrollLock);
 </script>

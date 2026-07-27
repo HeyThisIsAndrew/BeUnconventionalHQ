@@ -53,7 +53,13 @@ const COLUMNS = {
 const { columns = 4, id, class: className = '', ...rest } = Astro.props;
 
 const columnClasses = COLUMNS[columns] ?? COLUMNS[4];
-const classes = ['grid', columnClasses, 'gap-6', 'w-full', className]
+/*
+  `card-grid` is a stable, non-Tailwind hook so plain CSS can target every
+  card grid on the site at once — the Tailwind classes above change with the
+  column count and are not something a stylesheet can rely on. It is what the
+  mobile full-bleed rule in styles/modules/home-cards.css selects.
+*/
+const classes = ['card-grid', 'grid', columnClasses, 'gap-6', 'w-full', className]
   .filter(Boolean)
   .join(' ');
 ---

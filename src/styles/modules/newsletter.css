@@ -24,6 +24,27 @@
   gap: 0.75rem;
 }
 
+/*
+   Turnstile widget mount point.
+
+   Sits between the input row and the status message. It is EMPTY in the HTML
+   — the script renders the widget into it — so it must not reserve height
+   when Turnstile is unconfigured or still loading, or the band would carry a
+   permanent gap. No fixed height here: the iframe Turnstile injects brings
+   its own, and the margin only applies once there is something inside.
+*/
+.newsletter-turnstile:not(:empty) {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: center;
+}
+
+/* Turnstile renders into an iframe; `flexible` sizing makes it fill the
+   container, which must not exceed the form width on a narrow phone. */
+.newsletter-turnstile iframe {
+  max-width: 100%;
+}
+
 /* Side by side once there is room; stacked on phones so the input stays
    comfortably tappable. */
 @media (min-width: 560px) {

@@ -21,7 +21,17 @@
  * `.article-thumb-fallback` and friends in src/styles/modules/intel.css.
  */
 import { Image } from 'astro:assets';
-import logoImage from '../assets/logo.webp';
+/*
+  The PRE-CROPPED mark (src/assets/logo-mark.webp), not logo.webp.
+
+  logo.webp is a 2000x2000 square in which the artwork occupies only ~42% of
+  the height — the rest is transparent padding. Rendering it into a 44px-wide
+  fallback box therefore spent most of those pixels on nothing and left the
+  wordmark itself around 18px tall: the "incredibly low, blurry resolution"
+  this fallback was reported for. logo-mark.webp is the same artwork trimmed
+  to its real content box, so the box size IS the mark size.
+*/
+import logoImage from '../assets/logo-mark.webp';
 
 interface Props {
   /** Cover image URL. Empty/missing triggers the branded fallback. */
@@ -71,11 +81,21 @@ const isFeature = size === 'feature';
       class:list={['article-thumb-fallback', { 'is-feature': isFeature }]}
       data-fallback="true"
     >
+      {/*
+        Emitted at 2x the size it is displayed at, and at the artwork's own
+        2.17:1 ratio rather than a square.
+
+        The old values asked Astro for a 160x160 (or 72x72) square and CSS then
+        drew it at 96px / 44px wide. Between the distorted aspect ratio and the
+        downscale, the wordmark was rendered from a handful of real pixels.
+        Doubling the intrinsic size is what makes it crisp on the 2x and 3x
+        displays every phone has — the file is a few KB either way.
+      */}
       <Image
         src={logoImage}
         alt=""
-        width={isFeature ? 160 : 72}
-        height={isFeature ? 160 : 72}
+        width={isFeature ? 440 : 240}
+        height={isFeature ? 202 : 110}
         class="article-thumb-fallback-logo"
         loading="lazy"
         decoding="async"

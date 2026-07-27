@@ -30,6 +30,16 @@ else primaryLabel = item.category || 'Article';
 // new tab. Now that an article can resolve to a page on this site, decide from
 // the href itself: absolute URLs leave the site and keep target/rel, relative
 // ones are internal navigation and must not. Video behaviour is unchanged.
+/*
+  The cover to show, or an empty string if there genuinely isn't one.
+
+  `.trim()` matters: several records carry `image: ''` (or a string of spaces)
+  rather than omitting the field, and `''` is falsy but `' '` is not — without
+  the trim a whitespace-only value would still be handed to <img src> and
+  produce exactly the broken box this guards against.
+*/
+const cardImage = String(item.image ?? item.thumbnail ?? '').trim();
+
 const cardHref = item.link || '#';
 const isExternalLink = /^https?:\/\//i.test(cardHref);
 const externalLinkProps = isExternalLink
@@ -71,14 +81,36 @@ const wrapperProps = isPlayable
 
     All of it lives in styles/modules/home-cards.css under `.content-card`.
   */}
+  {/*
+    ─── NO IMAGE MEANS NO <img> ───────────────────────────────────────────
+    This used to render `<img src={item.image || item.thumbnail}>`
+    unconditionally. When an item has neither — several do — that evaluates to
+    an EMPTY STRING, and an empty `src` resolves to the current page URL: the
+    browser fetches the HTML document, fails to decode it as an image, and
+    paints a broken-image glyph with the alt text sprawling across the
+    thumbnail. That is the "card rendering as a completely empty box".
+
+    It also breaks hard rule 4 in CLAUDE.md ("never assign an empty src"),
+    which was written about iframes but applies for exactly the same reason.
+
+    So the image is only rendered when there is genuinely one to show;
+    otherwise the card gets the same branded fallback panel the article
+    thumbnails use, and reads as deliberate.
+  */}
   <div class="content-card-media">
-    <img
-      class="content-card-img"
-      src={item.image || item.thumbnail}
-      alt={item.title}
-      loading="lazy"
-      decoding="async"
-    />
+    {cardImage ? (
+      <img
+        class="content-card-img"
+        src={cardImage}
+        alt={item.title}
+        loading="lazy"
+        decoding="async"
+      />
+    ) : (
+      <div class="article-thumb-fallback" data-fallback="true">
+        <span class="article-thumb-fallback-title">{item.title}</span>
+      </div>
+    )}
   </div>
 
   <div class="content-card-body">

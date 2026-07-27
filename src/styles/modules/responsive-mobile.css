@@ -111,9 +111,17 @@
     visibility: visible;
   }
 
-  /* Prevent background scroll when menu is open */
+  /* Prevent background scroll when any overlay is open.
+
+     `modal-open` is the class the shared scroll lock applies
+     (src/lib/scroll-lock.ts) for EVERY overlay, including the mobile menu.
+     `menu-open` is kept alongside it so any older markup or a hand-set class
+     still gets the same treatment — the two are deliberately equivalent
+     here, exactly as they already are in styles/modules/ios-lock.css. */
   html.menu-open,
-  html.menu-open body {
+  html.menu-open body,
+  html.modal-open,
+  html.modal-open body {
     overflow: hidden !important;
     -webkit-overflow-scrolling: touch;
   }

@@ -43,7 +43,9 @@
  */
 import MagazineRail from './MagazineRail.astro';
 import { Image } from 'astro:assets';
-import logoImage from '../assets/logo.webp';
+/* Pre-cropped mark, matching ArticleThumb — see the note there for why the
+   padded square version renders blurry at fallback sizes. */
+import logoImage from '../assets/logo-mark.webp';
 import { LABELS } from '../data/content.js';
 import { articlePreview } from '../lib/articles';
 import type { ArticleRecord } from '../lib/articles';
@@ -138,11 +140,13 @@ const activeSlug = feature?.slug ?? '';
               class="article-thumb-fallback is-feature"
               hidden={!!feature.image}
             >
+              {/* 2x the displayed width, at the mark's own ratio — same
+                  reasoning as ArticleThumb.astro. */}
               <Image
                 src={logoImage}
                 alt=""
-                width={160}
-                height={160}
+                width={520}
+                height={239}
                 class="article-thumb-fallback-logo"
                 loading="lazy"
                 decoding="async"

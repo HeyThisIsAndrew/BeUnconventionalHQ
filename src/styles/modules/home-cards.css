@@ -281,6 +281,44 @@
   flex-shrink: 0;
 }
 
+/* ── BROKEN-IMAGE FAIL-SAFE ──────────────────────────────────────────────────
+
+   A card whose cover URL is present but FAILS TO LOAD — a remote host that is
+   down, an expired CDN link, a blocked request — used to render as a plain
+   empty box. The branded fallback in ArticleThumb only covers a MISSING field;
+   nothing covered a field that was there and simply did not resolve.
+
+   `data-img-failed` is set by the global error listener in Layout.astro (image
+   `error` events do not bubble, so it listens in the capture phase). This turns
+   the container into the same brand-tinted panel the missing-image fallback
+   uses, so a dead link degrades to something deliberate instead of a hole in
+   the grid.
+
+   Deliberately scoped to the KNOWN MEDIA CONTAINERS rather than applied to
+   `[data-img-failed]` on its own. The marker is set on the parent of any
+   broken image anywhere on the page, so an unscoped rule would also paint a
+   red gradient behind — and hide — something like the navbar logo. Content
+   thumbnails are the only place a branded stand-in is the right answer;
+   everywhere else, default browser behaviour is left alone.
+*/
+.content-card-media[data-img-failed],
+.intel-rail-thumb[data-img-failed],
+.intel-feature-image[data-img-failed],
+.article-thumb-fallback[data-img-failed] {
+  background:
+    radial-gradient(circle at 50% 35%, rgba(204, 0, 0, 0.12) 0%, transparent 62%),
+    linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-black) 100%);
+}
+
+/* The broken <img> itself must go, or the browser paints its alt text and/or
+   a broken-image glyph on top of the panel above. */
+.content-card-media[data-img-failed] > img,
+.intel-rail-thumb[data-img-failed] > img,
+.intel-feature-image[data-img-failed] > img,
+.article-thumb-fallback[data-img-failed] > img {
+  display: none;
+}
+
 .content-card-img {
   width: 100%;
   height: 100%;
@@ -348,14 +386,30 @@
     min-height: 0;
   }
 
+  /*
+     THUMBNAIL SHARE: 38% of the row.
+
+     This was a fixed 140px, which on a 390px screen worked out at roughly a
+     70/30 split in the copy's favour. Combined with `object-fit: cover` on a
+     1/1 box, a 16:9 thumbnail was being cropped to a narrow square — enough
+     that anything not dead-centre in the frame (a face at the edge, text in a
+     corner) got cut off.
+
+     38% is both wider AND a proportion rather than a fixed size, so it scales
+     with the device instead of squeezing further on a small phone. The
+     4/3 box crops a 16:9 source far less aggressively than 1/1 did while
+     still keeping the row short.
+  */
   .content-card .content-card-media {
-    width: 140px;
-    flex: 0 0 140px;
-    aspect-ratio: 1 / 1;
+    flex: 0 0 38%;
+    width: 38%;
+    aspect-ratio: 4 / 3;
   }
 
   .content-card .content-card-body {
-    padding: 0.85rem 1rem;
+    /* Slightly tighter than before to give the extra thumbnail width back
+       to the copy, so the headline still gets its three lines. */
+    padding: 0.8rem 0.9rem;
     justify-content: center;
   }
 
@@ -375,5 +429,54 @@
      headline already says what it is. Removing it buys back a line per card. */
   .content-card .watch-now-btn {
     display: none;
+  }
+
+  /* ── FULL-BLEED CARD ROWS ────────────────────────────────────────────────
+
+     The card grids break out of their container's side gutter and run edge to
+     edge. Every pixel of that gutter (20px a side at 320px, ~30px at 560px)
+     was coming out of the thumbnail, which is the part of the row worth the
+     space.
+
+     `margin-inline: calc(50% - 50vw)` is the container-agnostic way to do it:
+     it works out to exactly the parent's own side padding whatever that
+     padding is, and there are THREE different gutters on this site
+     (`.container` uses a clamp, `.container-page` and `.container-narrow` use
+     2rem — see styles/modules/layout.css). Hard-coding a negative margin
+     would be right on one of them and wrong on the other two.
+
+     Deliberately scoped to card grids only. HEADINGS keep their gutter — text
+     jammed against the screen edge is hard to read, and the contrast between
+     an indented heading and a full-bleed row is what makes the row read as a
+     deliberate list rather than a broken layout.
+
+     Safe at this width because `50vw` counts the scrollbar: on a desktop
+     browser with classic scrollbars that would overflow by the scrollbar's
+     width, but this only ever applies below 560px, where scrollbars are
+     overlaid and take no layout space.
+  */
+  .card-grid,
+  .home-video-grid,
+  .latest-grid {
+    /*
+      `width: auto` is required, not decorative. CardGrid ships Tailwind's
+      `w-full` (`width: 100%`), and on a FIXED-width element negative margins
+      only shift the box sideways — they cannot widen it. The result was a grid
+      that bled off the left edge and stopped 32px short on the right.
+      Releasing the width lets the negative margins expand it symmetrically.
+    */
+    width: auto;
+    margin-inline: calc(50% - 50vw);
+    /* The side borders would now sit flush against the screen edge, which
+       reads as a rendering fault rather than a frame. Rows are separated by
+       their top/bottom borders instead. */
+    border-inline: 0;
+  }
+
+  .card-grid > *,
+  .home-video-grid > *,
+  .latest-grid > * {
+    border-left: 0;
+    border-right: 0;
   }
 }

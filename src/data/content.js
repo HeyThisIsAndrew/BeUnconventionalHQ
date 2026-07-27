@@ -65,10 +65,18 @@ export const SECTIONS = {
     secondary: 'Cover',
   },
   /** The article row on the homepage. */
+  /*
+    The homepage article row.
+
+    Was "FROM / THE FEED / LATEST", which named the wrong destination: the row
+    links to /intel, not /feed, and "The Feed" is a different section of the
+    site. Reading "The Feed" on a row that opens Intel is a taxonomy mismatch,
+    so this now says what it actually is.
+  */
   latestArticles: {
-    kicker: 'From',
-    primary: 'The Feed',
-    secondary: 'Latest',
+    kicker: 'The Latest In',
+    primary: 'The',
+    secondary: 'Intel',
   },
 
   // ── Feed + Intel ────────────────────────────────────────────────────────

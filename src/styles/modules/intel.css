@@ -451,8 +451,12 @@
     linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-black) 100%);
 }
 
+/* Width only — the asset is the pre-cropped mark (see ArticleThumb.astro), so
+   its natural 2.17:1 ratio gives the height. Larger than the old 44px because
+   that was sized for the padded square, where most of the box was empty. */
 .article-thumb-fallback-logo {
-  width: 44px;
+  width: 120px;
+  max-width: 70%;
   height: auto;
   opacity: 0.85;
 }
@@ -479,8 +483,11 @@
   padding: 2rem;
 }
 
+/* The centre feature is a much larger box than a rail thumbnail, so the mark
+   scales up with it rather than floating small in the middle. */
 .article-thumb-fallback.is-feature .article-thumb-fallback-logo {
-  width: 96px;
+  width: 260px;
+  max-width: 60%;
 }
 
 .article-thumb-fallback.is-feature .article-thumb-fallback-title {
@@ -544,16 +551,39 @@
   }
 
   /*
-    The lede keeps its opening paragraphs and drops the rest.
+    MOBILE LEDE: one paragraph, clamped.
 
-    On desktop the lede is sized to stand beside four rail tiles. On a phone
-    there is nothing beside it — the rails are below — so the full lede is
-    just a long scroll before the reader reaches anything else. Two paragraphs
-    is still a real preview, and the full text remains in the HTML for search
-    engines, which is why this is a CSS trim and not a shorter build.
+    On desktop the lede runs to three paragraphs because it has to hold its own
+    beside four rail tiles. On a phone there is nothing beside it, so the full
+    lede was ~580px of unbroken body copy standing between the reader and every
+    other article on the page — scroll fatigue before they have chosen anything.
+
+    So the phone gets the shape of a headline card: title, a short standfirst,
+    Read More. One paragraph, clamped to four lines, and the rest hidden.
+
+    A CSS trim rather than a shorter build, deliberately: the full lede stays in
+    the HTML, so search engines still index the whole preview and the desktop
+    and mobile pages remain the same document. `-webkit-line-clamp` degrades to
+    "show the whole paragraph" in anything that does not support it, which is
+    the pre-existing behaviour and therefore safe.
   */
-  .intel-feature-excerpt p:nth-child(n + 3) {
+  .intel-feature-excerpt p:nth-child(n + 2) {
     display: none;
+  }
+
+  .intel-feature-excerpt p:first-child {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    /* Match the body size — the desktop standfirst is set slightly larger,
+       which at this width costs a line for no gain. */
+    font-size: 1rem;
+    margin-bottom: 0;
+  }
+
+  .intel-feature-excerpt {
+    margin-bottom: 1.25rem;
   }
 
   /* Tighter rhythm for what remains. */

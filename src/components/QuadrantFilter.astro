@@ -173,11 +173,30 @@ const overlayItems = categories.map((c) => {
     visibility: visible;
   }
 
+  /*
+     The `overflow: hidden` here is NOT removable — it is what makes the
+     `grid-template-rows: 0fr -> 1fr` collapse above actually clip. But it also
+     clipped the active button's red glow (`box-shadow: 0 0 20px` on
+     `.quadrant-btn.active`, styles/modules/filters.css): this element's box
+     sat exactly on the buttons' outer edges, so selecting "Article" cut the
+     glow off dead straight down its left side, and "Video" down its right.
+
+     Fix is padding + an equal negative margin: the padding grows the CLIP BOX
+     outward, the negative margin pulls the element back so nothing moves on
+     screen. The top already did this at 10px; the sides now do it at 24px,
+     which clears the 20px blur radius with room to spare.
+
+     Horizontal only, deliberately. Vertical padding would be added to the
+     element's height in the collapsed `0fr` state and could reopen a gap
+     under a closed row — and the top/bottom of the glow was never clipped.
+  */
   .type-row-inner {
     overflow: hidden;
     min-height: 0;
     padding-top: 10px;
     margin-top: -10px;
+    padding-inline: 24px;
+    margin-inline: -24px;
   }
 
   .filter-label {
