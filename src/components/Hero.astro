@@ -18,13 +18,40 @@ import { site } from '../data/site.js';
       <p class="hero-subtitle">
         Stories Craft and Culture Through A Different Lens
       </p>
-      <a href={`/feed`} class="hero-cta cta-button-primary">Explore The HQ</a>
+      {/*
+        A REAL ANCHOR TO #page-content, not a button and not a link to /feed.
+
+        Three things ride on that choice:
+
+        1. Bounce. It used to point at /feed, which is precisely the behaviour
+           being fixed — people left the homepage without seeing it. It now
+           reveals this page.
+        2. No-JS. Without the splash script this is an ordinary in-page anchor:
+           it jumps to the content and everything works. Nothing is gated on
+           JavaScript running.
+        3. Keyboard and screen readers get a genuine link with a genuine
+           destination, announced properly, rather than a div with a handler.
+
+        The splash script upgrades the click into the curtain animation and
+        calls preventDefault; if it never loads, the anchor is the fallback.
+      */}
+      <a href="#page-content" class="hero-cta cta-button-primary" data-splash-trigger>
+        Explore The HQ
+        <span class="hero-cta-chevron" aria-hidden="true"></span>
+      </a>
     </div>
   </div>
 </section>
 
 <script>
   // Keep track of the current listener so we can remove it on page exit
+  declare global {
+    interface Window {
+      /** Guards the delegated splash listeners against double-binding. */
+      __hqSplashBound?: boolean;
+    }
+  }
+
   let currentScrollListener: (() => void) | null = null;
   let currentOrientationQuery: MediaQueryList | null = null;
   let currentOrientationListener: (() => void) | null = null;
@@ -125,4 +152,327 @@ import { site } from '../data/site.js';
       currentOrientationListener = null;
     }
   });
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     SPLASH / CURTAIN CONTROLLER
+
+     Small on purpose. It sets and clears classes and lets CSS do every piece
+     of animation — no library, no rAF loop, no scroll-linked maths. The whole
+     visual effect lives in styles/modules/splash.css.
+
+     THE MECHANIC
+     Lifting translates #app-wrapper up by the hero's height, so the hero exits
+     the top of the screen and the content rises into its place as ONE
+     movement. When the transition ends we swap that transform for a real
+     scroll offset of the same distance — pixel-identical, and it leaves the
+     browser in a normal scrolled state with normal scroll behaviour.
+
+     WHY IT NEVER TRAPS ANYONE
+     There is no overlay. The "curtain" is the hero that was always in the
+     page. If this script fails to load, the CTA is a plain #page-content
+     anchor and the page is an ordinary document.
+     ═══════════════════════════════════════════════════════════════════════ */
+  (() => {
+    const root = document.documentElement;
+
+    /** Ignore all of it when the reader has asked for less motion. */
+    const reduceMotion = () =>
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    /** Splash only makes sense on the homepage, at the top, with no deep link. */
+    function shouldArm() {
+      return (
+        window.location.pathname === '/' &&
+        !window.location.hash &&
+        window.scrollY < 4 &&
+        !!document.querySelector('.hero')
+      );
+    }
+
+    let busy = false;
+
+    function measureLift() {
+      const hero = document.querySelector('.hero') as HTMLElement | null;
+      /* Measured, not assumed to be 100vh: a mobile address bar makes vh and
+         the real painted height disagree, and being a few pixels out here
+         shows up as a visible seam at the end of the lift. */
+      if (hero) root.style.setProperty('--splash-lift', `${hero.offsetHeight}px`);
+    }
+
+    function arm() {
+      if (!shouldArm()) return;
+      measureLift();
+      root.classList.add('splash-armed');
+    }
+
+    function disarm() {
+      root.classList.remove('splash-armed', 'splash-lifting', 'splash-dropping');
+      const wrapper = document.getElementById('app-wrapper');
+      if (wrapper) wrapper.style.willChange = '';
+    }
+
+    /**
+     * Strip a `#page-content` hash left behind by the CTA click.
+     *
+     * `preventDefault()` on the anchor is not enough on its own — verified in
+     * the browser: `event.defaultPrevented` reads true and the hash STILL
+     * lands, because Astro's ClientRouter handles same-document anchors
+     * itself. Two things break if it stays:
+     *
+     *   • `shouldArm()` refuses to arm when a hash is present, so a reload
+     *     would silently skip the splash from then on;
+     *   • the browser's own scroll-to-fragment fights the scroll below.
+     *
+     * replaceState rather than pushState: the reveal is not a place in the
+     * reader's history, and Back should leave the site, not re-hide the page.
+     */
+    function stripHash() {
+      if (!window.location.hash) return;
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+
+    /** Raise the curtain and leave the page scrolled to the content. */
+    function lift() {
+      if (busy || !root.classList.contains('splash-armed')) return;
+      busy = true;
+
+      const hero = document.querySelector('.hero') as HTMLElement | null;
+      const distance = hero ? hero.offsetHeight : window.innerHeight;
+
+      if (reduceMotion()) {
+        disarm();
+        /* Next frame, so this lands AFTER the router's fragment scroll rather
+           than being overwritten by it. */
+        requestAnimationFrame(() => {
+          stripHash();
+          /*
+            Force `auto`. `html { scroll-behavior: smooth }` is global, so
+            without this the REDUCED-MOTION path was the one that animated —
+            a ~600ms smooth scroll for the reader who explicitly asked for
+            less movement, while everyone else got an instant jump at the end
+            of the curtain. Exactly backwards.
+          */
+          const previousBehavior = root.style.scrollBehavior;
+          root.style.scrollBehavior = 'auto';
+          window.scrollTo(0, distance);
+          root.style.scrollBehavior = previousBehavior;
+          busy = false;
+        });
+        return;
+      }
+
+      measureLift();
+      root.classList.add('splash-lifting');
+
+      const wrapper = document.getElementById('app-wrapper');
+      const finish = () => {
+        /*
+          The swap. Clearing the transform and scrolling by the same distance
+          in ONE synchronous block means the browser never paints an
+          intermediate state — the two cancel out exactly.
+
+          scroll-behavior is forced to auto for the jump because the site sets
+          `smooth` globally; without this the "instant" correction would
+          animate and undo the illusion.
+        */
+        const previousBehavior = root.style.scrollBehavior;
+        root.style.scrollBehavior = 'auto';
+        root.classList.remove('splash-armed', 'splash-lifting');
+        stripHash();
+        window.scrollTo(0, distance);
+        root.style.scrollBehavior = previousBehavior;
+        if (wrapper) wrapper.style.willChange = '';
+        busy = false;
+      };
+
+      /* transitionend is the accurate signal; the timeout is a safety net for
+         the case where the transition never fires (element hidden, tab
+         backgrounded mid-animation) so the page can never get stuck lifted. */
+      let done = false;
+      const once = (event?: TransitionEvent) => {
+        if (event && event.propertyName !== 'transform') return;
+        if (done) return;
+        done = true;
+        wrapper?.removeEventListener('transitionend', once);
+        finish();
+      };
+      wrapper?.addEventListener('transitionend', once);
+      setTimeout(once, 1100);
+    }
+
+    /** Drop the curtain back down over the page. */
+    function drop() {
+      if (busy || root.classList.contains('splash-armed')) return;
+      if (!shouldArmLocation()) return;
+      busy = true;
+
+      const hero = document.querySelector('.hero') as HTMLElement | null;
+      const distance = hero ? hero.offsetHeight : window.innerHeight;
+
+      if (reduceMotion()) {
+        window.scrollTo(0, 0);
+        arm();
+        busy = false;
+        return;
+      }
+
+      /*
+        Play the lift backwards: jump to the top with the wrapper still held
+        up by a transform (so nothing appears to move), then release the
+        transform and let CSS transition it home.
+      */
+      const previousBehavior = root.style.scrollBehavior;
+      root.style.scrollBehavior = 'auto';
+      root.style.setProperty('--splash-lift', `${distance}px`);
+      root.classList.add('splash-armed', 'splash-lifting');
+      window.scrollTo(0, 0);
+      root.style.scrollBehavior = previousBehavior;
+
+      const wrapper = document.getElementById('app-wrapper');
+      /* Force a reflow so the browser registers the lifted position as the
+         transition's starting point. Without it both class changes are
+         batched into one style resolution and nothing animates. */
+      void wrapper?.offsetHeight;
+
+      root.classList.remove('splash-lifting');
+      root.classList.add('splash-dropping');
+
+      let done = false;
+      const once = (event?: TransitionEvent) => {
+        if (event && event.propertyName !== 'transform') return;
+        if (done) return;
+        done = true;
+        wrapper?.removeEventListener('transitionend', once);
+        root.classList.remove('splash-dropping');
+        if (wrapper) wrapper.style.willChange = '';
+        busy = false;
+      };
+      wrapper?.addEventListener('transitionend', once);
+      setTimeout(once, 1100);
+    }
+
+    /** Location test only — `drop` runs while scrolled, so no scrollY check. */
+    function shouldArmLocation() {
+      return window.location.pathname === '/' && !!document.querySelector('.hero');
+    }
+
+    // ── Triggers ─────────────────────────────────────────────────────────
+
+    /* Delegated from document so it survives ClientRouter swaps without
+       rebinding, and so it cannot bind twice. */
+    if (!window.__hqSplashBound) {
+      window.__hqSplashBound = true;
+
+      document.addEventListener('click', (event) => {
+        const target = event.target as Element | null;
+        if (!target) return;
+
+        // The CTA lifts the curtain.
+        if (target.closest('[data-splash-trigger]')) {
+          if (!root.classList.contains('splash-armed')) return; // Let the anchor work.
+          event.preventDefault();
+          lift();
+          return;
+        }
+
+        /* The header logo drops it back — but only when already at the top of
+           the homepage. Anywhere else it stays an ordinary "go home" link,
+           which is what a masthead is supposed to be. */
+        const brand = target.closest('#navbar a[href="/"], #navbar a[href="/#"]');
+        if (brand && shouldArmLocation() && window.scrollY < 4 && !root.classList.contains('splash-armed')) {
+          event.preventDefault();
+          drop();
+        }
+      });
+
+      /* Scrolling down past the splash lifts it too — the curtain should never
+         be something you can get stuck behind. */
+      window.addEventListener(
+        'wheel',
+        (event) => {
+          if (root.classList.contains('splash-armed')) {
+            if (event.deltaY > 0) lift();
+            return;
+          }
+          /* Reverse pull-down: at the very top, a deliberate upward gesture
+             brings the splash back. Accumulated against a threshold so a
+             single stray notch on a trackpad does not trigger it. */
+          if (window.scrollY === 0 && event.deltaY < 0) {
+            pullUp(-event.deltaY);
+          }
+        },
+        { passive: true }
+      );
+
+      /* Touch equivalent. Same threshold, same rules. */
+      let touchStartY = 0;
+      window.addEventListener(
+        'touchstart',
+        (event) => {
+          touchStartY = event.touches[0]?.clientY ?? 0;
+          pullAccum = 0;
+        },
+        { passive: true }
+      );
+      window.addEventListener(
+        'touchmove',
+        (event) => {
+          const y = event.touches[0]?.clientY ?? 0;
+          const delta = y - touchStartY;
+          if (root.classList.contains('splash-armed')) {
+            if (delta < -40) lift(); // Swiping up = "get me past this".
+            return;
+          }
+          if (window.scrollY === 0 && delta > 0) pullUp(delta * 0.6);
+        },
+        { passive: true }
+      );
+
+      /* Keyboard: the first Tab lifts the curtain so the hidden navbar is
+         never more than one keystroke away, and Escape does the same for
+         anyone who just wants it gone. */
+      document.addEventListener('keydown', (event) => {
+        if (!root.classList.contains('splash-armed')) return;
+        if (event.key === 'Tab' || event.key === 'Escape' || event.key === 'PageDown') {
+          lift();
+        }
+      });
+    }
+
+    /* Accumulator for the reverse pull-down. Needs to survive across events
+       but reset whenever the gesture stops making sense. */
+    let pullAccum = 0;
+    let pullTimer: number | undefined;
+    function pullUp(amount: number) {
+      if (busy || root.classList.contains('splash-armed')) return;
+      pullAccum += amount;
+      window.clearTimeout(pullTimer);
+      /* A pull is a sustained gesture. Idle for 220ms and the accumulator
+         resets, so slow incidental scrolling never adds up to a trigger. */
+      pullTimer = window.setTimeout(() => { pullAccum = 0; }, 220);
+      if (pullAccum > 140) {
+        pullAccum = 0;
+        drop();
+      }
+    }
+
+    // ── Lifecycle ────────────────────────────────────────────────────────
+
+    document.addEventListener('astro:page-load', () => {
+      disarm();
+      arm();
+    });
+
+    /* Never carry splash state across a navigation — the next page has no
+       hero to lift and would inherit a transformed wrapper. */
+    document.addEventListener('astro:before-swap', disarm);
+
+    /* Keep the measurement honest when the viewport changes under us
+       (rotation, mobile address bar, desktop resize). */
+    window.addEventListener('resize', () => {
+      if (root.classList.contains('splash-armed')) measureLift();
+    });
+
+    arm();
+  })();
 </script>

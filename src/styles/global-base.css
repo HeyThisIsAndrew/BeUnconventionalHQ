@@ -23,6 +23,25 @@ html {
   background-color: var(--color-black);
 }
 
+/*
+   Smooth scrolling is MOTION, and someone who has asked their OS to reduce
+   motion has asked for it to stop.
+
+   This was a genuine gap: `scroll-behavior: smooth` above applied to every
+   anchor jump, every scrollTo and every skip link on the site regardless of
+   the setting. WCAG 2.3.3 (Animation from Interactions) covers exactly this —
+   motion triggered by an interaction should be avoidable.
+
+   It also caused a concrete bug in the splash: the reduced-motion path, which
+   is supposed to be the INSTANT one, ended up animating a ~600ms scroll while
+   the full-motion path jumped instantly.
+*/
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 body {
   min-width: 320px;
   background-color: var(--color-black);

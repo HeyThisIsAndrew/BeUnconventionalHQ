@@ -3,10 +3,28 @@ import { Image } from 'astro:assets';
 import { categories } from '../data/categories.js';
 ---
 
+{/*
+  `cat-stagger`, NOT `reveal`.
+
+  These tiles used to carry the site's generic `.reveal` class, driven by the
+  shared observer that sets `data-state`. They now use the dedicated staggered
+  reveal in styles/modules/splash.css instead — the two cannot both be applied,
+  or the tile would run two competing opacity/transform transitions and land
+  wherever the cascade happened to leave it.
+
+  The old `data-delay` is gone with it: the stagger is expressed as `nth-child`
+  transition delays in CSS, which is information the cascade already has.
+  Passing an index through the markup would be re-deriving the tile's own
+  position and handing it back.
+
+  (This comment sits OUTSIDE the map: a callback has to return a single
+  element, so a comment beside the <a> makes it return two nodes and the file
+  stops parsing.)
+*/}
 <div class="cat-grid" style="max-width: 1536px; margin: 0 auto;">
   {
-    categories.map((cat, i) => (
-      <a class="cat reveal" href={`/feed?category=${cat.slug}`} data-delay={i * 80}>
+    categories.map((cat) => (
+      <a class="cat cat-stagger" href={`/feed?category=${cat.slug}`}>
         <Image src={cat.image} alt={cat.label} class="cat-bg-img" loading="lazy" decoding="async" />
         <span class="cat-overlay" />
         <span class="cat-body">
@@ -18,3 +36,66 @@ import { categories } from '../data/categories.js';
     ))
   }
 </div>
+
+<script>
+  /*
+    STAGGERED TILE REVEAL
+
+    JavaScript's entire job here is to add ONE class when the row scrolls into
+    view. It measures nothing, times nothing and animates nothing — the slide,
+    the duration, the easing and the 90ms-per-tile stagger are all CSS
+    (`.cat-stagger` + `nth-child` delays in styles/modules/splash.css).
+
+    That split is what keeps this off the main thread: an IntersectionObserver
+    fires a handful of times in a page's life, whereas a scroll handler runs on
+    every frame. No animation library is involved, which is the constraint —
+    GSAP or Motion One would add more transfer weight than this entire page's
+    CSS for an effect two declarations can express.
+  */
+  function initCatStagger() {
+    const tiles = document.querySelectorAll<HTMLElement>('.cat-stagger');
+    if (tiles.length === 0) return;
+
+    /* No observer support, or reduced motion: show them. Never leave content
+       stuck at opacity 0 because a capability check failed — that is how a
+       progressive enhancement turns into a blank page. */
+    if (
+      !('IntersectionObserver' in window) ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      tiles.forEach((tile) => tile.classList.add('in-view'));
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('in-view');
+          /* One-shot. Re-animating on every pass would make scrolling back up
+             feel unstable, and it keeps the observer's work bounded. */
+          observer.unobserve(entry.target);
+        });
+      },
+      {
+        /* Negative bottom margin: start the tiles when they are ~12% into the
+           viewport rather than the instant their first pixel appears, so the
+           reader sees the movement instead of arriving after it. */
+        rootMargin: '0px 0px -12% 0px',
+        threshold: 0.1,
+      }
+    );
+
+    tiles.forEach((tile) => {
+      /* Already revealed on a previous page-load in this session — leave it
+         alone rather than resetting it to hidden. */
+      if (tile.classList.contains('in-view')) return;
+      observer.observe(tile);
+    });
+  }
+
+  /* astro:page-load, not DOMContentLoaded — this site uses ClientRouter, and a
+     DOMContentLoaded handler stops firing after the first client-side
+     navigation. */
+  document.addEventListener('astro:page-load', initCatStagger);
+</script>
