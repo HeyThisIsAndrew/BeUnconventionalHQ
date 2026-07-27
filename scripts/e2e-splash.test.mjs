@@ -153,6 +153,78 @@ try {
     await page.close();
   }
 
+  // ── Scrolling the curtain up must not fight the native scroll ─────────
+  /*
+    The reported "jumps around on the screen", reproduced 100% of the time by
+    scrolling instead of pressing the button.
+
+    The document used to stay natively scrollable behind the splash, so a
+    scroll gesture did two things at once — scrolled the page AND triggered
+    the lift. Both move content upward, so it travelled at double speed and
+    then snapped. Compounding it, the `transitionend` listener on #app-wrapper
+    had no target check, and since transitionend BUBBLES it was being ended
+    early by a descendant's transform (the hero copy, a card, a tile).
+
+    Asserting the end state alone would pass against both bugs — the page
+    still finished at the right offset. So this measures the two things that
+    were actually wrong: the scroll must not move while the curtain lifts, and
+    the transform must run its full travel instead of being cut short.
+  */
+  {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 390, height: 844 });
+    await page.goto(`http://localhost:${port}/`, { waitUntil: 'networkidle0' });
+    await new Promise((r) => setTimeout(r, 400));
+
+    ok(
+      'scroll-trigger: page is scroll-locked while armed',
+      (await page.evaluate(() => getComputedStyle(document.documentElement).overflow)) === 'hidden',
+    );
+
+    await page.evaluate(() => {
+      window.__t = [];
+      let n = 0;
+      const tick = () => {
+        const w = document.getElementById('app-wrapper');
+        const m = new DOMMatrixReadOnly(getComputedStyle(w).transform);
+        window.__t.push([Math.round(window.scrollY), Math.round(m.m42)]);
+        if ((n += 1) < 90) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+
+    await page.mouse.move(195, 500);
+    await page.mouse.wheel({ deltaY: 90 });
+    await new Promise((r) => setTimeout(r, 1800));
+
+    const t = await page.evaluate(() => window.__t);
+    const heroH = await page.evaluate(() => Math.round(document.querySelector('.hero').offsetHeight));
+
+    /* While the wrapper is still translated, the document must not have
+       moved — that co-motion is the whole defect. */
+    const scrollDuringLift = t.filter(([, ty]) => ty < -8).map(([sy]) => sy);
+    ok(
+      'scroll-trigger: document does not scroll while the curtain moves',
+      scrollDuringLift.every((sy) => sy === 0),
+      `saw scrollY ${[...new Set(scrollDuringLift)].join(',')} mid-lift`,
+    );
+
+    /* The curtain must actually travel the full distance. Cut short by a
+       bubbled transitionend it only reached about a fifth of it. */
+    const deepest = Math.min(...t.map(([, ty]) => ty));
+    ok(
+      'scroll-trigger: curtain completes its full travel',
+      deepest <= -(heroH * 0.9),
+      `deepest translateY ${deepest}px of ${-heroH}px`,
+    );
+
+    ok(
+      'scroll-trigger: lands on the content',
+      Math.abs((await page.evaluate(() => Math.round(window.scrollY))) - heroH) <= 2,
+    );
+    await page.close();
+  }
+
   // ── Reverse pull-down ─────────────────────────────────────────────────
   /*
     Lift the curtain, scroll back to the very top, then pull down. The splash

@@ -199,14 +199,44 @@ import { site } from '../data/site.js';
       if (hero) root.style.setProperty('--splash-lift', `${hero.offsetHeight}px`);
     }
 
+    /*
+      ─── WHY THE PAGE IS SCROLL-LOCKED WHILE THE CURTAIN IS DOWN ───────────
+      Without this, the document stays natively scrollable behind the splash.
+      A scroll gesture then does TWO things at once: it scrolls the page AND
+      it triggers the curtain lift. Both move the content upward, so it
+      travels at roughly double speed and then snaps when the lift finishes.
+
+      Measured before the fix, wheeling down with the curtain armed:
+
+        scrollY     0 → 180 → 360 → 540 → 844   (native scroll)
+        translateY  0 →  -2 →  -41 → -182 →   0   (curtain transform)
+        visible     0 → 182 → 401 → 722 → 844   ← 118px jumps between frames
+
+      That is the reported "jumps around on the screen", and it reproduces
+      every time. Locking makes the gesture a TRIGGER rather than a scroll:
+      the curtain owns the viewport until it has finished lifting.
+
+      Reuses src/lib/scroll-lock.ts rather than setting `overflow: hidden`
+      here, because that utility already handles the parts that are easy to
+      get wrong — it compensates the scrollbar gutter (so releasing the lock
+      on desktop does not shift the layout sideways) and it reference-counts,
+      so a modal opened over the splash cannot release the splash's lock.
+    */
     function arm() {
       if (!shouldArm()) return;
+      /* Already armed — do not take a second lock, or the counter never
+         returns to zero and the page stays pinned forever. */
+      if (root.classList.contains('splash-armed')) return;
       measureLift();
+      /* Measure BEFORE hiding the scrollbar — afterwards this always reads 0. */
+      const gutter = Math.max(0, window.innerWidth - root.clientWidth);
+      root.style.setProperty('--splash-gutter', `${gutter}px`);
       root.classList.add('splash-armed');
     }
 
     function disarm() {
       root.classList.remove('splash-armed', 'splash-lifting', 'splash-dropping');
+      root.style.removeProperty('--splash-gutter');
       const wrapper = document.getElementById('app-wrapper');
       if (wrapper) wrapper.style.willChange = '';
     }
@@ -278,6 +308,7 @@ import { site } from '../data/site.js';
         const previousBehavior = root.style.scrollBehavior;
         root.style.scrollBehavior = 'auto';
         root.classList.remove('splash-armed', 'splash-lifting');
+        root.style.removeProperty('--splash-gutter');
         stripHash();
         window.scrollTo(0, distance);
         root.style.scrollBehavior = previousBehavior;
@@ -290,7 +321,17 @@ import { site } from '../data/site.js';
          backgrounded mid-animation) so the page can never get stuck lifted. */
       let done = false;
       const once = (event?: TransitionEvent) => {
-        if (event && event.propertyName !== 'transform') return;
+        /*
+          BOTH checks are required, and the target check is the one that was
+          missing. `transitionend` BUBBLES, so this listener on #app-wrapper
+          also received every transition finishing anywhere inside it — the
+          hero copy fading, a card's hover transform, a category tile's slide.
+          Several of those carry `propertyName === 'transform'` too, so the
+          property filter alone let a descendant's event end the curtain
+          early: traced firing at ~338ms into a 900ms lift, which snapped the
+          animation and is what made the reveal look like it jumped.
+        */
+        if (event && (event.target !== wrapper || event.propertyName !== 'transform')) return;
         if (done) return;
         done = true;
         wrapper?.removeEventListener('transitionend', once);
@@ -326,6 +367,10 @@ import { site } from '../data/site.js';
       root.style.setProperty('--splash-lift', `${distance}px`);
       root.classList.add('splash-armed', 'splash-lifting');
       window.scrollTo(0, 0);
+      root.style.setProperty(
+        '--splash-gutter',
+        `${Math.max(0, window.innerWidth - root.clientWidth)}px`
+      );
       root.style.scrollBehavior = previousBehavior;
 
       const wrapper = document.getElementById('app-wrapper');
@@ -339,7 +384,17 @@ import { site } from '../data/site.js';
 
       let done = false;
       const once = (event?: TransitionEvent) => {
-        if (event && event.propertyName !== 'transform') return;
+        /*
+          BOTH checks are required, and the target check is the one that was
+          missing. `transitionend` BUBBLES, so this listener on #app-wrapper
+          also received every transition finishing anywhere inside it — the
+          hero copy fading, a card's hover transform, a category tile's slide.
+          Several of those carry `propertyName === 'transform'` too, so the
+          property filter alone let a descendant's event end the curtain
+          early: traced firing at ~338ms into a 900ms lift, which snapped the
+          animation and is what made the reveal look like it jumped.
+        */
+        if (event && (event.target !== wrapper || event.propertyName !== 'transform')) return;
         if (done) return;
         done = true;
         wrapper?.removeEventListener('transitionend', once);

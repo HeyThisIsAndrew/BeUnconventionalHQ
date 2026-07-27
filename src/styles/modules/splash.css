@@ -58,6 +58,49 @@
    the footer. Transforming the wrapper rather than the hero is what makes the
    content rise INTO the space the hero vacates instead of leaving a hole.
 */
+/*
+   ─── THE PAGE DOES NOT SCROLL WHILE THE CURTAIN IS DOWN ───────────────────
+   Without this the document stayed natively scrollable behind the splash, so
+   a scroll gesture did TWO things at once: scrolled the page AND triggered
+   the lift. Both move content upward, so it travelled at roughly double speed
+   and then snapped. Measured, wheeling down with the curtain armed:
+
+     scrollY     0 → 180 → 360 → 540 → 844   (native scroll)
+     translateY  0 →  -2 →  -41 → -182 →   0   (curtain transform)
+     visible     0 → 182 → 401 → 722 → 844   ← 118px jumps between frames
+
+   That is the reported "jumps around on the screen". Locking makes a scroll
+   gesture a TRIGGER rather than a scroll — the curtain owns the viewport
+   until it has finished lifting.
+
+   `overflow: hidden` ONLY — deliberately not the shared scroll lock in
+   src/lib/scroll-lock.ts. That utility pins <body> with `position: fixed`,
+   which re-parents #app-wrapper's containing block mid-animation and made the
+   browser drop the transform transition outright (measured: translateY never
+   left 0 and transitionend fired immediately). Overflow alone stops the
+   scrolling without touching the animated element's layout.
+*/
+html.splash-armed {
+  overflow: hidden;
+}
+
+/*
+   Scrollbar compensation.
+
+   Hiding the overflow removes the document scrollbar, so on a desktop browser
+   with classic scrollbars the content would widen by ~15px the instant the
+   curtain lifts. The splash script measures that width before hiding it and
+   publishes it here; padding the wrapper by the same amount means releasing
+   the lock changes nothing.
+
+   Zero on every touch device and on macOS, where scrollbars are overlaid and
+   occupy no layout space — which is why the reported case (mobile, landscape)
+   never saw a sideways shift, only the vertical jumping fixed above.
+*/
+html.splash-armed #app-wrapper {
+  padding-right: var(--splash-gutter, 0px);
+}
+
 html.splash-lifting #app-wrapper,
 html.splash-dropping #app-wrapper {
   will-change: transform;
