@@ -35,7 +35,7 @@ import { site } from '../data/site.js';
         The splash script upgrades the click into the curtain animation and
         calls preventDefault; if it never loads, the anchor is the fallback.
       */}
-      <a href="#page-content" class="hero-cta cta-button-primary" data-splash-trigger>
+      <a href="#hq-content" class="hero-cta cta-button-primary" data-splash-trigger>
         Explore The HQ
         <span class="hero-cta-chevron" aria-hidden="true"></span>
       </a>
@@ -424,9 +424,39 @@ import { site } from '../data/site.js';
 
         // The CTA lifts the curtain.
         if (target.closest('[data-splash-trigger]')) {
-          if (!root.classList.contains('splash-armed')) return; // Let the anchor work.
+          /*
+            The button has TWO jobs, and it previously only did one.
+
+            Armed → lift the curtain.
+
+            NOT armed → the reader has already dismissed the splash and
+            scrolled back up, so the navbar is showing and the hero is simply
+            the top of an ordinary page. The button still has to take them to
+            the content. This branch used to `return` and leave it to the
+            anchor, which pointed at `#page-content` — a wrapper that starts at
+            offset 0 — so it scrolled to where they already were and looked
+            completely dead. That is the reported bug.
+
+            Both paths are handled here rather than relying on the anchor,
+            because the smooth scroll and the hash cleanup should behave the
+            same either way. The href still points at a real section below the
+            hero, so with no JS at all it remains correct.
+          */
           event.preventDefault();
-          lift();
+
+          if (root.classList.contains('splash-armed')) {
+            lift();
+            return;
+          }
+
+          const heroEl = document.querySelector('.hero') as HTMLElement | null;
+          const target = heroEl ? heroEl.offsetHeight : window.innerHeight;
+          /* Smooth here, unlike the curtain's instant swap — this is a plain
+             in-page jump and the motion is the feedback that the press
+             registered. `scroll-behavior: smooth` is already the site default
+             and is disabled under prefers-reduced-motion. */
+          window.scrollTo({ top: target, behavior: 'smooth' });
+          stripHash();
           return;
         }
 

@@ -166,3 +166,51 @@
     animation-duration: 2s;
   }
 }
+
+/* ── Brand lockup ───────────────────────────────────────────────────────────
+
+   "Be Unconventional HQ" is three words, so ordinary wrapping was free to
+   break it — on a phone the subscribe subtitle split it across lines as
+   "…straight from Be / Unconventional HQ." A brand name reading as two
+   unrelated fragments is a branding problem, not a typographic one.
+
+   Applied by <BrandText />, which wraps only the name so the rest of the
+   sentence still wraps normally. Global rather than scoped so the same
+   protection is available anywhere the name appears in running text.
+*/
+.brand-lockup {
+  white-space: nowrap;
+}
+
+/* ── Success state ──────────────────────────────────────────────────────────
+
+   Once subscribed there is nothing left to verify, so the bot-check widget
+   goes with the input row. Leaving it behind was what opened the large empty
+   gap between the subtitle and the confirmation.
+*/
+.newsletter-form.is-success .newsletter-turnstile {
+  display: none;
+}
+
+/*
+   The confirmation is CENTRED in the space the form occupied, not left
+   sitting at the bottom of it.
+
+   The script records the form's height before switching state and writes it
+   to `--newsletter-locked-height`, so the band keeps exactly the size it had
+   — no collapse, no jump — and the message sits in the middle of that space
+   rather than hugging its lower edge.
+*/
+.newsletter-form.is-success {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--newsletter-locked-height, 0);
+  /* Folded into the locked height above so the message centres against the
+     band's real bounds, not the form's box inside its own margin. */
+  margin-top: 0;
+}
+
+.newsletter-form.is-success .newsletter-status {
+  margin-top: 0;
+}

@@ -77,9 +77,11 @@ try {
 
     ok(`${label}: splash arms on the homepage`, armed.armed === true);
     ok(`${label}: navbar hidden while armed`, armed.navVisible === 'hidden', armed.navVisible);
-    /* The no-JS fallback has to stay a real in-page anchor. If this ever
-       becomes "/feed" again the bounce problem is back. */
-    ok(`${label}: CTA is an in-page anchor, not /feed`, armed.ctaHref === '#page-content', String(armed.ctaHref));
+    /* The no-JS fallback has to stay a real in-page anchor pointing BELOW the
+       hero. If it becomes "/feed" again the bounce problem is back; if it
+       points at a wrapper starting at offset 0 (as `#page-content` did) the
+       button silently does nothing once the splash has been dismissed. */
+    ok(`${label}: CTA anchors below the hero, not /feed`, armed.ctaHref === '#hq-content', String(armed.ctaHref));
     ok(
       `${label}: lift distance measured from the hero (${armed.lift})`,
       armed.lift === `${armed.heroH}px`,
@@ -222,6 +224,72 @@ try {
       'scroll-trigger: lands on the content',
       Math.abs((await page.evaluate(() => Math.round(window.scrollY))) - heroH) <= 2,
     );
+    await page.close();
+  }
+
+  // ── The CTA must still work once the splash is dismissed ──────────────
+  /*
+    Reported: dismiss the splash, scroll back to the top so the navbar is
+    showing, press "Explore The HQ" — nothing happens.
+
+    The handler used to bail out when not armed and leave it to the anchor,
+    whose href was `#page-content` — a wrapper that starts at offset 0. So the
+    button "scrolled" to where the reader already was. The href now points at
+    the first section BELOW the hero, and the handler scrolls there itself.
+
+    Note this cannot be caught by testing the armed path: that one always
+    worked. The bug only existed in the state the button is in for the rest of
+    the session.
+  */
+  {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 390, height: 844 });
+    await page.goto(`http://localhost:${port}/`, { waitUntil: 'networkidle0' });
+    await new Promise((r) => setTimeout(r, 400));
+
+    ok(
+      'dismissed CTA: href points below the hero, not at the page wrapper',
+      (await page.evaluate(() =>
+        document.querySelector('[data-splash-trigger]').getAttribute('href')
+      )) === '#hq-content',
+    );
+    ok(
+      'dismissed CTA: that target exists and is below the fold',
+      await page.evaluate(() => {
+        const el = document.getElementById('hq-content');
+        return !!el && el.getBoundingClientRect().top + window.scrollY > 100;
+      }),
+    );
+
+    // Dismiss, then return to the top the way a reader would.
+    await page.evaluate(() => document.querySelector('[data-splash-trigger]').click());
+    await new Promise((r) => setTimeout(r, 1600));
+    await page.evaluate(() => {
+      document.documentElement.style.scrollBehavior = 'auto';
+      window.scrollTo(0, 0);
+    });
+    await new Promise((r) => setTimeout(r, 400));
+
+    const state = await page.evaluate(() => ({
+      armed: document.documentElement.classList.contains('splash-armed'),
+      navVisible: getComputedStyle(document.getElementById('navbar')).visibility,
+    }));
+    ok('dismissed CTA: splash is down and the navbar is present', state.armed === false && state.navVisible === 'visible');
+
+    await page.evaluate(() => document.querySelector('[data-splash-trigger]').click());
+    await new Promise((r) => setTimeout(r, 1400));
+
+    const moved = await page.evaluate(() => ({
+      scrollY: Math.round(window.scrollY),
+      heroH: Math.round(document.querySelector('.hero').offsetHeight),
+      hash: window.location.hash,
+    }));
+    ok(
+      'dismissed CTA: pressing it scrolls to the content',
+      moved.scrollY > moved.heroH * 0.8,
+      `scrollY ${moved.scrollY} vs hero ${moved.heroH}`,
+    );
+    ok('dismissed CTA: leaves no hash behind', moved.hash === '', moved.hash);
     await page.close();
   }
 

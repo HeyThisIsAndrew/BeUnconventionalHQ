@@ -263,6 +263,33 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
         const data = await response.json().catch(() => ({}));
 
         if (response.ok && data.success) {
+          /*
+            Pin the height BEFORE switching state.
+
+            Success hides the input row and the bot-check widget, which would
+            otherwise collapse the band and leave the confirmation sitting
+            just under the subtitle — or, with the widget still occupying its
+            space, pushed hard against the bottom edge. Recording the height
+            the form already has lets the CSS hold that exact size and centre
+            the message inside it, so nothing moves and the confirmation sits
+            in the middle of the space the form used to fill.
+
+            Read here, in the same tick, while the form is still laid out —
+            after the class lands the row is gone and this measures nothing.
+          */
+          const formStyle = getComputedStyle(form!);
+          form!.style.setProperty(
+            '--newsletter-locked-height',
+            /*
+              Height PLUS the top margin, because the success rule zeroes that
+              margin. Rolling it into the locked height keeps the total space
+              identical, and — the point of doing it this way — it means the
+              centred message is equidistant from the subtitle above and the
+              band's bottom edge. Measuring the height alone left the margin
+              outside the centred area and the message ~27px low.
+            */
+            `${form!.offsetHeight + parseFloat(formStyle.marginTop || '0')}px`
+          );
           setState('success', "You're on the list. Watch your inbox.");
           form!.reset();
           /* A token is single-use. Reset so a second subscribe from the same
