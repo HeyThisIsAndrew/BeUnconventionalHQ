@@ -22,7 +22,7 @@ The project prioritizes visual identity, editorial credibility, and maintainabil
 
 ## Editorial Content System
 
-- **Substack RSS Ingestion:** Automated fetching and sanitization of Substack articles.
+- **Substack API Ingestion:** Automated fetching and sanitization of Substack articles via Substack's internal posts JSON endpoint.
 - **Unified Article Rendering:** Custom pipeline for high-fidelity editorial presentation.
 - **Category Normalization:** Automatically maps diverse external tags into the canonical HQ taxonomy.
 - **Dynamic Editorial Feed:** A unified stream of content aggregated from multiple sources.
@@ -62,7 +62,7 @@ Centralized normalization layer (`src/data/constants.js`) supporting:
 
 - **Framework:** Astro 6.3
 - **Styling:** Vanilla CSS (Global & Themed)
-- **Ingestion:** Build-time Fetch + RSS Parsing
+- **Ingestion:** Build-time Fetch + JSON/RSS Parsing
 - **Deployment:** Static-First (Optimized for GitHub Pages)
 - **Tooling:** Custom Node.js dev server with mobile-testing QR generation
 
@@ -132,7 +132,7 @@ The platform uses a hybrid ingestion architecture that bridges the gap between s
 ### Automated Sources
 
 - **YouTube:** Pulls latest content via `https://www.youtube.com/feeds/videos.xml`.
-- **Substack:** Pulls latest articles via `/feed`.
+- **Substack:** Pulls latest articles via the `/api/v1/posts` JSON endpoint.
 
 ### Centralized Normalization
 

@@ -6,7 +6,7 @@
  * against the real thing.
  */
 import assert from 'node:assert/strict';
-import { parseFeed, planArticleSync } from './sync-articles.mjs';
+import { parsePostsResponse, planArticleSync } from './sync-articles.mjs';
 import {
   demoteHeadings,
   sanitizeArticleHtml,
@@ -351,46 +351,53 @@ test('merged output is sorted newest first', () => {
   assert.equal(merged[0].guid, 'b');
 });
 
-// ── Feed parsing, against a fixture ─────────────────────────────────────────
+// ── Posts API parsing, against a fixture ────────────────────────────────────
 
-const FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
-  <channel>
-    <title>Be Unconventional HQ</title>
-    <item>
-      <title><![CDATA[Mortal Kombat 2 Review]]></title>
-      <link>https://beunconventionalhq.substack.com/p/mortal-kombat-2-review</link>
-      <guid isPermaLink="false">post-1</guid>
-      <pubDate>Tue, 05 May 2026 02:08:53 GMT</pubDate>
-      <description><![CDATA[A spoiler-free review.]]></description>
-      <category><![CDATA[Film]]></category>
-      <content:encoded><![CDATA[<h1>The Verdict</h1><p style="color:red">${'word '.repeat(200)}</p><script>bad()</script>]]></content:encoded>
-    </item>
-    <item>
-      <title><![CDATA[Broken Post]]></title>
-      <pubDate>garbage</pubDate>
-      <content:encoded><![CDATA[<p>short</p>]]></content:encoded>
-    </item>
-  </channel>
-</rss>`;
+const FIXTURE = [
+  {
+    id: 196494656,
+    title: 'Mortal Kombat 2 Review',
+    slug: 'mortal-kombat-2-review',
+    canonical_url: 'https://beunconventionalhq.substack.com/p/mortal-kombat-2-review',
+    post_date: '2026-05-05T02:08:53.000Z',
+    subtitle: 'A spoiler-free review.',
+    postTags: [{ id: 1, name: 'Film', slug: 'film' }],
+    body_html: `<h1>The Verdict</h1><p style="color:red">${'word '.repeat(200)}</p><script>bad()</script>`,
+    cover_image: 'https://substackcdn.com/image/fetch/cover.jpg',
+  },
+  {
+    // No id, slug, or canonical_url — nothing to build a guid/link from.
+    title: 'Broken Post',
+    post_date: 'garbage',
+    body_html: '<p>short</p>',
+  },
+];
 
-test('fixture feed parses into raw items', () => {
-  const items = parseFeed(FIXTURE);
+test('fixture response parses into raw items', () => {
+  const items = parsePostsResponse(FIXTURE);
   assert.equal(items.length, 2);
   assert.equal(items[0].title, 'Mortal Kombat 2 Review');
-  assert.equal(items[0].guid, 'post-1');
+  assert.equal(items[0].guid, '196494656');
   assert.deepEqual(items[0].categories, ['Film']);
   assert.ok(items[0].contentEncoded.includes('<h1>'));
 });
 
-test('a single-item feed still parses as an array', () => {
-  const single = FIXTURE.replace(/<item>[\s\S]*?<\/item>\s*<item>[\s\S]*?<\/item>/, `
-    <item><title>Only</title><link>https://x.substack.com/p/only</link><guid>g</guid></item>`);
-  assert.equal(parseFeed(single).length, 1);
+test('a bare-string postTags entry is tolerated', () => {
+  const items = parsePostsResponse([{ ...FIXTURE[0], postTags: ['Film'] }]);
+  assert.deepEqual(items[0].categories, ['Film']);
+});
+
+test('link falls back to publication/p/slug when canonical_url is missing', () => {
+  const items = parsePostsResponse([{ id: 1, title: 'x', slug: 'x-slug' }]);
+  assert.equal(items[0].link, 'https://beunconventionalhq.substack.com/p/x-slug');
+});
+
+test('a single-post response still parses as an array', () => {
+  assert.equal(parsePostsResponse(FIXTURE[0]).length, 1);
 });
 
 test('a malformed item is skipped with a reason and the rest still import', () => {
-  const { merged, skipped, parsed } = planArticleSync(parseFeed(FIXTURE), [], NOW);
+  const { merged, skipped, parsed } = planArticleSync(parsePostsResponse(FIXTURE), [], NOW);
   assert.equal(parsed, 1, 'only the well-formed item should parse');
   assert.equal(skipped.length, 1);
   assert.match(skipped[0].reason, /guid|title/);
@@ -399,7 +406,7 @@ test('a malformed item is skipped with a reason and the rest still import', () =
 });
 
 test('end-to-end: fixture import sanitizes, demotes and categorises', () => {
-  const { merged } = planArticleSync(parseFeed(FIXTURE), [], NOW);
+  const { merged } = planArticleSync(parsePostsResponse(FIXTURE), [], NOW);
   const record = merged[0];
   assert.equal(record.category, 'Film');
   assert.equal(record.hasBody, true);
@@ -408,9 +415,9 @@ test('end-to-end: fixture import sanitizes, demotes and categorises', () => {
   assert.ok(record.bodyHtml.includes('<h2>The Verdict</h2>'), record.bodyHtml.slice(0, 120));
 });
 
-test('re-running the same feed is idempotent', () => {
-  const first = planArticleSync(parseFeed(FIXTURE), [], NOW);
-  const second = planArticleSync(parseFeed(FIXTURE), first.merged, NOW);
+test('re-running the same response is idempotent', () => {
+  const first = planArticleSync(parsePostsResponse(FIXTURE), [], NOW);
+  const second = planArticleSync(parsePostsResponse(FIXTURE), first.merged, NOW);
   assert.equal(second.merged.length, first.merged.length);
   assert.equal(second.added, 0);
 });
