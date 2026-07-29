@@ -154,11 +154,11 @@ whether it is a paid post being truncated in the feed.
 
 ## Things the sync will never do
 
-- **Delete a record.** Substack's `/feed` returns only a rolling window of
-  recent posts. Anything that ages out of it stays in
+- **Delete a record.** The posts API returns only a page of recent posts
+  (`limit=50`). Anything that ages out of it stays in
   `src/data/articles.json` forever, because deleting it would 404 a live URL.
   Removal is a deliberate human edit.
-- **Blank an existing body.** If the feed stops returning content for a post
+- **Blank an existing body.** If the endpoint stops returning content for a post
   already archived with a body, the stored body is kept.
 - **Overwrite `firstSeen`.** Re-syncing never rewrites when a post first
   appeared.

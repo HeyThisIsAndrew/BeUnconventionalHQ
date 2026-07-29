@@ -89,11 +89,50 @@
   font-weight: 600;
 }
 
+/* Sits inside .article-header, between the headline and the standfirst, so it
+   is spaced as masthead furniture rather than carrying the old 3rem gap that
+   separated it from the body below. */
 .article-hero {
+  display: block;
   width: 100%;
   height: auto;
-  margin-bottom: 3rem;
+  margin-block: 1.75rem;
   border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ── Anchor landing offset ──────────────────────────────────────────────────
+
+   Reported as "clicking a Contents entry does not scroll to the section". It
+   did scroll — the heading landed at viewport top 0, underneath the 83px
+   `position: fixed` navbar, so the reader saw body copy with the heading they
+   had just clicked hidden behind the chrome. Measured before fixing:
+   `rect.top` 0 against a navbar of 83.
+
+   scroll-margin-top is the one-property fix for this: it offsets where an
+   anchor target comes to rest without moving the element itself. 7rem matches
+   `.article-rail`'s sticky `top`, so a heading lands on the same line as the
+   rail beside it.
+
+   Applied to the ids buildToc() injects and to the two landmark anchors the
+   Contents rail falls back to. */
+.article-body h2[id],
+.article-body h3[id],
+.article-body h4[id],
+#article-top,
+#article-related {
+  scroll-margin-top: 7rem;
+}
+
+/* The navbar is shorter here, and the reading column has less headroom to
+   spare — matches .article-page's own reduced padding-top at this width. */
+@media (max-width: 768px) {
+  .article-body h2[id],
+  .article-body h3[id],
+  .article-body h4[id],
+  #article-top,
+  #article-related {
+    scroll-margin-top: 5.5rem;
+  }
 }
 
 /* ── Body copy ──────────────────────────────────────────────────────────── */
@@ -103,6 +142,10 @@
   font-size: 1.0625rem;
   line-height: 1.8;
   color: rgba(240, 240, 240, 0.92);
+  /* Substack embeds (tweets, YouTube links) sometimes leave a raw URL as the
+     only visible text once the sanitizer strips the embed itself — one long
+     unbroken token that would otherwise overflow the 44rem reading column. */
+  overflow-wrap: break-word;
 }
 
 .article-body > * + * {
@@ -257,22 +300,45 @@
    out to screen readers as an empty region on mobile.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/*
+   Named grid areas rather than relying on source-order auto-placement.
+
+   Why this matters: ArticleToc.astro renders NOTHING (not even an empty
+   <aside>) when an article has fewer than 3 headings — most Substack recaps
+   and reviews have none. Without an explicit area assignment, losing that
+   first DOM child shifts every item that follows it one track to the left:
+   the reading column lands in the 15rem TOC track (crushing the title into
+   a column so narrow it breaks mid-word) and the support rail balloons into
+   the wide centre track, leaving a dead gap beside it. Assigning each piece
+   its own named area makes placement independent of which siblings exist.
+*/
 .article-layout {
   display: grid;
   grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) minmax(0, 17rem);
+  grid-template-areas: "toc column support";
   gap: 3rem;
   align-items: start;
   width: 100%;
 }
 
+.article-layout > .article-rail-left {
+  grid-area: toc;
+}
+
 /* The reading column sits centred within its (wider) middle track. */
 .article-layout > .article-column {
+  grid-area: column;
   justify-self: center;
+}
+
+.article-layout > .article-rail-right {
+  grid-area: support;
 }
 
 @media (max-width: 1200px) {
   .article-layout {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "column";
   }
 
   .article-rail {

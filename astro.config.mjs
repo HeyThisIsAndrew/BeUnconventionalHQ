@@ -227,13 +227,33 @@ export default defineConfig({
     partytown({
       config: {
         forward: ['dataLayer.push'],
+        /*
+          Route third-party tag scripts through our own origin.
+
+          Partytown executes tags inside a web worker, and a worker fetching a
+          cross-origin script needs CORS headers on the response. The pixel
+          vendors do not send them, so TikTok failed in production with
+          "No 'Access-Control-Allow-Origin' header is present" while Meta and
+          Clarity were refused by the CSP. Proxying makes the request
+          same-origin, which resolves both at once.
+
+          Any host added here MUST also be added to the allowlist in
+          src/pages/api/proxy.js, or the proxy answers 403. See issue #63.
+        */
         resolveUrl: function(url, location, type) {
-          if (
-            type === 'script' &&
-            (url.hostname === 'www.googletagmanager.com' ||
-             url.hostname === 'www.google-analytics.com' ||
-             url.hostname === 'analytics.google.com')
-          ) {
+          const proxiedHosts = [
+            'www.googletagmanager.com',
+            'www.google-analytics.com',
+            'analytics.google.com',
+            // Meta Pixel
+            'connect.facebook.net',
+            // TikTok Pixel
+            'analytics.tiktok.com',
+            // Microsoft Clarity
+            'www.clarity.ms',
+            'c.clarity.ms',
+          ];
+          if (type === 'script' && proxiedHosts.includes(url.hostname)) {
             const proxyUrl = new URL('/api/proxy', location.origin);
             proxyUrl.searchParams.append('url', url.href);
             return proxyUrl;

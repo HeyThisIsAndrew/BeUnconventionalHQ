@@ -11,8 +11,9 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
   live-status, video merge, taxonomy sync. Run before committing lib changes.
 - `npm run build` — production build. Fully offline: video/short/live/event/
   featuredBrand data is bundled from `src/data/videos.json` at build time, no
-  network fetch involved. (Article RSS fetches can still fail offline; those
-  pages try/catch to empty data by design, so the build still proves compilation.)
+  network fetch involved. (Article syncs from Substack's posts API can still fail
+  offline; those pages try/catch to empty data by design, so the build still
+  proves compilation.)
 - `npx astro check` — type check. The bar is: introduce zero NEW errors (baseline
   is 0/0/0 as of the Astro 7 migration — CI will show any new count directly).
 - `npm run dev` — refreshes the content cache, then dev server.
@@ -70,7 +71,16 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   used to run against Sanity. The legacy RSS/scrape cache
   (`src/data/cache/videos.json`, refreshed by `scripts/fetch-feeds.mjs`) is no
   longer part of this merge.
-- **Articles:** Substack RSS via `getArticles()` (unchanged, no Sanity schema ever).
+- **Articles:** Substack's internal `/api/v1/posts` JSON endpoint via
+  `scripts/sync-articles.mjs` (no Sanity schema ever). Replaced the public `/feed`
+  RSS source because RSS's `<category>` element drops most of a post's tags —
+  the JSON API's `postTags` carries the full set, which the category/content-type
+  mapping and "More From" related-article matching both depend on. Same
+  never-delete merge contract as the RSS era (`mergeSnapshot()` in
+  `src/lib/articles-transform.ts`); only the fetch and raw-shape mapping changed.
+  Undocumented endpoint, so treat it like the YouTube sync's Sync Lock: loud,
+  non-fatal failures only — a broken/blocked endpoint must never blank
+  `src/data/articles.json`.
 - **Events / featured brands:** `getEventsLocal()` / `getFeaturedBrandsLocal()`
   (`src/lib/local-content.ts`), filtering `src/data/videos.json` by `_type`. CLS-
   prevention image dimensions are parsed from the Sanity asset `_ref`'s own

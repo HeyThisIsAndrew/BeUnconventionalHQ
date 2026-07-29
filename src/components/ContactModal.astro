@@ -275,7 +275,13 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
         setTimeout(() => {
           openContactModal();
           if (window.location.hash === '#contact') {
-            history.replaceState(null, null, window.location.pathname + window.location.search);
+            /* Preserve ClientRouter's state — null makes a later Back change
+               the URL without swapping the page. See Hero.astro stripHash(). */
+            history.replaceState(
+              history.state,
+              '',
+              window.location.pathname + window.location.search,
+            );
           }
         }, 100);
         window.contactModalHashChecked = true;
