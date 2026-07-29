@@ -20,7 +20,7 @@ export interface TocEntry {
   id: string;
   /** The heading's visible text. */
   text: string;
-  /** 2 or 3 — used to indent h3s under their h2. */
+  /** 2, 3 or 4 — anything past 2 is indented as a sub-entry. */
   level: number;
 }
 
@@ -53,8 +53,25 @@ export function buildToc(bodyHtml: string): { entries: TocEntry[]; html: string 
   const entries: TocEntry[] = [];
   const used = new Set<string>();
 
+  /*
+    ─── WHY THIS MATCHES h4 AS WELL AS h2/h3 ─────────────────────────────────
+    This is the bug that made the Contents rail vanish on real articles while
+    working perfectly on generated ones.
+
+    demoteHeadings() (articles-transform.ts) shifts every imported heading down
+    one level so the page's own <h1> stays unique: h1→h2, h2→h3, **h3→h4**.
+    Substack's editor writes its section headings as <h3>, so by the time a real
+    post reaches here every heading is an <h4> — and this pattern only looked
+    for h2 and h3, so it found nothing and the rail was never rendered.
+
+    The mock generator happens to write <h2>, which demotes to <h3> and matched.
+    So the rail worked on every test article and on none of the real ones.
+
+    Matching the full post-demotion range (h2–h4) means any heading level an
+    author uses in Substack registers, which is the actual requirement.
+  */
   const html = bodyHtml.replace(
-    /<h([23])([^>]*)>([\s\S]*?)<\/h\1>/gi,
+    /<h([234])([^>]*)>([\s\S]*?)<\/h\1>/gi,
     (match, levelRaw: string, attrs: string, inner: string) => {
       const text = plain(inner);
       if (!text) return match;

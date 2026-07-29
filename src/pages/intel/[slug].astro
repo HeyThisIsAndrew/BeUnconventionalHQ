@@ -47,6 +47,7 @@ import {
   topicPath,
 } from '../../lib/articles';
 import { buildToc } from '../../lib/article-toc';
+import { stripCoverImageFromBody } from '../../lib/article-media';
 import logoImage from '../../assets/logo.webp';
 
 export async function getStaticPaths() {
@@ -58,9 +59,20 @@ export async function getStaticPaths() {
 
 const { article } = Astro.props;
 
+/*
+  The cover image is rendered as the hero below, so remove the copy of it the
+  author also placed at the top of the post — otherwise the same photo appears
+  twice. See src/lib/article-media.ts for why the two URLs never match exactly
+  and why this only ever showed up on some posts.
+
+  Runs BEFORE buildToc so the contents rail is built from the body that is
+  actually rendered.
+*/
+const dedupedBody = stripCoverImageFromBody(article.bodyHtml, article.image);
+
 // Headings get ids so the contents rail can anchor-scroll to them; `html` is
 // the body with those ids injected.
-const { entries: tocEntries, html: bodyHtml } = buildToc(article.bodyHtml);
+const { entries: tocEntries, html: bodyHtml } = buildToc(dedupedBody);
 
 const nextArticle = getNextArticle(article.slug);
 const related = getRelatedArticles(article.slug, article.category, 4);
@@ -191,22 +203,28 @@ if (article.contentType === 'Review') {
 
             <h1 class="article-title">{article.title}</h1>
 
+            {/*
+              The cover sits between the headline and the standfirst, above the
+              byline — it is part of the masthead, not a figure dropped into the
+              body. (Most outlets run headline → dek → image so the dek reads as
+              one unit with the headline; this order is a deliberate house call.)
+            */}
+            {article.image && (
+              <img
+                class="article-hero"
+                src={article.image}
+                alt={`Cover image for ${article.title}`}
+                width="1456"
+                height="816"
+                loading="eager"
+                decoding="async"
+              />
+            )}
+
             {article.excerpt && <p class="article-standfirst">{article.excerpt}</p>}
 
             <ArticleAuthorBlock />
           </header>
-
-          {article.image && (
-            <img
-              class="article-hero"
-              src={article.image}
-              alt={`Cover image for ${article.title}`}
-              width="1456"
-              height="816"
-              loading="eager"
-              decoding="async"
-            />
-          )}
 
           {/* Sanitized at sync time against a semantic allowlist — no scripts,
               styles, classes or iframes survive. Heading ids added by buildToc. */}

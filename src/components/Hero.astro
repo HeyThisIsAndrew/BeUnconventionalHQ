@@ -211,6 +211,38 @@ import { site } from '../data/site.js';
 
     let busy = false;
 
+    /*
+      ─── WHY A HISTORY NAVIGATION MUST NEVER ARM ─────────────────────────────
+      Reported bug: scroll down the homepage, click through to another page,
+      press the browser Back button, then scroll — and the curtain played its
+      full 900ms lift from halfway down the page.
+
+      The cause is a race with scroll restoration. The browser restores the
+      reader's old offset AFTER `astro:page-load` fires, and there is no event
+      to wait on. So at the moment we ran, `window.scrollY` still read 0 and
+      `shouldArm()` could not tell "the reader just arrived at the top" apart
+      from "the browser is about to put them back at 2000". It armed, which
+      sets `overflow: hidden` and hides the navbar, and the reader's next
+      scroll gesture was then read as the dismiss trigger.
+
+      Two independent guards, because neither covers every route on its own:
+        1. `navDirection`  — Astro's ClientRouter tells us Back/Forward
+           directly, but only for in-app navigations it handles itself.
+        2. Navigation Timing `back_forward` — covers a real browser-level
+           history load (and bfcache), where no ClientRouter event fires.
+    */
+    let navDirection: string | null = null;
+
+    document.addEventListener('astro:before-preparation', (event) => {
+      navDirection = (event as unknown as { direction?: string }).direction ?? null;
+    });
+
+    function isHistoryNavigation() {
+      if (navDirection === 'back' || navDirection === 'forward') return true;
+      const [entry] = performance.getEntriesByType('navigation');
+      return (entry as PerformanceNavigationTiming | undefined)?.type === 'back_forward';
+    }
+
     function measureLift() {
       const hero = document.querySelector('.hero') as HTMLElement | null;
       /* Measured, not assumed to be 100vh: a mobile address bar makes vh and
@@ -558,14 +590,43 @@ import { site } from '../data/site.js';
 
     // ── Lifecycle ────────────────────────────────────────────────────────
 
+    /**
+     * Arm for a fresh arrival at the homepage, never for a history restore.
+     *
+     * The two frames of confirmation are the safety net behind
+     * isHistoryNavigation(): scroll restoration lands without an event to hook,
+     * so rather than trust a single synchronous read of `scrollY`, this checks
+     * again once the browser has had a chance to apply it. If an offset did
+     * arrive, the reader is mid-page and the curtain must stay up.
+     */
+    function armOnEntry() {
+      if (isHistoryNavigation()) return;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (window.scrollY < 4) arm();
+        });
+      });
+    }
+
     document.addEventListener('astro:page-load', () => {
       disarm();
-      arm();
+      armOnEntry();
     });
 
     /* Never carry splash state across a navigation — the next page has no
        hero to lift and would inherit a transformed wrapper. */
     document.addEventListener('astro:before-swap', disarm);
+
+    /*
+      A bfcache restore replays the DOM exactly as it was left, `splash-armed`
+      included — and a full unload never runs the `astro:before-swap` disarm
+      above. So a reader who left the homepage while the curtain was down comes
+      back to an armed page at whatever offset the browser restored.
+    */
+    window.addEventListener('pageshow', (event) => {
+      if (!event.persisted) return;
+      if (window.scrollY >= 4) disarm();
+    });
 
     /* Keep the measurement honest when the viewport changes under us
        (rotation, mobile address bar, desktop resize). */
@@ -573,6 +634,6 @@ import { site } from '../data/site.js';
       if (root.classList.contains('splash-armed')) measureLift();
     });
 
-    arm();
+    armOnEntry();
   })();
 </script>

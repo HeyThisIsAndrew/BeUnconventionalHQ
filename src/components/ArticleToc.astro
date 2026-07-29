@@ -23,8 +23,14 @@ interface Props {
 
 const { entries } = Astro.props;
 
-/** Fewer headings than this and a contents list is not worth the space. */
-const MIN_ENTRIES = 3;
+/**
+ * Fewer headings than this and a contents list is not worth the space.
+ *
+ * Two, not three: a two-section article still gets a rail, which is what the
+ * owner asked for. It is deliberately not ZERO — see the note in the markup
+ * below on why a heading-less post gets no rail rather than a synthetic one.
+ */
+const MIN_ENTRIES = 2;
 const show = entries.length >= MIN_ENTRIES;
 ---
 
@@ -35,7 +41,7 @@ const show = entries.length >= MIN_ENTRIES;
         <p class="article-rail-head" id="article-toc-head">Contents</p>
         <ul class="article-toc-list">
           {entries.map((entry) => (
-            <li class:list={['article-toc-item', { 'is-sub': entry.level === 3 }]}>
+            <li class:list={['article-toc-item', { 'is-sub': entry.level >= 3 }]}>
               <a href={`#${entry.id}`} data-toc-link={entry.id}>{entry.text}</a>
             </li>
           ))}

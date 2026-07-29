@@ -6,17 +6,19 @@
  * against the real thing.
  */
 import assert from 'node:assert/strict';
-import { parsePostsResponse, planArticleSync } from './sync-articles.mjs';
+import { parsePostsResponse, planArticleSync, buildPostsPageUrl } from './sync-articles.mjs';
 import {
   demoteHeadings,
   sanitizeArticleHtml,
   mapCategory,
   toSlug,
   looksTruncated,
+  toPlainText,
   buildArticleRecord,
   buildPreview,
   mergeSnapshot,
 } from '../src/lib/articles-transform.ts';
+import { imageFingerprint, stripCoverImageFromBody } from '../src/lib/article-media.ts';
 
 let passed = 0;
 let failed = 0;
@@ -420,6 +422,100 @@ test('re-running the same response is idempotent', () => {
   const second = planArticleSync(parsePostsResponse(FIXTURE), first.merged, NOW);
   assert.equal(second.merged.length, first.merged.length);
   assert.equal(second.added, 0);
+});
+
+// ── Pagination ──────────────────────────────────────────────────────────────
+
+const POSTS_BASE = 'https://beunconventionalhq.substack.com/api/v1/posts';
+
+test('page 1 asks for a limit and no offset', () => {
+  assert.equal(buildPostsPageUrl(POSTS_BASE, 0, 50), `${POSTS_BASE}?limit=50`);
+});
+
+test('later pages carry the offset', () => {
+  assert.equal(buildPostsPageUrl(POSTS_BASE, 100, 50), `${POSTS_BASE}?limit=50&offset=100`);
+});
+
+test('an existing query on the base URL is preserved, and limit overridden', () => {
+  const url = buildPostsPageUrl(`${POSTS_BASE}?limit=12&sort=new`, 24, 50);
+  assert.match(url, /sort=new/);
+  assert.match(url, /limit=50/);
+  assert.match(url, /offset=24/);
+  assert.ok(!url.includes('limit=12'), url);
+});
+
+// ── Plain-text extraction across block boundaries ───────────────────────────
+
+test('paragraph boundaries do not weld words together', () => {
+  // The reported symptom: "(kind of)So yeah" with no space.
+  const text = toPlainText('<p>Seth Rogen… RIP (kind of)</p><p>So yeah… he died.</p>');
+  assert.equal(text, 'Seth Rogen… RIP (kind of) So yeah… he died.');
+});
+
+test('a figure caption does not run into the next sentence', () => {
+  const text = toPlainText(
+    '<p>Low expectations.</p><figure><img src="x.jpg"><figcaption>Johnny Cage Fight</figcaption></figure><p>I saw it early.</p>',
+  );
+  assert.equal(text, 'Low expectations. Johnny Cage Fight I saw it early.');
+});
+
+test('<br> is a word boundary too', () => {
+  assert.equal(toPlainText('<p>one<br>two</p>'), 'one two');
+});
+
+// ── Cover-image de-duplication ──────────────────────────────────────────────
+
+const MK_UPLOAD =
+  'https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2Fa5e65013-c01a-4445-b2cc-e706293c9e3e_2048x1152.jpeg';
+const MK_COVER = `https://substackcdn.com/image/fetch/$s_!qfD6!,f_auto,q_auto:good,fl_progressive:steep/${MK_UPLOAD}`;
+const MK_IN_BODY = `https://substackcdn.com/image/fetch/$s_!qfD6!,w_1456,c_limit,f_auto,q_auto:good,fl_progressive:steep/${MK_UPLOAD}`;
+
+test('the same asset fingerprints identically through different CDN transforms', () => {
+  assert.equal(imageFingerprint(MK_COVER), imageFingerprint(MK_IN_BODY));
+  assert.match(imageFingerprint(MK_COVER), /^image:a5e65013/);
+});
+
+test('a YouTube thumbnail fingerprints to its video id', () => {
+  assert.equal(
+    imageFingerprint('https://substackcdn.com/image/youtube/w_728,c_limit/oUT7clLVxhw'),
+    'youtube:oUT7clLVxhw',
+  );
+});
+
+test('different assets do not collide', () => {
+  assert.notEqual(imageFingerprint(MK_COVER), imageFingerprint('.../public/images/other_100x100.jpeg'));
+});
+
+test('the duplicated cover figure is removed, caption and all', () => {
+  const body = `<p>Intro.</p><figure><a href="${MK_COVER}"><img src="${MK_IN_BODY}" alt="Johnny Cage Fight"></a><figcaption>Johnny Cage Fight</figcaption></figure><p>Body.</p>`;
+  const out = stripCoverImageFromBody(body, MK_COVER);
+  assert.equal(out, '<p>Intro.</p><p>Body.</p>');
+  assert.ok(!out.includes('figcaption'), 'caption was stranded');
+});
+
+test('only the first occurrence is removed', () => {
+  const fig = `<figure><img src="${MK_IN_BODY}"></figure>`;
+  const out = stripCoverImageFromBody(`${fig}<p>x</p>${fig}`, MK_COVER);
+  assert.equal(out, `<p>x</p>${fig}`);
+});
+
+test('a body that does not repeat the cover is untouched', () => {
+  // The Boys case: cover is a YouTube thumb, body's embed was sanitized away.
+  const body = '<p>Seth Rogen… RIP</p><h3>Why it worked</h3><p>More.</p>';
+  assert.equal(
+    stripCoverImageFromBody(body, 'https://substackcdn.com/image/youtube/w_728,c_limit/oUT7clLVxhw'),
+    body,
+  );
+});
+
+test('a bare img with no figure wrapper is still removed', () => {
+  const out = stripCoverImageFromBody(`<p>a</p><img src="${MK_IN_BODY}"><p>b</p>`, MK_COVER);
+  assert.equal(out, '<p>a</p><p>b</p>');
+});
+
+test('no cover image means the body is returned unchanged', () => {
+  const body = `<figure><img src="${MK_IN_BODY}"></figure>`;
+  assert.equal(stripCoverImageFromBody(body, ''), body);
 });
 
 if (failed > 0) {

@@ -206,9 +206,25 @@ export function toSlug(link: string, title: string): string {
     .slice(0, 80);
 }
 
+/**
+ * Block elements whose boundary is a word boundary once the tags are gone.
+ *
+ * Stripping `</p><p>` without putting anything in its place welds the last
+ * word of one paragraph to the first word of the next — the real, visible
+ * symptom was a standfirst reading "…RIP 😔 (kind of)So yeah… Seth Rogen"
+ * and "…low expectations.Johnny Cage FightI saw Mortal Kombat 2", where a
+ * figure caption had also been swallowed into the sentence. `sanitize-html`
+ * has no option for this, so the separator is inserted before stripping.
+ */
+const BLOCK_BOUNDARY =
+  /<\/(?:p|h[1-6]|li|ul|ol|blockquote|figure|figcaption|div|pre|tr|td|th|section|article)\s*>/gi;
+
 /** Strip tags/entities down to plain text, for excerpts and alt fallbacks. */
 export function toPlainText(html: string): string {
-  return sanitizeHtml(String(html ?? ''), { allowedTags: [], allowedAttributes: {} })
+  const spaced = String(html ?? '')
+    .replace(BLOCK_BOUNDARY, ' ')
+    .replace(/<br\s*\/?>/gi, ' ');
+  return sanitizeHtml(spaced, { allowedTags: [], allowedAttributes: {} })
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -286,7 +302,18 @@ export interface ArticleRecord {
  * Trimmed at a sentence boundary where possible so it never ends mid-word.
  */
 function buildExcerpt(description: string, body: string, limit = 420): string {
-  const source = description.length >= 160 ? description : body || description;
+  /*
+    The author's own dek wins whenever there is one.
+
+    This used to require `description.length >= 160` before trusting it, which
+    made sense against RSS where `<description>` was often a machine-truncated
+    stub. The posts API gives us `subtitle` — a real, hand-written standfirst —
+    so length is no longer a signal of quality. Under the old rule a deliberate
+    one-line dek ("One job… be everything the first Mortal Kombat was not.")
+    was discarded in favour of scraped body text, which is how a figure caption
+    ended up mid-sentence in the standfirst.
+  */
+  const source = description || body;
   if (source.length <= limit) return source;
 
   const clipped = source.slice(0, limit);

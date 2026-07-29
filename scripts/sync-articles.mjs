@@ -43,8 +43,31 @@ import { withFileLock } from './file-lock.mjs';
 import { buildArticleRecord, mergeSnapshot } from '../src/lib/articles-transform.ts';
 
 const PUBLICATION_URL = process.env.SUBSTACK_PUBLICATION_URL ?? 'https://beunconventionalhq.substack.com';
-const POSTS_API_URL = process.env.SUBSTACK_POSTS_API_URL ?? `${PUBLICATION_URL}/api/v1/posts?limit=50`;
+const POSTS_API_URL = process.env.SUBSTACK_POSTS_API_URL ?? `${PUBLICATION_URL}/api/v1/posts`;
 const SNAPSHOT_FILE = path.join(process.cwd(), 'src', 'data', 'articles.json');
+
+/**
+ * Posts requested per request, and the ceiling on how many requests one sync
+ * will make.
+ *
+ * ─── WHY THIS PAGINATES AT ALL ────────────────────────────────────────────
+ * A single `?limit=50` call is fine until the publication passes 50 posts, and
+ * then it quietly stops being fine in a way that does NOT show up as an error:
+ *
+ *   • the archive itself is safe — mergeSnapshot() never deletes, so posts
+ *     that fall out of the newest-50 window stay in src/data/articles.json and
+ *     their URLs keep resolving;
+ *   • but those older posts stop being UPDATED. Retitle, retag or fix a typo
+ *     in post #60 and the sync can no longer see it, so the site keeps serving
+ *     the stale copy forever;
+ *   • and a cold rebuild (snapshot lost, or a fresh clone syncing before the
+ *     committed snapshot exists) would recover only 50 posts.
+ *
+ * Walking `offset` until the pages run out removes all three. MAX_PAGES is a
+ * runaway guard, not an expected limit.
+ */
+const PAGE_SIZE = Number(process.env.SUBSTACK_PAGE_SIZE ?? 50);
+const MAX_PAGES = 40;
 
 /** Coerce a possibly-singular API response into an array. */
 function asArray(value) {
@@ -160,15 +183,23 @@ function readSnapshot() {
   }
 }
 
+/** Build one page's URL, preserving any query already on the base URL. */
+export function buildPostsPageUrl(base, offset, limit = PAGE_SIZE) {
+  const url = new URL(base);
+  url.searchParams.set('limit', String(limit));
+  if (offset > 0) url.searchParams.set('offset', String(offset));
+  return url.toString();
+}
+
 /**
- * Fetch the publication's posts JSON.
+ * Fetch one page of the publication's posts JSON.
  *
  * Browser-like headers because this is the same route the publication's own
  * front end calls when it loads the page — not a different, unsupported
  * access path, just skipping the HTML render around it.
  */
-async function fetchPosts() {
-  const response = await fetch(POSTS_API_URL, {
+async function fetchPostsPage(url) {
+  const response = await fetch(url, {
     headers: {
       'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -181,16 +212,69 @@ async function fetchPosts() {
   return json;
 }
 
+/** Stable per-post key for duplicate detection across pages. */
+function postKey(post) {
+  return String(post?.id ?? post?.slug ?? post?.canonical_url ?? '');
+}
+
+/**
+ * Walk every page of posts, newest first, and return them all.
+ *
+ * Stops on the first page that is empty, short (fewer than PAGE_SIZE — there
+ * is nothing after it), or contributes no post we have not already seen.
+ *
+ * That last condition is deliberate insurance: `offset` is undocumented like
+ * the rest of this endpoint, and an endpoint that silently IGNORED it would
+ * hand back page 1 over and over. Detecting the repeat degrades this to
+ * exactly the old single-page behaviour instead of looping MAX_PAGES times.
+ */
+async function fetchAllPosts() {
+  const collected = [];
+  const seen = new Set();
+  let pages = 0;
+
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const url = buildPostsPageUrl(POSTS_API_URL, page * PAGE_SIZE);
+    const batch = await fetchPostsPage(url);
+    pages += 1;
+    if (batch.length === 0) break;
+
+    const fresh = batch.filter((post) => {
+      const key = postKey(post);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    collected.push(...fresh);
+
+    if (fresh.length === 0) {
+      if (page > 0) {
+        console.warn(
+          '[articles] ⚠ page ' +
+            (page + 1) +
+            ' repeated posts already seen — treating the archive as complete. ' +
+            '(If the publication has more, the endpoint is ignoring `offset`.)',
+        );
+      }
+      break;
+    }
+    if (batch.length < PAGE_SIZE) break;
+  }
+
+  return { posts: collected, pages };
+}
+
 async function run() {
   const execute = process.argv.includes('--execute');
   const existing = readSnapshot();
 
   console.log(`[articles] Snapshot holds ${existing.length} record(s).`);
-  console.log(`[articles] Fetching ${POSTS_API_URL}`);
+  console.log(`[articles] Fetching ${POSTS_API_URL} (${PAGE_SIZE}/page)`);
 
   let posts;
+  let pages;
   try {
-    posts = await fetchPosts();
+    ({ posts, pages } = await fetchAllPosts());
   } catch (err) {
     // Loud, but never fatal — the snapshot is the source of truth for the build.
     console.error(`[articles] ✗ POSTS FETCH FAILED: ${err.message}`);
@@ -203,7 +287,9 @@ async function run() {
   const rawItems = parsePostsResponse(posts);
   const { merged, added, updated, skipped, parsed } = planArticleSync(rawItems, existing);
 
-  console.log(`[articles] API returned ${posts.length} post(s); ${parsed} parsed cleanly.`);
+  console.log(
+    `[articles] API returned ${posts.length} post(s) across ${pages} page(s); ${parsed} parsed cleanly.`,
+  );
   for (const skip of skipped) {
     console.warn(`[articles] ⚠ skipped item ${skip.index} "${skip.title}": ${skip.reason}`);
   }
