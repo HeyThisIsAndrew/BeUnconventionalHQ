@@ -446,51 +446,12 @@ import { site } from '../data/site.js';
             hero, so with no JS at all it remains correct.
           */
           event.preventDefault();
+          event.stopPropagation(); // Block Astro ClientRouter from seeing the click
 
           if (root.classList.contains('splash-armed')) {
             lift();
-
-            /*
-              ─── CANCEL THE FRAGMENT SCROLL ────────────────────────────────
-              `preventDefault()` above is not enough. Astro's ClientRouter
-              sets the hash itself — verified in the browser: the event reads
-              `defaultPrevented === true` and `#hq-content` still lands — and
-              the browser then SMOOTH-SCROLLS to that section while the
-              curtain is mid-animation. Two motions, so the content overshot
-              and then snapped back:
-
-                scrollY     0 → 506 → 737 → 808 → 844   (fragment scroll)
-                translateY  0 →  -33 →  -96 → … → -844   (curtain)
-                visible     0 → 539 → 833 → … → 1688 → 844
-
-              That is the jarring reveal, and it happened ONLY on click —
-              the scroll-triggered lift never touches the hash, which is why
-              that path was already smooth.
-
-              It only became visible when the CTA started pointing at a real
-              section below the fold. The previous target (`#page-content`)
-              sits at offset 0, so its fragment scroll moved nothing.
-
-              Next frame, not synchronously: the router has not set the hash
-              yet while this handler is still running. `scrollTo` with
-              behavior `auto` also CANCELS the in-flight smooth scroll, which
-              a plain hash strip on its own would not.
-            */
-            /*
-              Animated path only. Under reduced motion lift() does its own
-              rAF that jumps straight to the content, and this one is
-              scheduled after it — so running both would undo that jump and
-              leave the reader sitting on the hero.
-            */
-            if (!reduceMotion()) {
-              requestAnimationFrame(() => {
-                stripHash();
-                const previousBehavior = root.style.scrollBehavior;
-                root.style.scrollBehavior = 'auto';
-                window.scrollTo(0, 0);
-                root.style.scrollBehavior = previousBehavior;
-              });
-            }
+            // Since we stopped propagation, ClientRouter never sees the click and 
+            // never triggers a fragment scroll, so we don't need to try and cancel it.
             return;
           }
 
@@ -515,9 +476,10 @@ import { site } from '../data/site.js';
         const brand = target.closest('#navbar a[href="/"], #navbar a[href="/#"]');
         if (brand && shouldArmLocation() && !root.classList.contains('splash-armed')) {
           event.preventDefault();
+          event.stopPropagation(); // Block Astro ClientRouter
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }
-      });
+      }, { capture: true });
 
       /* Scrolling down past the splash lifts it too — the curtain should never
          be something you can get stuck behind. */

@@ -297,7 +297,7 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
             lockScroll();
 
             // ACTION 2.1 & 2.2: No autoplay, use rel=0 and modestbranding=1
-            modalIframe.src = `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`;
+            modalIframe.src = `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1`;
             modal.classList.add('active');
             modal.setAttribute('aria-hidden', 'false');
             document.getElementById('app-wrapper')?.setAttribute('inert', '');
@@ -605,6 +605,17 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
       // Step 2: Force scroll to top instantly BEFORE the DOM swaps
       document.addEventListener('astro:before-swap', () => {
         window.scrollTo({ left: 0, top: 0, behavior: 'instant' });
+      });
+
+      // GTM SPA Pageview Tracking
+      document.addEventListener('astro:page-load', () => {
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+          event: 'page_view',
+          page_location: window.location.href,
+          page_path: window.location.pathname,
+          page_title: document.title
+        });
       });
     </script>
   </body>
