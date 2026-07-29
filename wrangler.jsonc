@@ -7,6 +7,30 @@
   // serving, which real users pay on every nav click (Lighthouse flagged
   // ~610ms via the "redirects" audit). drop-trailing-slash makes the
   // no-slash form canonical instead, matching what's actually linked.
+  // See public/_routes.json for the /nlsh/* Worker exclusion this reads
+  // alongside — Google tag gateway (a Cloudflare zone feature) rewrites
+  // client requests for www.googletagmanager.com into a first-party path on
+  // this zone (observed in production as /nlsh/...) so ad blockers see a
+  // same-origin request. Nothing in this app requests /nlsh/ directly —
+  // Layout.astro still points at googletagmanager.com — Cloudflare's edge
+  // does the rewrite. The gateway is meant to intercept that rewritten
+  // request AT THE EDGE, before this Worker ever sees it. But Workers Static
+  // Assets intercepts every path by default, so /nlsh/* was reaching Astro
+  // instead, which has no route for it and answered with its 404 HTML page —
+  // that's the "MIME type text/html is not executable" console error: the
+  // browser wanted the gateway's JS and got an error page.
+  //
+  // _routes.json's exclude only controls whether OUR Worker runs for that
+  // path; it hands the request back to Cloudflare's own edge routing, which
+  // is where the gateway's interception is supposed to happen — it cannot
+  // itself verify the gateway is enabled and correctly provisioned on the
+  // zone. If /nlsh/ still 404s after this deploys, the gateway is not active
+  // on the zone (Cloudflare dashboard, not an app code problem).
+  //
+  // "/nlsh/" is the path prefix this publication's own console errors showed,
+  // not a documented stable constant — if Cloudflare ever rotates the
+  // generated prefix, public/_routes.json's pattern needs to match whatever
+  // path actually appears in production requests.
   "assets": {
     "html_handling": "drop-trailing-slash"
   },
