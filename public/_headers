@@ -15,14 +15,27 @@
   # Force HTTPS for one year (site is HTTPS-only on Cloudflare Pages).
   Strict-Transport-Security: max-age=31536000
   # Restrict where content may load from. Allowlist matches the site's real
-  # dependencies: Google Tag Manager/Analytics (scripts + beacons), YouTube
-  # embeds, and https image CDNs (YouTube thumbs, Substack, Unsplash).
+  # dependencies: Google Tag Manager/Analytics (scripts + beacons), the Meta /
+  # TikTok / Clarity marketing pixels, YouTube embeds, and https image CDNs
+  # (YouTube thumbs, Substack, Unsplash).
   # 'unsafe-inline' is required by GTM and the site's inline island scripts.
   # static.cloudflareinsights.com is Cloudflare Web Analytics, which the
   # platform injects into the response itself. It was being blocked by this
   # very policy on every page load, logging a CSP violation to the console and
   # costing a Lighthouse Best Practices point, while collecting nothing.
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://challenges.cloudflare.com https://static.cloudflareinsights.com; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://www.googletagmanager.com https://challenges.cloudflare.com; connect-src 'self' https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://static.cloudflareinsights.com https://cloudflareinsights.com
+  #
+  # Meta (connect.facebook.net), Clarity (*.clarity.ms) and TikTok
+  # (analytics.tiktok.com) were added after all three were found refused in
+  # production — Meta and Clarity outright by this directive, TikTok by CORS
+  # inside the Partytown worker. See issue #63. Note the CSP was only HALF the
+  # problem: a script fetched by a web worker also needs CORS headers the
+  # pixel vendors do not send, so the Partytown resolveUrl in astro.config.mjs
+  # routes them through /api/proxy. Both changes are required; either alone
+  # leaves the pixels dead.
+  #
+  # img-src is already `'self' data: https:`, which covers every pixel beacon
+  # (Meta's /tr, Clarity's collector) without naming hosts.
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://challenges.cloudflare.com https://static.cloudflareinsights.com https://connect.facebook.net https://*.facebook.net https://analytics.tiktok.com https://*.tiktok.com https://*.tiktokcdn.com https://www.clarity.ms https://*.clarity.ms; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://www.googletagmanager.com https://challenges.cloudflare.com https://www.facebook.com; connect-src 'self' https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://static.cloudflareinsights.com https://cloudflareinsights.com https://connect.facebook.net https://*.facebook.com https://analytics.tiktok.com https://*.tiktok.com https://www.clarity.ms https://*.clarity.ms https://c.clarity.ms
 
 # The embedded Sanity Studio (/admin, injected by @sanity/astro's
 # studioBasePath) is an internal tool: tell crawlers to keep it out of search
