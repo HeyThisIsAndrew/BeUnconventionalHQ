@@ -236,5 +236,29 @@
     }
   }
 
-  document.addEventListener('astro:page-load', checkTakeover);
+  /*
+    ─── WHY THIS WAITS FOR IDLE ───────────────────────────────────────────────
+    Fired directly on `astro:page-load`, this request went out while the
+    browser was still working on the first paint, and Lighthouse measured it on
+    the critical path at 2,816ms — the longest chain on the homepage (issue
+    #63). It is an edge route with a CDN cache in front of it, so its latency is
+    not something markup can fix; what it can fix is *when* it is asked for.
+
+    Nothing above the fold depends on the answer. The billboard ships hidden and
+    reveals only when a stream is actually live, so deferring costs a dormant
+    element a moment longer and takes the fetch off the critical path entirely.
+
+    requestIdleCallback with a timeout, not a bare setTimeout: on a busy page it
+    yields until the main thread is free, and the timeout guarantees it still
+    runs on browsers where idle never arrives.
+  */
+  function scheduleTakeoverCheck() {
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => checkTakeover(), { timeout: 4000 });
+    } else {
+      setTimeout(checkTakeover, 1200);
+    }
+  }
+
+  document.addEventListener('astro:page-load', scheduleTakeoverCheck);
 </script>

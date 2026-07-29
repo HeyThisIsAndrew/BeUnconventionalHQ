@@ -11,10 +11,21 @@ export async function GET({ request }) {
   // Basic validation to prevent arbitrary proxying
   try {
     const parsedTarget = new URL(targetUrl);
+    // Must stay in step with `resolveUrl` in astro.config.mjs — Partytown
+    // rewrites those hosts to this route, and anything missing here 403s.
+    // Exact hostnames only, never a suffix match: `endsWith('.tiktok.com')`
+    // would make this an open proxy for any subdomain an attacker controls.
     const allowedHosts = [
       'www.googletagmanager.com',
       'www.google-analytics.com',
-      'analytics.google.com'
+      'analytics.google.com',
+      // Meta Pixel
+      'connect.facebook.net',
+      // TikTok Pixel
+      'analytics.tiktok.com',
+      // Microsoft Clarity
+      'www.clarity.ms',
+      'c.clarity.ms'
     ];
     if (parsedTarget.protocol !== 'https:' || !allowedHosts.includes(parsedTarget.hostname)) {
       return new Response('Forbidden proxy target', { status: 403 });

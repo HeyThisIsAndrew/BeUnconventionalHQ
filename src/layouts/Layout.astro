@@ -158,6 +158,24 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
     <slot name="head" />
     <link rel="icon" type="image/svg+xml" href={`/favicon.svg`} />
     <link rel="icon" type="image/x-icon" href={`/favicon.ico`} />
+    {/*
+      Home-screen / web app tile art (issue #66).
+
+      Cut from src/assets/logo-mark.webp — the PRE-CROPPED mark — not logo.webp.
+      logo.webp is a 2000x2000 square whose artwork fills only ~42% of the
+      height, so scaling it into a 180px tile spent most of those pixels on
+      transparent padding and rendered the wordmark tiny and soft. Same
+      reasoning as ArticleThumb.astro.
+
+      Flattened onto black rather than left transparent: iOS composites an
+      unknown background behind a transparent icon, which on a light wallpaper
+      put a black wordmark on near-white. 180x180 is the size iOS requests;
+      it downsamples cleanly for the smaller slots.
+    */}
+    <link rel="apple-touch-icon" sizes="180x180" href={`/apple-touch-icon.png`} />
+    <meta name="apple-mobile-web-app-title" content={site.name} />
+    <meta name="msapplication-TileColor" content="#000000" />
+    <meta name="msapplication-TileImage" content={`/apple-touch-icon.png`} />
     <title>{title}</title>
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
