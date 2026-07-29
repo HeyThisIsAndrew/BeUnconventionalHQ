@@ -307,10 +307,26 @@ import { site } from '../data/site.js';
      *
      * replaceState rather than pushState: the reveal is not a place in the
      * reader's history, and Back should leave the site, not re-hide the page.
+     *
+     * ─── WHY THE FIRST ARGUMENT IS `history.state`, NOT `null` ───────────────
+     * This is the "Back needs two presses" bug. Passing `null` REPLACES the
+     * history entry's state object — and that object is Astro ClientRouter's
+     * own bookkeeping for the entry. With it gone, the next `popstate` handed
+     * ClientRouter a null state, it declined to treat the event as one of its
+     * navigations, and no swap happened: the URL changed to `/` while the
+     * previous page's DOM stayed on screen. A second Back then landed on an
+     * entry that still had its state and worked, which is exactly why it looked
+     * like "the first press does nothing".
+     *
+     * Reproduced in a headless browser before fixing — after Back #1,
+     * `location.pathname` was `/` while `document.querySelector('.hero')` was
+     * null and the <h1> still read "The Intel".
+     *
+     * Passing the existing state through changes the URL and nothing else.
      */
     function stripHash() {
       if (!window.location.hash) return;
-      history.replaceState(null, '', window.location.pathname + window.location.search);
+      history.replaceState(history.state, '', window.location.pathname + window.location.search);
     }
 
     /** Raise the curtain and leave the page scrolled to the content. */

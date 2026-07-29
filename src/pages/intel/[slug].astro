@@ -77,6 +77,19 @@ const { entries: tocEntries, html: bodyHtml } = buildToc(dedupedBody);
 const nextArticle = getNextArticle(article.slug);
 const related = getRelatedArticles(article.slug, article.category, 4);
 
+/*
+  Fallback anchors for a post with too few headings to index — see the note in
+  ArticleToc.astro. Both ids are rendered below (`#article-top` on the masthead,
+  `#article-related` on the Suggested Reading section), so neither can point at
+  nothing; Suggested Reading is only offered when that section actually renders.
+*/
+const tocLandmarks = [
+  { id: 'article-top', text: 'Top of article', level: 2 },
+  ...(related.length > 0
+    ? [{ id: 'article-related', text: 'Suggested Reading', level: 2 }]
+    : []),
+];
+
 const canonical = new URL(`${ARTICLE_SECTION.path}/${article.slug}`, site.url).toString();
 const logoUrl = new URL(logoImage.src, site.url).toString();
 const heroImage = article.image || logoUrl;
@@ -176,10 +189,10 @@ if (article.contentType === 'Review') {
       {/* Three columns on desktop; the rails drop away below 1200px and the
           reading column becomes the page. */}
       <div class="article-layout">
-        <ArticleToc entries={tocEntries} />
+        <ArticleToc entries={tocEntries} landmarks={tocLandmarks} />
 
         <article class="article-column">
-          <header class="article-header">
+          <header class="article-header" id="article-top">
             {/*
               Two tags, not one: the SUBJECT (Film / TV / Gaming) and the
               KIND (Review / Analysis / Dispatch). A reader scanning wants to
@@ -260,7 +273,7 @@ if (article.contentType === 'Review') {
           </nav>
 
           {related.length > 0 && (
-            <section class="article-related" aria-labelledby="article-related-head">
+            <section class="article-related" id="article-related" aria-labelledby="article-related-head">
               <h2 class="intel-break-title" id="article-related-head">Suggested Reading</h2>
               <ul class="article-related-list">
                 {related.map((item) => (

@@ -350,7 +350,11 @@ const activeSlug = feature?.slug ?? '';
           stepping back through every swap the reader made.
         */
         const slug = item.dataset.slug;
-        if (slug) history.replaceState(null, '', `#${slug}`);
+        /* `history.state`, never null: null replaces ClientRouter's state for
+           this entry, and a later popstate with no state makes it skip the page
+           swap — the URL changes while the old DOM stays. See stripHash() in
+           Hero.astro for the full trace. */
+        if (slug) history.replaceState(history.state, '', `#${slug}`);
 
         feature!.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       });

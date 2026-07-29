@@ -82,7 +82,14 @@ const currentItems = page.data;
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.delete('category');
       newUrl.hash = queryCategory;
-      window.history.replaceState(null, '', newUrl.toString().replace(newUrl.origin, ''));
+      /* Preserve ClientRouter's state for this entry — passing null makes a
+         later Back change the URL without swapping the page. See stripHash()
+         in Hero.astro. */
+      window.history.replaceState(
+        window.history.state,
+        '',
+        newUrl.toString().replace(newUrl.origin, ''),
+      );
     }
 
     const feedGrid = document.getElementById('feed-grid');

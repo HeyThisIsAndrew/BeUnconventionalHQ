@@ -19,28 +19,53 @@ import type { TocEntry } from '../lib/article-toc';
 
 interface Props {
   entries: TocEntry[];
+  /**
+   * Page landmarks to fall back on when the article has too few headings to
+   * index — see the note on MIN_ENTRIES below. These are real anchors that
+   * exist on the page, never invented section names.
+   */
+  landmarks?: TocEntry[];
 }
 
-const { entries } = Astro.props;
+const { entries, landmarks = [] } = Astro.props;
 
 /**
- * Fewer headings than this and a contents list is not worth the space.
+ * Fewer headings than this and the heading list is not worth the space.
  *
- * Two, not three: a two-section article still gets a rail, which is what the
- * owner asked for. It is deliberately not ZERO — see the note in the markup
- * below on why a heading-less post gets no rail rather than a synthetic one.
+ * Two, not three: a two-section article still gets a real rail.
  */
 const MIN_ENTRIES = 2;
-const show = entries.length >= MIN_ENTRIES;
+
+/*
+  ─── WHAT HAPPENS WHEN AN ARTICLE HAS NO HEADINGS ──────────────────────────
+  Some posts genuinely have none — "Mortal Kombat 2 Review" has zero <h*> tags
+  in its Substack source, so there are no sections to index and no code can
+  invent them. The rail used to disappear entirely in that case.
+
+  The owner's call, made twice, is that an empty rail reads as broken. So a
+  post that cannot be indexed by heading falls back to the page landmarks the
+  caller passes in — the top of the article and the Suggested Reading block.
+
+  Recorded honestly, because it was argued: these are navigation aids, not a
+  table of contents, and they duplicate what the scrollbar and End key already
+  do. They are only ever shown when there is no real alternative, and the
+  heading list always wins when one exists. The durable fix is editorial —
+  two section headings in the Substack post turn this back into a real index.
+*/
+const useLandmarks = entries.length < MIN_ENTRIES && landmarks.length >= 2;
+const items = entries.length >= MIN_ENTRIES ? entries : useLandmarks ? landmarks : [];
+const show = items.length >= MIN_ENTRIES;
+/* Landmarks are not sections, so they are labelled as what they are. */
+const heading = useLandmarks ? 'On This Page' : 'Contents';
 ---
 
 {
   show && (
     <aside class="article-rail article-rail-left" aria-labelledby="article-toc-head">
       <nav class="article-toc">
-        <p class="article-rail-head" id="article-toc-head">Contents</p>
+        <p class="article-rail-head" id="article-toc-head">{heading}</p>
         <ul class="article-toc-list">
-          {entries.map((entry) => (
+          {items.map((entry) => (
             <li class:list={['article-toc-item', { 'is-sub': entry.level >= 3 }]}>
               <a href={`#${entry.id}`} data-toc-link={entry.id}>{entry.text}</a>
             </li>

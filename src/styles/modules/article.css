@@ -100,6 +100,41 @@
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+/* ── Anchor landing offset ──────────────────────────────────────────────────
+
+   Reported as "clicking a Contents entry does not scroll to the section". It
+   did scroll — the heading landed at viewport top 0, underneath the 83px
+   `position: fixed` navbar, so the reader saw body copy with the heading they
+   had just clicked hidden behind the chrome. Measured before fixing:
+   `rect.top` 0 against a navbar of 83.
+
+   scroll-margin-top is the one-property fix for this: it offsets where an
+   anchor target comes to rest without moving the element itself. 7rem matches
+   `.article-rail`'s sticky `top`, so a heading lands on the same line as the
+   rail beside it.
+
+   Applied to the ids buildToc() injects and to the two landmark anchors the
+   Contents rail falls back to. */
+.article-body h2[id],
+.article-body h3[id],
+.article-body h4[id],
+#article-top,
+#article-related {
+  scroll-margin-top: 7rem;
+}
+
+/* The navbar is shorter here, and the reading column has less headroom to
+   spare — matches .article-page's own reduced padding-top at this width. */
+@media (max-width: 768px) {
+  .article-body h2[id],
+  .article-body h3[id],
+  .article-body h4[id],
+  #article-top,
+  #article-related {
+    scroll-margin-top: 5.5rem;
+  }
+}
+
 /* ── Body copy ──────────────────────────────────────────────────────────── */
 
 .article-body {
