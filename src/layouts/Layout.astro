@@ -358,8 +358,10 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
           }
         }
 
+        console.log("LAYOUT SCRIPT EXECUTED!");
         // Global Event Delegation for Video Triggers
         if (!window.videoModalSetup) {
+          console.log("Attaching global click listener for video modal");
           document.addEventListener('click', (e) => {
           if (!(e.target instanceof Element)) return;
           const trigger = e.target.closest('[data-action="open-video"]');
@@ -367,6 +369,7 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
           if (trigger) {
             e.preventDefault();
               const videoId = trigger.getAttribute('data-video-id');
+              console.log('TRIGGER CLICKED! Video ID:', videoId);
               if (videoId) openModal(videoId);
             }
 
@@ -609,8 +612,8 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
 
       // GTM SPA Pageview Tracking
       document.addEventListener('astro:page-load', () => {
-        window.dataLayer = window.dataLayer || [];
-        window.dataLayer.push({
+        (window as any).dataLayer = (window as any).dataLayer || [];
+        (window as any).dataLayer.push({
           event: 'page_view',
           page_location: window.location.href,
           page_path: window.location.pathname,

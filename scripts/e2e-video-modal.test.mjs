@@ -28,8 +28,11 @@ async function runTests() {
   try {
     const page = await browser.newPage();
     
+    page.on('console', msg => console.log('BROWSER CONSOLE:', msg.text()));
+    page.on('pageerror', err => console.log('BROWSER ERROR:', err.message));
+
     console.log('Navigating to homepage to test Video Modal...');
-    await page.goto('http://localhost:4321/');
+    await page.goto('http://127.0.0.1:4321/');
     
     // Wait for hydration
     await page.waitForSelector('[data-action="open-video"]', { timeout: 5000 });
@@ -45,19 +48,23 @@ async function runTests() {
     const expectedVideoId = await page.evaluate(el => el.getAttribute('data-video-id'), firstTrigger);
     assert.ok(expectedVideoId, 'Trigger must have a data-video-id attribute');
 
-    console.log(`Clicking trigger with video ID: ${expectedVideoId}`);
-    await firstTrigger.click();
+    // Wait for JS to hydrate before clicking
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
+    console.log(`Clicking trigger with video ID: ${expectedVideoId}`);
+    await page.evaluate(el => el.click(), firstTrigger);
+    
     // Verify modal is visible
     const modalVisible = await page.waitForSelector('#video-modal', { visible: true, timeout: 3000 });
     assert.ok(modalVisible, 'Video modal should become visible');
 
-    // Wait for iframe src to be set
-    const iframeSrc = await page.evaluate(() => {
+    const iframeInfo = await page.evaluate(() => {
       const iframe = document.getElementById('modal-iframe');
-      return iframe ? iframe.src : null;
+      return iframe ? { src: iframe.src, html: iframe.outerHTML, parentHtml: iframe.parentElement.outerHTML } : null;
     });
     
+    console.log(`Iframe info: ${JSON.stringify(iframeInfo, null, 2)}`);
+    const iframeSrc = iframeInfo ? iframeInfo.src : null;
     assert.ok(iframeSrc, 'Iframe should have a src');
     assert.ok(iframeSrc.includes(expectedVideoId), `Iframe src should contain video ID ${expectedVideoId}`);
 
