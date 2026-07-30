@@ -1,21 +1,10 @@
 import { launchTestBrowser } from './e2e-browser.mjs';
-import { spawn } from 'child_process';
+import { startPreviewServer } from './e2e-server.mjs';
 import assert from 'node:assert/strict';
 
 async function runTests() {
   console.log('Starting Astro preview server for Category Modal E2E...');
-  const server = spawn('npm', ['run', 'preview'], { stdio: 'pipe' });
-  await new Promise((resolve, reject) => {
-    let output = '';
-    server.stdout.on('data', (data) => {
-      output += data.toString();
-      if (output.includes('http://localhost:')) resolve();
-    });
-    server.stderr.on('data', (data) => console.error(data.toString()));
-    server.on('error', reject);
-    server.on('exit', (code) => { if (code !== 0) reject(new Error(`Server exited with code ${code}`)); });
-    setTimeout(() => reject(new Error('Server start timed out')), 30000);
-  });
+  const { stop } = await startPreviewServer();
 
   console.log('Server is running. Launching Puppeteer...');
   const browser = await launchTestBrowser();
@@ -104,7 +93,7 @@ async function runTests() {
     exitCode = 1;
   } finally {
     await browser.close();
-    server.kill();
+    stop();
     process.exit(exitCode);
   }
 }
