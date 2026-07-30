@@ -1,56 +1,89 @@
 ---
-// @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
-import { sanityClient } from "sanity:client";
-import { createImageUrlBuilder } from "@sanity/image-url";
+/*
+  The "Coverage Hubs" card — a past event in the /events grid.
+
+  ─── WHY THE MARKUP USES .content-card-* AND NOT TAILWIND UTILITIES ────────
+  This card has always carried the `content-card` class, but it built its
+  insides out of Tailwind utilities (`aspect-video`, `flex flex-col p-6`)
+  instead of the `.content-card-media` / `.content-card-body` structure that
+  class is part of. That was invisible above 560px and broken below it.
+
+  `home-cards.css` turns `.content-card` into a HORIZONTAL row on phones —
+  small thumbnail left, copy right — and then fixes up the pieces:
+  `.content-card-media` gets a 42% column, `.content-card-body` gets tighter
+  padding, `.content-card-meta` and `.content-card-title` shrink, and the CTA
+  is hidden because the whole row is already the link. None of those selectors
+  matched here. So this card got the row layout and NONE of the compensation:
+  a full-width `aspect-video` image took most of the row, the copy was left
+  with a sliver, and the title, meta and CTA piled up in a squeezed column
+  with the arrow spilling out of the card. That is the reported bug.
+
+  Using the real class contract means the responsive behaviour is inherited
+  rather than re-derived, and a future change to the compact card applies here
+  automatically instead of silently skipping this one component.
+*/
 import { parseEventDate } from '../lib/events';
 import { parseVideoId } from '../lib/platforms/youtube';
-
-
-const builder = createImageUrlBuilder(sanityClient);
-const urlFor = (source: any) => {
-  return builder.image(source);
-};
+import { buildImageSet } from '../lib/local-content';
 
 const { event, index = 0 } = Astro.props;
 const trailerId = parseVideoId(event.trailerUrl);
 
-const heroUrl = event.heroImage 
-  ? urlFor(event.heroImage).width(800).height(450).url() 
-  : trailerId 
-    ? `https://img.youtube.com/vi/${trailerId}/hqdefault.jpg`
-    : '/placeholder-event.jpg';
+/*
+  Two sources, chosen per breakpoint by <picture> below — one download either
+  way, decided by the browser before any bytes move.
+
+  - Wide: the 16:9 hero, cover-cropped. The grid is a portfolio wall and the
+    editorial still is what makes it look like one.
+  - Narrow (<=560px): the event LOGO in a small contained square. In the
+    horizontal row a 16:9 hero either crops to a letterbox sliver or eats the
+    width the copy needs, and a hero that is itself logo artwork ends up as a
+    full-bleed wordmark on a card that only needs an identifying mark.
+*/
+const hero = buildImageSet(event.heroImage, { widths: [320, 480, 640, 800], aspect: 16 / 9 });
+const logo = buildImageSet(event.logo, { widths: [96, 160, 240], aspect: 1 });
+
+const heroSrc =
+  hero?.src ?? (trailerId ? `https://img.youtube.com/vi/${trailerId}/hqdefault.jpg` : '/placeholder-event.jpg');
 ---
 
-<a href={`/events/${event.slug.current}`} class="content-card group flex flex-col h-full w-full bg-[var(--color-surface)] border border-white/5 overflow-hidden no-underline transition-all duration-300 ease-out hover:-translate-y-1 hover:border-[var(--color-accent)] hover:shadow-[0_8px_40px_rgba(204,0,0,0.15)] animate-on-scroll" style={`--index: ${index};`}>
-  {/* Cinematic 16:9 Image Wrapper */}
-  <div class="relative w-full aspect-video overflow-hidden bg-[#121212]">
-    <img
-      src={heroUrl}
-      alt={event.title}
-      loading="lazy"
-      decoding="async"
-      class="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
-    />
+<a
+  href={`/events/${event.slug.current}`}
+  class="content-card event-card group animate-on-scroll no-underline"
+  style={`--index: ${index};`}
+>
+  {/* alt="" — the <h3> below names the event, so describing the image again
+      just makes a screen reader say it twice. Same call as
+      UpcomingEventsList's thumbnails. */}
+  <div class="content-card-media" data-media={logo ? 'logo' : 'hero'}>
+    <picture class="event-card-picture">
+      {logo && <source media="(max-width: 560px)" srcset={logo.srcset || logo.src} sizes="76px" />}
+      <img
+        class="content-card-img"
+        src={heroSrc}
+        srcset={hero?.srcset || undefined}
+        sizes="(min-width: 1024px) 380px, (min-width: 561px) 50vw, 76px"
+        width={hero?.width || undefined}
+        height={hero?.height || undefined}
+        alt=""
+        loading="lazy"
+        decoding="async"
+      />
+    </picture>
   </div>
 
-  {/* Content Wrapper */}
-  <div class="flex flex-col flex-grow p-6">
-    {/* Meta Row */}
-    <div class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5">
+  <div class="content-card-body">
+    <div class="content-card-meta">
       <span>Event</span>
-      <span>&bull;</span>
+      <span aria-hidden="true">&bull;</span>
       <span>{parseEventDate(event.startDate)?.year ?? 'Recent'}</span>
     </div>
 
-    {/* Title Row */}
-    <h3 class="text-white font-display text-[1.1rem] font-bold leading-[1.4] mb-4 line-clamp-3">
-      {event.title}
-    </h3>
-    
-    {/* CTA Row - Pushed to bottom via mt-auto */}
-    <span class="mt-auto inline-flex items-center text-[0.75rem] font-semibold text-white uppercase tracking-[0.15em] relative w-fit transition-colors duration-300 group-hover:text-[var(--color-accent)]">
-      View Coverage &nbsp;<span class="text-[var(--color-accent)]">&rarr;</span>
-      <span class="absolute -bottom-1 left-0 w-0 h-px bg-[var(--color-accent)] transition-all duration-300 ease-out group-hover:w-full"></span>
+    <h3 class="content-card-title">{event.title}</h3>
+
+    <span class="watch-now-btn">
+      View Coverage <span class="content-card-arrow" aria-hidden="true">&rarr;</span>
+      <span class="btn-underline"></span>
     </span>
   </div>
 </a>

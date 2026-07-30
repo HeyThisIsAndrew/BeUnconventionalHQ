@@ -32,14 +32,25 @@ export function isSanityImageRef(value: unknown): value is string {
   return typeof value === 'string' && SANITY_IMAGE_REF_RE.test(value);
 }
 
-/** Chainable no-op matching ImageUrlBuilder's fluent API, for plain URLs. */
+/**
+ * Chainable no-op matching ImageUrlBuilder's fluent API, for plain URLs.
+ *
+ * A Proxy rather than a hand-listed set of methods: every transform the real
+ * builder grows (`quality`, `fit`, `dpr`, …) has to be a silent no-op here or
+ * the first caller to use one throws on an externally-hosted image. Listing
+ * them by hand meant that failure was one new call site away — this cannot
+ * drift. Only `url()` is real.
+ */
 function plainUrlBuilder(url: string) {
-  const chain: any = {
-    width: () => chain,
-    height: () => chain,
-    auto: () => chain,
-    url: () => url,
-  };
+  const chain: any = new Proxy(
+    {},
+    {
+      get(_target, prop) {
+        if (prop === 'url' || prop === 'toString') return () => url;
+        return () => chain;
+      },
+    },
+  );
   return chain;
 }
 
@@ -65,6 +76,79 @@ function imageDimensions(source: any): { width: number; height: number; aspectRa
   const height = Number(match[2]);
   if (!width || !height) return null;
   return { width, height, aspectRatio: width / height };
+}
+
+/** Public read of the dimensions encoded in a Sanity asset id. */
+export function getImageDimensions(source: any) {
+  return source?.dimensions ?? imageDimensions(source);
+}
+
+export interface ImageSet {
+  /** Largest candidate — the `src` fallback for browsers ignoring srcset. */
+  src: string;
+  /** `srcset` with width descriptors, or '' for images with no known size. */
+  srcset: string;
+  /** Intrinsic box for the `src`, so the slot can be reserved (CLS). */
+  width: number;
+  height: number;
+}
+
+/**
+ * Build a responsive image set from a Sanity asset, NEVER asking the CDN for
+ * more pixels than the asset actually has.
+ *
+ * ─── WHY THE CAP IS THE POINT ─────────────────────────────────────────────
+ * Sanity happily serves `?w=1600` for a 768px-wide original: it upsamples and
+ * returns a genuinely 1600px-wide, genuinely blurry file. That is strictly
+ * worse than asking for 768 — more bytes, less detail, and the softness reads
+ * as "the site is low quality" rather than "this source image is small". The
+ * events hero shipped exactly that (a 768x432 asset requested at 1600x900).
+ * Capping at the native width cannot make an image sharper, but it stops us
+ * paying to make it worse, and it makes the real ceiling visible in the
+ * markup instead of hiding it behind an interpolated upscale.
+ *
+ * @param source   Sanity image field (object or bare `image-…` id string).
+ * @param widths   Candidate CSS widths, ascending. Values above the asset's
+ *                 native width are dropped and replaced by the native width.
+ * @param aspect   Optional forced aspect ratio (w / h) for a cropped box.
+ *                 Omit to keep the asset's own proportions.
+ */
+export function buildImageSet(
+  source: any,
+  { widths, aspect, quality = 80 }: { widths: number[]; aspect?: number; quality?: number },
+): ImageSet | null {
+  if (!source) return null;
+
+  const native = getImageDimensions(source);
+  const ratio = aspect ?? native?.aspectRatio ?? 16 / 9;
+
+  // No embedded dimensions (an arbitrary external URL) — hand back the plain
+  // URL untouched rather than inventing a srcset the host cannot serve.
+  if (!native) {
+    const src = urlFor(source).url();
+    return src ? { src, srcset: '', width: 0, height: 0 } : null;
+  }
+
+  const capped = Math.min(Math.max(...widths), native.width);
+  const candidates = [...new Set(widths.filter((w) => w < capped).concat(capped))].sort(
+    (a, b) => a - b,
+  );
+
+  const at = (w: number) =>
+    urlFor(source)
+      .width(w)
+      .height(Math.round(w / ratio))
+      .auto('format')
+      .quality(quality)
+      .url();
+
+  const largest = candidates[candidates.length - 1];
+  return {
+    src: at(largest),
+    srcset: candidates.map((w) => `${at(w)} ${w}w`).join(', '),
+    width: largest,
+    height: Math.round(largest / ratio),
+  };
 }
 
 function withDimensions(source: any): any {

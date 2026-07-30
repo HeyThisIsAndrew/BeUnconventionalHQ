@@ -7,33 +7,62 @@
 // nested-interactive markup. When a logo exists it becomes the visible
 // identity and the <h2> is visually hidden (kept for screen readers + SEO);
 // with no logo, the <h2> title shows.
-// @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
-import { sanityClient } from 'sanity:client';
-import { createImageUrlBuilder } from '@sanity/image-url';
 import { formatEventDateRange, formatLocation } from '../lib/events';
+import { buildImageSet } from '../lib/local-content';
 import EventStatusIndicator from './EventStatusIndicator.astro';
-
-const builder = createImageUrlBuilder(sanityClient);
-const urlFor = (source: any) => builder.image(source);
 
 const { event } = Astro.props;
 const slug = event?.slug?.current ?? '';
-const heroUrl = event?.heroImage
-  ? urlFor(event.heroImage).width(1600).height(900).auto('format').url()
-  : '';
-const logoUrl = event?.logo ? urlFor(event.logo).height(200).url() : '';
+
+/*
+  ─── THE HERO IS AN <img>, NOT A CSS BACKGROUND ────────────────────────────
+  It used to be `background-image: url(…)` on `.fe-bg`, requested at a fixed
+  1600x900. Two problems, both visible in production:
+
+  1. A CSS background is invisible to responsive image selection — every
+     device downloaded the same file, and a 390px phone paid for a 1600px
+     one. This is issue #59's diagnosis applied to the events hero.
+  2. 1600x900 is larger than some of the source assets (the D23 hero is
+     768x432), so the CDN was upsampling and the hero rendered soft. See
+     buildImageSet() — the request is now capped at the asset's own size.
+
+  As a real <img> it gets srcset/sizes, `fetchpriority="high"` (it is the LCP
+  element on /events), and an intrinsic width/height so the box is reserved
+  before the bytes arrive.
+*/
+const hero = buildImageSet(event?.heroImage, {
+  widths: [640, 960, 1280, 1600, 1920],
+  aspect: 16 / 9,
+});
+
+/*
+  The logo is drawn at up to 130px tall (`.fe-logo`), so 320px of source
+  covers a 2x display with margin. It was requested at height 200 — under 2x
+  on the very phones most likely to see it.
+*/
+const logo = buildImageSet(event?.logo, { widths: [200, 320, 480, 760] });
 const dateLabel = formatEventDateRange(event?.startDate, event?.endDate);
 const locationLabel = formatLocation(event?.location);
 const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
 ---
 
 <article class="fe-card animate-on-scroll" style={`--brand: ${brandColor};`}>
-  <div
-    class="fe-bg"
-    style={heroUrl
-      ? `background-image: url('${heroUrl}');`
-      : `background-image: linear-gradient(135deg, ${brandColor} 0%, #111 100%);`}>
-  </div>
+  {hero ? (
+    <img
+      class="fe-bg"
+      src={hero.src}
+      srcset={hero.srcset || undefined}
+      sizes="100vw"
+      width={hero.width || undefined}
+      height={hero.height || undefined}
+      alt=""
+      aria-hidden="true"
+      fetchpriority="high"
+      decoding="async"
+    />
+  ) : (
+    <div class="fe-bg" style={`background-image: linear-gradient(135deg, ${brandColor} 0%, #111 100%);`}></div>
+  )}
   <div class="fe-overlay"></div>
 
   <div class="fe-content w-full">
@@ -41,9 +70,19 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
     <div class="flex flex-row items-center gap-4 md:flex-col md:items-start md:gap-0 w-full mb-4">
       {/* Logo */}
       <div class="flex-shrink-0 w-32 sm:w-40 md:w-auto flex flex-row items-end gap-4 md:gap-10 md:mb-4">
-        {logoUrl ? (
+        {logo ? (
           <>
-            <img src={logoUrl} alt={`${event.title} logo`} class="fe-logo w-full h-auto md:w-auto" />
+            <img
+              src={logo.src}
+              srcset={logo.srcset || undefined}
+              sizes="(min-width: 900px) 380px, 160px"
+              width={logo.width || undefined}
+              height={logo.height || undefined}
+              alt={`${event.title} logo`}
+              class="fe-logo w-full h-auto md:w-auto"
+              fetchpriority="high"
+              decoding="async"
+            />
             <h2 class="sr-only">{event.title}</h2>
           </>
         ) : (
@@ -101,36 +140,64 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
   .fe-bg {
     position: absolute;
     inset: 0;
+    /* width/height attributes give the box its intrinsic size for CLS; these
+       make the painted result fill the card regardless of the asset's own
+       proportions, exactly as background-size: cover did. */
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
     z-index: 0;
-    transform: scale(1.05);
+    /*
+      Rests at scale(1) and zooms IN on hover. It used to rest at scale(1.05)
+      and settle to 1, which meant the hero was magnified 5% for the entire
+      life of the page on every touch device — where :hover never fires. On a
+      source that is already smaller than its slot that is 5% of avoidable
+      softness, permanently, for an animation nobody on a phone can trigger.
+      Same amplitude, same effect on desktop, sharp at rest everywhere.
+    */
+    transform: scale(1);
     transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
   .fe-card:hover .fe-bg,
   .fe-card:focus-within .fe-bg {
-    transform: scale(1);
+    transform: scale(1.05);
   }
   .fe-card:hover .fe-logo,
   .fe-card:focus-within .fe-logo {
     transform: scale(1.1);
   }
   
-  /* Strong bottom-weighted overlay for WCAG-legible copy over any hero art. */
+  /*
+    Strong bottom-weighted overlay for WCAG-legible copy over any hero art.
+
+    NO backdrop-filter. It used to carry `blur(3px)` across the WHOLE card,
+    which blurred the hero itself — the top of the frame, where no copy sits
+    and nothing needed to be softened, took the same hit as the text area. On
+    a source that is already smaller than its slot, that was the difference
+    between "small image" and "broken image", and it is the other half of the
+    low-resolution report alongside the CDN upscale. It is also a full-card
+    GPU pass on every scroll frame on mobile.
+
+    The gradient alone does the legibility job: it is what the contrast was
+    measured against at the bottom, where the copy actually is, and the stops
+    below are weighted a little heavier through the middle to make up for the
+    blur's removal.
+  */
   .fe-overlay {
     position: absolute;
     inset: 0;
     z-index: 1;
     background: linear-gradient(
       to top,
-      rgba(0, 0, 0, 0.92) 0%,
-      rgba(0, 0, 0, 0.75) 35%,
-      rgba(0, 0, 0, 0.45) 70%,
+      rgba(0, 0, 0, 0.94) 0%,
+      rgba(0, 0, 0, 0.82) 35%,
+      rgba(0, 0, 0, 0.5) 70%,
       rgba(0, 0, 0, 0.35) 100%
     );
-    -webkit-backdrop-filter: blur(3px);
-    backdrop-filter: blur(3px);
   }
 
   .fe-content {

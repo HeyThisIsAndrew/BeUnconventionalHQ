@@ -543,7 +543,18 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
            branded fallback instead of an <img> when they have no cover, so
            there is nothing to rescue here. */
         if (!img.currentSrc && !img.getAttribute('src')) return;
-        img.parentElement?.setAttribute('data-img-failed', 'true');
+        /*
+          The MEDIA CONTAINER is the target, not literally the parent node. An
+          <img> inside a <picture> (art-directed sources, e.g. EventCard's
+          logo-on-mobile swap) has the <picture> as its parent, and marking
+          that leaves the styled container — `.content-card-media` and friends
+          — unmarked, so the branded panel never paints and the broken image
+          stays visible. <picture> is a grouping element with no box of its
+          own; step through it to the element that actually has one.
+        */
+        const parent = img.parentElement;
+        const container = parent?.tagName === 'PICTURE' ? parent.parentElement : parent;
+        container?.setAttribute('data-img-failed', 'true');
       }
 
       document.addEventListener(
