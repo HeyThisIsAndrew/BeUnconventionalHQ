@@ -32,16 +32,14 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
     {subtitle}
   </p>
   
-  {/* Only loaded when a site key exists. Turnstile's implicit renderer reads
-      data-sitekey off the widget; with the key unset the attribute is omitted,
-      getAttribute returns null, and typeof null === 'object' - which is the
-      literal "expected 'string', got 'object'" TurnstileError that was being
-      logged to the console on every page and costing a Lighthouse Best
-      Practices point. No key, no script, no widget, no error. */}
-  {turnstileSiteKey && (
-    <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-  )}
-  
+  {/* The Turnstile API script itself is loaded ONCE in Layout.astro — see the
+      note there on why per-form loads raced each other. The site-key guard
+      still matters below: Turnstile's implicit renderer reads data-sitekey off
+      the widget, and with the key unset the attribute is omitted,
+      getAttribute returns null, and typeof null === 'object' — the literal
+      "expected 'string', got 'object'" TurnstileError that was logged on every
+      page and cost a Lighthouse Best Practices point. No key, no widget, no
+      error. */}
   <form id="subscribe-form" class="subscribe-form">
     <div class="subscribe-input-group">
       <label for="subscribe-email" class="sr-only">Email address</label>
