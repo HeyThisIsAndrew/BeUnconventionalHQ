@@ -35,7 +35,32 @@
   #
   # img-src is already `'self' data: https:`, which covers every pixel beacon
   # (Meta's /tr, Clarity's collector) without naming hosts.
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://challenges.cloudflare.com https://static.cloudflareinsights.com https://connect.facebook.net https://*.facebook.net https://analytics.tiktok.com https://*.tiktok.com https://*.tiktokcdn.com https://www.clarity.ms https://*.clarity.ms; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://www.googletagmanager.com https://challenges.cloudflare.com https://www.facebook.com; connect-src 'self' https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://static.cloudflareinsights.com https://cloudflareinsights.com https://connect.facebook.net https://*.facebook.com https://analytics.tiktok.com https://*.tiktok.com https://www.clarity.ms https://*.clarity.ms https://c.clarity.ms
+  #
+  # ─── WHY 'unsafe-eval' IS HERE ───────────────────────────────────────────
+  # Partytown requires it, and without it the tag proxying silently fails.
+  #
+  # The @astrojs/partytown integration serialises the `resolveUrl` function
+  # from astro.config.mjs to a STRING (functions cannot survive JSON), and
+  # Partytown rehydrates it inside its worker — this is by design, and the
+  # rehydration is a literal eval. From dist/client/~partytown/partytown-sw.js:
+  #
+  #   T("resolveUrl,resolveSendBeaconRequestParameters,get,set,apply")
+  #     .map((e)=>{ r[e] && (r[e] = new Function("return " + r[e])()) })
+  #
+  # The Partytown sandbox is served from our own origin
+  # (/~partytown/partytown-sandbox-sw.html), so it inherits this policy and its
+  # worker inherits it in turn. With no 'unsafe-eval', that `new Function` is
+  # blocked, `resolveUrl` never becomes callable, and Partytown falls back to
+  # loading each vendor script DIRECTLY cross-origin from the worker — where
+  # the vendors send no CORS headers. That is precisely the production error
+  # observed on TikTok: "Access to fetch at analytics.tiktok.com ... blocked by
+  # CORS policy", reported by /~partytown/partytown-sandbox-sw.html.
+  #
+  # The cost is real but bounded: 'unsafe-inline' is already present above (GTM
+  # and the inline island scripts require it), so script-src was not acting as
+  # a strict XSS barrier before this. If the pixels are ever moved off
+  # Partytown onto the main thread, REMOVE this — it exists only for Partytown.
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://challenges.cloudflare.com https://static.cloudflareinsights.com https://connect.facebook.net https://*.facebook.net https://analytics.tiktok.com https://*.tiktok.com https://*.tiktokcdn.com https://*.tiktokw.us https://www.clarity.ms https://*.clarity.ms; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://www.googletagmanager.com https://challenges.cloudflare.com https://www.facebook.com; connect-src 'self' https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://static.cloudflareinsights.com https://cloudflareinsights.com https://connect.facebook.net https://*.facebook.com https://analytics.tiktok.com https://*.tiktok.com https://*.tiktokw.us https://www.clarity.ms https://*.clarity.ms https://c.clarity.ms
 
 # The embedded Sanity Studio (/admin, injected by @sanity/astro's
 # studioBasePath) is an internal tool: tell crawlers to keep it out of search

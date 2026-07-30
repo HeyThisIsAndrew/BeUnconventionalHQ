@@ -22,7 +22,20 @@ const brands = getFeaturedBrandsLocal();
         <PageTitle as="h1" {...SECTIONS.featured} />
       </header>
 
+      {/*
+        Structural sr-only <h2> so the card <h3>s do not skip a level.
+
+        Each card renders an `.event-card-sr-title` <h3>, and the only heading
+        above them here was the page <h1> — axe flags that h1 -> h3 jump as
+        "Heading elements are not in a sequentially-descending order", which
+        cost this page 5 accessibility points (95). It is the same convention
+        FeedLayout.astro already uses for its card grid, and the site
+        convention recorded in CLAUDE.md: "Card grids under an h1 get a
+        structural sr-only <h2>."
+      */}
       {brands.length > 0 ? (
+        <>
+        <h2 class="sr-only">Featured collections</h2>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 2rem; width: 100%;">
           {brands.map((brand: any, index: number) => {
             const heroUrl = brand.heroImage
@@ -73,6 +86,7 @@ const brands = getFeaturedBrandsLocal();
             );
           })}
         </div>
+        </>
       ) : (
         <p class="featured-empty">Dedicated coverage hubs are coming soon.</p>
       )}

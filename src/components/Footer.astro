@@ -41,11 +41,34 @@ const socialLinks = [
     <div class="footer-brand">
       <div class="mobile-footer-brand-wrapper">
         <a href="/" class="footer-logo footer-logo-wrapper" aria-label={`${site.name} — home`}>
+          {/*
+            ─── WHY `widths` AND `sizes` ARE BOTH PINNED HERE ─────────────────
+            This was the heaviest asset on every page — 77KB, and on mobile the
+            browser was actually choosing a 144KB variant.
+
+            Two separate mistakes stacked. `width={1981}` asked Astro for the
+            full-resolution mark, and with no `sizes` Astro emitted
+            `sizes="(min-width: 600px) 600px, 100vw"`. That `100vw` claims the
+            image spans the whole viewport on a phone, so at a ~2.6x device
+            pixel ratio the browser resolved ~1080 device px and downloaded the
+            1080w file — to paint it into a box that
+            `--footer-logo-size` caps at 300px (220px, then 170px at the
+            narrower breakpoints in footer-brand.css).
+
+            So `sizes` now states the real CSS box at each breakpoint, and
+            `widths` stops generating anything past 600 — 2x the largest
+            display size, which is as crisp as any current phone can show.
+
+            If --footer-logo-size changes in footer-brand.css, update the
+            matching value here; they describe the same box.
+          */}
           <Image
             src={logoImage}
             alt={site.name}
-            width={1981}
-            height={911}
+            width={600}
+            height={276}
+            widths={[170, 220, 300, 440, 600]}
+            sizes="(min-width: 1024px) 300px, (min-width: 768px) 220px, 170px"
             loading="lazy"
             decoding="async"
           />
@@ -101,7 +124,9 @@ const socialLinks = [
 
   <div class="footer-bottom">
     <p class="footer-copy">
-      &copy; {new Date().getFullYear()} Be Unconventional HQ. All rights reserved.
+      &copy; {new Date().getFullYear()} Be Unconventional HQ. All rights reserved. 
+      <span class="footer-separator" style="margin: 0 0.5rem; opacity: 0.5;">|</span>
+      <a href="/privacy" class="footer-privacy-link" style="color: var(--color-white-muted); text-decoration: none; transition: color 0.2s;">Privacy Policy</a>
     </p>
     <p class="footer-credit">Where Nerd Culture Gets Cinematic</p>
   </div>

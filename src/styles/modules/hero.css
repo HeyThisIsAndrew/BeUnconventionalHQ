@@ -13,10 +13,10 @@
      up to 1366px landscape) is wider than the max-width/landscape-height
      checks above, so the backdrop-filter/feTurbulence mitigations below
      were silently skipped on tablets and jitter continued during scroll. */
-  /* iOS Safari Rendering Fix: feTurbulence GPU crash prevention */
-  body::before {
-    display: none !important;
-  }
+  /* The site-wide grain overlay (`body::before`) and the navbar's
+     backdrop-filter are BOTH disabled at these breakpoints, but those rules
+     now live in styles/modules/responsive-mobile.css — they are global chrome
+     and this file only loads on the homepage. See the note there. */
 
   /* Disable heavy filters on mobile to prevent rendering crashes.
      A fixed, full-width backdrop blur has to re-sample and re-blur every
@@ -31,12 +31,10 @@
      disabled on the device and `#navbar` fell back to the base
      `blur(16px)`. Keeping the unprefixed declaration in its own rule stops
      it being folded away. Verify against `dist/` after changing this. */
-  #navbar,
   .hero-overlay {
     -webkit-backdrop-filter: none !important;
   }
 
-  #navbar,
   .hero-overlay {
     backdrop-filter: none !important;
   }
@@ -118,18 +116,29 @@
 .hero-bg-inner {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(
-      120% 90% at 50% 0%,
-      transparent 0%,
-      rgba(9, 9, 11, 0.55) 55%,
-      #0a0a0a 100%
-    ),
-    url('/banner.webp') center / cover no-repeat;
   filter: blur(30px) saturate(1.05) brightness(0.5);
   transform: scale(1.15);
   animation: kenburns 30s ease-in-out infinite alternate;
   will-change: transform;
+}
+
+.hero-bg-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hero-bg-gradient {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    120% 90% at 50% 0%,
+    transparent 0%,
+    rgba(9, 9, 11, 0.55) 55%,
+    #0a0a0a 100%
+  );
 }
 
 /* PORTRAIT TOUCH: no scroll-driven hero effects.

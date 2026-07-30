@@ -14,6 +14,7 @@ import BrandGlow from '../components/BrandGlow.astro';
 import ContactModal from '../components/ContactModal.astro';
 import { site } from '../data/site.js';
 import { ClientRouter } from 'astro:transitions';
+import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
 import logoImage from '../assets/logo.webp';
 
 const {
@@ -218,6 +219,37 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
       </div>
       <Footer />
     </div>
+    {/*
+      ─── TURNSTILE LOADS ONCE, HERE ────────────────────────────────────────
+      It used to be requested by each form that needed it — ContactModal and
+      SubscribeBox as plain `api.js`, NewsletterForm as `api.js?render=explicit`
+      — so any page carrying both (/, /events, /featured) fetched the API twice
+      from two different URLs.
+
+      That is not just a duplicate request. `render=explicit` is a GLOBAL
+      switch: when the API is loaded that way it stops scanning the DOM for
+      implicit `.cf-turnstile` widgets. ContactModal and SubscribeBox both rely
+      on that scan, so whichever tag happened to win the race decided whether
+      the contact form got a widget at all — and with no widget its submit
+      button stays disabled and the form cannot be sent.
+
+      One plain (implicit) load removes the race. `window.turnstile.render()`
+      is still exposed in implicit mode, so NewsletterForm's explicit render
+      keeps working, and its holder is `#newsletter-turnstile` rather than
+      `.cf-turnstile`, so the implicit scan will not double-render it.
+
+      KNOWN, NOT FIXED HERE: the implicit scan only runs once, when the script
+      loads. With ClientRouter, a client-side navigation replaces those forms
+      with fresh unrendered elements, so ContactModal's and SubscribeBox's
+      widgets do not come back until a full reload. NewsletterForm already
+      solves this by rendering explicitly on `astro:page-load`; the other two
+      want the same treatment, which is a change to live bot-check flow that
+      should be verified against real Turnstile rather than assumed.
+    */}
+    {PUBLIC_TURNSTILE_SITE_KEY && (
+      <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    )}
+
     <ContactModal />
     <slot name="modals" />
 
@@ -358,8 +390,10 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
           }
         }
 
+        console.log("LAYOUT SCRIPT EXECUTED!");
         // Global Event Delegation for Video Triggers
         if (!window.videoModalSetup) {
+          console.log("Attaching global click listener for video modal");
           document.addEventListener('click', (e) => {
           if (!(e.target instanceof Element)) return;
           const trigger = e.target.closest('[data-action="open-video"]');
@@ -367,6 +401,7 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
           if (trigger) {
             e.preventDefault();
               const videoId = trigger.getAttribute('data-video-id');
+              console.log('TRIGGER CLICKED! Video ID:', videoId);
               if (videoId) openModal(videoId);
             }
 
@@ -609,8 +644,8 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
 
       // GTM SPA Pageview Tracking
       document.addEventListener('astro:page-load', () => {
-        window.dataLayer = window.dataLayer || [];
-        window.dataLayer.push({
+        (window as any).dataLayer = (window as any).dataLayer || [];
+        (window as any).dataLayer.push({
           event: 'page_view',
           page_location: window.location.href,
           page_path: window.location.pathname,
