@@ -267,9 +267,24 @@ const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
             const slugStr = (typeof event.slug === 'object' && event.slug !== null) ? event.slug.current : (event.slug || '');
             
             return (
+              /*
+                A past event still links to its page.
+
+                `href={isPast ? undefined : ...}` rendered a bare <a> with no
+                href for anything already finished. That is not a link as far
+                as the platform is concerned: Lighthouse failed /events on
+                "Links are not crawlable" (SEO 92), and it also drops out of
+                the tab order, so the item looked clickable but keyboard users
+                could not reach it.
+
+                Nothing was gained by it — the detail page for a past event is
+                still generated and still serves (dist/client/events/sdcc-2026),
+                and past coverage is exactly the archive material worth having
+                indexed. `is-past` already carries the visual de-emphasis.
+              */
               <a
                 key={slugStr}
-                href={isPast ? undefined : `/events/${slugStr}`}
+                href={`/events/${slugStr}`}
                 className={`dc-event-item ${isPast ? 'is-past' : ''}`}
                 data-event-id={slugStr}
                 onMouseEnter={() => setHoveredEventId(slugStr)}
@@ -323,11 +338,14 @@ const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
 
             {calendarSegments.map((segment) => {
               const isHovered = hoveredEventId === segment.slug;
-              const Element = segment.isPast ? 'div' : 'a';
+              /* Same reasoning as the event list above: a past event keeps its
+                 link. This one degraded to a <div>, which is not crawlable or
+                 focusable either — `is-past` carries the visual state instead. */
+              const Element = 'a';
               return (
                 <Element
                   key={segment.id}
-                  href={segment.isPast ? undefined : `/events/${segment.slug}`}
+                  href={`/events/${segment.slug}`}
                   data-event-id={segment.slug}
                   className={`dc-highlighter-bar ${segment.isStart ? 'is-start' : ''} ${
                     segment.isEnd ? 'is-end' : ''

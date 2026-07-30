@@ -31,6 +31,33 @@
  * condition the tests genuinely depend on and cannot drift.
  */
 import { spawn } from 'node:child_process';
+import net from 'node:net';
+
+/**
+ * Is something accepting TCP connections on this port, right now?
+ *
+ * Deliberately a raw socket rather than an HTTP request. In sandboxed CI an
+ * HTTP proxy can sit in front of even loopback traffic and answer for a port
+ * that nothing is bound to — observed here returning `500` for a closed 4321
+ * while `ss` reported no listener at all. Any readiness or orphan check built
+ * on "a failed fetch means nothing is listening" is wrong under that setup, in
+ * the direction that matters: it reports a phantom server. A TCP connect
+ * cannot be answered by an HTTP proxy, so it tells the truth in both
+ * environments.
+ */
+function canConnect(port, timeoutMs = 1200) {
+  return new Promise((resolve) => {
+    const socket = net.connect({ port, host: '127.0.0.1' });
+    const done = (result) => {
+      socket.destroy();
+      resolve(result);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => done(true));
+    socket.once('timeout', () => done(false));
+    socket.once('error', () => done(false));
+  });
+}
 
 /** SIGKILL the tree if a polite stop does not take. */
 function stopServer(server) {
@@ -66,20 +93,12 @@ export async function startPreviewServer({ port = 4321, timeoutMs = 120000 } = {
     first navigation, with nothing pointing at the real cause. Observed exactly
     that while building this helper.
   */
-  try {
-    const stale = await fetch(base, { signal: AbortSignal.timeout(1500) });
-    if (stale.status > 0) {
-      await stale.arrayBuffer().catch(() => {});
-      throw new Error(
-        `Something is already serving ${base} before the preview server started. ` +
-          'That is almost certainly an orphaned wrangler/workerd from a previous run — ' +
-          "the suite would otherwise test against it. Kill it first (e.g. `pkill -f workerd`).",
-      );
-    }
-  } catch (err) {
-    /* A connection error is the expected, healthy case: nothing is listening.
-       Only re-throw the orphan diagnosis above. */
-    if (err instanceof Error && err.message.includes('already serving')) throw err;
+  if (await canConnect(port)) {
+    throw new Error(
+      `Something is already listening on ${base} before the preview server started. ` +
+        'That is almost certainly an orphaned wrangler/workerd from a previous run — ' +
+        "the suite would otherwise test against it. Kill it first (e.g. `pkill -f workerd`).",
+    );
   }
 
   const server = spawn('npm', ['run', 'preview'], {
@@ -100,17 +119,17 @@ export async function startPreviewServer({ port = 4321, timeoutMs = 120000 } = {
     if (server.exitCode !== null) {
       throw new Error(`Preview server exited with code ${server.exitCode}.\n\n${output}`);
     }
-    try {
-      const res = await fetch(base, { signal: AbortSignal.timeout(2000) });
-      /* Any HTTP answer proves the worker is up and routing. A 404 would still
-         be a real response, so it counts as ready — the suites assert on
-         specific pages themselves. */
-      if (res.status > 0) {
+    if (await canConnect(port)) {
+      /* Bound and accepting. Confirm it actually answers HTTP before handing
+         the suite a server that is still wiring itself up. */
+      try {
+        const res = await fetch(base, { signal: AbortSignal.timeout(3000) });
         await res.arrayBuffer().catch(() => {});
-        return { server, base, stop: () => stopServer(server) };
+        if (res.status < 500) return { server, base, stop: () => stopServer(server) };
+        lastError = new Error(`HTTP ${res.status}`);
+      } catch (err) {
+        lastError = err;
       }
-    } catch (err) {
-      lastError = err;
     }
     await new Promise((r) => setTimeout(r, 500));
   }
