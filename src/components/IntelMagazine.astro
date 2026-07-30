@@ -357,7 +357,28 @@ const activeSlug = feature?.slug ?? '';
            Hero.astro for the full trace. */
         if (slug) history.replaceState(history.state, '', `#${slug}`);
 
-        feature!.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        /*
+          ─── `start`, NOT `nearest` ───────────────────────────────────────
+          Reported on landscape mobile: pick an article from a rail and the
+          page lands in the MIDDLE of it rather than at the top of its hero.
+
+          `nearest` scrolls the minimum distance needed to bring the element
+          into view — and when the element is TALLER than the viewport it
+          already spans the whole scrollport, so it counts as "in view" and
+          barely scrolls at all. The reader is left wherever they happened to
+          be, which is somewhere down the body of the article they just
+          picked. Measured at 844x390 after a rail tap: the feature is 1060px
+          tall in a 390px viewport and its top sat at -670px, so the cover
+          image and headline were both off-screen above. Desktop had a milder
+          version of the same thing (-211px); portrait only looked correct
+          because the feature nearly fits an 844px-tall viewport.
+
+          `start` aligns the feature's top edge with the top of the scrollport
+          every time, regardless of how tall it is. The fixed navbar is
+          already accounted for by the global `scroll-padding-top`, so the
+          headline lands just below the chrome rather than under it.
+        */
+        feature!.scrollIntoView({ block: 'start', behavior: 'smooth' });
       });
     });
 
