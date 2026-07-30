@@ -295,3 +295,38 @@
     text-align: center;
   }
 }
+
+/* ── Footer social icons ────────────────────────────────────────────────────
+
+   WHY THESE MOVED HERE
+   They were in styles/modules/home-cards.css, sharing a selector list with
+   `.contact-social-card`. Harmless while every stylesheet was pulled into
+   global.css — but once the sheets were split into per-component imports
+   (commit e1e3bef), home-cards.css only loads on pages that render a
+   <ContentCard>. The footer renders on EVERY page, so these silently stopped
+   applying on /events, /featured, /about and /privacy: the icons dropped to
+   their intrinsic 16px there while / and /intel still showed 20px, and the
+   hover treatment was missing entirely. Measured across pages before fixing.
+
+   Footer.astro imports this file, so footer chrome belongs here where no page
+   can drop it by not using some unrelated component.
+*/
+.footer-social-link svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.footer-social-link:hover {
+  background: transparent !important;
+  border-color: var(--color-accent) !important;
+  color: #fff !important;
+  box-shadow: 0 0 15px rgba(204, 0, 0, 0.3) !important;
+  transform: translateY(-3px) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .footer-social-link:hover {
+    transform: none !important;
+    transition: none !important;
+  }
+}

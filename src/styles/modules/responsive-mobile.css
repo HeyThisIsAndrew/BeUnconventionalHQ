@@ -265,3 +265,43 @@
     margin-right: 0 !important;
   }
 }
+
+/* ── Global mobile/tablet rendering mitigations ─────────────────────────────
+
+   These were in styles/modules/hero.css. That was safe only while every
+   stylesheet was pulled into global.css; once the sheets were split into
+   per-component imports (commit e1e3bef), hero.css began loading ONLY on the
+   homepage — because <Hero /> renders nowhere else. Both mitigations below
+   target site-wide chrome, so every other page silently lost them:
+
+     • `body::before` is the grain overlay, and disabling it here is the
+       documented feTurbulence GPU-crash prevention for iOS Safari. It was
+       still running on /events, /intel, /feed, articles and everything else.
+     • `#navbar` keeps a `backdrop-filter: blur(16px)` from navbar.css. A
+       fixed, full-width backdrop blur re-samples and re-blurs every pixel
+       scrolling beneath it on EVERY frame — the page-wide jank this rule
+       exists to prevent, reintroduced everywhere except the homepage.
+
+   `pointer: coarse` catches iPad, whose CSS width is wider than the
+   max-width/landscape checks, so tablets were skipping these entirely.
+
+   Do NOT collapse the two #navbar rules into one with both the prefixed and
+   unprefixed property: lightningcss treats the pair as redundant and emits
+   only `-webkit-backdrop-filter: none !important`, while modern iOS Safari
+   (15.4+) reads the UNPREFIXED one — so the blur is never actually disabled
+   on the device. Keeping the unprefixed declaration in its own rule stops it
+   being folded away. Verify against `dist/` after changing this.
+*/
+@media (max-width: 768px), (orientation: landscape) and (max-height: 500px), (pointer: coarse) {
+  body::before {
+    display: none !important;
+  }
+
+  #navbar {
+    -webkit-backdrop-filter: none !important;
+  }
+
+  #navbar {
+    backdrop-filter: none !important;
+  }
+}
