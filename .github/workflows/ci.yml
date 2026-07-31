@@ -43,10 +43,26 @@ jobs:
       - name: Lighthouse gate (90%+)
         run: npm run lighthouse
 
+      # include-hidden-files is REQUIRED here, not optional tuning.
+      #
+      # The reports land in `.lighthouse-reports/` — dot-prefixed, so
+      # upload-artifact v4 classifies the whole directory as hidden and skips
+      # it, which it defaults to since v4.4. The step still "succeeds": it
+      # logs `No files were found with the provided path` as a warning and
+      # uploads nothing. Every run of this gate since it was added has
+      # therefore discarded exactly the artifact you need when it goes red —
+      # the per-page JSON naming the failing audits and the console errors
+      # behind them. The failure table in the log gives you four numbers and
+      # no reason for any of them.
+      #
+      # Renaming the directory would work too, but it is gitignored under the
+      # dotted name and the name is load-bearing in scripts/lighthouse-check.mjs;
+      # this is the one-line version.
       - name: Upload Lighthouse reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lighthouse-reports
           path: .lighthouse-reports/
+          include-hidden-files: true
           retention-days: 14
