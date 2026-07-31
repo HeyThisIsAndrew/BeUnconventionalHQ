@@ -31,6 +31,16 @@ interface CalendarSegment {
 }
 
 const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
+  // `isMounted` gates the skeleton, NOT `currentDate`. The server and the
+  // first client render must produce byte-identical HTML, so both render the
+  // skeleton; the effect below then flips this and reveals the real grid.
+  //
+  // The date is seeded in a lazy useState initializer rather than an effect.
+  // On the client that initializer runs during hydration, so the grid is
+  // built from the USER's clock, not the build machine's — which is the
+  // property the old effect-based seeding existed to protect. (It also runs
+  // during SSR, where the resulting grid is simply discarded by the
+  // `!isMounted` return below. Harmless: static build, thrown away.)
   const [isMounted, setIsMounted] = useState(false);
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
@@ -42,6 +52,14 @@ const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
+  // EVERY hook must stay ABOVE the `if (!isMounted)` early return below.
+  //
+  // This useMemo once sat beneath it, so render 1 (skeleton) ran three hooks
+  // and render 2 ran four: "Rendered more hooks than during the previous
+  // render" — React #310. React threw on the first state update and unmounted
+  // the whole tree, so the calendar modal opened to an empty shell with only
+  // its close bar, on every device, in production (hotfix 8314698). Adding a
+  // hook after the return re-breaks it in exactly the same way.
   const { days, calendarSegments, sortedEvents, todayDate } = useMemo(() => {
 
     const firstDay = new Date(year, month, 1);

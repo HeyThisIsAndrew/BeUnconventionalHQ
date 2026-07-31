@@ -24,7 +24,21 @@ jobs:
   test-and-build:
     runs-on: ubuntu-latest
     env:
-      PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA"
+      # Keeps GTM/Partytown out of the Lighthouse run so the gate measures our
+      # own code rather than a third party's variable response time. This one
+      # DOES work from the job env: PUBLIC_DISABLE_ANALYTICS is not in the
+      # astro:env schema, so it resolves through Vite's import.meta.env, which
+      # reads process.env. Verified: gtm.js?id= appears in 29 pages without it
+      # and 0 with it.
+      #
+      # Note the trade-off — the gate no longer catches an analytics-caused
+      # regression. Measure with this off if that is what you are chasing.
+      #
+      # Do NOT add PUBLIC_TURNSTILE_SITE_KEY here expecting it to take effect.
+      # It is in the astro:env schema, and @astrojs/cloudflare resolves those
+      # from wrangler.jsonc `vars`, which outranks process.env — setting it
+      # here leaves the real production key in all 29 pages. It has to go
+      # through `.env`; see the step below.
       PUBLIC_DISABLE_ANALYTICS: "true"
     steps:
       - uses: actions/checkout@v4
@@ -40,10 +54,25 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      - name: Use dummy Turnstile key for testing
-        run: |
-          sed -i 's/0x4AAAAAAD6D_U7FgRw-3m_G/1x00000000000000000000AA/g' wrangler.jsonc || true
-          echo "PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA" >> .env
+      # Without this the Lighthouse gate measures a page the real Turnstile
+      # widget is loading on. `.env` is gitignored, so it does not exist in CI
+      # — but the key does NOT come out undefined, because wrangler.jsonc
+      # carries the production site key in `vars` and @astrojs/cloudflare feeds
+      # that into the build. Cloudflare then answers the real key with roughly
+      # 550 KB of challenge scripts, which on the gate's throttled connection
+      # (1.6 Mbps, 4x CPU) congests the network and pushes the hero LCP out by
+      # seconds. It cost /events and /featured ~7 points each.
+      #
+      # 1x00000000000000000000AA is Cloudflare's documented always-passes test
+      # key: the widget resolves immediately and never fetches the challenge
+      # payload. Writing it to `.env` is what does the work — verified against
+      # the built output, the real key appears in 0 files under dist/client and
+      # the dummy in 29. (A `sed` rewriting wrangler.jsonc lived here too; it
+      # is redundant for the same reason, and was silently keyed to a literal
+      # copy of the production key, so it would have become a no-op the moment
+      # that key was rotated. Removed rather than left as a decoy.)
+      - name: Use dummy Turnstile key for the Lighthouse gate
+        run: echo "PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA" >> .env
 
       - name: Production build
         run: npm run build
