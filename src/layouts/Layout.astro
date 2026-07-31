@@ -653,16 +653,23 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
         window.scrollTo({ left: 0, top: 0, behavior: 'instant' });
       });
 
-      // GTM SPA Pageview Tracking
-      document.addEventListener('astro:page-load', () => {
-        (window as any).dataLayer = (window as any).dataLayer || [];
-        (window as any).dataLayer.push({
-          event: 'page_view',
-          page_location: window.location.href,
-          page_path: window.location.pathname,
-          page_title: document.title
-        });
-      });
+      /*
+        GTM SPA pageview tracking does NOT live here — deliberately.
+
+        This exact `dataLayer.push({ event: 'page_view', ... })` used to be
+        duplicated here AND in the <head> script above (search this file for
+        "GA4 tag in the GTM dashboard triggers on this event"). Two separate
+        `astro:page-load` listeners means every page view pushed 'page_view'
+        TWICE, so every tag keyed off it — GA4, Clarity, Meta, TikTok — fired
+        twice per view. That is the exact "multiple events on page load" bug
+        reported via Meta Pixel Helper on /feed; it was not page-specific, it
+        was firing twice on every page, just not necessarily noticed elsewhere.
+
+        There must be exactly ONE source of this event, so this copy was
+        deleted. See the <head> script for the one that remains — it is also
+        deliberately deferred with requestIdleCallback so it does not compete
+        with initial render, which this duplicate was not doing either.
+      */
     </script>
   </body>
 </html>
