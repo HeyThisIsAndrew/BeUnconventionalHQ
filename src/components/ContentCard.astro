@@ -38,7 +38,19 @@ else primaryLabel = item.category || 'Article';
   the trim a whitespace-only value would still be handed to <img src> and
   produce exactly the broken box this guards against.
 */
-const cardImage = String(item.image ?? item.thumbnail ?? '').trim();
+const rawImage = String(item.image ?? item.thumbnail ?? '').trim();
+let cardImage = rawImage;
+
+if (cardImage) {
+  if (cardImage.includes('i.ytimg.com') && cardImage.includes('maxresdefault.jpg')) {
+    // maxresdefault is 1280x720. hqdefault is 480x360, perfect for cards.
+    cardImage = cardImage.replace('maxresdefault.jpg', 'hqdefault.jpg');
+  } else if (cardImage.includes('substackcdn.com/image/fetch/')) {
+    // Substack uses Cloudinary parameters in the URL. 
+    // Replace w_1200 with w_600 and h_600 with h_338 to reduce payload by ~4x.
+    cardImage = cardImage.replace(/w_\d+/, 'w_600').replace(/h_\d+/, 'h_338');
+  }
+}
 
 const cardHref = item.link || '#';
 const isExternalLink = /^https?:\/\//i.test(cardHref);
