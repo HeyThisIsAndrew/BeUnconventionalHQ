@@ -31,8 +31,13 @@ interface CalendarSegment {
 }
 
 const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
+  const [isMounted, setIsMounted] = useState(false);
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -170,6 +175,47 @@ const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
 
 
   const formatDate = (dateStr: string) => formatEventDateRange(dateStr, undefined, { year: false });
+
+  if (!isMounted) {
+    return (
+      <div className="dc-container dc-skeleton">
+        <aside className="dc-sidebar">
+          <div className="dc-sidebar-header">
+            <div className="dc-sidebar-title">
+              <h2 className="dc-month">Calendar</h2>
+              <span className="dc-year">...</span>
+            </div>
+          </div>
+          <div className="dc-event-list"></div>
+        </aside>
+        <main className="dc-main">
+          <div className="dc-calendar-grid-wrapper">
+            <div className="dc-calendar-header-row">
+              <span>Sun</span>
+              <span>Mon</span>
+              <span>Tue</span>
+              <span>Wed</span>
+              <span>Thu</span>
+              <span>Fri</span>
+              <span>Sat</span>
+            </div>
+            <div className="dc-calendar-grid">
+              {Array.from({ length: 35 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="dc-calendar-cell empty"
+                  style={{
+                    gridColumn: (i % 7) + 1,
+                    gridRow: Math.floor(i / 7) + 1,
+                  }}
+                ></div>
+              ))}
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   // Add global style variables via style prop to circumvent styled-jsx/astro scoping for inline styles
   return (
