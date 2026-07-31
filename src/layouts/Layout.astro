@@ -83,7 +83,8 @@ const structuredData = {
   ],
 };
 
-const gtmId = import.meta.env.PUBLIC_GTM_ID;
+const disableAnalytics = import.meta.env.PUBLIC_DISABLE_ANALYTICS === 'true';
+const gtmId = disableAnalytics ? undefined : import.meta.env.PUBLIC_GTM_ID;
 ---
 
 <html lang="en">
@@ -113,34 +114,36 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
     )}
 
     <!-- Google Tag Manager (Main Thread Navigation) -->
-    <script is:inline>
-      if (typeof window !== 'undefined') {
-        if (!window['setup']) {
-          window['setup'] = true;
-          // ClientRouter swaps pages without full reloads, so this script only
-          // runs once per session. astro:page-load fires on the initial load
-          // AND after every client-side navigation — the GA4 tag in the GTM
-          // dashboard triggers on this event (not "All Pages") to avoid
-          // double-counting the first view.
-          document.addEventListener('astro:page-load', function () {
-            const pushGA = () => {
-              window.dataLayer = window.dataLayer || [];
-              window.dataLayer.push({
-                event: 'page_view',
-                page_location: window.location.href,
-                page_path: window.location.pathname,
-                page_title: document.title,
-              });
-            };
-            if ('requestIdleCallback' in window) {
-              requestIdleCallback(pushGA);
-            } else {
-              setTimeout(pushGA, 200);
-            }
-          });
+    {gtmId && (
+      <script is:inline>
+        if (typeof window !== 'undefined') {
+          if (!window['setup']) {
+            window['setup'] = true;
+            // ClientRouter swaps pages without full reloads, so this script only
+            // runs once per session. astro:page-load fires on the initial load
+            // AND after every client-side navigation — the GA4 tag in the GTM
+            // dashboard triggers on this event (not "All Pages") to avoid
+            // double-counting the first view.
+            document.addEventListener('astro:page-load', function () {
+              const pushGA = () => {
+                window.dataLayer = window.dataLayer || [];
+                window.dataLayer.push({
+                  event: 'page_view',
+                  page_location: window.location.href,
+                  page_path: window.location.pathname,
+                  page_title: document.title,
+                });
+              };
+              if ('requestIdleCallback' in window) {
+                requestIdleCallback(pushGA);
+              } else {
+                setTimeout(pushGA, 200);
+              }
+            });
+          }
         }
-      }
-    </script>
+      </script>
+    )}
 
     <meta
       name="viewport"
