@@ -117,14 +117,59 @@ const { events } = Astro.props;
 </style>
 
 <script>
-  document.addEventListener('astro:page-load', () => {
-    const btns = document.querySelectorAll('.open-full-calendar-btn');
-    const modalElement = document.getElementById('spanning-calendar-modal');
-    const modal = modalElement instanceof HTMLDialogElement ? modalElement : null;
-    const closeBtns = document.querySelectorAll('#spanning-calendar-modal .close-btn');
+  /*
+    ─── WHY NOTHING HERE WAITS FOR `astro:page-load` ─────────────────────────
 
-    const closeModal = () => {
-      if (!modal) return;
+    It used to. Every listener below was registered inside an
+    `astro:page-load` callback, and on a cold cache that made "View Full
+    Calendar" a dead button for the entire first pageview: tap it, nothing
+    happens; refresh, and it works. Reported from production on iOS Safari,
+    reproducible on any first (uncached) load.
+
+    The cause is what `astro:page-load` actually is on an INITIAL load. Astro's
+    ClientRouter fires it from `addEventListener('load', onPageLoad)`
+    (astro/dist/transitions/router.js) — the window `load` event, which does
+    not fire until every subresource on the page has finished: the Sanity CDN
+    hero art, the self-hosted font files, the React island's chunks, GTM via
+    Partytown. On a warm cache that is a few hundred milliseconds and the race
+    is invisible. On a cold mobile connection it is many seconds, and the
+    button is inert for all of them — it is painted and tappable long before
+    its handler exists.
+
+    So the wiring is registered EAGERLY, at module-execution time (module
+    scripts run before DOMContentLoaded, let alone `load`), and delegated from
+    `document` rather than bound to individual nodes. Delegation is what makes
+    that possible: the handler does not need `.open-full-calendar-btn` or the
+    <dialog> to exist yet, only to exist by the time someone clicks. It also
+    means this survives ClientRouter navigations for free — `document` is never
+    swapped — which is what the per-page-load re-binding was buying before.
+
+    The window flag guards against a second copy of this script (the bundle is
+    shared by any page that mounts the modal) double-binding the listeners.
+  */
+  const w = window as any;
+  if (!w.spanningCalendarSetup) {
+    w.spanningCalendarSetup = true;
+
+    /* Looked up per call, never cached: on the first click the dialog may have
+       been parsed only moments ago, and after a client-side navigation the old
+       node is gone. */
+    const getModal = (): HTMLDialogElement | null => {
+      const el = document.getElementById('spanning-calendar-modal');
+      return el instanceof HTMLDialogElement ? el : null;
+    };
+
+    /*
+      The scroll-lock release hangs off the <dialog>'s own `close` event rather
+      than off the close button, because the button is not the only way out.
+      Escape closes a modal dialog natively — no click, no handler — and while
+      the unlock lived in the button's callback that path left `document.body`
+      at `position: fixed` with the page apparently frozen until something else
+      happened to clear it. Every dismissal route ends in a `close` event, so
+      that is the honest place to undo what showModal() locked.
+    */
+    const releaseScrollLock = () => {
+      if (document.body.style.position !== 'fixed') return;
 
       const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
       document.body.style.position = '';
@@ -141,47 +186,63 @@ const { events } = Astro.props;
           document.documentElement.style.scrollBehavior = originalBehavior;
         });
       });
-
-      modal.close();
     };
 
-    if (modal) {
-      btns.forEach(btn => {
-        btn.addEventListener('click', () => {
-          if (document.body.style.position !== 'fixed') {
-            const scrollY = window.scrollY;
-            document.body.style.top = `-${scrollY}px`;
-            document.body.style.position = 'fixed';
-            document.body.style.width = '100%';
-            document.body.style.overflowY = 'scroll';
-          }
-          modal.showModal();
-        });
-      });
+    /* `close` does not bubble, so this delegates in the capture phase. */
+    document.addEventListener(
+      'close',
+      (event) => {
+        if ((event.target as HTMLElement)?.id === 'spanning-calendar-modal') releaseScrollLock();
+      },
+      true,
+    );
+
+    const closeModal = () => {
+      const modal = getModal();
+      if (modal?.open) modal.close();
+      else releaseScrollLock();
+    };
+
+    const openModal = () => {
+      const modal = getModal();
+      if (!modal) return;
+
+      if (document.body.style.position !== 'fixed') {
+        const scrollY = window.scrollY;
+        document.body.style.top = `-${scrollY}px`;
+        document.body.style.position = 'fixed';
+        document.body.style.width = '100%';
+        document.body.style.overflowY = 'scroll';
+      }
+      modal.showModal();
+    };
+
+    document.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest) return;
+
+      if (target.closest('.open-full-calendar-btn')) {
+        openModal();
+        return;
+      }
+
+      const modal = getModal();
+      if (!modal || !modal.open) return;
+
+      if (target.closest('#spanning-calendar-modal .close-btn')) {
+        closeModal();
+        return;
+      }
 
       /*
-        ARCHITECTURAL NOTE: The auto-close behavior on mobile landscape has been
-        removed. Previously, this script would close the modal on short viewports
-        to prevent a broken, scrolling UI. It has been replaced with a CSS-only
-        solution within DesktopCalendar.astro that responsively scales the
-        calendar down to fit the viewport, providing a much better user experience.
+        Backdrop dismissal. A click on the ::backdrop is reported with the
+        <dialog> itself as the target, so the hit test is geometric rather than
+        by element. `event.detail === 0` means the "click" came from the
+        keyboard (Enter/Space on a focused control), which has no meaningful
+        coordinates — those arrive as (0, 0) and would read as outside the
+        dialog, closing it out from under someone activating a calendar link.
       */
-      // const handleOrientationChange = () => {
-      //   if (window.matchMedia('(max-height: 600px) and (orientation: landscape)').matches) {
-      //     closeModal();
-      //   }
-      // };
-      // window.addEventListener('orientationchange', () => { setTimeout(handleOrientationChange, 100); });
-    }
-
-    if (closeBtns.length > 0 && modal) {
-      closeBtns.forEach(btn => btn.addEventListener('click', closeModal));
-    }
-
-    if (modal) {
-      document.addEventListener('astro:before-preparation', closeModal, { once: true });
-
-      modal.addEventListener('click', (event) => {
+      if (target === modal && event.detail > 0) {
         const rect = modal.getBoundingClientRect();
         if (
           event.clientY < rect.top ||
@@ -191,34 +252,47 @@ const { events } = Astro.props;
         ) {
           closeModal();
         }
-      });
+      }
+    });
 
-      // Sync hover across every segment of the same event. Multi-week events
-      // are split into one <a> per row to satisfy the grid, so :hover alone
-      // only lights the piece under the cursor — this bridges them by data id.
-      const setHover = (id: string | null, on: boolean) => {
-        if (!id) return;
-        modal
-          .querySelectorAll(`.dc-highlighter-bar[data-event-id="${CSS.escape(id)}"]`)
-          .forEach((el) => el.classList.toggle('hover-active', on));
-      };
+    /* Scroll-lock cleanup when ClientRouter navigates away with the modal
+       still open (e.g. tapping an event inside the calendar). Calls the
+       release directly as well, because a navigation can swap the <dialog>
+       out from under a lock that no `close` event ever fired for. */
+    document.addEventListener('astro:before-preparation', () => {
+      closeModal();
+      releaseScrollLock();
+    });
 
-      modal.addEventListener('mouseover', (event) => {
-        const bar = (event.target as HTMLElement)?.closest?.('.dc-highlighter-bar');
-        if (bar) setHover(bar.getAttribute('data-event-id'), true);
-      });
-      modal.addEventListener('mouseout', (event) => {
-        const bar = (event.target as HTMLElement)?.closest?.('.dc-highlighter-bar');
-        if (bar) setHover(bar.getAttribute('data-event-id'), false);
-      });
-      modal.addEventListener('focusin', (event) => {
-        const bar = (event.target as HTMLElement)?.closest?.('.dc-highlighter-bar');
-        if (bar) setHover(bar.getAttribute('data-event-id'), true);
-      });
-      modal.addEventListener('focusout', (event) => {
-        const bar = (event.target as HTMLElement)?.closest?.('.dc-highlighter-bar');
-        if (bar) setHover(bar.getAttribute('data-event-id'), false);
-      });
-    }
-  });
+    /*
+      ARCHITECTURAL NOTE: The auto-close behavior on mobile landscape has been
+      removed. Previously, this script would close the modal on short viewports
+      to prevent a broken, scrolling UI. It has been replaced with a CSS-only
+      solution within DesktopCalendar.astro that responsively scales the
+      calendar down to fit the viewport, providing a much better user experience.
+    */
+
+    // Sync hover across every segment of the same event. Multi-week events
+    // are split into one <a> per row to satisfy the grid, so :hover alone
+    // only lights the piece under the cursor — this bridges them by data id.
+    const setHover = (id: string | null, on: boolean) => {
+      const modal = getModal();
+      if (!id || !modal) return;
+      modal
+        .querySelectorAll(`.dc-highlighter-bar[data-event-id="${CSS.escape(id)}"]`)
+        .forEach((el) => el.classList.toggle('hover-active', on));
+    };
+
+    const hoverSync = (on: boolean) => (event: Event) => {
+      const bar = (event.target as HTMLElement)?.closest?.('.dc-highlighter-bar');
+      if (bar && bar.closest('#spanning-calendar-modal')) {
+        setHover(bar.getAttribute('data-event-id'), on);
+      }
+    };
+
+    document.addEventListener('mouseover', hoverSync(true));
+    document.addEventListener('mouseout', hoverSync(false));
+    document.addEventListener('focusin', hoverSync(true));
+    document.addEventListener('focusout', hoverSync(false));
+  }
 </script>
