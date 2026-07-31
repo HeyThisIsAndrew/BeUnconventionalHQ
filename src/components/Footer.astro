@@ -123,10 +123,26 @@ const socialLinks = [
   </div>
 
   <div class="footer-bottom">
+    {/*
+      The pipe separator and the Privacy Policy link used to be part of the
+      same inline run as the copyright line, wrapping wherever the browser's
+      line-breaking algorithm happened to land — which on a narrow portrait
+      phone was mid-link ("Privacy" / "Policy" on two different lines) with a
+      bare "|" stranded at the end of the line above it. Reported from
+      production.
+
+      `.footer-privacy-link` is now its own block below ~480px (see
+      footer.css) rather than an inline continuation, and the separator is a
+      SEPARATE element (`.footer-separator`) that's hidden at that width
+      instead of just going along with the wrap — so the fix is "give Privacy
+      Policy its own line, cleanly" rather than "hope the wrap lands somewhere
+      OK". Desktop and mobile landscape are wide enough that this never
+      engages; both keep the single-line "reserved. | Privacy Policy" layout.
+    */}
     <p class="footer-copy">
-      &copy; {new Date().getFullYear()} Be Unconventional HQ. All rights reserved. 
-      <span class="footer-separator" style="margin: 0 0.5rem; opacity: 0.5;">|</span>
-      <a href="/privacy" class="footer-privacy-link" style="color: var(--color-white-muted); text-decoration: none; transition: color 0.2s;">Privacy Policy</a>
+      &copy; {new Date().getFullYear()} Be Unconventional HQ. All rights reserved.
+      <span class="footer-separator" aria-hidden="true">|</span>
+      <a href="/privacy" class="footer-privacy-link">Privacy Policy</a>
     </p>
     <p class="footer-credit">Where Nerd Culture Gets Cinematic</p>
   </div>

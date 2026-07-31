@@ -161,7 +161,7 @@ const trailerId = parseVideoId(trailerUrl);
           {/* Placed after the trailer in the DOM so mobile stacks copy →
               trailer → button; grid-areas restore the desktop layout. */}
           {event.signUpLink && (
-            <div class="hero-cta">
+            <div class="hero-info-cta">
               <a href={event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn">
                 Event Details
               </a>
@@ -290,7 +290,15 @@ const trailerId = parseVideoId(trailerUrl);
     align-items: center;
     width: 100%;
   }
-  .hero-cta {
+  /*
+    NAMED .hero-info-cta, NOT .hero-cta — deliberately. See the matching note
+    in events/[slug].astro: .hero-cta is already the homepage splash/reveal
+    button's class (hero.css + splash.css), and this page's wrapper reusing
+    that name let splash.css's pulsing-glow/flex rules bleed onto the
+    unrelated "Event Details" CTA here — reported as a stray red outline
+    around the button on every viewport.
+  */
+  .hero-info-cta {
     text-align: center;
   }
 
@@ -316,11 +324,11 @@ const trailerId = parseVideoId(trailerUrl);
     .hero-grid-container.has-trailer .hero-trailer {
       grid-area: trailer;
     }
-    .hero-grid-container.has-trailer .hero-cta {
+    .hero-grid-container.has-trailer .hero-info-cta {
       grid-area: cta;
       align-self: start;
     }
-    .hero-cta {
+    .hero-info-cta {
       text-align: left;
     }
   }

@@ -471,31 +471,39 @@
    brand's shape is (500x618 for one, 8334x3743 for another). This block is the
    difference, and only the difference.
 
-   Selectors are `.content-card.event-card …` (three classes) rather than
-   `.event-card …` on purpose: the rules being refined are `.content-card
-   .content-card-media`, also two classes, so a two-class override would tie on
-   specificity and be decided by source order alone. Winning on specificity
-   means this keeps working if the cascade above is ever reordered.
+   Selectors are `.content-card.event-card …` (two classes), not bare
+   `.event-card`, for two reasons. First, specificity: the rules being
+   refined below are `.content-card .content-card-media`, also two classes,
+   so a single-class override would tie and be decided by source order alone
+   — pairing the classes here means this keeps working even if the cascade
+   above is ever reordered. Second, and the one that actually bit: bare
+   `.event-card` is NOT this component's alone. `events.css` already defines
+   it, unrelated, for the `/featured` brand grid (`background`, `border`, a
+   `translateY` hover, an `.event-image`/`.event-overlay` pair this component
+   has no equivalent of) — the exact "two components, one class name" trap
+   that also produced the `.hero-cta` bug on the event/featured detail pages
+   (see the note there). Both classes together is what keeps this block from
+   ever matching that markup.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.event-card {
+.content-card.event-card {
   text-decoration: none;
   transition:
     transform 0.3s ease,
     border-color 0.3s ease,
     box-shadow 0.3s ease;
 }
-.event-card:hover,
-.event-card:focus-visible {
+.content-card.event-card:hover,
+.content-card.event-card:focus-visible {
   transform: translateY(-4px);
   border-color: var(--color-accent);
   box-shadow: 0 8px 40px rgba(204, 0, 0, 0.15);
 }
-.event-card:hover .content-card-title,
-.event-card:focus-visible .content-card-title {
+.content-card.event-card:hover .content-card-title,
+.content-card.event-card:focus-visible .content-card-title {
   color: var(--color-white);
 }
-.event-card:hover .btn-underline {
+.content-card.event-card:hover .btn-underline {
   width: 100%;
 }
 

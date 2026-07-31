@@ -166,7 +166,7 @@ const trailerId = parseVideoId(trailerUrl);
           {/* Placed after the trailer in the DOM so mobile stacks copy →
               trailer → button; grid-areas restore the desktop layout. */}
           {(event.officialWebsite || event.signUpLink) && (
-            <div class="hero-cta">
+            <div class="hero-info-cta">
               <a href={event.officialWebsite || event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn">
                 Official event information
               </a>
@@ -296,7 +296,31 @@ const trailerId = parseVideoId(trailerUrl);
     align-items: center;
     width: 100%;
   }
-  .hero-cta {
+  /*
+    NAMED .hero-info-cta, NOT .hero-cta — deliberately.
+
+    .hero-cta is already spoken for, sitewide: hero.css and splash.css both
+    style the HOMEPAGE splash/reveal button under that exact class name (the
+    pulsing glow + chevron in Hero.astro's <a class="hero-cta" data-splash-trigger>
+    is intentional, the two files co-styling one element by import order).
+
+    This wrapper reused that name for something unrelated — the "Official
+    event information" link's grid cell — and global.css's cascade doesn't
+    know the two are different components. The result: splash.css's rules
+    (display: inline-flex, overflow: hidden, isolation: isolate, position:
+    relative, plus an animated inset box-shadow on ::after) applied here too,
+    and being a CSS Grid item blockified the inline-flex to flex, which in
+    turn blockified this button's own inline-block to block — hence a
+    full-width button with a faint red pulsing glow around it that nobody
+    asked for. Reported from production as "weird hollow outline" on the
+    Official Event Information button, present on every viewport because the
+    cause was never viewport-specific.
+
+    A unique class name is the actual fix; scoping harder (e.g. an ID) would
+    only patch the symptom on this one page and leave the same trap for the
+    next file that reaches for ".hero-cta" as an obvious name for a hero CTA.
+  */
+  .hero-info-cta {
     text-align: center;
   }
 
@@ -322,11 +346,11 @@ const trailerId = parseVideoId(trailerUrl);
     .hero-grid-container.has-trailer .hero-trailer {
       grid-area: trailer;
     }
-    .hero-grid-container.has-trailer .hero-cta {
+    .hero-grid-container.has-trailer .hero-info-cta {
       grid-area: cta;
       align-self: start;
     }
-    .hero-cta {
+    .hero-info-cta {
       text-align: left;
     }
   }
