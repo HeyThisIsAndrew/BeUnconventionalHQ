@@ -17,17 +17,30 @@ const { events } = Astro.props;
       <button class="close-btn" aria-label="Close Calendar">&times;</button>
     </div>
     {/*
-      MUST stay client:load. DesktopCalendar seeds `currentDate` from a
-      useEffect (deliberately — reading the date during SSR would bake the
-      server's timezone into the grid), so the server renders only the
-      `dc-skeleton` placeholder and the real calendar exists ONLY after
-      hydration. client:idle waits on requestIdleCallback, and this page
-      never reliably goes idle — infinite kenburns animation, scroll
-      handlers, IntersectionObservers, GTM/Partytown — so hydration could be
-      starved indefinitely and the modal opened to an empty shell with just
-      the close bar. That shipped to production (regression from 1694a5c).
-      client:visible is not an alternative either: this lives inside a closed
-      <dialog>, so it is never "visible" and would never hydrate at all.
+      MUST stay client:load, and this is load-bearing rather than a default.
+
+      The real calendar exists ONLY after hydration: DesktopCalendar renders
+      the `dc-skeleton` placeholder until an effect flips `isMounted`, so that
+      the server-rendered HTML and the first client render match exactly (the
+      grid is built from the CLIENT's clock — reading the date during SSR
+      would bake the build machine's timezone into it).
+
+      That makes the hydration trigger the difference between a working
+      calendar and an empty one. client:idle waits on requestIdleCallback and
+      this page never reliably goes idle — infinite kenburns animation, scroll
+      handlers, IntersectionObservers, GTM/Partytown — so hydration can be
+      starved indefinitely and the modal opens to an empty shell with just the
+      close bar. That is not hypothetical: it shipped to production in 1694a5c
+      and was reverted in hotfix 8314698. client:visible is not an alternative
+      either — this lives inside a closed <dialog>, so it is never "visible"
+      and would never hydrate at all.
+
+      (Note for anyone chasing React #310 here: the #310 this component
+      actually suffered was a hooks-order violation — a useMemo sitting below
+      an early return — not a suspense/lazy issue. It is fixed by keeping
+      EVERY hook above the `!isMounted` return in DesktopCalendar, which is
+      independent of the directive used here. Switching to client:idle or
+      client:only does not address it and reintroduces the bug above.)
     */}
     <DesktopCalendar client:load events={events} />
   </div>

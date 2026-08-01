@@ -30,6 +30,23 @@ const {
   prevUrl,
   nextUrl,
   preloadImage,
+  /*
+    Origins to warm before the browser discovers it needs them. Opt-in per
+    page rather than global, because a preconnect to an origin a page never
+    uses is a wasted TCP+TLS handshake — /, /feed and /about reference zero
+    Sanity assets and must not pay for one.
+
+    This exists because /events sat ~10 points below every other page on the
+    Lighthouse gate and its LCP element is a cdn.sanity.io image. Nothing on
+    the site preconnected anywhere, so that image could not even begin
+    downloading until DNS, TCP and TLS had all completed against a cold
+    origin — roughly three round trips, and the gate models a 150ms RTT.
+
+    The correlation across the gate's five pages is hard to read any other
+    way: /events carries 16 Sanity references and scored 88%, /featured
+    carries 4 and scored 95%, and the three pages with none scored 97-98%.
+  */
+  preconnect = [],
 } = Astro.props;
 
 // Self-referential canonical URL: absolute, no trailing slash (except root)
@@ -83,7 +100,8 @@ const structuredData = {
   ],
 };
 
-const gtmId = import.meta.env.PUBLIC_GTM_ID;
+const disableAnalytics = import.meta.env.PUBLIC_DISABLE_ANALYTICS === 'true';
+const gtmId = disableAnalytics ? undefined : import.meta.env.PUBLIC_GTM_ID;
 ---
 
 <html lang="en">
@@ -113,34 +131,36 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
     )}
 
     <!-- Google Tag Manager (Main Thread Navigation) -->
-    <script is:inline>
-      if (typeof window !== 'undefined') {
-        if (!window['setup']) {
-          window['setup'] = true;
-          // ClientRouter swaps pages without full reloads, so this script only
-          // runs once per session. astro:page-load fires on the initial load
-          // AND after every client-side navigation — the GA4 tag in the GTM
-          // dashboard triggers on this event (not "All Pages") to avoid
-          // double-counting the first view.
-          document.addEventListener('astro:page-load', function () {
-            const pushGA = () => {
-              window.dataLayer = window.dataLayer || [];
-              window.dataLayer.push({
-                event: 'page_view',
-                page_location: window.location.href,
-                page_path: window.location.pathname,
-                page_title: document.title,
-              });
-            };
-            if ('requestIdleCallback' in window) {
-              requestIdleCallback(pushGA);
-            } else {
-              setTimeout(pushGA, 200);
-            }
-          });
+    {gtmId && (
+      <script is:inline>
+        if (typeof window !== 'undefined') {
+          if (!window['setup']) {
+            window['setup'] = true;
+            // ClientRouter swaps pages without full reloads, so this script only
+            // runs once per session. astro:page-load fires on the initial load
+            // AND after every client-side navigation — the GA4 tag in the GTM
+            // dashboard triggers on this event (not "All Pages") to avoid
+            // double-counting the first view.
+            document.addEventListener('astro:page-load', function () {
+              const pushGA = () => {
+                window.dataLayer = window.dataLayer || [];
+                window.dataLayer.push({
+                  event: 'page_view',
+                  page_location: window.location.href,
+                  page_path: window.location.pathname,
+                  page_title: document.title,
+                });
+              };
+              if ('requestIdleCallback' in window) {
+                requestIdleCallback(pushGA);
+              } else {
+                setTimeout(pushGA, 200);
+              }
+            });
+          }
         }
-      }
-    </script>
+      </script>
+    )}
 
     <meta
       name="viewport"
@@ -152,6 +172,21 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
     {prevUrl && <link rel="prev" href={prevUrl} />}
     {nextUrl && <link rel="next" href={nextUrl} />}
     {preloadImage && <link rel="preload" as="image" href={preloadImage} fetchpriority="high" />}
+    {/*
+      Both hints, deliberately. `preconnect` opens the connection; the
+      `dns-prefetch` beside it is the fallback for browsers that ignore or
+      drop the preconnect under memory pressure, and it costs a DNS lookup
+      that was going to happen anyway. `crossorigin` is required on the
+      preconnect for image origins — an anonymous-CORS image fetch uses a
+      different connection pool than a credentialed one, so a preconnect
+      without it warms a socket the image request will not reuse.
+    */}
+    {preconnect.map((origin: string) => (
+      <>
+        <link rel="preconnect" href={origin} crossorigin />
+        <link rel="dns-prefetch" href={origin} />
+      </>
+    ))}
     <link rel="canonical" href={url} />
     <script type="application/ld+json" is:inline set:html={JSON.stringify(structuredData)} />
     {/* Per-page <head> additions, e.g. an article's Article JSON-LD. Renders

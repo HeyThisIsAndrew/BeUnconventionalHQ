@@ -23,6 +23,23 @@ on:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
+    env:
+      # Keeps GTM/Partytown out of the Lighthouse run so the gate measures our
+      # own code rather than a third party's variable response time. This one
+      # DOES work from the job env: PUBLIC_DISABLE_ANALYTICS is not in the
+      # astro:env schema, so it resolves through Vite's import.meta.env, which
+      # reads process.env. Verified: gtm.js?id= appears in 29 pages without it
+      # and 0 with it.
+      #
+      # Note the trade-off — the gate no longer catches an analytics-caused
+      # regression. Measure with this off if that is what you are chasing.
+      #
+      # Do NOT add PUBLIC_TURNSTILE_SITE_KEY here expecting it to take effect.
+      # It is in the astro:env schema, and @astrojs/cloudflare resolves those
+      # from wrangler.jsonc `vars`, which outranks process.env — setting it
+      # here leaves the real production key in all 29 pages. It has to go
+      # through `.env`; see the step below.
+      PUBLIC_DISABLE_ANALYTICS: "true"
     steps:
       - uses: actions/checkout@v4
 
@@ -37,16 +54,68 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      # Keep Turnstile off the pages the gate measures.
+      #
+      # An EMPTY value, not a test key. That distinction is the whole point
+      # and it was got wrong once already, so it is worth stating plainly:
+      # Cloudflare's always-passes test key (1x00000000000000000000AA) does
+      # NOT stop the download. The widget still pulls api.js and then ~234 KB
+      # of challenge-platform script, with the test key sitting right there in
+      # the request URLs. Verified from the gate's own diagnostics on /events:
+      #
+      #   104kB  343ms  challenges.cloudflare.com/.../turnstile/f/av0/rch/...
+      #   104kB  187ms  challenges.cloudflare.com/.../turnstile/f/av0/rch/...
+      #    26kB  119ms  challenges.cloudflare.com/turnstile/v0/g/.../api.js
+      #
+      # On a 1.6 Mbps link that is most of a second of bandwidth taken from
+      # the LCP image, and it is why /events sat at 88% with an LCP score of
+      # 55 while every other metric on the page scored 97-100.
+      #
+      # PUBLIC_TURNSTILE_SITE_KEY is optional in the astro:env schema and
+      # every consumer guards on it, so an empty value makes the widget omit
+      # itself and no third-party request happens at all. Confirmed in the
+      # built output: challenges.cloudflare.com appears once on /events with
+      # the test key and zero times with this.
+      #
+      # It has to be written to `.env` rather than the job env: the var is in
+      # the astro:env schema, and @astrojs/cloudflare resolves those from
+      # wrangler.jsonc `vars` — which carries the real production key — and
+      # that outranks process.env. Leaving it unset does not work either, for
+      # the same reason.
+      #
+      # Trade-off, same one already accepted for analytics above: the gate no
+      # longer sees Turnstile's cost. That cost is real for users, and worth
+      # attacking in the app (loading the widget on first form interaction
+      # rather than on every page view) rather than by measuring it here.
+      - name: Keep Turnstile out of the Lighthouse gate
+        run: echo "PUBLIC_TURNSTILE_SITE_KEY=" >> .env
+
       - name: Production build
         run: npm run build
 
       - name: Lighthouse gate (90%+)
         run: npm run lighthouse
 
+      # include-hidden-files is REQUIRED here, not optional tuning.
+      #
+      # The reports land in `.lighthouse-reports/` — dot-prefixed, so
+      # upload-artifact v4 classifies the whole directory as hidden and skips
+      # it, which it defaults to since v4.4. The step still "succeeds": it
+      # logs `No files were found with the provided path` as a warning and
+      # uploads nothing. Every run of this gate since it was added has
+      # therefore discarded exactly the artifact you need when it goes red —
+      # the per-page JSON naming the failing audits and the console errors
+      # behind them. The failure table in the log gives you four numbers and
+      # no reason for any of them.
+      #
+      # Renaming the directory would work too, but it is gitignored under the
+      # dotted name and the name is load-bearing in scripts/lighthouse-check.mjs;
+      # this is the one-line version.
       - name: Upload Lighthouse reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lighthouse-reports
           path: .lighthouse-reports/
+          include-hidden-files: true
           retention-days: 14

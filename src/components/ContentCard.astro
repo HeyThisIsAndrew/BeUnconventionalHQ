@@ -1,5 +1,6 @@
 ---
 import { parseVideoId } from '../lib/platforms/youtube';
+import { getCardImageSources, CARD_IMAGE_SIZES } from '../lib/card-images';
 import { LABELS } from '../data/content.js';
 
 export interface Props {
@@ -31,14 +32,25 @@ else primaryLabel = item.category || 'Article';
 // the href itself: absolute URLs leave the site and keep target/rel, relative
 // ones are internal navigation and must not. Video behaviour is unchanged.
 /*
-  The cover to show, or an empty string if there genuinely isn't one.
+  The cover to show, plus the renditions to offer for it — or empty strings if
+  there genuinely isn't one, which is what makes the `cardImage ?` branch below
+  pick the branded fallback panel instead of an <img>.
 
-  `.trim()` matters: several records carry `image: ''` (or a string of spaces)
-  rather than omitting the field, and `''` is falsy but `' '` is not — without
-  the trim a whitespace-only value would still be handed to <img src> and
-  produce exactly the broken box this guards against.
+  Both the normalising and the sizing live in src/lib/card-images.ts, so they
+  are covered by scripts/card-images.test.mjs rather than eyeballed. That
+  matters more than it sounds: this started as two inline string replaces, and
+  one of them was dead on real data — Substack widths were only ever REPLACED,
+  and 6 of the 11 proxied URLs in articles.json carry no width at all, so those
+  cards silently kept loading the full 2048x1152 upload.
+
+  Still trimmed in there, and still for the original reason: several records
+  carry `image: ''` or a string of spaces rather than omitting the field, and
+  `''` is falsy while `' '` is not — an untrimmed whitespace value would reach
+  <img src> and paint exactly the broken box the fallback exists to avoid.
 */
-const cardImage = String(item.image ?? item.thumbnail ?? '').trim();
+const { src: cardImage, srcset: cardImageSrcset } = getCardImageSources(
+  item.image ?? item.thumbnail,
+);
 
 const cardHref = item.link || '#';
 const isExternalLink = /^https?:\/\//i.test(cardHref);
@@ -102,6 +114,8 @@ const wrapperProps = isPlayable
       <img
         class="content-card-img"
         src={cardImage}
+        srcset={cardImageSrcset || undefined}
+        sizes={cardImageSrcset ? CARD_IMAGE_SIZES : undefined}
         alt={item.title}
         loading="lazy"
         decoding="async"
