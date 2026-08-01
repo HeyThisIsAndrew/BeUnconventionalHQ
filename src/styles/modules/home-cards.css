@@ -306,6 +306,60 @@
     linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-black) 100%);
 }
 
+/*
+   ─── THE BRAND MARK STANDS IN FOR A MISSING COVER ────────────────────────
+
+   Two different holes get the same patch:
+
+     .article-thumb-fallback   the record had no image at all, so the
+                               component rendered this panel instead of an
+                               <img>
+     [data-img-failed]         there WAS an image and it turned out to be
+                               unusable — a dead URL, or a provider
+                               placeholder (see the YouTube check in
+                               Layout.astro's fail-safe)
+
+   The second case is why this is a background rather than markup: those
+   cards have a real <img> in the DOM and no fallback element to fill, so
+   the panel is all there is to draw on.
+
+   `--brand-fallback-mark` is set in Layout.astro from a getImage()-optimised
+   copy of logo-mark.webp. If it is ever unset the shorthand simply paints
+   the gradient, which is the old behaviour — no broken-image icon.
+
+   Sized as `min(44%, 120px)`: proportional so it stays inside the 76px square
+   event tile, capped so it does not balloon on a wide feature panel, and
+   under half the width either way so it reads as a watermark rather than a
+   logo card. Deliberately NOT container-query units — nothing here declares
+   `container-type`, and an invalid `cqh` would drop the whole declaration.
+*/
+.article-thumb-fallback,
+.content-card-media[data-img-failed],
+.intel-rail-thumb[data-img-failed],
+.intel-feature-image[data-img-failed],
+.article-thumb-fallback[data-img-failed] {
+  background-image:
+    var(--brand-fallback-mark, none),
+    radial-gradient(circle at 50% 35%, rgba(204, 0, 0, 0.12) 0%, transparent 62%),
+    linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-black) 100%);
+  background-repeat: no-repeat, no-repeat, no-repeat;
+  background-position: center, center, center;
+  background-size: min(44%, 120px) auto, cover, cover;
+}
+
+/*
+   The title text and the mark would collide in a small tile. Above 560px
+   there is room for both — the mark sits behind, the title over it — but the
+   phone layout gives the media column only 42% of the row, so the mark
+   carries it alone there and the title is left to the card body, where it is
+   already shown in full.
+*/
+@media (max-width: 560px) {
+  .article-thumb-fallback .article-thumb-fallback-title {
+    display: none;
+  }
+}
+
 /* The broken <img> itself must go, or the browser paints its alt text and/or
    a broken-image glyph on top of the panel above. `> picture` covers the
    art-directed case (EventCard), where the <img> is one level deeper. */
