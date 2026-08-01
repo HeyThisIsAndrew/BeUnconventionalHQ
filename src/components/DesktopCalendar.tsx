@@ -31,33 +31,103 @@ interface CalendarSegment {
 }
 
 const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
-  const [currentDate, setCurrentDate] = useState<Date | null>(null);
-  const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
+  /*
+    ─── WHY THE GRID WAITS FOR THE DIALOG TO OPEN ──────────────────────────
 
+    This island is hydrated with client:load, which is not negotiable — the
+    calendar exists only after hydration, and every deferred directive has a
+    way of never arriving here (see SpanningCalendarModal.astro). But
+    client:load used to mean the ENTIRE calendar was built during page load:
+    the month grid memo, 31 day cells, the event list and every positioned
+    segment, all rendered and laid out inside a dialog nobody had opened.
+
+    On the CI gate's throttled profile that was the single largest cost on
+    /events — the page's whole React island doing its most expensive work
+    before the user had expressed any interest in it, and it cost the 90%
+    performance threshold.
+
+    So hydration stays eager and the WORK is what defers. Until the host
+    <dialog> is actually opened this renders the same cheap skeleton it
+    server-rendered, and the memo below short-circuits rather than building a
+    grid nobody can see. Opening the dialog flips the latch and the real
+    calendar renders synchronously — a plain re-render, imperceptible, and by
+    then the page has long finished loading.
+
+    `hasOpened` is a latch rather than a mirror of `dialog.open`: once the
+    calendar has been built there is nothing to gain by tearing it down on
+    close, and keeping it makes reopening instant.
+  */
+  const [hasOpened, setHasOpened] = useState(false);
+  const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
+  const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
+  const hostRef = React.useRef<HTMLDivElement>(null);
+
+  /*
+    The server renders the skeleton (no dialog is open during a static build)
+    and so does the first client render, because `hasOpened` starts false.
+    That byte-identical pair is what keeps hydration silent — it is the same
+    guarantee the old `isMounted` flag provided, folded into the flag that now
+    also gates the work.
+
+    Reading the date in a lazy useState initializer keeps the grid on the
+    USER's clock: on the client that runs during hydration, so the build
+    machine's timezone never leaks into the month.
+  */
   React.useEffect(() => {
-    setCurrentDate(new Date());
+    const dialog = hostRef.current?.closest('dialog');
+
+    // Rendered outside a <dialog> (or the DOM moved): nothing to wait for, so
+    // behave like a plain always-on calendar rather than staying a skeleton.
+    if (!dialog) {
+      setHasOpened(true);
+      return;
+    }
+
+    if (dialog.open) {
+      setHasOpened(true);
+      return;
+    }
+
+    /*
+      <dialog> has no "open" event — `close` exists, `open` does not — so the
+      opening has to be observed rather than listened for. showModal() sets the
+      `open` attribute, which is an attribute mutation and therefore something
+      MutationObserver reports. Watching the attribute (rather than wiring into
+      SpanningCalendarModal's script) keeps this component self-contained and
+      correct no matter which code path opened the dialog: button, keyboard, or
+      a future deep-link that calls showModal() directly.
+    */
+    const observer = new MutationObserver(() => {
+      if (dialog.open) {
+        setHasOpened(true);
+        observer.disconnect();
+      }
+    });
+    observer.observe(dialog, { attributes: true, attributeFilter: ['open'] });
+
+    return () => observer.disconnect();
   }, []);
 
-  // `year`/`month` and the useMemo below MUST be evaluated on every render,
-  // above the `!currentDate` early return. `currentDate` starts null and is
-  // only filled in by the effect above (deliberately — reading the date
-  // during SSR would bake the server's timezone into the grid), so the first
-  // render returns the skeleton early. When the useMemo lived BELOW that
-  // return, render 1 ran three hooks and render 2 ran four, which is
-  // "Rendered more hooks than during the previous render" (React #310). React
-  // threw on the very first state update and unmounted the whole tree, so the
-  // calendar modal opened to an empty shell with only its close bar — on
-  // every device, in production. Keep all hooks above the early return.
-  const year = currentDate ? currentDate.getFullYear() : 0;
-  const month = currentDate ? currentDate.getMonth() : 0;
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
 
+  // EVERY hook must stay ABOVE the `if (!hasOpened)` early return below.
+  //
+  // This useMemo once sat beneath it, so render 1 (skeleton) ran three hooks
+  // and render 2 ran four: "Rendered more hooks than during the previous
+  // render" — React #310. React threw on the first state update and unmounted
+  // the whole tree, so the calendar modal opened to an empty shell with only
+  // its close bar, on every device, in production (hotfix 8314698). Adding a
+  // hook after the return re-breaks it in exactly the same way.
+  //
+  // Hence the guard INSIDE the memo rather than around it: the hook still runs
+  // on every render, it just declines to do the expensive part on the renders
+  // whose result the early return would throw away.
   const { days, calendarSegments, sortedEvents, todayDate } = useMemo(() => {
-    // Pre-hydration render: no date yet, and the result is discarded by the
-    // early return below. Bail rather than build a grid for year 0.
-    if (!currentDate) {
-      // todayDate stays a real Date rather than null so the consuming code
-      // below (which only ever runs once currentDate is set) keeps its
-      // non-nullable type; this value is never read.
+    if (!hasOpened) {
+      // todayDate stays a real Date rather than null so the code below keeps
+      // its non-nullable type. It is never read: the only renders that reach
+      // here are the ones the early return catches.
       return { days: [], calendarSegments: [], sortedEvents: [], todayDate: new Date() };
     }
 
@@ -175,11 +245,27 @@ const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
       sortedEvents: _sortedEvents,
       todayDate: _todayDate
     };
-  }, [events, year, month, currentDate]);
+  }, [events, year, month, currentDate, hasOpened]);
 
-  if (!currentDate) {
+
+  const handlePrevMonth = () => {
+    setCurrentDate(new Date(year, month - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(year, month + 1, 1));
+  };
+
+  const realToday = new Date();
+  const isCurrentOrPastMonth = year < realToday.getFullYear() || (year === realToday.getFullYear() && month <= realToday.getMonth());
+
+
+
+  const formatDate = (dateStr: string) => formatEventDateRange(dateStr, undefined, { year: false });
+
+  if (!hasOpened) {
     return (
-      <div className="dc-container dc-skeleton">
+      <div className="dc-container dc-skeleton" ref={hostRef}>
         <aside className="dc-sidebar">
           <div className="dc-sidebar-header">
             <div className="dc-sidebar-title">
@@ -203,9 +289,12 @@ const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
             <div className="dc-calendar-grid">
               {Array.from({ length: 35 }).map((_, i) => (
                 <div
-                  key={`skel-${i}`}
+                  key={i}
                   className="dc-calendar-cell empty"
-                  style={{ gridColumn: (i % 7) + 1, gridRow: Math.floor(i / 7) + 1 }}
+                  style={{
+                    gridColumn: (i % 7) + 1,
+                    gridRow: Math.floor(i / 7) + 1,
+                  }}
                 ></div>
               ))}
             </div>
@@ -214,25 +303,10 @@ const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
       </div>
     );
   }
-  
-  const handlePrevMonth = () => {
-    setCurrentDate(new Date(year, month - 1, 1));
-  };
-
-  const handleNextMonth = () => {
-    setCurrentDate(new Date(year, month + 1, 1));
-  };
-
-  const realToday = new Date();
-  const isCurrentOrPastMonth = year < realToday.getFullYear() || (year === realToday.getFullYear() && month <= realToday.getMonth());
-
-
-
-  const formatDate = (dateStr: string) => formatEventDateRange(dateStr, undefined, { year: false });
 
   // Add global style variables via style prop to circumvent styled-jsx/astro scoping for inline styles
   return (
-    <div className="dc-container">
+    <div className="dc-container" ref={hostRef}>
       <aside className="dc-sidebar">
         <div className="dc-sidebar-header">
           <div className="dc-sidebar-title">

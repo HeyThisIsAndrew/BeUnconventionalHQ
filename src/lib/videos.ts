@@ -1,3 +1,4 @@
+import { PUBLISH_TIME_ZONE } from './publish-timezone.js';
 /**
  * Video read-path: Sanity `video` documents → the shape pages already render.
  *
@@ -81,7 +82,7 @@ export function mapSanityVideo(doc: any, { categorize }: MapOptions = {}): Unifi
   const date =
     published && !Number.isNaN(published.getTime())
       ? // Same long form the legacy cache stores ("July 12, 2026").
-        published.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric', year: 'numeric' })
+        published.toLocaleDateString('en-US', { timeZone: PUBLISH_TIME_ZONE, month: 'long', day: 'numeric', year: 'numeric' })
       : '';
 
   const effectiveType = doc.manualTypeOverride || doc._type || 'video';

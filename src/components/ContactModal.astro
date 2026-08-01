@@ -267,22 +267,20 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
         form.dataset.modalBound = 'true';
       }
 
-      // Auto-open if linked directly via hash
-      if (window.location.hash === '#contact' && !window.contactModalHashChecked) {
-        setTimeout(() => {
-          openContactModal();
-          if (window.location.hash === '#contact') {
-            /* Preserve ClientRouter's state — null makes a later Back change
-               the URL without swapping the page. See Hero.astro stripHash(). */
-            history.replaceState(
-              history.state,
-              '',
-              window.location.pathname + window.location.search,
-            );
-          }
-        }, 100);
-        window.contactModalHashChecked = true;
-      }
+      /*
+        FORM DISABLED — the press kit (collaborations/press-kit.astro) now
+        gives press/collaborators a direct mailto: link instead. No page ships
+        a `[data-modal-trigger="contact"]` element any more (verified in
+        scripts/e2e-contact.test.mjs), so this was already unreachable through
+        normal navigation. This hash auto-open was the one path still left: a
+        stray `#contact` link (bookmark, old share, external site) would still
+        pop the modal open. Disabled below rather than deleted.
+
+        TO RE-ENABLE: restore the block this comment replaces (see git
+        history for this file) and add a `data-modal-trigger="contact"` link
+        somewhere. Nothing else needs to change — the form, validation, and
+        submit handling above are untouched and still fully wired.
+      */
     });
 
   })();

@@ -1,3 +1,4 @@
+import { PUBLISH_TIME_ZONE } from '../lib/publish-timezone.js';
 import { XMLParser } from 'fast-xml-parser';
 
 export const CONTENT_TTL_SECONDS = 60 * 30;
@@ -102,7 +103,7 @@ function formatDate(value) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-US', {
-    timeZone: 'UTC',
+    timeZone: PUBLISH_TIME_ZONE,
     month: 'long',
     day: 'numeric',
     year: 'numeric',

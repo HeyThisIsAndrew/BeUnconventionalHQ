@@ -8,6 +8,7 @@
  * Every function here is pure so the whole pipeline is testable offline
  * against a fixture feed, with no network.
  */
+import { PUBLISH_TIME_ZONE } from './publish-timezone.js';
 import sanitizeHtml from 'sanitize-html';
 import { CATEGORIES } from '../data/constants.js';
 
@@ -420,7 +421,7 @@ function formatDisplayDate(iso: string): string {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
-    timeZone: 'UTC',
+    timeZone: PUBLISH_TIME_ZONE,
   });
 }
 

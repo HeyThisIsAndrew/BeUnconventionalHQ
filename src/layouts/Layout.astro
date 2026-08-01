@@ -16,6 +16,8 @@ import { site } from '../data/site.js';
 import { ClientRouter } from 'astro:transitions';
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
 import logoImage from '../assets/logo.webp';
+import logoMark from '../assets/logo-mark.webp';
+import { getImage } from 'astro:assets';
 
 const {
   title = site.name,
@@ -30,6 +32,23 @@ const {
   prevUrl,
   nextUrl,
   preloadImage,
+  /*
+    Origins to warm before the browser discovers it needs them. Opt-in per
+    page rather than global, because a preconnect to an origin a page never
+    uses is a wasted TCP+TLS handshake — /, /feed and /about reference zero
+    Sanity assets and must not pay for one.
+
+    This exists because /events sat ~10 points below every other page on the
+    Lighthouse gate and its LCP element is a cdn.sanity.io image. Nothing on
+    the site preconnected anywhere, so that image could not even begin
+    downloading until DNS, TCP and TLS had all completed against a cold
+    origin — roughly three round trips, and the gate models a 150ms RTT.
+
+    The correlation across the gate's five pages is hard to read any other
+    way: /events carries 16 Sanity references and scored 88%, /featured
+    carries 4 and scored 95%, and the three pages with none scored 97-98%.
+  */
+  preconnect = [],
 } = Astro.props;
 
 // Self-referential canonical URL: absolute, no trailing slash (except root)
@@ -83,7 +102,33 @@ const structuredData = {
   ],
 };
 
-const gtmId = import.meta.env.PUBLIC_GTM_ID;
+const disableAnalytics = import.meta.env.PUBLIC_DISABLE_ANALYTICS === 'true';
+const gtmId = disableAnalytics ? undefined : import.meta.env.PUBLIC_GTM_ID;
+
+/*
+  The brand mark used behind any card that has no usable cover image.
+
+  Put through getImage() rather than referenced straight from src/assets:
+  logo-mark.webp is 414 KB at source, and a raw `url()` in a stylesheet is
+  copied by the bundler WITHOUT being resized. It is drawn at ~120px, so it
+  is requested here at 240 (2x) and comes out a few KB.
+
+  Exposed as a custom property so the stylesheets can use it in a
+  `background-image`. That keeps the fallback CSS-only: it has to work both
+  for cards that never had an image (no <img> in the DOM at all) and for
+  cards whose image turned out to be unusable (marked `data-img-failed` by
+  the fail-safe in this file), and only a background covers both without
+  injecting an element into every card on the page.
+
+  One URL, so it is fetched once and cached — and only ever fetched at all if
+  some card on the page actually falls back.
+*/
+const fallbackMark = await getImage({
+  src: logoMark,
+  width: 240,
+  format: 'webp',
+  quality: 70,
+});
 ---
 
 <html lang="en">
@@ -94,6 +139,13 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
         which put it at byte 1536: ClientRouter alone emits two meta tags plus
         a module script before anything else got a chance to render. */}
     <meta charset="utf-8" />
+    {/*
+      The hashed URL of the fallback brand mark, handed to CSS. A stylesheet
+      cannot read Astro frontmatter, and the filename carries a content hash,
+      so a custom property is how the two meet. Declaring it does not fetch
+      anything — only a rule that actually paints it will.
+    */}
+    <style is:inline set:html={`:root{--brand-fallback-mark:url("${fallbackMark.src}")}`}></style>
     <ClientRouter />
     <script is:inline>
       document.documentElement.classList.add('js');
@@ -113,34 +165,36 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
     )}
 
     <!-- Google Tag Manager (Main Thread Navigation) -->
-    <script is:inline>
-      if (typeof window !== 'undefined') {
-        if (!window['setup']) {
-          window['setup'] = true;
-          // ClientRouter swaps pages without full reloads, so this script only
-          // runs once per session. astro:page-load fires on the initial load
-          // AND after every client-side navigation — the GA4 tag in the GTM
-          // dashboard triggers on this event (not "All Pages") to avoid
-          // double-counting the first view.
-          document.addEventListener('astro:page-load', function () {
-            const pushGA = () => {
-              window.dataLayer = window.dataLayer || [];
-              window.dataLayer.push({
-                event: 'page_view',
-                page_location: window.location.href,
-                page_path: window.location.pathname,
-                page_title: document.title,
-              });
-            };
-            if ('requestIdleCallback' in window) {
-              requestIdleCallback(pushGA);
-            } else {
-              setTimeout(pushGA, 200);
-            }
-          });
+    {gtmId && (
+      <script is:inline>
+        if (typeof window !== 'undefined') {
+          if (!window['setup']) {
+            window['setup'] = true;
+            // ClientRouter swaps pages without full reloads, so this script only
+            // runs once per session. astro:page-load fires on the initial load
+            // AND after every client-side navigation — the GA4 tag in the GTM
+            // dashboard triggers on this event (not "All Pages") to avoid
+            // double-counting the first view.
+            document.addEventListener('astro:page-load', function () {
+              const pushGA = () => {
+                window.dataLayer = window.dataLayer || [];
+                window.dataLayer.push({
+                  event: 'page_view',
+                  page_location: window.location.href,
+                  page_path: window.location.pathname,
+                  page_title: document.title,
+                });
+              };
+              if ('requestIdleCallback' in window) {
+                requestIdleCallback(pushGA);
+              } else {
+                setTimeout(pushGA, 200);
+              }
+            });
+          }
         }
-      }
-    </script>
+      </script>
+    )}
 
     <meta
       name="viewport"
@@ -152,6 +206,21 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
     {prevUrl && <link rel="prev" href={prevUrl} />}
     {nextUrl && <link rel="next" href={nextUrl} />}
     {preloadImage && <link rel="preload" as="image" href={preloadImage} fetchpriority="high" />}
+    {/*
+      Both hints, deliberately. `preconnect` opens the connection; the
+      `dns-prefetch` beside it is the fallback for browsers that ignore or
+      drop the preconnect under memory pressure, and it costs a DNS lookup
+      that was going to happen anyway. `crossorigin` is required on the
+      preconnect for image origins — an anonymous-CORS image fetch uses a
+      different connection pool than a credentialed one, so a preconnect
+      without it warms a socket the image request will not reuse.
+    */}
+    {preconnect.map((origin: string) => (
+      <>
+        <link rel="preconnect" href={origin} crossorigin />
+        <link rel="dns-prefetch" href={origin} />
+      </>
+    ))}
     <link rel="canonical" href={url} />
     <script type="application/ld+json" is:inline set:html={JSON.stringify(structuredData)} />
     {/* Per-page <head> additions, e.g. an article's Article JSON-LD. Renders
@@ -595,8 +664,65 @@ const gtmId = import.meta.env.PUBLIC_GTM_ID;
       function sweepBrokenImages() {
         document.querySelectorAll('img').forEach((img) => {
           if (img.complete && img.naturalWidth === 0) markFailed(img);
+          else if (img.complete && isProviderPlaceholder(img)) markFailed(img);
         });
       }
+
+      /*
+        A SUCCESSFUL LOAD IS NOT THE SAME AS AN IMAGE.
+
+        YouTube answers a request for a thumbnail it does not have with HTTP
+        200 and a 120x90 grey "no thumbnail" graphic. Nothing above catches
+        that: `error` never fires and naturalWidth is 90-odd rather than 0, so
+        the card paints the grey box as though it were cover art.
+
+        That is exactly what shipped — a livestream synced while it was live
+        stored `maxresdefault_live.jpg`, that URL stopped resolving the moment
+        the stream ended, and the card showed YouTube's placeholder instead of
+        falling back to anything of ours.
+
+        120x90 is the fixed size of that graphic, and it is a CEILING here
+        rather than an equality — `naturalWidth` is density-corrected. When an
+        <img> carries a srcset with `w` descriptors, the browser divides the
+        decoded size by the density it computed for the chosen candidate, so
+        the same 120x90 placeholder reports 120x90 on a plain <img> and 73x55
+        on one whose srcset promised 480w. Measured, not assumed: an exact
+        `=== 120` test caught the livestream card and silently missed every
+        srcset'd card on the same page.
+
+        Density correction only ever shrinks the reported size, so `<=` is
+        safe in the other direction too. Nothing we actually request comes
+        close: the smallest rendition this site ever asks for is `mqdefault`
+        at 320 wide, and `hqdefault` is 480. The one genuine 120x90 rendition,
+        `default.jpg`, is excluded by URL.
+      */
+      function isProviderPlaceholder(img: HTMLImageElement) {
+        const src = img.currentSrc || img.getAttribute('src') || '';
+        if (!src.includes('i.ytimg.com')) return false;
+        if (/\/default\.jpg/.test(src)) return false; // legitimately 120x90
+        return (
+          img.naturalWidth > 0 &&
+          img.naturalWidth <= 120 &&
+          img.naturalHeight > 0 &&
+          img.naturalHeight <= 90
+        );
+      }
+
+      /*
+        Placeholders are only detectable once the pixels are in, and a card
+        below the fold may still be loading when the sweep runs — so re-check
+        each image as it finishes rather than relying on the sweep alone.
+      */
+      document.addEventListener(
+        'load',
+        (event) => {
+          const target = event.target;
+          if (target instanceof HTMLImageElement && isProviderPlaceholder(target)) {
+            markFailed(target);
+          }
+        },
+        true
+      );
 
       sweepBrokenImages();
       document.addEventListener('astro:page-load', sweepBrokenImages);
