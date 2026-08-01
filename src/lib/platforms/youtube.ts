@@ -104,13 +104,85 @@ export function parseISO8601Duration(iso: string | null | undefined): number {
 /** Best available thumbnail URL from a snippet.thumbnails object. */
 export function pickThumbnail(thumbnails: any): string {
   if (!thumbnails) return '';
-  return (
+  return normalizeThumbnailUrl(
     thumbnails.maxres?.url ||
-    thumbnails.standard?.url ||
-    thumbnails.high?.url ||
-    thumbnails.medium?.url ||
-    thumbnails.default?.url ||
-    ''
+      thumbnails.standard?.url ||
+      thumbnails.high?.url ||
+      thumbnails.medium?.url ||
+      thumbnails.default?.url ||
+      ''
+  );
+}
+
+/**
+ * Strip YouTube's `_live` thumbnail variant.
+ *
+ * While a broadcast is running, the API returns `maxresdefault_live.jpg` and
+ * friends. Those URLs are only valid FOR THE DURATION OF THE STREAM — once it
+ * ends they stop resolving and the browser paints YouTube's grey placeholder.
+ * Because the sync stores whatever it was handed, a stream synced while live
+ * leaves a permanently broken image in `videos.json`. That is exactly what
+ * happened to the FUTURAMA broadcast.
+ *
+ * The suffix-free URL is the stable one: it points at the VOD's own thumbnail
+ * once the stream ends. Callers get a normal rendition name too, which lets
+ * `card-images.ts` do its usual downgrade to `hqdefault` — the one rendition
+ * YouTube generates for every video, live or not.
+ */
+export function normalizeThumbnailUrl(url: string): string {
+  if (!url) return '';
+  return url.replace(/_live\.jpg(\?|$)/, '.jpg$1');
+}
+
+/**
+ * Whether YouTube considers this video a broadcast — live now, scheduled, or
+ * long since ended.
+ *
+ * This used to be inferred from the creator's own tags (`live`, `live stream`,
+ * `lives`), which is a guess about editorial habit rather than a fact about
+ * the video. The FUTURAMA broadcast carried the tags Movies/Film/TV/Gaming/
+ * Events and no `live` tag, so it came back `isLive: false`, was typed
+ * `video`, and appeared in Recent Videos where live content is never meant to
+ * show. Anyone who forgets the tag gets the same result.
+ *
+ * Two authoritative signals replace it:
+ *   - `snippet.liveBroadcastContent` is `live` or `upcoming` right now
+ *   - `liveStreamingDetails` exists at all, which YouTube keeps forever on
+ *     anything that was ever streamed, so ENDED broadcasts are caught too
+ *
+ * The old tag check is kept as an additional OR rather than dropped: it can
+ * only ever add to the result, so nothing a human previously marked live can
+ * silently become a normal video.
+ */
+export function detectIsLive(item: any): boolean {
+  const state = item?.snippet?.liveBroadcastContent ?? 'none';
+  if (state === 'live' || state === 'upcoming') return true;
+  if (item?.liveStreamingDetails) return true;
+
+  const tags: string[] = Array.isArray(item?.snippet?.tags) ? item.snippet.tags : [];
+  return tags.some((t) => {
+    const normalized = String(t).toLowerCase();
+    return normalized === 'live' || normalized === 'live stream' || normalized === 'lives';
+  });
+}
+
+/**
+ * When the video actually reached an audience.
+ *
+ * For an upload that is `snippet.publishedAt`. For a broadcast it is not:
+ * `publishedAt` is when the broadcast RESOURCE was created, which for a
+ * scheduled stream is whenever the creator set it up. The FUTURAMA stream was
+ * created on 10 July and aired on 31 July, and the site dated it 10 July —
+ * three weeks stale, and wrong in the only sense a reader cares about.
+ *
+ * `actualStartTime` is when it went live. `scheduledStartTime` is the best
+ * available answer for a stream that has not aired yet. Ordinary uploads have
+ * neither and fall through to `publishedAt` unchanged.
+ */
+export function pickPublishedAt(item: any): string {
+  const live = item?.liveStreamingDetails;
+  return (
+    live?.actualStartTime || live?.scheduledStartTime || item?.snippet?.publishedAt || ''
   );
 }
 
@@ -146,8 +218,15 @@ export function createYouTubeClient(opts: YouTubeClientOptions) {
       const out: YouTubeVideo[] = [];
       for (let i = 0; i < clean.length; i += 50) {
         const batch = clean.slice(i, i + 50);
+        /*
+          `liveStreamingDetails` is requested because it is the only reliable
+          way to know a video was ever a broadcast. It costs nothing extra —
+          videos.list is 1 quota unit regardless of how many parts you ask
+          for — and it is absent entirely on ordinary uploads, so its mere
+          presence is the signal.
+        */
         const data = await apiGet('videos', {
-          part: 'snippet,contentDetails,statistics',
+          part: 'snippet,contentDetails,statistics,liveStreamingDetails',
           id: batch.join(','),
         });
 
@@ -170,11 +249,8 @@ export function createYouTubeClient(opts: YouTubeClientOptions) {
           const durationSeconds = parseISO8601Duration(item.contentDetails?.duration);
           const tags = Array.isArray(item.snippet?.tags) ? item.snippet.tags : [];
           
-          const isLive = tags.some((t: string) => {
-            const normalized = t.toLowerCase();
-            return normalized === 'live' || normalized === 'live stream' || normalized === 'lives';
-          });
-          
+          const isLive = detectIsLive(item);
+
           const isEvent = tags.some((t: string) => {
             const normalized = t.toLowerCase();
             return normalized === 'event' || normalized === 'events' || normalized === 'con' || normalized === 'panel';
@@ -185,7 +261,7 @@ export function createYouTubeClient(opts: YouTubeClientOptions) {
             title: item.snippet?.title ?? '',
             description: item.snippet?.description ?? '',
             thumbnail: pickThumbnail(item.snippet?.thumbnails),
-            publishedAt: item.snippet?.publishedAt ?? '',
+            publishedAt: pickPublishedAt(item),
             durationSeconds,
             viewCount: Number(item.statistics?.viewCount ?? 0),
             tags,
