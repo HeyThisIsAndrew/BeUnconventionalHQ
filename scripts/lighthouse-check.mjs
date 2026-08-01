@@ -153,7 +153,11 @@ async function run() {
       for (const cat of CATEGORIES) {
         scores[cat] = runnerResult.lhr.categories[cat]?.score ?? null;
       }
-      results.push({ pagePath, scores });
+      results.push({
+        pagePath,
+        scores,
+        diagnostics: collectDiagnostics(runnerResult.lhr),
+      });
 
       const reportFile = path.join(
         REPORTS_DIR,
@@ -192,10 +196,170 @@ async function run() {
 
   console.log(`\nFull reports written to ${path.relative(ROOT, REPORTS_DIR)}/`);
 
+  /*
+    Print WHY a page failed, not just that it did.
+
+    The table above is four numbers and no reason for any of them, and the
+    JSON that holds the reason is an uploaded artifact — which means reading
+    it costs a download, and is simply unavailable to anyone whose network
+    cannot reach the artifact storage host. Chasing a red /events through
+    several rounds of push-and-look-at-the-table is how you end up guessing:
+    it is entirely possible to "fix" blocking time by 93%, watch the score
+    move by one point, and still not know what the binding metric was.
+
+    So the failing page explains itself in the log. Only failures print this,
+    so a green run stays a five-line table.
+  */
+  for (const { pagePath, scores, diagnostics } of results) {
+    const failedHere = CATEGORIES.some(
+      (cat) => scores[cat] !== null && scores[cat] < THRESHOLD,
+    );
+    if (!failedHere || !diagnostics) continue;
+    printDiagnostics(pagePath, diagnostics);
+  }
+
   if (anyFailed) {
     fail('One or more pages scored below the 90% threshold.');
   } else {
     console.log('\n[lighthouse-check] All pages passed at 90%+ across all categories.');
+  }
+}
+
+/*
+  Pull the few things that actually explain a performance score out of the
+  full LHR, so the failure path can print them without keeping whole reports
+  (each is several megabytes) alive in memory for every page.
+*/
+function collectDiagnostics(lhr) {
+  const audit = (id) => lhr.audits?.[id];
+
+  const metrics = [
+    'first-contentful-paint',
+    'largest-contentful-paint',
+    'total-blocking-time',
+    'cumulative-layout-shift',
+    'speed-index',
+    'interactive',
+  ]
+    .map((id) => {
+      const a = audit(id);
+      if (!a) return null;
+      return {
+        id,
+        display: a.displayValue ?? '',
+        // The per-metric score is the part that matters: a "3.2 s" LCP means
+        // nothing on its own, but a score of 71 says exactly how many points
+        // are sitting there to be won.
+        score: a.score === null || a.score === undefined ? null : Math.round(a.score * 100),
+      };
+    })
+    .filter(Boolean);
+
+  /*
+    Which element the LCP actually is, and where its time went. Guessing the
+    element wrong sends you optimising an image the metric was never
+    measuring — and the phase split is what separates "the file is too big"
+    from "we discovered it too late" from "the server was slow", which are
+    three completely different fixes.
+
+    Lighthouse 13 moved this into `lcp-breakdown-insight`; the older
+    `largest-contentful-paint-element` id is kept as a fallback so this keeps
+    working across a version bump either way. Both nest a `type: 'node'`
+    entry, sometimes at the top level of details.items and sometimes under a
+    `.node` key, so accept both shapes.
+  */
+  let lcpElement = null;
+  let lcpPhases = [];
+  const lcpAudit = audit('lcp-breakdown-insight') ?? audit('largest-contentful-paint-element');
+
+  const findNode = (items = []) => {
+    for (const item of items) {
+      if (item?.type === 'node' && (item.snippet || item.selector)) return item;
+      if (item?.node?.snippet || item?.node?.selector) return item.node;
+      const nested = findNode(item?.items ?? []);
+      if (nested) return nested;
+    }
+    return null;
+  };
+  const node = findNode(lcpAudit?.details?.items ?? []);
+  if (node) lcpElement = node.snippet || node.selector;
+
+  const findPhases = (items = []) => {
+    for (const item of items) {
+      const rows = item?.items ?? [];
+      if (rows.some((r) => r?.duration !== undefined && (r?.label || r?.subpart))) {
+        return rows.map((r) => ({
+          label: r.label || r.subpart,
+          ms: Math.round(r.duration),
+        }));
+      }
+      const nested = findPhases(rows);
+      if (nested.length) return nested;
+    }
+    return [];
+  };
+  lcpPhases = findPhases(lcpAudit?.details?.items ?? []);
+
+  // Opportunities, largest first — Lighthouse's own estimate of the ms each
+  // would return.
+  const opportunities = Object.values(lhr.audits ?? {})
+    .filter((a) => a?.details?.type === 'opportunity' && (a.numericValue ?? 0) >= 100)
+    .sort((a, b) => (b.numericValue ?? 0) - (a.numericValue ?? 0))
+    .slice(0, 5)
+    .map((a) => ({ title: a.title, ms: Math.round(a.numericValue) }));
+
+  // The heaviest things on the wire, with when they finished, which is what
+  // exposes a slow third-party origin.
+  const requests = (audit('network-requests')?.details?.items ?? [])
+    .filter((r) => (r.transferSize ?? 0) > 20000)
+    .sort((a, b) => (b.transferSize ?? 0) - (a.transferSize ?? 0))
+    .slice(0, 6)
+    .map((r) => ({
+      kb: Math.round((r.transferSize ?? 0) / 1024),
+      endMs: Math.round(r.networkEndTime ?? 0),
+      url: String(r.url ?? ''),
+    }));
+
+  return { metrics, lcpElement, lcpPhases, opportunities, requests };
+}
+
+function printDiagnostics(pagePath, { metrics, lcpElement, lcpPhases, opportunities, requests }) {
+  console.log(`\n--- why ${pagePath} failed -------------------------------------------`);
+
+  if (metrics.length) {
+    console.log('  metric (score out of 100):');
+    for (const m of metrics) {
+      console.log(
+        `    ${m.id.padEnd(26)} ${String(m.display).padStart(9)}   ${m.score === null ? '-' : m.score}`,
+      );
+    }
+  }
+
+  console.log(`\n  LCP element:\n    ${lcpElement ? String(lcpElement).slice(0, 160) : '(not reported)'}`);
+
+  if (lcpPhases.length) {
+    // Which phase dominates tells you which fix is the right one: time to
+    // first byte -> the server; resource load delay -> the browser found it
+    // late, so preload/priority; load duration -> the file is too big;
+    // render delay -> the main thread was busy.
+    console.log('\n  LCP phases:');
+    for (const p of lcpPhases) {
+      console.log(`    ${String(p.label).padEnd(26)} ${String(p.ms).padStart(6)}ms`);
+    }
+  }
+
+  if (opportunities.length) {
+    console.log('\n  opportunities:');
+    for (const o of opportunities) {
+      console.log(`    ${String(o.ms).padStart(6)}ms  ${o.title}`);
+    }
+  }
+
+  if (requests.length) {
+    console.log('\n  heaviest requests (kB, finished at):');
+    for (const r of requests) {
+      console.log(`    ${String(r.kb).padStart(5)}kB  ${String(r.endMs).padStart(6)}ms  ${r.url.slice(0, 96)}`);
+    }
   }
 }
 
