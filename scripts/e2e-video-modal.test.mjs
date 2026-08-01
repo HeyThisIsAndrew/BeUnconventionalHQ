@@ -17,7 +17,7 @@ async function runTests() {
     page.on('pageerror', err => console.log('BROWSER ERROR:', err.message));
 
     console.log('Navigating to homepage to test Video Modal...');
-    await page.goto('http://127.0.0.1:4321/');
+    await page.goto('http://localhost:4321/');
     
     // Wait for hydration
     await page.waitForSelector('[data-action="open-video"]', { timeout: 5000 });

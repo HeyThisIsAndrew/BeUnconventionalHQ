@@ -47,7 +47,7 @@ import net from 'node:net';
  */
 function canConnect(port, timeoutMs = 1200) {
   return new Promise((resolve) => {
-    const socket = net.connect({ port, host: '127.0.0.1' });
+    const socket = net.connect({ port, host: 'localhost' });
     const done = (result) => {
       socket.destroy();
       resolve(result);
