@@ -316,6 +316,89 @@ async function runTests() {
 
     await nav.page.close();
 
+    /*
+      ─── A WIDGET THAT RENDERS BUT NEVER DRAWS ─────────────────────────────
+
+      turnstile.render() returning an id does not mean the reader can see
+      anything. A site key scoped to the production hostname refuses to draw
+      on a preview deploy, silently — confirmed against the real site, which
+      works on beunconventionalhq.com and fails on *.workers.dev. A sustained
+      429 on the challenge endpoint looks identical.
+
+      Before this, that state told the reader to "complete the verification
+      challenge above" while pointing at empty space. This drives exactly that
+      condition — a stub that accepts render() and draws nothing — and asserts
+      the form says something true and offers a way out instead.
+    */
+    console.log('Widget renders but never draws...');
+    const blind = await browser.newPage();
+    await blind.setViewport({ width: 390, height: 844 });
+    await blind.setRequestInterception(true);
+    blind.on('request', (req) => {
+      const url = req.url();
+      if (!url.includes(TURNSTILE_HOST)) {
+        req.continue().catch(() => {});
+        return;
+      }
+      const onload = new URL(url).searchParams.get('onload') || '';
+      // Accepts render(), returns an id, and deliberately draws NO iframe.
+      req
+        .respond({
+          status: 200,
+          contentType: 'application/javascript',
+          body: `
+            window.turnstile = {
+              render: function () { return 'never-draws-1'; },
+              getResponse: function () { return ''; },
+              reset: function () {},
+              remove: function () {},
+            };
+            if (typeof window[${JSON.stringify(onload)}] === 'function') window[${JSON.stringify(onload)}]();
+          `,
+        })
+        .catch(() => {});
+    });
+
+    await blind.goto('http://localhost:4321/', { waitUntil: 'networkidle0' });
+    await blind.evaluate(() => {
+      document.querySelector('#newsletter-form input[type=email]').focus();
+    });
+    await new Promise((r) => setTimeout(r, 600));
+
+    await blind.evaluate(() => {
+      const input = document.querySelector('#newsletter-form input[type=email]');
+      input.value = 'reader@example.com';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await blind.click('.newsletter-submit');
+    await new Promise((r) => setTimeout(r, 500));
+
+    const blindState = await blind.evaluate(() => ({
+      message: document.getElementById('newsletter-status').textContent.trim(),
+      isError: document.getElementById('newsletter-form').classList.contains('is-error'),
+      hasIframe: !!document.querySelector('#newsletter-turnstile iframe'),
+    }));
+
+    check('an undrawn widget does not claim there is a challenge to complete', () => {
+      assert.equal(blindState.hasIframe, false, 'precondition: the stub must draw nothing');
+      assert.ok(
+        !/complete the verification challenge/i.test(blindState.message),
+        `told the reader to complete a challenge that is not on screen: "${blindState.message}"`,
+      );
+    });
+
+    check('...and says what is actually wrong, with a way out', () => {
+      assert.equal(blindState.isError, true, 'should be in the error state');
+      assert.match(
+        blindState.message,
+        /bot check/i,
+        `expected an honest bot-check message, got: "${blindState.message}"`,
+      );
+      assert.match(blindState.message, /substack/i, 'should offer the Substack fallback');
+    });
+
+    await blind.close();
+
     console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);
     if (failed > 0) exitCode = 1;
   } catch (error) {

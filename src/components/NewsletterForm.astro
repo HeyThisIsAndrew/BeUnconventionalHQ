@@ -264,6 +264,40 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
         return;
       }
 
+      /*
+        A rendered widget is not the same as a VISIBLE one.
+
+        turnstile.render() returns an id as soon as it accepts the call, and
+        the widget draws afterwards. If it never draws, the reader is told to
+        "complete the verification challenge above" while staring at empty
+        space — the exact dead end this component's header comment describes
+        being fixed once already, reached from a different direction.
+
+        The most common cause is the site key's allowed-hostnames list. A key
+        scoped to the production domain refuses to draw on any preview deploy,
+        silently. (Confirmed: the form works on beunconventionalhq.com and
+        fails on *.workers.dev previews.) A sustained 429 on the challenge
+        endpoint does the same thing, as does an ad blocker that lets api.js
+        through but blocks the challenge frame.
+
+        Turnstile draws into an iframe inside the holder, so "no iframe, or an
+        iframe with no height" is the honest test for it. When that is the
+        case, say what is actually wrong and offer the way out, rather than
+        pointing at a challenge that is not there.
+      */
+      const holder = document.getElementById('newsletter-turnstile');
+      const frame = holder?.querySelector('iframe');
+      const widgetDrew = !!frame && frame.getBoundingClientRect().height > 0;
+
+      if (widgetId && !widgetDrew) {
+        setState(
+          'error',
+          "Our bot check couldn't load, so this form can't be submitted from here. " +
+            'Subscribe on Substack instead — the link is just below.'
+        );
+        return;
+      }
+
       if (widgetId && !token) {
         setState('error', 'Please complete the verification challenge above.');
         return;
