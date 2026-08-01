@@ -183,7 +183,15 @@ test('a well-formed item produces a complete record', () => {
   assert.equal(record.category, 'Film');
   assert.equal(record.hasBody, true);
   assert.ok(record.bodyHtml.startsWith('<h2>'), 'in-body h1 should be demoted');
-  assert.equal(record.date, 'May 5, 2026');
+  /*
+    May 4, not May 5. The fixture's post_date is 2026-05-05T02:08:53Z, which
+    is 7:08pm Pacific on the 4th — the evening it was actually published.
+
+    This assertion used to read 'May 5' because dates were formatted in UTC,
+    so everything posted after ~5pm Pacific was dated a day into the future.
+    The expectation was encoding the bug. See src/lib/publish-timezone.js.
+  */
+  assert.equal(record.date, 'May 4, 2026');
 });
 
 // ── The magazine lede (buildPreview) ────────────────────────────────────────
