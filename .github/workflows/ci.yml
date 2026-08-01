@@ -54,25 +54,41 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      # Without this the Lighthouse gate measures a page the real Turnstile
-      # widget is loading on. `.env` is gitignored, so it does not exist in CI
-      # — but the key does NOT come out undefined, because wrangler.jsonc
-      # carries the production site key in `vars` and @astrojs/cloudflare feeds
-      # that into the build. Cloudflare then answers the real key with roughly
-      # 550 KB of challenge scripts, which on the gate's throttled connection
-      # (1.6 Mbps, 4x CPU) congests the network and pushes the hero LCP out by
-      # seconds. It cost /events and /featured ~7 points each.
+      # Keep Turnstile off the pages the gate measures.
       #
-      # 1x00000000000000000000AA is Cloudflare's documented always-passes test
-      # key: the widget resolves immediately and never fetches the challenge
-      # payload. Writing it to `.env` is what does the work — verified against
-      # the built output, the real key appears in 0 files under dist/client and
-      # the dummy in 29. (A `sed` rewriting wrangler.jsonc lived here too; it
-      # is redundant for the same reason, and was silently keyed to a literal
-      # copy of the production key, so it would have become a no-op the moment
-      # that key was rotated. Removed rather than left as a decoy.)
-      - name: Use dummy Turnstile key for the Lighthouse gate
-        run: echo "PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA" >> .env
+      # An EMPTY value, not a test key. That distinction is the whole point
+      # and it was got wrong once already, so it is worth stating plainly:
+      # Cloudflare's always-passes test key (1x00000000000000000000AA) does
+      # NOT stop the download. The widget still pulls api.js and then ~234 KB
+      # of challenge-platform script, with the test key sitting right there in
+      # the request URLs. Verified from the gate's own diagnostics on /events:
+      #
+      #   104kB  343ms  challenges.cloudflare.com/.../turnstile/f/av0/rch/...
+      #   104kB  187ms  challenges.cloudflare.com/.../turnstile/f/av0/rch/...
+      #    26kB  119ms  challenges.cloudflare.com/turnstile/v0/g/.../api.js
+      #
+      # On a 1.6 Mbps link that is most of a second of bandwidth taken from
+      # the LCP image, and it is why /events sat at 88% with an LCP score of
+      # 55 while every other metric on the page scored 97-100.
+      #
+      # PUBLIC_TURNSTILE_SITE_KEY is optional in the astro:env schema and
+      # every consumer guards on it, so an empty value makes the widget omit
+      # itself and no third-party request happens at all. Confirmed in the
+      # built output: challenges.cloudflare.com appears once on /events with
+      # the test key and zero times with this.
+      #
+      # It has to be written to `.env` rather than the job env: the var is in
+      # the astro:env schema, and @astrojs/cloudflare resolves those from
+      # wrangler.jsonc `vars` — which carries the real production key — and
+      # that outranks process.env. Leaving it unset does not work either, for
+      # the same reason.
+      #
+      # Trade-off, same one already accepted for analytics above: the gate no
+      # longer sees Turnstile's cost. That cost is real for users, and worth
+      # attacking in the app (loading the widget on first form interaction
+      # rather than on every page view) rather than by measuring it here.
+      - name: Keep Turnstile out of the Lighthouse gate
+        run: echo "PUBLIC_TURNSTILE_SITE_KEY=" >> .env
 
       - name: Production build
         run: npm run build
