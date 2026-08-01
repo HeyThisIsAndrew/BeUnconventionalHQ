@@ -31,28 +31,87 @@ interface CalendarSegment {
 }
 
 const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
-  // `isMounted` gates the skeleton, NOT `currentDate`. The server and the
-  // first client render must produce byte-identical HTML, so both render the
-  // skeleton; the effect below then flips this and reveals the real grid.
-  //
-  // The date is seeded in a lazy useState initializer rather than an effect.
-  // On the client that initializer runs during hydration, so the grid is
-  // built from the USER's clock, not the build machine's — which is the
-  // property the old effect-based seeding existed to protect. (It also runs
-  // during SSR, where the resulting grid is simply discarded by the
-  // `!isMounted` return below. Harmless: static build, thrown away.)
-  const [isMounted, setIsMounted] = useState(false);
+  /*
+    ─── WHY THE GRID WAITS FOR THE DIALOG TO OPEN ──────────────────────────
+
+    This island is hydrated with client:load, which is not negotiable — the
+    calendar exists only after hydration, and every deferred directive has a
+    way of never arriving here (see SpanningCalendarModal.astro). But
+    client:load used to mean the ENTIRE calendar was built during page load:
+    the month grid memo, 31 day cells, the event list and every positioned
+    segment, all rendered and laid out inside a dialog nobody had opened.
+
+    On the CI gate's throttled profile that was the single largest cost on
+    /events — the page's whole React island doing its most expensive work
+    before the user had expressed any interest in it, and it cost the 90%
+    performance threshold.
+
+    So hydration stays eager and the WORK is what defers. Until the host
+    <dialog> is actually opened this renders the same cheap skeleton it
+    server-rendered, and the memo below short-circuits rather than building a
+    grid nobody can see. Opening the dialog flips the latch and the real
+    calendar renders synchronously — a plain re-render, imperceptible, and by
+    then the page has long finished loading.
+
+    `hasOpened` is a latch rather than a mirror of `dialog.open`: once the
+    calendar has been built there is nothing to gain by tearing it down on
+    close, and keeping it makes reopening instant.
+  */
+  const [hasOpened, setHasOpened] = useState(false);
   const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
+  const hostRef = React.useRef<HTMLDivElement>(null);
 
+  /*
+    The server renders the skeleton (no dialog is open during a static build)
+    and so does the first client render, because `hasOpened` starts false.
+    That byte-identical pair is what keeps hydration silent — it is the same
+    guarantee the old `isMounted` flag provided, folded into the flag that now
+    also gates the work.
+
+    Reading the date in a lazy useState initializer keeps the grid on the
+    USER's clock: on the client that runs during hydration, so the build
+    machine's timezone never leaks into the month.
+  */
   React.useEffect(() => {
-    setIsMounted(true);
+    const dialog = hostRef.current?.closest('dialog');
+
+    // Rendered outside a <dialog> (or the DOM moved): nothing to wait for, so
+    // behave like a plain always-on calendar rather than staying a skeleton.
+    if (!dialog) {
+      setHasOpened(true);
+      return;
+    }
+
+    if (dialog.open) {
+      setHasOpened(true);
+      return;
+    }
+
+    /*
+      <dialog> has no "open" event — `close` exists, `open` does not — so the
+      opening has to be observed rather than listened for. showModal() sets the
+      `open` attribute, which is an attribute mutation and therefore something
+      MutationObserver reports. Watching the attribute (rather than wiring into
+      SpanningCalendarModal's script) keeps this component self-contained and
+      correct no matter which code path opened the dialog: button, keyboard, or
+      a future deep-link that calls showModal() directly.
+    */
+    const observer = new MutationObserver(() => {
+      if (dialog.open) {
+        setHasOpened(true);
+        observer.disconnect();
+      }
+    });
+    observer.observe(dialog, { attributes: true, attributeFilter: ['open'] });
+
+    return () => observer.disconnect();
   }, []);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  // EVERY hook must stay ABOVE the `if (!isMounted)` early return below.
+  // EVERY hook must stay ABOVE the `if (!hasOpened)` early return below.
   //
   // This useMemo once sat beneath it, so render 1 (skeleton) ran three hooks
   // and render 2 ran four: "Rendered more hooks than during the previous
@@ -60,7 +119,17 @@ const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
   // the whole tree, so the calendar modal opened to an empty shell with only
   // its close bar, on every device, in production (hotfix 8314698). Adding a
   // hook after the return re-breaks it in exactly the same way.
+  //
+  // Hence the guard INSIDE the memo rather than around it: the hook still runs
+  // on every render, it just declines to do the expensive part on the renders
+  // whose result the early return would throw away.
   const { days, calendarSegments, sortedEvents, todayDate } = useMemo(() => {
+    if (!hasOpened) {
+      // todayDate stays a real Date rather than null so the code below keeps
+      // its non-nullable type. It is never read: the only renders that reach
+      // here are the ones the early return catches.
+      return { days: [], calendarSegments: [], sortedEvents: [], todayDate: new Date() };
+    }
 
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
@@ -176,7 +245,7 @@ const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
       sortedEvents: _sortedEvents,
       todayDate: _todayDate
     };
-  }, [events, year, month, currentDate]);
+  }, [events, year, month, currentDate, hasOpened]);
 
 
   const handlePrevMonth = () => {
@@ -194,9 +263,9 @@ const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
 
   const formatDate = (dateStr: string) => formatEventDateRange(dateStr, undefined, { year: false });
 
-  if (!isMounted) {
+  if (!hasOpened) {
     return (
-      <div className="dc-container dc-skeleton">
+      <div className="dc-container dc-skeleton" ref={hostRef}>
         <aside className="dc-sidebar">
           <div className="dc-sidebar-header">
             <div className="dc-sidebar-title">
@@ -237,7 +306,7 @@ const DesktopCalendar: React.FC<DesktopCalendarProps> = ({ events }) => {
 
   // Add global style variables via style prop to circumvent styled-jsx/astro scoping for inline styles
   return (
-    <div className="dc-container">
+    <div className="dc-container" ref={hostRef}>
       <aside className="dc-sidebar">
         <div className="dc-sidebar-header">
           <div className="dc-sidebar-title">
