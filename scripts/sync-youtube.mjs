@@ -239,7 +239,68 @@ async function run() {
   });
 
   const syncedIds = new Set(syncedDocs.map(d => d._id));
-  const preservedDocs = Array.from(existingDocsMap.values()).filter(d => !syncedIds.has(d._id));
+
+  /*
+    ─── RETIREMENT ────────────────────────────────────────────────────────
+
+    Everything the API no longer returns used to be preserved verbatim,
+    forever. That is half right: the never-delete contract exists so a bad
+    API response cannot wipe the store, and it must stay. But "preserve the
+    record" was implemented as "keep publishing it", and those are different
+    things.
+
+    The consequence, from a real incident: a livestream was captured while it
+    was public, then set to private on YouTube, then deleted outright. The
+    API stopped returning it at the first of those steps — and the site kept
+    serving it through all three, because nothing here ever reconsiders a doc
+    it can no longer see. Making a video private on YouTube had no effect on
+    the site at all.
+
+    A doc YouTube no longer returns is now RETIRED rather than republished:
+    contentStatus moves off `published`, which is what every page filters on,
+    so it leaves the site. The doc itself is kept, with its editorial fields
+    and a timestamp, so this is reversible and auditable — if the video comes
+    back (privacy flipped, a transient omission), the next sync re-syncs it
+    and planVideoSync's existing "never demote a status a human set" rule is
+    untouched.
+
+    THE SAFETY FLOOR is the important part. A partial API response — a quota
+    error mid-pagination, a transient outage — would otherwise retire the
+    whole catalogue in one run. So retirement only happens when this run
+    plausibly saw everything: it must have returned at least one video, and
+    at least half of what we already knew about. Below that we assume the
+    fetch is incomplete and preserve exactly as before, loudly.
+  */
+  const isYouTubeDoc = (d) =>
+    d?.platform === 'youtube' || String(d?._id ?? '').startsWith('youtube-');
+
+  const knownYouTubeDocs = Array.from(existingDocsMap.values()).filter(isYouTubeDoc);
+  const fetchLooksComplete =
+    syncedDocs.length > 0 &&
+    (knownYouTubeDocs.length === 0 || syncedDocs.length >= knownYouTubeDocs.length * 0.5);
+
+  const retired = [];
+  const preservedDocs = Array.from(existingDocsMap.values())
+    .filter((d) => !syncedIds.has(d._id))
+    .map((d) => {
+      // Only YouTube-sourced docs. Events, featured brands and topic seeds
+      // are not in the API's answer and must never be touched by this.
+      if (!fetchLooksComplete || !isYouTubeDoc(d)) return d;
+      if (d.contentStatus !== 'published') return d;
+      retired.push(d);
+      return { ...d, contentStatus: 'retired', retiredAt: now.toISOString() };
+    });
+
+  if (!fetchLooksComplete && knownYouTubeDocs.length > 0) {
+    console.warn(
+      `\n[warn] Only ${syncedDocs.length} video(s) came back against ${knownYouTubeDocs.length} known — ` +
+        'assuming an incomplete fetch and skipping retirement. Nothing was unpublished.'
+    );
+  }
+  for (const d of retired) {
+    console.log(`[retire] ${d._id} — "${d.title}" is no longer returned by YouTube (deleted, private or unlisted).`);
+  }
+
   let docs = [...syncedDocs, ...preservedDocs];
 
   if (needsTopicBootstrap) {
@@ -258,7 +319,7 @@ async function run() {
   const needsReviewCount = syncedDocs.filter((d) => d.requiresReview).length;
 
     if (!execute) {
-      console.log(`\n[dry-run] Would sync ${docs.length} docs (${syncedDocs.length} from YouTube, ${preservedDocs.length} preserved) to ${outPath}.`);
+      console.log(`\n[dry-run] Would sync ${docs.length} docs (${syncedDocs.length} from YouTube, ${preservedDocs.length} preserved, ${retired.length} retired) to ${outPath}.`);
       console.log(`[dry-run] ${needsReviewCount} video(s) would need review (no Tier-1/hub tag match).`);
       console.log('[dry-run] Pass --execute to write.');
       return;
