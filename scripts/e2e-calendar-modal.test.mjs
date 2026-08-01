@@ -24,6 +24,33 @@ async function runTests() {
     const modalVisible = await page.waitForSelector('#spanning-calendar-modal', { visible: true, timeout: 3000 });
     assert.ok(modalVisible, 'Calendar modal should become visible');
 
+    /*
+      ─── EMPTY-SHELL REGRESSION ──────────────────────────────────────────────
+
+      "The modal opened" is NOT the assertion that matters, and asserting only
+      that is how this bug reached production twice (8314698, and again in the
+      client:idle change this suite now guards). Both times the dialog opened
+      perfectly — with nothing inside it but the close bar.
+
+      DesktopCalendar renders a skeleton until it hydrates, and the skeleton is
+      35 cells that all carry `.dc-calendar-cell.empty` and NO `.dc-day-number`.
+      The real grid is the only thing that ever emits `.dc-day-number`, so its
+      count is an exact discriminator between "hydrated" and "empty shell" —
+      the same 0-day-cells signature the hotfix was verified against.
+    */
+    await page.waitForSelector('#spanning-calendar-modal .dc-day-number', { timeout: 5000 });
+    const warmGrid = await page.evaluate(() => ({
+      dayNumbers: document.querySelectorAll('#spanning-calendar-modal .dc-day-number').length,
+      skeletons: document.querySelectorAll('#spanning-calendar-modal .dc-skeleton').length,
+    }));
+    assert.ok(
+      warmGrid.dayNumbers >= 28,
+      `Calendar must render a real month grid, got ${warmGrid.dayNumbers} day cells (0 = the empty-shell bug)`,
+    );
+    assert.equal(warmGrid.skeletons, 0, 'Skeleton must be replaced by the real grid once hydrated');
+
+    console.log(`  ✓ real grid rendered (${warmGrid.dayNumbers} day cells)`);
+
     console.log('Closing modal via ESC...');
     await page.keyboard.press('Escape');
     await new Promise((r) => setTimeout(r, 500));
@@ -77,6 +104,28 @@ async function runTests() {
     await cold.click('.open-full-calendar-btn');
     await cold.waitForSelector('#spanning-calendar-modal[open]', { timeout: 3000 });
     console.log('  ✓ opened with the document still loading');
+
+    /*
+      And it must be a real calendar on the cold path too, not just an open
+      dialog. This is the assertion that pins the island to client:load.
+
+      The images above are still stalled, so the document cannot reach `load`.
+      client:load hydrates off the module graph and does not care. client:idle
+      would be waiting on requestIdleCallback on a page that is still fetching,
+      animating a kenburns loop and running observers — precisely the starvation
+      the directive comment in SpanningCalendarModal.astro describes. Same for
+      client:visible, which never fires at all inside a closed <dialog>.
+    */
+    await cold.waitForSelector('#spanning-calendar-modal .dc-day-number', { timeout: 5000 });
+    const coldDayCells = await cold.$$eval(
+      '#spanning-calendar-modal .dc-day-number',
+      (els) => els.length,
+    );
+    assert.ok(
+      coldDayCells >= 28,
+      `Calendar must hydrate before the load event, got ${coldDayCells} day cells`,
+    );
+    console.log(`  ✓ real grid rendered pre-load (${coldDayCells} day cells)`);
 
     for (const req of stalled) req.abort().catch(() => {});
     await cold.close();
