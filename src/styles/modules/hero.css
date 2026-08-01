@@ -47,10 +47,27 @@
      390x844), and a `filter: blur(30px)` layer cannot be cached across a
      size change — it re-rasterizes from scratch mid-scroll. That was the
      mobile jitter, and it's why scrolling UP (bar re-expanding) was worst.
-     `svh` is the small-viewport unit: fixed at the address-bar-visible
-     height, so it never changes during scroll. */
+     `lvh` is the LARGE-viewport unit: the height with browser UI retracted.
+     Like `svh` it is a FIXED value per orientation — it does not re-resolve
+     during scroll — so it keeps every bit of the stability the note above is
+     about. It is simply the right fixed value.
+
+     `svh` was wrong here, and visibly so. It is the SMALLEST the viewport
+     ever gets (address bar fully expanded). The moment iOS Safari retracts
+     that bar during scroll the real viewport grows to `lvh`, the hero stops
+     reaching the bottom of the screen, and the next section's header —
+     "EXPLORE THE HQ / WHAT WE COVER" — peeks in under it. Reported from an
+     iPhone; desktop never shows it because there is no retracting chrome.
+
+     Sizing to `lvh` means the hero is never SHORTER than the visible area.
+     When the bar is expanded it is slightly taller instead, which costs
+     about half the bar's height of vertical centring drift (~40-55px on an
+     iPhone) and is invisible next to a section boundary appearing on screen.
+
+     Hero.astro's measureLift() reads `hero.offsetHeight` rather than assuming
+     a unit, so the splash lift follows this automatically. */
   .hero {
-    height: 100svh;
+    height: 100lvh;
   }
 
   /* Force visibility on mobile to rule out IntersectionObserver failures */
