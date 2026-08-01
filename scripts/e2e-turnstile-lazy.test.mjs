@@ -121,16 +121,32 @@ async function runTests() {
       );
     });
 
+    /*
+      The only widget the live site mounts is the newsletter one. The contact
+      modal's `.cf-turnstile` is deliberately not rendered while that form is
+      inactive (ContactModal.astro's RENDER_TURNSTILE flag) — a widget for a
+      form nobody can reach is a live Turnstile session on every page view,
+      which is what earned the 429 on api.js that PageSpeed flagged.
+    */
     const preRender = await page.evaluate(() => ({
-      containers: document.querySelectorAll('.cf-turnstile').length,
+      newsletterHolder: !!document.getElementById('newsletter-turnstile'),
+      contactWidgets: document.querySelectorAll('.cf-turnstile').length,
       rendered: document.querySelectorAll('[data-stub-widget]').length,
       apiPresent: typeof window.turnstile !== 'undefined',
     }));
 
-    check('a widget container exists but nothing is rendered yet', () => {
-      assert.ok(preRender.containers > 0, 'expected at least one .cf-turnstile container');
+    check('the newsletter widget container exists but nothing is rendered yet', () => {
+      assert.ok(preRender.newsletterHolder, 'expected #newsletter-turnstile to be server-rendered');
       assert.equal(preRender.rendered, 0);
       assert.equal(preRender.apiPresent, false, 'window.turnstile must not exist before interaction');
+    });
+
+    check('the inactive contact form mounts NO widget', () => {
+      assert.equal(
+        preRender.contactWidgets,
+        0,
+        'contact modal is inactive — mounting its widget costs a Turnstile session per page view',
+      );
     });
 
     // ─── 2. First interaction triggers the load ───────────────────────────
@@ -172,23 +188,13 @@ async function runTests() {
       assert.ok(nl.sitekey, 'render() called without a sitekey');
     });
 
-    check('the contact modal widget is rendered too, ready before it opens', () => {
-      // renderPendingWidgets sweeps every .cf-turnstile once the script is in,
-      // including the closed modal's — so the widget is already there when the
-      // reader opens it rather than starting a fresh load at that moment.
-      const cf = renders.find((r) => (r.elementClass || '').includes('cf-turnstile'));
-      assert.ok(cf, `contact widget never rendered; got ${JSON.stringify(renders)}`);
-      assert.ok(cf.sitekey, 'render() called without a sitekey');
-    });
-
-    check('the data-callback globals are wired through', () => {
-      // The components define window.onTurnstileSuccess etc. and the implicit
-      // renderer would have looked them up by name. The explicit path has to
-      // pass the same functions through or the submit button never un-disables.
-      const cf = renders.find((r) => (r.elementClass || '').includes('cf-turnstile'));
-      assert.equal(cf.hasCallback, true, 'success callback not passed');
-      assert.equal(cf.hasErrorCallback, true, 'error callback not passed');
-      assert.equal(cf.hasExpiredCallback, true, 'expired callback not passed');
+    check('exactly ONE widget is rendered — no session for the dead form', () => {
+      assert.equal(
+        renders.length,
+        1,
+        `expected only the newsletter widget; got ${JSON.stringify(renders)}`,
+      );
+      assert.equal(renders[0].elementId, 'newsletter-turnstile');
     });
 
     // ─── 3. Interacting again does not re-request or double-render ────────
@@ -207,6 +213,46 @@ async function runTests() {
     check('and does not render the same container twice', () => {
       assert.equal(afterSecond, renders.length);
     });
+
+    /*
+      The newsletter widget renders itself with an options object and carries
+      no data-* callbacks, so the assertions above never exercise the OTHER
+      path: renderPendingWidgets reading `data-callback` and friends off a
+      `.cf-turnstile` container and resolving those names as window globals.
+      That is the path the contact form would use if it were re-enabled, so it
+      must not rot while the form is switched off.
+
+      Inject exactly the container that component ships and fire the
+      astro:page-load sweep the renderer listens on.
+    */
+    const attributeRender = await page.evaluate(async () => {
+      window.onTurnstileSuccess = () => {};
+      window.onTurnstileError = () => {};
+      window.onTurnstileExpired = () => {};
+
+      const el = document.createElement('div');
+      el.className = 'cf-turnstile';
+      el.setAttribute('data-sitekey', 'test-site-key');
+      el.setAttribute('data-size', 'flexible');
+      el.setAttribute('data-callback', 'onTurnstileSuccess');
+      el.setAttribute('data-error-callback', 'onTurnstileError');
+      el.setAttribute('data-expired-callback', 'onTurnstileExpired');
+      document.body.appendChild(el);
+
+      document.dispatchEvent(new Event('astro:page-load'));
+      await new Promise((r) => setTimeout(r, 200));
+
+      return window.__tsRenders.find((r) => (r.elementClass || '').includes('cf-turnstile'));
+    });
+
+    check('the renderer wires data-* callbacks through as window globals', () => {
+      assert.ok(attributeRender, 'the injected .cf-turnstile container was never rendered');
+      assert.equal(attributeRender.sitekey, 'test-site-key');
+      assert.equal(attributeRender.hasCallback, true, 'success callback not passed');
+      assert.equal(attributeRender.hasErrorCallback, true, 'error callback not passed');
+      assert.equal(attributeRender.hasExpiredCallback, true, 'expired callback not passed');
+    });
+
 
     await page.close();
 

@@ -8,6 +8,14 @@ import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
 // typeof null === 'object' - the "expected 'string', got 'object'"
 // TurnstileError logged on every page that mounts this modal.
 const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
+
+/*
+  The contact form is inactive (no page ships a trigger, and the #contact
+  hash auto-open is disabled — see the note further down this file), so its
+  bot-check widget is not mounted. Flip this to `turnstileSiteKey` to bring
+  it back along with the form.
+*/
+const RENDER_TURNSTILE = false;
 ---
 
 <div id="contact-modal" class="contact-modal-overlay" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Contact Us">
@@ -47,7 +55,28 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
         <textarea id="modal-message" name="message" class="form-textarea" placeholder="How can we help?" required></textarea>
       </div>
 
-      {turnstileSiteKey && (
+      {/*
+        WIDGET DELIBERATELY NOT RENDERED — the form is inactive.
+
+        `turnstileSiteKey` is still read above and the container markup is
+        kept below the flag so re-enabling is a one-line change, but while no
+        page can open this modal there is nothing to bot-check, and mounting
+        a widget anyway is not free:
+
+          - every mounted widget is a live Turnstile session against the
+            production site key, on EVERY page view, for a form nobody can
+            reach. That volume is what earned the 429 (Too Many Requests) on
+            api.js that PageSpeed reported as a console error.
+          - it is a second widget for the lazy renderer to manage across
+            ClientRouter navigations, and a stale one is what produced the
+            other console error, `<widgetId> not found`.
+
+        Both errors count against Lighthouse Best Practices, which is why
+        that score was drifting between runs.
+
+        TO RE-ENABLE: set RENDER_TURNSTILE to `turnstileSiteKey`.
+      */}
+      {RENDER_TURNSTILE && (
         <div class="form-group" id="turnstile-container">
           <!-- Turnstile widget -->
           <div class="cf-turnstile" data-sitekey={turnstileSiteKey} data-size="flexible" data-callback="onTurnstileSuccess" data-error-callback="onTurnstileError" data-expired-callback="onTurnstileExpired"></div>
