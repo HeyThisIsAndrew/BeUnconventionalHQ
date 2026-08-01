@@ -80,6 +80,21 @@ async function runTests() {
     });
     assert.ok(appWrapperActive, '#app-wrapper should no longer be inert');
 
+    /*
+      The form's last remaining live surface: visiting a URL ending in
+      #contact used to auto-open the modal even with no visible trigger
+      anywhere on the page. Disabled deliberately (see the comment in
+      ContactModal.astro replacing that block) — a stray old link, bookmark,
+      or share should not still be able to summon the form.
+    */
+    console.log('Confirming #contact no longer auto-opens the modal...');
+    await page.goto('http://localhost:4321/#contact');
+    await new Promise((r) => setTimeout(r, 400)); // was a 100ms setTimeout before
+    const autoOpened = await page.evaluate(() =>
+      document.getElementById('contact-modal')?.classList.contains('active'),
+    );
+    assert.equal(autoOpened, false, 'Visiting #contact must not auto-open the contact modal');
+
     console.log('✅ Contact Modal E2E tests passed.');
   } catch (error) {
     console.error('❌ E2E Test Failed:', error);
