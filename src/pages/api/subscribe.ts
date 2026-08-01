@@ -130,8 +130,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
 
     // ── Step 2: Store Subscriber Email ──────────────────────────
-    // AI-NOTE: This directly accesses the `SUBSCRIBERS` KV namespace binding from
-    // the unified `env` object.
+    // AI-NOTE: This directly accesses the `KV` namespace binding (see
+    // "kv_namespaces" in wrangler.jsonc) from the unified `env` object. Every
+    // stored subscriber is a `subscriber:<email>` key inside that namespace —
+    // there is no separate "SUBSCRIBERS" namespace despite what this comment
+    // used to say.
     // In local dev, if the binding is not emulated, `KV` will be `undefined`,
     // and the code will gracefully use the console.log fallback below.
     const KV = env.KV;
