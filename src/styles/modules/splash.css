@@ -84,59 +84,58 @@ html.splash-armed {
   overflow: hidden;
 }
 
-/*
-   Scrollbar compensation.
-
-   Hiding the overflow removes the document scrollbar, so on a desktop browser
-   with classic scrollbars the content would widen by ~15px the instant the
-   curtain lifts. The splash script measures that width before hiding it and
-   publishes it here; padding the wrapper by the same amount means releasing
-   the lock changes nothing.
-
-   Zero on every touch device and on macOS, where scrollbars are overlaid and
-   occupy no layout space — which is why the reported case (mobile, landscape)
-   never saw a sideways shift, only the vertical jumping fixed above.
-*/
 html.splash-armed #app-wrapper {
   padding-right: var(--splash-gutter, 0px);
 }
 
-html.splash-lifting #app-wrapper {
-  transform: translate3d(0, calc(-1 * var(--splash-lift)), 0);
-  transition: transform var(--splash-duration) var(--splash-ease);
+/* ── Z-Axis Fly-Through ──────────────────────────────────────────────────────── */
+
+html.splash-lifting .hero {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: var(--splash-lift);
+  z-index: 50;
+  pointer-events: none;
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
+/* Desktop/iPad: Hero scales up and fades out */
+@media (min-width: 834px) {
+  html.splash-lifting .hero {
+    transform: scale3d(4, 4, 1);
+    opacity: 0;
+    transition: transform 800ms var(--splash-ease), opacity 600ms ease;
+  }
+}
+
+/* Mobile: Hero scales down and fades out */
+@media (max-width: 833px) {
+  html.splash-lifting .hero {
+    transform: scale3d(0.95, 0.95, 1);
+    opacity: 0;
+    transition: transform 600ms var(--splash-ease), opacity 400ms ease;
+  }
+}
+
+/* Main content slides up into position */
+html.splash-lifting #hq-content,
+html.splash-lifting #hq-content ~ * {
+  animation: splash-content-rise 800ms var(--splash-ease) forwards;
   will-change: transform;
 }
 
-/*
-   There is no reverse ANIMATION any more, and that is the point.
-
-   The curtain used to be dropped back with a 900ms transition triggered by a
-   pull-down gesture. But by the time it played, the reader's own scroll had
-   already brought the hero into view — so it animated content that was
-   already in place, on top of a navbar that was still fading out from a
-   separate threshold. Two animations for one intent, which is what read as
-   bouncing.
-
-   Reaching the top now simply re-arms: the hero is already there, so the
-   curtain only needs to BE down. See the scroll listener in Hero.astro.
-*/
-
-/* ── Hero contents during the lift ─────────────────────────────────────────
-
-   The logo, tagline and button fade and scale back slightly as the curtain
-   rises, so the panel is empty by the time it clears the screen — the
-   curtain recedes rather than sliding a fully-lit poster off the top.
-
-   Faster than the lift itself (420ms vs 900ms) and eased out, so the fade is
-   finished early and the remaining travel is pure movement.
-*/
-html.splash-lifting .hero-content {
-  opacity: 0;
-  transform: translateY(var(--hero-content-y, 0)) scale(0.94);
-  transition:
-    opacity 420ms ease-out,
-    transform 620ms var(--splash-ease);
+@keyframes splash-content-rise {
+  from {
+    transform: translate3d(0, 40px, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
 }
+
 
 /* ── Navbar during the splash ──────────────────────────────────────────────
 

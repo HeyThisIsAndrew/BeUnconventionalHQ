@@ -606,6 +606,29 @@ const fallbackMark = await getImage({
       }
 
       document.addEventListener('astro:page-load', handlePageLoad);
+
+      // Route-specific transitions: Slam effect for top-level nav links
+      document.addEventListener('click', (e) => {
+        const target = e.target;
+        if (!(target instanceof Element)) return;
+        const link = target.closest('a');
+        if (link) {
+          const href = link.getAttribute('href');
+          const topLevelPaths = ['/feed', '/intel', '/events-new', '/events', '/featured', '/about', '/collaborations'];
+          // Use URL parsing to accurately check paths
+          try {
+            const url = new URL(link.href);
+            const path = url.pathname.replace(/\/$/, '');
+            if (topLevelPaths.includes(path) || path === '') {
+              document.documentElement.dataset.transition = 'slam';
+            } else {
+              document.documentElement.dataset.transition = 'fade';
+            }
+          } catch (err) {
+            document.documentElement.dataset.transition = 'fade';
+          }
+        }
+      });
     </script>
     <script>
       /*

@@ -42,3 +42,58 @@
    must remain consistent across all responsive breakpoints and page templates.
    The standard spacing is exactly 2rem between the final container and the footer.
 */
+
+/* ── Z-Axis Depth Transitions (Slam) ─────────────────────────────────────── */
+
+html[data-transition="slam"]::view-transition-old(root) {
+  animation: slam-out 600ms cubic-bezier(0.76, 0, 0.24, 1) both;
+}
+
+html[data-transition="slam"]::view-transition-new(root) {
+  animation: slam-in 600ms cubic-bezier(0.76, 0, 0.24, 1) both;
+}
+
+@keyframes slam-out {
+  from {
+    transform: scale3d(1, 1, 1);
+    opacity: 1;
+  }
+  to {
+    transform: scale3d(0.9, 0.9, 1);
+    opacity: 0;
+  }
+}
+
+@keyframes slam-in {
+  from {
+    transform: scale3d(1.1, 1.1, 1);
+    opacity: 0;
+  }
+  to {
+    transform: scale3d(1, 1, 1);
+    opacity: 1;
+  }
+}
+
+/* Default Cross-Fade */
+html[data-transition="fade"]::view-transition-old(root) {
+  animation: default-fade-out 300ms ease both;
+}
+html[data-transition="fade"]::view-transition-new(root) {
+  animation: default-fade-in 300ms ease both;
+}
+
+@keyframes default-fade-out {
+  to { opacity: 0; }
+}
+@keyframes default-fade-in {
+  from { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html::view-transition-old(root),
+  html::view-transition-new(root) {
+    animation-duration: 0.01ms !important;
+  }
+}
+
