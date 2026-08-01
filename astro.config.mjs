@@ -311,7 +311,8 @@ export default defineConfig({
       dataset: 'production',
       useCdn: process.env.NODE_ENV === 'production', // Set to false in dev for fresh data, true in prod for CDN cache
       apiVersion: '2024-03-01',
-      studioBasePath: '/admin',
+      // Like /local-cms, the Studio is a dev-only tool; don't ship it to production
+      studioBasePath: process.env.NODE_ENV === 'production' ? undefined : '/admin',
     }),
   ],
   adapter: cloudflare({
