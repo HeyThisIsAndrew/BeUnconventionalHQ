@@ -73,6 +73,20 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
       <div class="flex-shrink-0 w-32 sm:w-40 md:w-auto flex flex-row items-end gap-4 md:gap-10 md:mb-4">
         {logo ? (
           <>
+            {/*
+              Deliberately NOT fetchpriority="high". It used to be, which put
+              two images on one screen both claiming top priority.
+
+              `.fe-bg` above is the LCP element — the full-bleed 100vw hero.
+              This logo draws at 160px on a phone and 380px on desktop.
+              Marking both high meant they were fetched concurrently at equal
+              priority, so on the gate's 1.6 Mbps link the logo took bandwidth
+              directly from the element the LCP metric is measuring. Priority
+              only means something when it is scarce.
+
+              Still eager rather than lazy: it is above the fold, and
+              loading="lazy" would push it past first paint.
+            */}
             <img
               src={logo.src}
               srcset={logo.srcset || undefined}
@@ -81,7 +95,6 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
               height={logo.height || undefined}
               alt={`${event.title} logo`}
               class="fe-logo w-full h-auto md:w-auto"
-              fetchpriority="high"
               decoding="async"
             />
             <h2 class="sr-only">{event.title}</h2>
