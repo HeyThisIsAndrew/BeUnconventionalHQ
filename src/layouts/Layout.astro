@@ -307,16 +307,30 @@ const fallbackMark = await getImage({
       keeps working, and its holder is `#newsletter-turnstile` rather than
       `.cf-turnstile`, so the implicit scan will not double-render it.
 
-      KNOWN, NOT FIXED HERE: the implicit scan only runs once, when the script
-      loads. With ClientRouter, a client-side navigation replaces those forms
-      with fresh unrendered elements, so ContactModal's and SubscribeBox's
-      widgets do not come back until a full reload. NewsletterForm already
-      solves this by rendering explicitly on `astro:page-load`; the other two
-      want the same treatment, which is a change to live bot-check flow that
-      should be verified against real Turnstile rather than assumed.
+      NOW LOADED ON DEMAND. The tag that used to sit here fetched the API on
+      every page view, and Cloudflare answers it with ~234 KB of challenge
+      platform — measured on /events, where it took bandwidth straight from
+      the LCP image. Almost none of that is used: the widget only matters to
+      readers who actually submit the contact or subscribe form.
+
+      src/lib/turnstile-lazy.ts now injects the script on the first focus or
+      pointer-down inside a form that needs it, which is seconds before
+      anyone can finish typing an email.
+
+      That also fixes what this comment used to record as KNOWN, NOT FIXED:
+      the implicit scan runs once, when the script loads, so with ClientRouter
+      a client-side navigation left ContactModal and SubscribeBox with fresh
+      unrendered elements and no widget until a full reload. Deferring the
+      load would have made that permanent, so every widget is now rendered
+      EXPLICITLY — including on `astro:page-load`. The components keep their
+      markup and their `data-callback` globals; the renderer reads the same
+      attributes the implicit scan would have.
     */}
     {PUBLIC_TURNSTILE_SITE_KEY && (
-      <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+      <script>
+        import { initTurnstileLazyLoading } from '../lib/turnstile-lazy';
+        initTurnstileLazyLoading();
+      </script>
     )}
 
     <ContactModal />

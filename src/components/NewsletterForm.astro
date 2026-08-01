@@ -96,6 +96,8 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
 </form>
 
 <script>
+  import { whenTurnstileReady } from '../lib/turnstile-lazy';
+
   /*
     Newsletter submit handler.
 
@@ -169,7 +171,29 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
       */
       turnstileUnavailable = true;
     };
-    tryRender();
+
+    /*
+      The API is no longer in <head> — it is injected on first interaction
+      with a form (src/lib/turnstile-lazy.ts), because it costs ~234 KB that
+      most readers never need.
+
+      So this must WAIT to be told the script arrived rather than poll for it
+      from page load. Polling blind would spend its ~10s ceiling before the
+      reader had touched anything, set `turnstileUnavailable`, and then blame
+      their ad blocker for a script we had simply not requested yet — a
+      confidently wrong error message on a working setup.
+
+      The poll inside tryRender() is kept: once the script is in, the API can
+      still take a frame or two to define `window.turnstile`. Only a genuine
+      load failure reaches the second callback, which is the one case where
+      "something is blocking it" is actually true.
+    */
+    whenTurnstileReady(
+      () => tryRender(),
+      () => {
+        turnstileUnavailable = true;
+      },
+    );
   }
 
   function initNewsletterForm() {
@@ -236,6 +260,40 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
           'error',
           "Our bot check couldn't load — an ad blocker or network filter may be " +
             'blocking it. Disable it for this page, or subscribe on Substack instead.'
+        );
+        return;
+      }
+
+      /*
+        A rendered widget is not the same as a VISIBLE one.
+
+        turnstile.render() returns an id as soon as it accepts the call, and
+        the widget draws afterwards. If it never draws, the reader is told to
+        "complete the verification challenge above" while staring at empty
+        space — the exact dead end this component's header comment describes
+        being fixed once already, reached from a different direction.
+
+        The most common cause is the site key's allowed-hostnames list. A key
+        scoped to the production domain refuses to draw on any preview deploy,
+        silently. (Confirmed: the form works on beunconventionalhq.com and
+        fails on *.workers.dev previews.) A sustained 429 on the challenge
+        endpoint does the same thing, as does an ad blocker that lets api.js
+        through but blocks the challenge frame.
+
+        Turnstile draws into an iframe inside the holder, so "no iframe, or an
+        iframe with no height" is the honest test for it. When that is the
+        case, say what is actually wrong and offer the way out, rather than
+        pointing at a challenge that is not there.
+      */
+      const holder = document.getElementById('newsletter-turnstile');
+      const frame = holder?.querySelector('iframe');
+      const widgetDrew = !!frame && frame.getBoundingClientRect().height > 0;
+
+      if (widgetId && !widgetDrew) {
+        setState(
+          'error',
+          "Our bot check couldn't load, so this form can't be submitted from here. " +
+            'Subscribe on Substack instead — the link is just below.'
         );
         return;
       }
