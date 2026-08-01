@@ -169,15 +169,31 @@ export function detectIsLive(item: any): boolean {
 /**
  * When the video actually reached an audience.
  *
- * For an upload that is `snippet.publishedAt`. For a broadcast it is not:
- * `publishedAt` is when the broadcast RESOURCE was created, which for a
- * scheduled stream is whenever the creator set it up. The FUTURAMA stream was
- * created on 10 July and aired on 31 July, and the site dated it 10 July —
- * three weeks stale, and wrong in the only sense a reader cares about.
+ * For an ordinary upload that is `snippet.publishedAt`. For a broadcast it is
+ * simply not trustworthy, and the evidence is stronger than any theory about
+ * why:
  *
- * `actualStartTime` is when it went live. `scheduledStartTime` is the best
- * available answer for a stream that has not aired yet. Ordinary uploads have
- * neither and fall through to `publishedAt` unchanged.
+ *   A stream was started from the YouTube phone app — plus button, Live,
+ *   straight on air, nothing scheduled. It entered src/data/videos.json for
+ *   the first time in the 2026-08-01T03:38:53Z sync, minutes after it ended
+ *   (git log -S on the record confirms that sync ADDED it, and added nothing
+ *   else). YouTube reported its snippet.publishedAt as 2026-07-10T21:58:39Z.
+ *
+ *   Twenty-one days early, on a broadcast that was never scheduled.
+ *
+ * The likely mechanism is that mobile "go live now" reuses a persistent
+ * broadcast resource on the channel rather than minting one per stream, so
+ * publishedAt reports when that resource first existed. That is a guess and is
+ * labelled as one — an earlier version of this comment asserted the stream had
+ * been scheduled in advance, which the channel owner corrected: it had not.
+ * What is NOT a guess is that publishedAt was 21 days wrong for a stream that
+ * happened that afternoon, so it cannot be the field we date broadcasts by.
+ *
+ * `actualStartTime` is when the stream actually began, which is true no matter
+ * which resource YouTube reused to run it. `scheduledStartTime` is the fallback
+ * for a stream that has not aired yet — an unscheduled mobile live has no such
+ * field, which is why it is second and not first. Ordinary uploads have neither
+ * and fall through to `publishedAt` unchanged.
  */
 export function pickPublishedAt(item: any): string {
   const live = item?.liveStreamingDetails;

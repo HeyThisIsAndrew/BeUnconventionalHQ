@@ -59,6 +59,33 @@ const FUTURAMA = {
   },
 };
 
+/*
+  A "go live now" from the phone app: plus button, Live, straight on air.
+  Nothing was scheduled, so there is NO scheduledStartTime — only an actual
+  start. This is the shape that actually caused the incident.
+
+  publishedAt is 21 days before the stream happened. That is not a scheduling
+  artifact (this broadcast was never scheduled); mobile live appears to reuse a
+  persistent broadcast resource, so publishedAt reports when that resource
+  first existed rather than when this stream ran. Whatever the cause, the field
+  cannot be trusted for a broadcast.
+*/
+const UNSCHEDULED_MOBILE_LIVE = {
+  id: 'WI0QcnH_Bgw',
+  snippet: {
+    title: 'FUTURAMA PANEL LIVE!',
+    publishedAt: '2026-07-10T21:58:39Z',
+    liveBroadcastContent: 'none',
+    tags: ['Movies', 'Film', 'TV', 'Gaming', 'Events'],
+    thumbnails: { maxres: { url: 'https://i.ytimg.com/vi/WI0QcnH_Bgw/maxresdefault_live.jpg' } },
+  },
+  liveStreamingDetails: {
+    // No scheduledStartTime — it was never scheduled.
+    actualStartTime: '2026-08-01T02:55:12Z',
+    actualEndTime: '2026-08-01T03:04:40Z',
+  },
+};
+
 const ORDINARY_UPLOAD = {
   id: 'z7gN_79C3BM',
   snippet: {
@@ -136,6 +163,23 @@ test('an un-aired stream falls back to scheduledStartTime', () => {
     liveStreamingDetails: { scheduledStartTime: '2026-09-01T18:00:00Z' },
   };
   assert.equal(pickPublishedAt(upcoming), '2026-09-01T18:00:00Z');
+});
+
+test('an UNSCHEDULED mobile live is dated by when it went on air', () => {
+  // The real incident. A stream started from the phone that afternoon was
+  // stamped 21 days earlier by publishedAt; actualStartTime is the only field
+  // that reflects when it actually happened.
+  assert.equal(pickPublishedAt(UNSCHEDULED_MOBILE_LIVE), '2026-08-01T02:55:12Z');
+  assert.notEqual(
+    pickPublishedAt(UNSCHEDULED_MOBILE_LIVE),
+    UNSCHEDULED_MOBILE_LIVE.snippet.publishedAt,
+  );
+});
+
+test('...and is still detected as a broadcast with no scheduledStartTime', () => {
+  // liveBroadcastContent has already reverted to "none" and there is no live
+  // tag, so liveStreamingDetails is the only thing identifying it.
+  assert.equal(detectIsLive(UNSCHEDULED_MOBILE_LIVE), true);
 });
 
 test('an ordinary upload keeps snippet.publishedAt', () => {
