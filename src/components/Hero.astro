@@ -385,6 +385,13 @@ import { site } from '../data/site.js';
         root.style.scrollBehavior = previousBehavior;
         if (wrapper) wrapper.style.willChange = '';
         busy = false;
+        
+        // Focus the content container so keyboard flow continues naturally
+        const hqContent = document.getElementById('hq-content');
+        if (hqContent) {
+          hqContent.setAttribute('tabindex', '-1');
+          hqContent.focus({ preventScroll: true });
+        }
       };
 
       /* transitionend is the accurate signal; the timeout is a safety net for
@@ -520,12 +527,12 @@ import { site } from '../data/site.js';
         { passive: true }
       );
 
-      /* Keyboard: the first Tab lifts the curtain so the hidden navbar is
-         never more than one keystroke away, and Escape does the same for
-         anyone who just wants it gone. */
+      /* Keyboard: Escape or PageDown lifts the curtain so the hidden navbar is
+         never more than one keystroke away for anyone who just wants it gone. 
+         Tab is omitted so users can naturally tab onto the CTA. */
       document.addEventListener('keydown', (event) => {
         if (!root.classList.contains('splash-armed')) return;
-        if (event.key === 'Tab' || event.key === 'Escape' || event.key === 'PageDown') {
+        if (event.key === 'Escape' || event.key === 'PageDown') {
           lift();
         }
       });

@@ -93,10 +93,12 @@ const isActive = (href: string) =>
           identity.style.opacity = '1';
           identity.style.transform = 'translateY(0) scale(1)';
           identity.style.pointerEvents = 'auto';
+          identity.style.visibility = 'visible';
         } else {
           identity.style.opacity = '0';
           identity.style.transform = 'translateY(-10px) scale(0.95)';
           identity.style.pointerEvents = 'none';
+          identity.style.visibility = 'hidden';
         }
       }
 
@@ -202,46 +204,66 @@ const isActive = (href: string) =>
               const isModalTrigger = !!e.target.closest('[data-modal-trigger]');
 
               if (navbar.classList.contains('menu-open')) {
-                if (!document.documentElement.classList.contains('menu-open')) {
+                if (window.__hqScrollLock && !window.__hqScrollLock.isLocked()) {
                   navbar.classList.remove('menu-open');
                   toggle.setAttribute('aria-expanded', 'false');
                   return;
                 }
 
-              navbar.classList.remove('menu-open');
-              document.documentElement.classList.remove('menu-open');
-              toggle.setAttribute('aria-expanded', 'false');
+                navbar.classList.remove('menu-open');
+                toggle.setAttribute('aria-expanded', 'false');
 
-              // If this is a modal trigger, just visually close the menu but leave 
-              // the scroll lock perfectly intact so the modal can adopt it!
-              if (isModalTrigger) return;
+                // If this is a modal trigger, just visually close the menu but leave 
+                // the scroll lock perfectly intact so the modal can adopt it!
+                if (isModalTrigger) return;
 
-              const scrollY = Math.abs(
-                parseInt(document.body.style.top || '0')
-              );
-
-              document.body.style.position = '';
-              document.body.style.top = '';
-              document.body.style.width = '';
-              document.body.style.overflowY = '';
-
-              const originalBehavior = document.documentElement.style.scrollBehavior;
-              document.documentElement.style.scrollBehavior = 'auto'; // Force instant
-              window.scrollTo(0, scrollY);
-
-              // Double requestAnimationFrame for native thread safety
-              requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                  document.documentElement.style.scrollBehavior = originalBehavior;
-                });
-              });
-            }
-          });
+                if (window.__hqScrollLock) {
+                  window.__hqScrollLock.unlock();
+                }
+              }
+            });
           link.dataset.mobileClickBound = 'true';
         }
-        });
-    }
+      });
 
+      // Viewport Resize Trap: Release the lock if the menu is forced closed by CSS breakpoints
+      const mql = window.matchMedia('(min-width: 900px)');
+      mql.addEventListener('change', (e) => {
+        if (e.matches && navbar.classList.contains('menu-open')) {
+          navbar.classList.remove('menu-open');
+          toggle.setAttribute('aria-expanded', 'false');
+          if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
+            window.__hqScrollLock.unlock();
+          }
+        }
+      });
+
+      // Focus Trap for Accessibility
+      navbar.addEventListener('keydown', (e) => {
+        if (!navbar.classList.contains('menu-open')) return;
+        
+        if (e.key === 'Escape') {
+          toggle.click();
+          toggle.focus();
+          return;
+        }
+
+        if (e.key === 'Tab') {
+          const focusable = navbar.querySelectorAll('button, a[href]');
+          if (focusable.length === 0) return;
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      });
+      }
     } // Ends initMobileMenu
 
     // The navbar uses transition:persist, so Astro preserves it (and any
