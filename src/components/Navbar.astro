@@ -263,9 +263,22 @@ const isActive = (href: string) =>
       }
     }
 
+    // Fix Bug 1 & Bug 2: Reset navbar visibility BEFORE the new page swaps in
+    // This prevents the flicker when navigating from the bottom of a page,
+    // and prevents the navbar from remaining visible if the observer state gets out of sync.
+    function hideNavbarIdentityBeforeSwap() {
+      const identity = document.getElementById('nav-identity');
+      if (identity) {
+        identity.style.opacity = '0';
+        identity.style.transform = 'translateY(-10px) scale(0.95)';
+        identity.style.pointerEvents = 'none';
+      }
+    }
+
     if (!window.navbarMobileMenuSetup) {
       document.addEventListener('astro:page-load', initMobileMenu);
       document.addEventListener('astro:page-load', resetMenuState);
+      document.addEventListener('astro:before-swap', hideNavbarIdentityBeforeSwap);
       window.navbarMobileMenuSetup = true;
     }
   })();
