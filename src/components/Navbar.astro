@@ -101,6 +101,14 @@ const isActive = (href: string) =>
           identity.style.pointerEvents = 'none';
           navbar.classList.remove('scrolled');
         }
+
+        // Restore transitions after state is instantly applied
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            navbar.style.transition = '';
+            identity.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+          });
+        });
       }
 
       if (anchor) {
@@ -192,37 +200,15 @@ const isActive = (href: string) =>
               const isModalTrigger = !!e.target.closest('[data-modal-trigger]');
 
               if (navbar.classList.contains('menu-open')) {
-                if (!document.documentElement.classList.contains('menu-open')) {
-                  navbar.classList.remove('menu-open');
-                  toggle.setAttribute('aria-expanded', 'false');
-                  return;
+                navbar.classList.remove('menu-open');
+                toggle.setAttribute('aria-expanded', 'false');
+                
+                if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
+                  window.__hqScrollLock.unlock();
                 }
 
-              navbar.classList.remove('menu-open');
-              document.documentElement.classList.remove('menu-open');
-              toggle.setAttribute('aria-expanded', 'false');
-
-              if (isModalTrigger) return;
-
-              const scrollY = Math.abs(
-                parseInt(document.body.style.top || '0')
-              );
-
-              document.body.style.position = '';
-              document.body.style.top = '';
-              document.body.style.width = '';
-              document.body.style.overflowY = '';
-
-              const originalBehavior = document.documentElement.style.scrollBehavior;
-              document.documentElement.style.scrollBehavior = 'auto'; // Force instant
-              window.scrollTo(0, scrollY);
-
-              requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                  document.documentElement.style.scrollBehavior = originalBehavior;
-                });
-              });
-            }
+                if (isModalTrigger) return;
+              }
           });
           link.dataset.mobileClickBound = 'true';
         }
@@ -237,14 +223,13 @@ const isActive = (href: string) =>
       const navbar = document.getElementById('navbar');
       if (navbar && navbar.classList.contains('menu-open')) {
         navbar.classList.remove('menu-open');
-        document.documentElement.classList.remove('menu-open');
-        document.body.style.position = '';
-        document.body.style.top = '';
-        document.body.style.width = '';
-        document.body.style.overflowY = '';
         navbar
           .querySelector('.nav-toggle')
           ?.setAttribute('aria-expanded', 'false');
+          
+        if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
+          window.__hqScrollLock.unlock();
+        }
       }
     }
 
@@ -253,14 +238,16 @@ const isActive = (href: string) =>
       const navbar = document.getElementById('navbar');
       const identity = document.getElementById('nav-identity');
       
+      if (navbar) {
+        navbar.style.transition = 'none';
+        navbar.classList.remove('scrolled', 'menu-open');
+      }
+
       if (identity) {
+        identity.style.transition = 'none';
         identity.style.opacity = '0';
         identity.style.transform = 'translateY(-10px) scale(0.95)';
         identity.style.pointerEvents = 'none';
-      }
-      
-      if (navbar) {
-        navbar.classList.remove('scrolled', 'menu-open');
       }
     }
 
