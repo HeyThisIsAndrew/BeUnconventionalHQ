@@ -236,6 +236,19 @@ import { site } from '../data/site.js';
     */
     let navDirection: string | null = null;
 
+    function focusContent() {
+      const hqContent = document.getElementById('hq-content');
+      if (hqContent) {
+        // -1 allows programmatic focus without adding the section to the natural tab order
+        hqContent.setAttribute('tabindex', '-1');
+        // preventScroll: we already manually scrolled exactly where we want the viewport
+        hqContent.focus({ preventScroll: true });
+        // Remove outline so click users don't get a huge focus ring around the whole section,
+        // but keyboard focus is safely shifted so their next Tab works correctly.
+        hqContent.style.outline = 'none';
+      }
+    }
+
     document.addEventListener('astro:before-preparation', (event) => {
       navDirection = (event as unknown as { direction?: string }).direction ?? null;
     });
@@ -358,6 +371,7 @@ import { site } from '../data/site.js';
           window.scrollTo(0, distance);
           root.style.scrollBehavior = previousBehavior;
           busy = false;
+          focusContent();
         });
         return;
       }
@@ -385,6 +399,7 @@ import { site } from '../data/site.js';
         root.style.scrollBehavior = previousBehavior;
         if (wrapper) wrapper.style.willChange = '';
         busy = false;
+        focusContent();
       };
 
       /* transitionend is the accurate signal; the timeout is a safety net for
@@ -459,13 +474,14 @@ import { site } from '../data/site.js';
           }
 
           const heroEl = document.querySelector('.hero') as HTMLElement | null;
-          const target = heroEl ? heroEl.offsetHeight : window.innerHeight;
+          const scrollDistance = heroEl ? heroEl.offsetHeight : window.innerHeight;
           /* Smooth here, unlike the curtain's instant swap — this is a plain
              in-page jump and the motion is the feedback that the press
              registered. `scroll-behavior: smooth` is already the site default
              and is disabled under prefers-reduced-motion. */
-          window.scrollTo({ top: target, behavior: 'smooth' });
+          window.scrollTo({ top: scrollDistance, behavior: 'smooth' });
           stripHash();
+          focusContent();
           return;
         }
 
