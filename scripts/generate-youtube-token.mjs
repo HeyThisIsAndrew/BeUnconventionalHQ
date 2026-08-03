@@ -11,7 +11,7 @@ if (!YOUTUBE_CLIENT_ID || !YOUTUBE_CLIENT_SECRET) {
   process.exit(1);
 }
 
-const REDIRECT_URI = 'http://localhost:3000/callback';
+const REDIRECT_URI = 'http://localhost:3000/oauth2callback';
 const SCOPES = 'https://www.googleapis.com/auth/yt-analytics.readonly';
 
 const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${YOUTUBE_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=${encodeURIComponent(SCOPES)}&access_type=offline&prompt=consent`;
@@ -26,7 +26,7 @@ console.log('\nWaiting for callback on port 3000...\n');
 const server = http.createServer(async (req, res) => {
   const reqUrl = url.parse(req.url, true);
 
-  if (reqUrl.pathname === '/callback') {
+  if (reqUrl.pathname === '/oauth2callback') {
     const code = reqUrl.query.code;
 
     if (!code) {
