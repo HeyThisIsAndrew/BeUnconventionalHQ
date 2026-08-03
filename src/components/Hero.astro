@@ -265,12 +265,41 @@ import { site } from '../data/site.js';
       return (entry as PerformanceNavigationTiming | undefined)?.type === 'back_forward';
     }
 
+    let resizeTimer: any;
+    window.addEventListener('resize', () => {
+      if (root.classList.contains('splash-armed')) {
+        measureLift();
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(measureLift, 150);
+      }
+    });
+
     function measureLift() {
       const hero = document.querySelector('.hero') as HTMLElement | null;
-      /* Measured, not assumed to be 100vh: a mobile address bar makes vh and
-         the real painted height disagree, and being a few pixels out here
-         shows up as a visible seam at the end of the lift. */
-      if (hero) root.style.setProperty('--splash-lift', `${hero.offsetHeight}px`);
+      if (!hero) return;
+
+      // The visible viewport height (iOS updates this correctly on resize)
+      const vh = window.innerHeight;
+      
+      // Calculate max possible height to emulate 100lvh without relying on CSS viewport units,
+      // which freeze on iOS Safari rotation when overflow: hidden is active.
+      const isLandscape = window.innerWidth > window.innerHeight;
+      let lvh = isLandscape 
+        ? Math.min(window.screen.width, window.screen.height) 
+        : Math.max(window.screen.width, window.screen.height);
+      
+      // Ensure lvh is at least vh
+      lvh = Math.max(lvh, vh);
+
+      const padBottom = lvh - vh;
+
+      root.style.setProperty('--hero-vh', `${vh}px`);
+      root.style.setProperty('--hero-lvh', `${lvh}px`);
+      root.style.setProperty('--hero-pad-bottom', `${padBottom}px`);
+      
+      // Since CSS forces height to --hero-lvh and box-sizing to border-box,
+      // the hero is exactly lvh tall.
+      root.style.setProperty('--splash-lift', `${lvh}px`);
     }
 
     /*
@@ -645,10 +674,8 @@ import { site } from '../data/site.js';
     });
 
     /* Keep the measurement honest when the viewport changes under us
-       (rotation, mobile address bar, desktop resize). */
-    window.addEventListener('resize', () => {
-      if (root.classList.contains('splash-armed')) measureLift();
-    });
+       (rotation, mobile address bar, desktop resize). The listener for this is
+       defined above alongside measureLift(). */
 
     armOnEntry();
   })();
