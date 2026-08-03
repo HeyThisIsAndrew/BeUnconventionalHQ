@@ -88,8 +88,7 @@ const isActive = (href: string) =>
       }
 
       // 3. Visibility Logic
-      const anchor = document.querySelector('[data-nav-anchor]');
-
+      // We use a basic scroll threshold so the navbar remains solid until the utmost part of the screen.
       function updateVisibility(isVisible) {
         if (isVisible) {
           identity.style.opacity = '1';
@@ -114,31 +113,15 @@ const isActive = (href: string) =>
         });
       }
 
-      if (anchor) {
-        // We are on the homepage. Watch the Hero text.
-        observer = new IntersectionObserver(
-          (entries) => {
-            entries.forEach((entry) => {
-              updateVisibility(!entry.isIntersecting);
-            });
-          },
-          { rootMargin: '-80px 0px 0px 0px' }
-        );
-        const rect = anchor.getBoundingClientRect();
-        updateVisibility(rect.bottom <= 0);
-        observer.observe(anchor);
-      } else {
-        // We are on a subpage. Fallback to basic scroll threshold.
-        scrollHandler = () => {
-          if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) return;
-          const scroll = window.scrollY || document.documentElement.scrollTop;
-          updateVisibility(scroll > 100);
-        };
-        window.addEventListener('scroll', scrollHandler, { passive: true });
-
-        // INSTANTLY check state on load so it doesn't get stuck visible!
-        scrollHandler();
-      }
+      scrollHandler = () => {
+        if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) return;
+        const scroll = window.scrollY || document.documentElement.scrollTop;
+        updateVisibility(scroll > 100);
+      };
+      
+      window.addEventListener('scroll', scrollHandler, { passive: true });
+      // INSTANTLY check state on load so it doesn't get stuck visible!
+      scrollHandler();
     }
 
     function updateActiveNavLinks() {
