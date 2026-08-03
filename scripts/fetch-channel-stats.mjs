@@ -53,121 +53,121 @@ async function fetchStats() {
   // If OAuth creds are present, fetch analytics
   if (YOUTUBE_CLIENT_ID && YOUTUBE_CLIENT_SECRET && YOUTUBE_REFRESH_TOKEN) {
     console.log('[channel-stats] Fetching private analytics...');
-    const authRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: YOUTUBE_CLIENT_ID,
-        client_secret: YOUTUBE_CLIENT_SECRET,
-        refresh_token: YOUTUBE_REFRESH_TOKEN,
-        grant_type: 'refresh_token',
-      }),
-    });
-    if (!authRes.ok) {
-      throw new Error(`Auth failed: ${authRes.status} ${await authRes.text()}`);
-    }
-    const authData = await authRes.json();
-    const access_token = authData.access_token;
-
-    if (access_token) {
-      const todayDate = new Date();
-      const todayStr = todayDate.toISOString().split('T')[0];
-      const thirtyDaysAgo = new Date(todayDate.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const startDateLifetime = '2020-01-01';
-
-      const fetchAnalytics = async (params, overrideStart, overrideEnd) => {
-        const url = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
-        url.searchParams.append('ids', 'channel==MINE');
-        url.searchParams.append('startDate', overrideStart || startDateLifetime);
-        url.searchParams.append('endDate', overrideEnd || todayStr);
-        for (const [k, v] of Object.entries(params)) {
-          url.searchParams.append(k, v);
-        }
-        const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${access_token}` } });
-        if (!res.ok) {
-          const body = await res.text();
-          throw new Error(`Analytics API error: ${res.status} - ${body}`);
-        }
-        return res.json();
-      };
-
-      const [retentionData, demoData, geoData, views30DayData, deviceData, trafficData, subData, impressionsData] = await Promise.all([
-        fetchAnalytics({ metrics: 'averageViewPercentage' }),
-        fetchAnalytics({ dimensions: 'ageGroup,gender', metrics: 'viewerPercentage' }),
-        fetchAnalytics({ dimensions: 'country', metrics: 'views', sort: '-views', maxResults: '3' }),
-        fetchAnalytics({ metrics: 'views' }, thirtyDaysAgo, todayStr),
-        fetchAnalytics({ dimensions: 'deviceType', metrics: 'views' }, thirtyDaysAgo, todayStr),
-        fetchAnalytics({ dimensions: 'insightTrafficSourceType', metrics: 'views' }, thirtyDaysAgo, todayStr),
-        fetchAnalytics({ dimensions: 'subscribedStatus', metrics: 'views' }, thirtyDaysAgo, todayStr),
-        // Lifetime, matching retention/age/gender's default range - "Total
-        // Impressions" is a from-the-beginning figure, distinct from the
-        // 30-day views card already on the page.
-        fetchAnalytics({ metrics: 'impressions' }),
-      ]);
-
-      let retentionPercent = retentionData?.rows?.[0]?.[0] || 0;
-      
-      let age18to34Percent = 0;
-      let malePercent = 0;
-      let femalePercent = 0;
-      if (demoData?.rows) {
-        for (const row of demoData.rows) {
-          const pct = row[2] || 0;
-          if (row[0] === 'age18-24' || row[0] === 'age25-34') age18to34Percent += pct;
-          if (row[1] === 'male') malePercent += pct;
-          if (row[1] === 'female') femalePercent += pct;
-        }
+    try {
+      const authRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: YOUTUBE_CLIENT_ID,
+          client_secret: YOUTUBE_CLIENT_SECRET,
+          refresh_token: YOUTUBE_REFRESH_TOKEN,
+          grant_type: 'refresh_token',
+        }),
+      });
+      if (!authRes.ok) {
+        throw new Error(`Auth failed: ${authRes.status} ${await authRes.text()}`);
       }
-
-      const topGeos = geoData?.rows?.map(row => row[0]) || [];
-      const views30Days = views30DayData?.rows?.[0]?.[0] || 0;
-
-      let totalDeviceViews = 0;
-      let tvViews = 0;
-      if (deviceData?.rows) {
-        for (const row of deviceData.rows) {
-          totalDeviceViews += row[1] || 0;
-          if (row[0] === 'TV') tvViews += row[1] || 0;
+      const authData = await authRes.json();
+      const access_token = authData.access_token;
+  
+      if (access_token) {
+        const todayDate = new Date();
+        const todayStr = todayDate.toISOString().split('T')[0];
+        const thirtyDaysAgo = new Date(todayDate.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const startDateLifetime = '2020-01-01';
+  
+        const fetchAnalytics = async (params, overrideStart, overrideEnd) => {
+          const url = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
+          url.searchParams.append('ids', 'channel==MINE');
+          url.searchParams.append('startDate', overrideStart || startDateLifetime);
+          url.searchParams.append('endDate', overrideEnd || todayStr);
+          for (const [k, v] of Object.entries(params)) {
+            url.searchParams.append(k, v);
+          }
+          const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${access_token}` } });
+          if (!res.ok) {
+            const body = await res.text();
+            throw new Error(`Analytics API error: ${res.status} - ${body}`);
+          }
+          return res.json();
+        };
+  
+        const [retentionData, demoData, geoData, views30DayData, deviceData, trafficData, subData] = await Promise.all([
+          fetchAnalytics({ metrics: 'averageViewPercentage' }),
+          fetchAnalytics({ dimensions: 'ageGroup,gender', metrics: 'viewerPercentage' }),
+          fetchAnalytics({ dimensions: 'country', metrics: 'views', sort: '-views', maxResults: '3' }),
+          fetchAnalytics({ metrics: 'views' }, thirtyDaysAgo, todayStr),
+          fetchAnalytics({ dimensions: 'deviceType', metrics: 'views' }, thirtyDaysAgo, todayStr),
+          fetchAnalytics({ dimensions: 'insightTrafficSourceType', metrics: 'views' }, thirtyDaysAgo, todayStr),
+          fetchAnalytics({ dimensions: 'subscribedStatus', metrics: 'views' }, thirtyDaysAgo, todayStr),
+        ]);
+  
+        let retentionPercent = retentionData?.rows?.[0]?.[0] || 0;
+        
+        let age18to34Percent = 0;
+        let malePercent = 0;
+        let femalePercent = 0;
+        if (demoData?.rows) {
+          for (const row of demoData.rows) {
+            const pct = row[2] || 0;
+            if (row[0] === 'age18-24' || row[0] === 'age25-34') age18to34Percent += pct;
+            if (row[1] === 'male') malePercent += pct;
+            if (row[1] === 'female') femalePercent += pct;
+          }
         }
-      }
-      const tvViewershipPercent = totalDeviceViews > 0 ? (tvViews / totalDeviceViews) * 100 : 0;
-
-      let totalTrafficViews = 0;
-      let searchViews = 0;
-      if (trafficData?.rows) {
-        for (const row of trafficData.rows) {
-          totalTrafficViews += row[1] || 0;
-          if (row[0] === 'YT_SEARCH') searchViews += row[1] || 0;
+  
+        const topGeos = geoData?.rows?.map(row => row[0]) || [];
+        const views30Days = views30DayData?.rows?.[0]?.[0] || 0;
+  
+        let totalDeviceViews = 0;
+        let tvViews = 0;
+        if (deviceData?.rows) {
+          for (const row of deviceData.rows) {
+            totalDeviceViews += row[1] || 0;
+            if (row[0] === 'TV') tvViews += row[1] || 0;
+          }
         }
-      }
-      const searchTrafficPercent = totalTrafficViews > 0 ? (searchViews / totalTrafficViews) * 100 : 0;
-
-      let totalSubViews = 0;
-      let unsubViews = 0;
-      if (subData?.rows) {
-        for (const row of subData.rows) {
-          totalSubViews += row[1] || 0;
-          if (row[0] === 'UNSUBSCRIBED') unsubViews += row[1] || 0;
+        const tvViewershipPercent = totalDeviceViews > 0 ? (tvViews / totalDeviceViews) * 100 : 0;
+  
+        let totalTrafficViews = 0;
+        let searchViews = 0;
+        if (trafficData?.rows) {
+          for (const row of trafficData.rows) {
+            totalTrafficViews += row[1] || 0;
+            if (row[0] === 'YT_SEARCH') searchViews += row[1] || 0;
+          }
         }
+        const searchTrafficPercent = totalTrafficViews > 0 ? (searchViews / totalTrafficViews) * 100 : 0;
+  
+        let totalSubViews = 0;
+        let unsubViews = 0;
+        if (subData?.rows) {
+          for (const row of subData.rows) {
+            totalSubViews += row[1] || 0;
+            if (row[0] === 'UNSUBSCRIBED') unsubViews += row[1] || 0;
+          }
+        }
+        const unsubscribedPercent = totalSubViews > 0 ? (unsubViews / totalSubViews) * 100 : 0;
+  
+        const impressions = 0; // YouTube Analytics API v2 does not support channel-level thumbnail impressions
+  
+        result.analytics = {
+          retentionPercent,
+          age18to34Percent,
+          malePercent,
+          femalePercent,
+          topGeos,
+          views30Days,
+          tvViewershipPercent,
+          searchTrafficPercent,
+          unsubscribedPercent,
+          impressions,
+        };
+      } else {
+        console.warn('[channel-stats] Auth failed, skipping analytics');
       }
-      const unsubscribedPercent = totalSubViews > 0 ? (unsubViews / totalSubViews) * 100 : 0;
-
-      const impressions = impressionsData?.rows?.[0]?.[0] || 0;
-
-      result.analytics = {
-        retentionPercent,
-        age18to34Percent,
-        malePercent,
-        femalePercent,
-        topGeos,
-        views30Days,
-        tvViewershipPercent,
-        searchTrafficPercent,
-        unsubscribedPercent,
-        impressions,
-      };
-    } else {
-      console.warn('[channel-stats] Auth failed, skipping analytics');
+    } catch (err) {
+      console.warn(`[channel-stats] Private analytics failed: ${err.message}`);
     }
   } else {
     console.warn('[channel-stats] No OAuth credentials, skipping analytics');
