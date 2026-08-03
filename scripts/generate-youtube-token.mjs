@@ -16,12 +16,18 @@ const SCOPES = 'https://www.googleapis.com/auth/yt-analytics.readonly';
 
 const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${YOUTUBE_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=${encodeURIComponent(SCOPES)}&access_type=offline&prompt=consent`;
 
+import { exec } from 'child_process';
+
 console.log('================================================================================');
 console.log('Action Required: Authorize YouTube Analytics');
 console.log('================================================================================\n');
-console.log('Please click the link below to authorize the application:\n');
+console.log('Opening your default browser to authorize the application...\n');
+console.log('If the browser does not open automatically, copy and paste this URL:\n');
 console.log(authUrl);
 console.log('\nWaiting for callback on port 3000...\n');
+
+// Automatically open the URL on Mac
+exec(`open "${authUrl}"`);
 
 const server = http.createServer(async (req, res) => {
   const reqUrl = url.parse(req.url, true);
