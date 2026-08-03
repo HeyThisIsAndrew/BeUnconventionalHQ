@@ -246,7 +246,32 @@ import { site } from '../data/site.js';
       return (entry as PerformanceNavigationTiming | undefined)?.type === 'back_forward';
     }
 
+    /**
+     * Publish the real viewport height for the hero to floor itself against.
+     *
+     * `overflow: hidden` on <html> — which is how the curtain stops the page
+     * scrolling underneath it — makes iOS Safari stop re-resolving `lvh` and
+     * `svh` when the device is rotated. The hero then keeps the height it
+     * computed in the PREVIOUS orientation: rotate portrait→landscape and an
+     * 844px-tall hero centres its copy at 422px inside a 390px screen, which
+     * is the reported "CTA sits too low" bug.
+     *
+     * `window.innerHeight` is not affected by that freeze, so it is the one
+     * honest number available here. It is published raw and the compensation
+     * itself is a `min-height` in styles/modules/splash.css, next to the
+     * `overflow: hidden` that causes the freeze — see the long note there for
+     * why a floor rather than a replacement, and why it is scoped to coarse
+     * pointers and to the armed state only.
+     */
+    function publishViewportHeight() {
+      root.style.setProperty('--hero-viewport-h', `${window.innerHeight}px`);
+    }
+
     function measureLift() {
+      /* BEFORE the offsetHeight read below, not after: the hero's height is
+         derived from this value while the curtain is down, so measuring the
+         lift first would bake in the stale orientation's height. */
+      publishViewportHeight();
       const hero = document.querySelector('.hero') as HTMLElement | null;
       /* Measured, not assumed to be 100vh: a mobile address bar makes vh and
          the real painted height disagree, and being a few pixels out here
@@ -609,11 +634,40 @@ import { site } from '../data/site.js';
       if (window.scrollY >= 4) disarm();
     });
 
-    /* Keep the measurement honest when the viewport changes under us
-       (rotation, mobile address bar, desktop resize). */
-    window.addEventListener('resize', () => {
+    /*
+      Keep the measurement honest when the viewport changes under us
+      (rotation, mobile address bar, desktop resize).
+
+      ─── WHY THIS RE-MEASURES THREE TIMES ─────────────────────────────────
+      Rotation is not a single moment on iOS. The first `resize` after an
+      orientation change frequently still reports the OLD `window.innerHeight`
+      — the event fires before the browser has settled the new viewport — so a
+      one-shot read here would publish the very stale number this is meant to
+      correct. The follow-ups (next frame, then a late one) cost two property
+      writes and make the outcome independent of which tick happens to carry
+      the real value.
+
+      `orientationchange` is listened for alongside `resize` because the two
+      do not reliably both fire, or fire in a fixed order, across iOS
+      versions. Both funnel into the same idempotent measure.
+    */
+    let remeasureFrame = 0;
+    let remeasureTimer = 0;
+
+    function measureIfArmed() {
       if (root.classList.contains('splash-armed')) measureLift();
-    });
+    }
+
+    function onViewportChange() {
+      measureIfArmed();
+      cancelAnimationFrame(remeasureFrame);
+      remeasureFrame = requestAnimationFrame(measureIfArmed);
+      clearTimeout(remeasureTimer);
+      remeasureTimer = window.setTimeout(measureIfArmed, 300);
+    }
+
+    window.addEventListener('resize', onViewportChange);
+    window.addEventListener('orientationchange', onViewportChange);
 
     armOnEntry();
   })();

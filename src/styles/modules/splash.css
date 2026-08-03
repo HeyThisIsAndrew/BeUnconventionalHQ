@@ -85,6 +85,59 @@ html.splash-armed {
 }
 
 /*
+   ─── ROTATING WITH THE CURTAIN DOWN ───────────────────────────────────────
+   Reported from an iPhone: load the homepage in portrait, rotate to
+   landscape, and the hero copy and CTA sit far below the middle of the
+   screen, pushed toward the bottom edge.
+
+   The cause is the `overflow: hidden` directly above. iOS Safari does not
+   re-resolve the viewport-relative units — `lvh` and `svh`, which is how the
+   hero is sized on phones (see hero.css and landscape.css) — against the new
+   orientation while the ROOT element is clipped that way. The MEDIA QUERIES
+   do flip, so the landscape rules apply normally, but `100svh` keeps handing
+   back the value it computed in portrait: after a portrait→landscape
+   rotation the hero is still sized for an 844px-tall viewport inside a 390px
+   one, and `align-items: center` puts the copy at ~422px — past the bottom
+   of the screen. The mirror case (landscape→portrait) leaves the hero far
+   too SHORT, which is the same freeze read the other way.
+
+   The compensation is a measured FLOOR, not a replacement. Hero.astro
+   publishes `--hero-viewport-h` from `window.innerHeight` — a number iOS
+   updates on rotation whatever the root's overflow is doing — and it lands
+   on `min-height`, which layout resolves AFTER `height`. So it can only ever
+   win where the frozen unit is the smaller value:
+
+     • units NOT frozen (every desktop browser, and mobile on a cold load):
+       `100lvh`/`100svh` already covers the real viewport, so the floor is
+       inert and the hero renders exactly as it does today. That is what
+       keeps this clear of the address-bar reasoning in hero.css.
+     • frozen SHORT (landscape→portrait): the floor raises the hero back to
+       the full screen.
+     • frozen TALL (portrait→landscape): landscape.css's own
+       `min-height: 100svh` IS the stale declaration, so this replaces it
+       outright — and the `height: auto` from that same rule still lets the
+       hero grow if the copy needs more room than the floor gives it.
+
+   Deliberately NOT a `calc()`/`max()` against `100lvh`. That was tried
+   first, and Safari dropped the whole declaration while the units were
+   frozen — falling back to no compensation at all. Two plain properties let
+   layout do the comparison instead of a math function.
+
+   Scoped to `pointer: coarse` AND `.splash-armed`, and both halves are
+   load-bearing. The desktop hero is not sized off the viewport in the same
+   way, and pinning it to `innerHeight` broke that layout outright when this
+   was first tried globally. And once the curtain lifts, `overflow: hidden`
+   is gone, the units thaw, and an `innerHeight` floor would start tracking
+   the address bar during scroll — the exact `dvh` jitter the hero is sized
+   in `lvh` to avoid.
+*/
+@media (pointer: coarse) {
+  html.splash-armed .hero {
+    min-height: var(--hero-viewport-h, 100svh);
+  }
+}
+
+/*
    Scrollbar compensation.
 
    Hiding the overflow removes the document scrollbar, so on a desktop browser
