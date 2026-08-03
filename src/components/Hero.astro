@@ -296,7 +296,7 @@ import { site } from '../data/site.js';
       on desktop does not shift the layout sideways) and it reference-counts,
       so a modal opened over the splash cannot release the splash's lock.
     */
-    function arm() {
+    function arm(instant = false) {
       if (!shouldArm()) return;
       /* Already armed — do not take a second lock, or the counter never
          returns to zero and the page stays pinned forever. */
@@ -305,7 +305,20 @@ import { site } from '../data/site.js';
       /* Measure BEFORE hiding the scrollbar — afterwards this always reads 0. */
       const gutter = Math.max(0, window.innerWidth - root.clientWidth);
       root.style.setProperty('--splash-gutter', `${gutter}px`);
+      
+      if (instant) {
+        root.classList.add('splash-instant');
+        void root.offsetHeight; // force reflow
+      }
+
       root.classList.add('splash-armed');
+
+      if (instant) {
+        void root.offsetHeight; // force reflow again to ensure states commit instantly
+        requestAnimationFrame(() => {
+          root.classList.remove('splash-instant');
+        });
+      }
     }
 
     function disarm() {
@@ -606,7 +619,7 @@ import { site } from '../data/site.js';
       if (isHistoryNavigation()) return;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          if (window.scrollY < 4) arm();
+          if (window.scrollY < 4) arm(true);
         });
       });
     }
