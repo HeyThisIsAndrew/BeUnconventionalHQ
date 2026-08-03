@@ -130,6 +130,7 @@ const isActive = (href: string) =>
       } else {
         // We are on a subpage. Fallback to basic scroll threshold.
         scrollHandler = () => {
+          if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) return;
           const scroll = window.scrollY || document.documentElement.scrollTop;
           updateVisibility(scroll > 100);
         };
