@@ -14,7 +14,7 @@ const isActive = (href: string) =>
   currentPath === `${base}/${href}` || currentPath === `${base}/${href}/` || currentPath.startsWith(`${base}/${href}/`);
 ---
 
-<header id="navbar" transition:persist="global-nav">
+<header id="navbar" transition:persist="global-nav" style="transition: none;">
   <div class="container nav-inner">
     <div class="nav-brand-group">
       <a href="/" class="nav-logo">
@@ -62,6 +62,7 @@ const isActive = (href: string) =>
   (function () {
     let scrollHandler = null;
     let observer = null;
+    let currentVisibility = null;
 
     function initNavObserver() {
       const identity = document.getElementById('nav-identity');
@@ -73,6 +74,15 @@ const isActive = (href: string) =>
         identity.addEventListener('click', (e) => {
           e.preventDefault();
           window.scrollTo({ top: 0, behavior: 'smooth' });
+
+          if (navbar.classList.contains('menu-open')) {
+            navbar.classList.remove('menu-open');
+            const toggle = document.querySelector('.nav-toggle');
+            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+            if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
+              window.__hqScrollLock.unlock();
+            }
+          }
         });
         identity.dataset.clickBound = 'true';
       }
@@ -90,6 +100,9 @@ const isActive = (href: string) =>
       // 3. Visibility Logic
       // We use a basic scroll threshold so the navbar remains solid until the utmost part of the screen.
       function updateVisibility(isVisible) {
+        if (isVisible === currentVisibility) return;
+        currentVisibility = isVisible;
+
         if (isVisible) {
           identity.style.opacity = '1';
           identity.style.transform = 'translateY(0) scale(1)';
@@ -105,8 +118,11 @@ const isActive = (href: string) =>
         }
 
         // Restore transitions after state is instantly applied
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
+        if (window.__hqNavFrame1) cancelAnimationFrame(window.__hqNavFrame1);
+        if (window.__hqNavFrame2) cancelAnimationFrame(window.__hqNavFrame2);
+
+        window.__hqNavFrame1 = requestAnimationFrame(() => {
+          window.__hqNavFrame2 = requestAnimationFrame(() => {
             navbar.style.transition = '';
             identity.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
           });
@@ -122,6 +138,18 @@ const isActive = (href: string) =>
       window.addEventListener('scroll', scrollHandler, { passive: true });
       // INSTANTLY check state on load so it doesn't get stuck visible!
       scrollHandler();
+
+      // Clear the initial transition block after the first frame so CSS transitions take over
+      if (window.__hqNavFrame1) cancelAnimationFrame(window.__hqNavFrame1);
+      if (window.__hqNavFrame2) cancelAnimationFrame(window.__hqNavFrame2);
+      
+      window.__hqNavFrame1 = requestAnimationFrame(() => {
+        window.__hqNavFrame2 = requestAnimationFrame(() => {
+          if (navbar.style.transition === 'none' || navbar.style.transition === 'none 0s ease 0s') {
+            navbar.style.transition = '';
+          }
+        });
+      });
     }
 
     function updateActiveNavLinks() {
@@ -220,13 +248,20 @@ const isActive = (href: string) =>
       }
     }
 
-    // Force clear state BEFORE DOM swap to prevent race conditions and flickering
     function purgeNavbarState() {
       const navbar = document.getElementById('navbar');
       const identity = document.getElementById('nav-identity');
       
+      if (window.__hqNavFrame1) cancelAnimationFrame(window.__hqNavFrame1);
+      if (window.__hqNavFrame2) cancelAnimationFrame(window.__hqNavFrame2);
+
       if (navbar) {
         navbar.style.transition = 'none';
+        
+        if (navbar.classList.contains('menu-open') && window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
+          window.__hqScrollLock.unlock();
+        }
+        
         navbar.classList.remove('scrolled', 'menu-open');
       }
 

@@ -481,6 +481,18 @@ import { site } from '../data/site.js';
           event.preventDefault();
           event.stopPropagation(); // Block Astro ClientRouter
           window.scrollTo({ top: 0, behavior: 'smooth' });
+
+          const navbar = document.getElementById('navbar');
+          if (navbar && navbar.classList.contains('menu-open')) {
+            navbar.classList.remove('menu-open');
+            const toggle = document.querySelector('.nav-toggle');
+            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+            // We use the imported isScrollLocked and unlock if needed. Wait, isScrollLocked is from scroll-lock.ts, we need unlock too.
+            // Actually, we can just use window.__hqScrollLock.unlock() since we know it's there.
+            if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
+              window.__hqScrollLock.unlock();
+            }
+          }
         }
       }, { capture: true });
 
