@@ -265,25 +265,27 @@ import { site } from '../data/site.js';
       return (entry as PerformanceNavigationTiming | undefined)?.type === 'back_forward';
     }
 
-    /**
-     * Publish the real viewport height for the hero to floor itself against.
-     *
-     * `overflow: hidden` on <html> — which is how the curtain stops the page
-     * scrolling underneath it — makes iOS Safari stop re-resolving `lvh` and
-     * `svh` when the device is rotated. The hero then keeps the height it
-     * computed in the PREVIOUS orientation: rotate portrait→landscape and an
-     * 844px-tall hero centres its copy at 422px inside a 390px screen, which
-     * is the reported "CTA sits too low" bug.
-     *
-     * `window.innerHeight` is not affected by that freeze, so it is the one
-     * honest number available here. It is published raw and the compensation
-     * itself is a `min-height` in styles/modules/splash.css, next to the
-     * `overflow: hidden` that causes the freeze — see the long note there for
-     * why a floor rather than a replacement, and why it is scoped to coarse
-     * pointers and to the armed state only.
-     */
+    let lastWidth = 0;
     function publishViewportHeight() {
-      root.style.setProperty('--hero-viewport-h', `${window.innerHeight}px`);
+      // Only apply this manual viewport height fix on mobile devices.
+      // Desktop doesn't suffer from the iOS Safari rotation freeze bug.
+      if (!window.matchMedia('(pointer: coarse)').matches) return;
+
+      const currentWidth = window.innerWidth;
+      // On mobile, width only changes on rotation, not when address bar shows/hides.
+      // We check for width change to prevent the hero from jittering during scroll.
+      if (currentWidth !== lastWidth || !root.style.getPropertyValue('--hero-viewport-h')) {
+        lastWidth = currentWidth;
+        const isLandscape = currentWidth > window.innerHeight;
+        // screen dimensions are stable against the address bar showing/hiding
+        let lvh = isLandscape 
+          ? Math.min(window.screen.width, window.screen.height) 
+          : Math.max(window.screen.width, window.screen.height);
+        
+        // Ensure lvh is not smaller than actual innerHeight
+        lvh = Math.max(lvh, window.innerHeight);
+        root.style.setProperty('--hero-viewport-h', `${lvh}px`);
+      }
     }
 
     function measureLift() {
@@ -694,11 +696,18 @@ import { site } from '../data/site.js';
     }
 
     function onViewportChange() {
+      publishViewportHeight();
       measureIfArmed();
       cancelAnimationFrame(remeasureFrame);
-      remeasureFrame = requestAnimationFrame(measureIfArmed);
+      remeasureFrame = requestAnimationFrame(() => {
+        publishViewportHeight();
+        measureIfArmed();
+      });
       clearTimeout(remeasureTimer);
-      remeasureTimer = window.setTimeout(measureIfArmed, 300);
+      remeasureTimer = window.setTimeout(() => {
+        publishViewportHeight();
+        measureIfArmed();
+      }, 300);
     }
 
     window.addEventListener('resize', onViewportChange);
