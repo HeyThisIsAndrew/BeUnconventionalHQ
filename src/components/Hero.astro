@@ -291,6 +291,8 @@ import { site } from '../data/site.js';
       const gutter = Math.max(0, window.innerWidth - root.clientWidth);
       root.style.setProperty('--splash-gutter', `${gutter}px`);
       root.classList.add('splash-armed');
+      
+      if (window.__hqScrollLock) window.__hqScrollLock.lock();
     }
 
     function disarm() {
@@ -298,6 +300,10 @@ import { site } from '../data/site.js';
       root.style.removeProperty('--splash-gutter');
       const wrapper = document.getElementById('app-wrapper');
       if (wrapper) wrapper.style.willChange = '';
+      
+      if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
+        window.__hqScrollLock.unlock();
+      }
     }
 
     /**
@@ -350,6 +356,11 @@ import { site } from '../data/site.js';
            than being overwritten by it. */
         requestAnimationFrame(() => {
           stripHash();
+          
+          if (window.__hqScrollLock) {
+            window.__hqScrollLock.release();
+          }
+          
           /*
             Force `auto`. `html { scroll-behavior: smooth }` is global, so
             without this the REDUCED-MOTION path was the one that animated —
@@ -385,6 +396,11 @@ import { site } from '../data/site.js';
         root.classList.remove('splash-armed', 'splash-lifting');
         root.style.removeProperty('--splash-gutter');
         stripHash();
+        
+        if (window.__hqScrollLock) {
+          window.__hqScrollLock.release();
+        }
+        
         window.scrollTo(0, distance);
         root.style.scrollBehavior = previousBehavior;
         if (wrapper) wrapper.style.willChange = '';

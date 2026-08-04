@@ -72,8 +72,10 @@ const isActive = (href: string) =>
       // Smooth Scroll to Top (avoid duplicate listeners on SPA transitions)
       if (!identity.dataset.clickBound) {
         identity.addEventListener('click', (e) => {
-          e.preventDefault();
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          if (window.location.pathname === '/') {
+            e.preventDefault();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
 
           if (navbar.classList.contains('menu-open')) {
             navbar.classList.remove('menu-open');
