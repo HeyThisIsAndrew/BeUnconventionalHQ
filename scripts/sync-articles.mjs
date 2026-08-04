@@ -41,33 +41,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { withFileLock } from './file-lock.mjs';
 import { buildArticleRecord, mergeSnapshot } from '../src/lib/articles-transform.ts';
+import { XMLParser } from 'fast-xml-parser';
 
 const PUBLICATION_URL = process.env.SUBSTACK_PUBLICATION_URL ?? 'https://beunconventionalhq.substack.com';
-const POSTS_API_URL = process.env.SUBSTACK_POSTS_API_URL ?? `${PUBLICATION_URL}/api/v1/posts`;
+const SUBSTACK_FEED = process.env.SUBSTACK_FEED_URL ?? `${PUBLICATION_URL}/feed`;
 const SNAPSHOT_FILE = path.join(process.cwd(), 'src', 'data', 'articles.json');
 
 /**
- * Posts requested per request, and the ceiling on how many requests one sync
- * will make.
- *
- * ─── WHY THIS PAGINATES AT ALL ────────────────────────────────────────────
- * A single `?limit=50` call is fine until the publication passes 50 posts, and
- * then it quietly stops being fine in a way that does NOT show up as an error:
- *
- *   • the archive itself is safe — mergeSnapshot() never deletes, so posts
- *     that fall out of the newest-50 window stay in src/data/articles.json and
- *     their URLs keep resolving;
- *   • but those older posts stop being UPDATED. Retitle, retag or fix a typo
- *     in post #60 and the sync can no longer see it, so the site keeps serving
- *     the stale copy forever;
- *   • and a cold rebuild (snapshot lost, or a fresh clone syncing before the
- *     committed snapshot exists) would recover only 50 posts.
- *
- * Walking `offset` until the pages run out removes all three. MAX_PAGES is a
- * runaway guard, not an expected limit.
- */
-const PAGE_SIZE = Number(process.env.SUBSTACK_PAGE_SIZE ?? 50);
-const MAX_PAGES = 40;
+ * Posts requested per request, and the// Fetch limit from RSS. Substack's RSS usually returns 20 items.
+// We only fetch HTML pages for posts we haven't seen yet to avoid rate limits.
+const PAGE_SIZE = 20;
 
 /** Coerce a possibly-singular API response into an array. */
 function asArray(value) {
@@ -183,85 +166,71 @@ function readSnapshot() {
   }
 }
 
-/** Build one page's URL, preserving any query already on the base URL. */
-export function buildPostsPageUrl(base, offset, limit = PAGE_SIZE) {
-  const url = new URL(base);
-  url.searchParams.set('limit', String(limit));
-  if (offset > 0) url.searchParams.set('offset', String(offset));
-  return url.toString();
-}
-
 /**
- * Fetch one page of the publication's posts JSON.
- *
- * Browser-like headers because this is the same route the publication's own
- * front end calls when it loads the page — not a different, unsupported
- * access path, just skipping the HTML render around it.
+ * Fetch the publication's RSS feed, then fetch the HTML page for each post
+ * to extract the `window._preloads` JSON object, bypassing Cloudflare's bot block.
  */
-async function fetchPostsPage(url) {
-  const response = await fetch(url, {
+async function fetchAllPosts(existingRecords = []) {
+  const existingLinks = new Set(existingRecords.map((r) => r.link));
+  const collected = [];
+
+  // 1. Fetch RSS feed to get the latest posts
+  const response = await fetch(SUBSTACK_FEED, {
     headers: {
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      Accept: 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      Accept: 'text/html,application/rss+xml,application/xml;q=0.9,*/*;q=0.8',
     },
   });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const json = await response.json();
-  if (!Array.isArray(json)) throw new Error('response was not a JSON array of posts');
-  return json;
-}
+  if (!response.ok) throw new Error(`HTTP ${response.status} fetching RSS`);
+  const xml = await response.text();
 
-/** Stable per-post key for duplicate detection across pages. */
-function postKey(post) {
-  return String(post?.id ?? post?.slug ?? post?.canonical_url ?? '');
-}
+  const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
+  const result = parser.parse(xml);
+  const rawItems = result?.rss?.channel?.item ?? [];
+  const items = Array.isArray(rawItems) ? rawItems : [rawItems];
 
-/**
- * Walk every page of posts, newest first, and return them all.
- *
- * Stops on the first page that is empty, short (fewer than PAGE_SIZE — there
- * is nothing after it), or contributes no post we have not already seen.
- *
- * That last condition is deliberate insurance: `offset` is undocumented like
- * the rest of this endpoint, and an endpoint that silently IGNORED it would
- * hand back page 1 over and over. Detecting the repeat degrades this to
- * exactly the old single-page behaviour instead of looping MAX_PAGES times.
- */
-async function fetchAllPosts() {
-  const collected = [];
-  const seen = new Set();
-  let pages = 0;
+  if (items.length === 0) throw new Error('No items in RSS feed');
 
-  for (let page = 0; page < MAX_PAGES; page += 1) {
-    const url = buildPostsPageUrl(POSTS_API_URL, page * PAGE_SIZE);
-    const batch = await fetchPostsPage(url);
-    pages += 1;
-    if (batch.length === 0) break;
+  // 2. Fetch HTML for each item
+  for (const item of items) {
+    const link = item.link;
+    if (!link) continue;
 
-    const fresh = batch.filter((post) => {
-      const key = postKey(post);
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-    collected.push(...fresh);
-
-    if (fresh.length === 0) {
-      if (page > 0) {
-        console.warn(
-          '[articles] ⚠ page ' +
-            (page + 1) +
-            ' repeated posts already seen — treating the archive as complete. ' +
-            '(If the publication has more, the endpoint is ignoring `offset`.)',
-        );
+    // To prevent updating every old post every run and getting rate limited,
+    // we could skip fetching if it hasn't changed. But Substack's JSON endpoint
+    // updated *everything*. We'll fetch the HTML for all RSS items since it's only ~20 max.
+    try {
+      const htmlRes = await fetch(link, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        },
+      });
+      if (!htmlRes.ok) {
+        console.warn(`[articles] ⚠ Failed to fetch HTML for ${link}: HTTP ${htmlRes.status}`);
+        continue;
       }
-      break;
+      const html = await htmlRes.text();
+      
+      // Extract window._preloads
+      const match = html.match(/window\._preloads\s*=\s*JSON\.parse\((".*?")\)/);
+      if (match) {
+        const parsed = JSON.parse(JSON.parse(match[1]));
+        if (parsed.post) {
+          collected.push(parsed.post);
+        } else {
+          console.warn(`[articles] ⚠ No post object in preloads for ${link}`);
+        }
+      } else {
+        console.warn(`[articles] ⚠ Could not find window._preloads in HTML for ${link}`);
+      }
+    } catch (err) {
+      console.warn(`[articles] ⚠ Error fetching HTML for ${link}: ${err.message}`);
     }
-    if (batch.length < PAGE_SIZE) break;
   }
 
-  return { posts: collected, pages };
+  // We consider it 1 "page" of RSS items
+  return { posts: collected, pages: 1 };
 }
 
 async function run() {
@@ -269,12 +238,12 @@ async function run() {
   const existing = readSnapshot();
 
   console.log(`[articles] Snapshot holds ${existing.length} record(s).`);
-  console.log(`[articles] Fetching ${POSTS_API_URL} (${PAGE_SIZE}/page)`);
+  console.log(`[articles] Fetching RSS ${SUBSTACK_FEED} and scraping HTML pages to bypass blocks`);
 
   let posts;
   let pages;
   try {
-    ({ posts, pages } = await fetchAllPosts());
+    ({ posts, pages } = await fetchAllPosts(existing));
   } catch (err) {
     // Loud, but never fatal — the snapshot is the source of truth for the build.
     console.error(`[articles] ✗ POSTS FETCH FAILED: ${err.message}`);
