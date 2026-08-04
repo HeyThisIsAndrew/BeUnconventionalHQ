@@ -605,9 +605,13 @@ import { site } from '../data/site.js';
       });
     }
 
-    document.addEventListener('astro:page-load', () => {
-      disarm();
-      armOnEntry();
+    document.addEventListener('astro:after-swap', () => {
+      // For client-side PUSH navigations to the homepage, arm immediately
+      // before the browser paints. This prevents the navbar from flickering 
+      // visible during the two-frame delay used by armOnEntry.
+      if (window.location.pathname === '/' && !isHistoryNavigation()) {
+        if (window.scrollY < 4) arm();
+      }
     });
 
     /* Never carry splash state across a navigation — the next page has no
