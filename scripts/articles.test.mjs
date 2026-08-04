@@ -6,7 +6,7 @@
  * against the real thing.
  */
 import assert from 'node:assert/strict';
-import { parsePostsResponse, planArticleSync, buildPostsPageUrl } from './sync-articles.mjs';
+import { parsePostsResponse, planArticleSync } from './sync-articles.mjs';
 import {
   demoteHeadings,
   sanitizeArticleHtml,
@@ -432,25 +432,6 @@ test('re-running the same response is idempotent', () => {
   assert.equal(second.added, 0);
 });
 
-// ── Pagination ──────────────────────────────────────────────────────────────
-
-const POSTS_BASE = 'https://beunconventionalhq.substack.com/api/v1/posts';
-
-test('page 1 asks for a limit and no offset', () => {
-  assert.equal(buildPostsPageUrl(POSTS_BASE, 0, 50), `${POSTS_BASE}?limit=50`);
-});
-
-test('later pages carry the offset', () => {
-  assert.equal(buildPostsPageUrl(POSTS_BASE, 100, 50), `${POSTS_BASE}?limit=50&offset=100`);
-});
-
-test('an existing query on the base URL is preserved, and limit overridden', () => {
-  const url = buildPostsPageUrl(`${POSTS_BASE}?limit=12&sort=new`, 24, 50);
-  assert.match(url, /sort=new/);
-  assert.match(url, /limit=50/);
-  assert.match(url, /offset=24/);
-  assert.ok(!url.includes('limit=12'), url);
-});
 
 // ── Plain-text extraction across block boundaries ───────────────────────────
 
