@@ -235,13 +235,17 @@ import { site } from '../data/site.js';
            history load (and bfcache), where no ClientRouter event fires.
     */
     let navDirection: string | null = null;
+    let navType: string | null = null;
 
     document.addEventListener('astro:before-preparation', (event) => {
-      navDirection = (event as unknown as { direction?: string }).direction ?? null;
+      const e = event as unknown as { direction?: string; navigationType?: string };
+      navDirection = e.direction ?? null;
+      navType = e.navigationType ?? null;
     });
 
     function isHistoryNavigation() {
-      if (navDirection === 'back' || navDirection === 'forward') return true;
+      if (navType === 'traverse') return true;
+      if (!navType && navDirection === 'back') return true;
       const [entry] = performance.getEntriesByType('navigation');
       return (entry as PerformanceNavigationTiming | undefined)?.type === 'back_forward';
     }
