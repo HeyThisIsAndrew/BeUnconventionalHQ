@@ -287,9 +287,6 @@ import { site } from '../data/site.js';
          returns to zero and the page stays pinned forever. */
       if (root.classList.contains('splash-armed')) return;
       measureLift();
-      /* Measure BEFORE hiding the scrollbar — afterwards this always reads 0. */
-      const gutter = Math.max(0, window.innerWidth - root.clientWidth);
-      root.style.setProperty('--splash-gutter', `${gutter}px`);
       root.classList.add('splash-armed');
       
       if (window.__hqScrollLock) window.__hqScrollLock.lock();
@@ -297,7 +294,6 @@ import { site } from '../data/site.js';
 
     function disarm() {
       root.classList.remove('splash-armed', 'splash-lifting', 'splash-dropping');
-      root.style.removeProperty('--splash-gutter');
       const wrapper = document.getElementById('app-wrapper');
       if (wrapper) wrapper.style.willChange = '';
       
@@ -394,7 +390,6 @@ import { site } from '../data/site.js';
         const previousBehavior = root.style.scrollBehavior;
         root.style.scrollBehavior = 'auto';
         root.classList.remove('splash-armed', 'splash-lifting');
-        root.style.removeProperty('--splash-gutter');
         stripHash();
         
         if (window.__hqScrollLock) {
