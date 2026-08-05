@@ -72,11 +72,8 @@ const isActive = (href: string) =>
       // Smooth Scroll to Top (avoid duplicate listeners on SPA transitions)
       if (!identity.dataset.clickBound) {
         identity.addEventListener('click', (e) => {
-          if (window.location.pathname === '/') {
-            e.preventDefault();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }
-
+          // 1. If menu is open, close it and UNLOCK scroll first.
+          // Unlocking restores the old scroll position instantly.
           if (navbar.classList.contains('menu-open')) {
             navbar.classList.remove('menu-open');
             const toggle = document.querySelector('.nav-toggle');
@@ -84,6 +81,13 @@ const isActive = (href: string) =>
             if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
               window.__hqScrollLock.unlock();
             }
+          }
+
+          // 2. Then, if we are on the homepage, smoothly scroll to top.
+          // This must happen AFTER unlock so it overrides the unlock's scroll jump.
+          if (window.location.pathname === '/') {
+            e.preventDefault();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
           }
         });
         identity.dataset.clickBound = 'true';
