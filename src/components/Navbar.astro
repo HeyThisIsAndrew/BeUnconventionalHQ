@@ -69,29 +69,30 @@ const isActive = (href: string) =>
       const navbar = document.getElementById('navbar');
       if (!identity || !navbar) return;
 
-      // Smooth Scroll to Top (avoid duplicate listeners on SPA transitions)
-      if (!identity.dataset.clickBound) {
-        identity.addEventListener('click', (e) => {
-          // 1. If menu is open, close it and UNLOCK scroll first.
-          // Unlocking restores the old scroll position instantly.
-          if (navbar.classList.contains('menu-open')) {
-            navbar.classList.remove('menu-open');
-            const toggle = document.querySelector('.nav-toggle');
-            if (toggle) toggle.setAttribute('aria-expanded', 'false');
-            if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
-              window.__hqScrollLock.unlock();
+      // Smooth Scroll to Top for ALL home links to avoid SPA navigation flicker
+      const homeLinks = document.querySelectorAll('a[href="/"]');
+      homeLinks.forEach(link => {
+        if (!link.dataset.clickBound) {
+          link.addEventListener('click', (e) => {
+            // 1. If menu is open, close it and UNLOCK scroll first.
+            if (navbar.classList.contains('menu-open')) {
+              navbar.classList.remove('menu-open');
+              const toggle = document.querySelector('.nav-toggle');
+              if (toggle) toggle.setAttribute('aria-expanded', 'false');
+              if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
+                window.__hqScrollLock.unlock();
+              }
             }
-          }
 
-          // 2. Then, if we are on the homepage, smoothly scroll to top.
-          // This must happen AFTER unlock so it overrides the unlock's scroll jump.
-          if (window.location.pathname === '/') {
-            e.preventDefault();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }
-        });
-        identity.dataset.clickBound = 'true';
-      }
+            // 2. If we are already on the homepage, prevent full navigation and smooth scroll
+            if (window.location.pathname === '/') {
+              e.preventDefault();
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          });
+          link.dataset.clickBound = 'true';
+        }
+      });
 
       // Cleanup old observer and scroll handler to prevent memory leaks
       if (observer) {
