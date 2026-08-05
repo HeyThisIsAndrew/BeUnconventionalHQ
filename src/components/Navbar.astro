@@ -184,9 +184,7 @@ const isActive = (href: string) =>
       document.addEventListener('astro:page-load', updateActiveNavLinks);
       window.navbarObserverSetup = true;
     }
-  })();
 
-  (function () {
     function initMobileMenu() {
       const navbar = document.getElementById('navbar');
       const toggle = document.querySelector('.nav-toggle');
@@ -278,6 +276,9 @@ const isActive = (href: string) =>
         identity.style.pointerEvents = 'none';
         identity.setAttribute('tabindex', '-1');
       }
+      
+      // CRITICAL: Reset the closure variable so the scroll listener doesn't ignore the next update!
+      currentVisibility = false;
     }
 
     if (!window.navbarMobileMenuSetup) {
