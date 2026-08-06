@@ -106,15 +106,23 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
       });
     };
 
+    const activeHeadings = new Set<Element>();
     const observer = new IntersectionObserver(
       (records) => {
-        // Prefer the topmost heading currently intersecting.
-        const visible = records
-          .filter((r) => r.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-        if (visible?.target.id) setActive(visible.target.id);
+        records.forEach(r => {
+          if (r.isIntersecting) activeHeadings.add(r.target);
+          else activeHeadings.delete(r.target);
+        });
+
+        if (activeHeadings.size > 0) {
+          // Prefer the topmost heading currently anywhere in the active zone
+          const visible = Array.from(activeHeadings)
+            .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0];
+          if (visible.id) setActive(visible.id);
+        }
       },
-      { rootMargin: '-80px 0px -60% 0px', threshold: 0 },
+      // Active zone: from 80px below the top of the viewport, all the way to the bottom.
+      { rootMargin: '-80px 0px 0px 0px', threshold: 0 },
     );
 
     headings.forEach((heading) => observer.observe(heading));

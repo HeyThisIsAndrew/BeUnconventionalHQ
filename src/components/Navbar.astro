@@ -97,10 +97,8 @@ const isActive = (href: string) =>
               html.style.scrollBehavior = 'auto';
               window.scrollTo(0, 0);
               
-              // Restore global smooth scroll on the next frame so the jump remains instant
-              requestAnimationFrame(() => {
-                html.style.scrollBehavior = prev;
-              });
+              // Restore global smooth scroll synchronously so iPad scroll inertia isn't broken
+              html.style.scrollBehavior = prev;
             }
           });
           link.dataset.clickBound = 'true';
