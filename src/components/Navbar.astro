@@ -235,7 +235,11 @@ const isActive = (href: string) =>
                 toggle.setAttribute('aria-expanded', 'false');
                 
                 if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
-                  window.__hqScrollLock.unlock();
+                  if (link.getAttribute('href') === '/') {
+                    window.__hqScrollLock.release();
+                  } else {
+                    window.__hqScrollLock.unlock();
+                  }
                 }
 
                 if (isModalTrigger) return;
@@ -290,7 +294,7 @@ const isActive = (href: string) =>
       }
       
       // CRITICAL: Reset the closure variable so the scroll listener doesn't ignore the next update!
-      currentVisibility = false;
+      currentVisibility = null;
     }
 
     if (!window.navbarMobileMenuSetup) {
