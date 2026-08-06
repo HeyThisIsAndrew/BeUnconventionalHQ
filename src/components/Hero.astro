@@ -293,12 +293,13 @@ import { site } from '../data/site.js';
     }
 
     function disarm() {
+      const wasArmed = root.classList.contains('splash-armed');
       root.classList.remove('splash-armed', 'splash-lifting', 'splash-dropping');
       const wrapper = document.getElementById('app-wrapper');
       if (wrapper) wrapper.style.willChange = '';
       
-      if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
-        window.__hqScrollLock.unlock();
+      if (wasArmed && window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
+        window.__hqScrollLock.release();
       }
     }
 
@@ -347,9 +348,6 @@ import { site } from '../data/site.js';
       const distance = hero ? hero.offsetHeight : window.innerHeight;
 
       if (reduceMotion()) {
-        disarm();
-        /* Next frame, so this lands AFTER the router's fragment scroll rather
-           than being overwritten by it. */
         requestAnimationFrame(() => {
           stripHash();
           
@@ -357,15 +355,9 @@ import { site } from '../data/site.js';
             window.__hqScrollLock.release();
           }
           
-          /*
-            Force `auto`. `html { scroll-behavior: smooth }` is global, so
-            without this the REDUCED-MOTION path was the one that animated —
-            a ~600ms smooth scroll for the reader who explicitly asked for
-            less movement, while everyone else got an instant jump at the end
-            of the curtain. Exactly backwards.
-          */
           const previousBehavior = root.style.scrollBehavior;
           root.style.scrollBehavior = 'auto';
+          root.classList.remove('splash-armed', 'splash-lifting', 'splash-dropping');
           window.scrollTo(0, distance);
           root.style.scrollBehavior = previousBehavior;
           busy = false;
@@ -484,32 +476,14 @@ import { site } from '../data/site.js';
           return;
         }
 
-        /*
-          The header logo takes you back to the splash. On the homepage that
-          is simply "scroll to the top" — reaching the top re-arms the curtain
-          on its own (see the scroll listener below), so there is no separate
-          drop animation to keep in step with this one. Anywhere else it stays
-          an ordinary "go home" link, which is what a masthead should be.
-        */
-        const brand = target.closest('#navbar a[href="/"], #navbar a[href="/#"]');
-        if (brand && shouldArmLocation() && !root.classList.contains('splash-armed')) {
-          event.preventDefault();
-          event.stopPropagation(); // Block Astro ClientRouter
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-
-          const navbar = document.getElementById('navbar');
-          if (navbar && navbar.classList.contains('menu-open')) {
-            navbar.classList.remove('menu-open');
-            const toggle = document.querySelector('.nav-toggle');
-            if (toggle) toggle.setAttribute('aria-expanded', 'false');
-            // We use the imported isScrollLocked and unlock if needed. Wait, isScrollLocked is from scroll-lock.ts, we need unlock too.
-            // Actually, we can just use window.__hqScrollLock.unlock() since we know it's there.
-            if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
-              window.__hqScrollLock.unlock();
-            }
-          }
         }
-      }, { capture: true });
+      });
+
+      document.addEventListener('hq:lift-splash', () => {
+        if (root.classList.contains('splash-armed')) {
+          lift();
+        }
+      });
 
       /* Scrolling down past the splash lifts it too — the curtain should never
          be something you can get stuck behind. */
