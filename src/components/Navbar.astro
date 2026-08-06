@@ -91,7 +91,16 @@ const isActive = (href: string) =>
             if (window.location.pathname === basePath || window.location.pathname === '/') {
               e.preventDefault();
               if (document.documentElement.classList.contains('splash-lifting')) return;
-              window.scrollTo({ top: 0, behavior: 'smooth' });
+              
+              const html = document.documentElement;
+              const prev = html.style.scrollBehavior;
+              html.style.scrollBehavior = 'auto';
+              window.scrollTo(0, 0);
+              
+              // Restore global smooth scroll on the next frame so the jump remains instant
+              requestAnimationFrame(() => {
+                html.style.scrollBehavior = prev;
+              });
             }
           });
           link.dataset.clickBound = 'true';
