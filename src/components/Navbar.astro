@@ -68,7 +68,7 @@ const isActive = (href: string) =>
       const navbar = document.getElementById('navbar');
       if (!identity || !navbar) return;
 
-      // Smooth Scroll to Top for ALL home links to avoid SPA navigation flicker
+      // Instant Jump to Top for ALL home links on the homepage to avoid SPA navigation flicker
       const homeLinks = document.querySelectorAll('a[href="/"]');
       homeLinks.forEach(link => {
         if (!link.dataset.clickBound) {
@@ -283,6 +283,9 @@ const isActive = (href: string) =>
         }
         
         navbar.classList.remove('scrolled', 'menu-open');
+        
+        const toggle = document.querySelector('.nav-toggle');
+        if (toggle) toggle.setAttribute('aria-expanded', 'false');
       }
 
       if (identity) {

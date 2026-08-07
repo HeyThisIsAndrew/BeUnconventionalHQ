@@ -106,6 +106,7 @@ export function lockScroll(): void {
   */
   body.style.top = `-${savedScrollY}px`;
   body.style.position = 'fixed';
+  body.style.left = '0';
   body.style.width = '100%';
   if (gutter > 0) body.style.paddingRight = `${gutter}px`;
 
@@ -160,6 +161,7 @@ function applyRelease(scrollY: number, restore: boolean): void {
 
   body.style.position = '';
   body.style.top = '';
+  body.style.left = '';
   body.style.width = '';
   body.style.paddingRight = '';
   /* Cleared because older copies of this logic set it; a stale `overflow-y:
