@@ -14,16 +14,17 @@ const isActive = (href: string) =>
   currentPath === `${base}/${href}` || currentPath === `${base}/${href}/` || currentPath.startsWith(`${base}/${href}/`);
 ---
 
-<header id="navbar" transition:persist="global-nav">
+<header id="navbar" transition:persist="global-nav" style="transition: none;">
   <div class="container nav-inner">
     <div class="nav-brand-group">
       <a href="/" class="nav-logo">
         <Image src={logoImage} alt="Be Unconventional HQ" width={150} height={150} loading="eager" />
       </a>
       <a
-        href="#"
+        href="/"
         class="nav-identity-wrapper"
         id="nav-identity"
+        tabindex="-1"
         style="transform: translateY(-10px) scale(0.95); opacity: 0; pointer-events: none; transition: opacity 0.4s ease, transform 0.4s ease; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-left: 1rem; text-decoration: none; cursor: pointer;"
       >
         <div class="nav-identity-stack">
@@ -55,25 +56,54 @@ const isActive = (href: string) =>
       </ul>
     </nav>
   </div>
-</header>
 
-<script is:inline>
+  <script is:inline>
   (function () {
     let scrollHandler = null;
     let observer = null;
+    let currentVisibility = null;
 
     function initNavObserver() {
       const identity = document.getElementById('nav-identity');
-      if (!identity) return;
+      const navbar = document.getElementById('navbar');
+      if (!identity || !navbar) return;
 
-      // Smooth Scroll to Top (avoid duplicate listeners on SPA transitions)
-      if (!identity.dataset.clickBound) {
-        identity.addEventListener('click', (e) => {
-          e.preventDefault();
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
-        identity.dataset.clickBound = 'true';
-      }
+      // Instant Jump to Top for ALL home links on the homepage to avoid SPA navigation flicker
+      const homeLinks = document.querySelectorAll('a[href="/"]');
+      homeLinks.forEach(link => {
+        if (!link.dataset.clickBound) {
+          link.addEventListener('click', (e) => {
+            if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+
+            if (navbar.classList.contains('menu-open')) {
+              navbar.classList.remove('menu-open');
+              const toggle = document.querySelector('.nav-toggle');
+              if (toggle) toggle.setAttribute('aria-expanded', 'false');
+              if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
+                window.__hqScrollLock.release();
+              }
+            }
+
+            document.dispatchEvent(new CustomEvent('hq:lift-splash'));
+
+            // The base path is determined dynamically or falls back to '/'
+            const basePath = navbar.dataset.basePath || '/';
+            if (window.location.pathname === basePath || window.location.pathname === '/') {
+              e.preventDefault();
+              if (document.documentElement.classList.contains('splash-lifting')) return;
+              
+              const html = document.documentElement;
+              const prev = html.style.scrollBehavior;
+              html.style.scrollBehavior = 'auto';
+              window.scrollTo(0, 0);
+              
+              // Restore global smooth scroll synchronously so iPad scroll inertia isn't broken
+              html.style.scrollBehavior = prev;
+            }
+          });
+          link.dataset.clickBound = 'true';
+        }
+      });
 
       // Cleanup old observer and scroll handler to prevent memory leaks
       if (observer) {
@@ -86,44 +116,58 @@ const isActive = (href: string) =>
       }
 
       // 3. Visibility Logic
-      const anchor = document.querySelector('[data-nav-anchor]');
-
+      // We use a basic scroll threshold so the navbar remains solid until the utmost part of the screen.
       function updateVisibility(isVisible) {
+        if (isVisible === currentVisibility) return;
+        currentVisibility = isVisible;
+
         if (isVisible) {
           identity.style.opacity = '1';
           identity.style.transform = 'translateY(0) scale(1)';
           identity.style.pointerEvents = 'auto';
+          identity.removeAttribute('tabindex');
+          navbar.classList.add('scrolled');
         } else {
           identity.style.opacity = '0';
           identity.style.transform = 'translateY(-10px) scale(0.95)';
           identity.style.pointerEvents = 'none';
+          identity.setAttribute('tabindex', '-1');
+          navbar.classList.remove('scrolled');
         }
+
+        // Restore transitions after state is instantly applied
+        if (window.__hqNavFrame1) cancelAnimationFrame(window.__hqNavFrame1);
+        if (window.__hqNavFrame2) cancelAnimationFrame(window.__hqNavFrame2);
+
+        window.__hqNavFrame1 = requestAnimationFrame(() => {
+          window.__hqNavFrame2 = requestAnimationFrame(() => {
+            navbar.style.transition = '';
+            identity.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+          });
+        });
       }
 
-      if (anchor) {
-        // We are on the homepage. Watch the Hero text.
-        observer = new IntersectionObserver(
-          (entries) => {
-            entries.forEach((entry) => {
-              updateVisibility(!entry.isIntersecting);
-            });
-          },
-          { rootMargin: '-80px 0px 0px 0px' }
-        );
-        const rect = anchor.getBoundingClientRect();
-        updateVisibility(rect.bottom <= 0);
-        observer.observe(anchor);
-      } else {
-        // We are on a subpage. Fallback to basic scroll threshold.
-        scrollHandler = () => {
-          const scroll = window.scrollY || document.documentElement.scrollTop;
-          updateVisibility(scroll > 100);
-        };
-        window.addEventListener('scroll', scrollHandler, { passive: true });
+      scrollHandler = () => {
+        if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) return;
+        const scroll = window.scrollY || document.documentElement.scrollTop;
+        updateVisibility(scroll > 100);
+      };
+      
+      window.addEventListener('scroll', scrollHandler, { passive: true });
+      // INSTANTLY check state on load so it doesn't get stuck visible!
+      scrollHandler();
 
-        // INSTANTLY check state on load so it doesn't get stuck visible!
-        scrollHandler();
-      }
+      // Clear the initial transition block after the first frame so CSS transitions take over
+      if (window.__hqNavFrame1) cancelAnimationFrame(window.__hqNavFrame1);
+      if (window.__hqNavFrame2) cancelAnimationFrame(window.__hqNavFrame2);
+      
+      window.__hqNavFrame1 = requestAnimationFrame(() => {
+        window.__hqNavFrame2 = requestAnimationFrame(() => {
+          if (navbar.style.transition === 'none' || navbar.style.transition === 'none 0s ease 0s') {
+            navbar.style.transition = '';
+          }
+        });
+      });
     }
 
     function updateActiveNavLinks() {
@@ -152,9 +196,7 @@ const isActive = (href: string) =>
       document.addEventListener('astro:page-load', updateActiveNavLinks);
       window.navbarObserverSetup = true;
     }
-  })();
 
-  (function () {
     function initMobileMenu() {
       const navbar = document.getElementById('navbar');
       const toggle = document.querySelector('.nav-toggle');
@@ -164,12 +206,6 @@ const isActive = (href: string) =>
           toggle.addEventListener('click', () => {
             const isOpened = navbar.classList.contains('menu-open');
             if (isOpened) {
-              /* Menu is visually open but nothing is actually locked (a
-                 navigation released it, say). Close the panel and stop —
-                 calling unlock() here would decrement a counter that no
-                 longer has this menu in it. Asking the lock itself is
-                 accurate; the old check read `html.menu-open`, a class the
-                 shared utility no longer owns. */
               if (!window.__hqScrollLock.isLocked()) {
                 navbar.classList.remove('menu-open');
                 toggle.setAttribute('aria-expanded', 'false');
@@ -178,16 +214,9 @@ const isActive = (href: string) =>
 
               navbar.classList.remove('menu-open');
               toggle.setAttribute('aria-expanded', 'false');
-
-              /* Shared scroll lock — src/lib/scroll-lock.ts, reached through
-                 the window bridge because this script is `is:inline` and so
-                 cannot import. Replaces a local copy that cleared the four
-                 inline styles by hand and restored the offset across a double
-                 requestAnimationFrame. */
               window.__hqScrollLock.unlock();
             } else {
               window.__hqScrollLock.lock();
-
               navbar.classList.add('menu-open');
               toggle.setAttribute('aria-expanded', 'true');
             }
@@ -202,40 +231,19 @@ const isActive = (href: string) =>
               const isModalTrigger = !!e.target.closest('[data-modal-trigger]');
 
               if (navbar.classList.contains('menu-open')) {
-                if (!document.documentElement.classList.contains('menu-open')) {
-                  navbar.classList.remove('menu-open');
-                  toggle.setAttribute('aria-expanded', 'false');
-                  return;
+                navbar.classList.remove('menu-open');
+                toggle.setAttribute('aria-expanded', 'false');
+                
+                if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
+                  if (link.getAttribute('href') === '/') {
+                    window.__hqScrollLock.release();
+                  } else {
+                    window.__hqScrollLock.unlock();
+                  }
                 }
 
-              navbar.classList.remove('menu-open');
-              document.documentElement.classList.remove('menu-open');
-              toggle.setAttribute('aria-expanded', 'false');
-
-              // If this is a modal trigger, just visually close the menu but leave 
-              // the scroll lock perfectly intact so the modal can adopt it!
-              if (isModalTrigger) return;
-
-              const scrollY = Math.abs(
-                parseInt(document.body.style.top || '0')
-              );
-
-              document.body.style.position = '';
-              document.body.style.top = '';
-              document.body.style.width = '';
-              document.body.style.overflowY = '';
-
-              const originalBehavior = document.documentElement.style.scrollBehavior;
-              document.documentElement.style.scrollBehavior = 'auto'; // Force instant
-              window.scrollTo(0, scrollY);
-
-              // Double requestAnimationFrame for native thread safety
-              requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                  document.documentElement.style.scrollBehavior = originalBehavior;
-                });
-              });
-            }
+                if (isModalTrigger) return;
+              }
           });
           link.dataset.mobileClickBound = 'true';
         }
@@ -245,28 +253,62 @@ const isActive = (href: string) =>
     } // Ends initMobileMenu
 
     // The navbar uses transition:persist, so Astro preserves it (and any
-    // .menu-open class) across client-side navigations — leaving the menu
-    // visibly stuck open on the new page when the user navigates via the logo
-    // or the browser Back button. Force it closed on every page load.
+    // .menu-open class) across client-side navigations.
     function resetMenuState() {
       const navbar = document.getElementById('navbar');
       if (navbar && navbar.classList.contains('menu-open')) {
         navbar.classList.remove('menu-open');
-        document.documentElement.classList.remove('menu-open');
-        document.body.style.position = '';
-        document.body.style.top = '';
-        document.body.style.width = '';
-        document.body.style.overflowY = '';
         navbar
           .querySelector('.nav-toggle')
           ?.setAttribute('aria-expanded', 'false');
+          
+        if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
+          window.__hqScrollLock.release();
+        }
       }
+    }
+
+    function purgeNavbarState() {
+      const navbar = document.getElementById('navbar');
+      const identity = document.getElementById('nav-identity');
+      
+      if (window.__hqNavFrame1) cancelAnimationFrame(window.__hqNavFrame1);
+      if (window.__hqNavFrame2) cancelAnimationFrame(window.__hqNavFrame2);
+
+      if (navbar) {
+        navbar.style.transition = 'none';
+        
+        if (navbar.classList.contains('menu-open') && window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
+          window.__hqScrollLock.release();
+        }
+        
+        navbar.classList.remove('scrolled', 'menu-open');
+        
+        const toggle = document.querySelector('.nav-toggle');
+        if (toggle) toggle.setAttribute('aria-expanded', 'false');
+      }
+
+      if (identity) {
+        identity.style.transition = 'none';
+        identity.style.opacity = '0';
+        identity.style.transform = 'translateY(-10px) scale(0.95)';
+        identity.style.pointerEvents = 'none';
+        identity.setAttribute('tabindex', '-1');
+      }
+      
+      // CRITICAL: Reset the closure variable so the scroll listener doesn't ignore the next update!
+      currentVisibility = null;
     }
 
     if (!window.navbarMobileMenuSetup) {
       document.addEventListener('astro:page-load', initMobileMenu);
       document.addEventListener('astro:page-load', resetMenuState);
+      
+      // The crucial fix for the persistence and flicker bugs
+      document.addEventListener('astro:before-swap', purgeNavbarState);
+      
       window.navbarMobileMenuSetup = true;
     }
   })();
-</script>
+  </script>
+</header>

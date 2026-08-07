@@ -64,6 +64,7 @@ const canonicalPath =
     ? Astro.url.pathname
     : Astro.url.pathname.slice(0, -1);
 const url = Astro.props.url ?? new URL(canonicalPath, site.url).toString();
+const isHomePage = Astro.url.pathname === '/';
 
 // Sitewide structured data: tells search engines who this brand is and
 // which social accounts are officially ours. Per-page Article/VideoObject
@@ -281,7 +282,7 @@ const fallbackMark = await getImage({
          #page-content would still let Tab reach them. Wrap all three in
          #app-wrapper and inert THAT while a modal is open — the modals live
          outside the wrapper, so they stay reachable. -->
-    <div id="app-wrapper" class="min-h-[100svh] flex flex-col">
+    <div id="app-wrapper" class="min-h-[100svh] flex flex-col" data-home={isHomePage ? 'true' : undefined}>
       <Navbar />
       <div id="page-content" class="flex-1 flex flex-col">
         <slot />

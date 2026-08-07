@@ -88,7 +88,14 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
     viewport, so a heading counts as "current" once it reaches the upper third
     rather than only at the very top edge.
   */
+  let currentObserver: IntersectionObserver | null = null;
+  
   function initArticleToc() {
+    if (currentObserver) {
+      currentObserver.disconnect();
+      currentObserver = null;
+    }
+    
     const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-toc-link]'));
     if (links.length === 0) return;
 
@@ -106,20 +113,37 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
       });
     };
 
+    const activeHeadings = new Set<Element>();
     const observer = new IntersectionObserver(
       (records) => {
-        // Prefer the topmost heading currently intersecting.
-        const visible = records
-          .filter((r) => r.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-        if (visible?.target.id) setActive(visible.target.id);
+        records.forEach(r => {
+          if (r.isIntersecting) activeHeadings.add(r.target);
+          else activeHeadings.delete(r.target);
+        });
+
+        if (activeHeadings.size > 0) {
+          // Prefer the topmost heading currently anywhere in the active zone
+          const visible = Array.from(activeHeadings)
+            .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0];
+          if (visible.id) setActive(visible.id);
+        }
       },
-      { rootMargin: '-30% 0px -60% 0px', threshold: 0 },
+      // Active zone: from 80px below the top of the viewport, down to 50% of the viewport.
+      { rootMargin: '-80px 0px -50% 0px', threshold: 0 },
     );
 
     headings.forEach((heading) => observer.observe(heading));
     setActive(headings[0].id);
+    
+    currentObserver = observer;
   }
 
   document.addEventListener('astro:page-load', initArticleToc);
+  
+  document.addEventListener('astro:before-swap', () => {
+    if (currentObserver) {
+      currentObserver.disconnect();
+      currentObserver = null;
+    }
+  });
 </script>

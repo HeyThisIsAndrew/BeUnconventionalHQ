@@ -235,13 +235,17 @@ import { site } from '../data/site.js';
            history load (and bfcache), where no ClientRouter event fires.
     */
     let navDirection: string | null = null;
+    let navType: string | null = null;
 
     document.addEventListener('astro:before-preparation', (event) => {
-      navDirection = (event as unknown as { direction?: string }).direction ?? null;
+      const e = event as unknown as { direction?: string; navigationType?: string };
+      navDirection = e.direction ?? null;
+      navType = e.navigationType ?? null;
     });
 
     function isHistoryNavigation() {
-      if (navDirection === 'back' || navDirection === 'forward') return true;
+      if (navType === 'traverse') return true;
+      if (!navType && navDirection === 'back') return true;
       const [entry] = performance.getEntriesByType('navigation');
       return (entry as PerformanceNavigationTiming | undefined)?.type === 'back_forward';
     }
@@ -283,17 +287,20 @@ import { site } from '../data/site.js';
          returns to zero and the page stays pinned forever. */
       if (root.classList.contains('splash-armed')) return;
       measureLift();
-      /* Measure BEFORE hiding the scrollbar — afterwards this always reads 0. */
-      const gutter = Math.max(0, window.innerWidth - root.clientWidth);
-      root.style.setProperty('--splash-gutter', `${gutter}px`);
       root.classList.add('splash-armed');
+      
+      if (window.__hqScrollLock) window.__hqScrollLock.lock();
     }
 
     function disarm() {
+      const wasArmed = root.classList.contains('splash-armed');
       root.classList.remove('splash-armed', 'splash-lifting', 'splash-dropping');
-      root.style.removeProperty('--splash-gutter');
       const wrapper = document.getElementById('app-wrapper');
       if (wrapper) wrapper.style.willChange = '';
+      
+      if (wasArmed && window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
+        window.__hqScrollLock.release();
+      }
     }
 
     /**
@@ -341,20 +348,16 @@ import { site } from '../data/site.js';
       const distance = hero ? hero.offsetHeight : window.innerHeight;
 
       if (reduceMotion()) {
-        disarm();
-        /* Next frame, so this lands AFTER the router's fragment scroll rather
-           than being overwritten by it. */
         requestAnimationFrame(() => {
           stripHash();
-          /*
-            Force `auto`. `html { scroll-behavior: smooth }` is global, so
-            without this the REDUCED-MOTION path was the one that animated —
-            a ~600ms smooth scroll for the reader who explicitly asked for
-            less movement, while everyone else got an instant jump at the end
-            of the curtain. Exactly backwards.
-          */
+          
+          if (window.__hqScrollLock) {
+            window.__hqScrollLock.release();
+          }
+          
           const previousBehavior = root.style.scrollBehavior;
           root.style.scrollBehavior = 'auto';
+          root.classList.remove('splash-armed', 'splash-lifting', 'splash-dropping');
           window.scrollTo(0, distance);
           root.style.scrollBehavior = previousBehavior;
           busy = false;
@@ -379,8 +382,12 @@ import { site } from '../data/site.js';
         const previousBehavior = root.style.scrollBehavior;
         root.style.scrollBehavior = 'auto';
         root.classList.remove('splash-armed', 'splash-lifting');
-        root.style.removeProperty('--splash-gutter');
         stripHash();
+        
+        if (window.__hqScrollLock) {
+          window.__hqScrollLock.release();
+        }
+        
         window.scrollTo(0, distance);
         root.style.scrollBehavior = previousBehavior;
         if (wrapper) wrapper.style.willChange = '';
@@ -468,21 +475,13 @@ import { site } from '../data/site.js';
           stripHash();
           return;
         }
+      });
 
-        /*
-          The header logo takes you back to the splash. On the homepage that
-          is simply "scroll to the top" — reaching the top re-arms the curtain
-          on its own (see the scroll listener below), so there is no separate
-          drop animation to keep in step with this one. Anywhere else it stays
-          an ordinary "go home" link, which is what a masthead should be.
-        */
-        const brand = target.closest('#navbar a[href="/"], #navbar a[href="/#"]');
-        if (brand && shouldArmLocation() && !root.classList.contains('splash-armed')) {
-          event.preventDefault();
-          event.stopPropagation(); // Block Astro ClientRouter
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.addEventListener('hq:lift-splash', () => {
+        if (root.classList.contains('splash-armed')) {
+          lift();
         }
-      }, { capture: true });
+      });
 
       /* Scrolling down past the splash lifts it too — the curtain should never
          be something you can get stuck behind. */
@@ -589,9 +588,13 @@ import { site } from '../data/site.js';
       });
     }
 
-    document.addEventListener('astro:page-load', () => {
-      disarm();
-      armOnEntry();
+    document.addEventListener('astro:after-swap', () => {
+      // For client-side PUSH navigations to the homepage, arm immediately
+      // before the browser paints. This prevents the navbar from flickering 
+      // visible during the two-frame delay used by armOnEntry.
+      if (window.location.pathname === '/' && !isHistoryNavigation()) {
+        if (window.scrollY < 4) arm();
+      }
     });
 
     /* Never carry splash state across a navigation — the next page has no
