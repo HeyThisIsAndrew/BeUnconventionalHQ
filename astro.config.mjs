@@ -292,8 +292,22 @@ export default defineConfig({
       // carrying its own noindex, so it must not be advertised as a separate
       // canonical destination. The '/press-kit' test matches both it and the
       // legacy /press-kit redirect stub, neither of which belongs here.
-      filter: (page) =>
-        !page.includes('/links') && !page.includes('/admin') && !page.includes('/local-cms') && !page.includes('/media-kit') && !page.includes('/press-kit'),
+      filter: (page) => {
+        const url = new URL(page);
+        const path = url.pathname.replace(/\/$/, '');
+        const excludedPaths = [
+          '/links',
+          '/admin',
+          '/local-cms',
+          '/media-kit',
+          '/press-kit',
+          '/collaborations/press-kit',
+          '/articles',
+          '/videos',
+          '/events-new'
+        ];
+        return !excludedPaths.includes(path);
+      },
       // Strip trailing slashes to match assets.html_handling:
       // "drop-trailing-slash" — otherwise every sitemap entry sends
       // crawlers through an extra redirect hop before reaching the

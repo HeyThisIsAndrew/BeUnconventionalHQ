@@ -170,8 +170,7 @@ function readSnapshot() {
  * Fetch the publication's RSS feed, then fetch the HTML page for each post
  * to extract the `window._preloads` JSON object, bypassing Cloudflare's bot block.
  */
-async function fetchAllPosts(existingRecords = []) {
-  const existingLinks = new Set(existingRecords.map((r) => r.link));
+async function fetchAllPosts() {
   const collected = [];
 
   // 1. Fetch RSS feed to get the latest posts
@@ -243,7 +242,7 @@ async function run() {
   let posts;
   let pages;
   try {
-    ({ posts, pages } = await fetchAllPosts(existing));
+    ({ posts, pages } = await fetchAllPosts());
   } catch (err) {
     // Loud, but never fatal — the snapshot is the source of truth for the build.
     console.error(`[articles] ✗ POSTS FETCH FAILED: ${err.message}`);
