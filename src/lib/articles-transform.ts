@@ -55,22 +55,48 @@ export function demoteHeadings(html: string): string {
 export function extractSubstackGalleries(html: string): string {
   if (!html) return '';
   return html.replace(
-    /<div\b[^>]*class=["']?[^"'>]*image-gallery-embed[^"'>]*["']?[^>]*data-attrs=["']([^"']+)["'][^>]*>[\s\S]*?<\/div>/gi,
-    (_match, encodedAttrs) => {
+    /<div\b([^>]+)>[\s\S]*?<\/div>/gi,
+    (match, attrs) => {
+      // Must have both the class and the data attributes
+      if (!attrs.includes('image-gallery-embed') || !attrs.includes('data-attrs=')) {
+        return match;
+      }
+      
+      const dataMatch = attrs.match(/data-attrs=["']([^"']+)["']/);
+      if (!dataMatch) return match;
+      
       try {
-        const jsonStr = encodedAttrs.replace(/&quot;/g, '"');
-        const urls = [...jsonStr.matchAll(/https:\/\/[^"'\\]+/gi)].map(m => m[0]);
-        // Extract unique image URLs, handling Substack's dynamic CDN which often omits file extensions
-        const uniqueUrls = [...new Set(urls)].filter(u => 
-          (/\.(jpe?g|png|webp|gif)/i.test(u) || u.includes('image/fetch') || u.includes('bucketeer')) 
-          && !u.includes('youtube') 
-          && !u.includes('vimeo')
-        );
+        // Substack HTML-entity encodes the JSON
+        const jsonStr = dataMatch[1].replace(/&quot;/g, '"');
+        const parsed = JSON.parse(jsonStr);
+        
+        // Find all URLs recursively
+        const extractUrls = (obj: any): string[] => {
+          let found: string[] = [];
+          if (typeof obj === 'string') {
+            if (obj.startsWith('https://') && 
+                (obj.includes('image') || obj.includes('bucketeer') || /\.(jpe?g|png|webp|gif)/i.test(obj)) && 
+                !obj.includes('youtube') && 
+                !obj.includes('vimeo')) {
+              found.push(obj);
+            }
+          } else if (Array.isArray(obj)) {
+            obj.forEach(item => found.push(...extractUrls(item)));
+          } else if (obj && typeof obj === 'object') {
+            Object.values(obj).forEach(val => found.push(...extractUrls(val)));
+          }
+          return found;
+        };
+
+        const urls = extractUrls(parsed);
+        const uniqueUrls = [...new Set(urls)];
         
         const imgTags = uniqueUrls.map(url => {
           let width = '';
           let height = '';
-          const dimMatch = url.match(/_(\d+)x(\d+)(\.[a-z0-9]+)?$/i);
+          // Ignore query params when extracting dimensions
+          const cleanUrl = url.split('?')[0];
+          const dimMatch = cleanUrl.match(/_(\d+)x(\d+)(\.[a-z0-9]+)?$/i);
           if (dimMatch) {
             width = ` width="${dimMatch[1]}"`;
             height = ` height="${dimMatch[2]}"`;
@@ -81,7 +107,8 @@ export function extractSubstackGalleries(html: string): string {
         if (!imgTags) return '';
         return `<substack-gallery>${imgTags}</substack-gallery>`;
       } catch (e) {
-        return ''; // Fail gracefully and strip malformed galleries
+        // Gracefully fail and let the sanitizer strip the malformed gallery div
+        return ''; 
       }
     }
   );
@@ -95,7 +122,7 @@ export function extractSubstackGalleries(html: string): string {
 export function extractYouTubeEmbeds(html: string): string {
   if (!html) return '';
   return html.replace(
-    /<iframe\b[^>]*src=["'](?:https?:)?\/\/(?:www\.)?youtube\.com\/embed\/([A-Za-z0-9_-]+)[^"']*["'][^>]*>[\s\S]*?<\/iframe>/gi,
+    /<iframe\b[^>]*src=["'](?:https?:)?\/\/(?:www\.)?(?:youtube\.com|youtube-nocookie\.com)\/embed\/([A-Za-z0-9_-]+)[^"']*["'][^>]*>[\s\S]*?<\/iframe>/gi,
     (_match, videoId) => `<youtube-embed video-id="${videoId}"></youtube-embed>`
   );
 }
