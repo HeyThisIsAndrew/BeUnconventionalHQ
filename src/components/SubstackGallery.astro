@@ -1,0 +1,102 @@
+---
+/**
+ * A client-side Web Component that upgrades <substack-gallery> tags emitted by
+ * the HTML sanitizer into a swipeable carousel.
+ * 
+ * Included globally on article pages so any injected galleries are automatically
+ * enhanced without needing React or complex state. Uses CSS-only scroll snapping
+ * for performance.
+ */
+---
+<script>
+  class SubstackGallery extends HTMLElement {
+    constructor() {
+      super();
+      
+      // Upgrade only once per element
+      if (this.dataset.initialized) return;
+      this.dataset.initialized = 'true';
+      
+      const images = Array.from(this.querySelectorAll('img'));
+      if (images.length === 0) return;
+
+      // Wrap images in a scroll container
+      const container = document.createElement('div');
+      container.className = 'substack-gallery-container';
+      
+      images.forEach(img => {
+        const slide = document.createElement('div');
+        slide.className = 'substack-gallery-slide';
+        // Clone the image to avoid mutation issues during DOM move
+        slide.appendChild(img.cloneNode(true));
+        container.appendChild(slide);
+      });
+      
+      // Replace raw images with the interactive carousel container
+      this.innerHTML = '';
+      this.appendChild(container);
+    }
+  }
+
+  if (!customElements.get('substack-gallery')) {
+    customElements.define('substack-gallery', SubstackGallery);
+  }
+</script>
+
+<style is:global>
+  substack-gallery {
+    display: block;
+    margin: 2.5rem 0;
+    width: 100%;
+    position: relative;
+    border-radius: 12px;
+  }
+  
+  .substack-gallery-container {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    /* Custom scrollbar for webkit */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .substack-gallery-container::-webkit-scrollbar {
+    height: 6px;
+  }
+  .substack-gallery-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .substack-gallery-container::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+  }
+
+  .substack-gallery-slide {
+    flex: 0 0 85%;
+    scroll-snap-align: center;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--color-black-soft, #111);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  @media (min-width: 768px) {
+    .substack-gallery-slide {
+      flex: 0 0 75%;
+    }
+  }
+
+  .substack-gallery-slide img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 70vh;
+    object-fit: contain;
+  }
+</style>

@@ -177,9 +177,34 @@ function substackSources(url: string): CardImageSources {
   };
 }
 
+/** Rendition widths for generic external proxy, smallest first. */
+const WSRV_WIDTHS = [400, 600, 900, 1200];
+const WSRV_SRC_WIDTH = 600;
+
+function genericExternalSources(url: string): CardImageSources {
+  // Only process absolute external URLs
+  if (!/^https?:\/\//i.test(url)) return { src: url, srcset: '' };
+  
+  // Exclude our own domain if we somehow pass an absolute local URL
+  if (url.includes('beunconventionalhq.com')) return { src: url, srcset: '' };
+
+  // Strip protocol for wsrv.nl
+  const urlWithoutProto = url.replace(/^https?:\/\//i, '');
+  
+  // q=85 for high photographic quality (prepping for Instagram), output=webp for modern format
+  const withWidth = (w: number) => 
+    `https://wsrv.nl/?url=${encodeURIComponent(urlWithoutProto)}&w=${w}&output=webp&q=85`;
+
+  return {
+    src: withWidth(WSRV_SRC_WIDTH),
+    srcset: WSRV_WIDTHS.map((w) => `${withWidth(w)} ${w}w`).join(', '),
+  };
+}
+
 /**
  * Map a raw card thumbnail URL to the sources a card should request.
- * Unrecognised hosts pass through untouched with no srcset.
+ * Unrecognised external hosts are routed through a high-quality proxy (wsrv.nl)
+ * to generate a responsive srcset, saving massive payload weight on mobile.
  */
 export function getCardImageSources(raw: unknown): CardImageSources {
   const url = String(raw ?? '').trim();
@@ -188,7 +213,8 @@ export function getCardImageSources(raw: unknown): CardImageSources {
   if (url.includes(YT_HOST)) return youtubeSources(url);
   if (url.includes(SUBSTACK_FETCH)) return substackSources(url);
 
-  return { src: url, srcset: '' };
+  // Fallback for AWS S3 direct links, Substack YouTube thumbnails, Instagram, etc.
+  return genericExternalSources(url);
 }
 
 /*

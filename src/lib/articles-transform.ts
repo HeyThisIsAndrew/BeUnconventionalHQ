@@ -16,11 +16,13 @@ import { CATEGORIES } from '../data/constants.js';
 const ALLOWED_TAGS = [
   'p', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'blockquote', 'hr',
   'a', 'img', 'figure', 'figcaption', 'em', 'strong', 'code', 'pre', 'br',
+  'substack-gallery'
 ];
 
 const ALLOWED_ATTRS: Record<string, string[]> = {
   a: ['href', 'title', 'rel', 'target'],
   img: ['src', 'alt', 'title', 'width', 'height'],
+  'substack-gallery': [],
 };
 
 /**
@@ -44,10 +46,49 @@ export function demoteHeadings(html: string): string {
   );
 }
 
+/**
+ * Extracts Substack image gallery JSON payloads and replaces them with a custom
+ * <substack-gallery> element containing native <img> tags for SEO/No-JS fallback.
+ * Must run BEFORE sanitization so the payload is not stripped.
+ */
+export function extractSubstackGalleries(html: string): string {
+  if (!html) return '';
+  return html.replace(
+    /<div\b[^>]*class=["']?[^"'>]*image-gallery-embed[^"'>]*["']?[^>]*data-attrs=["']([^"']+)["'][^>]*>[\s\S]*?<\/div>/gi,
+    (_match, encodedAttrs) => {
+      try {
+        const jsonStr = encodedAttrs.replace(/&quot;/g, '"');
+        const urls = [...jsonStr.matchAll(/https:\/\/[^"'\\]+/gi)].map(m => m[0]);
+        // Extract unique image URLs, filter out thumbnails/avatars if possible
+        const uniqueUrls = [...new Set(urls)].filter(u => /\.(jpe?g|png|webp|gif)/i.test(u));
+        
+        const imgTags = uniqueUrls.map(url => {
+          let width = '';
+          let height = '';
+          const dimMatch = url.match(/_(\d+)x(\d+)\.[a-z0-9]+$/i);
+          if (dimMatch) {
+            width = ` width="${dimMatch[1]}"`;
+            height = ` height="${dimMatch[2]}"`;
+          }
+          return `<img src="${url}"${width}${height} loading="lazy" />`;
+        }).join('');
+        
+        if (!imgTags) return '';
+        return `<substack-gallery>${imgTags}</substack-gallery>`;
+      } catch (e) {
+        return ''; // Fail gracefully and strip malformed galleries
+      }
+    }
+  );
+}
+
 /** Sanitize imported HTML down to the semantic allowlist. */
 export function sanitizeArticleHtml(html: string): string {
   if (!html) return '';
-  return sanitizeHtml(demoteHeadings(html), {
+  
+  const processedHtml = extractSubstackGalleries(demoteHeadings(html));
+  
+  return sanitizeHtml(processedHtml, {
     allowedTags: ALLOWED_TAGS,
     allowedAttributes: ALLOWED_ATTRS,
     // Strip Substack's tracking/CDN query junk but keep the URL usable.
