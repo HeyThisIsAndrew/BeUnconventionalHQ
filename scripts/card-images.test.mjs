@@ -188,9 +188,13 @@ test('srcset ascends and descriptors match their widths', () => {
 
 console.log('\nPass-through and edge cases:');
 
-test('a non-YouTube, non-Substack URL is untouched', () => {
+test('a non-YouTube, non-Substack URL is proxied through wsrv.nl', () => {
   const url = 'https://cdn.sanity.io/images/abc/production/def-1920x1080.jpg';
-  assert.deepEqual(getCardImageSources(url), { src: url, srcset: '' });
+  const sources = getCardImageSources(url);
+  assert.ok(sources.src.includes('wsrv.nl/?url=cdn.sanity.io'), sources.src);
+  assert.ok(sources.srcset.includes('wsrv.nl/?url=cdn.sanity.io'), sources.srcset);
+  assert.ok(sources.srcset.includes('400w'));
+  assert.ok(sources.srcset.includes('1200w'));
 });
 
 test('empty, whitespace, null and undefined all yield no image', () => {
