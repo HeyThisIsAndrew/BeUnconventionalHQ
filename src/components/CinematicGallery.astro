@@ -18,8 +18,8 @@ const { items = [] } = Astro.props;
 ---
 
 {items.length > 0 && (
-  <div class="cinematic-gallery-wrapper">
-    <div class="cinematic-gallery-container">
+  <div class="ig-carousel-wrapper">
+    <div class="ig-carousel-track">
       {items.map((item) => {
         if (!item || !item.displayUrl) return null;
         
@@ -27,39 +27,30 @@ const { items = [] } = Astro.props;
         const hasCaption = !!item.caption;
         
         return (
-          <div class="cinematic-gallery-slide">
-            {item.mediaType === 'VIDEO' ? (
-              <a href={item.permalink || '#'} target="_blank" rel="noopener noreferrer" class="cinematic-gallery-video-link">
-                <img 
-                  src={sources.src} 
-                  srcset={sources.srcset}
-                  sizes="(max-width: 768px) 45vw, 25vw"
-                  alt={item.caption?.slice(0, 50) || 'Instagram Media'} 
-                  loading="lazy" 
-                  decoding="async" 
-                />
-                <div class="cinematic-play-button">
-                  <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48">
+          <div class="ig-carousel-tile">
+            <img 
+              src={sources.src} 
+              srcset={sources.srcset}
+              sizes="(max-width: 768px) 45vw, 240px"
+              alt={item.caption?.slice(0, 50) || 'Instagram Media'} 
+              loading="lazy" 
+              decoding="async" 
+              class="ig-tile-img"
+            />
+            <div class="ig-tile-overlay">
+              {item.mediaType === 'VIDEO' && (
+                <div class="ig-play-icon">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="36" height="36">
                     <path d="M8 5v14l11-7z" />
                   </svg>
                 </div>
-              </a>
-            ) : (
-              <img 
-                src={sources.src} 
-                srcset={sources.srcset}
-                sizes="(max-width: 768px) 45vw, 25vw"
-                alt={item.caption?.slice(0, 50) || 'Instagram Media'} 
-                loading="lazy" 
-                decoding="async" 
-              />
-            )}
-            
-            {hasCaption && (
-              <div class="cinematic-gallery-caption">
-                <p>{item.caption}</p>
-              </div>
-            )}
+              )}
+              {hasCaption && (
+                <div class="ig-tile-caption">
+                  <p>{item.caption}</p>
+                </div>
+              )}
+            </div>
           </div>
         );
       })}
@@ -68,124 +59,141 @@ const { items = [] } = Astro.props;
 )}
 
 <style>
-  .cinematic-gallery-wrapper {
-    /* Break out of standard margins for an edge-to-edge bleed on mobile */
-    margin: 3rem calc(-50vw + 50%);
-    width: 100vw;
-    background: #050505; /* Deep rich black for contrast */
-    padding: 2rem 0;
+  /* 
+    The wrapper fits standard layout, avoiding full-width bleed unless on small mobile.
+    It contains the scrolling track.
+  */
+  .ig-carousel-wrapper {
     position: relative;
+    width: 100%;
+    /* Keep it in bounds on desktop */
+    margin: 2rem 0;
+    overflow: hidden; /* Hide the scrollbar visually for the wrapper */
   }
 
-  .cinematic-gallery-container {
+  /* 
+    The track handles the horizontal scrolling.
+  */
+  .ig-carousel-track {
     display: flex;
     overflow-x: auto;
     scroll-snap-type: x mandatory;
-    gap: 1.5rem;
-    padding: 0 max(1rem, calc((100vw - 1200px) / 2)); /* Center first slide */
+    gap: 1.25rem;
+    padding: 1rem 0 2rem; /* padding bottom for hover lift */
     
-    scrollbar-width: none; /* Firefox */
+    /* Hide scrollbars */
+    scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
   }
   
-  .cinematic-gallery-container::-webkit-scrollbar {
-    display: none; /* Safari/Chrome */
+  .ig-carousel-track::-webkit-scrollbar {
+    display: none;
   }
 
-  .cinematic-gallery-slide {
-    flex: 0 0 45vw; /* Drastically shrunk mobile width per user feedback */
-    max-width: 300px; /* Capped desktop width */
-    scroll-snap-align: center;
+  /* 
+    Tiles are strictly constrained to avoid internal scrolling.
+    Fixed aspect ratio 4:5 (Standard Instagram Portrait).
+  */
+  .ig-carousel-tile {
+    flex: 0 0 220px; /* Locked width */
+    aspect-ratio: 4 / 5; /* Forces the height to wrap perfectly */
+    scroll-snap-align: start;
     position: relative;
-    border-radius: 12px;
-    overflow: hidden;
-    background: #111;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  @media (min-width: 768px) {
-    .cinematic-gallery-slide {
-      flex: 0 0 25vw;
-    }
-    .cinematic-gallery-slide:hover {
-      transform: scale(1.02);
-    }
-  }
-
-  .cinematic-gallery-slide img {
-    display: block;
-    width: 100%;
-    height: auto;
-    max-height: 80vh;
-    object-fit: contain;
-  }
-
-  /* Glassmorphism Caption */
-  .cinematic-gallery-caption {
-    position: absolute;
-    bottom: 1.5rem;
-    left: 1.5rem;
-    right: 1.5rem;
-    background: rgba(10, 10, 10, 0.5);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
-    padding: 1rem;
-    pointer-events: none; /* Let clicks pass through */
-    opacity: 0;
-    transform: translateY(10px);
-    transition: opacity 0.4s ease, transform 0.4s ease;
-  }
-
-  .cinematic-gallery-slide:hover .cinematic-gallery-caption {
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  .cinematic-gallery-caption p {
-    margin: 0;
-    color: #fff;
-    font-size: 0.9rem;
-    line-height: 1.4;
-    display: -webkit-box;
-    -webkit-line-clamp: 3; /* Truncate after 3 lines */
-    -webkit-box-orient: vertical;
     overflow: hidden;
+    background: var(--color-surface, #111);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.2, 1), box-shadow 0.4s ease, border-color 0.4s ease;
+    cursor: default; /* No link yet, purely visual prototype */
   }
 
-  /* Video Play Button Overlay */
-  .cinematic-gallery-video-link {
-    display: block;
+  @media (max-width: 560px) {
+    .ig-carousel-tile {
+      flex: 0 0 160px; /* Even smaller on phones */
+    }
+  }
+
+  .ig-carousel-tile:hover {
+    transform: translateY(-8px);
+    border-color: var(--color-accent, #cc0000);
+    box-shadow: 0 12px 30px rgba(204, 0, 0, 0.2);
+  }
+
+  .ig-tile-img {
     width: 100%;
     height: 100%;
-    position: relative;
+    object-fit: cover; /* Locks the image into the bounds perfectly */
+    transition: transform 0.6s ease;
   }
 
-  .cinematic-play-button {
+  .ig-carousel-tile:hover .ig-tile-img {
+    transform: scale(1.05);
+  }
+
+  /* 
+    Cinematic Overlay matching the site's dark aesthetic 
+  */
+  .ig-tile-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to top,
+      rgba(9, 9, 11, 0.95) 0%,
+      rgba(9, 9, 11, 0.4) 40%,
+      transparent 100%
+    );
+    opacity: 0.8;
+    transition: background 0.3s ease, opacity 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 1.25rem;
+    pointer-events: none;
+  }
+
+  .ig-carousel-tile:hover .ig-tile-overlay {
+    background: linear-gradient(
+      to top,
+      rgba(9, 9, 11, 0.98) 0%,
+      rgba(9, 9, 11, 0.7) 50%,
+      transparent 100%
+    );
+    opacity: 1;
+  }
+
+  .ig-play-icon {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 80px;
-    height: 80px;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    border: 2px solid rgba(255, 255, 255, 0.2);
-    transition: all 0.3s ease;
+    color: rgba(255, 255, 255, 0.6);
+    transition: color 0.3s ease, transform 0.3s ease;
   }
 
-  .cinematic-gallery-slide:hover .cinematic-play-button {
-    background: var(--color-brand-primary, #e60000);
-    border-color: transparent;
-    transform: translate(-50%, -50%) scale(1.1);
+  .ig-carousel-tile:hover .ig-play-icon {
+    color: var(--color-accent, #cc0000);
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+
+  .ig-tile-caption {
+    transform: translateY(10px);
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+  }
+
+  .ig-carousel-tile:hover .ig-tile-caption {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  .ig-tile-caption p {
+    margin: 0;
+    color: #fff;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 </style>
