@@ -39,7 +39,7 @@ async function runTests() {
 
   try {
     const page = await browser.newPage();
-    await page.goto('http://localhost:4321/');
+    await page.goto('http://localhost:4321/#e2e');
 
     const form = await page.$('#newsletter-form');
     assert.ok(form, 'Newsletter form should be present on the homepage');
@@ -104,7 +104,7 @@ async function runTests() {
     // just as valid a test of "submitting a known email a second time works".
     console.log('Submitting the same address again (fresh page)...');
     const page2 = await browser.newPage();
-    await page2.goto('http://localhost:4321/');
+    await page2.goto('http://localhost:4321/#e2e');
     await page2.evaluate((email) => {
       const input = document.getElementById('newsletter-email');
       input.value = email;

@@ -14,7 +14,7 @@ async function runTests() {
     const page = await browser.newPage();
     
     console.log('Navigating to homepage to test Contact Modal...');
-    await page.goto('http://localhost:4321/');
+    await page.goto('http://localhost:4321/#e2e');
 
     // The contact modal was intentionally hidden from the live UI (Footer's
     // and press-kit's [data-modal-trigger="contact"] links are commented
