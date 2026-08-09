@@ -1,0 +1,54 @@
+import instagramData from '../data/instagram.json';
+
+export interface InstagramMediaChild {
+  id: string;
+  mediaType: string;
+  url: string;
+  thumbnailUrl: string;
+}
+
+export interface InstagramPost {
+  id: string;
+  caption: string;
+  mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM';
+  displayUrl: string;
+  videoUrl?: string;
+  permalink: string;
+  timestamp: string;
+  children: InstagramMediaChild[];
+}
+
+/**
+ * Returns the cached Instagram feed from the build-time sync.
+ */
+export function getInstagramFeed(): InstagramPost[] {
+  // @ts-ignore - Asserting structure from JSON
+  return instagramData as InstagramPost[];
+}
+
+/**
+ * Flattens the Instagram feed to just a list of images/videos,
+ * perfect for a continuous cinematic gallery.
+ * Carousels are unpacked into individual slides.
+ */
+export function getFlattenedGallery() {
+  const feed = getInstagramFeed();
+  const gallery = [];
+
+  for (const post of feed) {
+    if (post.mediaType === 'CAROUSEL_ALBUM') {
+      for (const child of post.children) {
+        gallery.push({
+          ...post, // keep caption and permalink for the overlay
+          displayUrl: child.thumbnailUrl,
+          mediaType: child.mediaType,
+          videoUrl: child.mediaType === 'VIDEO' ? child.url : undefined,
+        });
+      }
+    } else {
+      gallery.push(post);
+    }
+  }
+
+  return gallery;
+}

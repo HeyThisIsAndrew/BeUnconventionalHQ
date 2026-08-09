@@ -1,0 +1,189 @@
+---
+import { getCardImageSources } from '../lib/card-images.js';
+
+interface GalleryItem {
+  id: string;
+  mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM';
+  displayUrl: string;
+  videoUrl?: string;
+  caption?: string;
+  permalink?: string;
+}
+
+export interface Props {
+  items: GalleryItem[];
+}
+
+const { items = [] } = Astro.props;
+---
+
+{items.length > 0 && (
+  <div class="cinematic-gallery-wrapper">
+    <div class="cinematic-gallery-container">
+      {items.map((item) => {
+        const sources = getCardImageSources(item.displayUrl);
+        const hasCaption = !!item.caption;
+        
+        return (
+          <div class="cinematic-gallery-slide">
+            {item.mediaType === 'VIDEO' ? (
+              <a href={item.permalink} target="_blank" rel="noopener noreferrer" class="cinematic-gallery-video-link">
+                <img 
+                  src={sources.src} 
+                  srcset={sources.srcset}
+                  sizes="(max-width: 768px) 85vw, 60vw"
+                  alt={item.caption?.slice(0, 50) || 'Instagram Media'} 
+                  loading="lazy" 
+                  decoding="async" 
+                />
+                <div class="cinematic-play-button">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="48" height="48">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </div>
+              </a>
+            ) : (
+              <img 
+                src={sources.src} 
+                srcset={sources.srcset}
+                sizes="(max-width: 768px) 85vw, 60vw"
+                alt={item.caption?.slice(0, 50) || 'Instagram Media'} 
+                loading="lazy" 
+                decoding="async" 
+              />
+            )}
+            
+            {hasCaption && (
+              <div class="cinematic-gallery-caption">
+                <p>{item.caption}</p>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  </div>
+)}
+
+<style>
+  .cinematic-gallery-wrapper {
+    /* Break out of standard margins for an edge-to-edge bleed on mobile */
+    margin: 3rem calc(-50vw + 50%);
+    width: 100vw;
+    background: #050505; /* Deep rich black for contrast */
+    padding: 2rem 0;
+    position: relative;
+  }
+
+  .cinematic-gallery-container {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 1.5rem;
+    padding: 0 max(1rem, calc((100vw - 1200px) / 2)); /* Center first slide */
+    
+    scrollbar-width: none; /* Firefox */
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .cinematic-gallery-container::-webkit-scrollbar {
+    display: none; /* Safari/Chrome */
+  }
+
+  .cinematic-gallery-slide {
+    flex: 0 0 85vw; /* Mobile width */
+    max-width: 600px; /* Cap desktop width */
+    scroll-snap-align: center;
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @media (min-width: 768px) {
+    .cinematic-gallery-slide {
+      flex: 0 0 60vw;
+    }
+    .cinematic-gallery-slide:hover {
+      transform: scale(1.02);
+    }
+  }
+
+  .cinematic-gallery-slide img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 80vh;
+    object-fit: contain;
+  }
+
+  /* Glassmorphism Caption */
+  .cinematic-gallery-caption {
+    position: absolute;
+    bottom: 1.5rem;
+    left: 1.5rem;
+    right: 1.5rem;
+    background: rgba(10, 10, 10, 0.5);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 1rem;
+    pointer-events: none; /* Let clicks pass through */
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+
+  .cinematic-gallery-slide:hover .cinematic-gallery-caption {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .cinematic-gallery-caption p {
+    margin: 0;
+    color: #fff;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 3; /* Truncate after 3 lines */
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Video Play Button Overlay */
+  .cinematic-gallery-video-link {
+    display: block;
+    width: 100%;
+    height: 100%;
+    position: relative;
+  }
+
+  .cinematic-play-button {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80px;
+    height: 80px;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+  }
+
+  .cinematic-gallery-slide:hover .cinematic-play-button {
+    background: var(--color-brand-primary, #e60000);
+    border-color: transparent;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+</style>

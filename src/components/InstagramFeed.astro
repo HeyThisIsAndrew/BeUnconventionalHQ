@@ -1,0 +1,54 @@
+---
+import { getFlattenedGallery } from '../lib/instagram.js';
+import CinematicGallery from './CinematicGallery.astro';
+
+export interface Props {
+  limit?: number;
+}
+
+const { limit = 10 } = Astro.props;
+
+// Get the gallery and limit the items if requested
+const feed = getFlattenedGallery();
+const items = feed.slice(0, limit);
+---
+
+{items.length > 0 && (
+  <section class="instagram-feed-section" aria-labelledby="instagram-feed-heading">
+    <div class="instagram-feed-header">
+      <h2 id="instagram-feed-heading" class="intel-break-title">Latest on Instagram</h2>
+      <a href="https://www.instagram.com/beunconventional/" target="_blank" rel="noopener noreferrer" class="instagram-follow-btn">
+        Follow @beunconventional
+      </a>
+    </div>
+    
+    <CinematicGallery items={items} />
+  </section>
+)}
+
+<style>
+  .instagram-feed-section {
+    margin: 4rem 0;
+  }
+
+  .instagram-feed-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 1rem;
+    padding: 0 max(1rem, calc((100vw - 1200px) / 2));
+  }
+
+  .instagram-follow-btn {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-brand-primary, #e60000);
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+
+  .instagram-follow-btn:hover {
+    color: #ff3333;
+    text-decoration: underline;
+  }
+</style>
