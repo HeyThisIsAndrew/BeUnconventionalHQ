@@ -1,0 +1,116 @@
+---
+/**
+ * A client-side Web Component that upgrades <youtube-embed> tags emitted by
+ * the HTML sanitizer into a lite YouTube player.
+ * 
+ * It uses the 'lite-youtube-embed' pattern: loading just the thumbnail image 
+ * first, and only loading the heavy YouTube iframe when the user clicks play.
+ */
+---
+<script>
+  class YouTubeEmbed extends HTMLElement {
+    constructor() {
+      super();
+      if (this.dataset.initialized) return;
+      this.dataset.initialized = 'true';
+
+      const videoId = this.getAttribute('video-id');
+      if (!videoId) return;
+
+      // Create the visual facade (thumbnail + play button)
+      this.innerHTML = `
+        <div class="youtube-lite-facade">
+          <img 
+            src="https://wsrv.nl/?url=i.ytimg.com/vi/${videoId}/maxresdefault.jpg&w=900&output=webp&q=85" 
+            alt="YouTube Video" 
+            loading="lazy" 
+          />
+          <button class="youtube-play-btn" aria-label="Play Video">
+            <svg viewBox="0 0 68 48"><path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C.06 13.05 0 24 0 24s.06 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C67.94 34.95 68 24 68 24s-.06-10.95-1.48-16.26z" fill="red"/><path d="M45 24 27 14v20z" fill="white"/></svg>
+          </button>
+        </div>
+      `;
+
+      // On click, replace facade with real iframe
+      this.addEventListener('click', () => {
+        this.innerHTML = `
+          <iframe 
+            width="100%" 
+            height="100%" 
+            src="https://www.youtube.com/embed/${videoId}?autoplay=1" 
+            frameborder="0" 
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+            allowfullscreen
+          ></iframe>
+        `;
+      });
+    }
+  }
+
+  if (!customElements.get('youtube-embed')) {
+    customElements.define('youtube-embed', YouTubeEmbed);
+  }
+</script>
+
+<style is:global>
+  youtube-embed {
+    display: block;
+    width: 100%;
+    max-width: 900px;
+    margin: 2.5rem auto;
+    aspect-ratio: 16 / 9;
+    background-color: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    transition: transform 0.2s ease-out;
+  }
+  
+  youtube-embed:hover {
+    transform: scale(1.02);
+  }
+  
+  youtube-embed:hover .youtube-play-btn {
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+
+  .youtube-lite-facade {
+    width: 100%;
+    height: 100%;
+    position: relative;
+  }
+
+  .youtube-lite-facade img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.8;
+    transition: opacity 0.3s ease;
+  }
+  
+  youtube-embed:hover .youtube-lite-facade img {
+    opacity: 1;
+  }
+
+  .youtube-play-btn {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 68px;
+    height: 48px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  
+  youtube-embed iframe {
+    width: 100%;
+    height: 100%;
+    border-radius: 12px;
+  }
+</style>

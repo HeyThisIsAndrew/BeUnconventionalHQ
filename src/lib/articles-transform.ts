@@ -16,13 +16,14 @@ import { CATEGORIES } from '../data/constants.js';
 const ALLOWED_TAGS = [
   'p', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'blockquote', 'hr',
   'a', 'img', 'figure', 'figcaption', 'em', 'strong', 'code', 'pre', 'br',
-  'substack-gallery'
+  'substack-gallery', 'youtube-embed'
 ];
 
 const ALLOWED_ATTRS: Record<string, string[]> = {
   a: ['href', 'title', 'rel', 'target'],
   img: ['src', 'alt', 'title', 'width', 'height'],
   'substack-gallery': [],
+  'youtube-embed': ['video-id'],
 };
 
 /**
@@ -59,13 +60,17 @@ export function extractSubstackGalleries(html: string): string {
       try {
         const jsonStr = encodedAttrs.replace(/&quot;/g, '"');
         const urls = [...jsonStr.matchAll(/https:\/\/[^"'\\]+/gi)].map(m => m[0]);
-        // Extract unique image URLs, filter out thumbnails/avatars if possible
-        const uniqueUrls = [...new Set(urls)].filter(u => /\.(jpe?g|png|webp|gif)/i.test(u));
+        // Extract unique image URLs, handling Substack's dynamic CDN which often omits file extensions
+        const uniqueUrls = [...new Set(urls)].filter(u => 
+          (/\.(jpe?g|png|webp|gif)/i.test(u) || u.includes('image/fetch') || u.includes('bucketeer')) 
+          && !u.includes('youtube') 
+          && !u.includes('vimeo')
+        );
         
         const imgTags = uniqueUrls.map(url => {
           let width = '';
           let height = '';
-          const dimMatch = url.match(/_(\d+)x(\d+)\.[a-z0-9]+$/i);
+          const dimMatch = url.match(/_(\d+)x(\d+)(\.[a-z0-9]+)?$/i);
           if (dimMatch) {
             width = ` width="${dimMatch[1]}"`;
             height = ` height="${dimMatch[2]}"`;
@@ -82,11 +87,24 @@ export function extractSubstackGalleries(html: string): string {
   );
 }
 
+/**
+ * Extracts YouTube iframes (Substack's standard embed method) and replaces
+ * them with a custom <youtube-embed> element.
+ * Must run BEFORE sanitization so the iframe is not stripped.
+ */
+export function extractYouTubeEmbeds(html: string): string {
+  if (!html) return '';
+  return html.replace(
+    /<iframe\b[^>]*src=["'](?:https?:)?\/\/(?:www\.)?youtube\.com\/embed\/([A-Za-z0-9_-]+)[^"']*["'][^>]*>[\s\S]*?<\/iframe>/gi,
+    (_match, videoId) => `<youtube-embed video-id="${videoId}"></youtube-embed>`
+  );
+}
+
 /** Sanitize imported HTML down to the semantic allowlist. */
 export function sanitizeArticleHtml(html: string): string {
   if (!html) return '';
   
-  const processedHtml = extractSubstackGalleries(demoteHeadings(html));
+  const processedHtml = extractYouTubeEmbeds(extractSubstackGalleries(demoteHeadings(html)));
   
   return sanitizeHtml(processedHtml, {
     allowedTags: ALLOWED_TAGS,
