@@ -105,6 +105,12 @@ export async function startPreviewServer({ port = 4321, timeoutMs = 120000 } = {
     stdio: 'pipe',
     // Own process group, so stopServer can take the workerd child down too.
     detached: true,
+    env: { 
+      ...process.env, 
+      PUBLIC_TURNSTILE_SITE_KEY: '', 
+      TURNSTILE_SECRET_KEY: '',
+      ASTRO_TELEMETRY_DISABLED: '1'
+    },
   });
 
   let output = '';
