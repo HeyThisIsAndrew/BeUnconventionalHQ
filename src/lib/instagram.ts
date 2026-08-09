@@ -23,7 +23,7 @@ export interface InstagramPost {
  */
 export function getInstagramFeed(): InstagramPost[] {
   // @ts-ignore - Asserting structure from JSON
-  return instagramData as InstagramPost[];
+  return Array.isArray(instagramData) ? (instagramData as InstagramPost[]) : [];
 }
 
 /**
@@ -36,8 +36,14 @@ export function getFlattenedGallery() {
   const gallery = [];
 
   for (const post of feed) {
+    if (!post || !post.displayUrl || !post.mediaType) continue; // Skip corrupt top-level posts
+    
     if (post.mediaType === 'CAROUSEL_ALBUM') {
+      if (!Array.isArray(post.children)) continue; // Defend against string iteration bug
+      
       for (const child of post.children) {
+        if (!child || !child.thumbnailUrl || !child.mediaType) continue; // Skip corrupt children
+        
         gallery.push({
           ...post, // keep caption and permalink for the overlay
           displayUrl: child.thumbnailUrl,
@@ -49,6 +55,5 @@ export function getFlattenedGallery() {
       gallery.push(post);
     }
   }
-
   return gallery;
 }

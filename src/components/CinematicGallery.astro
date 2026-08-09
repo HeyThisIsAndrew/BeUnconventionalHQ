@@ -21,13 +21,15 @@ const { items = [] } = Astro.props;
   <div class="cinematic-gallery-wrapper">
     <div class="cinematic-gallery-container">
       {items.map((item) => {
+        if (!item || !item.displayUrl) return null;
+        
         const sources = getCardImageSources(item.displayUrl);
         const hasCaption = !!item.caption;
         
         return (
           <div class="cinematic-gallery-slide">
             {item.mediaType === 'VIDEO' ? (
-              <a href={item.permalink} target="_blank" rel="noopener noreferrer" class="cinematic-gallery-video-link">
+              <a href={item.permalink || '#'} target="_blank" rel="noopener noreferrer" class="cinematic-gallery-video-link">
                 <img 
                   src={sources.src} 
                   srcset={sources.srcset}

@@ -9,8 +9,8 @@ export interface Props {
 const { limit = 10 } = Astro.props;
 
 // Get the gallery and limit the items if requested
-const feed = getFlattenedGallery();
-const items = feed.slice(0, limit);
+const feed = getFlattenedGallery() || [];
+const items = Array.isArray(feed) ? feed.slice(0, limit) : [];
 ---
 
 {items.length > 0 && (

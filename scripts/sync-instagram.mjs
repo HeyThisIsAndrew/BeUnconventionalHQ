@@ -45,30 +45,41 @@ async function fetchInstagramMedia() {
   if (!mediaRes.ok) throw new Error(`Failed to fetch media: ${mediaRes.statusText}`);
   const mediaData = await mediaRes.json();
 
-  return mediaData.data.map(item => {
+  if (!Array.isArray(mediaData.data)) return [];
+
+  return mediaData.data.reduce((acc, item) => {
+    if (!item || (!item.media_url && !item.thumbnail_url)) return acc;
+
     // Normalization: Ensure we always have a display URL.
     // Video items return thumbnail_url, Images return media_url.
     const displayUrl = item.thumbnail_url || item.media_url;
     
-    // Process Carousel Children
-    const children = item.children?.data?.map(child => ({
-      id: child.id,
-      mediaType: child.media_type,
-      url: child.media_url,
-      thumbnailUrl: child.thumbnail_url || child.media_url,
-    })) || [];
+    // Process Carousel Children safely
+    const children = Array.isArray(item.children?.data) 
+      ? item.children.data.reduce((childAcc, child) => {
+          if (!child || (!child.media_url && !child.thumbnail_url)) return childAcc;
+          childAcc.push({
+            id: child.id,
+            mediaType: child.media_type,
+            url: child.media_url,
+            thumbnailUrl: child.thumbnail_url || child.media_url,
+          });
+          return childAcc;
+        }, [])
+      : [];
 
-    return {
+    acc.push({
       id: item.id,
       caption: item.caption || '',
-      mediaType: item.media_type, // 'IMAGE', 'VIDEO', 'CAROUSEL_ALBUM'
-      displayUrl,                 // The main image to show in the gallery
+      mediaType: item.media_type,
+      displayUrl,
       videoUrl: item.media_type === 'VIDEO' ? item.media_url : undefined,
       permalink: item.permalink,
       timestamp: item.timestamp,
-      children,                   // Array of carousel items if CAROUSEL_ALBUM
-    };
-  });
+      children,
+    });
+    return acc;
+  }, []);
 }
 
 async function run() {
