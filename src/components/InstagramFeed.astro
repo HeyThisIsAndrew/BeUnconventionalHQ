@@ -30,20 +30,32 @@ const items = Array.isArray(feed) ? feed.slice(0, limit) : [];
 
 <style>
   .instagram-feed-section {
-    margin: 4rem 0;
+    margin: 4rem auto; /* center in its container if applicable */
   }
 
   .instagram-feed-header {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: center; /* changed from baseline to center */
     margin-bottom: 1rem;
+    gap: 1rem;
   }
 
   .ig-view-all {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
+    white-space: nowrap; /* prevent breaking on mobile */
+  }
+
+  @media (max-width: 560px) {
+    /* Ensure the title and link both fit inline on narrow mobile */
+    .instagram-feed-header h2 {
+      font-size: clamp(0.75rem, 4vw, 1rem);
+    }
+    .ig-view-all {
+      font-size: clamp(0.6rem, 3vw, 0.75rem);
+    }
   }
 
   .ig-icon {
