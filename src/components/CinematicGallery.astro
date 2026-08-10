@@ -15,20 +15,17 @@ export interface Props {
 }
 
 const { items = [] } = Astro.props;
-const itemCount = items.length;
-// roughly 4 seconds per item to ensure a constant slow scroll velocity
-const animationDuration = itemCount * 4;
 ---
 
 {items.length > 0 && (
-  <div class="ig-carousel-wrapper">
-    <div class="ig-carousel-track">
-      {[1, 2, 3, 4].map((groupIndex) => (
-        <div 
-          class="ig-marquee-group" 
-          aria-hidden={groupIndex > 1 ? "true" : undefined}
-          style={`animation-duration: ${animationDuration}s;`}
-        >
+  <infinite-marquee>
+    <div class="ig-carousel-wrapper">
+      <div class="ig-carousel-track">
+        {[1, 2, 3].map((groupIndex) => (
+          <div 
+            class="ig-marquee-group" 
+            aria-hidden={groupIndex > 1 ? "true" : undefined}
+          >
           {items.map((item) => {
             if (!item || !item.displayUrl) return null;
             
@@ -66,7 +63,91 @@ const animationDuration = itemCount * 4;
       ))}
     </div>
   </div>
+  </infinite-marquee>
 )}
+
+<script>
+  class InfiniteMarquee extends HTMLElement {
+    connectedCallback() {
+      const track = this.querySelector('.ig-carousel-track');
+      if (!track) return;
+      
+      const groups = track.querySelectorAll('.ig-marquee-group');
+      if (groups.length < 3) return;
+
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (prefersReducedMotion) return; // Let native scroll take over fully
+
+      let isPaused = false;
+      let speed = 0.5; // Very slow speed (approx 30px per sec, ~7.5s per item)
+      let reqId;
+
+      let groupWidth = groups[1].offsetLeft - groups[0].offsetLeft;
+      
+      const resizeObserver = new ResizeObserver(() => {
+        groupWidth = groups[1].offsetLeft - groups[0].offsetLeft;
+      });
+      resizeObserver.observe(track);
+
+      let exactScrollLeft = groupWidth;
+      track.scrollLeft = exactScrollLeft;
+
+      const updateScroll = () => {
+        if (!isPaused) {
+          exactScrollLeft += speed;
+          track.scrollLeft = exactScrollLeft;
+        } else {
+          // Keep accumulator in sync with native scroll position if user dragged it
+          exactScrollLeft = track.scrollLeft;
+        }
+
+        // Endless loop wrapper
+        if (exactScrollLeft >= groupWidth * 2) {
+          exactScrollLeft -= groupWidth;
+          track.scrollLeft = exactScrollLeft;
+        } else if (exactScrollLeft <= 0) {
+          exactScrollLeft += groupWidth;
+          track.scrollLeft = exactScrollLeft;
+        }
+        
+        reqId = requestAnimationFrame(updateScroll);
+      };
+
+      reqId = requestAnimationFrame(updateScroll);
+
+      // Pause interactions
+      track.addEventListener('mouseenter', () => isPaused = true);
+      track.addEventListener('mouseleave', () => isPaused = false);
+      
+      track.addEventListener('touchstart', () => isPaused = true, {passive: true});
+      track.addEventListener('touchend', () => {
+        setTimeout(() => isPaused = false, 1000);
+      }, {passive: true});
+      
+      let wheelTimeout;
+      track.addEventListener('wheel', () => {
+        isPaused = true;
+        clearTimeout(wheelTimeout);
+        wheelTimeout = setTimeout(() => isPaused = false, 1000);
+      }, {passive: true});
+      
+      // Handle native boundaries during active manual scrolling
+      track.addEventListener('scroll', () => {
+        if (track.scrollLeft >= groupWidth * 2) {
+          track.scrollLeft -= groupWidth;
+          exactScrollLeft = track.scrollLeft;
+        } else if (track.scrollLeft <= 0) {
+          track.scrollLeft += groupWidth;
+          exactScrollLeft = track.scrollLeft;
+        }
+      }, {passive: true});
+    }
+  }
+  
+  if (!customElements.get('infinite-marquee')) {
+    customElements.define('infinite-marquee', InfiniteMarquee);
+  }
+</script>
 
 <style>
   /* 
@@ -82,52 +163,37 @@ const animationDuration = itemCount * 4;
   }
 
   /* 
-    The track handles the horizontal scrolling.
+    The track handles the horizontal scrolling natively now.
   */
   .ig-carousel-track {
     display: flex;
     gap: 1.25rem;
-    padding: 1rem 0 2rem; /* padding bottom for hover lift */
-    width: max-content;
+    padding: 1rem 0 2rem;
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    /* Cursor hinting that it can be dragged/swiped */
+    cursor: grab;
   }
 
-  .ig-carousel-track:hover .ig-marquee-group {
-    animation-play-state: paused;
+  .ig-carousel-track:active {
+    cursor: grabbing;
+  }
+  
+  .ig-carousel-track::-webkit-scrollbar {
+    display: none;
   }
 
-  /* 
-    Groups hold exactly one loop of items. 
-    They translate exactly -100% of their own width, plus the gap between groups. 
-  */
   .ig-marquee-group {
     display: flex;
     gap: 1.25rem;
     flex-shrink: 0;
-    /* Duration is injected via inline style based on item count */
-    animation: marquee-scroll linear infinite;
-  }
-
-  @keyframes marquee-scroll {
-    0% {
-      transform: translateX(0);
-    }
-    100% {
-      transform: translateX(calc(-100% - 1.25rem));
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .ig-marquee-group {
-      animation: none !important;
-    }
     .ig-carousel-track {
-      overflow-x: auto;
       scroll-snap-type: x mandatory;
-      scrollbar-width: none;
-      -webkit-overflow-scrolling: touch;
-    }
-    .ig-carousel-track::-webkit-scrollbar {
-      display: none;
     }
   }
 
