@@ -212,7 +212,8 @@ const socialLinks = [
   </div>
 </Layout>
 
-<script is:inline>
+<script>
+  import { lockScroll, unlockScroll } from '../lib/scroll-lock';
   document.addEventListener('astro:page-load', () => {
     const trigger = document.getElementById('qr-trigger');
     const modal = document.getElementById('qr-modal');
@@ -223,7 +224,7 @@ const socialLinks = [
     const openModal = () => {
       modal.classList.add('is-active');
       modal.setAttribute('aria-hidden', 'false');
-      document.body.style.overflow = 'hidden';
+      lockScroll();
       // Focus close button for accessibility
       setTimeout(() => closeBtn.focus(), 100);
     };
@@ -231,7 +232,7 @@ const socialLinks = [
     const closeModal = () => {
       modal.classList.remove('is-active');
       modal.setAttribute('aria-hidden', 'true');
-      document.body.style.overflow = '';
+      unlockScroll();
       trigger.focus();
     };
 

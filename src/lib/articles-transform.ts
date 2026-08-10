@@ -529,7 +529,9 @@ export function buildArticleRecord(item: RawFeedItem, now = new Date()): Article
     : parsedDate.toISOString();
 
   const bodyHtml = sanitizeArticleHtml(item.contentEncoded ?? '');
-  const tags = (item.categories ?? []).map((t) => String(t).trim()).filter(Boolean);
+  const rawCategories = item.categories ?? [];
+  const categoriesArray = Array.isArray(rawCategories) ? rawCategories : [rawCategories];
+  const tags = categoriesArray.map((t) => String(t).trim()).filter(Boolean);
   const excerptSource = item.description ?? bodyHtml;
 
   return {

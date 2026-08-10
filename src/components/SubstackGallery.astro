@@ -9,6 +9,8 @@
  */
 ---
 <script>
+  import { lockScroll, unlockScroll } from '../lib/scroll-lock';
+
   class SubstackGallery extends HTMLElement {
     constructor() {
       super();
@@ -78,7 +80,7 @@
         lightbox.classList.remove('active');
         setTimeout(() => lightbox.remove(), 300);
         document.removeEventListener('keydown', keyHandler);
-        document.body.style.overflow = '';
+        unlockScroll();
       };
       
       const keyHandler = (e: KeyboardEvent) => {
@@ -89,7 +91,7 @@
       document.addEventListener('keydown', keyHandler);
       
       document.body.appendChild(lightbox);
-      document.body.style.overflow = 'hidden'; // Prevent background scrolling
+      lockScroll();
       
       // Trigger animation
       requestAnimationFrame(() => {

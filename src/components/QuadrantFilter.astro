@@ -561,4 +561,13 @@ const overlayItems = categories.map((c) => {
 
   // Handle Astro page loads
   document.addEventListener('astro:page-load', initQuadrantFilter);
+
+  // Close overlay on navigation to prevent scroll lock leaks
+  document.addEventListener('astro:before-preparation', () => {
+    const overlay = document.getElementById('category-fullscreen-overlay');
+    if (overlay?.classList.contains('is-open')) {
+      overlay.classList.remove('is-open');
+      unlockScroll();
+    }
+  });
 </script>
