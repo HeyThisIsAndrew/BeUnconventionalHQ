@@ -27,8 +27,8 @@ import lighthouse from 'lighthouse';
 import puppeteer from 'puppeteer';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const PREVIEW_PORT = 4321;
-const PROXY_PORT = 4322;
+const PREVIEW_PORT = 4323;
+const PROXY_PORT = 4324;
 const PREVIEW_URL = `http://localhost:${PREVIEW_PORT}`;
 const BASE_URL = `http://localhost:${PROXY_PORT}`;
 const THRESHOLD = 0.9; // 90%
@@ -116,7 +116,7 @@ async function run() {
   // be killed together in finally(). Killing just the npm PID leaves workerd
   // running, which orphans the port and hangs any process still piping this
   // script's stdout.
-  const server = spawn('npm', ['run', 'preview'], {
+  const server = spawn('npm', ['run', 'preview', '--', '--port', String(PREVIEW_PORT)], {
     cwd: ROOT,
     stdio: 'pipe',
     detached: true,
