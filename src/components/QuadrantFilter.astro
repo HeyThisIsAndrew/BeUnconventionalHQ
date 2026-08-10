@@ -379,11 +379,9 @@ const overlayItems = categories.map((c) => {
 
 <script>
   import { navigate } from 'astro:transitions/client';
+  import { lockScroll, unlockScroll } from '../lib/scroll-lock';
 
   function initQuadrantFilter() {
-    /* =========================================================================
-       LEGACY DIALOG LOGIC (COMMENTED OUT FOR REVERT IF NEEDED)
-       ========================================================================= */
     /*
     const categoryModal = document.getElementById('category-modal') as HTMLDialogElement;
     const openBtn = document.getElementById('open-categories-btn');
@@ -487,6 +485,7 @@ const overlayItems = categories.map((c) => {
     /* =========================================================================
        NEW FULL-SCREEN IMMERSIVE LOGIC
        ========================================================================= */
+
     const overlay = document.getElementById('category-fullscreen-overlay');
     const openBtn = document.getElementById('open-categories-btn');
     const closeBtn = document.getElementById('close-categories-btn');
@@ -494,14 +493,8 @@ const overlayItems = categories.map((c) => {
     function closeFullscreenOverlay() {
       if (!overlay || !overlay.classList.contains('is-open')) return;
       overlay.classList.remove('is-open');
-      document.body.classList.remove('modal-open');
       
-      // Use the global scroll lock cleanup logic from the main nav
-      document.documentElement.classList.remove('menu-open');
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.style.overflowY = '';
+      unlockScroll();
       
       if (openBtn) {
         openBtn.setAttribute('aria-expanded', 'false');
@@ -512,16 +505,9 @@ const overlayItems = categories.map((c) => {
     function openFullscreenOverlay() {
       if (!overlay) return;
       
-      // Standardize scroll lock
-      const scrollY = window.scrollY;
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.position = 'fixed';
-      document.body.style.width = '100%';
-      document.body.style.overflowY = 'scroll';
+      lockScroll();
       
       overlay.classList.add('is-open');
-      document.body.classList.add('modal-open'); // keep for backward compatibility
-      document.documentElement.classList.add('menu-open'); // global body lock
       
       if (openBtn) openBtn.setAttribute('aria-expanded', 'true');
     }

@@ -66,88 +66,98 @@ const { items = [] } = Astro.props;
   </infinite-marquee>
 )}
 
-<script>
-  class InfiniteMarquee extends HTMLElement {
-    connectedCallback() {
-      const track = this.querySelector('.ig-carousel-track');
-      if (!track) return;
-      
-      const groups = track.querySelectorAll('.ig-marquee-group');
-      if (groups.length < 3) return;
-
-      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (prefersReducedMotion) return; // Let native scroll take over fully
-
-      let isPaused = false;
-      let speed = 0.5; // Very slow speed (approx 30px per sec, ~7.5s per item)
-
-      // Use a robust way to calculate group width
-      let groupWidth = (groups[1] as HTMLElement).offsetLeft - (groups[0] as HTMLElement).offsetLeft;
-      
-      const resizeObserver = new ResizeObserver(() => {
-        groupWidth = (groups[1] as HTMLElement).offsetLeft - (groups[0] as HTMLElement).offsetLeft;
-      });
-      resizeObserver.observe(track);
-
-      let exactScrollLeft = groupWidth;
-      track.scrollLeft = exactScrollLeft;
-
-      const updateScroll = () => {
-        if (!isPaused) {
-          exactScrollLeft += speed;
-          track.scrollLeft = exactScrollLeft;
-        } else {
-          // Keep accumulator in sync with native scroll position if user dragged it
-          exactScrollLeft = track.scrollLeft;
-        }
-
-        // Endless loop wrapper
-        if (exactScrollLeft >= groupWidth * 2) {
-          exactScrollLeft -= groupWidth;
-          track.scrollLeft = exactScrollLeft;
-        } else if (exactScrollLeft <= 0) {
-          exactScrollLeft += groupWidth;
-          track.scrollLeft = exactScrollLeft;
-        }
-        
-        requestAnimationFrame(updateScroll);
-      };
-
-      requestAnimationFrame(updateScroll);
-
-      // Pause interactions
-      track.addEventListener('mouseenter', () => isPaused = true);
-      track.addEventListener('mouseleave', () => isPaused = false);
-      
-      track.addEventListener('touchstart', () => { isPaused = true; }, {passive: true});
-      track.addEventListener('touchend', () => {
-        setTimeout(() => isPaused = false, 1000);
-      }, {passive: true});
-      
-      let wheelTimeout: ReturnType<typeof setTimeout>;
-      track.addEventListener('wheel', () => {
-        isPaused = true;
-        clearTimeout(wheelTimeout);
-        wheelTimeout = setTimeout(() => isPaused = false, 1000);
-      }, {passive: true});
-      
-      // Handle native boundaries during active manual scrolling
-      track.addEventListener('scroll', () => {
-        if (track.scrollLeft >= groupWidth * 2) {
-          track.scrollLeft -= groupWidth;
-          exactScrollLeft = track.scrollLeft;
-        } else if (track.scrollLeft <= 0) {
-          track.scrollLeft += groupWidth;
-          exactScrollLeft = track.scrollLeft;
-        }
-      }, {passive: true});
-    }
-  }
+  <script>
+    class InfiniteMarquee extends HTMLElement {
+      private _animationFrame?: number;
+      private _resizeObserver?: ResizeObserver;
+      private _isTouching = false;
   
-  if (!customElements.get('infinite-marquee')) {
-    customElements.define('infinite-marquee', InfiniteMarquee);
-  }
-</script>
+      connectedCallback() {
+        const track = this.querySelector('.ig-carousel-track') as HTMLElement;
+        if (!track) return;
+        
+        const groups = track.querySelectorAll('.ig-marquee-group');
+        if (groups.length < 3) return;
+  
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReducedMotion) return; // Let native scroll take over fully
+  
+        let isPaused = false;
+        let speed = 0.5; // Very slow speed (approx 30px per sec, ~7.5s per item)
+  
+        let groupWidth = (groups[1] as HTMLElement).offsetLeft - (groups[0] as HTMLElement).offsetLeft;
+        
+        this._resizeObserver = new ResizeObserver(() => {
+          groupWidth = (groups[1] as HTMLElement).offsetLeft - (groups[0] as HTMLElement).offsetLeft;
+        });
+        this._resizeObserver.observe(track);
+  
+        let exactScrollLeft = groupWidth;
+        track.scrollLeft = exactScrollLeft;
+  
+        const updateScroll = () => {
+          if (!isPaused && !this._isTouching) {
+            exactScrollLeft += speed;
+            
+            // Endless loop wrapper
+            if (exactScrollLeft >= groupWidth * 2) {
+              exactScrollLeft -= groupWidth;
+            } else if (exactScrollLeft <= 0) {
+              exactScrollLeft += groupWidth;
+            }
+            
+            track.scrollLeft = exactScrollLeft;
+          } else {
+            // Keep accumulator in sync with native scroll position
+            exactScrollLeft = track.scrollLeft;
+          }
+          
+          this._animationFrame = requestAnimationFrame(updateScroll);
+        };
+  
+        this._animationFrame = requestAnimationFrame(updateScroll);
+  
+        // Pause interactions
+        track.addEventListener('mouseenter', () => isPaused = true);
+        track.addEventListener('mouseleave', () => isPaused = false);
+        
+        track.addEventListener('touchstart', () => { this._isTouching = true; isPaused = true; }, {passive: true});
+        track.addEventListener('touchend', () => {
+          this._isTouching = false;
+          setTimeout(() => isPaused = false, 1000);
+        }, {passive: true});
+        
+        let wheelTimeout: ReturnType<typeof setTimeout>;
+        track.addEventListener('wheel', () => {
+          isPaused = true;
+          clearTimeout(wheelTimeout);
+          wheelTimeout = setTimeout(() => isPaused = false, 1000);
+        }, {passive: true});
+        
+        // Handle boundaries ONLY during non-touch momentum scroll to avoid breaking iOS drag
+        track.addEventListener('scroll', () => {
+          if (!this._isTouching) {
+            if (track.scrollLeft >= groupWidth * 2) {
+              track.scrollLeft -= groupWidth;
+              exactScrollLeft = track.scrollLeft;
+            } else if (track.scrollLeft <= 0) {
+              track.scrollLeft += groupWidth;
+              exactScrollLeft = track.scrollLeft;
+            }
+          }
+        }, {passive: true});
+      }
+  
+      disconnectedCallback() {
+        if (this._animationFrame) cancelAnimationFrame(this._animationFrame);
+        if (this._resizeObserver) this._resizeObserver.disconnect();
+      }
+    }
+    
+    if (!customElements.get('infinite-marquee')) {
+      customElements.define('infinite-marquee', InfiniteMarquee);
+    }
+  </script>
 
 <style>
   /* 

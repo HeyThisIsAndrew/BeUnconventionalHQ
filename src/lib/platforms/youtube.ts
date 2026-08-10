@@ -223,7 +223,11 @@ export function createYouTubeClient(opts: YouTubeClientOptions) {
       }
       throw new YouTubeApiError(`YouTube API ${resource} failed: ${reason}`, res.status);
     }
-    return res.json();
+    try {
+      return await res.json();
+    } catch (err) {
+      throw new YouTubeApiError(`YouTube API ${resource} returned invalid JSON`, res.status);
+    }
   }
 
   return {
@@ -247,7 +251,7 @@ export function createYouTubeClient(opts: YouTubeClientOptions) {
         });
 
         const verifiedItems = await Promise.all(
-          (data.items || []).map(async (item: any) => {
+          (Array.isArray(data.items) ? data.items : []).map(async (item: any) => {
             let isShort = false;
             try {
               const checkShortUrl = `https://www.youtube.com/shorts/${item.id}`;
@@ -325,7 +329,7 @@ export function createYouTubeClient(opts: YouTubeClientOptions) {
       };
       if (pageToken) params.pageToken = pageToken;
       const data = await apiGet('playlistItems', params);
-      const videos = (data.items || [])
+      const videos = (Array.isArray(data.items) ? data.items : [])
         .map((it: any) => ({
           id: it.contentDetails?.videoId,
           title: it.snippet?.title ?? '',

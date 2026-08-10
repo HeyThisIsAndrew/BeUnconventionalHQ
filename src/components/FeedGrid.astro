@@ -10,8 +10,9 @@ export interface Props {
   allItems: any[];
 }
 
-const { page, allItems } = Astro.props;
-const currentItems = page.data;
+const { page = { data: [] }, allItems = [] } = Astro.props;
+const currentItems = Array.isArray(page?.data) ? page.data : [];
+const safeAllItems = Array.isArray(allItems) ? allItems : [];
 ---
 
 <script is:inline>
@@ -41,7 +42,7 @@ const currentItems = page.data;
 </div>
 
 <template id="full-dataset-cards">
-  {allItems.map((item: any, index: number) => (
+  {safeAllItems.map((item: any, index: number) => (
     <ContentCard item={item} index={index} />
   ))}
 </template>
@@ -124,8 +125,10 @@ const currentItems = page.data;
     function renderMoreItems(moveFocus = false) {
       const fragment = document.createDocumentFragment();
       const nextBatch = currentMatches.slice(currentlyDisplayedCount, currentlyDisplayedCount + PAGE_SIZE);
+      const newlyAddedNodes: HTMLElement[] = [];
       
-      nextBatch.forEach((node, index) => {
+      nextBatch.forEach((originalNode, index) => {
+        const node = originalNode.cloneNode(true) as HTMLElement;
         node.style.display = 'flex'; 
         // Force the reveal animation state so the observer isn't needed
         node.setAttribute('data-state', 'in');
@@ -142,6 +145,7 @@ const currentItems = page.data;
         }, (index * 100) + 600);
         
         fragment.appendChild(node);
+        newlyAddedNodes.push(node);
       });
 
       feedGrid?.appendChild(fragment);
@@ -178,8 +182,8 @@ const currentItems = page.data;
         focusing it would otherwise scroll the reader away from the filter row
         they just used.
       */
-      if (moveFocus && nextBatch.length > 0) {
-        const firstNewCard = nextBatch[0];
+      if (moveFocus && newlyAddedNodes.length > 0) {
+        const firstNewCard = newlyAddedNodes[0];
         const focusable = firstNewCard.matches('a, button')
           ? firstNewCard
           : firstNewCard.querySelector('a, button');
@@ -295,7 +299,7 @@ const currentItems = page.data;
         const categoriesAttr = card.getAttribute('data-categories') || '';
         const categories = categoriesAttr.split(',');
         if (categories.includes(hash)) {
-          currentMatches.push(card.cloneNode(true) as HTMLElement);
+          currentMatches.push(card as HTMLElement);
         }
       });
 

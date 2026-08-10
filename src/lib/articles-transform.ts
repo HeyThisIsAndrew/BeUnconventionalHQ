@@ -575,14 +575,14 @@ export function mergeSnapshot(
   incoming: ArticleRecord[],
 ): { merged: ArticleRecord[]; added: number; updated: number } {
   const byGuid = new Map<string, ArticleRecord>();
-  for (const record of existing ?? []) {
+  for (const record of (Array.isArray(existing) ? existing : [])) {
     if (record?.guid) byGuid.set(record.guid, record);
   }
 
   let added = 0;
   let updated = 0;
 
-  for (const record of incoming) {
+  for (const record of (Array.isArray(incoming) ? incoming : [])) {
     const prior = byGuid.get(record.guid);
     if (!prior) {
       byGuid.set(record.guid, record);

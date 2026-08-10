@@ -29,7 +29,7 @@ const mobileSrc = `${base}?playsinline=1&rel=0&modestbranding=1&loop=1&playlist=
 const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&controls=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
 ---
 
-<div class="ht-root" data-hero-trailer data-uid={uid} data-title={title}>
+<hero-trailer class="ht-root" data-uid={uid} data-title={title}>
   {/* MOBILE — native player only. src is attached by JS when this side is shown. */}
   <div class="ht-mobile">
     <iframe
@@ -75,7 +75,7 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
       </svg>
     </button>
   </div>
-</div>
+</hero-trailer>
 
 <style>
   /* Everything is scoped to .hero-trailer; Astro also hashes these selectors, so
@@ -231,294 +231,261 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
 </style>
 
 <script>
-  // Scoped controller. Finds every .hero-trailer on the page and drives it
-  // independently. No global IDs, no global listeners beyond a single message
-  // handler per instance that filters strictly by the instance's own iframe.
-  function initHeroTrailers() {
-    document.querySelectorAll('[data-hero-trailer]').forEach((root) => {
-      if ((root as HTMLElement).dataset.htBound === 'true') return;
-      (root as HTMLElement).dataset.htBound = 'true';
+  class HeroTrailer extends HTMLElement {
+    private desktopFrame: HTMLIFrameElement | null = null;
+    private ready = false;
+    private muted = true;
+    private posterHidden = false;
+    private queue: any[] = [];
+    private mql: MediaQueryList;
+    private reconcileTimer: ReturnType<typeof setTimeout> | null = null;
+    private rebuildPending = false;
+    private mobileFrame: HTMLIFrameElement | null = null;
 
-      const uid = (root as HTMLElement).dataset.uid || '';
-      const title = (root as HTMLElement).dataset.title || 'Trailer';
-      let mobileFrame = root.querySelector('.ht-mobile .ht-frame') as HTMLIFrameElement;
-      const mount = root.querySelector('.ht-mount');
-      const poster = root.querySelector('.ht-poster');
-      const soundBtn = root.querySelector('.ht-sound');
-      const posterImg = root.querySelector('.ht-poster-img');
+    constructor() {
+      super();
+      this.mql = window.matchMedia('(min-width: 900px)');
+      
+      // Bind methods to preserve `this` context for event listeners
+      this.onMessage = this.onMessage.bind(this);
+      this.onMqlChange = this.onMqlChange.bind(this);
+      this.onOrientation = this.onOrientation.bind(this);
+    }
 
-      // Poster thumbnail fallback (maxres → hq) if the HD image 404s.
+    connectedCallback() {
+      const uid = this.dataset.uid || '';
+      const title = this.dataset.title || 'Trailer';
+      this.mobileFrame = this.querySelector('.ht-mobile .ht-frame') as HTMLIFrameElement;
+      const mount = this.querySelector('.ht-mount');
+      const poster = this.querySelector('.ht-poster');
+      const soundBtn = this.querySelector('.ht-sound');
+      const posterImg = this.querySelector('.ht-poster-img');
+
       if (posterImg) {
-        posterImg.addEventListener('error', function onErr() {
-          posterImg.removeEventListener('error', onErr);
+        posterImg.addEventListener('error', () => {
           const fb = (posterImg as HTMLElement).dataset.fallback;
           if (fb) (posterImg as HTMLImageElement).src = fb || "";
-        });
+        }, { once: true });
       }
 
-      // ---- Desktop player state ----
-      let desktopFrame: HTMLIFrameElement | null = null;
-      let ready = false;
-      let muted = true;
-      let posterHidden = false;
-      const queue: any[] = [];
+      window.addEventListener('message', this.onMessage);
+      this.mql.addEventListener('change', this.onMqlChange);
+      window.addEventListener('orientationchange', this.onOrientation);
 
-      const post = (payload: any) =>
-        desktopFrame &&
-        desktopFrame.contentWindow &&
-        desktopFrame.contentWindow.postMessage(JSON.stringify(payload), 'https://www.youtube.com');
-      const command = (func: string, args: any[] = []) => {
-        const payload = { event: 'command', func, args };
-        if (ready) post(payload);
-        else queue.push(payload);
-      };
-      const setMuted = (m: boolean) => {
-        muted = m;
-        if (!soundBtn) return;
-        soundBtn.classList.toggle('is-muted', m);
-        soundBtn.classList.toggle('is-unmuted', !m);
-        soundBtn.setAttribute('aria-pressed', String(!m));
-        soundBtn.setAttribute('aria-label', m ? 'Unmute trailer' : 'Mute trailer');
-      };
-      const hidePoster = () => {
-        if (posterHidden || !poster) return;
-        posterHidden = true;
-        poster.classList.add('is-hidden');
-      };
-
-      const onMessage = (e: any) => {
-        if (!desktopFrame || !desktopFrame.contentWindow || e.source !== desktopFrame.contentWindow) return;
-        let data;
-        try {
-          data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-        } catch (err) {
-          console.warn('[HeroTrailer] Failed to parse message data:', err);
-          return;
-        }
-        if (!data) return;
-        if ((data.event === 'onReady' || data.event === 'initialDelivery') && !ready) {
-          ready = true;
-          queue.splice(0).forEach((p: any) => post(p));
-        }
-        const state =
-          data.info && typeof data.info.playerState === 'number'
-            ? data.info.playerState
-            : data.event === 'onStateChange' && typeof data.info === 'number'
-              ? data.info
-              : undefined;
-        if (state === 1) hidePoster();
-        if (data.event === 'infoDelivery' && data.info && typeof data.info.muted === 'boolean') {
-          if (data.info.muted !== muted) setMuted(data.info.muted);
-        }
-      };
-      window.addEventListener('message', onMessage);
-
-      // Force a fresh compositing layer + repaint on a just-(re)mounted
-      // cross-origin iframe — defeats the iOS Safari "player active, frames
-      // black" bug that a viewport/orientation change can leave behind (Bug 2).
-      const nudge = (el: HTMLElement) => {
-        el.style.transform = 'translateZ(0)';
-        void el.offsetHeight; // force reflow
-        requestAnimationFrame(() => {
-          el.style.transform = '';
-        });
-      };
-      const exitFullscreen = () => {
-        if (document.fullscreenElement && document.exitFullscreen) {
-          document.exitFullscreen().catch(() => {});
-        } else if ((document as any).webkitFullscreenElement && (document as any).webkitExitFullscreen) {
-          (document as any).webkitExitFullscreen();
-        }
-      };
-
-      const mountDesktop = () => {
-        if (desktopFrame || !mount) return; // idempotent
-        ready = false;
-        posterHidden = false;
-        muted = true;
-        queue.length = 0;
-        if (poster) poster.classList.remove('is-hidden');
-        setMuted(true);
-        desktopFrame = document.createElement('iframe');
-        desktopFrame.id = 'ht-frame-' + uid; // unique per instance, never generic
-        desktopFrame.title = title;
-        desktopFrame.setAttribute('frameborder', '0');
-        desktopFrame.setAttribute(
-          'allow',
-          'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
-        );
-        desktopFrame.setAttribute('allowfullscreen', '');
-        desktopFrame.addEventListener('load', () =>
-          post({ event: 'listening', id: desktopFrame?.id, channel: 'widget' })
-        );
-        // Fallback is 'about:blank', never '' — an empty src resolves to the
-        // current page URL and loads the whole site inside this iframe (hard
-        // rule 4). Unreachable today since desktopSrc is always populated and
-        // callers gate on trailerId, but every sibling path here already
-        // guards (showMobile checks dataset.src, hideMobile uses
-        // removeAttribute, rebuildMobile checks dataSrc) and this was the odd
-        // one out.
-        desktopFrame.src = (mount as HTMLElement).dataset.src || 'about:blank';
-        mount.appendChild(desktopFrame);
-        nudge(desktopFrame);
-      };
-      const unmountDesktop = () => {
-        if (!desktopFrame) return;
-        desktopFrame.remove();
-        desktopFrame = null;
-        ready = false;
-        queue.length = 0;
-      };
-
-      // ---- Mobile native frame: load when shown, clear when hidden. ----
-      const showMobile = () => {
-        if (mobileFrame && !mobileFrame.src && mobileFrame.dataset.src) {
-          mobileFrame.src = mobileFrame.dataset.src;
-        }
-      };
-      const hideMobile = () => {
-        if (mobileFrame && mobileFrame.src) mobileFrame.removeAttribute('src');
-      };
-      // Rebuild the native iframe from scratch (NOT cloneNode, which copies the
-      // stale compositing context). Fresh element, src set AFTER insertion so
-      // the load happens in the already-settled orientation.
-      const rebuildMobile = () => {
-        if (!mobileFrame || !mobileFrame.parentNode) return;
-        exitFullscreen();
-        const dataSrc = mobileFrame.dataset.src;
-        const fresh = document.createElement('iframe');
-        fresh.className = 'ht-frame';
-        fresh.title = title;
-        fresh.setAttribute('frameborder', '0');
-        fresh.setAttribute('loading', 'lazy');
-        fresh.setAttribute(
-          'allow',
-          'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
-        );
-        fresh.setAttribute('allowfullscreen', '');
-        if (dataSrc) fresh.dataset.src = dataSrc;
-        mobileFrame.parentNode.replaceChild(fresh, mobileFrame);
-        mobileFrame = fresh;
-        if (dataSrc) mobileFrame.src = dataSrc; // load in the settled orientation
-        nudge(mobileFrame);
-      };
-
-      // ---- Single convergence point ----
-      // Whatever the viewport is NOW, end with exactly one correctly-mounted,
-      // freshly-composited player. rebuild=true recreates the active iframe
-      // (used after a rotation) to force a clean compositing layer.
-      const mql = window.matchMedia('(min-width: 900px)');
-      const reconcile = (rebuild = false) => {
-        if (mql.matches) {
-          hideMobile();
-          if (rebuild) unmountDesktop();
-          mountDesktop();
-        } else {
-          unmountDesktop();
-          if (rebuild) rebuildMobile();
-          else showMobile();
-        }
-      };
-      reconcile();
-
-      // Coalesce rapid viewport events (mql change + orientation settle) into a
-      // single reconcile, so one rotation never double-mounts.
-      let reconcileTimer: ReturnType<typeof setTimeout> | null = null;
-      let rebuildPending = false;
-      const scheduleReconcile = (rebuild: boolean) => {
-        if (rebuild) rebuildPending = true;
-        if (reconcileTimer) clearTimeout(reconcileTimer);
-        reconcileTimer = setTimeout(() => {
-          reconcileTimer = null;
-          const doRebuild = rebuildPending;
-          rebuildPending = false;
-          reconcile(doRebuild);
-        }, 80);
-      };
-
-      // FINDING (M4 experiment, confirmed on iPhone 12/17 Pro Max): raising the
-      // breakpoint to 1024 so the native iframe is left UNTOUCHED across a phone
-      // rotation STILL black-screens on iOS Safari (Outcome B). iOS drops the
-      // cross-origin iframe's compositing layer on rotation regardless of any
-      // tree switch. So the rebuild below is MANDATORY — it trades playback
-      // continuity for a working player. Do NOT remove it to "preserve
-      // playback": true continuity would need a single unified enablejsapi
-      // player with seek-restore, not this two-tree design (separate follow-up).
-      //
-      // Bug 1 (the one hitting the Pro Max devices): the breakpoint flip —
-      // portrait<->landscape crossing 900px, i.e. every iPad and the Plus/Pro
-      // Max iPhones — MUST re-run the mount logic. Previously CSS swapped the
-      // visible structure while JS mounted nothing, so the desktop poster sat
-      // over an empty mount and tapping play produced a black screen.
-      const onMqlChange = () => scheduleReconcile(true);
-      mql.addEventListener('change', onMqlChange);
-
-      // Bug 2: same-breakpoint rotation. orientationchange fires BEFORE iOS
-      // settles the viewport, so wait for the following visualViewport resize
-      // (with a timeout fallback) before rebuilding the active player.
-      const onOrientation = () => {
-        const vv = window.visualViewport;
-        let done = false;
-        const finish = () => {
-          if (done) return;
-          done = true;
-          if (vv) vv.removeEventListener('resize', finish);
-          scheduleReconcile(true);
-        };
-        if (vv) vv.addEventListener('resize', finish);
-        setTimeout(finish, 400);
-      };
-      window.addEventListener('orientationchange', onOrientation);
-
-      (root as any)._htCleanup = () => {
-        window.removeEventListener('message', onMessage);
-        window.removeEventListener('orientationchange', onOrientation);
-        mql.removeEventListener('change', onMqlChange);
-        if (reconcileTimer) clearTimeout(reconcileTimer);
-      };
-
-      // ---- Desktop interactions ----
       if (poster) {
         poster.addEventListener('click', () => {
-          mountDesktop(); // ensure a frame exists before commanding it (idempotent)
-          command('playVideo');
-          command('unMute');
-          command('setVolume', [100] as any[]);
-          setMuted(false);
-          hidePoster();
+          this.mountDesktop(mount, uid, title);
+          this.command('playVideo');
+          this.command('unMute');
+          this.command('setVolume', [100]);
+          this.setMuted(false, soundBtn);
+          this.hidePoster(poster);
         });
       }
       if (soundBtn) {
         soundBtn.addEventListener('click', () => {
-          if (muted) {
-            command('unMute');
-            command('setVolume', [100] as any[]);
-            command('playVideo');
-            setMuted(false);
+          if (this.muted) {
+            this.command('unMute');
+            this.command('setVolume', [100]);
+            this.command('playVideo');
+            this.setMuted(false, soundBtn);
           } else {
-            command('mute');
-            setMuted(true);
+            this.command('mute');
+            this.setMuted(true, soundBtn);
           }
         });
       }
-    });
+
+      this.reconcile(false, mount, uid, title);
+    }
+
+    disconnectedCallback() {
+      window.removeEventListener('message', this.onMessage);
+      window.removeEventListener('orientationchange', this.onOrientation);
+      this.mql.removeEventListener('change', this.onMqlChange);
+      if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
+      this.unmountDesktop();
+    }
+
+    private post(payload: any) {
+      if (this.desktopFrame && this.desktopFrame.contentWindow) {
+        this.desktopFrame.contentWindow.postMessage(JSON.stringify(payload), 'https://www.youtube.com');
+      }
+    }
+
+    private command(func: string, args: any[] = []) {
+      const payload = { event: 'command', func, args };
+      if (this.ready) this.post(payload);
+      else this.queue.push(payload);
+    }
+
+    private setMuted(m: boolean, soundBtn: Element | null) {
+      this.muted = m;
+      if (!soundBtn) return;
+      soundBtn.classList.toggle('is-muted', m);
+      soundBtn.classList.toggle('is-unmuted', !m);
+      soundBtn.setAttribute('aria-pressed', String(!m));
+      soundBtn.setAttribute('aria-label', m ? 'Unmute trailer' : 'Mute trailer');
+    }
+
+    private hidePoster(poster: Element | null) {
+      if (this.posterHidden || !poster) return;
+      this.posterHidden = true;
+      poster.classList.add('is-hidden');
+    }
+
+    private onMessage(e: MessageEvent) {
+      if (!this.desktopFrame || !this.desktopFrame.contentWindow || e.source !== this.desktopFrame.contentWindow) return;
+      let data;
+      try {
+        data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+      } catch (err) {
+        console.warn('[HeroTrailer] Failed to parse message data:', err);
+        return;
+      }
+      if (!data) return;
+      if ((data.event === 'onReady' || data.event === 'initialDelivery') && !this.ready) {
+        this.ready = true;
+        this.queue.splice(0).forEach((p: any) => this.post(p));
+      }
+      const state = data.info && typeof data.info.playerState === 'number'
+          ? data.info.playerState
+          : data.event === 'onStateChange' && typeof data.info === 'number'
+            ? data.info
+            : undefined;
+      
+      const poster = this.querySelector('.ht-poster');
+      if (state === 1) this.hidePoster(poster);
+      
+      if (data.event === 'infoDelivery' && data.info && typeof data.info.muted === 'boolean') {
+        if (data.info.muted !== this.muted) {
+          const soundBtn = this.querySelector('.ht-sound');
+          this.setMuted(data.info.muted, soundBtn);
+        }
+      }
+    }
+
+    private nudge(el: HTMLElement) {
+      el.style.transform = 'translateZ(0)';
+      void el.offsetHeight; // force reflow
+      requestAnimationFrame(() => {
+        el.style.transform = '';
+      });
+    }
+
+    private exitFullscreen() {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      } else if ((document as any).webkitFullscreenElement && (document as any).webkitExitFullscreen) {
+        (document as any).webkitExitFullscreen();
+      }
+    }
+
+    private mountDesktop(mount: Element | null, uid: string, title: string) {
+      if (this.desktopFrame || !mount) return;
+      this.ready = false;
+      this.posterHidden = false;
+      this.muted = true;
+      this.queue.length = 0;
+      
+      const poster = this.querySelector('.ht-poster');
+      const soundBtn = this.querySelector('.ht-sound');
+      
+      if (poster) poster.classList.remove('is-hidden');
+      this.setMuted(true, soundBtn);
+      
+      this.desktopFrame = document.createElement('iframe');
+      this.desktopFrame.id = 'ht-frame-' + uid;
+      this.desktopFrame.title = title;
+      this.desktopFrame.setAttribute('frameborder', '0');
+      this.desktopFrame.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+      this.desktopFrame.setAttribute('allowfullscreen', '');
+      this.desktopFrame.addEventListener('load', () => this.post({ event: 'listening', id: this.desktopFrame?.id, channel: 'widget' }));
+      this.desktopFrame.src = (mount as HTMLElement).dataset.src || 'about:blank';
+      mount.appendChild(this.desktopFrame);
+      this.nudge(this.desktopFrame);
+    }
+
+    private unmountDesktop() {
+      if (!this.desktopFrame) return;
+      this.desktopFrame.remove();
+      this.desktopFrame = null;
+      this.ready = false;
+      this.queue.length = 0;
+    }
+
+    private showMobile() {
+      if (this.mobileFrame && !this.mobileFrame.src && this.mobileFrame.dataset.src) {
+        this.mobileFrame.src = this.mobileFrame.dataset.src;
+      }
+    }
+
+    private hideMobile() {
+      if (this.mobileFrame && this.mobileFrame.src) this.mobileFrame.removeAttribute('src');
+    }
+
+    private rebuildMobile(title: string) {
+      if (!this.mobileFrame || !this.mobileFrame.parentNode) return;
+      this.exitFullscreen();
+      const dataSrc = this.mobileFrame.dataset.src;
+      const fresh = document.createElement('iframe');
+      fresh.className = 'ht-frame';
+      fresh.title = title;
+      fresh.setAttribute('frameborder', '0');
+      fresh.setAttribute('loading', 'lazy');
+      fresh.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+      fresh.setAttribute('allowfullscreen', '');
+      if (dataSrc) fresh.dataset.src = dataSrc;
+      this.mobileFrame.parentNode.replaceChild(fresh, this.mobileFrame);
+      this.mobileFrame = fresh;
+      if (dataSrc) this.mobileFrame.src = dataSrc;
+      this.nudge(this.mobileFrame);
+    }
+
+    private reconcile(rebuild: boolean, mount: Element | null, uid: string, title: string) {
+      if (this.mql.matches) {
+        this.hideMobile();
+        if (rebuild) this.unmountDesktop();
+        this.mountDesktop(mount, uid, title);
+      } else {
+        this.unmountDesktop();
+        if (rebuild) this.rebuildMobile(title);
+        else this.showMobile();
+      }
+    }
+
+    private scheduleReconcile(rebuild: boolean) {
+      if (rebuild) this.rebuildPending = true;
+      if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
+      this.reconcileTimer = setTimeout(() => {
+        this.reconcileTimer = null;
+        const doRebuild = this.rebuildPending;
+        this.rebuildPending = false;
+        
+        const uid = this.dataset.uid || '';
+        const title = this.dataset.title || 'Trailer';
+        const mount = this.querySelector('.ht-mount');
+        this.reconcile(doRebuild, mount, uid, title);
+      }, 80);
+    }
+
+    private onMqlChange() {
+      this.scheduleReconcile(true);
+    }
+
+    private onOrientation() {
+      const vv = window.visualViewport;
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        if (vv) vv.removeEventListener('resize', finish);
+        this.scheduleReconcile(true);
+      };
+      if (vv) vv.addEventListener('resize', finish);
+      setTimeout(finish, 400);
+    }
   }
 
-  document.addEventListener('astro:before-preparation', () => {
-    document.querySelectorAll('[data-hero-trailer]').forEach((root) => {
-      if (typeof (root as any)._htCleanup === 'function') {
-        (root as any)._htCleanup();
-      }
-    });
-  });
-
-  document.addEventListener('astro:after-swap', () => {
-    document.querySelectorAll('[data-hero-trailer]').forEach((root) => {
-      if (root instanceof HTMLElement) {
-        delete root.dataset.htBound;
-      }
-    });
-  });
-
-  document.addEventListener('astro:page-load', initHeroTrailers);
+  customElements.define('hero-trailer', HeroTrailer);
 </script>

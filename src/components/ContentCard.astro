@@ -9,8 +9,11 @@ export interface Props {
 }
 
 const { item, index = 0 } = Astro.props;
+
+if (!item) return;
+
 const isVideo = item.contentType === 'video' || item.type === 'video';
-const videoId = isVideo ? parseVideoId(item.link) : null;
+const videoId = isVideo ? parseVideoId(item.link || '') : null;
 const isPlayable = isVideo && !!videoId;
 
 // Determine primary label for the badge

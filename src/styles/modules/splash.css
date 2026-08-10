@@ -81,12 +81,28 @@
    scrolling without touching the animated element's layout.
 */
 html.splash-armed {
-  /* overflow: hidden removed: now handled robustly by src/lib/scroll-lock.ts 
-     to prevent iOS Safari from shifting the page up when the tab bar is visible. */
+  overflow: hidden;
+  /* iOS Safari ignores overflow: hidden on body, but touch-action: none prevents dragging without layout shifts */
+  touch-action: none;
 }
 
 
-/* Scrollbar compensation removed: now handled by src/lib/scroll-lock.ts */
+/*
+   Scrollbar compensation.
+
+   Hiding the overflow removes the document scrollbar, so on a desktop browser
+   with classic scrollbars the content would widen by ~15px the instant the
+   curtain lifts. The splash script measures that width before hiding it and
+   publishes it here; padding the wrapper by the same amount means releasing
+   the lock changes nothing.
+
+   Zero on every touch device and on macOS, where scrollbars are overlaid and
+   occupy no layout space — which is why the reported case (mobile, landscape)
+   never saw a sideways shift, only the vertical jumping fixed above.
+*/
+html.splash-armed #app-wrapper {
+  padding-right: var(--splash-gutter, 0px);
+}
 
 html.splash-lifting #app-wrapper {
   transform: translate3d(0, calc(-1 * var(--splash-lift)), 0);

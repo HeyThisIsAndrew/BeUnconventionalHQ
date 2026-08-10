@@ -135,11 +135,15 @@ export async function getUnifiedVideos(
 ): Promise<UnifiedVideo[]> {
   try {
     const docs = (await client.fetch(query)) ?? [];
+    if (!Array.isArray(docs)) {
+      console.warn('[videos] Expected array from Sanity fetch, got:', typeof docs);
+      return [];
+    }
     return docs
       .map((d) => mapSanityVideo(d, options))
       .filter((v): v is UnifiedVideo => v !== null);
   } catch (e) {
     console.error('[videos] Sanity fetch failed.', e);
-    throw e;
+    return [];
   }
 }

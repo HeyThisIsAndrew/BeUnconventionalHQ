@@ -160,75 +160,42 @@ const { events } = Astro.props;
     The window flag guards against a second copy of this script (the bundle is
     shared by any page that mounts the modal) double-binding the listeners.
   */
-  const w = window as any;
-  if (!w.spanningCalendarSetup) {
-    w.spanningCalendarSetup = true;
+    import { lockScroll, unlockScroll } from '../lib/scroll-lock';
 
-    /* Looked up per call, never cached: on the first click the dialog may have
-       been parsed only moments ago, and after a client-side navigation the old
-       node is gone. */
-    const getModal = (): HTMLDialogElement | null => {
-      const el = document.getElementById('spanning-calendar-modal');
-      return el instanceof HTMLDialogElement ? el : null;
-    };
+    const w = window as any;
+    if (!w.spanningCalendarSetup) {
+      w.spanningCalendarSetup = true;
 
-    /*
-      The scroll-lock release hangs off the <dialog>'s own `close` event rather
-      than off the close button, because the button is not the only way out.
-      Escape closes a modal dialog natively — no click, no handler — and while
-      the unlock lived in the button's callback that path left `document.body`
-      at `position: fixed` with the page apparently frozen until something else
-      happened to clear it. Every dismissal route ends in a `close` event, so
-      that is the honest place to undo what showModal() locked.
-    */
-    const releaseScrollLock = () => {
-      if (document.body.style.position !== 'fixed') return;
+      const getModal = (): HTMLDialogElement | null => {
+        const el = document.getElementById('spanning-calendar-modal');
+        return el instanceof HTMLDialogElement ? el : null;
+      };
 
-      const scrollY = Math.abs(parseInt(document.body.style.top || '0'));
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.style.overflowY = '';
+      const releaseScrollLock = () => {
+        unlockScroll();
+      };
 
-      const originalBehavior = document.documentElement.style.scrollBehavior;
-      document.documentElement.style.scrollBehavior = 'auto'; // Force instant snap
-      window.scrollTo(0, scrollY);
+      document.addEventListener(
+        'close',
+        (event) => {
+          if ((event.target as HTMLElement)?.id === 'spanning-calendar-modal') releaseScrollLock();
+        },
+        true,
+      );
 
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          document.documentElement.style.scrollBehavior = originalBehavior;
-        });
-      });
-    };
+      const closeModal = () => {
+        const modal = getModal();
+        if (modal?.open) modal.close();
+        else releaseScrollLock();
+      };
 
-    /* `close` does not bubble, so this delegates in the capture phase. */
-    document.addEventListener(
-      'close',
-      (event) => {
-        if ((event.target as HTMLElement)?.id === 'spanning-calendar-modal') releaseScrollLock();
-      },
-      true,
-    );
+      const openModal = () => {
+        const modal = getModal();
+        if (!modal) return;
 
-    const closeModal = () => {
-      const modal = getModal();
-      if (modal?.open) modal.close();
-      else releaseScrollLock();
-    };
-
-    const openModal = () => {
-      const modal = getModal();
-      if (!modal) return;
-
-      if (document.body.style.position !== 'fixed') {
-        const scrollY = window.scrollY;
-        document.body.style.top = `-${scrollY}px`;
-        document.body.style.position = 'fixed';
-        document.body.style.width = '100%';
-        document.body.style.overflowY = 'scroll';
-      }
-      modal.showModal();
-    };
+        lockScroll();
+        modal.showModal();
+      };
 
     document.addEventListener('click', (event) => {
       const target = event.target as HTMLElement | null;
