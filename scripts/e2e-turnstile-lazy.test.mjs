@@ -370,7 +370,9 @@ async function runTests() {
       input.value = 'reader@example.com';
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    await blind.click('.newsletter-submit');
+    await blind.evaluate(() => {
+      document.querySelector('.newsletter-submit').click();
+    });
     await new Promise((r) => setTimeout(r, 500));
 
     const blindState = await blind.evaluate(() => ({

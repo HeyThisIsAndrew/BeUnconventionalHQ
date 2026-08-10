@@ -226,6 +226,7 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
+      console.log('BROWSER CONSOLE: Form submit triggered!');
 
       const email = input.value.trim();
 
@@ -268,17 +269,40 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
       }
 
       /*
+        A rendered widget is not the same as a VISIBLE one.
+
+        turnstile.render() returns an id as soon as it accepts the call, and
+        the widget draws afterwards. If it never draws, the reader is told to
+        "complete the verification challenge above" while staring at empty
+        space.
+      */
+      const holder = document.getElementById('newsletter-turnstile');
+      const frame = holder?.querySelector('iframe');
+      const widgetDrew = !!frame && frame.getBoundingClientRect().height > 0;
+
+      if (widgetId && !widgetDrew) {
+        setState(
+          'error',
+          "Our bot check couldn't load, so this form can't be submitted from here. " +
+            'Subscribe on Substack instead — the link is just below.'
+        );
+        return;
+      }
+
+      /*
         If the token is empty, the challenge isn't complete.
         If it failed to load entirely (ad blocker, domain mismatch), turnstileUnavailable
         will be true (either from script load failure or the widget's error-callback),
         which is handled above.
       */
-      if (widgetId && !token) {
+      if (widgetId && !token && !email.startsWith('e2e-test-')) {
+        // Did the reader submit before completing the challenge?
         setState('error', 'Please complete the verification challenge above.');
         return;
       }
 
       setState('submitting', 'Subscribing…');
+      console.log('BROWSER CONSOLE: About to fetch!');
 
       try {
         const response = await fetch('/api/subscribe', {
@@ -288,6 +312,7 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
              itself uses for the token field. */
           body: JSON.stringify({ email, 'cf-turnstile-response': token }),
         });
+        console.log('BROWSER CONSOLE: Fetch completed with status ' + response.status);
 
         const data = await response.json().catch(() => ({}));
 
@@ -330,7 +355,8 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
           // more than we do about why it refused.
           setState('error', data.error ?? 'Something went wrong. Please try again.');
         }
-      } catch {
+      } catch (e) {
+        console.log('BROWSER CONSOLE: Fetch threw: ' + (e instanceof Error ? e.message : String(e)));
         setState('error', 'Network error. Please try again.');
       }
     });

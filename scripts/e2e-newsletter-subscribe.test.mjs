@@ -39,6 +39,7 @@ async function runTests() {
 
   try {
     const page = await browser.newPage();
+    page.on('console', (msg) => console.log('BROWSER:', msg.text()));
     await page.goto('http://localhost:4321/#e2e');
 
     const form = await page.$('#newsletter-form');

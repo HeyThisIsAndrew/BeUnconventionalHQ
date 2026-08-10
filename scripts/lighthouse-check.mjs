@@ -116,7 +116,12 @@ async function run() {
   // be killed together in finally(). Killing just the npm PID leaves workerd
   // running, which orphans the port and hangs any process still piping this
   // script's stdout.
-  const server = spawn('npm', ['run', 'preview'], { cwd: ROOT, stdio: 'pipe', detached: true });
+  const server = spawn('npm', ['run', 'preview'], {
+    cwd: ROOT,
+    stdio: 'pipe',
+    detached: true,
+    env: { ...process.env, ASTRO_TELEMETRY_DISABLED: '1', PUBLIC_DISABLE_ANALYTICS: 'true' },
+  });
   server.stderr.on('data', (d) => process.stderr.write(`[preview] ${d}`));
 
   let chrome;
