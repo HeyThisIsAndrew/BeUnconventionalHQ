@@ -191,11 +191,9 @@ const isActive = (href: string) =>
     }
 
 
-    initNavObserver();
-    updateActiveNavLinks();
     if (!window.navbarObserverSetup) {
-      document.addEventListener('astro:after-swap', initNavObserver);
-      document.addEventListener('astro:after-swap', updateActiveNavLinks);
+      document.addEventListener('astro:page-load', initNavObserver);
+      document.addEventListener('astro:page-load', updateActiveNavLinks);
       window.navbarObserverSetup = true;
     }
 
@@ -302,12 +300,9 @@ const isActive = (href: string) =>
       currentVisibility = null;
     }
 
-    initMobileMenu();
-    resetMenuState();
-
     if (!window.navbarMobileMenuSetup) {
-      document.addEventListener('astro:after-swap', initMobileMenu);
-      document.addEventListener('astro:after-swap', resetMenuState);
+      document.addEventListener('astro:page-load', initMobileMenu);
+      document.addEventListener('astro:page-load', resetMenuState);
       
       // The crucial fix for the persistence and flicker bugs
       document.addEventListener('astro:before-swap', purgeNavbarState);
