@@ -217,8 +217,56 @@ const pastEvents = allEvents
   }
   .event-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
-    gap: 2rem;
+    grid-template-columns: 1fr;
+    gap: 1rem;
     margin-top: 2rem;
+  }
+  
+  /* Desktop overrides to make the cards compact horizontal rows like mobile */
+  @media (min-width: 561px) {
+    .event-grid :global(.event-card) {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      min-height: 120px;
+    }
+    .event-grid :global(.event-card .content-card-media) {
+      flex: 0 0 auto;
+      width: 180px;
+      aspect-ratio: 16 / 9;
+      height: auto;
+      margin: 1rem 0 1rem 1rem;
+      align-self: center;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .event-grid :global(.event-card .content-card-media[data-media='logo']) {
+      width: 100px;
+      aspect-ratio: 1 / 1;
+      background: linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-black) 100%);
+    }
+    .event-grid :global(.event-card .content-card-media[data-media='logo'] .content-card-img) {
+      object-fit: contain;
+      padding: 0.75rem;
+    }
+    .event-grid :global(.event-card .content-card-body) {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .event-grid :global(.event-card .content-card-meta) {
+      font-size: 11px;
+      margin-bottom: 0.5rem;
+    }
+    .event-grid :global(.event-card .content-card-title) {
+      font-size: 1.25rem;
+      margin-bottom: 0.5rem;
+    }
+    .event-grid :global(.event-card .watch-now-btn) {
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+    }
   }
 </style>

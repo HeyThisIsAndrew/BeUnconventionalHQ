@@ -1,6 +1,7 @@
 ---
 import { getFlattenedGallery } from '../lib/instagram.js';
 import CinematicGallery from './CinematicGallery.astro';
+import { SOCIAL_ICONS } from '../data/icons.js';
 
 export interface Props {
   limit?: number;
@@ -18,7 +19,8 @@ const items = Array.isArray(feed) ? feed.slice(0, limit) : [];
     <div class="instagram-feed-header">
       <h2 id="instagram-feed-heading" class="intel-break-title">Latest on Instagram</h2>
       <a href="https://www.instagram.com/beunconventional/" target="_blank" rel="noopener noreferrer" class="instagram-follow-btn">
-        Follow @beunconventional
+        <span class="ig-icon" set:html={SOCIAL_ICONS.Instagram}></span>
+        FOLLOW BE UNCONVENTIONAL HQ
       </a>
     </div>
     
@@ -39,15 +41,28 @@ const items = Array.isArray(feed) ? feed.slice(0, limit) : [];
   }
 
   .instagram-follow-btn {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--color-brand-primary, #e60000);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-heading, "Syne", sans-serif);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-white-muted, #a1a1aa);
     text-decoration: none;
-    transition: color 0.2s ease;
+    transition: color 0.2s ease, text-decoration 0.2s ease;
+  }
+
+  .ig-icon {
+    display: inline-flex;
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
   }
 
   .instagram-follow-btn:hover {
-    color: #ff3333;
+    color: var(--color-accent, #cc0000);
     text-decoration: underline;
   }
 </style>
