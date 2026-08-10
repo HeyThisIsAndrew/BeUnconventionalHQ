@@ -15,44 +15,55 @@ export interface Props {
 }
 
 const { items = [] } = Astro.props;
+const itemCount = items.length;
+// roughly 4 seconds per item to ensure a constant slow scroll velocity
+const animationDuration = itemCount * 4;
 ---
 
 {items.length > 0 && (
   <div class="ig-carousel-wrapper">
     <div class="ig-carousel-track">
-      {items.map((item) => {
-        if (!item || !item.displayUrl) return null;
-        
-        const sources = getCardImageSources(item.displayUrl);
-        const hasCaption = !!item.caption;
-        
-        return (
-          <a href={item.permalink} target="_blank" rel="noopener noreferrer" class="ig-carousel-tile">
-            <img 
-              src={sources.src} 
-              srcset={sources.srcset}
-              sizes="(max-width: 768px) 45vw, 240px"
-              alt={item.caption?.slice(0, 50) || 'Instagram Media'} 
-              loading="lazy" 
-              decoding="async" 
-              class="ig-tile-img"
-            />
-            <div class="ig-tile-overlay">
-              {item.mediaType === 'VIDEO' && (
-                <div class="ig-play-icon">
-                  <svg viewBox="0 0 24 24" fill="currentColor" width="36" height="36">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
+      {[1, 2, 3, 4].map((groupIndex) => (
+        <div 
+          class="ig-marquee-group" 
+          aria-hidden={groupIndex > 1 ? "true" : undefined}
+          style={`animation-duration: ${animationDuration}s;`}
+        >
+          {items.map((item) => {
+            if (!item || !item.displayUrl) return null;
+            
+            const sources = getCardImageSources(item.displayUrl);
+            const hasCaption = !!item.caption;
+            
+            return (
+              <a href={item.permalink} target="_blank" rel="noopener noreferrer" class="ig-carousel-tile">
+                <img 
+                  src={sources.src} 
+                  srcset={sources.srcset}
+                  sizes="(max-width: 768px) 45vw, 240px"
+                  alt={item.caption?.slice(0, 50) || 'Instagram Media'} 
+                  loading="lazy" 
+                  decoding="async" 
+                  class="ig-tile-img"
+                />
+                <div class="ig-tile-overlay">
+                  {item.mediaType === 'VIDEO' && (
+                    <div class="ig-play-icon">
+                      <svg viewBox="0 0 24 24" fill="currentColor" width="36" height="36">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </div>
+                  )}
+                  <div class="ig-tile-content">
+                    <div class="ig-accent-line"></div>
+                    <p class="ig-text">{item.caption || "View post on Instagram"}</p>
+                  </div>
                 </div>
-              )}
-              <div class="ig-tile-content">
-                <div class="ig-accent-line"></div>
-                <p class="ig-text">{item.caption || "View post on Instagram"}</p>
-              </div>
-            </div>
-          </a>
-        );
-      })}
+              </a>
+            );
+          })}
+        </div>
+      ))}
     </div>
   </div>
 )}
@@ -75,23 +86,49 @@ const { items = [] } = Astro.props;
   */
   .ig-carousel-track {
     display: flex;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
     gap: 1.25rem;
     padding: 1rem 0 2rem; /* padding bottom for hover lift */
-    
-    /* Center the track when items don't fill the wrapper */
     width: max-content;
-    max-width: 100%;
-    margin: 0 auto;
-
-    /* Hide scrollbars */
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
   }
-  
-  .ig-carousel-track::-webkit-scrollbar {
-    display: none;
+
+  .ig-carousel-track:hover .ig-marquee-group {
+    animation-play-state: paused;
+  }
+
+  /* 
+    Groups hold exactly one loop of items. 
+    They translate exactly -100% of their own width, plus the gap between groups. 
+  */
+  .ig-marquee-group {
+    display: flex;
+    gap: 1.25rem;
+    flex-shrink: 0;
+    /* Duration is injected via inline style based on item count */
+    animation: marquee-scroll linear infinite;
+  }
+
+  @keyframes marquee-scroll {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(calc(-100% - 1.25rem));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ig-marquee-group {
+      animation: none !important;
+    }
+    .ig-carousel-track {
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .ig-carousel-track::-webkit-scrollbar {
+      display: none;
+    }
   }
 
   /* 
