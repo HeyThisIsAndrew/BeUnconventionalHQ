@@ -27,8 +27,17 @@
       images.forEach(img => {
         const slide = document.createElement('div');
         slide.className = 'substack-gallery-slide';
+        // Wrap in a link to allow fullscreen viewing
+        const link = document.createElement('a');
+        link.href = img.src;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.style.display = 'block';
+        link.style.width = '100%';
+        
         // Clone the image to avoid mutation issues during DOM move
-        slide.appendChild(img.cloneNode(true));
+        link.appendChild(img.cloneNode(true));
+        slide.appendChild(link);
         container.appendChild(slide);
       });
       
@@ -54,6 +63,7 @@
   
   .substack-gallery-container {
     display: flex;
+    align-items: center; /* Prevents slides from stretching to the same height */
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     gap: 1rem;
@@ -80,10 +90,8 @@
     scroll-snap-align: center;
     border-radius: 8px;
     overflow: hidden;
-    background: var(--color-black-soft, #111);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    /* Removed background color so there's no visible padding */
+    display: block;
   }
   
   @media (min-width: 768px) {
@@ -98,5 +106,10 @@
     height: auto;
     max-height: 70vh;
     object-fit: contain;
+    transition: transform 0.3s ease;
+  }
+  
+  .substack-gallery-slide a:hover img {
+    transform: scale(1.02);
   }
 </style>
