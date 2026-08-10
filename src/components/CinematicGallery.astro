@@ -128,15 +128,20 @@ const { items = [] } = Astro.props;
         }, {passive: true});
         
         let wheelTimeout: ReturnType<typeof setTimeout>;
+        let _isWheeling = false;
         track.addEventListener('wheel', () => {
           isPaused = true;
+          _isWheeling = true;
           clearTimeout(wheelTimeout);
-          wheelTimeout = setTimeout(() => isPaused = false, 1000);
+          wheelTimeout = setTimeout(() => {
+            isPaused = false;
+            _isWheeling = false;
+          }, 1000);
         }, {passive: true});
         
         // Handle boundaries ONLY during non-touch momentum scroll to avoid breaking iOS drag
         track.addEventListener('scroll', () => {
-          if (!this._isTouching) {
+          if (!this._isTouching && !_isWheeling) {
             if (track.scrollLeft >= groupWidth * 2) {
               track.scrollLeft -= groupWidth;
               exactScrollLeft = track.scrollLeft;
