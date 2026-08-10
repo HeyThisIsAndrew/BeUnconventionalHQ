@@ -188,6 +188,12 @@ function genericExternalSources(url: string): CardImageSources {
   // Exclude our own domain if we somehow pass an absolute local URL
   if (url.includes('beunconventionalhq.com')) return { src: url, srcset: '' };
 
+  // Instagram blocks wsrv.nl proxy (returns 403). Route it through our own proxy instead.
+  if (url.includes('.cdninstagram.com')) {
+    const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
+    return { src: proxyUrl, srcset: '' };
+  }
+
   // Strip protocol for wsrv.nl
   const urlWithoutProto = url.replace(/^https?:\/\//i, '');
   

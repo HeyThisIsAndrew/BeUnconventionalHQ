@@ -27,23 +27,74 @@
       images.forEach(img => {
         const slide = document.createElement('div');
         slide.className = 'substack-gallery-slide';
-        // Wrap in a link to allow fullscreen viewing
-        const link = document.createElement('a');
-        link.href = img.src;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.style.display = 'block';
-        link.style.width = '100%';
+        
+        // Wrap in a button to trigger lightbox
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'substack-gallery-trigger';
+        button.setAttribute('aria-label', 'View image full screen');
+        
+        // Click handler for lightbox
+        button.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.openLightbox(img.src, img.alt);
+        });
         
         // Clone the image to avoid mutation issues during DOM move
-        link.appendChild(img.cloneNode(true));
-        slide.appendChild(link);
+        button.appendChild(img.cloneNode(true));
+        slide.appendChild(button);
         container.appendChild(slide);
       });
       
       // Replace raw images with the interactive carousel container
       this.innerHTML = '';
       this.appendChild(container);
+    }
+    
+    openLightbox(src, alt) {
+      // Check if lightbox already exists, if so remove it
+      let existing = document.getElementById('substack-lightbox');
+      if (existing) existing.remove();
+      
+      const lightbox = document.createElement('div');
+      lightbox.id = 'substack-lightbox';
+      lightbox.className = 'substack-lightbox';
+      
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'substack-lightbox-close';
+      closeBtn.innerHTML = '&times;';
+      closeBtn.setAttribute('aria-label', 'Close fullscreen');
+      
+      const img = document.createElement('img');
+      img.src = src;
+      img.alt = alt || '';
+      img.className = 'substack-lightbox-img';
+      
+      lightbox.appendChild(closeBtn);
+      lightbox.appendChild(img);
+      
+      // Close on click anywhere or escape key
+      const closeHandler = () => {
+        lightbox.classList.remove('active');
+        setTimeout(() => lightbox.remove(), 300);
+        document.removeEventListener('keydown', keyHandler);
+        document.body.style.overflow = '';
+      };
+      
+      const keyHandler = (e) => {
+        if (e.key === 'Escape') closeHandler();
+      };
+      
+      lightbox.addEventListener('click', closeHandler);
+      document.addEventListener('keydown', keyHandler);
+      
+      document.body.appendChild(lightbox);
+      document.body.style.overflow = 'hidden'; // Prevent background scrolling
+      
+      // Trigger animation
+      requestAnimationFrame(() => {
+        lightbox.classList.add('active');
+      });
     }
   }
 
@@ -67,7 +118,7 @@
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     gap: 1rem;
-    padding-bottom: 1rem;
+    /* Removed padding-bottom to fix top/bottom padding imbalance */
     /* Custom scrollbar for webkit */
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
@@ -100,6 +151,16 @@
     }
   }
 
+  .substack-gallery-slide button.substack-gallery-trigger {
+    display: block;
+    width: 100%;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+  }
+
   .substack-gallery-slide img {
     display: block;
     width: 100%;
@@ -109,7 +170,63 @@
     transition: transform 0.3s ease;
   }
   
-  .substack-gallery-slide a:hover img {
+  .substack-gallery-slide button:hover img {
     transform: scale(1.02);
+  }
+  
+  /* Lightbox Styles */
+  .substack-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    backdrop-filter: blur(5px);
+  }
+  
+  .substack-lightbox.active {
+    opacity: 1;
+    pointer-events: auto;
+    cursor: zoom-out;
+  }
+  
+  .substack-lightbox-img {
+    max-width: 95vw;
+    max-height: 95vh;
+    object-fit: contain;
+    transform: scale(0.95);
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.2, 1);
+    border-radius: 4px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  }
+  
+  .substack-lightbox.active .substack-lightbox-img {
+    transform: scale(1);
+  }
+  
+  .substack-lightbox-close {
+    position: absolute;
+    top: 1rem;
+    right: 1.5rem;
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 3rem;
+    line-height: 1;
+    font-weight: 300;
+    cursor: pointer;
+    z-index: 10000;
+    padding: 0.5rem;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+  }
+  
+  .substack-lightbox-close:hover {
+    opacity: 1;
   }
 </style>

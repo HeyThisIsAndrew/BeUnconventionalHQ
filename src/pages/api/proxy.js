@@ -27,7 +27,11 @@ export async function GET({ request }) {
       'www.clarity.ms',
       'c.clarity.ms'
     ];
-    if (parsedTarget.protocol !== 'https:' || !allowedHosts.includes(parsedTarget.hostname)) {
+    
+    // Check if the host is strictly allowed OR is an Instagram CDN host (e.g. scontent-lax3-1.cdninstagram.com)
+    const isAllowedHost = allowedHosts.includes(parsedTarget.hostname) || parsedTarget.hostname.endsWith('.cdninstagram.com');
+    
+    if (parsedTarget.protocol !== 'https:' || !isAllowedHost) {
       return new Response('Forbidden proxy target', { status: 403 });
     }
   } catch (e) {
@@ -45,9 +49,10 @@ export async function GET({ request }) {
       return new Response('Proxy target returned error', { status: response.status });
     }
     
-    const body = await response.text();
+    // We proxy both scripts AND images now, so we must stream the raw body
+    // instead of calling .text() which corrupts binary data.
     const origin = url.origin; // Restrict CORS to our own origin
-    return new Response(body, {
+    return new Response(response.body, {
       status: 200,
       headers: {
         'Content-Type': response.headers.get('content-type') || 'application/javascript',
