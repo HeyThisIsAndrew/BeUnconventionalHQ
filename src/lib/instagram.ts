@@ -2,7 +2,7 @@ import instagramData from '../data/instagram.json';
 
 export interface InstagramMediaChild {
   id: string;
-  mediaType: string;
+  mediaType: 'IMAGE' | 'VIDEO';
   url: string;
   thumbnailUrl: string;
 }
@@ -31,12 +31,25 @@ export function getInstagramFeed(): InstagramPost[] {
  * perfect for a continuous cinematic gallery.
  * Carousels are unpacked into individual slides.
  */
-export function getFlattenedGallery() {
+/**
+ * Flattens the Instagram feed to just a list of images/videos,
+ * perfect for a continuous cinematic gallery.
+ * Carousels are unpacked into individual slides.
+ * If a keyword is provided, it only returns items where the original post's caption contains the keyword.
+ */
+export function getFlattenedGallery(keyword?: string) {
   const feed = getInstagramFeed();
   const gallery = [];
+  
+  const search = keyword ? keyword.toLowerCase() : null;
 
   for (const post of feed) {
     if (!post || !post.displayUrl || !post.mediaType) continue; // Skip corrupt top-level posts
+    
+    // Filter by keyword in caption if one is provided
+    if (search && (!post.caption || !post.caption.toLowerCase().includes(search))) {
+      continue;
+    }
     
     if (post.mediaType === 'CAROUSEL_ALBUM') {
       if (!Array.isArray(post.children)) continue; // Defend against string iteration bug

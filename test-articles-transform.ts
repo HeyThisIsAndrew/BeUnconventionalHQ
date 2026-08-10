@@ -1,5 +1,4 @@
 import { extractSubstackGalleries, extractYouTubeEmbeds } from './src/lib/articles-transform.js';
-import assert from 'node:assert';
 
 console.log('Testing extractSubstackGalleries...');
 

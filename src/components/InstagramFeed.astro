@@ -2,23 +2,27 @@
 import { getFlattenedGallery } from '../lib/instagram.js';
 import CinematicGallery from './CinematicGallery.astro';
 import { SOCIAL_ICONS } from '../data/icons.js';
+import { site } from '../data/site.js';
 
 export interface Props {
   limit?: number;
+  keyword?: string;
+  minItems?: number;
 }
 
-const { limit = 10 } = Astro.props;
+const { limit = 10, keyword, minItems = 1 } = Astro.props;
 
 // Get the gallery and limit the items if requested
-const feed = getFlattenedGallery() || [];
+const feed = getFlattenedGallery(keyword) || [];
 const items = Array.isArray(feed) ? feed.slice(0, limit) : [];
+const shouldRender = items.length >= minItems;
 ---
 
-{items.length > 0 && (
+{shouldRender && (
   <section class="instagram-feed-section container" aria-labelledby="instagram-feed-heading">
     <div class="instagram-feed-header">
       <h2 id="instagram-feed-heading" class="intel-break-title">Latest on Instagram</h2>
-      <a href="https://www.instagram.com/beunconventional/" target="_blank" rel="noopener noreferrer" class="view-all-link ig-view-all">
+      <a href={site.socials.instagram} target="_blank" rel="noopener noreferrer" class="view-all-link ig-view-all">
         <span class="ig-icon" set:html={SOCIAL_ICONS.Instagram}></span>
         FOLLOW BE UNCONVENTIONAL HQ
       </a>
