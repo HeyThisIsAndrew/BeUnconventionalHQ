@@ -559,8 +559,9 @@ const overlayItems = categories.map((c) => {
     }
   }
 
-  // Handle Astro page loads
-  document.addEventListener('astro:page-load', initQuadrantFilter);
+  // Handle interactions synchronously and after view transitions
+  initQuadrantFilter();
+  document.addEventListener('astro:after-swap', initQuadrantFilter);
 
   // Close overlay on navigation to prevent scroll lock leaks
   document.addEventListener('astro:before-preparation', () => {
