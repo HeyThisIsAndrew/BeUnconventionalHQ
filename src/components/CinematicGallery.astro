@@ -23,10 +23,10 @@ const { items = [] } = Astro.props;
   <infinite-marquee>
     <div class="ig-carousel-wrapper" style="mask-image: linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%); -webkit-mask-image: linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%);">
       <div class="ig-carousel-track">
-        {Array.from({ length: 15 }, (_, i) => i + 1).map((groupIndex) => (
+        {Array.from({ length: 7 }, (_, i) => i + 1).map((groupIndex) => (
           <div 
             class="ig-marquee-group" 
-            aria-hidden={groupIndex > 3 ? "true" : undefined}
+            aria-hidden={groupIndex > 2 ? "true" : undefined}
           >
           {items.map((item) => {
             if (!item || !item.displayUrl) return null;
@@ -94,8 +94,8 @@ const { items = [] } = Astro.props;
         });
         this._resizeObserver.observe(track);
   
-        // Start in the middle (group 8 of 15, index 7)
-        let exactScrollLeft = groupWidth * 7;
+        // Start in the middle (group 4 of 7, index 3)
+        let exactScrollLeft = groupWidth * 3;
         track.scrollLeft = exactScrollLeft;
   
         const updateScroll = () => {
@@ -103,9 +103,9 @@ const { items = [] } = Astro.props;
             exactScrollLeft += speed;
             
             // Endless loop wrapper logic for animation (non-momentum)
-            if (exactScrollLeft >= groupWidth * 8) {
+            if (exactScrollLeft >= groupWidth * 4) {
               exactScrollLeft -= groupWidth;
-            } else if (exactScrollLeft <= groupWidth * 6) {
+            } else if (exactScrollLeft <= groupWidth * 2) {
               exactScrollLeft += groupWidth;
             }
             
@@ -132,7 +132,7 @@ const { items = [] } = Astro.props;
           setTimeout(() => {
             if (!this._isTouching && !_isWheeling) {
               const currentPosition = track.scrollLeft;
-              const middlePosition = groupWidth * 7;
+              const middlePosition = groupWidth * 3;
               const offset = currentPosition % groupWidth;
               exactScrollLeft = middlePosition + offset;
               track.scrollLeft = exactScrollLeft;
@@ -151,9 +151,9 @@ const { items = [] } = Astro.props;
             _isWheeling = false;
             
             // After momentum finishes, quietly snap back to the middle zone if we drifted too far
-            // We have 15 groups, middle is 7 widths.
+            // We have 7 groups, middle is 3 widths.
             const currentPosition = track.scrollLeft;
-            const middlePosition = groupWidth * 7;
+            const middlePosition = groupWidth * 3;
             // Find the equivalent position in the middle group
             const offset = currentPosition % groupWidth;
             exactScrollLeft = middlePosition + offset;
@@ -164,10 +164,10 @@ const { items = [] } = Astro.props;
         // Handle boundaries ONLY during non-touch momentum scroll to avoid breaking iOS drag
         track.addEventListener('scroll', () => {
           if (!this._isTouching && !_isWheeling) {
-            if (track.scrollLeft >= groupWidth * 9) {
+            if (track.scrollLeft >= groupWidth * 5) {
               track.scrollLeft -= groupWidth * 2;
               exactScrollLeft = track.scrollLeft;
-            } else if (track.scrollLeft <= groupWidth * 5) {
+            } else if (track.scrollLeft <= groupWidth * 1) {
               track.scrollLeft += groupWidth * 2;
               exactScrollLeft = track.scrollLeft;
             }
