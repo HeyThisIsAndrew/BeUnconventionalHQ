@@ -12,6 +12,9 @@
   import { lockScroll, unlockScroll } from '../lib/scroll-lock';
 
   class SubstackGallery extends HTMLElement {
+    private _resizeObserver?: ResizeObserver;
+    private _scrollTimeout?: ReturnType<typeof setTimeout>;
+
     constructor() {
       super();
       
@@ -28,34 +31,78 @@
       const container = document.createElement('div');
       container.className = 'substack-gallery-container';
       
-      images.forEach((img, index) => {
-        const slide = document.createElement('div');
-        slide.className = 'substack-gallery-slide';
+      // Create 5 identical groups for infinite scrolling
+      for (let g = 0; g < 5; g++) {
+        const group = document.createElement('div');
+        group.className = 'substack-marquee-group';
         
-        // Wrap in a button to trigger lightbox
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'substack-gallery-trigger';
-        button.setAttribute('aria-label', 'View image full screen');
-        
-        // Click handler for lightbox
-        button.addEventListener('click', (e) => {
-          e.preventDefault();
-          this.openLightbox(index, imageSources);
+        images.forEach((img, index) => {
+          const slide = document.createElement('div');
+          slide.className = 'substack-gallery-slide';
+          
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'substack-gallery-trigger';
+          button.setAttribute('aria-label', 'View image full screen');
+          
+          button.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.openLightbox(index, imageSources, container);
+          });
+          
+          // Only the first group steals the actual DOM nodes, others clone
+          button.appendChild(g === 0 ? img : img.cloneNode(true));
+          slide.appendChild(button);
+          group.appendChild(slide);
         });
         
-        // Clone the image to avoid mutation issues during DOM move
-        button.appendChild(img.cloneNode(true));
-        slide.appendChild(button);
-        container.appendChild(slide);
-      });
+        container.appendChild(group);
+      }
       
-      // Replace raw images with the interactive carousel container
       this.innerHTML = '';
       this.appendChild(container);
+
+      // Initialize infinite scroll teleportation
+      setTimeout(() => {
+        const groups = container.querySelectorAll('.substack-marquee-group');
+        if (groups.length < 5) return;
+        
+        const groupWidth = (groups[1] as HTMLElement).offsetLeft - (groups[0] as HTMLElement).offsetLeft;
+        // Start in the middle group (group 3, index 2)
+        container.scrollLeft = groupWidth * 2;
+        
+        container.addEventListener('scroll', () => {
+          container.style.pointerEvents = 'none';
+          
+          clearTimeout(this._scrollTimeout);
+          this._scrollTimeout = setTimeout(() => {
+            container.style.pointerEvents = '';
+            const currentPosition = container.scrollLeft;
+            const middlePosition = groupWidth * 2;
+            const offset = currentPosition % groupWidth;
+            
+            // Snap if outside the middle zone
+            if (currentPosition < groupWidth * 1 || currentPosition > groupWidth * 3) {
+              container.scrollLeft = middlePosition + offset;
+            }
+          }, 150);
+        }, { passive: true });
+        
+        // Re-measure on resize
+        this._resizeObserver = new ResizeObserver(() => {
+          // just force a re-snap by triggering a fake scroll
+          container.dispatchEvent(new Event('scroll'));
+        });
+        this._resizeObserver.observe(container);
+      }, 100);
     }
     
-    openLightbox(startIndex: number, imageSources: Array<{src: string, alt: string}>) {
+    disconnectedCallback() {
+      if (this._resizeObserver) this._resizeObserver.disconnect();
+      clearTimeout(this._scrollTimeout);
+    }
+    
+    openLightbox(startIndex: number, imageSources: Array<{src: string, alt: string}>, container: HTMLElement) {
       // Check if lightbox already exists, if so remove it
       let existing = document.getElementById('substack-lightbox');
       if (existing) existing.remove();
@@ -99,6 +146,20 @@
         setTimeout(() => lightbox.remove(), 300);
         document.removeEventListener('keydown', keyHandler);
         unlockScroll();
+        
+        // SYNC STATE: Scroll the inline gallery to the last viewed image
+        const groups = container.querySelectorAll('.substack-marquee-group');
+        if (groups.length >= 3) {
+          const middleGroup = groups[2] as HTMLElement;
+          const targetSlide = middleGroup.children[currentIndex] as HTMLElement;
+          if (targetSlide) {
+            // Scroll to the exact position of the slide in the middle group
+            container.scrollTo({
+              left: targetSlide.offsetLeft - container.offsetLeft - 16, // match gap
+              behavior: 'instant'
+            });
+          }
+        }
       };
       
       const keyHandler = (e: KeyboardEvent) => {
@@ -166,35 +227,33 @@
     gap: 1rem;
     mask-image: linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
     -webkit-mask-image: linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
-    /* Removed padding-bottom to fix top/bottom padding imbalance */
     /* Custom scrollbar for webkit */
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    scrollbar-width: none; /* Hide scrollbar for infinite loop */
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    container-type: inline-size;
   }
 
   .substack-gallery-container::-webkit-scrollbar {
-    height: 6px;
+    display: none;
   }
-  .substack-gallery-container::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .substack-gallery-container::-webkit-scrollbar-thumb {
-    background-color: rgba(255, 255, 255, 0.2);
-    overflow: hidden;
+
+  .substack-marquee-group {
+    display: flex;
+    gap: 1rem;
+    flex-shrink: 0;
   }
 
   .substack-gallery-slide {
-    flex: 0 0 85%;
+    flex: 0 0 85cqw;
     scroll-snap-align: center;
     overflow: hidden;
-    /* Removed background color so there's no visible padding */
     display: block;
   }
   
   @media (min-width: 768px) {
     .substack-gallery-slide {
-      flex: 0 0 75%;
+      flex: 0 0 75cqw;
     }
   }
 

@@ -10,7 +10,7 @@ export interface Props {
   minItems?: number;
 }
 
-const { limit = 10, keyword, minItems = 1 } = Astro.props;
+const { limit = 10, keyword, minItems = 5 } = Astro.props;
 
 // Get the gallery and limit the items if requested
 const feed = getFlattenedGallery(keyword) || [];
@@ -24,14 +24,15 @@ const shouldRender = validItems.length >= minItems;
   <section class="instagram-feed-section container" aria-labelledby="instagram-feed-heading">
     <div class="instagram-feed-header">
       <h2 id="instagram-feed-heading" class="intel-break-title">Latest on Instagram</h2>
-      <a href={site.socials.instagram} target="_blank" rel="noopener noreferrer" class="view-all-link ig-view-all">
-        <span class="ig-cta-text-desktop">FOLLOW BE UNCONVENTIONAL HQ</span>
-        <span class="ig-cta-text-mobile">FOLLOW ON</span>
-        <span class="ig-icon" set:html={SOCIAL_ICONS.Instagram}></span>
-      </a>
     </div>
     
     <CinematicGallery items={items} />
+
+    <div class="latest-view-all animate-on-scroll">
+      <a href={site.socials.instagram} target="_blank" rel="noopener noreferrer" class="view-all-link ig-view-all">
+        FOLLOW ON <span class="ig-icon" set:html={SOCIAL_ICONS.Instagram}></span>
+      </a>
+    </div>
   </section>
 )}
 
@@ -41,11 +42,7 @@ const shouldRender = validItems.length >= minItems;
   }
 
   .instagram-feed-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center; /* changed from baseline to center */
     margin-bottom: 1rem;
-    gap: 1rem;
   }
 
   .ig-view-all {
@@ -55,30 +52,9 @@ const shouldRender = validItems.length >= minItems;
     white-space: nowrap; /* prevent breaking on mobile */
   }
 
-  .ig-cta-text-mobile {
-    display: none;
-  }
-
   @media (max-width: 560px) {
-    /* Ensure the title and link both fit inline on narrow mobile */
-    .instagram-feed-header {
-      align-items: flex-end;
-    }
     .instagram-feed-header h2 {
       font-size: clamp(0.75rem, 4vw, 1rem);
-      white-space: nowrap;
-    }
-    .ig-view-all {
-      font-size: clamp(0.6rem, 3vw, 0.75rem);
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 0.2rem;
-    }
-    .ig-cta-text-desktop {
-      display: none;
-    }
-    .ig-cta-text-mobile {
-      display: block;
     }
   }
 

@@ -23,7 +23,7 @@ const { items = [] } = Astro.props;
   <infinite-marquee>
     <div class="ig-carousel-wrapper" style="mask-image: linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%); -webkit-mask-image: linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%);">
       <div class="ig-carousel-track">
-        {Array.from({ length: 7 }, (_, i) => i + 1).map((groupIndex) => (
+        {Array.from({ length: 5 }, (_, i) => i + 1).map((groupIndex) => (
           <div 
             class="ig-marquee-group" 
             aria-hidden={groupIndex > 2 ? "true" : undefined}
@@ -94,8 +94,8 @@ const { items = [] } = Astro.props;
         });
         this._resizeObserver.observe(track);
   
-        // Start in the middle (group 4 of 7, index 3)
-        let exactScrollLeft = groupWidth * 3;
+        // Start in the middle (group 3 of 5, index 2)
+        let exactScrollLeft = groupWidth * 2;
         track.scrollLeft = exactScrollLeft;
   
         const updateScroll = () => {
@@ -103,9 +103,9 @@ const { items = [] } = Astro.props;
             exactScrollLeft += speed;
             
             // Endless loop wrapper logic for animation (non-momentum)
-            if (exactScrollLeft >= groupWidth * 4) {
+            if (exactScrollLeft >= groupWidth * 3) {
               exactScrollLeft -= groupWidth;
-            } else if (exactScrollLeft <= groupWidth * 2) {
+            } else if (exactScrollLeft <= groupWidth * 1) {
               exactScrollLeft += groupWidth;
             }
             
@@ -126,22 +126,25 @@ const { items = [] } = Astro.props;
           // Whenever the user natively scrolls, pause the JS auto-scroller
           isPaused = true;
           this._isTouching = true; // Use this as a general "is scrolling" flag
+          track.style.pointerEvents = 'none';
+          
           exactScrollLeft = track.scrollLeft;
 
           clearTimeout(scrollTimeout);
           scrollTimeout = setTimeout(() => {
             this._isTouching = false;
             isPaused = false;
+            track.style.pointerEvents = '';
             
             // Once they completely stop scrolling (including momentum),
             // seamlessly snap the infinite loop back to the middle zone
             // to ensure we never hit the physical ends.
             const currentPosition = track.scrollLeft;
-            const middlePosition = groupWidth * 3;
+            const middlePosition = groupWidth * 2;
             const offset = currentPosition % groupWidth;
             
             // Only snap if we're actually near an edge to minimize DOM updates
-            if (currentPosition < groupWidth * 2 || currentPosition > groupWidth * 5) {
+            if (currentPosition < groupWidth * 1 || currentPosition > groupWidth * 3) {
               exactScrollLeft = middlePosition + offset;
               track.scrollLeft = exactScrollLeft;
             }
