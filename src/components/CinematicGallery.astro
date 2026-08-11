@@ -122,11 +122,31 @@ const { items = [] } = Astro.props;
   
         // A single, unified scroll handler for all interaction types (touch, wheel, momentum)
         let scrollTimeout: ReturnType<typeof setTimeout>;
+        
+        // Pause auto-scrolling as soon as the user touches the carousel
+        track.addEventListener('touchstart', () => {
+          isPaused = true;
+          this._isTouching = true;
+        }, { passive: true });
+        
+        track.addEventListener('touchend', () => {
+          // If no scroll happened (just a tap), we need to ensure it unpauses
+          clearTimeout(scrollTimeout);
+          scrollTimeout = setTimeout(() => {
+            this._isTouching = false;
+            isPaused = false;
+            track.classList.remove('is-scrolling');
+          }, 150);
+        }, { passive: true });
+
         track.addEventListener('scroll', () => {
           // Whenever the user natively scrolls, pause the JS auto-scroller
           isPaused = true;
-          this._isTouching = true; // Use this as a general "is scrolling" flag
-          track.style.pointerEvents = 'none';
+          this._isTouching = true;
+          
+          // Disable pointer events on the TILES (via CSS), not the track itself, 
+          // otherwise it instantly aborts the native swipe gesture on iOS!
+          track.classList.add('is-scrolling');
           
           exactScrollLeft = track.scrollLeft;
 
@@ -134,7 +154,7 @@ const { items = [] } = Astro.props;
           scrollTimeout = setTimeout(() => {
             this._isTouching = false;
             isPaused = false;
-            track.style.pointerEvents = '';
+            track.classList.remove('is-scrolling');
             
             // Once they completely stop scrolling (including momentum),
             // seamlessly snap the infinite loop back to the middle zone
@@ -146,12 +166,11 @@ const { items = [] } = Astro.props;
             // Only snap if we're actually near an edge to minimize DOM updates
             if (currentPosition < groupWidth * 1 || currentPosition > groupWidth * 3) {
               exactScrollLeft = middlePosition + offset;
-              track.scrollLeft = exactScrollLeft;
+              track.scrollTo({ left: exactScrollLeft, behavior: 'instant' });
             }
           }, 150); // 150ms after the last scroll event fires
         }, {passive: true});
         
-        // Remove touch/wheel specific listeners as the scroll listener handles all of them natively
       }, 100);
     }
 
@@ -247,6 +266,11 @@ const { items = [] } = Astro.props;
     transform: translateY(-8px);
     border-color: var(--color-accent);
     box-shadow: 0 12px 30px rgba(204, 0, 0, 0.2);
+  }
+
+  /* Prevent taps or hovers from sticking while the user is actively swiping */
+  .ig-carousel-track.is-scrolling .ig-carousel-tile {
+    pointer-events: none;
   }
 
   .ig-tile-img {
