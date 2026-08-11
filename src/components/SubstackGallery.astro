@@ -22,11 +22,13 @@
       const images = Array.from(this.querySelectorAll('img'));
       if (images.length === 0) return;
 
+      const imageSources = images.map(img => ({ src: img.src, alt: img.alt }));
+
       // Wrap images in a scroll container
       const container = document.createElement('div');
       container.className = 'substack-gallery-container';
       
-      images.forEach(img => {
+      images.forEach((img, index) => {
         const slide = document.createElement('div');
         slide.className = 'substack-gallery-slide';
         
@@ -39,7 +41,7 @@
         // Click handler for lightbox
         button.addEventListener('click', (e) => {
           e.preventDefault();
-          this.openLightbox(img.src, img.alt);
+          this.openLightbox(index, imageSources);
         });
         
         // Clone the image to avoid mutation issues during DOM move
@@ -53,7 +55,7 @@
       this.appendChild(container);
     }
     
-    openLightbox(src: string, alt: string) {
+    openLightbox(startIndex: number, imageSources: Array<{src: string, alt: string}>) {
       // Check if lightbox already exists, if so remove it
       let existing = document.getElementById('substack-lightbox');
       if (existing) existing.remove();
@@ -67,16 +69,32 @@
       closeBtn.innerHTML = '&times;';
       closeBtn.setAttribute('aria-label', 'Close fullscreen');
       
+      let currentIndex = startIndex;
       const img = document.createElement('img');
-      img.src = src;
-      img.alt = alt || '';
       img.className = 'substack-lightbox-img';
+      
+      const updateImage = () => {
+        img.src = imageSources[currentIndex].src;
+        img.alt = imageSources[currentIndex].alt || '';
+      };
+      updateImage();
       
       lightbox.appendChild(closeBtn);
       lightbox.appendChild(img);
+
+      const next = () => {
+        currentIndex = (currentIndex + 1) % imageSources.length;
+        updateImage();
+      };
+
+      const prev = () => {
+        currentIndex = (currentIndex - 1 + imageSources.length) % imageSources.length;
+        updateImage();
+      };
       
-      // Close on click anywhere or escape key
-      const closeHandler = () => {
+      // Close on click outside image or escape key
+      const closeHandler = (e?: Event) => {
+        if (e && e.target === img) return; // Don't close if clicking the image itself
         lightbox.classList.remove('active');
         setTimeout(() => lightbox.remove(), 300);
         document.removeEventListener('keydown', keyHandler);
@@ -85,10 +103,37 @@
       
       const keyHandler = (e: KeyboardEvent) => {
         if (e.key === 'Escape') closeHandler();
+        if (e.key === 'ArrowRight') next();
+        if (e.key === 'ArrowLeft') prev();
       };
       
       lightbox.addEventListener('click', closeHandler);
       document.addEventListener('keydown', keyHandler);
+
+      let touchStartX = 0;
+      let touchEndX = 0;
+      lightbox.addEventListener('touchstart', e => {
+        touchStartX = e.changedTouches[0].screenX;
+      }, { passive: true });
+      lightbox.addEventListener('touchend', e => {
+        touchEndX = e.changedTouches[0].screenX;
+        if (touchEndX < touchStartX - 50) next();
+        if (touchEndX > touchStartX + 50) prev();
+      }, { passive: true });
+
+      let wheelTimeout: ReturnType<typeof setTimeout> | null = null;
+      lightbox.addEventListener('wheel', e => {
+        e.preventDefault();
+        if (wheelTimeout) return; // Debounce wheel
+        
+        if (e.deltaX > 20) {
+          next();
+          wheelTimeout = setTimeout(() => wheelTimeout = null, 300);
+        } else if (e.deltaX < -20) {
+          prev();
+          wheelTimeout = setTimeout(() => wheelTimeout = null, 300);
+        }
+      }, { passive: false });
       
       document.body.appendChild(lightbox);
       lockScroll();
@@ -120,8 +165,8 @@
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     gap: 1rem;
-    mask-image: linear-gradient(to right, transparent 0, black 32px, black calc(100% - 32px), transparent 100%);
-    -webkit-mask-image: linear-gradient(to right, transparent 0, black 32px, black calc(100% - 32px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
     /* Removed padding-bottom to fix top/bottom padding imbalance */
     /* Custom scrollbar for webkit */
     scrollbar-width: thin;

@@ -15,7 +15,9 @@ const { limit = 10, keyword, minItems = 1 } = Astro.props;
 // Get the gallery and limit the items if requested
 const feed = getFlattenedGallery(keyword) || [];
 const items = Array.isArray(feed) ? feed.slice(0, limit) : [];
-const shouldRender = items.length >= minItems;
+// Ensure we only render if we have actual valid items (not undefined or missing urls)
+const validItems = items.filter(item => item && item.displayUrl);
+const shouldRender = validItems.length >= minItems;
 ---
 
 {shouldRender && (
@@ -23,8 +25,9 @@ const shouldRender = items.length >= minItems;
     <div class="instagram-feed-header">
       <h2 id="instagram-feed-heading" class="intel-break-title">Latest on Instagram</h2>
       <a href={site.socials.instagram} target="_blank" rel="noopener noreferrer" class="view-all-link ig-view-all">
+        <span class="ig-cta-text-desktop">FOLLOW BE UNCONVENTIONAL HQ</span>
+        <span class="ig-cta-text-mobile">FOLLOW ON</span>
         <span class="ig-icon" set:html={SOCIAL_ICONS.Instagram}></span>
-        FOLLOW BE UNCONVENTIONAL HQ
       </a>
     </div>
     
@@ -52,13 +55,30 @@ const shouldRender = items.length >= minItems;
     white-space: nowrap; /* prevent breaking on mobile */
   }
 
+  .ig-cta-text-mobile {
+    display: none;
+  }
+
   @media (max-width: 560px) {
     /* Ensure the title and link both fit inline on narrow mobile */
+    .instagram-feed-header {
+      align-items: flex-end;
+    }
     .instagram-feed-header h2 {
       font-size: clamp(0.75rem, 4vw, 1rem);
+      white-space: nowrap;
     }
     .ig-view-all {
       font-size: clamp(0.6rem, 3vw, 0.75rem);
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.2rem;
+    }
+    .ig-cta-text-desktop {
+      display: none;
+    }
+    .ig-cta-text-mobile {
+      display: block;
     }
   }
 

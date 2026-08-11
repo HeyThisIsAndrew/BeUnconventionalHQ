@@ -21,9 +21,9 @@ const { items = [] } = Astro.props;
 
 {items.length > 0 && (
   <infinite-marquee>
-    <div class="ig-carousel-wrapper" style="mask-image: linear-gradient(to right, transparent 0, black 48px, black calc(100% - 48px), transparent 100%); -webkit-mask-image: linear-gradient(to right, transparent 0, black 48px, black calc(100% - 48px), transparent 100%);">
+    <div class="ig-carousel-wrapper" style="mask-image: linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%); -webkit-mask-image: linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%);">
       <div class="ig-carousel-track">
-        {[1, 2, 3, 4, 5, 6, 7].map((groupIndex) => (
+        {Array.from({ length: 15 }, (_, i) => i + 1).map((groupIndex) => (
           <div 
             class="ig-marquee-group" 
             aria-hidden={groupIndex > 3 ? "true" : undefined}
@@ -33,7 +33,7 @@ const { items = [] } = Astro.props;
             const sources = getCardImageSources(item.displayUrl);
             
             return (
-              <a href={item.permalink} target="_blank" rel="noopener noreferrer" class="ig-carousel-tile">
+              <a href={item.permalink} target="_blank" rel="noopener noreferrer" class="ig-carousel-tile" data-play-hover="true">
                 <img 
                   src={sources.src} 
                   srcset={sources.srcset}
@@ -45,10 +45,12 @@ const { items = [] } = Astro.props;
                 />
                 <div class="ig-tile-overlay">
                   {item.mediaType === 'VIDEO' && (
-                    <div class="ig-play-icon">
-                      <svg viewBox="0 0 24 24" fill="currentColor" width="36" height="36">
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
+                    <div class="play-button-wrapper">
+                      <div class="cinematic-play-button">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      </div>
                     </div>
                   )}
                   <div class="ig-tile-content">
@@ -92,8 +94,8 @@ const { items = [] } = Astro.props;
         });
         this._resizeObserver.observe(track);
   
-        // Start in the middle (group 4 of 7, index 3)
-        let exactScrollLeft = groupWidth * 3;
+        // Start in the middle (group 8 of 15, index 7)
+        let exactScrollLeft = groupWidth * 7;
         track.scrollLeft = exactScrollLeft;
   
         const updateScroll = () => {
@@ -101,9 +103,9 @@ const { items = [] } = Astro.props;
             exactScrollLeft += speed;
             
             // Endless loop wrapper logic for animation (non-momentum)
-            if (exactScrollLeft >= groupWidth * 4) {
+            if (exactScrollLeft >= groupWidth * 8) {
               exactScrollLeft -= groupWidth;
-            } else if (exactScrollLeft <= groupWidth * 2) {
+            } else if (exactScrollLeft <= groupWidth * 6) {
               exactScrollLeft += groupWidth;
             }
             
@@ -126,6 +128,16 @@ const { items = [] } = Astro.props;
         track.addEventListener('touchend', () => {
           this._isTouching = false;
           setTimeout(() => isPaused = false, 1000);
+          // Snap back to the middle zone after momentum finishes
+          setTimeout(() => {
+            if (!this._isTouching && !_isWheeling) {
+              const currentPosition = track.scrollLeft;
+              const middlePosition = groupWidth * 7;
+              const offset = currentPosition % groupWidth;
+              exactScrollLeft = middlePosition + offset;
+              track.scrollLeft = exactScrollLeft;
+            }
+          }, 1000);
         }, {passive: true});
         
         let wheelTimeout: ReturnType<typeof setTimeout>;
@@ -139,9 +151,9 @@ const { items = [] } = Astro.props;
             _isWheeling = false;
             
             // After momentum finishes, quietly snap back to the middle zone if we drifted too far
-            // We have 7 groups, middle is 3 widths. Safe zone is between 2 and 4 widths.
+            // We have 15 groups, middle is 7 widths.
             const currentPosition = track.scrollLeft;
-            const middlePosition = groupWidth * 3;
+            const middlePosition = groupWidth * 7;
             // Find the equivalent position in the middle group
             const offset = currentPosition % groupWidth;
             exactScrollLeft = middlePosition + offset;
@@ -152,10 +164,10 @@ const { items = [] } = Astro.props;
         // Handle boundaries ONLY during non-touch momentum scroll to avoid breaking iOS drag
         track.addEventListener('scroll', () => {
           if (!this._isTouching && !_isWheeling) {
-            if (track.scrollLeft >= groupWidth * 5) {
+            if (track.scrollLeft >= groupWidth * 9) {
               track.scrollLeft -= groupWidth * 2;
               exactScrollLeft = track.scrollLeft;
-            } else if (track.scrollLeft <= groupWidth * 1) {
+            } else if (track.scrollLeft <= groupWidth * 5) {
               track.scrollLeft += groupWidth * 2;
               exactScrollLeft = track.scrollLeft;
             }
@@ -218,9 +230,8 @@ const { items = [] } = Astro.props;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .ig-carousel-track {
-      scroll-snap-type: x mandatory;
-    }
+    /* No native snap on standard touch since we have JS momentum loop logic */
+    /* .ig-carousel-track { scroll-snap-type: x mandatory; } */
   }
 
   /* 
@@ -294,43 +305,7 @@ const { items = [] } = Astro.props;
     opacity: 1;
   }
 
-  .ig-play-icon {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: rgba(255, 255, 255, 0.3); /* low visibility default */
-    transition: color 0.3s ease, transform 0.3s ease;
-  }
 
-  .ig-play-icon::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 42px; /* Smaller icon than content card */
-    height: 30px;
-    border-radius: 8px;
-    background: var(--color-accent);
-    opacity: 0;
-    filter: blur(8px);
-    transition: opacity 0.3s ease;
-    z-index: -1;
-  }
-
-  .ig-carousel-tile:hover .ig-play-icon {
-    color: #ffffff; /* Icon turns white */
-    transform: translate(-50%, -50%) scale(1.15);
-  }
-
-  .ig-carousel-tile:hover .ig-play-icon svg {
-    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
-  }
-
-  .ig-carousel-tile:hover .ig-play-icon::before {
-    opacity: 0.6;
-  }
 
   .ig-tile-content {
     display: flex;
