@@ -46,7 +46,7 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
   <div class="ht-desktop">
     <div class="ht-mount" data-src={desktopSrc}></div>
 
-    <button type="button" class="ht-poster" aria-label={`Play ${title} trailer`}>
+    <button type="button" class="ht-poster" aria-label={`Play ${title} trailer`} data-play-hover="true">
       <img
         class="ht-poster-img"
         src={poster}
@@ -55,11 +55,13 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
         loading="eager"
         data-fallback={posterFallback}
       />
-      <span class="ht-play" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M8 5v14l11-7z" />
-        </svg>
-      </span>
+      <div class="ht-play-wrapper" aria-hidden="true">
+        <div class="cinematic-play-button">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        </div>
+      </div>
     </button>
 
     <button type="button" class="ht-sound is-muted" aria-label="Unmute trailer" aria-pressed="false">
@@ -143,35 +145,14 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
   .ht-poster:focus-visible::after {
     background: rgba(0, 0, 0, 0.2);
   }
-  .ht-play {
+  .ht-play-wrapper {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    inset: 0;
     z-index: 1;
-    width: 72px;
-    height: 72px;
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
-    background: var(--color-accent, #cc0000);
-    color: #fff;
-    box-shadow: 0 8px 30px rgba(204, 0, 0, 0.5);
-    transition: transform 0.2s ease;
-  }
-  .ht-poster:hover .ht-play,
-  .ht-poster:focus-visible .ht-play {
-    transform: translate(-50%, -50%) scale(1.08);
-  }
-  .ht-poster:focus-visible {
-    outline: 2px solid var(--color-accent, #cc0000);
-    outline-offset: 3px;
-  }
-  .ht-play svg {
-    width: 30px;
-    height: 30px;
-    margin-left: 3px;
+    pointer-events: none;
   }
 
   /* --- Desktop sound toggle --- */
