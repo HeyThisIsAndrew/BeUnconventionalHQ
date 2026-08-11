@@ -39,7 +39,7 @@ const { items = [] } = Astro.props;
                   srcset={sources.srcset}
                   sizes="(max-width: 768px) 45vw, 240px"
                   alt={item.caption?.slice(0, 50) || 'Instagram Media'} 
-                  loading="lazy" 
+                  loading="eager" 
                   decoding="async" 
                   class="ig-tile-img"
                 />
@@ -120,59 +120,35 @@ const { items = [] } = Astro.props;
   
         this._animationFrame = requestAnimationFrame(updateScroll);
   
-        // Pause interactions
-        track.addEventListener('mouseenter', () => isPaused = true);
-        track.addEventListener('mouseleave', () => isPaused = false);
-        
-        track.addEventListener('touchstart', () => { this._isTouching = true; isPaused = true; }, {passive: true});
-        track.addEventListener('touchend', () => {
-          this._isTouching = false;
-          setTimeout(() => isPaused = false, 1000);
-          // Snap back to the middle zone after momentum finishes
-          setTimeout(() => {
-            if (!this._isTouching && !_isWheeling) {
-              const currentPosition = track.scrollLeft;
-              const middlePosition = groupWidth * 3;
-              const offset = currentPosition % groupWidth;
+        // A single, unified scroll handler for all interaction types (touch, wheel, momentum)
+        let scrollTimeout: ReturnType<typeof setTimeout>;
+        track.addEventListener('scroll', () => {
+          // Whenever the user natively scrolls, pause the JS auto-scroller
+          isPaused = true;
+          this._isTouching = true; // Use this as a general "is scrolling" flag
+          exactScrollLeft = track.scrollLeft;
+
+          clearTimeout(scrollTimeout);
+          scrollTimeout = setTimeout(() => {
+            this._isTouching = false;
+            isPaused = false;
+            
+            // Once they completely stop scrolling (including momentum),
+            // seamlessly snap the infinite loop back to the middle zone
+            // to ensure we never hit the physical ends.
+            const currentPosition = track.scrollLeft;
+            const middlePosition = groupWidth * 3;
+            const offset = currentPosition % groupWidth;
+            
+            // Only snap if we're actually near an edge to minimize DOM updates
+            if (currentPosition < groupWidth * 2 || currentPosition > groupWidth * 5) {
               exactScrollLeft = middlePosition + offset;
               track.scrollLeft = exactScrollLeft;
             }
-          }, 1000);
+          }, 150); // 150ms after the last scroll event fires
         }, {passive: true});
         
-        let wheelTimeout: ReturnType<typeof setTimeout>;
-        let _isWheeling = false;
-        track.addEventListener('wheel', () => {
-          isPaused = true;
-          _isWheeling = true;
-          clearTimeout(wheelTimeout);
-          wheelTimeout = setTimeout(() => {
-            isPaused = false;
-            _isWheeling = false;
-            
-            // After momentum finishes, quietly snap back to the middle zone if we drifted too far
-            // We have 7 groups, middle is 3 widths.
-            const currentPosition = track.scrollLeft;
-            const middlePosition = groupWidth * 3;
-            // Find the equivalent position in the middle group
-            const offset = currentPosition % groupWidth;
-            exactScrollLeft = middlePosition + offset;
-            track.scrollLeft = exactScrollLeft;
-          }, 1000);
-        }, {passive: true});
-        
-        // Handle boundaries ONLY during non-touch momentum scroll to avoid breaking iOS drag
-        track.addEventListener('scroll', () => {
-          if (!this._isTouching && !_isWheeling) {
-            if (track.scrollLeft >= groupWidth * 5) {
-              track.scrollLeft -= groupWidth * 2;
-              exactScrollLeft = track.scrollLeft;
-            } else if (track.scrollLeft <= groupWidth * 1) {
-              track.scrollLeft += groupWidth * 2;
-              exactScrollLeft = track.scrollLeft;
-            }
-          }
-        }, {passive: true});
+        // Remove touch/wheel specific listeners as the scroll listener handles all of them natively
       }, 100);
     }
 
@@ -211,6 +187,7 @@ const { items = [] } = Astro.props;
     overflow-x: auto;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain; /* Prevents swipe navigation and bouncing */
     /* Cursor hinting that it can be dragged/swiped */
     cursor: grab;
   }
@@ -252,6 +229,12 @@ const { items = [] } = Astro.props;
   }
 
   @media (max-width: 560px) {
+    /* Full bleed on small mobile without using 100vw to prevent horizontal scrollbars */
+    .ig-carousel-wrapper {
+      width: calc(100% + 2.5rem); /* layout padding is 1.25rem on each side at this size */
+      margin-left: -1.25rem;
+      margin-right: -1.25rem;
+    }
     .ig-carousel-tile {
       flex: 0 0 160px; /* Even smaller on phones */
     }

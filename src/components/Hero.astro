@@ -248,7 +248,8 @@ import bannerImg from '../assets/banner.webp';
       if (navType === 'traverse') return true;
       if (!navType && navDirection === 'back') return true;
       const [entry] = performance.getEntriesByType('navigation');
-      return (entry as PerformanceNavigationTiming | undefined)?.type === 'back_forward';
+      const type = (entry as PerformanceNavigationTiming | undefined)?.type;
+      return type === 'back_forward' || type === 'reload';
     }
 
     function measureLift() {
