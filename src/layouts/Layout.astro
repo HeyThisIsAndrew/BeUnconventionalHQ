@@ -146,15 +146,7 @@ const fallbackMark = await getImage({
     <ClientRouter />
     <script is:inline>
       document.documentElement.classList.add('js');
-      
-      /* 
-        CRITICAL UI QA FIX: Do NOT set `history.scrollRestoration = 'manual'` here!
-        Previous regressions added it to prevent the entrance animation from jumping 
-        when refreshing, but it introduced a worse bug: forcing the user back to the top 
-        of the page and re-playing the intro animation when they refreshed halfway down the page.
-        Native scroll restoration is required so users stay where they were. 
-        The CSS entrance animation in `hero.css` already correctly cancels itself if `window.scrollY > 0`.
-      */
+      history.scrollRestoration = 'manual';
     </script>
     <!-- Google Tag Manager (Worker) -->
     {gtmId && (

@@ -31,66 +31,124 @@
       const container = document.createElement('div');
       container.className = 'substack-gallery-container';
       
-      // Create 5 identical groups for infinite scrolling
-      for (let g = 0; g < 5; g++) {
-        const group = document.createElement('div');
-        group.className = 'substack-marquee-group';
+      // Base group
+      const baseGroup = document.createElement('div');
+      baseGroup.className = 'substack-marquee-group';
+      
+      images.forEach((img, index) => {
+        const slide = document.createElement('div');
+        slide.className = 'substack-gallery-slide';
         
-        images.forEach((img, index) => {
-          const slide = document.createElement('div');
-          slide.className = 'substack-gallery-slide';
-          
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = 'substack-gallery-trigger';
-          button.setAttribute('aria-label', 'View image full screen');
-          
-          button.addEventListener('click', (e) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'substack-gallery-trigger';
+        button.setAttribute('aria-label', 'View image full screen');
+        
+        button.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.openLightbox(index, imageSources, container);
+        });
+        
+        button.appendChild(img);
+        slide.appendChild(button);
+        baseGroup.appendChild(slide);
+      });
+      
+      container.appendChild(baseGroup);
+      this.innerHTML = '';
+      this.appendChild(container);
+      
+      const groups: HTMLElement[] = [baseGroup];
+      
+      // Dynamic Group Cloning (4K Fix)
+      // Ensure we have enough groups to safely loop on Ultrawide screens.
+      while (container.scrollWidth < window.innerWidth * 3 && groups.length < 20) {
+        const clone = baseGroup.cloneNode(true) as HTMLElement;
+        
+        // Re-attach listeners to cloned buttons
+        const buttons = clone.querySelectorAll('.substack-gallery-trigger');
+        buttons.forEach((btn, index) => {
+          btn.addEventListener('click', (e) => {
             e.preventDefault();
             this.openLightbox(index, imageSources, container);
           });
-          
-          // Only the first group steals the actual DOM nodes, others clone
-          button.appendChild(g === 0 ? img : img.cloneNode(true));
-          slide.appendChild(button);
-          group.appendChild(slide);
         });
         
-        container.appendChild(group);
+        container.appendChild(clone);
+        groups.push(clone);
       }
-      
-      this.innerHTML = '';
-      this.appendChild(container);
 
       // Initialize infinite scroll teleportation
       setTimeout(() => {
-        const groups = container.querySelectorAll('.substack-marquee-group');
-        if (groups.length < 5) return;
+        if (groups.length < 2) return;
         
-        const groupWidth = (groups[1] as HTMLElement).offsetLeft - (groups[0] as HTMLElement).offsetLeft;
-        // Start in the middle group (group 3, index 2)
-        container.scrollLeft = groupWidth * 2;
+        const groupWidth = groups[1].offsetLeft - groups[0].offsetLeft;
+        const middleIndex = Math.floor(groups.length / 2);
+        container.scrollLeft = groupWidth * middleIndex;
         
-        container.addEventListener('scroll', () => {
-          container.style.pointerEvents = 'none';
-          
+        let isDragging = false;
+        let startX = 0;
+        let scrollLeftStart = 0;
+
+        const handleInteractionEnd = () => {
           clearTimeout(this._scrollTimeout);
           this._scrollTimeout = setTimeout(() => {
             container.style.pointerEvents = '';
+            container.classList.remove('is-dragging');
             const currentPosition = container.scrollLeft;
-            const middlePosition = groupWidth * 2;
+            const middlePosition = groupWidth * middleIndex;
             const offset = currentPosition % groupWidth;
             
             // Snap if outside the middle zone
-            if (currentPosition < groupWidth * 1 || currentPosition > groupWidth * 3) {
+            if (currentPosition < groupWidth || currentPosition > groupWidth * (groups.length - 2)) {
               container.scrollTo({ left: middlePosition + offset, behavior: 'instant' });
             }
           }, 150);
+        };
+
+        container.addEventListener('scroll', () => {
+          if (!isDragging) {
+            container.style.pointerEvents = 'none';
+            handleInteractionEnd();
+          }
         }, { passive: true });
+        
+        container.addEventListener('touchstart', () => {}, { passive: true });
+        container.addEventListener('touchend', handleInteractionEnd, { passive: true });
+        container.addEventListener('touchcancel', handleInteractionEnd, { passive: true });
+
+        // Desktop Mouse Dragging
+        container.addEventListener('mousedown', (e) => {
+          isDragging = true;
+          startX = e.pageX - container.offsetLeft;
+          scrollLeftStart = container.scrollLeft;
+          container.classList.add('is-dragging');
+        });
+
+        container.addEventListener('mousemove', (e) => {
+          if (!isDragging) return;
+          e.preventDefault();
+          const x = e.pageX - container.offsetLeft;
+          const walk = (x - startX) * 1.5;
+          container.scrollLeft = scrollLeftStart - walk;
+        });
+
+        container.addEventListener('mouseup', () => {
+          if (isDragging) {
+            isDragging = false;
+            handleInteractionEnd();
+          }
+        });
+
+        container.addEventListener('mouseleave', () => {
+          if (isDragging) {
+            isDragging = false;
+            handleInteractionEnd();
+          }
+        });
         
         // Re-measure on resize
         this._resizeObserver = new ResizeObserver(() => {
-          // just force a re-snap by triggering a fake scroll
           container.dispatchEvent(new Event('scroll'));
         });
         this._resizeObserver.observe(container);
@@ -236,6 +294,15 @@
 
   .substack-gallery-container::-webkit-scrollbar {
     display: none;
+  }
+
+  .substack-gallery-container.is-dragging {
+    scroll-snap-type: none;
+    cursor: grabbing;
+  }
+  
+  .substack-gallery-container.is-dragging .substack-gallery-trigger {
+    pointer-events: none;
   }
 
   .substack-marquee-group {

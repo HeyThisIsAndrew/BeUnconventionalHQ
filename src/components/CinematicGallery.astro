@@ -73,6 +73,9 @@ const { items = [] } = Astro.props;
     private _animationFrame?: number;
     private _resizeObserver?: ResizeObserver;
     private _isTouching: boolean = false;
+    private _isDragging: boolean = false;
+    private _startX: number = 0;
+    private _scrollLeftStart: number = 0;
 
     constructor() {
       super();
@@ -80,7 +83,19 @@ const { items = [] } = Astro.props;
       const track = this.querySelector('.ig-carousel-track') as HTMLElement;
       if (!track) return;
       
-      const groups = Array.from(track.querySelectorAll('.ig-marquee-group'));
+      let groups = Array.from(track.querySelectorAll('.ig-marquee-group'));
+      if (groups.length === 0) return;
+      
+      // Dynamic Group Cloning (4K Fix)
+      // Ensure we have enough groups to safely loop on Ultrawide screens.
+      // We need the total track width to be at least 3x the viewport.
+      while (track.scrollWidth < window.innerWidth * 3 && groups.length < 20) {
+        const clone = groups[0].cloneNode(true) as HTMLElement;
+        clone.setAttribute('aria-hidden', 'true');
+        track.appendChild(clone);
+        groups.push(clone);
+      }
+      
       if (groups.length < 2) return;
       
       // Let images load before measuring
@@ -94,24 +109,22 @@ const { items = [] } = Astro.props;
         });
         this._resizeObserver.observe(track);
   
-        // Start in the middle (group 3 of 5, index 2)
-        let exactScrollLeft = groupWidth * 2;
+        // Start in the middle
+        let exactScrollLeft = groupWidth * Math.floor(groups.length / 2);
         track.scrollLeft = exactScrollLeft;
   
         const updateScroll = () => {
-          if (!isPaused && !this._isTouching) {
+          if (!isPaused && !this._isTouching && !this._isDragging) {
             exactScrollLeft += speed;
             
-            // Endless loop wrapper logic for animation (non-momentum)
-            if (exactScrollLeft >= groupWidth * 3) {
+            if (exactScrollLeft >= groupWidth * (groups.length - 2)) {
               exactScrollLeft -= groupWidth;
-            } else if (exactScrollLeft <= groupWidth * 1) {
+            } else if (exactScrollLeft <= groupWidth) {
               exactScrollLeft += groupWidth;
             }
             
             track.scrollLeft = exactScrollLeft;
           } else {
-            // Keep accumulator in sync with native scroll position
             exactScrollLeft = track.scrollLeft;
           }
           
@@ -120,56 +133,91 @@ const { items = [] } = Astro.props;
   
         this._animationFrame = requestAnimationFrame(updateScroll);
   
-        // A single, unified scroll handler for all interaction types (touch, wheel, momentum)
-        let scrollTimeout: ReturnType<typeof setTimeout>;
+        let interactionTimeout: ReturnType<typeof setTimeout>;
         
-        // Pause auto-scrolling as soon as the user touches the carousel
+        // Unified interaction end method
+        const handleInteractionEnd = () => {
+          clearTimeout(interactionTimeout);
+          interactionTimeout = setTimeout(() => {
+            this._isTouching = false;
+            this._isDragging = false;
+            isPaused = false;
+            track.classList.remove('is-scrolling');
+            
+            const currentPosition = track.scrollLeft;
+            const middlePosition = groupWidth * Math.floor(groups.length / 2);
+            const offset = currentPosition % groupWidth;
+            
+            if (currentPosition < groupWidth || currentPosition > groupWidth * (groups.length - 2)) {
+              exactScrollLeft = middlePosition + offset;
+              track.scrollTo({ left: exactScrollLeft, behavior: 'instant' });
+            }
+          }, 150);
+        };
+
+        // Touch handling
         track.addEventListener('touchstart', () => {
           isPaused = true;
           this._isTouching = true;
         }, { passive: true });
-        
-        track.addEventListener('touchend', () => {
-          // If no scroll happened (just a tap), we need to ensure it unpauses
-          clearTimeout(scrollTimeout);
-          scrollTimeout = setTimeout(() => {
-            this._isTouching = false;
-            isPaused = false;
-            track.classList.remove('is-scrolling');
-          }, 150);
-        }, { passive: true });
+        track.addEventListener('touchend', handleInteractionEnd, { passive: true });
+        track.addEventListener('touchcancel', handleInteractionEnd, { passive: true });
 
+        // Scroll handling
         track.addEventListener('scroll', () => {
-          // Whenever the user natively scrolls, pause the JS auto-scroller
-          isPaused = true;
-          this._isTouching = true;
-          
-          // Disable pointer events on the TILES (via CSS), not the track itself, 
-          // otherwise it instantly aborts the native swipe gesture on iOS!
-          track.classList.add('is-scrolling');
-          
-          exactScrollLeft = track.scrollLeft;
-
-          clearTimeout(scrollTimeout);
-          scrollTimeout = setTimeout(() => {
-            this._isTouching = false;
-            isPaused = false;
-            track.classList.remove('is-scrolling');
-            
-            // Once they completely stop scrolling (including momentum),
-            // seamlessly snap the infinite loop back to the middle zone
-            // to ensure we never hit the physical ends.
-            const currentPosition = track.scrollLeft;
-            const middlePosition = groupWidth * 2;
-            const offset = currentPosition % groupWidth;
-            
-            // Only snap if we're actually near an edge to minimize DOM updates
-            if (currentPosition < groupWidth * 1 || currentPosition > groupWidth * 3) {
-              exactScrollLeft = middlePosition + offset;
-              track.scrollTo({ left: exactScrollLeft, behavior: 'instant' });
-            }
-          }, 150); // 150ms after the last scroll event fires
+          if (!this._isDragging) {
+            isPaused = true;
+            this._isTouching = true;
+            track.classList.add('is-scrolling');
+            exactScrollLeft = track.scrollLeft;
+            handleInteractionEnd();
+          }
         }, {passive: true});
+
+        // Desktop Mouse Dragging
+        track.addEventListener('mousedown', (e) => {
+          this._isDragging = true;
+          isPaused = true;
+          this._startX = e.pageX - track.offsetLeft;
+          this._scrollLeftStart = track.scrollLeft;
+          track.classList.add('is-scrolling');
+        });
+
+        track.addEventListener('mousemove', (e) => {
+          if (!this._isDragging) return;
+          e.preventDefault();
+          const x = e.pageX - track.offsetLeft;
+          const walk = (x - this._startX) * 1.5;
+          track.scrollLeft = this._scrollLeftStart - walk;
+          exactScrollLeft = track.scrollLeft;
+        });
+
+        track.addEventListener('mouseup', () => {
+          if (this._isDragging) handleInteractionEnd();
+        });
+
+        track.addEventListener('mouseleave', () => {
+          isPaused = false;
+          if (this._isDragging) handleInteractionEnd();
+        });
+
+        // Hover Pause (Moving Target Fix)
+        track.addEventListener('mouseenter', () => {
+          if (!this._isDragging && !this._isTouching) {
+            isPaused = true;
+          }
+        });
+
+        // Desktop Wheel Translation
+        track.addEventListener('wheel', (e) => {
+          if (e.deltaY !== 0) {
+            e.preventDefault();
+            isPaused = true;
+            track.scrollLeft += e.deltaY;
+            exactScrollLeft = track.scrollLeft;
+            handleInteractionEnd();
+          }
+        }, { passive: false });
         
       }, 100);
     }
@@ -180,12 +228,16 @@ const { items = [] } = Astro.props;
     }
   }
     
-    if (!customElements.get('infinite-marquee')) {
-      customElements.define('infinite-marquee', InfiniteMarquee);
-    }
-  </script>
+  if (!customElements.get('infinite-marquee')) {
+    customElements.define('infinite-marquee', InfiniteMarquee);
+  }
+</script>
 
 <style>
+  infinite-marquee {
+    display: block;
+    width: 100%;
+  }
   /* 
     The wrapper fits standard layout, avoiding full-width bleed unless on small mobile.
     It contains the scrolling track.
