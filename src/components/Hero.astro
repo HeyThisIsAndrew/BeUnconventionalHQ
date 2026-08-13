@@ -314,8 +314,62 @@ import bannerImg from '../assets/banner.webp';
       /* Measure BEFORE hiding the scrollbar — afterwards this always reads 0. */
       const gutter = Math.max(0, window.innerWidth - root.clientWidth);
       root.style.setProperty('--splash-gutter', `${gutter}px`);
+
+      /*
+        PIN THE PAGE AT THE TOP *BEFORE* FREEZING IT. Do not remove.
+
+        `html.splash-armed { overflow: hidden }` does not move the document —
+        it freezes whatever offset the document already has. Arming is only
+        ever correct at the top, but on a refresh iOS Safari restores the
+        previous scroll position around first paint, racing the reset at the
+        top of this file. Lose that race and the curtain freezes the reader
+        mid-page: they cannot scroll up, and their next downward gesture is
+        read as the dismiss trigger, so the intro replays from a position the
+        page was never at. That is the reported regression.
+
+        Forcing the offset to 0 here makes the frozen offset the top BY
+        CONSTRUCTION, whatever the browser did a moment earlier. `scrollY < 4`
+        in shouldArm() is not sufficient on its own — it samples one instant,
+        and the restore can land after it.
+
+        Note this cannot be delegated to src/lib/scroll-lock.ts: that pins
+        <body> with `position: fixed`, which re-parents #app-wrapper's
+        containing block mid-animation and makes the browser drop the curtain's
+        transform transition outright (measured — see the note in splash.css).
+      */
+      const previousBehavior = root.style.scrollBehavior;
+      root.style.scrollBehavior = 'auto';
+      window.scrollTo(0, 0);
+      root.style.scrollBehavior = previousBehavior;
+
       root.classList.add('splash-armed');
     }
+
+    /*
+      SAFETY NET for the same race.
+
+      If the browser restores a scroll offset AFTER the curtain is already up,
+      the frozen offset is wrong and the reader is stuck. Rather than trust
+      that no engine ever does this, snap back to the top whenever the page
+      reports a non-zero offset while armed. Armed means "at the top", so this
+      can only ever correct a state that should not exist.
+
+      Passive, and a no-op in the normal case — while armed the document does
+      not scroll, so this listener never fires.
+    */
+    window.addEventListener(
+      'scroll',
+      () => {
+        if (!root.classList.contains('splash-armed')) return;
+        if (root.classList.contains('splash-lifting')) return; // mid-animation
+        if (window.scrollY === 0) return;
+        const behavior = root.style.scrollBehavior;
+        root.style.scrollBehavior = 'auto';
+        window.scrollTo(0, 0);
+        root.style.scrollBehavior = behavior;
+      },
+      { passive: true }
+    );
 
     function disarm() {
       root.classList.remove('splash-armed', 'splash-lifting', 'splash-dropping');

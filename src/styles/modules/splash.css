@@ -81,9 +81,23 @@
    scrolling without touching the animated element's layout.
 */
 html.splash-armed {
+  /*
+    `overflow: hidden` ONLY. Do not add `touch-action: none` back.
+
+    Overflow freezes the document at its CURRENT offset — it does not move it.
+    That is fine, because arm() in Hero.astro now scrolls to the top before
+    adding this class, so the frozen offset is the top by construction. What
+    is not fine is `touch-action: none`: it kills touch scrolling outright, so
+    on the one occasion the page IS frozen at the wrong offset (iOS Safari
+    restoring scroll on refresh, racing the reset) the reader has no way out
+    at all. It converted a recoverable glitch into a trap — reported twice as
+    "cannot scroll up, and scrolling down replays the intro".
+
+    Leave the scroll blocking to this single property, and leave getting the
+    offset right to arm(). scripts/splash-scroll-lock.test.mjs fails the build
+    if `touch-action` comes back or if the pin in arm() is removed.
+  */
   overflow: hidden;
-  /* iOS Safari ignores overflow: hidden on body, but touch-action: none prevents dragging without layout shifts */
-  touch-action: none;
 }
 
 
