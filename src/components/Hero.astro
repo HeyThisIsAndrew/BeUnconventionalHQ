@@ -11,20 +11,42 @@ import bannerImg from '../assets/banner.webp';
       history.scrollRestoration = 'manual';
     }
     
-    // Force aggressive scroll reset on hard reloads
+    /*
+      Reset the scroll position on a reload — INSTANTLY.
+
+      `html { scroll-behavior: smooth }` is set globally in global-base.css, so
+      a bare `window.scrollTo(0, 0)` does not jump, it ANIMATES. On a refresh
+      part-way down the page that turns the reset into a visible glide from the
+      restored offset up to the top, and because three resets fire in sequence
+      (here, on the next frame, and on pageshow) they interrupt and re-target
+      each other — then arm() jumps to 0 while an animation is still in flight,
+      producing the jarring up/down bounce this block is supposed to prevent.
+
+      Every reset on this path is forced to `auto` for the duration of the call.
+      `behavior: 'instant'` would be shorter but is not old-Safari safe, and the
+      save/restore below is the same pattern arm() and the lift use.
+    */
+    function jumpToTop() {
+      const root = document.documentElement;
+      const previousBehavior = root.style.scrollBehavior;
+      root.style.scrollBehavior = 'auto';
+      window.scrollTo(0, 0);
+      root.style.scrollBehavior = previousBehavior;
+    }
+
     const navEntries = performance.getEntriesByType ? performance.getEntriesByType('navigation') : [];
-    
+
     /** @type {any} */
     const p = window.performance;
     const legacyNav = p ? p.navigation : null;
-    const isReload = (navEntries.length > 0 && navEntries[0].type === 'reload') || 
+    const isReload = (navEntries.length > 0 && navEntries[0].type === 'reload') ||
                      (legacyNav && legacyNav.type === 1);
-                     
+
     if (isReload) {
-      window.scrollTo(0, 0);
-      requestAnimationFrame(() => window.scrollTo(0, 0));
+      jumpToTop();
+      requestAnimationFrame(jumpToTop);
       // Fallback for Safari which occasionally restores scroll after the first paint
-      window.addEventListener('pageshow', () => window.scrollTo(0, 0), { once: true });
+      window.addEventListener('pageshow', jumpToTop, { once: true });
     }
   </script>
   <div class="hero-bg" aria-hidden="true">

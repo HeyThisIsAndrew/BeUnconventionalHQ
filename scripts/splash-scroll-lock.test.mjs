@@ -121,6 +121,45 @@ test('a while-armed safety net snaps a stray offset back to the top', () => {
   );
 });
 
+console.log('\nEvery reset must JUMP, never animate:');
+
+test('no window.scrollTo() in Hero.astro can animate by accident', () => {
+  /*
+    global-base.css sets `html { scroll-behavior: smooth }` for the whole site,
+    so `window.scrollTo(0, 0)` does not jump — it ANIMATES from wherever the
+    document currently is. On a refresh part-way down the homepage that turned
+    the reset into a visible glide, and three of them firing in sequence (plus
+    arm()'s own instant jump landing mid-flight) read as a jarring up/down
+    bounce before the reader was dumped at the top.
+
+    A call is safe only if it either states its behavior explicitly or runs
+    with scroll-behavior pinned to `auto`. Anything else is a latent animation.
+  */
+  const source = withoutComments(hero);
+  const offenders = [];
+
+  for (const match of source.matchAll(/window\.scrollTo\(/g)) {
+    const call = source.slice(match.index, source.indexOf(')', match.index) + 1);
+    if (/behavior\s*:/.test(call)) continue; // explicit — smooth or instant, the author chose
+
+    // Otherwise the surrounding block must have pinned scroll-behavior first.
+    const preamble = source.slice(Math.max(0, match.index - 400), match.index);
+    if (/scrollBehavior\s*=\s*['"]auto['"]/.test(preamble)) continue;
+
+    const line = source.slice(0, match.index).split('\n').length;
+    offenders.push(`line ~${line}: ${call}`);
+  }
+
+  assert.deepEqual(
+    offenders,
+    [],
+    'these calls inherit the global `scroll-behavior: smooth` and will animate. ' +
+      "Wrap them in the save/`= 'auto'`/restore pattern used elsewhere in this " +
+      'file, or pass an explicit behavior:\n    ' +
+      offenders.join('\n    ')
+  );
+});
+
 console.log('\nThe rejected approach stays rejected:');
 
 test('the shared scroll lock is not used to hold the curtain', () => {
