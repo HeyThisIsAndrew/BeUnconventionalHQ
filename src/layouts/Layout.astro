@@ -5,7 +5,6 @@ import '../styles/theme-red.css';
 import Footer from '../components/Footer.astro';
 import Navbar from '../components/Navbar.astro';
 import BrandGlow from '../components/BrandGlow.astro';
-import ContactModal from '../components/ContactModal.astro';
 import { site } from '../data/site.js';
 import { ClientRouter } from 'astro:transitions';
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
@@ -288,14 +287,15 @@ const fallbackMark = await getImage({
     </div>
     {/*
       ─── TURNSTILE LOADS ONCE, HERE ────────────────────────────────────────
-      It used to be requested by each form that needed it — ContactModal and
+      It used to be requested by each form that needed it — the (since
+      removed) contact modal and
       SubscribeBox as plain `api.js`, NewsletterForm as `api.js?render=explicit`
       — so any page carrying both (/, /events, /featured) fetched the API twice
       from two different URLs.
 
       That is not just a duplicate request. `render=explicit` is a GLOBAL
       switch: when the API is loaded that way it stops scanning the DOM for
-      implicit `.cf-turnstile` widgets. ContactModal and SubscribeBox both rely
+      implicit `.cf-turnstile` widgets. SubscribeBox relies
       on that scan, so whichever tag happened to win the race decided whether
       the contact form got a widget at all — and with no widget its submit
       button stays disabled and the form cannot be sent.
@@ -317,7 +317,7 @@ const fallbackMark = await getImage({
 
       That also fixes what this comment used to record as KNOWN, NOT FIXED:
       the implicit scan runs once, when the script loads, so with ClientRouter
-      a client-side navigation left ContactModal and SubscribeBox with fresh
+      a client-side navigation left SubscribeBox with fresh
       unrendered elements and no widget until a full reload. Deferring the
       load would have made that permanent, so every widget is now rendered
       EXPLICITLY — including on `astro:page-load`. The components keep their
@@ -331,7 +331,6 @@ const fallbackMark = await getImage({
       </script>
     )}
 
-    <ContactModal />
     <slot name="modals" />
 
     <!-- Unified Video Modal -->
@@ -762,18 +761,6 @@ const fallbackMark = await getImage({
           successContainer.classList.add('hidden');
           const iframe = document.getElementById('hidden_iframe') as HTMLIFrameElement | null;
           if (iframe) iframe.src = 'about:blank';
-        }
-        const contactModal = document.getElementById('contact-modal');
-        if (contactModal) {
-          const formContainer = document.getElementById('form-container');
-          if (formContainer && !formContainer.classList.contains('hidden')) {
-            formContainer.classList.add('hidden');
-            const form = document.getElementById('contact-modal-form') as HTMLFormElement | null;
-            form?.reset();
-          }
-          document
-            .getElementById('modal-form-status')
-            ?.classList.remove('is-visible');
         }
         const calendarModal = document.getElementById('spanning-calendar-modal');
         if (calendarModal) {

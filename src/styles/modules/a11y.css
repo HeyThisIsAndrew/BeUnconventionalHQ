@@ -42,3 +42,73 @@
     transition: none;
   }
 }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   TOUCH TARGET SIZE (WCAG 2.5.8, AA)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/*
+  A handful of text links render shorter than the 24px minimum a finger needs:
+  the footer's Explore/Privacy links at 19px and 18px, `.article-tag` at 16px,
+  `.view-all-link` at 19-22px, `.intel-break-link` at 21px, `.notfound-link`
+  at 23px, and `.hero-read-more` at 20px. Their WIDTHS are all fine — only the
+  line box is too short.
+
+  Fixed with an invisible `::before` overlay rather than padding, because
+  padding would grow the boxes and push the footer rows apart. An absolutely
+  positioned pseudo-element takes part in hit-testing but takes NO part in
+  layout, so every one of these targets clears 24px with the design pixel-for-
+  pixel unchanged.
+
+  `::before` specifically: `::after` is already the animated red underline on
+  `.view-all-link`, `.intel-break-link` and `.footer-nav ul li a`, and reusing
+  it would silently delete those underlines.
+
+  Only the BLOCK axis is expanded. These links sit in horizontal rows (the
+  footer's Explore list) or on their own line, so growing them vertically
+  cannot overlap a neighbour and steal its taps — growing them horizontally
+  could, and is why this is `inset-block` and not `inset`.
+*/
+.footer-nav ul li a,
+.footer-privacy-link,
+.article-tag,
+.view-all-link,
+.intel-break-link,
+.notfound-link,
+.hero-read-more {
+  position: relative;
+}
+
+.footer-nav ul li a::before,
+.footer-privacy-link::before,
+.article-tag::before,
+.view-all-link::before,
+.intel-break-link::before,
+.notfound-link::before,
+.hero-read-more::before {
+  content: '';
+  position: absolute;
+  /* 19px + 5px + 5px = 29px; the shortest (16px tag) reaches 26px. */
+  inset-block: -5px;
+  inset-inline: 0;
+  /* Hit area only — never paints, never affects layout. */
+  background: none;
+  pointer-events: auto;
+}
+
+/* The media kit's contact lines render at 11px, so they need a deeper
+   expansion than the 5px above to clear 24px (11 + 7 + 7 = 25px). They are
+   separate stacked blocks with generous spacing, so there is nothing directly
+   above or below to collide with. */
+.footer-item a {
+  position: relative;
+}
+
+.footer-item a::before {
+  content: '';
+  position: absolute;
+  inset-block: -7px;
+  inset-inline: 0;
+  background: none;
+  pointer-events: auto;
+}

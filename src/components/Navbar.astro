@@ -44,9 +44,8 @@ const isActive = (href: string) =>
           navItems.map((item) => (
             <li class="nav-item">
               <a
-                href={item.href === 'contact' ? '#contact' : `/${item.href}`}
+                href={`/${item.href}`}
                 class:list={[{ active: isActive(item.href) }]}
-                data-modal-trigger={item.href === 'contact' ? 'contact' : undefined}
               >
                 {item.label}
               </a>
@@ -227,9 +226,7 @@ const isActive = (href: string) =>
       const navLinks = navbar.querySelectorAll('.nav-list a');
         navLinks.forEach((link) => {
           if (!link.dataset.mobileClickBound) {
-            link.addEventListener('click', (e) => {
-              const isModalTrigger = !!e.target.closest('[data-modal-trigger]');
-
+            link.addEventListener('click', () => {
               if (navbar.classList.contains('menu-open')) {
                 navbar.classList.remove('menu-open');
                 toggle.setAttribute('aria-expanded', 'false');
@@ -241,8 +238,6 @@ const isActive = (href: string) =>
                     window.__hqScrollLock.unlock();
                   }
                 }
-
-                if (isModalTrigger) return;
               }
           });
           link.dataset.mobileClickBound = 'true';
