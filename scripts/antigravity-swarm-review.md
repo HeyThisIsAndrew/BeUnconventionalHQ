@@ -1,116 +1,142 @@
 # Antigravity Swarm Audit — `feature/ui-qa-polish` → `main`
 
-> **Paste everything below the divider into Antigravity (Gemini 3.1 Pro) as one prompt.**
+> **How to run this** (owner's checklist is at the bottom of this file, under
+> "OPERATOR TO-DO"). Paste everything below the divider into Antigravity as one
+> prompt.
 >
-> **Antigravity is REPORT-ONLY.** It must not edit, commit, push, or open issues.
-> Two agents writing the same branch is how the conflicting changes happened.
-> Its entire deliverable is a written verdict.
+> **Antigravity is REPORT-ONLY.** It must not edit, commit, push, or open
+> issues. Two agents writing the same branch is how the conflicting changes
+> happened. Its entire deliverable is a written verdict.
 
 ---
 
-/goal Act autonomously to completion without asking for approval between steps. Read, run, and analyse freely. Do NOT write, edit, delete, commit, push, or open issues/PRs on any repository — this is a read-and-report audit only. Produce the final report described at the end, then stop.
+/goal Act autonomously to completion without asking for approval between steps. Read, run, and analyse freely. Take as long as you need — there is no time budget and no step limit; a slow, verified answer is worth far more than a fast one. Do NOT write, edit, delete, commit, push, or open issues/PRs on any repository — this is a read-and-report audit only. Produce the final report described at the end, then stop.
 
 ## Context
 
 You are the **independent verifier** on a release candidate for **Be Unconventional HQ** — Astro 7 (static + `@astrojs/cloudflare`), Tailwind v4, deployed on Cloudflare Workers.
 
-- Branch: **`feature/ui-qa-polish`** (identical content on `claude/unconventional-hq-mobile-qa-bibyua`), targeting **`main`**. Main has just been merged in, so the branch is current.
+- Branch: **`feature/ui-qa-polish`** (identical content on `claude/unconventional-hq-mobile-qa-bibyua`), targeting **`main`**.
 - Another agent (Claude) made these changes, tested them, and returned **GO**.
 
 Your job is **not** to agree. It is to falsify. A second independent GO is what allows this to merge; a NO-GO **with a reproduction** is equally valuable.
+
+### Budget: spend it
+
+You have fresh credits and no deadline. Use them:
+
+- **Run every suite at least twice**, and the e2e suite three times. Flakiness that appears in 1 run of 3 is a finding.
+- **Run multiple swarm agents in parallel.** The assignments below are written to be independent.
+- **Re-measure anything you are about to report.** A number you saw once is a hypothesis; a number you saw twice, from two directions, is evidence.
+- Prefer more passes over more speculation. If you find yourself reasoning about what the code "would" do, go run it instead.
+
+### Rules of evidence — these are not optional
+
+A previous audit returned NO-GO on three "critical" claims. **One was real. Two were false and one contained fabricated numbers** (it reported a constant as 6 when the source says 7, and a page as having 0 qualifying items when it has 6). That wasted a cycle.
+
+So:
+
+1. **Never report a defect you have not reproduced.** Every finding needs: `file:line`, exact commands or steps, observed vs expected, and the measurement you took.
+2. **Quote real values.** If you cite a constant, paste the line. If you cite a measurement, paste the number your tooling produced. Do not paraphrase from memory.
+3. **A claim you could not test is not a claim you verified.** Say so explicitly.
+4. **Distinguish "pre-existing" from "introduced by this branch."** Diff against `main`, not against the branch point — that distinction has already produced one wrong conclusion here.
+5. **Check your own measurement's preconditions before believing it.** Three false failures in this work came from sampling a moving target: the navbar's return transition runs 500ms on a 300ms delay, so anything measured before ~900ms after the splash lifts reads a bar that is still translated off-screen at y=-81. If a result surprises you, dump the geometry and the class list at the moment you sampled, and check the element was where you think it was.
+6. If you disagree with Claude, **show the measurement**, not the reasoning alone.
 
 ### Read this first
 
 `CLAUDE.md` at the repo root encodes constraints learned the expensive way — calendar dates as strings, the protected `HeroTrailer.astro`, no `overflow: hidden` above a YouTube iframe, never `iframe.src = ''`, no `filter: drop-shadow` on `<img>`, the three field classes in `videos.json`. **Check the diff against every one of them.**
 
-### Rules of evidence — these are not optional
-
-The previous audit returned NO-GO on three "critical" claims. **One was real. Two were false and one contained fabricated numbers** (it reported a constant as 6 when the source says 7, and a page as having 0 qualifying items when it has 6). That wasted a cycle and nearly blocked a good release.
-
-So:
-
-1. **Never report a defect you have not reproduced.** Every finding needs: file:line, exact commands or steps, observed vs expected, and the measurement you took.
-2. **Quote real values.** If you cite a constant, paste the line. If you cite a measurement, paste the number your tooling produced. Do not paraphrase from memory.
-3. **A claim you could not test is not a claim you verified.** Say so explicitly.
-4. **Distinguish "pre-existing" from "introduced by this branch."** Diff against `main`, not against the branch point — that distinction has already produced one wrong conclusion in this project.
-5. If you disagree with Claude, **show the measurement**, not the reasoning alone.
-
 ## What changed — the claims to falsify
 
 Read the whole diff: `git log --oneline main..feature/ui-qa-polish` and `git diff main...feature/ui-qa-polish`.
 
-**Five device-reported bugs were fixed, and three of them were the same underlying pattern: interaction blocked on state that can be wrong.** That pattern is your highest-yield hunting ground.
+**Seven device-reported bugs were fixed. Three shared one pattern — interaction blocked on state that can be wrong — and three more were scroll/hit-testing behaviour that Chromium cannot reproduce.** Those two clusters are your highest-yield hunting ground.
 
 1. **Phone stuck in landscape.** A closed full-screen overlay still received touches. `.nav-container` is fixed, full-width, 100dvh on every page; making it scrollable made it a composited layer, and iOS routes touches to it while invisible. Fixed with `pointer-events: none` when closed.
 2. **iPad navbar untappable.** Same class: `#video-modal` (mounted by `Layout.astro` on *every* route, z-index 300, above the navbar's 100) and `#qr-modal` on `/links` were hidden but still `pointer-events: auto`. Guarded, plus `scripts/e2e-phantom-overlay.test.mjs` enforces the invariant across 12 routes.
 3. **iPad carousel: tiles at both ends could never be opened.** The tap-to-centre handler gated links on `.is-active`, which requires crossing the track's horizontal centre — impossible for the end tiles. 4 of 10 dead in iPad landscape. Gate is visibility now; `scripts/e2e-carousel-rail.test.mjs` dispatches real clicks at five widths including tablets.
-4. **Splash trap on refresh.** `html.splash-armed { overflow: hidden }` freezes whatever offset the document has; iOS restores scroll on refresh and races the reset, so the reader was frozen mid-page, and `touch-action: none` removed the escape. `arm()` now scrolls to top *before* freezing, plus a while-armed safety net; `scripts/splash-scroll-lock.test.mjs` is a static guard.
+4. **Splash trap on refresh.** `html.splash-armed { overflow: hidden }` freezes whatever offset the document has; iOS restores scroll on refresh and races the reset, so the reader was frozen mid-page, and `touch-action: none` removed the escape. `arm()` now scrolls to top *before* freezing, plus a while-armed safety net.
+5. **Jarring up/down glide on refresh.** `html { scroll-behavior: smooth }` is global, so the reload path's three resets did not jump — they *animated*. Measured at 390×844: a bare `scrollTo(0,0)` from 1500 passes through **25** distinct intermediate positions; pinned to `auto` it reports **1**.
+6. **The `scroll-behavior` opt-out never applied — six call sites.** Setting `root.style.scrollBehavior = 'auto'` only marks style dirty; with no recalc before the scroll, `scrollTo()` still reads `smooth`. Measured, jumping 390→0, scrollY on the next frame: pin only → **390**; pin + forced recalc → **0**. Extracted to `src/lib/scroll-to.ts` (`jumpTo()`), which pins, forces the recalc, then scrolls. Then: one-shot resets could still be beaten by a late scroll restore, so the reload path now HOLDS the top as a condition (releasing on the first real input). Before: every restore timing painted 8–16 frames at the old offset, one was never corrected. After: 0.
+7. **Landscape corner controls unpressable (iPhone, multiple tabs).** The reporter's own diagnosis: it stops the moment every other tab is closed, and *"the user has to tap just beneath each icon for it to actually press."* Safari's landscape tab bar collapses/expands on scroll, resizing the web view; iOS leaves fixed elements hit-tested at the old coordinates. Fixes: `src/lib/viewport-anchor.ts` re-resolves fixed controls on `visualViewport` resize/scroll; landscape clearance (navbar `padding-top` 0.4rem→1.15rem, control 44px→56px tall with the glyph unchanged); invisible `::before` expansion down and inward; `touch-action: manipulation`.
 
-5. **Jarring glide on refresh.** Related to 4 but a separate defect: `html { scroll-behavior: smooth }` is global, so the three resets on the reload path in `Hero.astro` did not jump — they *animated* from the restored offset to the top, re-targeting each other, with `arm()`'s instant jump landing mid-flight. Measured at 390×844: a bare `scrollTo(0, 0)` from 1500 passes through **25** distinct intermediate positions; pinned to `auto` it reports **1**. All resets now go through `jumpToTop()`, and `splash-scroll-lock.test.mjs` fails any `window.scrollTo()` in `Hero.astro` that neither states a behavior nor pins one first. **Re-measure this yourself, and audit every other `scrollTo` on the site for the same latent animation.**
-
-Also in scope: Instagram topic qualification (`src/lib/instagram-topic.ts`, `HUB_CAROUSEL_MIN_TILES`), hover de-flicker on carousel tiles and YouTube embeds, Featured row width, contact-modal removal, invisible `::before` touch-target expansion, and a median-of-3 Lighthouse gate.
+Also in scope: Instagram topic qualification (`src/lib/instagram-topic.ts`, `HUB_CAROUSEL_MIN_TILES`), hover de-flicker, Featured row width, contact-modal removal, and a median-of-3 Lighthouse gate.
 
 ## Swarm assignments
 
-Run these in parallel. Each returns findings with file:line and a reproduction. **Fix nothing.**
+Run these in parallel. Each returns findings with `file:line` and a reproduction. **Fix nothing.**
 
 ### Agent 1 — Chaos / state-corruption (highest priority)
 
-Every bug this session came from a component reaching a state its author did not anticipate. Try to produce those states.
+Every bug this session came from a component reaching a state its author did not anticipate. Produce those states.
 
 - **Overlay chaos:** open and close the mobile menu, category overlay, video modal and calendar rapidly and in overlapping sequences. Open one from inside another. Rotate mid-animation. Navigate (ClientRouter) with an overlay open. Hit browser Back with one open. Verify the scroll lock's reference count always returns to zero — a stuck lock leaves the page pinned. `src/lib/scroll-lock.ts`.
-- **Refresh × scroll position:** reload at the very top, mid-page, at the very bottom, and mid-splash-animation, on `/` and on interior routes. Then try to scroll **up**. This is bug 4's family; it has shipped three times.
-- **Orientation churn:** rotate repeatedly with the menu open, with the carousel mid-scroll, and during the splash lift.
+- **Refresh × scroll position:** reload at the very top, mid-page, at the very bottom, and mid-splash-animation, on `/` and interior routes. Then try to scroll **up**. This family has shipped four times.
+- **The top-guard's release path specifically.** After a reload the page holds itself at the top until the first touch/pointer/wheel/key, or 3s. Try to catch it fighting a real scroll: flick immediately on load, flick at 2.9s, start a momentum scroll and reload mid-flight, scroll with a stylus/trackpad, scroll via keyboard only. A page that fights the reader is a worse bug than the one it fixes.
+- **Orientation churn:** rotate repeatedly with the menu open, the carousel mid-scroll, and during the splash lift.
 - **Back/forward:** traverse in and out of the homepage repeatedly; the splash must not arm on a back-navigation to a scrolled position.
-- **Throttling:** 4x CPU slowdown and slow-3G. Race conditions hide behind fast machines — the splash bug is exactly a race.
+- **Throttling:** 4x CPU slowdown and slow-3G. The splash bug is a race; races hide behind fast machines.
 - **Reduced motion:** `prefers-reduced-motion: reduce` through every animated path.
 - **Double/triple tap** on carousel tiles, nav links and CTAs; **long-press**; **two-finger** scroll.
 
 ### Agent 2 — UI/UX and visual regression
 
-- Every route at 320 / 390 / 430 / 768 / 834 / 1024 / 1366 / 1440 / 1920 / 2560, **portrait and landscape**. Tablet widths are explicitly required: bug 3 lived there and nothing else in the suite looked.
+- Every route at 320 / 390 / 430 / 768 / 834 / 956 / 1024 / 1366 / 1440 / 1920 / 2560, **portrait and landscape**. Tablet and landscape-phone widths are explicitly required: bugs 3 and 7 lived there.
+- **The landscape header got taller** (`padding-top` 0.4rem→1.15rem, `padding-bottom` 0.4rem→1rem, toggle 44→56px). Judge it: does the short landscape viewport still work? Is the hero still legible? Does anything clip or collide that did not before? This was a deliberate trade — say if it was the wrong one.
 - Horizontal overflow, clipped or overlapping content, broken grids, inconsistent gutters, layout shift.
-- Typography consistency: the two Instagram rail labels must share family, weight, letter-spacing ratio, colour and uppercase treatment (size may differ). Headings, buttons and links consistent across surfaces.
+- Typography: the two Instagram rail labels must share family, weight, letter-spacing ratio, colour and uppercase treatment (size may differ).
 - Confirm the Featured row aligns with the Subscribe box, and that `/events` and `/feed` are unchanged.
-- Hover states on a real pointer: park the cursor **on the edge** of Instagram tiles and in-article YouTube embeds and watch for flicker — the failure was an oscillation loop at frame rate, only visible at the boundary.
-- Verify touch targets, accounting for the invisible `::before` expanders in `src/styles/modules/a11y.css` — measuring the layout box alone will under-report.
+- Hover states on a real pointer: park the cursor **on the edge** of Instagram tiles and in-article YouTube embeds and watch for flicker — the failure was an oscillation at frame rate, visible only at the boundary.
 
-### Agent 3 — E2E, unit and type checks
+### Agent 3 — Touch targets and the corner controls (bug 7)
 
-- `npm ci`, then `npx astro check` (report the exact error/warning/**hint** counts; the bar is zero new, and hints count), `npm test`, `npm run test:e2e` (13 suites), `npm run build`.
-- **Then do the thing that matters most: verify the new tests can actually fail.** Two tests written this session initially passed against a deliberately reintroduced bug because they measured the wrong thing. For each of `e2e-phantom-overlay`, `e2e-carousel-rail` and `splash-scroll-lock` (including its new "must JUMP, never animate" case): reintroduce the original defect in a scratch copy, rebuild, and confirm the test fails. A test that cannot fail is worse than no test — it is false confidence. Report any that do not.
-- Check for flakiness: run the e2e suite twice. Note anything order-dependent or timing-dependent.
+- Read `src/styles/modules/a11y.css` (corner-controls section), `landscape.css`, `src/lib/viewport-anchor.ts`, `scripts/e2e-corner-controls.test.mjs`.
+- **Hit-test the real pixels.** At 956×440, 932×430 and 844×390, walk a grid over `.nav-toggle` (menu closed AND open), `.modal-close` and `.close-fullscreen-btn`, using `document.elementsFromPoint`. Report the effective area and how far it extends in each direction.
+- **The trade to audit:** the hit band extends below the glyph. It must NOT reach past the navbar's opaque box onto page content — an invisible target stealing a real control's taps is worse than the bug. Verify on every route, not just the five the test covers. **Wait ≥900ms after the splash lifts before sampling** or you will measure a bar that is still off-screen.
+- Try to construct a viewport where the band spills: very short viewports, large text/zoom settings, `text-size-adjust`, 200% browser zoom.
+- **If you have real iOS Safari, this is the single most valuable thing you can bring.** Test with 3+ tabs open, in landscape, scrolling until the tab bar collapses. Report whether the icons are now pressable ON the glyph, and if not, measure how far below the glyph the working point is.
 
-### Agent 4 — Instagram topic qualification
+### Agent 4 — E2E, unit and type checks
 
-- Read `src/lib/instagram-topic.ts`, `src/lib/instagram.ts`, `InstagramFeed.astro`, both hub `[slug].astro` pages.
-- Independently recompute from `src/data/instagram.json` and `src/data/videos.json` which posts qualify for DC, Marvel, SDCC and D23. **Paste your counts.**
-- Verify: DC renders no carousel; Marvel's tiles are genuinely Marvel (check the actual caption evidence per tile); unrelated posts cannot pad a short row; an empty keyword list qualifies nothing rather than falling through to the global feed; the homepage rail is unaffected.
-- Try to construct a caption that wrongly qualifies or wrongly fails.
-- Confirm `HUB_CAROUSEL_MIN_TILES` and its derivation. Quote the line.
+- `npm ci`, then `npx astro check` (report exact error/warning/**hint** counts; the bar is zero new), `npm test`, `npm run test:e2e` (16 suites), `npm run build`.
+- **Then the thing that matters most: verify the new tests can actually fail.** Several tests written in this work initially passed against a deliberately reintroduced bug because they measured the wrong thing. For each of `e2e-phantom-overlay`, `e2e-carousel-rail`, `e2e-reload-scroll`, `e2e-corner-controls`, `e2e-viewport-anchor` and `splash-scroll-lock`: reintroduce the original defect in a scratch copy, rebuild, and confirm the test fails **with a message that names the real problem**. Report any that do not.
+- Run the e2e suite **three times**. Note anything order-dependent or timing-dependent.
 
-### Agent 5 — Accessibility
+### Agent 5 — Instagram topic qualification AND its performance cost
 
-- Keyboard-only pass over every overlay and the carousel: focus order, focus visibility, focus trapping, Escape, and focus return on close.
-- **Known and deliberately open:** full focus-trapping is not implemented on all overlays. Report it as a gap, not as a regression.
-- Verify Escape closes the mobile menu (added this session), the calendar close button has a visible focus ring, and `CategoryOverlay` declares `role="dialog"`.
+The owner reports you previously flagged that the way Instagram images are pulled in will aggressively impact Lighthouse. **Re-establish that claim with measurements, or withdraw it.**
+
+- Read `src/lib/instagram-topic.ts`, `src/lib/instagram.ts`, `InstagramFeed.astro`, both hub `[slug].astro` pages, and the `/api/proxy` route.
+- Independently recompute from `src/data/instagram.json` and `src/data/videos.json` which posts qualify for DC, Marvel, SDCC and D23. **Paste your counts.** Confirm `HUB_CAROUSEL_MIN_TILES` and quote the line.
+- Verify: DC renders no carousel; Marvel's tiles are genuinely Marvel (caption evidence per tile); unrelated posts cannot pad a short row; an empty keyword list qualifies nothing; the homepage rail is unaffected.
+- **The performance claim, measured:** Instagram tiles are served full-resolution through `/api/proxy` with **no `srcset`**, unlike every other host (resized WebP via wsrv.nl). Quantify it: total bytes for the rail, largest single image, decoded size vs displayed size, effect on LCP and on the Performance score with and without the rail present. State the delta in points. Claude investigated this and concluded it is **not** what fails the Lighthouse gate — confirm or refute **with numbers**, and say which pages are affected.
+
+### Agent 6 — Accessibility
+
+- Keyboard-only pass over every overlay and the carousel: focus order, visibility, trapping, Escape, focus return on close.
+- **Known and deliberately open:** full focus-trapping is not implemented on all overlays. Report as a gap, not a regression.
+- Verify Escape closes the mobile menu, the calendar close button has a visible focus ring, `CategoryOverlay` declares `role="dialog"`.
+- **`touch-action: manipulation` was added to three controls.** Confirm it does NOT disable pinch-zoom anywhere, and that the viewport meta still has no `maximum-scale` / `user-scalable=no`. Zoom to 500% and navigate.
 - Screen-reader semantics on the Instagram rail: the left label must not be announced as interactive; the right one must be.
-- Headings: exactly one `<h1>` per page and no skipped levels. **`/category/*` legitimately has none** — they are `noindex` meta-refresh redirect shims.
+- Headings: exactly one `<h1>` per page, no skipped levels. **`/category/*` legitimately has none** — they are `noindex` meta-refresh redirect shims.
 
-### Agent 6 — Performance and build integrity
+### Agent 7 — Performance and build integrity
 
-- `npm run lighthouse` and `npm run lighthouse:desktop`. Report every number.
+- `npm run lighthouse` and `npm run lighthouse:desktop`. Report every number, every run.
 - Scrutinise the median-of-3 confirmation in `scripts/lighthouse-check.mjs`: does it still fail a genuine reproducible regression, or has it been weakened into a way to hide one? Confirm the **worst** sample is written to the artifact.
+- **New JS this branch adds:** `src/lib/scroll-to.ts` and `src/lib/viewport-anchor.ts`. The latter binds `visualViewport` resize/scroll and does a forced layout read per control. Measure its cost during sustained scrolling — is it causing layout thrash? Report frame times with and without it.
+- The reload path's top-guard adds a scroll listener for up to 3s after every reload. Measure its cost.
 - Check for new render-blocking resources, CLS, and oversized images.
-- Note: Instagram tiles are served full-resolution through `/api/proxy` with no `srcset`, unlike every other host (which gets resized WebP via wsrv.nl). This is a known payload inefficiency, investigated and found **not** to be what fails the Lighthouse gate. Confirm or refute — with measurements.
 
 ## Environment notes — do not report these as defects
 
 - `npm ci` first. Node 22.
-- **External image hosts** (`cdninstagram.com`, `i.ytimg.com`, `wsrv.nl`, `qrserver.com`) may be blocked in your sandbox. Broken images and `ERR_TUNNEL_CONNECTION_FAILED` console noise from those hosts are environmental. Do note if they prevented you from verifying something.
+- **External image hosts** (`cdninstagram.com`, `i.ytimg.com`, `wsrv.nl`, `qrserver.com`) may be blocked in your sandbox. Broken images and `ERR_TUNNEL_CONNECTION_FAILED` from those hosts are environmental — but note if they prevented you from verifying something, especially for Agent 5's payload numbers.
 - The Substack article sync may fail without network; it degrades to empty **by design**.
 - `npm run test:e2e` needs ports 4321/4323/4324/4325 free. Kill stray `workerd` / `astro preview` first.
-- **If you have WebKit/Safari, say so and use it.** Every iOS fix here is verified by construction and in Chromium only — Chromium hit-tests hidden overlays correctly and resets scroll on reload, so it cannot reproduce two of the five original bugs. Real Safari is the single most valuable thing you can bring.
+- The newsletter e2e suite talks to the network and can fail spuriously in a sandbox; re-run before reporting it.
+- **If you have WebKit/Safari, say so and use it.** Every iOS fix here is verified by construction and in Chromium only. Chromium hit-tests hidden and fixed elements correctly and resets scroll on reload, so it cannot reproduce four of the seven original bugs. Real Safari is the single most valuable thing you can bring.
 
 ## Required output
 
@@ -118,11 +144,30 @@ Report only. No code changes, no commits, no issues.
 
 1. **VERDICT: GO or NO-GO** — first line.
 2. **Confidence** (high/medium/low) and what would raise it.
-3. **Blocking defects** — for each: file:line, reproduction steps, observed vs expected, the measurement, and which claim it falsifies. Mark each **introduced by this branch** or **pre-existing on main** (diff against main to decide).
+3. **Blocking defects** — each with `file:line`, reproduction steps, observed vs expected, the measurement, and which claim it falsifies. Mark each **introduced by this branch** or **pre-existing on main**.
 4. **Non-blocking findings**, ranked.
-5. **Tests that cannot fail** — any of the three new tests that still passed with the defect reintroduced.
-6. **Claims you could NOT verify**, and why. State plainly whether you tested real iOS Safari.
-7. **Disagreements with Claude**, each with the measurement behind it.
-8. **Numbers**: build, `astro check` (errors/warnings/hints), unit, e2e, both Lighthouse runs.
+5. **Tests that cannot fail** — any of the six that still passed with the defect reintroduced.
+6. **The Instagram/Lighthouse claim** — restated with numbers, or withdrawn.
+7. **Claims you could NOT verify**, and why. State plainly whether you tested real iOS Safari, and with how many tabs open.
+8. **Disagreements with Claude**, each with the measurement behind it.
+9. **Numbers**: build, `astro check` (errors/warnings/hints), unit, e2e ×3, both Lighthouse runs.
 
 Be adversarial and specific. "Looks fine" is not a finding; neither is a defect without a reproduction. If you believe this is safe to merge, say GO and say why you are confident.
+
+---
+
+## OPERATOR TO-DO — how to run this
+
+**Model:** use **Gemini 3.1 Pro**. It is the stronger reasoner of the two available and this is an analysis job, not a code-writing job. Do **not** switch to the Claude agent in Antigravity — the whole point is an independent second opinion, and a second Claude checking the first Claude's work is worth much less to you.
+
+1. **Pull the branch in Antigravity:** `feature/ui-qa-polish`. Confirm it is at commit `475e4b4` or later.
+2. **Paste the prompt** — everything between the two `---` dividers above, starting at `/goal`.
+3. **Let it run.** It is told it has no time budget. Expect a long run if it is doing the job properly; a fast answer is a warning sign, not a good sign.
+4. **When it reports back, paste the whole report to me.** Do not act on it yourself — the last audit's report contained two false criticals and one fabricated number, and I will need to verify each finding against the code before anything changes.
+5. **What I need from you in parallel** (only you can do these — no sandbox has a real iPhone):
+   - Landscape, **3+ tabs open**, scroll until the tab bar collapses: are the hamburger and X now pressable **on** the glyph? If still not, tell me roughly how far below the glyph the working point is — "half an icon", "a whole icon" — that number is the fix.
+   - Same in **portrait** with multiple tabs, to confirm nothing regressed there.
+   - The taller landscape header: does it look right to you, or has it eaten too much of the screen?
+   - Refresh mid-page on the homepage in both orientations — confirm the up/down lurch is gone.
+
+**Merge gate:** two independent GOs (mine and Antigravity's) plus your device pass on the four items above.
