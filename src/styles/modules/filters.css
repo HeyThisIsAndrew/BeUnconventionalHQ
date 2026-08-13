@@ -211,6 +211,11 @@
 /* =========================================================================
    FULL-SCREEN IMMERSIVE OVERLAY STYLES
    ========================================================================= */
+/* Same centring contract as the mobile nav overlay (responsive-mobile.css):
+   `flex-start` + auto margins on the content, never `justify-content: center`,
+   so a category list taller than a landscape viewport scrolls instead of
+   overflowing past the unreachable start edge. Top padding clears the
+   absolutely-positioned close button, which sits above this content. */
 .category-fullscreen-overlay {
   position: fixed;
   top: 0;
@@ -222,12 +227,23 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.4s ease;
-  padding-top: env(safe-area-inset-top);
+  padding-top: calc(env(safe-area-inset-top) + 4rem);
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  padding-left: max(1.5rem, env(safe-area-inset-left));
+  padding-right: max(1.5rem, env(safe-area-inset-right));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+}
+
+.category-fullscreen-overlay .fullscreen-content {
+  width: 100%;
+  margin: auto 0;
+  flex-shrink: 0;
 }
 
 .category-fullscreen-overlay.is-open {
@@ -235,8 +251,12 @@
   visibility: visible;
 }
 
+/* `fixed`, not `absolute`: the overlay is now a scroll container, and an
+   absolutely-positioned child scrolls away with its content. The overlay is
+   itself viewport-fixed and full-bleed, so this resolves to the same corner —
+   it just stops the close control from scrolling off in landscape. */
 .close-fullscreen-btn {
-  position: absolute;
+  position: fixed;
   top: max(1rem, env(safe-area-inset-top, 1rem));
   right: max(1rem, env(safe-area-inset-right, 1rem));
   display: flex;

@@ -22,6 +22,10 @@ const RENDER_TURNSTILE = false;
   <div class="contact-modal-content">
     <button id="close-contact-modal" class="contact-modal-close" aria-label="Close modal"><span aria-hidden="true">&times;</span></button>
     
+    {/* Everything except the close button scrolls. The button stays pinned to
+        the modal box so it can never be scrolled out of reach on a short
+        landscape viewport — which is the whole reason for this wrapper. */}
+    <div class="contact-modal-scroll">
     <div class="contact-modal-header">
       <PageTitle {...SECTIONS.contact} scale="secondary" />
       <p class="contact-modal-desc">
@@ -87,6 +91,7 @@ const RENDER_TURNSTILE = false;
 
       <button type="submit" id="modal-submit-btn" class="form-submit cta-button-primary" disabled>Send Message</button>
     </form>
+    </div>
   </div>
 </div>
 
@@ -336,7 +341,10 @@ const RENDER_TURNSTILE = false;
     opacity: 0;
     visibility: hidden;
     transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-    padding: 1rem;
+    /* Safe-area floors keep the modal box — and the close button pinned to its
+       top-right corner — clear of the notch when the phone is on its side. */
+    padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+      max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
     touch-action: none;
     overscroll-behavior: none;
   }
@@ -360,10 +368,27 @@ const RENDER_TURNSTILE = false;
     transform: scale(0.9) translateY(20px);
     transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-    max-height: 100dvh;
+    /* 100dvh was taller than the space the overlay's own padding leaves, so a
+       short landscape viewport clipped the bottom of the form — with
+       `overflow: hidden` here and `touch-action: none` on the overlay there
+       was then no way to scroll to it. Fit inside the padding box instead and
+       let .contact-modal-scroll take the overflow. */
+    max-height: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+
+  .contact-modal-scroll {
+    display: flex;
+    flex-direction: column;
+    min-height: 0; /* Without this a flex child refuses to scroll at all. */
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    /* The overlay sets `touch-action: none` to stop the page behind moving;
+       re-enable vertical dragging for the one region that must scroll. */
+    touch-action: pan-y;
   }
 
   .contact-modal-overlay.is-active .contact-modal-content {

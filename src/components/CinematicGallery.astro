@@ -14,13 +14,15 @@ interface GalleryItem {
 
 export interface Props {
   items: GalleryItem[];
+  /** Profile URL for the mobile "See More on Instagram" card the script injects. */
+  profileUrl?: string;
 }
 
-const { items = [] } = Astro.props;
+const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
 ---
 
 {items.length > 0 && (
-  <infinite-marquee>
+  <infinite-marquee data-profile-url={profileUrl}>
     <div class="ig-carousel-wrapper" style="mask-image: linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%); -webkit-mask-image: linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%);">
       <div class="ig-carousel-track">
         {Array.from({ length: 5 }, (_, i) => i + 1).map((groupIndex) => (
@@ -111,7 +113,7 @@ const { items = [] } = Astro.props;
         
         // Create Mobile CTA Card
         const ctaCard = document.createElement('a');
-        ctaCard.href = "https://instagram.com/"; // Fallback URL
+        ctaCard.href = this.dataset.profileUrl || "https://instagram.com/";
         ctaCard.target = "_blank";
         ctaCard.rel = "noopener noreferrer";
         ctaCard.className = 'ig-carousel-tile ig-cta-card';
@@ -519,93 +521,140 @@ const { items = [] } = Astro.props;
     color: #fff;
     text-shadow: 0 0 12px rgba(204, 0, 0, 0.4);
   }
-  
-  /* Mobile CTA Card Styles */
-  .ig-cta-card {
+</style>
+
+<style is:global>
+  /*
+    MOBILE TITLE + CTA CARDS — deliberately `is:global`.
+
+    Both cards are built in the script above with `document.createElement` /
+    `innerHTML`, so Astro never stamps them with this component's
+    `data-astro-cid-*` hash. Every scoped rule in the block above compiles to
+    `.selector[data-astro-cid-…]` and therefore CANNOT match them — including
+    the base `.ig-carousel-tile` sizing. That is why these rules live here and
+    why they restate the tile geometry instead of leaning on the scoped copy.
+    Move any of this back into the scoped block and it silently stops
+    applying: the cards render unsized, left-aligned and undimmed.
+  */
+  .ig-carousel-track .ig-title-card,
+  .ig-carousel-track .ig-cta-card {
+    /* Tile geometry — mirrors the scoped `.ig-carousel-tile` rule. */
+    flex: 0 0 220px;
+    aspect-ratio: 4 / 5;
+    scroll-snap-align: center;
+    position: relative;
+    overflow: hidden;
+    text-decoration: none;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, rgba(204,0,0,0.05), rgba(204,0,0,0.15));
-    border: 1px dashed rgba(255,255,255,0.15);
+    transition:
+      transform 0.4s cubic-bezier(0.25, 0.8, 0.2, 1),
+      box-shadow 0.4s ease,
+      border-color 0.4s ease;
   }
-  
-  .ig-cta-content {
+
+  @media (max-width: 560px) {
+    .ig-carousel-track .ig-title-card,
+    .ig-carousel-track .ig-cta-card {
+      flex: 0 0 160px;
+    }
+  }
+
+  /* Match the scoped tile rule: no sticky hover/tap state mid-swipe. */
+  .ig-carousel-track.is-scrolling .ig-title-card,
+  .ig-carousel-track.is-scrolling .ig-cta-card {
+    pointer-events: none;
+  }
+
+  .ig-carousel-track .ig-title-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .ig-carousel-track .ig-cta-card {
+    background: linear-gradient(135deg, rgba(204, 0, 0, 0.05), rgba(204, 0, 0, 0.15));
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+  }
+
+  /* Centered and dimmed to the same weight as the "ALL INTEL" /
+     `.view-all-link` treatment — `--color-white-muted`, not white. */
+  .ig-carousel-track .ig-title-content,
+  .ig-carousel-track .ig-cta-content {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    width: 100%;
     height: 100%;
-    gap: 1rem;
-    color: rgba(255,255,255,0.5); /* Dimmed aesthetic */
-    font-family: var(--font-heading, "Syne", sans-serif);
-    font-size: 0.95rem;
+    padding: 0 0.75rem;
+    color: var(--color-white-muted);
+    font-family: var(--font-display, 'Syne', sans-serif);
     text-align: center;
-    transition: color 0.4s ease, transform 0.4s cubic-bezier(0.25, 0.8, 0.2, 1);
-  }
-  
-  .ig-cta-card.is-active {
-    border-style: solid;
-    border-color: var(--color-accent);
-  }
-  
-  .ig-cta-card.is-active .ig-cta-content {
-    color: #fff; /* Bright on hover */
-    transform: scale(1.05);
-  }
-  
-  .ig-cta-icon {
-    stroke: rgba(255,255,255,0.5); /* Dimmed aesthetic */
-    transition: stroke 0.4s ease, filter 0.4s ease;
-  }
-  
-  .ig-cta-card.is-active .ig-cta-icon {
-    stroke: var(--color-accent); /* Red on hover */
-    filter: drop-shadow(0 0 8px rgba(204, 0, 0, 0.6));
+    transition: color 0.4s ease;
   }
 
-  /* Mobile Title Card Styles */
-  .ig-title-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.05);
+  /* The <span> is a flex item, so `text-align` on the parent alone does not
+     centre its own line boxes — it has to be set on the span too. */
+  .ig-carousel-track .ig-title-content > span,
+  .ig-carousel-track .ig-cta-content > span {
+    display: block;
+    width: 100%;
+    text-align: center;
+    text-wrap: balance;
   }
 
-  .ig-title-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
+  .ig-carousel-track .ig-title-content {
     gap: 1.5rem;
-    color: rgba(255,255,255,0.8);
-    font-family: var(--font-heading, "Syne", sans-serif);
     font-size: 1.1rem;
     font-weight: 500;
     letter-spacing: 0.05em;
-    text-align: center;
-    transition: color 0.4s ease, transform 0.4s cubic-bezier(0.25, 0.8, 0.2, 1);
-  }
-  
-  .ig-title-card.is-active {
-    border-color: rgba(255,255,255,0.2);
-  }
-  
-  .ig-title-card.is-active .ig-title-content {
-    color: #fff;
-    transform: scale(1.05);
   }
 
-  .ig-title-icon {
-    stroke: rgba(255,255,255,0.6);
-    transition: stroke 0.4s ease, filter 0.4s ease;
+  .ig-carousel-track .ig-cta-content {
+    gap: 1rem;
+    font-size: 0.95rem;
   }
 
-  .ig-title-card.is-active .ig-title-icon {
-    stroke: #fff;
+  .ig-carousel-track .ig-title-icon,
+  .ig-carousel-track .ig-cta-icon {
+    flex-shrink: 0;
+    stroke: var(--color-white-muted);
+    transition:
+      stroke 0.4s ease,
+      filter 0.4s ease;
+  }
+
+  /* Active (centred in the viewport) state — the lift matches
+     `.ig-carousel-tile.is-active` so the cards travel with the photo tiles. */
+  .ig-carousel-track .ig-title-card.is-active,
+  .ig-carousel-track .ig-cta-card.is-active {
+    transform: translateY(-8px);
+  }
+
+  .ig-carousel-track .ig-title-card.is-active {
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .ig-carousel-track .ig-cta-card.is-active {
+    border-style: solid;
+    border-color: var(--color-accent);
+    box-shadow: 0 12px 30px rgba(204, 0, 0, 0.2);
+  }
+
+  .ig-carousel-track .ig-title-card.is-active .ig-title-content,
+  .ig-carousel-track .ig-cta-card.is-active .ig-cta-content {
+    color: var(--color-white);
+  }
+
+  .ig-carousel-track .ig-title-card.is-active .ig-title-icon {
+    stroke: var(--color-white);
     filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
+  }
+
+  .ig-carousel-track .ig-cta-card.is-active .ig-cta-icon {
+    stroke: var(--color-accent);
+    filter: drop-shadow(0 0 8px rgba(204, 0, 0, 0.6));
   }
 </style>

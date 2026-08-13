@@ -23,12 +23,18 @@
   }
 
   /* Fullscreen menu: wrap links horizontally and allow scroll
-     instead of stacking a tall column that clips off-screen */
+     instead of stacking a tall column that clips off-screen.
+     (The scroll plumbing itself now lives on the base .nav-container rule in
+     responsive-mobile.css — all this adds is landscape's header clearance and
+     the horizontal notch insets. Written as longhands on purpose: the
+     `padding` shorthand this replaced reset the base rule's safe-area
+     left/right guards back to a flat 2rem, which is how the close button
+     ended up under the Dynamic Island when the phone is held notch-right.) */
   .nav-container {
-    justify-content: flex-start;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: calc(env(safe-area-inset-top) + 4.25rem) 2rem 2rem;
+    padding-top: calc(env(safe-area-inset-top) + 4.25rem);
+    padding-bottom: max(2rem, env(safe-area-inset-bottom));
+    padding-left: max(2rem, env(safe-area-inset-left));
+    padding-right: max(2rem, env(safe-area-inset-right));
   }
 
   .nav-list {

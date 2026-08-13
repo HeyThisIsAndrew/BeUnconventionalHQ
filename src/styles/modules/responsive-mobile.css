@@ -85,6 +85,18 @@
     transform: translateY(-7px) rotate(-45deg);
   }
 
+  /* The full-screen mobile menu.
+
+     `justify-content: flex-start` + `margin: auto 0` on .nav-list, NOT
+     `justify-content: center`. The two look identical whenever the links fit
+     — auto margins absorb the free space and centre the list exactly as
+     before — but they behave completely differently once the list is taller
+     than the viewport, which is the normal case in landscape on a phone.
+     `justify-content: center` overflows the container equally at BOTH ends
+     and a scroll container cannot reach content that overflows its start
+     edge, so the top links become physically unreachable: the trap. Auto
+     margins collapse to 0 when there is no free space, so the list starts at
+     the top and `overflow-y: auto` can reach all of it. */
   .nav-container {
     position: fixed;
     top: 0;
@@ -95,7 +107,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     opacity: 0;
     visibility: hidden;
     transition:
@@ -103,6 +115,11 @@
       visibility 0.4s ease;
     z-index: 10;
     padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
   }
 
@@ -134,6 +151,22 @@
     list-style: none;
     margin: 0;
     padding: 0;
+    /* A flex item will not shrink below its content in a scroll container
+       without this, which is what clipped the last link in landscape. */
+    flex-shrink: 0;
+  }
+
+  /* The auto margins that actually centre the menu — see the .nav-container
+     note above for why they replace `justify-content: center`.
+
+     They live in their own rule because they have to outrank
+     `#navbar nav ul { margin: 0 }` (navbar.css), an ID selector at (1,0,2)
+     that a bare `.nav-list` at (0,1,0) loses to. Verified in Chromium: with
+     the declaration folded into `.nav-list` above, the computed margin is
+     0px and the menu silently sticks to the top of the viewport. Do not
+     merge this back. */
+  #navbar .nav-container .nav-list {
+    margin: auto 0;
   }
 
   .nav-item a {

@@ -362,6 +362,16 @@
     right: 1rem;
   }
 
+  /* Inside the lightbox the arrows sit against the screen edge rather than a
+     content box, so they need the same inset guard as the close button. */
+  .substack-lightbox .substack-gallery-arrow.left-arrow {
+    left: max(1rem, env(safe-area-inset-left));
+  }
+
+  .substack-lightbox .substack-gallery-arrow.right-arrow {
+    right: max(1rem, env(safe-area-inset-right));
+  }
+
   .substack-gallery-arrow.disabled {
     opacity: 0 !important;
     pointer-events: none !important;
@@ -389,8 +399,11 @@
   }
   
   .substack-lightbox-img {
-    max-width: 95vw;
-    max-height: 95vh;
+    /* Inset-aware bounds. Plain 95vw/95vh let the image run under the notch
+       and under the close button in landscape; dvh also keeps it inside the
+       visible viewport when iOS Safari's bars are showing. */
+    max-width: min(95vw, calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 2rem));
+    max-height: min(95dvh, calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2rem));
     object-fit: contain;
     transform: scale(0.95);
     transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.2, 1);
@@ -402,10 +415,13 @@
     transform: scale(1);
   }
   
+  /* `fixed` + safe-area floors: the lightbox is appended to <body> and covers
+     the viewport, so this lands in the same corner it always did — it just
+     can no longer be hidden under the notch / Dynamic Island in landscape. */
   .substack-lightbox-close {
-    position: absolute;
-    top: 1rem;
-    right: 1.5rem;
+    position: fixed;
+    top: max(1rem, env(safe-area-inset-top));
+    right: max(1.5rem, env(safe-area-inset-right));
     background: transparent;
     border: none;
     color: white;
