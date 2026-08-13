@@ -9,35 +9,24 @@
 
 @media (orientation: landscape) and (max-height: 500px) {
   /*
-    Compress the fixed header so it doesn't eat the short viewport — but NOT
-    all the way to the top edge.
+    Compress the fixed header so it doesn't eat the short viewport.
 
-    The header used to sit at `padding-top: max(0.4rem, ...)`, which put the
-    44×44 hamburger 5px below the top of the viewport. That is the worst strip
-    on the screen in landscape on an iPhone:
+    THIS HEIGHT IS LOAD-BEARING — do not raise it to buy tap clearance.
+    An attempt to move the toggle away from the contested top edge
+    (padding-top 0.4rem -> 1.15rem, padding-bottom 0.4rem -> 1rem, toggle
+    44px -> 56px) took the bar from ~55px to ~85px, and two other rules are
+    measured against that number: `.hero { padding-top: 5.5rem }` below, and
+    `.nav-container { padding-top: calc(env(safe-area-inset-top) + 4.25rem) }`.
+    Both were sized for a ~55px bar, so the taller bar pushed the hero content
+    under the header and the section heading beneath it into view. Reported
+    from a device as "the banner is now covering the nav bar".
 
-      · Safari shows a TAB BAR there when more than one tab is open, and that
-        bar collapses and expands as you scroll — resizing the web view each
-        time. Reported directly: the buttons became pressable the moment every
-        other tab was closed.
-      · iOS watches the same strip for its own gestures (a downward swipe near
-        the top-right opens Control Centre).
-      · The display's rounded corner cuts into it.
-
-    1.15rem instead of 0.4rem moves the control's centre from ~27px to ~39px.
-    That costs ~12px of a 390-440px viewport — a real price, paid knowingly,
-    because a header a few pixels shorter is worth nothing if its only control
-    cannot be pressed. Combined with the downward hit-area expansion in
-    a11y.css, the reachable region now starts well clear of the edge.
-
-    scripts/e2e-corner-controls.test.mjs holds the minimum distance.
+    The tap-target work lives entirely in a11y.css instead, where it changes
+    hit areas and not layout.
   */
   #navbar {
-    padding-top: max(1.15rem, env(safe-area-inset-top));
-    /* Deep enough that the toggle's displaced touch band (a11y.css) stays
-       inside the opaque bar. At 0.4rem the band spilled onto the category
-       tiles beneath and stole their taps — measured, see that file. */
-    padding-bottom: 1rem;
+    padding-top: max(0.4rem, env(safe-area-inset-top));
+    padding-bottom: 0.4rem;
   }
 
   .nav-logo img {
@@ -128,5 +117,37 @@
 
   .modal-close {
     top: calc(max(env(safe-area-inset-top, 28px), 28px) + var(--vv-top, 0px));
+  }
+}
+
+/*
+  ─── CATEGORY OVERLAY IN LANDSCAPE: ROW, NOT COLUMN ────────────────────────
+
+  `.category-fullscreen-overlay .filter-grid` is `flex-direction: column`
+  (filters.css), which is right in portrait and wrong here: four stacked
+  items at 1.5rem gaps are taller than a ~390-440px landscape viewport, so
+  the list overflowed and `.fullscreen-content`'s `overflow-y: auto` turned
+  it into a scroller. Reported from a device: "there's also a scroller for
+  the categories, which should not be present in landscape view. This view
+  should be horizontal, not vertical."
+
+  This is the exact treatment `.nav-list` already gets above for the same
+  reason on the same screens — the two overlays are meant to feel identical,
+  so they wrap the same way. Laid out as a row, the categories fit without
+  scrolling and the close button is the only thing in the corner again.
+*/
+@media (orientation: landscape) and (max-height: 500px) {
+  .category-fullscreen-overlay .filter-grid {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: center;
+    gap: 1.25rem 2.25rem;
+  }
+
+  /* The tall portrait tap padding is what made the column overflow; in a row
+     the horizontal padding is what matters. */
+  .category-fullscreen-overlay .cat-btn {
+    padding: 0.75rem 1.25rem;
   }
 }

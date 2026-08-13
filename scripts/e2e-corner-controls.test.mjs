@@ -163,22 +163,21 @@ async function runTests() {
             `unreliable. It must be "manipulation" (never "none" — see splash.css).`
         );
         /*
-          Distance from the top of the viewport. In landscape on an iPhone the
-          first ~30px is contested real estate: Safari's tab bar lives there
-          when more than one tab is open and collapses through it on scroll,
-          iOS watches it for Control Centre, and the display's rounded corner
-          eats into it. The control used to start 5px down.
+          NO ASSERTION ON DISTANCE FROM THE TOP EDGE, DELIBERATELY.
+
+          An earlier fix moved these controls down out of the contested top
+          strip by growing the landscape header (padding 0.4rem -> 1.15rem,
+          control 44px -> 56px). It worked for the tap target and broke two
+          other things: `.hero { padding-top: 5.5rem }` and `.nav-container {
+          padding-top: calc(... + 4.25rem) }` are both measured against a ~55px
+          bar, so a ~85px bar pushed the hero under the header and exposed the
+          section heading beneath it. Reported from a device as "the banner is
+          now covering the nav bar".
+
+          That approach was reverted. The margin for error now comes entirely
+          from hit area, which costs no layout — so a test that demanded top
+          clearance would be asserting the approach that caused a regression.
         */
-        if (vp.width > vp.height) {
-          assert.ok(
-            m.topEdgeGap >= 14,
-            `${vp.label}: ${m.label} starts only ${m.topEdgeGap}px below the top of ` +
-              `the viewport. In landscape that is inside the strip Safari's collapsing ` +
-              `tab bar and iOS's own gestures both contend for — the reported cause of ` +
-              `"difficult to press", which stopped the moment every other tab was ` +
-              `closed. Landscape clearance lives in landscape.css.`
-          );
-        }
         assert.ok(
           m.growUp <= 0 && m.growRight <= 0,
           `${vp.label}: ${m.label} expands toward the screen edge ` +
@@ -327,6 +326,96 @@ async function runTests() {
         passed++;
       }
       await page.close();
+    }
+
+    /*
+      THE CATEGORY OVERLAY'S CLOSE BUTTON — CHECKED WHERE IT ACTUALLY EXISTS.
+
+      This is the regression that shipped. `a11y.css` is imported last, so a
+      bare `.nav-toggle { position: relative }` there beat filters.css's
+      `position: absolute` — and the category overlay's close button carries
+      BOTH classes (`class="close-fullscreen-btn nav-toggle menu-open"`, on
+      purpose, so the two controls animate identically). The button fell out
+      of the corner into normal flow, landing in the middle of the overlay on
+      /feed and /intel in both orientations.
+
+      The earlier version of this file "checked" it — on `/`, where the
+      overlay does not exist, so the check read null and skipped. A guard that
+      silently no-ops is not a guard. It is opened here, on a route that has
+      one, and asserted to be in the corner it is drawn in.
+    */
+    for (const vp of [
+      { width: 956, height: 440, label: 'landscape' },
+      { width: 390, height: 844, label: 'portrait' },
+    ]) {
+      for (const route of ['/feed', '/intel']) {
+        const page = await browser.newPage();
+        await page.setViewport({ ...vp, hasTouch: true, isMobile: true });
+        await page.goto(`http://localhost:4321${route}`, { waitUntil: 'networkidle2' });
+
+        const seen = await page.evaluate(async () => {
+          const overlay = document.querySelector('.category-fullscreen-overlay');
+          if (!overlay) return null;
+          overlay.classList.add('active', 'is-open', 'open');
+          await new Promise((r) => setTimeout(r, 400));
+
+          const btn = document.querySelector('.close-fullscreen-btn');
+          if (!btn) return null;
+          const b = btn.getBoundingClientRect();
+          const items = [...document.querySelectorAll('.category-fullscreen-overlay .cat-btn')].map(
+            (a) => Math.round(a.getBoundingClientRect().top)
+          );
+          const content = document.querySelector('.category-fullscreen-overlay .fullscreen-content');
+          return {
+            position: getComputedStyle(btn).position,
+            fromTop: Math.round(b.top),
+            fromRight: Math.round(innerWidth - b.right),
+            rows: new Set(items).size,
+            items: items.length,
+            scrolls: content ? content.scrollHeight > content.clientHeight + 1 : false,
+          };
+        });
+        await page.close();
+
+        if (!seen) continue;
+        const where = `${route} ${vp.label}`;
+
+        assert.ok(
+          seen.position === 'absolute' || seen.position === 'fixed',
+          `${where}: the categories close button computes position "${seen.position}". ` +
+            `It shares the .nav-toggle class with the navbar's hamburger, so an ` +
+            `unscoped .nav-toggle rule in a11y.css (imported last) resets it into ` +
+            `normal flow and it lands in the middle of the overlay. Scope such rules ` +
+            `to "#navbar .nav-toggle".`
+        );
+        assert.ok(
+          seen.fromRight < 120 && seen.fromTop < 120,
+          `${where}: the categories close button is ${seen.fromTop}px from the top and ` +
+            `${seen.fromRight}px from the right — it is not in its corner.`
+        );
+
+        if (vp.label === 'landscape' && seen.items > 1) {
+          assert.equal(
+            seen.rows,
+            1,
+            `${where}: the category list renders on ${seen.rows} rows. In a ~440px ` +
+              `landscape viewport a column of ${seen.items} overflows and turns the ` +
+              `overlay into a scroller; it must lay out as a row, the same way ` +
+              `.nav-list does on these screens.`
+          );
+          assert.equal(
+            seen.scrolls,
+            false,
+            `${where}: the category overlay scrolls. In landscape the list must fit.`
+          );
+        }
+
+        console.log(
+          `  ✓ ${where}: close button in corner (${seen.position}), ` +
+            `${seen.items} categories on ${seen.rows} row(s)`
+        );
+        passed++;
+      }
     }
 
     console.log(`\n✅ Corner Controls E2E tests passed (${passed} checks).`);

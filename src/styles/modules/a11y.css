@@ -153,16 +153,32 @@
   direction of the expansion at landscape sizes.
 */
 /*
-  ONLY .nav-toggle gets `position: relative`, and that is not tidiness.
+  ONLY THE NAVBAR'S OWN TOGGLE GETS `position: relative`, AND IT MUST BE
+  SCOPED TO `#navbar`. This shipped broken once; here is the trap.
 
-  `.close-fullscreen-btn` is already `position: absolute` and `.modal-close` is
+  `.close-fullscreen-btn` is `position: absolute` and `.modal-close` is
   `absolute` in portrait and `fixed` in landscape — each already establishes
-  the containing block its ::before needs. Adding them to this rule would
-  RESET that positioning (same specificity, and a11y.css is imported after
-  both), dropping the close buttons out of their corners entirely. `.nav-toggle`
-  is a static flex item, so it is the one that genuinely needs it.
+  the containing block its ::before needs, and a11y.css is imported LAST, so
+  any bare rule here that reaches them resets that positioning and drops them
+  out of their corners.
+
+  Naming only `.nav-toggle` is NOT enough to avoid that, which is the part
+  that was missed: the category overlay's close button is
+  `class="close-fullscreen-btn nav-toggle menu-open"` — it deliberately reuses
+  the toggle's class so the two controls look and animate identically
+  (CategoryOverlay.astro). An unscoped `.nav-toggle` rule therefore hits it
+  too. Reported from a device as the categories X appearing in the middle of
+  the overlay instead of the corner, on /feed and /intel, in both
+  orientations; measured as `position: relative` with the filters.css `top`
+  and `right` still applied and doing nothing.
+
+  `#navbar .nav-toggle` is the honest selector: the toggle that lives in the
+  navbar, which is the only one that is a static flex item needing a
+  containing block. scripts/e2e-corner-controls.test.mjs now checks the
+  overlay's close button on a route where it actually exists — the earlier
+  version skipped it, because it looked for it on `/` where it is absent.
 */
-.nav-toggle {
+#navbar .nav-toggle {
   position: relative;
 }
 
@@ -253,13 +269,26 @@
   anything actionable is ever caught inside it.
 */
 @media (orientation: landscape) and (max-height: 500px) {
-  .nav-toggle,
-  .close-fullscreen-btn,
-  .modal-close {
-    height: 56px;
+  /*
+    SIX PIXELS, AND THAT IS THE WHOLE BUDGET.
+
+    The landscape bar is ~55px tall with the toggle at top 5 and 44px high, so
+    there are exactly 6px of bar beneath it. The band must stop there: at 14px
+    it reached 8px past the bar and the steal-check measured it swallowing
+    `a.cat`, a category tile, on the homepage.
+
+    Growing the bar to buy more room is what broke the hero — see the note in
+    landscape.css. The vertical budget here is genuinely capped by the design,
+    so the extra area is taken to the LEFT instead, across the empty middle of
+    the bar where nothing else is interactive.
+  */
+  #navbar .nav-toggle::before {
+    bottom: -6px;
+    left: -48px;
   }
 
-  .nav-toggle::before,
+  /* The overlay close buttons sit over their own full-screen overlays, where
+     nothing is beneath them, so they keep the deeper band. */
   .close-fullscreen-btn::before,
   .modal-close::before {
     bottom: -14px;
