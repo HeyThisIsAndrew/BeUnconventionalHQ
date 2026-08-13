@@ -1,5 +1,6 @@
 ---
 import { getFlattenedGallery } from '../lib/instagram.js';
+import { GLOBAL_CAROUSEL_MIN_TILES, HUB_CAROUSEL_MIN_TILES } from '../lib/instagram-topic';
 import CinematicGallery from './CinematicGallery.astro';
 import { SOCIAL_ICONS } from '../data/icons.js';
 import { site } from '../data/site.js';
@@ -17,11 +18,20 @@ export interface Props {
    * falling back to unrelated posts.
    */
   topicKeywords?: string[];
-  /** Fewest qualifying tiles that may be rendered — below this, nothing is. */
+  /**
+   * Fewest qualifying tiles that may be rendered — below this, nothing is.
+   * Defaults by surface: a hub carousel must fill the widest row
+   * (HUB_CAROUSEL_MIN_TILES), the global rail need not. Callers should not
+   * need to pass this; see the derivation in lib/instagram-topic.ts.
+   */
   minItems?: number;
 }
 
-const { limit = 10, topicKeywords, minItems = 5 } = Astro.props;
+const {
+  limit = 10,
+  topicKeywords,
+  minItems = topicKeywords === undefined ? GLOBAL_CAROUSEL_MIN_TILES : HUB_CAROUSEL_MIN_TILES,
+} = Astro.props;
 
 /*
   Qualification order matters, and it is the whole point of this component.

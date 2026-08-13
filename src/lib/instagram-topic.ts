@@ -42,6 +42,40 @@
   testable with plain `node` (scripts/instagram-topic.test.mjs).
 */
 
+/*
+  ─── THE RENDER THRESHOLD ─────────────────────────────────────────────────
+  A hub carousel must never ship a half-empty row, so the minimum is "enough
+  tiles to fill the widest row the layout can produce". That number is
+  derived, not chosen:
+
+    .container      max-width 1536px, padding-inline clamp(1.25rem, …, 3rem)
+    .ig-carousel-tile   flex: 0 0 220px   (a fixed px basis, not rem)
+    .ig-carousel-track  gap: 1.25rem      (= 16px; html is 80% ≥768px)
+
+  The container caps at 1536px, so the row never gets wider than that no
+  matter the viewport:
+
+      (1536 + 16) / (220 + 16) = 6.58 tiles
+
+  6 tiles leave a visible gap at ≥1440px; 7 covers the widest row with the
+  7th tile partially cut, which is what makes the rail read as continuous.
+  Hence 7. Below 1536px the row holds fewer, so 7 is a safe ceiling
+  everywhere (2 tiles at 390px, 5 at 1280px).
+
+  `scripts/instagram-topic.test.mjs` re-derives this from the real CSS and
+  fails if the tile width, gap or container cap changes without the
+  threshold being revisited — the number must not silently go stale.
+*/
+
+/** Fewest qualifying tiles a hub (Featured brand / Event) carousel may show. */
+export const HUB_CAROUSEL_MIN_TILES = 7;
+
+/**
+ * Fewest tiles the global homepage rail may show. Lower because it is not
+ * making a topical claim — it is "latest posts", and any post qualifies.
+ */
+export const GLOBAL_CAROUSEL_MIN_TILES = 5;
+
 /** Lowercase, punctuation to spaces, collapse runs. Mirrors the tag
  *  normalization in `src/pages/featured/[slug].astro`. */
 export function normalizeText(value: string): string {

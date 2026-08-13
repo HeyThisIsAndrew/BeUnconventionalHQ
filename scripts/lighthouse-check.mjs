@@ -35,7 +35,18 @@ const THRESHOLD = 0.9; // 90%
 const CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo'];
 const PAGES = ['/', '/feed', '/events', '/featured', '/about'];
 const SERVER_READY_TIMEOUT_MS = 30_000;
-const REPORTS_DIR = path.join(ROOT, '.lighthouse-reports');
+/*
+  Form factor. Lighthouse's default is MOBILE (a throttled mid-tier phone),
+  which is the harder target and stays the default here so the gate cannot be
+  softened by accident. `--desktop` audits the desktop preset instead, which
+  is the number tracked separately (it runs materially higher — no CPU/network
+  throttling and a wider viewport, so more of the page is in the initial
+  view). Reports are written to separate files so a desktop run never
+  overwrites the mobile evidence.
+*/
+const DESKTOP = process.argv.includes('--desktop');
+const FORM_FACTOR = DESKTOP ? 'desktop' : 'mobile';
+const REPORTS_DIR = path.join(ROOT, DESKTOP ? '.lighthouse-reports-desktop' : '.lighthouse-reports');
 const COMPRESSIBLE_TYPES = /^(text\/|application\/(javascript|json|xml|manifest\+json)|image\/svg\+xml)/;
 
 function startCompressingProxy() {
@@ -152,6 +163,25 @@ async function run() {
         output: 'json',
         onlyCategories: CATEGORIES,
         logLevel: 'error',
+        /* `formFactor` alone does not change emulation — Lighthouse keeps the
+           mobile screen and throttling unless screenEmulation and throttling
+           are switched too, which silently produces a "desktop" run that is
+           really a phone run. These are lighthouse's own desktop preset
+           values. */
+        ...(DESKTOP
+          ? {
+              formFactor: 'desktop',
+              screenEmulation: { mobile: false, width: 1350, height: 940, deviceScaleFactor: 1, disabled: false },
+              throttling: {
+                rttMs: 40,
+                throughputKbps: 10 * 1024,
+                cpuSlowdownMultiplier: 1,
+                requestLatencyMs: 0,
+                downloadThroughputKbps: 0,
+                uploadThroughputKbps: 0,
+              },
+            }
+          : {}),
       });
 
       const scores = {};
@@ -180,7 +210,7 @@ async function run() {
     }
   }
 
-  console.log('\n[lighthouse-check] Results (threshold: 90%):\n');
+  console.log(`\n[lighthouse-check] Results — ${FORM_FACTOR} (threshold: 90%):\n`);
   console.log(
     ['Page', ...CATEGORIES].map((h) => h.padEnd(16)).join(' | ')
   );

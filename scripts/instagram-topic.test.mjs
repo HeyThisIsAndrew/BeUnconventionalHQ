@@ -17,14 +17,21 @@
   Offline and pure: plain `node scripts/instagram-topic.test.mjs`.
 */
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   captionMatchesKeyword,
   extractTagTokens,
   getHubTopicKeywords,
+  GLOBAL_CAROUSEL_MIN_TILES,
+  HUB_CAROUSEL_MIN_TILES,
   normalizeText,
   postQualifiesForTopic,
   toCompactToken,
 } from '../src/lib/instagram-topic.ts';
+
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let passed = 0;
 let failed = 0;
@@ -173,7 +180,7 @@ function tilesFor(posts, keywords, { limit = 10 } = {}) {
   return tiles.slice(0, limit);
 }
 
-const renders = (posts, keywords, minItems = 7) => tilesFor(posts, keywords).length >= minItems;
+const renders = (posts, keywords, minItems = HUB_CAROUSEL_MIN_TILES) => tilesFor(posts, keywords).length >= minItems;
 
 /** n single-image posts whose captions qualify for `caption`. */
 const makePosts = (n, caption) =>
@@ -223,6 +230,45 @@ test('duplicate media is counted once, so it cannot pad the row', () => {
   };
   assert.equal(tilesFor([dupe], DC_KEYWORDS).length, 1);
   assert.equal(renders([dupe], DC_KEYWORDS), false);
+});
+
+console.log('\nThe threshold is derived from the CSS, not chosen:');
+
+/*
+  HUB_CAROUSEL_MIN_TILES is "enough tiles to fill the widest row the layout
+  can produce". Re-derive it here from the real CSS so that changing the tile
+  width, the gap or the container cap fails loudly instead of silently
+  leaving the threshold stale. See the derivation comment in
+  src/lib/instagram-topic.ts.
+*/
+const gallery = fs.readFileSync(path.join(ROOT, 'src/components/CinematicGallery.astro'), 'utf8');
+const layout = fs.readFileSync(path.join(ROOT, 'src/styles/modules/layout.css'), 'utf8');
+
+test('tile width, gap and container cap are still what the derivation assumes', () => {
+  assert.match(gallery, /\.ig-carousel-tile\s*\{[^}]*flex:\s*0\s+0\s+220px/s, 'tile basis is 220px');
+  assert.match(gallery, /\.ig-carousel-track\s*\{[^}]*gap:\s*1\.25rem/s, 'track gap is 1.25rem');
+  assert.match(layout, /\.container\s*\{[^}]*max-width:\s*1536px/s, 'container caps at 1536px');
+});
+
+test('HUB_CAROUSEL_MIN_TILES fills the widest possible row', () => {
+  const TILE = 220;
+  const GAP = 1.25 * 12.8; // 1.25rem at the ≥768px root size of 80% (=16px)
+  const MAX_ROW = 1536; // .container max-width
+  const tilesPerRow = (MAX_ROW + GAP) / (TILE + GAP);
+
+  assert.ok(tilesPerRow > 6 && tilesPerRow < 7, `widest row holds ${tilesPerRow.toFixed(2)} tiles`);
+  assert.equal(
+    HUB_CAROUSEL_MIN_TILES,
+    Math.ceil(tilesPerRow),
+    'threshold must be the ceiling of the widest row, so the rail is never partially empty'
+  );
+});
+
+test('the global rail keeps a lower bar than a hub carousel', () => {
+  /* The homepage rail makes no topical claim, so it does not owe a full row —
+     but it must still not ship a nearly-empty carousel. */
+  assert.ok(GLOBAL_CAROUSEL_MIN_TILES < HUB_CAROUSEL_MIN_TILES);
+  assert.ok(GLOBAL_CAROUSEL_MIN_TILES >= 3);
 });
 
 console.log(
