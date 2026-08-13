@@ -52,24 +52,62 @@
 </script>
 
 <style is:global>
+  /*
+    TWO BOXES, ON PURPOSE — same split as .ig-carousel-tile / .ig-tile-frame
+    in CinematicGallery.astro, and for the same bug.
+
+    The host element is the hover target and STAYS STILL. `.content-card-media`
+    is the visual: border, background, clipping and the lift.
+
+    Both used to be this one element, and hovering near its edge flickered
+    violently: :hover lifted it 6px, moving it out from under the cursor,
+    dropping :hover, putting it back — a loop at frame rate. Because `cursor`,
+    `border-color` and `box-shadow` all live on the hovered element, the
+    cursor, the outline and the red glow all strobed together. The thin bright
+    edge came from the same place: a scaling image clipped by a box that was
+    itself mid-transform, so the clip and the content disagreed by a subpixel
+    each frame.
+
+    Keep the transform OFF the host. Anything that moves belongs on the media.
+  */
   youtube-embed {
     display: block;
     width: 100%;
     margin: 3rem 0;
     aspect-ratio: 16 / 9;
+    position: relative;
+    cursor: pointer;
+  }
+
+  youtube-embed .content-card-media {
+    position: absolute;
+    inset: 0;
     background-color: var(--color-surface, #111);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 0;
     overflow: hidden;
-    position: relative;
-    cursor: pointer;
     transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   }
-  
-  youtube-embed:hover {
-    transform: translateY(-6px);
-    border-color: var(--color-accent, #cc0000);
-    box-shadow: 0 10px 30px rgba(204, 0, 0, 0.15);
+
+  /* Gated to real pointers: on iOS a tap leaves :hover stuck on the tapped
+     element, which would leave an embed permanently lit after being played. */
+  @media (hover: hover) and (pointer: fine) {
+    youtube-embed:hover .content-card-media {
+      transform: translateY(-6px);
+      border-color: var(--color-accent, #cc0000);
+      box-shadow: 0 10px 30px rgba(204, 0, 0, 0.15);
+    }
+
+    youtube-embed:hover .content-card-img {
+      transform: scale(1.05);
+    }
+  }
+
+  /* The host is role="button" tabindex="0" but had no focus indicator at all
+     — same defect class as issue #91. */
+  youtube-embed:focus-visible {
+    outline: 2px solid var(--color-accent, #cc0000);
+    outline-offset: 3px;
   }
 
   youtube-embed .content-card-img {
@@ -77,10 +115,6 @@
     height: 100%;
     object-fit: cover;
     transition: transform 0.6s ease;
-  }
-  
-  youtube-embed:hover .content-card-img {
-    transform: scale(1.05);
   }
 
   .youtube-tile-overlay {
@@ -99,12 +133,14 @@
     transition: background 0.3s ease;
   }
 
-  youtube-embed:hover .youtube-tile-overlay {
-    background: linear-gradient(
-      to top,
-      rgba(9, 9, 11, 0.9) 0%,
-      rgba(9, 9, 11, 0.4) 50%,
-      transparent 100%
-    );
+  @media (hover: hover) and (pointer: fine) {
+    youtube-embed:hover .youtube-tile-overlay {
+      background: linear-gradient(
+        to top,
+        rgba(9, 9, 11, 0.9) 0%,
+        rgba(9, 9, 11, 0.4) 50%,
+        transparent 100%
+      );
+    }
   }
 </style>

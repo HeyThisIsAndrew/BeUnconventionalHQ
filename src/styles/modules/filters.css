@@ -235,15 +235,34 @@
   padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
   padding-left: max(1.5rem, env(safe-area-inset-left));
   padding-right: max(1.5rem, env(safe-area-inset-right));
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+
+  /* Same iOS landscape guard as .nav-container (responsive-mobile.css) — a
+     closed full-screen overlay must be structurally incapable of receiving a
+     tap, not merely invisible. */
+  pointer-events: none;
 }
 
+.category-fullscreen-overlay.is-open {
+  pointer-events: auto;
+}
+
+/* The INNER box scrolls, not the overlay.
+
+   Scrolling the overlay itself would make the close button a `position:`
+   pinned child of a scroll container, which is the fragile arrangement on
+   iOS. Keeping the overlay a plain fixed flex box lets the close button stay
+   absolutely positioned against it while the category list takes the
+   overflow. `margin: auto 0` centres the list when it fits and collapses to 0
+   when it does not — the same contract as the nav overlay. */
 .category-fullscreen-overlay .fullscreen-content {
   width: 100%;
   margin: auto 0;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .category-fullscreen-overlay.is-open {
@@ -251,12 +270,13 @@
   visibility: visible;
 }
 
-/* `fixed`, not `absolute`: the overlay is now a scroll container, and an
-   absolutely-positioned child scrolls away with its content. The overlay is
-   itself viewport-fixed and full-bleed, so this resolves to the same corner —
-   it just stops the close control from scrolling off in landscape. */
+/* `absolute` against the overlay, which is itself viewport-fixed and
+   full-bleed — so this is the same corner a `fixed` button would land on,
+   without making it a fixed child of a scrolling ancestor (fragile on iOS).
+   The overflow now lives on .fullscreen-content, so nothing scrolls this
+   button away. */
 .close-fullscreen-btn {
-  position: fixed;
+  position: absolute;
   top: max(1rem, env(safe-area-inset-top, 1rem));
   right: max(1rem, env(safe-area-inset-right, 1rem));
   display: flex;

@@ -119,13 +119,33 @@
     padding-left: max(1.5rem, env(safe-area-inset-left));
     padding-right: max(1.5rem, env(safe-area-inset-right));
     overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+
+    /* iOS Safari, landscape: `visibility: hidden` is NOT sufficient to stop a
+       closed overlay from eating taps.
+
+       This element is fixed, full-width and 100dvh, so when it is scrollable
+       it becomes a composited scrolling layer covering the entire viewport on
+       EVERY page — and iOS keeps routing touches to that layer while it is
+       invisible. The result was a phone stuck in landscape: the close button,
+       the nav links, the category overlay and the article gallery were all
+       untappable. It only reproduced in landscape because only landscape.css
+       gives .nav-list `min-height: 100%` plus header clearance, which is what
+       makes the content overflow and creates the scrolling layer in the first
+       place.
+
+       `pointer-events` is the structural fix rather than a workaround: a
+       closed overlay is now incapable of receiving a tap no matter what the
+       compositor does with it. Do not remove it, and do not add
+       `-webkit-overflow-scrolling: touch` here — it is a no-op on modern iOS
+       and it is what promotes this box to the layer that caused the bug. */
+    pointer-events: none;
   }
 
   #navbar.menu-open .nav-container {
     opacity: 1;
     visibility: visible;
+    pointer-events: auto;
   }
 
   /* Prevent background scroll when any overlay is open.

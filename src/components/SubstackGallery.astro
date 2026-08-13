@@ -415,11 +415,12 @@
     transform: scale(1);
   }
   
-  /* `fixed` + safe-area floors: the lightbox is appended to <body> and covers
-     the viewport, so this lands in the same corner it always did — it just
-     can no longer be hidden under the notch / Dynamic Island in landscape. */
+  /* `absolute` against the lightbox, which is itself `position: fixed;
+     inset: 0` and does not scroll — the same corner a fixed button would
+     land on, without nesting a fixed element inside a fixed one (fragile on
+     iOS). The safe-area floors keep it clear of the notch in landscape. */
   .substack-lightbox-close {
-    position: fixed;
+    position: absolute;
     top: max(1rem, env(safe-area-inset-top));
     right: max(1.5rem, env(safe-area-inset-right));
     background: transparent;

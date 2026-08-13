@@ -36,7 +36,7 @@ const brands = getFeaturedBrandsLocal();
       {brands.length > 0 ? (
         <>
         <h2 class="sr-only">Featured collections</h2>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 2rem; width: 100%; max-width: 1200px; margin: 0 auto;">
+        <div class="featured-hub-grid">
           {brands.map((brand: any, index: number) => {
             const heroUrl = brand.heroImage
               ? urlFor(brand.heroImage).width(800).height(450).auto('format').url()
@@ -100,7 +100,32 @@ const brands = getFeaturedBrandsLocal();
 <style>
   /* Page width wrapper now shared: `.container-page` in modules/layout.css */
   /* Shared `.event-card` and `.event-overlay` styles moved to `events.css` */
-  
+
+  /*
+    Hub grid.
+
+    This carried an inline `max-width: 1200px`, which made it the only card
+    grid on the site that did not fill its page wrapper: measured at 1920px
+    the row spanned 1200px against a 1536px Subscribe box below it — 168px
+    short on each side — while /events and /feed both run their rows to the
+    full width of `.container-page`. Two hubs in a 1200px box also left the
+    tiles noticeably smaller than the cards on every neighbouring page.
+
+    Filling the wrapper puts it back in line with the rest of the site: the
+    row now ends where the Subscribe box ends, and with two hubs each tile
+    grows from 587px to ~720px. `auto-fit` keeps that honest as hubs are
+    added — a third hub reflows to three even columns rather than shrinking
+    the row.
+  */
+  .featured-hub-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
+    gap: 2rem;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+
   .featured-empty {
     text-align: center;
     color: #888;

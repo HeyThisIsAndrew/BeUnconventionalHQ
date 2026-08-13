@@ -36,13 +36,18 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
             
             return (
               <a href={item.permalink} target="_blank" rel="noopener noreferrer" class="ig-carousel-tile" data-play-hover="true">
-                <img 
-                  src={sources.src} 
+                {/* The anchor is the HOVER TARGET and never moves; this frame
+                    is what lifts, clips and draws the border. Splitting them
+                    is what stops the hover from flickering — see the note on
+                    .ig-tile-frame in the stylesheet below. */}
+                <span class="ig-tile-frame">
+                <img
+                  src={sources.src}
                   srcset={sources.srcset}
                   sizes="(max-width: 768px) 45vw, 240px"
-                  alt={item.caption?.slice(0, 50) || 'Instagram Media'} 
-                  loading="lazy" 
-                  decoding="async" 
+                  alt={item.caption?.slice(0, 50) || 'Instagram Media'}
+                  loading="lazy"
+                  decoding="async"
                   class="ig-tile-img"
                   width="220"
                   height="275"
@@ -62,6 +67,7 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
                     <p class="ig-text">{item.caption || "View post on Instagram"}</p>
                   </div>
                 </div>
+                </span>
               </a>
             );
           })}
@@ -102,7 +108,7 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
 
         // Create Mobile Title Card (Index 0)
         const titleCard = document.createElement('div');
-        titleCard.className = 'ig-carousel-tile ig-title-card';
+        titleCard.className = 'ig-rail-label ig-title-card';
         titleCard.innerHTML = `
           <div class="ig-title-content">
             <svg viewBox="0 0 24 24" width="40" height="40" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="ig-title-icon"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
@@ -116,7 +122,7 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
         ctaCard.href = this.dataset.profileUrl || "https://instagram.com/";
         ctaCard.target = "_blank";
         ctaCard.rel = "noopener noreferrer";
-        ctaCard.className = 'ig-carousel-tile ig-cta-card';
+        ctaCard.className = 'ig-rail-label ig-cta-card';
         ctaCard.innerHTML = `
           <div class="ig-cta-content">
             <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="ig-cta-icon"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
@@ -125,7 +131,11 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
         `;
         groups[0].appendChild(ctaCard);
         
-        // Mobile Intersection Observer for Active State
+        /* Only real media tiles participate in the active/centre behaviour.
+           The title and CTA are plain text labels in the rail, not tiles:
+           highlighting them made several things look tappable that are not,
+           and tapping the title (index 0) ran the tap-to-centre path, which
+           flashed it and bounced the rail back to the first tile. */
         const tiles = track.querySelectorAll('.ig-carousel-tile');
         const observerOptions = {
           root: track,
@@ -394,17 +404,44 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
     Tiles are strictly constrained to avoid internal scrolling.
     Fixed aspect ratio 4:5 (Standard Instagram Portrait).
   */
+  /*
+    TWO BOXES, ON PURPOSE.
+
+    The anchor is the hover target and is STATIC — its geometry never changes.
+    `.ig-tile-frame` is the visual: it holds the border, the clipping and the
+    lift.
+
+    Both used to be the same element, and hovering near the bottom edge of a
+    tile flickered violently: :hover lifted the tile 8px, which moved it out
+    from under the cursor, which dropped :hover, which put it back under the
+    cursor — a loop running at frame rate. It also produced the thin bright
+    sliver along the edge, because the scaled image was being clipped by a box
+    that was itself mid-transform, so the clip and the content disagreed by a
+    subpixel each frame.
+
+    Keep the transform OFF the anchor. Anything that moves belongs on the
+    frame.
+  */
   .ig-carousel-tile {
     flex: 0 0 220px; /* Locked width */
     aspect-ratio: 4 / 5; /* Forces the height to wrap perfectly */
     scroll-snap-align: start;
     position: relative;
+    text-decoration: none;
+    display: block;
+  }
+
+  .ig-tile-frame {
+    position: absolute;
+    inset: 0;
+    display: block;
     overflow: hidden;
     background: var(--color-surface, #111);
     border: 1px solid rgba(255, 255, 255, 0.05);
-    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.2, 1), box-shadow 0.4s ease, border-color 0.4s ease;
-    text-decoration: none;
-    display: block;
+    transition:
+      transform 0.4s cubic-bezier(0.25, 0.8, 0.2, 1),
+      box-shadow 0.4s ease,
+      border-color 0.4s ease;
   }
   
   .ig-carousel-track.is-mobile-native .ig-carousel-tile {
@@ -423,10 +460,22 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
     }
   }
 
-  .ig-carousel-tile:hover, .ig-carousel-tile.is-active {
+  /* `.is-active` is the touch/scroll-driven state (set by the observer).
+     `:hover` is gated to devices with a real pointer — on iOS Safari a tap
+     leaves :hover stuck on the tapped element until you tap elsewhere, which
+     is why several tiles stayed highlighted at once while swiping. */
+  .ig-carousel-tile.is-active > .ig-tile-frame {
     transform: translateY(-8px);
     border-color: var(--color-accent);
     box-shadow: 0 12px 30px rgba(204, 0, 0, 0.2);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .ig-carousel-tile:hover > .ig-tile-frame {
+      transform: translateY(-8px);
+      border-color: var(--color-accent);
+      box-shadow: 0 12px 30px rgba(204, 0, 0, 0.2);
+    }
   }
 
   /* Prevent taps or hovers from sticking while the user is actively swiping */
@@ -441,8 +490,14 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
     transition: transform 0.6s ease;
   }
 
-  .ig-carousel-tile:hover .ig-tile-img, .ig-carousel-tile.is-active .ig-tile-img {
+  .ig-carousel-tile.is-active .ig-tile-img {
     transform: scale(1.05);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .ig-carousel-tile:hover .ig-tile-img {
+      transform: scale(1.05);
+    }
   }
 
   /* 
@@ -466,7 +521,7 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
     pointer-events: none;
   }
 
-  .ig-carousel-tile:hover .ig-tile-overlay, .ig-carousel-tile.is-active .ig-tile-overlay {
+  .ig-carousel-tile.is-active .ig-tile-overlay {
     background: linear-gradient(
       to top,
       rgba(9, 9, 11, 0.98) 0%,
@@ -474,6 +529,18 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
       transparent 100%
     );
     opacity: 1;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .ig-carousel-tile:hover .ig-tile-overlay {
+      background: linear-gradient(
+        to top,
+        rgba(9, 9, 11, 0.98) 0%,
+        rgba(9, 9, 11, 0.7) 50%,
+        transparent 100%
+      );
+      opacity: 1;
+    }
   }
 
 
@@ -487,9 +554,16 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
     transition: transform 0.3s ease, opacity 0.3s ease;
   }
 
-  .ig-carousel-tile:hover .ig-tile-content, .ig-carousel-tile.is-active .ig-tile-content {
+  .ig-carousel-tile.is-active .ig-tile-content {
     transform: translateY(0);
     opacity: 1;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .ig-carousel-tile:hover .ig-tile-content {
+      transform: translateY(0);
+      opacity: 1;
+    }
   }
 
   .ig-accent-line {
@@ -499,8 +573,14 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
     transition: width 0.5s ease-out;
   }
 
-  .ig-carousel-tile:hover .ig-accent-line, .ig-carousel-tile.is-active .ig-accent-line {
+  .ig-carousel-tile.is-active .ig-accent-line {
     width: 40px;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .ig-carousel-tile:hover .ig-accent-line {
+      width: 40px;
+    }
   }
 
   .ig-text {
@@ -517,69 +597,68 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
     transition: color 0.4s ease, text-shadow 0.4s ease;
   }
   
-  .ig-carousel-tile:hover .ig-text, .ig-carousel-tile.is-active .ig-text {
+  .ig-carousel-tile.is-active .ig-text {
     color: #fff;
     text-shadow: 0 0 12px rgba(204, 0, 0, 0.4);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .ig-carousel-tile:hover .ig-text {
+      color: #fff;
+      text-shadow: 0 0 12px rgba(204, 0, 0, 0.4);
+    }
   }
 </style>
 
 <style is:global>
   /*
-    MOBILE TITLE + CTA CARDS — deliberately `is:global`.
+    MOBILE RAIL LABELS — "LATEST ON INSTAGRAM" (left) and "See More on
+    Instagram" (right).
 
-    Both cards are built in the script above with `document.createElement` /
-    `innerHTML`, so Astro never stamps them with this component's
-    `data-astro-cid-*` hash. Every scoped rule in the block above compiles to
-    `.selector[data-astro-cid-…]` and therefore CANNOT match them — including
-    the base `.ig-carousel-tile` sizing. That is why these rules live here and
-    why they restate the tile geometry instead of leaning on the scoped copy.
-    Move any of this back into the scoped block and it silently stops
-    applying: the cards render unsized, left-aligned and undimmed.
+    Deliberately `is:global`: both are built in the script above with
+    `document.createElement` / `innerHTML`, so Astro never stamps them with
+    this component's `data-astro-cid-*` hash. Every scoped rule compiles to
+    `.selector[data-astro-cid-...]` and therefore CANNOT match them. Move any
+    of this into the scoped block and it silently stops applying.
+
+    They are TEXT, not tiles. They carry `.ig-rail-label` rather than
+    `.ig-carousel-tile`, which keeps them out of the IntersectionObserver, the
+    `.is-active` highlight and the tap-to-centre handler — they no longer look
+    tappable, no longer flash, and tapping the left one no longer bounces the
+    rail back to the first tile. Only the right one is a link, because only it
+    has somewhere to go.
   */
-  .ig-carousel-track .ig-title-card,
-  .ig-carousel-track .ig-cta-card {
-    /* Tile geometry — mirrors the scoped `.ig-carousel-tile` rule. */
+  .ig-carousel-track .ig-rail-label {
+    /* Same footprint as a tile so the rail rhythm and placement are unchanged. */
     flex: 0 0 220px;
     aspect-ratio: 4 / 5;
     scroll-snap-align: center;
     position: relative;
-    overflow: hidden;
-    text-decoration: none;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    transition:
-      transform 0.4s cubic-bezier(0.25, 0.8, 0.2, 1),
-      box-shadow 0.4s ease,
-      border-color 0.4s ease;
+    /* No panel, no border: these read as captions in the rail, not cards. */
+    background: none;
+    border: 0;
+    text-decoration: none;
   }
 
   @media (max-width: 560px) {
-    .ig-carousel-track .ig-title-card,
-    .ig-carousel-track .ig-cta-card {
+    .ig-carousel-track .ig-rail-label {
       flex: 0 0 160px;
     }
   }
 
-  /* Match the scoped tile rule: no sticky hover/tap state mid-swipe. */
-  .ig-carousel-track.is-scrolling .ig-title-card,
-  .ig-carousel-track.is-scrolling .ig-cta-card {
-    pointer-events: none;
-  }
-
+  /* The left label is not interactive at all — it is a heading that happens
+     to live in the rail, so it must not swallow taps or show a text caret. */
   .ig-carousel-track .ig-title-card {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    pointer-events: none;
+    user-select: none;
   }
 
-  .ig-carousel-track .ig-cta-card {
-    background: linear-gradient(135deg, rgba(204, 0, 0, 0.05), rgba(204, 0, 0, 0.15));
-    border: 1px dashed rgba(255, 255, 255, 0.15);
-  }
-
-  /* Centered and dimmed to the same weight as the "ALL INTEL" /
-     `.view-all-link` treatment — `--color-white-muted`, not white. */
+  /* One type treatment for BOTH labels: centred, and dimmed to the same
+     weight as the "ALL INTEL" / `.view-all-link` treatment. */
   .ig-carousel-track .ig-title-content,
   .ig-carousel-track .ig-cta-content {
     display: flex;
@@ -588,9 +667,13 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
     justify-content: center;
     width: 100%;
     height: 100%;
+    gap: 1.25rem;
     padding: 0 0.75rem;
     color: var(--color-white-muted);
     font-family: var(--font-display, 'Syne', sans-serif);
+    font-size: 1.1rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
     text-align: center;
     transition: color 0.4s ease;
   }
@@ -605,56 +688,28 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
     text-wrap: balance;
   }
 
-  .ig-carousel-track .ig-title-content {
-    gap: 1.5rem;
-    font-size: 1.1rem;
-    font-weight: 500;
-    letter-spacing: 0.05em;
-  }
-
-  .ig-carousel-track .ig-cta-content {
-    gap: 1rem;
-    font-size: 0.95rem;
-  }
-
   .ig-carousel-track .ig-title-icon,
   .ig-carousel-track .ig-cta-icon {
     flex-shrink: 0;
     stroke: var(--color-white-muted);
-    transition:
-      stroke 0.4s ease,
-      filter 0.4s ease;
+    transition: stroke 0.4s ease;
   }
 
-  /* Active (centred in the viewport) state — the lift matches
-     `.ig-carousel-tile.is-active` so the cards travel with the photo tiles. */
-  .ig-carousel-track .ig-title-card.is-active,
-  .ig-carousel-track .ig-cta-card.is-active {
-    transform: translateY(-8px);
+  /* Only the CTA reacts, and only to a real pointer — a tap on iOS leaves
+     :hover stuck, which is exactly the "stays highlighted" problem the media
+     tiles had. */
+  @media (hover: hover) and (pointer: fine) {
+    .ig-carousel-track .ig-cta-card:hover .ig-cta-content {
+      color: var(--color-white);
+    }
+
+    .ig-carousel-track .ig-cta-card:hover .ig-cta-icon {
+      stroke: var(--color-accent);
+    }
   }
 
-  .ig-carousel-track .ig-title-card.is-active {
-    border-color: rgba(255, 255, 255, 0.2);
-  }
-
-  .ig-carousel-track .ig-cta-card.is-active {
-    border-style: solid;
-    border-color: var(--color-accent);
-    box-shadow: 0 12px 30px rgba(204, 0, 0, 0.2);
-  }
-
-  .ig-carousel-track .ig-title-card.is-active .ig-title-content,
-  .ig-carousel-track .ig-cta-card.is-active .ig-cta-content {
-    color: var(--color-white);
-  }
-
-  .ig-carousel-track .ig-title-card.is-active .ig-title-icon {
-    stroke: var(--color-white);
-    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
-  }
-
-  .ig-carousel-track .ig-cta-card.is-active .ig-cta-icon {
-    stroke: var(--color-accent);
-    filter: drop-shadow(0 0 8px rgba(204, 0, 0, 0.6));
+  .ig-carousel-track .ig-cta-card:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 4px;
   }
 </style>

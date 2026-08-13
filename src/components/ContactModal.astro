@@ -347,11 +347,15 @@ const RENDER_TURNSTILE = false;
       max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
     touch-action: none;
     overscroll-behavior: none;
+    /* See the iOS landscape note on .nav-container in responsive-mobile.css:
+       a closed full-screen overlay must not be able to receive a tap. */
+    pointer-events: none;
   }
 
   .contact-modal-overlay.is-active {
     opacity: 1;
     visibility: visible;
+    pointer-events: auto;
   }
 
   .contact-modal-content {
@@ -385,7 +389,6 @@ const RENDER_TURNSTILE = false;
     min-height: 0; /* Without this a flex child refuses to scroll at all. */
     overflow-y: auto;
     overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
     /* The overlay sets `touch-action: none` to stop the page behind moving;
        re-enable vertical dragging for the one region that must scroll. */
     touch-action: pan-y;
