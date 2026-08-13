@@ -59,15 +59,30 @@ Read the whole diff: `git log --oneline main..feature/ui-qa-polish` and `git dif
 4. **Splash trap on refresh.** `html.splash-armed { overflow: hidden }` freezes whatever offset the document has; iOS restores scroll on refresh and races the reset, so the reader was frozen mid-page, and `touch-action: none` removed the escape. `arm()` now scrolls to top *before* freezing, plus a while-armed safety net.
 5. **Jarring up/down glide on refresh.** `html { scroll-behavior: smooth }` is global, so the reload path's three resets did not jump — they *animated*. Measured at 390×844: a bare `scrollTo(0,0)` from 1500 passes through **25** distinct intermediate positions; pinned to `auto` it reports **1**.
 6. **The `scroll-behavior` opt-out never applied — six call sites.** Setting `root.style.scrollBehavior = 'auto'` only marks style dirty; with no recalc before the scroll, `scrollTo()` still reads `smooth`. Measured, jumping 390→0, scrollY on the next frame: pin only → **390**; pin + forced recalc → **0**. Extracted to `src/lib/scroll-to.ts` (`jumpTo()`), which pins, forces the recalc, then scrolls. Then: one-shot resets could still be beaten by a late scroll restore, so the reload path now HOLDS the top as a condition (releasing on the first real input). Before: every restore timing painted 8–16 frames at the old offset, one was never corrected. After: 0.
-7. **Landscape corner controls unpressable (iPhone, multiple tabs).** The reporter's own diagnosis: it stops the moment every other tab is closed, and *"the user has to tap just beneath each icon for it to actually press."* Safari's landscape tab bar collapses/expands on scroll, resizing the web view; iOS leaves fixed elements hit-tested at the old coordinates. Fixes: `src/lib/viewport-anchor.ts` re-resolves fixed controls on `visualViewport` resize/scroll; landscape clearance (navbar `padding-top` 0.4rem→1.15rem, control 44px→56px tall with the glyph unchanged); invisible `::before` expansion down and inward; `touch-action: manipulation`.
+7. **Landscape corner controls unpressable (iPhone, multiple tabs).** The reporter's own diagnosis: it stops the moment every other tab is closed, and *"the user has to tap just beneath each icon for it to actually press."* Safari's landscape tab bar collapses/expands on scroll, resizing the web view; iOS leaves fixed elements hit-tested at the old coordinates. Fixes now on the branch: `src/lib/viewport-anchor.ts` re-resolves fixed controls on `visualViewport` resize/scroll; invisible `::before` hit expansion (6px down inside the bar, 48px left across its empty middle); `touch-action: manipulation`. **A landscape-clearance approach was tried and REVERTED** — growing the header broke `.hero` and `.nav-container`, both of which are measured against it. **This bug may not be fully fixed.** The device symptom is that taps land below the glyph; say whether the remaining margin is enough, and if not, quantify how much vertical room the control actually needs.
 
 Also in scope: Instagram topic qualification (`src/lib/instagram-topic.ts`, `HUB_CAROUSEL_MIN_TILES`), hover de-flicker, Featured row width, contact-modal removal, and a median-of-3 Lighthouse gate.
 
 ## Swarm assignments
 
-Run these in parallel. Each returns findings with `file:line` and a reproduction. **Fix nothing.**
+Run these in parallel. Each returns findings with `file:line` and a reproduction. **Fix nothing.**\n\n**Assume this branch is broken in ways nobody has looked at yet.** Two agents and a full CI suite passed it three times while a device found three regressions. "The tests pass" is evidence about the tests, not about the branch.
 
-### Agent 1 — Chaos / state-corruption (highest priority)
+### Agent 0 — REGRESSION HUNT vs `main` (do this first, and weight it highest)
+
+**This is now the most important assignment, because this branch has a track record.** Three separate regressions were reported from a device *after* CI was green and both agents had reviewed it:
+
+- The category overlay's X fell out of its corner into the middle of the overlay on `/feed` and `/intel`, in both orientations. Cause: `a11y.css` is imported last, and its bare `.nav-toggle { position: relative }` beat `filters.css`'s `position: absolute` — because the overlay's close button is `class="close-fullscreen-btn nav-toggle menu-open"` and deliberately **shares the toggle's class**.
+- The landscape header was grown by ~30px to buy tap clearance, and `.hero { padding-top: 5.5rem }` and `.nav-container { padding-top: calc(... + 4.25rem) }` are both measured against the old height — so the hero slid under the header.
+- The category list stayed a vertical column in a 440px landscape viewport and turned into a scroller.
+
+**Every one of those is the same failure: a change whose blast radius was larger than the author checked.** Assume there are more. Your job is to find them.
+
+- **Diff every changed CSS selector against `main` and ask "what else matches this?"** For each selector this branch touches, run `document.querySelectorAll` for it on every route and list every element it hits. Shared classes across components are the specific trap here.
+- **`src/styles/modules/a11y.css` is imported LAST** (`src/styles/global.css` line 37). Anything it declares wins ties. Audit every rule in it for reach.
+- **Screenshot-diff `main` against this branch**, route by route, at every breakpoint in Agent 2's list, portrait and landscape, in these states: default, scrolled, mobile menu open, category overlay open, video modal open, calendar open. Report any pixel difference that is not an intended change from the list below. This is the single highest-yield thing you can do.
+- **Anything measured against another element's size** is suspect. Grep for hard-coded offsets (`4.25rem`, `5.5rem`, `padding-top` values that clear a fixed header) and verify each still matches the thing it is clearing.
+
+### Agent 1 — Chaos / state-corruption
 
 Every bug this session came from a component reaching a state its author did not anticipate. Produce those states.
 
@@ -160,11 +175,11 @@ Be adversarial and specific. "Looks fine" is not a finding; neither is a defect 
 
 **Model:** use **Gemini 3.1 Pro**. It is the stronger reasoner of the two available and this is an analysis job, not a code-writing job. Do **not** switch to the Claude agent in Antigravity — the whole point is an independent second opinion, and a second Claude checking the first Claude's work is worth much less to you.
 
-1. **Pull the branch in Antigravity:** `feature/ui-qa-polish`. Confirm it is at commit `475e4b4` or later.
-2. **Paste the prompt** — everything between the two `---` dividers above, starting at `/goal`.
-3. **Let it run.** It is told it has no time budget. Expect a long run if it is doing the job properly; a fast answer is a warning sign, not a good sign.
-4. **When it reports back, paste the whole report to me.** Do not act on it yourself — the last audit's report contained two false criticals and one fabricated number, and I will need to verify each finding against the code before anything changes.
-5. **What I need from you in parallel** (only you can do these — no sandbox has a real iPhone):
+10. **Pull the branch in Antigravity:** `feature/ui-qa-polish`. Confirm it is at commit `475e4b4` or later.
+11. **Paste the prompt** — everything between the two `---` dividers above, starting at `/goal`.
+12. **Let it run.** It is told it has no time budget. Expect a long run if it is doing the job properly; a fast answer is a warning sign, not a good sign.
+13. **When it reports back, paste the whole report to me.** Do not act on it yourself — the last audit's report contained two false criticals and one fabricated number, and I will need to verify each finding against the code before anything changes.
+14. **What I need from you in parallel** (only you can do these — no sandbox has a real iPhone):
    - Landscape, **3+ tabs open**, scroll until the tab bar collapses: are the hamburger and X now pressable **on** the glyph? If still not, tell me roughly how far below the glyph the working point is — "half an icon", "a whole icon" — that number is the fix.
    - Same in **portrait** with multiple tabs, to confirm nothing regressed there.
    - The taller landscape header: does it look right to you, or has it eaten too much of the screen?
