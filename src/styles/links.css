@@ -284,6 +284,14 @@
   place-items: center;
   opacity: 0;
   visibility: hidden;
+
+  /* PHANTOM OVERLAY GUARD — see styles/modules/a11y.css for the rule.
+     `visibility: hidden` alone does NOT stop iOS Safari routing touches to a
+     composited, viewport-covering fixed layer. This element sits at z-index
+     300, above the navbar, on every page that mounts it — so while it was
+     tap-transparent on Chromium it was swallowing taps on iPad, which is what
+     made the whole navbar feel dead. */
+  pointer-events: none;
   transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
   padding: 1.5rem;
 }
@@ -291,6 +299,7 @@
 .qr-modal-overlay.is-active {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
 }
 
 .qr-modal-content {

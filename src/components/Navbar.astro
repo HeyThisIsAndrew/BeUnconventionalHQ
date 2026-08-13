@@ -301,7 +301,27 @@ const isActive = (href: string) =>
       
       // The crucial fix for the persistence and flicker bugs
       document.addEventListener('astro:before-swap', purgeNavbarState);
-      
+
+      /* Escape closes the menu, matching the category overlay, the video
+         modal and the calendar. Without it the mobile menu was the only
+         full-screen overlay on the site a keyboard user could open but not
+         dismiss with the key every other one accepts. Bound on document,
+         once, alongside the other global listeners. */
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        const navbar = document.getElementById('navbar');
+        if (!navbar || !navbar.classList.contains('menu-open')) return;
+        navbar.classList.remove('menu-open');
+        const toggle = document.querySelector('.nav-toggle');
+        if (toggle) {
+          toggle.setAttribute('aria-expanded', 'false');
+          toggle.focus();
+        }
+        if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
+          window.__hqScrollLock.unlock();
+        }
+      });
+
       window.navbarMobileMenuSetup = true;
     }
   })();
