@@ -97,7 +97,7 @@ async function runTests() {
             /* Walk outward from the button's own box and ask the document
                what is at each point. Anything that hit-tests back to the
                button — including its ::before — counts as target. */
-            const PAD = 40;
+            const PAD = 60;
             let minX = Infinity;
             let maxX = -Infinity;
             let minY = Infinity;
@@ -227,6 +227,105 @@ async function runTests() {
         passed++;
       }
 
+      await page.close();
+    }
+
+    /*
+      THE TRADE THIS FIX MAKES, AND THE LIMIT ON IT.
+
+      The reachable band now extends ~34px BELOW the control, because on iOS
+      the touch region is displaced downward from the painted glyph. That band
+      is invisible, so if any other link or button falls inside it, that
+      control silently stops working and nothing on screen explains why —
+      strictly worse than the bug being fixed.
+
+      So: walk the expanded region on every route that matters and assert that
+      the only thing hit-testable inside it is the intended control (or inert
+      page background).
+    */
+    {
+      const page = await browser.newPage();
+      await page.setViewport({ width: 956, height: 440, hasTouch: true, isMobile: true });
+
+      for (const route of ['/', '/feed', '/events', '/intel', '/featured']) {
+        await page.goto(`http://localhost:4321${route}`, { waitUntil: 'networkidle2' });
+
+        const stolen = await page.evaluate(async () => {
+          const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+          const root = document.documentElement;
+          root.classList.remove('splash-armed', 'splash-lifting', 'splash-dropping');
+          window.__hqScrollLock?.release?.();
+          window.scrollTo(0, 700);
+          /* The navbar's return transition is 500ms on a 300ms delay. Sample
+             before it settles and the bar is still translated off-screen, so
+             the band gets measured against page content instead of the bar —
+             which reports overlaps that do not exist. */
+          await wait(1100);
+
+          const toggle = document.querySelector('.nav-toggle');
+          if (!toggle) return [];
+          const b = toggle.getBoundingClientRect();
+          const navEl = document.getElementById('navbar');
+          const nav = navEl ? navEl.getBoundingClientRect() : null;
+
+          const victims = new Set();
+          /*
+            Only points the band ACTUALLY covers matter, and the precise way to
+            ask that is the hit stack: if the toggle is on top at this point,
+            anything actionable BENEATH it in the same stack is a control the
+            band is swallowing.
+
+            Scanning a rectangle and flagging every actionable element inside
+            it is not the same question — it reports content that merely sits
+            near the band, which is how an earlier version of this check
+            produced a false `a.cat` failure.
+          */
+          const PAD = 60;
+          for (let x = b.left - PAD; x <= b.right + PAD; x += 3) {
+            for (let y = b.top - PAD; y <= b.bottom + PAD; y += 3) {
+              if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue;
+              /*
+                Points inside the navbar's own box are not at issue: the bar is
+                opaque and fixed, so it already covers whatever scrolls under
+                it. Only band area reaching PAST the bar can take a tap that
+                would otherwise have gone somewhere real.
+              */
+              if (nav && x >= nav.left && x <= nav.right && y >= nav.top && y <= nav.bottom) continue;
+
+              const stack = document.elementsFromPoint(x, y);
+              if (!stack.length) continue;
+              const top = stack[0];
+              if (!(top === toggle || toggle.contains(top))) continue; // not our band
+
+              for (const el of stack.slice(1)) {
+                if (el === toggle || toggle.contains(el)) continue;
+                if (el.contains(toggle)) continue; // ancestors are not victims
+                const actionable = el.closest('a, button, [role="button"], input, select, textarea');
+                if (actionable && !toggle.contains(actionable) && !actionable.contains(toggle)) {
+                  victims.add(
+                    actionable.tagName.toLowerCase() +
+                      (actionable.className
+                        ? '.' + actionable.className.toString().trim().split(/\s+/)[0]
+                        : '')
+                  );
+                }
+              }
+            }
+          }
+          return [...victims];
+        });
+
+        assert.deepEqual(
+          stolen,
+          [],
+          `${route}: the nav toggle's invisible hit band overlaps other controls ` +
+            `(${stolen.join(', ')}). Those would silently stop responding with nothing ` +
+            `on screen to explain it. Shrink the expansion in a11y.css or move what ` +
+            `is underneath.`
+        );
+        console.log(`  ✓ ${route}: expanded hit band steals nothing`);
+        passed++;
+      }
       await page.close();
     }
 

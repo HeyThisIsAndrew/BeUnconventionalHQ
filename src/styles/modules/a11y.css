@@ -211,3 +211,57 @@
   background: none;
   pointer-events: auto;
 }
+
+/*
+  ─── LANDSCAPE: THE TOUCH REGION SITS BELOW THE GLYPH ──────────────────────
+
+  Device report, iPhone 17 Pro Max, iOS Safari, landscape, with more than one
+  tab open, WITH the 14px expansion above already shipped:
+
+    "the user has to tap just beneath each icon for it to actually press …
+     if I actually tap the icon, it doesn't work. I keep having to tap just
+     under it … you did improve it a little bit"
+
+  That is the measurement this needed. The button is PAINTED where you see it
+  and HIT-TESTED lower down — Safari's landscape tab bar collapses and expands
+  as the page scrolls, resizing the web view, and the fixed element's touch
+  region is left behind by roughly the amount the view moved. "Improved a
+  little" is the 14px expansion covering the top of that offset and running
+  out; the rest of the offset is still below where the finger can reach the
+  button.
+
+  So in landscape the reachable band is pushed down far enough to contain both
+  the painted glyph AND the displaced region beneath it:
+
+    · the control's own box grows to 56px tall. The three 24px lines stay
+      centred, so the icon looks identical — only the box around it grows.
+    · the invisible expansion below it stays at 14px.
+
+  Reachable band, from the top of the icon: 56 + 14 = 70px, against 58px
+  before and 44px originally — and, critically, the glyph now sits in the
+  UPPER part of a tall box, so a tap aimed at the icon and displaced downward
+  still lands inside the control instead of falling out the bottom of it.
+
+  THE BAND MUST NOT LEAVE THE NAVBAR — this is the constraint that sizes it.
+  A first attempt used a 34px expansion, reaching 27px past the bottom of the
+  bar. scripts/e2e-corner-controls.test.mjs measured that band swallowing
+  `a.cat` — a category tile — on the homepage: an invisible target stealing a
+  real control's taps, with nothing on screen to explain it. Strictly worse
+  than the bug being fixed. The bar's own bottom padding was opened up instead
+  so the whole band lives inside the opaque bar, where the only thing beneath
+  it is the bar itself. That test walks the region on five routes and fails if
+  anything actionable is ever caught inside it.
+*/
+@media (orientation: landscape) and (max-height: 500px) {
+  .nav-toggle,
+  .close-fullscreen-btn,
+  .modal-close {
+    height: 56px;
+  }
+
+  .nav-toggle::before,
+  .close-fullscreen-btn::before,
+  .modal-close::before {
+    bottom: -14px;
+  }
+}
