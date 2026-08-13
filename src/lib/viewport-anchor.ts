@@ -25,16 +25,32 @@
  *
  *   1. Publishes the visual viewport's top offset as `--vv-top`, so any
  *      control that needs to sit below overlaying chrome can use it in CSS.
- *   2. Touches each fixed control's `top` and reads layout back, which forces
- *      the engine to re-establish the element's box — and with it, its hit
- *      region. The value is restored in the same frame, so nothing moves.
+ *   2. Forces each fixed control's box to be recomputed, and with it its hit
+ *      region, by writing a genuine sub-pixel layout mutation and reverting it
+ *      on the NEXT frame.
  *
- * WHY A NUDGE AND NOT A TRANSFORM
- * The usual trick for this is `translateZ(0)` to re-promote the layer, but
- * #navbar's transform is already owned by the splash curtain
+ * WHY THE MUTATION HAS TO BE REAL, AND REVERTED A FRAME LATER
+ * The first version of this wrote each element's own computed `top` back onto
+ * it and read `offsetHeight`, then restored the value in the same tick. That
+ * is very likely a no-op: writing a property its used value already equals,
+ * and reverting before the frame ends, gives the engine nothing to invalidate,
+ * so the stale hit region survives. Credit to the Antigravity audit for
+ * catching it.
+ *
+ * `padding-bottom: 0.1px` is a value the element does NOT already have, so the
+ * box genuinely changes; reverting on the next animation frame means a layout
+ * pass actually happens in between. 0.1px on a fixed control is below the
+ * threshold of anything visible, and the control is out of flow, so nothing
+ * else moves with it.
+ *
+ * NOT a transform: #navbar's transform is owned by the splash curtain
  * (`html.splash-armed #navbar { transform: translateY(-100%) }`) and stamping
- * over it would break the reveal. Touching `top` is inert here: the value
- * written is the one already computed, and it is cleared immediately.
+ * `translateZ(0)` over it would break the reveal.
+ *
+ * NOT VERIFIABLE HERE. Chromium hit-tests fixed elements correctly, so neither
+ * version can be shown to fix the WebKit symptom from this sandbox. What the
+ * test asserts is that the correction runs, is bound to the right signal, and
+ * leaves every control's geometry and inline styles exactly as it found them.
  *
  * COST WHEN NONE OF THIS APPLIES
  * Nothing. `visualViewport` resize does not fire on a desktop browser sitting

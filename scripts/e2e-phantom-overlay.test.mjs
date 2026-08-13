@@ -54,12 +54,37 @@ async function runTests() {
   let exitCode = 0;
 
   try {
-    const page = await browser.newPage();
-    // Tablet portrait: tall and wide enough that a "covers the viewport" test
-    // is meaningful, and the size the second occurrence was reported on.
-    await page.setViewport({ width: 1024, height: 1366, hasTouch: true, isMobile: false });
+    /*
+      VIEWPORT COVERAGE IS THE WHOLE TEST.
 
+      This ran only at 1024x1366 tablet portrait, and that is where it was
+      blind. `.nav-container` — the overlay this test exists for — is only
+      fixed and full-screen inside
+      `@media (max-width: 768px), (orientation: landscape) and (max-height: 500px)`.
+      At 1024 wide in portrait neither clause matches, so the menu is a
+      `position: static` 498x53 strip and the sweep finds nothing to check.
+
+      Measured: with `.nav-container` deliberately set back to
+      `pointer-events: auto`, this file still reported "no phantom overlays
+      across 12 routes" — while the same page at 390x844 and 956x440 had a
+      hidden, viewport-covering, tap-swallowing overlay on every route. A test
+      that cannot see the bug it was written for is worse than none.
+
+      Phone portrait AND phone landscape are both required: landscape is where
+      it was originally reported, and it is a different media clause.
+    */
     const offenders = new Map();
+
+    const VIEWPORTS = [
+      { width: 390, height: 844, label: 'phone portrait' },
+      { width: 956, height: 440, label: 'phone landscape' },
+      { width: 844, height: 390, label: 'small phone landscape' },
+      { width: 1024, height: 1366, label: 'tablet portrait' },
+    ];
+
+    for (const vp of VIEWPORTS) {
+    const page = await browser.newPage();
+    await page.setViewport({ width: vp.width, height: vp.height, hasTouch: true, isMobile: false });
 
     for (const route of ROUTES) {
       await page.goto(`http://localhost:4321${route}`, { waitUntil: 'networkidle2' });
@@ -90,9 +115,12 @@ async function runTests() {
       });
 
       for (const hit of hits) {
-        if (!offenders.has(hit)) offenders.set(hit, []);
-        offenders.get(hit).push(route);
+        const key = `${hit} @ ${vp.label}`;
+        if (!offenders.has(key)) offenders.set(key, []);
+        offenders.get(key).push(route);
       }
+    }
+    await page.close();
     }
 
     if (offenders.size) {
@@ -107,7 +135,9 @@ async function runTests() {
       );
     }
 
-    console.log(`  ✓ no phantom overlays across ${ROUTES.length} routes`);
+    console.log(
+      `  ✓ no phantom overlays across ${ROUTES.length} routes x ${VIEWPORTS.length} viewports`
+    );
     console.log('\n✅ Phantom Overlay E2E tests passed.');
   } catch (error) {
     console.error('\n❌ Phantom Overlay E2E failed:', error.message);

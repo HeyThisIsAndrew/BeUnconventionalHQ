@@ -73,6 +73,7 @@ async function runTests() {
               out[sel] = {
                 rect: `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)}`,
                 inlineTop: el.style.top,
+                inlinePaddingBottom: el.style.paddingBottom,
               };
             }
             return out;
@@ -113,6 +114,14 @@ async function runTests() {
             `${vp.label} ${route}: ${sel} MOVED across the viewport-resize correction ` +
               `(${result.before[sel].rect} -> ${result.after[sel].rect}). The correction ` +
               `must re-resolve the box without changing it.`
+          );
+          assert.equal(
+            result.after[sel].inlinePaddingBottom,
+            result.before[sel].inlinePaddingBottom,
+            `${vp.label} ${route}: ${sel} kept an inline padding-bottom of ` +
+              `"${result.after[sel].inlinePaddingBottom}". The 0.1px invalidation ` +
+              `nudge must be reverted on the next frame, or it accumulates on the ` +
+              `element and shadows the stylesheet.`
           );
           assert.equal(
             result.after[sel].inlineTop,
