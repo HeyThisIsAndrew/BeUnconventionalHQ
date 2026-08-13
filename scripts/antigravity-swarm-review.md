@@ -46,6 +46,8 @@ Read the whole diff: `git log --oneline main..feature/ui-qa-polish` and `git dif
 3. **iPad carousel: tiles at both ends could never be opened.** The tap-to-centre handler gated links on `.is-active`, which requires crossing the track's horizontal centre — impossible for the end tiles. 4 of 10 dead in iPad landscape. Gate is visibility now; `scripts/e2e-carousel-rail.test.mjs` dispatches real clicks at five widths including tablets.
 4. **Splash trap on refresh.** `html.splash-armed { overflow: hidden }` freezes whatever offset the document has; iOS restores scroll on refresh and races the reset, so the reader was frozen mid-page, and `touch-action: none` removed the escape. `arm()` now scrolls to top *before* freezing, plus a while-armed safety net; `scripts/splash-scroll-lock.test.mjs` is a static guard.
 
+5. **Jarring glide on refresh.** Related to 4 but a separate defect: `html { scroll-behavior: smooth }` is global, so the three resets on the reload path in `Hero.astro` did not jump — they *animated* from the restored offset to the top, re-targeting each other, with `arm()`'s instant jump landing mid-flight. Measured at 390×844: a bare `scrollTo(0, 0)` from 1500 passes through **25** distinct intermediate positions; pinned to `auto` it reports **1**. All resets now go through `jumpToTop()`, and `splash-scroll-lock.test.mjs` fails any `window.scrollTo()` in `Hero.astro` that neither states a behavior nor pins one first. **Re-measure this yourself, and audit every other `scrollTo` on the site for the same latent animation.**
+
 Also in scope: Instagram topic qualification (`src/lib/instagram-topic.ts`, `HUB_CAROUSEL_MIN_TILES`), hover de-flicker on carousel tiles and YouTube embeds, Featured row width, contact-modal removal, invisible `::before` touch-target expansion, and a median-of-3 Lighthouse gate.
 
 ## Swarm assignments
@@ -76,7 +78,7 @@ Every bug this session came from a component reaching a state its author did not
 ### Agent 3 — E2E, unit and type checks
 
 - `npm ci`, then `npx astro check` (report the exact error/warning/**hint** counts; the bar is zero new, and hints count), `npm test`, `npm run test:e2e` (13 suites), `npm run build`.
-- **Then do the thing that matters most: verify the new tests can actually fail.** Two tests written this session initially passed against a deliberately reintroduced bug because they measured the wrong thing. For each of `e2e-phantom-overlay`, `e2e-carousel-rail` and `splash-scroll-lock`: reintroduce the original defect in a scratch copy, rebuild, and confirm the test fails. A test that cannot fail is worse than no test — it is false confidence. Report any that do not.
+- **Then do the thing that matters most: verify the new tests can actually fail.** Two tests written this session initially passed against a deliberately reintroduced bug because they measured the wrong thing. For each of `e2e-phantom-overlay`, `e2e-carousel-rail` and `splash-scroll-lock` (including its new "must JUMP, never animate" case): reintroduce the original defect in a scratch copy, rebuild, and confirm the test fails. A test that cannot fail is worse than no test — it is false confidence. Report any that do not.
 - Check for flakiness: run the e2e suite twice. Note anything order-dependent or timing-dependent.
 
 ### Agent 4 — Instagram topic qualification
