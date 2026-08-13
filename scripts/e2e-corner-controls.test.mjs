@@ -120,6 +120,7 @@ async function runTests() {
               label,
               position: cs.position,
               touchAction: cs.touchAction,
+              topEdgeGap: Math.round(box.top),
               box: { w: Math.round(box.width), h: Math.round(box.height) },
               /* How far the effective area reaches past the visual box on
                  each side. Positive = expanded that way. */
@@ -161,6 +162,23 @@ async function runTests() {
             `which is a large part of why these corner buttons read as ` +
             `unreliable. It must be "manipulation" (never "none" — see splash.css).`
         );
+        /*
+          Distance from the top of the viewport. In landscape on an iPhone the
+          first ~30px is contested real estate: Safari's tab bar lives there
+          when more than one tab is open and collapses through it on scroll,
+          iOS watches it for Control Centre, and the display's rounded corner
+          eats into it. The control used to start 5px down.
+        */
+        if (vp.width > vp.height) {
+          assert.ok(
+            m.topEdgeGap >= 14,
+            `${vp.label}: ${m.label} starts only ${m.topEdgeGap}px below the top of ` +
+              `the viewport. In landscape that is inside the strip Safari's collapsing ` +
+              `tab bar and iOS's own gestures both contend for — the reported cause of ` +
+              `"difficult to press", which stopped the moment every other tab was ` +
+              `closed. Landscape clearance lives in landscape.css.`
+          );
+        }
         assert.ok(
           m.growUp <= 0 && m.growRight <= 0,
           `${vp.label}: ${m.label} expands toward the screen edge ` +
@@ -170,7 +188,7 @@ async function runTests() {
         );
         console.log(
           `  ✓ ${vp.label}: ${m.label} — ${m.area}px² effective ` +
-            `(+${m.growLeft} left, +${m.growDown} down)`
+            `(+${m.growLeft} left, +${m.growDown} down), ${m.topEdgeGap}px below top`
         );
         passed++;
       };

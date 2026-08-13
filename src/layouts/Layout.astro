@@ -370,6 +370,14 @@ const fallbackMark = await getImage({
     */}
     <script>
       import { lockScroll, unlockScroll } from '../lib/scroll-lock';
+      import { keepFixedControlsTappable } from '../lib/viewport-anchor';
+
+      /* Bound once, site-wide: iOS Safari leaves fixed elements hit-tested at
+         stale coordinates after it resizes the web view (its landscape tab bar
+         collapsing on scroll is the reported trigger). Self-guarded against
+         double-binding, so calling it on every page load is safe. */
+      keepFixedControlsTappable();
+      document.addEventListener('astro:page-load', keepFixedControlsTappable);
 
       /* The listeners below are attached to `document` once and must never be
          attached twice, so the "already bound" flags live on `window` rather

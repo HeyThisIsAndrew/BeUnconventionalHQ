@@ -8,9 +8,32 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 @media (orientation: landscape) and (max-height: 500px) {
-  /* Compress the fixed header so it doesn't eat the short viewport */
+  /*
+    Compress the fixed header so it doesn't eat the short viewport — but NOT
+    all the way to the top edge.
+
+    The header used to sit at `padding-top: max(0.4rem, ...)`, which put the
+    44×44 hamburger 5px below the top of the viewport. That is the worst strip
+    on the screen in landscape on an iPhone:
+
+      · Safari shows a TAB BAR there when more than one tab is open, and that
+        bar collapses and expands as you scroll — resizing the web view each
+        time. Reported directly: the buttons became pressable the moment every
+        other tab was closed.
+      · iOS watches the same strip for its own gestures (a downward swipe near
+        the top-right opens Control Centre).
+      · The display's rounded corner cuts into it.
+
+    1.15rem instead of 0.4rem moves the control's centre from ~27px to ~39px.
+    That costs ~12px of a 390-440px viewport — a real price, paid knowingly,
+    because a header a few pixels shorter is worth nothing if its only control
+    cannot be pressed. Combined with the downward hit-area expansion in
+    a11y.css, the reachable region now starts well clear of the edge.
+
+    scripts/e2e-corner-controls.test.mjs holds the minimum distance.
+  */
   #navbar {
-    padding-top: max(0.4rem, env(safe-area-inset-top));
+    padding-top: max(1.15rem, env(safe-area-inset-top));
     padding-bottom: 0.4rem;
   }
 
@@ -74,5 +97,33 @@
 
   .hero-subtitle {
     margin-bottom: 1.25rem !important;
+  }
+}
+
+/*
+  ─── OVERLAY CLOSE BUTTONS: SAME EDGE, SAME PROBLEM ────────────────────────
+
+  `.close-fullscreen-btn` (category overlay) and `.modal-close` (video modal)
+  are pinned to the top-right at `max(1rem, inset)` and `max(inset, 10px)`.
+  In landscape that is the strip Safari's collapsing tab bar and iOS's own
+  gestures both contend for — the same reason the navbar's control was
+  reported as unpressable, which is why the report said it happens "for any
+  area where the X button is present".
+
+  `--vv-top` is published by src/lib/viewport-anchor.ts from
+  `visualViewport.offsetTop`, so on the occasions the engine genuinely offsets
+  the visual viewport, these follow it down instead of hiding underneath.
+  It is 0 everywhere else, so this changes nothing on any other device.
+
+  Only the TOP is moved. Pushing them further left would walk the close button
+  into the content it sits over.
+*/
+@media (orientation: landscape) and (max-height: 500px) {
+  .close-fullscreen-btn {
+    top: calc(max(1.75rem, env(safe-area-inset-top, 1.75rem)) + var(--vv-top, 0px));
+  }
+
+  .modal-close {
+    top: calc(max(env(safe-area-inset-top, 28px), 28px) + var(--vv-top, 0px));
   }
 }
