@@ -112,3 +112,102 @@
   background: none;
   pointer-events: auto;
 }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   CORNER CONTROLS — THE TOP-RIGHT PROBLEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/*
+  Reported on iPhone in LANDSCAPE, and reported for "any area where the X
+  button is present": the hamburger, the X it turns into, the category
+  overlay's close and the video modal's close are all hard to press.
+
+  They are the same control in three costumes, and they share the two
+  properties that make a target fragile on this exact device:
+
+    .nav-toggle ............ 44×44, top 5px,               right ~45px
+    .close-fullscreen-btn .. 44×44, top max(1rem, inset),  right max(1rem, inset)
+    .modal-close ........... 44×44, top max(inset, 10px),  right max(inset, 25px)
+
+  1. Every one is EXACTLY 44×44 — Apple's minimum, with no margin for error.
+  2. Every one sits in the TOP-RIGHT CORNER, and in landscape that corner is
+     the worst real estate on the screen: it is cut by the display's rounded
+     corner, and on a notched iPhone it is where a downward swipe opens
+     Control Centre, so iOS is watching that strip for a system gesture at the
+     same time the page wants a tap. The result is not a dead button — it is
+     an unreliable one, which is exactly how it was reported.
+
+  Chromium cannot show any of this. Hit-tested across a grid at every landscape
+  phone size, with and without simulated 59px insets, all three measure 100%
+  reachable — so the invariant tests pass while the reader cannot press the
+  button. What CAN be fixed from here is the margin for error.
+
+  So: grow the hit area DOWN and to the LEFT — away from both screen edges —
+  using the invisible `::before` overlay established above. The glyph does not
+  move by a single pixel and no layout changes; the finger simply gets
+  ~60×58 of target instead of 44×44, most of it outside the corner strip.
+
+  Asymmetric on purpose. Expanding up or right would push the target further
+  INTO the edge iOS is already contending for, which is the opposite of the
+  fix. scripts/e2e-corner-controls.test.mjs asserts the effective area and the
+  direction of the expansion at landscape sizes.
+*/
+/*
+  ONLY .nav-toggle gets `position: relative`, and that is not tidiness.
+
+  `.close-fullscreen-btn` is already `position: absolute` and `.modal-close` is
+  `absolute` in portrait and `fixed` in landscape — each already establishes
+  the containing block its ::before needs. Adding them to this rule would
+  RESET that positioning (same specificity, and a11y.css is imported after
+  both), dropping the close buttons out of their corners entirely. `.nav-toggle`
+  is a static flex item, so it is the one that genuinely needs it.
+*/
+.nav-toggle {
+  position: relative;
+}
+
+/*
+  ─── AND STOP iOS TREATING THE TAP AS A POSSIBLE GESTURE ───────────────────
+
+  The page is deliberately zoomable — the viewport is
+  `width=device-width, initial-scale=1, viewport-fit=cover` with no
+  `maximum-scale` and no `user-scalable=no`, which is correct and must stay
+  that way; pinch-zoom is an accessibility requirement.
+
+  The cost is that iOS keeps double-tap-to-zoom armed over every element, so a
+  tap is not committed until the engine is satisfied a second one is not
+  coming. On a control jammed into the corner — where a downward swipe is also
+  a Control Centre gesture — that ambiguity is what turns a press into a
+  coin-flip. `touch-action` was set NOWHERE on this site, so every one of
+  these buttons has been paying it.
+
+  `manipulation` opts these three controls out of double-tap-zoom and nothing
+  else: panning and pinch-zoom still work, on the page and on the buttons.
+
+  NOT `touch-action: none` — that kills touch scrolling outright and is
+  explicitly banned here after it turned a splash glitch into a trap (see
+  splash.css and scripts/splash-scroll-lock.test.mjs). `manipulation` is a
+  different value with none of that behaviour.
+*/
+.nav-toggle,
+.close-fullscreen-btn,
+.modal-close {
+  touch-action: manipulation;
+}
+
+.nav-toggle::before,
+.close-fullscreen-btn::before,
+.modal-close::before {
+  content: '';
+  position: absolute;
+  /* Down and inward only — never toward the screen edges. */
+  top: 0;
+  bottom: -14px;
+  right: 0;
+  left: -16px;
+  /* Hit area only — never paints, never affects layout. Left in normal paint
+     order deliberately: a click on the pseudo-element targets the button that
+     originates it, so the button still receives the event. */
+  background: none;
+  pointer-events: auto;
+}
