@@ -62,7 +62,10 @@ async function runTests() {
           const root = document.documentElement;
           root.classList.remove('splash-armed', 'splash-lifting', 'splash-dropping');
           window.__hqScrollLock?.release?.();
-          await wait(200);
+          /* The navbar's return transition is 500ms on a 300ms delay. Snapshot
+             before it settles and the "before" rect is a bar still translated
+             off-screen, so every later comparison reports a phantom move. */
+          await wait(1000);
 
           const snapshot = () => {
             const out = {};
@@ -90,13 +93,68 @@ async function runTests() {
 
           const after = snapshot();
 
+          /*
+            ROTATION. Reported separately: load, press ENTER THE HQ, THEN
+            rotate — the navbar and X stop responding, while starting in the
+            same orientation is fine. A rotation is a viewport resize after
+            layout, which is the same stale-hit-region condition, and it
+            arrives on different events. Assert the anchor answers those too,
+            and that it keeps answering while the rotation settles.
+          */
+          root.style.removeProperty('--vv-top');
+          window.dispatchEvent(new Event('orientationchange'));
+          await new Promise((r) => requestAnimationFrame(r));
+          await new Promise((r) => requestAnimationFrame(r));
+          const vvTopAfterRotate = root.style.getPropertyValue('--vv-top');
+
+          root.style.removeProperty('--vv-top');
+          window.dispatchEvent(new Event('resize'));
+          await new Promise((r) => requestAnimationFrame(r));
+          await new Promise((r) => requestAnimationFrame(r));
+          const vvTopAfterResize = root.style.getPropertyValue('--vv-top');
+
+          /* And still correcting once the rotation animation has settled. */
+          root.style.removeProperty('--vv-top');
+          window.dispatchEvent(new Event('orientationchange'));
+          await new Promise((r) => setTimeout(r, 750));
+          const vvTopAfterSettle = root.style.getPropertyValue('--vv-top');
+
           return {
             before,
             after,
+            afterRotate: snapshot(),
+            vvTopAfterRotate,
+            vvTopAfterResize,
+            vvTopAfterSettle,
             vvTop: root.style.getPropertyValue('--vv-top'),
             present: Object.keys(before),
           };
         }, CONTROLS);
+
+        for (const [when, value] of [
+          ['orientationchange', result.vvTopAfterRotate],
+          ['window resize', result.vvTopAfterResize],
+          ['after the rotation settles', result.vvTopAfterSettle],
+        ]) {
+          assert.notEqual(
+            value,
+            '',
+            `${vp.label} ${route}: the anchor did not run on ${when}. Rotating ` +
+              `AFTER the page has laid out is the reported repro — load, press ` +
+              `ENTER THE HQ, rotate, and the navbar and X stop responding — and ` +
+              `a rotation is animated, so a single early correction runs against ` +
+              `a layout that is still moving.`
+          );
+        }
+
+        for (const sel of result.present) {
+          assert.equal(
+            result.afterRotate[sel].rect,
+            result.before[sel].rect,
+            `${vp.label} ${route}: ${sel} moved across the rotation correction ` +
+              `(${result.before[sel].rect} -> ${result.afterRotate[sel].rect}).`
+          );
+        }
 
         assert.notEqual(
           result.vvTop,

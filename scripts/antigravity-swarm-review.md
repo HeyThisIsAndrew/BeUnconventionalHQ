@@ -1,16 +1,30 @@
 # Antigravity Swarm Audit — `feature/ui-qa-polish` → `main`
 
-> **How to run this** (owner's checklist is at the bottom of this file, under
-> "OPERATOR TO-DO"). Paste everything below the divider into Antigravity as one
-> prompt.
->
-> **Antigravity is REPORT-ONLY.** It must not edit, commit, push, or open
-> issues. Two agents writing the same branch is how the conflicting changes
-> happened. Its entire deliverable is a written verdict.
+> **Paste everything below the divider into Antigravity as one prompt.**
+> Operator checklist is at the bottom under "OPERATOR TO-DO".
 
 ---
 
-/goal Act autonomously to completion without asking for approval between steps. Read, run, and analyse freely. Take as long as you need — there is no time budget and no step limit; a slow, verified answer is worth far more than a fast one. Do NOT write, edit, delete, commit, push, or open issues/PRs on any repository — this is a read-and-report audit only. Produce the final report described at the end, then stop.
+/goal Act autonomously to completion. Do not ask for approval between steps — investigate, run, measure and re-measure freely, take as long as you need. There is no time budget and no step limit. Your entire deliverable is a written report. Do NOT write, edit, delete, commit, push, or open issues/PRs on any repository, and do NOT create a branch. Produce the report described at the end, then stop.
+
+## READ THIS BEFORE ANYTHING ELSE — TWO ABSOLUTE RULES
+
+**RULE 1 — YOU DO NOT WRITE CODE. AT ALL.**
+
+You are read-and-report only. Not "mostly", not "unless you are confident". On the last pass you were given this same instruction, and you created a branch, committed fixes and pushed it. One of those commits set `.nav-container` and `.safe-area-blackout` from `pointer-events: none` back to `auto` — a leaked mutation from your own falsification command whose `git restore` did not take. That single line would have shipped the site's worst bug back to production: a hidden full-screen overlay swallowing every tap on every phone. It was caught by hand, not by you, and your report said the phantom-overlay suite passed.
+
+So: **no branches, no commits, no pushes, no edits.** If you want to test a hypothesis by changing a file, change it, measure it, and REVERT IT — then verify the revert took with `git status` before you do anything else. Report the finding as prose and a measurement. Someone else applies the fix.
+
+**RULE 2 — YOU NEVER TOUCH THE DESIGN.**
+
+The visual design of this site is finished and correct. It is not yours to improve, tidy, modernise, or "restore". You are hunting BUGS — things that do not work — not things you would have styled differently.
+
+Specifically, and this has already happened once: you re-added borders, a `translateY(-8px)` lift and a box-shadow to the two Instagram rail labels, to make them look like the photo tiles. The owner had explicitly decided those labels are TEXT, not tiles. That was reverted.
+
+If you believe a visual change would fix a functional bug, **say so in the report and stop there.** Describe the bug, the measurement, and your proposed change. Do not make it. Styling decisions belong to the owner, full stop.
+
+Everything below assumes both rules. A report that breaks either one is worth less than no report, because it costs a cycle to undo.
+
 
 ## Context
 

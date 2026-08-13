@@ -115,5 +115,41 @@ export function keepFixedControlsTappable(): void {
   vv.addEventListener('resize', schedule);
   vv.addEventListener('scroll', schedule);
 
+  /*
+    ─── ROTATION, WHICH IS THE SAME BUG WITH A DIFFERENT TRIGGER ─────────────
+
+    Reported: load the site, press ENTER THE HQ, THEN rotate to landscape —
+    the navbar and the X stop responding. Starting in landscape is fine. The
+    difference is not the orientation, it is that the viewport was resized
+    after the controls were laid out, which is exactly the condition that
+    leaves fixed elements hit-tested at their old coordinates.
+
+    Two things were missing:
+
+    1. `orientationchange` and window `resize` were not listened to at all.
+       `visualViewport.resize` is documented to cover this, but it is the same
+       engine that is failing to re-hit-test in the first place — relying on
+       one signal from it, for a bug in it, is optimistic. These are cheap.
+
+    2. A rotation is ANIMATED, roughly 300ms on iOS. A correction that runs on
+       the first event runs against a layout that is still moving, and the
+       final geometry never gets a pass. So the refresh is repeated across the
+       settling window rather than fired once.
+
+    The repeats are idempotent — each is a 0.1px padding write on a handful of
+    elements, reverted on the next frame — so an extra one costs nothing and a
+    missed one costs the reader a dead button.
+  */
+  const SETTLE_MS = [0, 120, 320, 600];
+  const refreshUntilSettled = () => {
+    for (const delay of SETTLE_MS) {
+      if (delay === 0) schedule();
+      else setTimeout(schedule, delay);
+    }
+  };
+
+  window.addEventListener('orientationchange', refreshUntilSettled);
+  window.addEventListener('resize', refreshUntilSettled);
+
   refresh();
 }
