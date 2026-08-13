@@ -86,15 +86,21 @@ export function keepFixedControlsTappable(): void {
     const offsetTop = Math.max(0, Math.round(vv.offsetTop));
     document.documentElement.style.setProperty('--vv-top', `${offsetTop}px`);
 
+    /* A value the element does NOT already have, so the box genuinely changes
+       and the engine has something to invalidate. */
+    const nudged: Array<[HTMLElement, string]> = [];
     for (const el of document.querySelectorAll<HTMLElement>(FIXED_CONTROLS)) {
-      const inlineTop = el.style.top;
-      /* Write the value the element already has, so the box does not move,
-         then read layout back to force the engine to re-resolve it. */
-      el.style.top = getComputedStyle(el).top;
-      void el.offsetHeight;
-      /* Restore in the same frame — before anything can paint. */
-      el.style.top = inlineTop;
+      nudged.push([el, el.style.paddingBottom]);
+      el.style.paddingBottom = '0.1px';
     }
+
+    /* Reverted on the NEXT frame, so a layout pass lands in between — that gap
+       is the entire point, and reverting in the same tick is what made the
+       previous version a no-op. Collected first and reverted in one callback
+       rather than one rAF per element. */
+    requestAnimationFrame(() => {
+      for (const [el, previous] of nudged) el.style.paddingBottom = previous;
+    });
   };
 
   const schedule = () => {
