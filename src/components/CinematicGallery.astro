@@ -112,7 +112,7 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
         titleCard.innerHTML = `
           <div class="ig-title-content">
             <svg viewBox="0 0 24 24" width="40" height="40" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="ig-title-icon"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
-            <span>LATEST ON<br>INSTAGRAM</span>
+            <span>Latest on<br>Instagram</span>
           </div>
         `;
         groups[0].insertBefore(titleCard, groups[0].firstChild);
@@ -158,11 +158,33 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
 
         tiles.forEach(tile => {
           observer.observe(tile);
-          
-          // Tap to center logic
+
+          /*
+            Tap-to-centre, gated on VISIBILITY — never on `.is-active`.
+
+            `.is-active` means "this tile is crossing the horizontal centre
+            line". Gating the link on it made every tile that cannot REACH the
+            centre permanently unopenable, because the handler would
+            preventDefault() forever. A tile can only be centred if the scroll
+            offset that centres it lies within [0, maxScroll], so the tiles at
+            each end of the rail are exactly the ones that can never qualify —
+            and the wider the screen, the more of them there are. Measured on
+            an iPad Pro 12.9": 4 of 10 tiles dead in landscape (0, 1, 8, 9) and
+            2 of 10 in portrait (0, 9).
+
+            Visibility is the right test: if the whole tile is already on
+            screen there is nothing to scroll to, so the tap should open it.
+            A partially visible tile still centres itself first, which is the
+            affordance this was written for.
+          */
           tile.addEventListener('click', (e) => {
-            if (!tile.classList.contains('is-active')) {
-              e.preventDefault(); // Prevent opening link if just tapping to center
+            const trackBox = track.getBoundingClientRect();
+            const tileBox = tile.getBoundingClientRect();
+            const fullyVisible =
+              tileBox.left >= trackBox.left - 1 && tileBox.right <= trackBox.right + 1;
+
+            if (!fullyVisible) {
+              e.preventDefault(); // First tap brings it into view; the next opens it.
               tile.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
             }
           });
@@ -671,11 +693,25 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
     padding: 0 0.75rem;
     color: var(--color-white-muted);
     font-family: var(--font-display, 'Syne', sans-serif);
+    /* ONE declaration block for both labels on purpose: the two ends of the
+       rail must read as the same thing. They previously differed in case
+       ("LATEST ON INSTAGRAM" vs "See More on Instagram") because the casing
+       was baked into the markup of each. It now comes from `text-transform`,
+       so neither label can drift from the other. */
+    text-transform: uppercase;
     font-size: 1.1rem;
     font-weight: 500;
     letter-spacing: 0.05em;
     text-align: center;
     transition: color 0.4s ease;
+  }
+
+  /* "SEE MORE ON INSTAGRAM" is four characters longer than "LATEST ON
+     INSTAGRAM" and overruns the 160px card on small phones. Only the size
+     steps down — family, weight, letter-spacing, colour and case stay
+     identical, which is the part that has to match. */
+  .ig-carousel-track .ig-cta-content {
+    font-size: 0.95rem;
   }
 
   /* The <span> is a flex item, so `text-align` on the parent alone does not
