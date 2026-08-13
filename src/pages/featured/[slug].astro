@@ -7,6 +7,7 @@ import SubscribeCTA from '../../components/SubscribeCTA.astro';
 import HeroTrailer from '../../components/HeroTrailer.astro';
 import ContentCard from '../../components/ContentCard.astro';
 import InstagramFeed from '../../components/InstagramFeed.astro';
+import { getHubTopicKeywords } from '../../lib/instagram-topic';
 import { parseVideoId } from '../../lib/platforms/youtube';
 
 export async function getStaticPaths() {
@@ -196,7 +197,9 @@ const trailerId = parseVideoId(trailerUrl);
         </div>
       )}
     </div>
-    <InstagramFeed keyword={event.title} minItems={7} />
+    {/* Topic-qualified: this brand's own keywords, not its display title.
+        Renders nothing unless 7 qualifying tiles exist — see InstagramFeed. */}
+    <InstagramFeed topicKeywords={getHubTopicKeywords(event)} minItems={7} />
     <SubscribeCTA />
 
   </main>

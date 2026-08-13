@@ -5,19 +5,44 @@ import { SOCIAL_ICONS } from '../data/icons.js';
 import { site } from '../data/site.js';
 
 export interface Props {
+  /** Most tiles to render. */
   limit?: number;
-  keyword?: string;
+  /**
+   * Hub keywords a post must match to qualify for this page — pass
+   * `getHubTopicKeywords(doc)` for a Featured brand or an Event. Omit it for
+   * the global "Latest on Instagram" rail on the homepage.
+   *
+   * An empty array is NOT the same as omitting it: it qualifies nothing, so a
+   * hub whose keywords have not been filled in renders no carousel instead of
+   * falling back to unrelated posts.
+   */
+  topicKeywords?: string[];
+  /** Fewest qualifying tiles that may be rendered — below this, nothing is. */
   minItems?: number;
 }
 
-const { limit = 10, keyword, minItems = 5 } = Astro.props;
+const { limit = 10, topicKeywords, minItems = 5 } = Astro.props;
 
-// Get the gallery and limit the items if requested
-const feed = getFlattenedGallery(keyword) || [];
-const items = Array.isArray(feed) ? feed.slice(0, limit) : [];
-// Ensure we only render if we have actual valid items (not undefined or missing urls)
-const validItems = items.filter(item => item && item.displayUrl);
-const shouldRender = validItems.length >= minItems;
+/*
+  Qualification order matters, and it is the whole point of this component.
+
+  Availability is not qualification: the carousel renders only when there are
+  enough tiles that BELONG to this page, never merely because the Instagram
+  feed is non-empty. So the feed is topic-filtered first, and the minimum is
+  counted on what survives — the tiles that will actually be rendered — not on
+  the raw feed. Nothing tops the row up from the global feed when a hub falls
+  short; there is deliberately no fallback path.
+
+  `getFlattenedGallery` unpacks carousel albums, so `items` counts media tiles
+  rather than posts: one 5-image album is 5 tiles toward the minimum, which is
+  the right unit when the question is whether the row can be filled.
+*/
+const feed = getFlattenedGallery(topicKeywords) || [];
+// Drop malformed entries BEFORE the limit, so `limit` yields up to N usable
+// tiles instead of N entries that might include unrenderable ones.
+const validItems = Array.isArray(feed) ? feed.filter((item) => item && item.displayUrl) : [];
+const items = validItems.slice(0, limit);
+const shouldRender = items.length >= minItems;
 ---
 
 {shouldRender && (

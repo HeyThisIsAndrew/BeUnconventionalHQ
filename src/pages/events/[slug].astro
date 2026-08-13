@@ -6,6 +6,7 @@ import { getEventsLocal, urlFor } from '../../lib/local-content';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
 import HeroTrailer from '../../components/HeroTrailer.astro';
 import InstagramFeed from '../../components/InstagramFeed.astro';
+import { getHubTopicKeywords } from '../../lib/instagram-topic';
 import { parseVideoId } from '../../lib/platforms/youtube';
 import { formatEventDateRange, formatLocation } from '../../lib/events';
 import EventStatusIndicator from '../../components/EventStatusIndicator.astro';
@@ -202,7 +203,9 @@ const trailerId = parseVideoId(trailerUrl);
       )}
     </div>
     
-    <InstagramFeed keyword={event.title} minItems={7} />
+    {/* Topic-qualified: this event's own keywords, not its display title.
+        Renders nothing unless 7 qualifying tiles exist — see InstagramFeed. */}
+    <InstagramFeed topicKeywords={getHubTopicKeywords(event)} minItems={7} />
     <SubscribeCTA />
 
   </main>
