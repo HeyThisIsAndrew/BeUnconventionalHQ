@@ -39,7 +39,7 @@ So:
 
 Read the whole diff: `git log --oneline main..feature/ui-qa-polish` and `git diff main...feature/ui-qa-polish`.
 
-**Four device-reported bugs were fixed, and three of the four were the same underlying pattern: interaction blocked on state that can be wrong.** That pattern is your highest-yield hunting ground.
+**Five device-reported bugs were fixed, and three of them were the same underlying pattern: interaction blocked on state that can be wrong.** That pattern is your highest-yield hunting ground.
 
 1. **Phone stuck in landscape.** A closed full-screen overlay still received touches. `.nav-container` is fixed, full-width, 100dvh on every page; making it scrollable made it a composited layer, and iOS routes touches to it while invisible. Fixed with `pointer-events: none` when closed.
 2. **iPad navbar untappable.** Same class: `#video-modal` (mounted by `Layout.astro` on *every* route, z-index 300, above the navbar's 100) and `#qr-modal` on `/links` were hidden but still `pointer-events: auto`. Guarded, plus `scripts/e2e-phantom-overlay.test.mjs` enforces the invariant across 12 routes.
@@ -110,7 +110,7 @@ Every bug this session came from a component reaching a state its author did not
 - **External image hosts** (`cdninstagram.com`, `i.ytimg.com`, `wsrv.nl`, `qrserver.com`) may be blocked in your sandbox. Broken images and `ERR_TUNNEL_CONNECTION_FAILED` console noise from those hosts are environmental. Do note if they prevented you from verifying something.
 - The Substack article sync may fail without network; it degrades to empty **by design**.
 - `npm run test:e2e` needs ports 4321/4323/4324/4325 free. Kill stray `workerd` / `astro preview` first.
-- **If you have WebKit/Safari, say so and use it.** Every iOS fix here is verified by construction and in Chromium only — Chromium hit-tests hidden overlays correctly and resets scroll on reload, so it cannot reproduce two of the four original bugs. Real Safari is the single most valuable thing you can bring.
+- **If you have WebKit/Safari, say so and use it.** Every iOS fix here is verified by construction and in Chromium only — Chromium hit-tests hidden overlays correctly and resets scroll on reload, so it cannot reproduce two of the five original bugs. Real Safari is the single most valuable thing you can bring.
 
 ## Required output
 
