@@ -155,50 +155,106 @@ async function run() {
 
     fs.mkdirSync(REPORTS_DIR, { recursive: true });
 
+    /*
+      A Lighthouse score is a MEASUREMENT, not a property of the code, and on a
+      shared CI runner the noisiest input by far is total-blocking-time — it is
+      pure main-thread timing, so a noisy neighbour on the runner moves it
+      tens of percent. This gate was failing on that noise:
+
+        run 693 (push)         commit eda768a  ->  / = 96%  PASS
+        run 694 (pull_request) commit eda768a  ->  / = 89%  FAIL
+
+      Same commit, same workflow, opposite results; the same flip happened in
+      reverse on a01eba2f (685 FAIL 88% / 686 PASS). Locally the same build
+      scores 96-100 mobile and 100 desktop.
+
+      So a page is only failed after being CONFIRMED: if any category comes in
+      under the threshold, that page is re-audited and the MEDIAN of the
+      samples decides. One unlucky sample can no longer fail the build, while a
+      genuine regression — which reproduces every time — still fails all of
+      them and still fails the gate. The samples are printed so a page that
+      needed retries is visible rather than silently smoothed over.
+    */
+    const CONFIRM_SAMPLES = 3;
+    const median = (values) => {
+      const sorted = values.filter((v) => v !== null).sort((a, b) => a - b);
+      if (!sorted.length) return null;
+      return sorted[Math.floor(sorted.length / 2)];
+    };
+
+    /* One flags object, shared by the first pass and any confirmation runs, so
+       a retry can never be audited under different conditions than the run it
+       is confirming. */
+    const lighthouseFlags = {
+      port: chrome.port,
+      output: 'json',
+      onlyCategories: CATEGORIES,
+      logLevel: 'error',
+      /* `formFactor` alone does not change emulation — Lighthouse keeps the
+         mobile screen and throttling unless screenEmulation and throttling
+         are switched too, which silently produces a "desktop" run that is
+         really a phone run. These are lighthouse's own desktop preset
+         values. */
+      ...(DESKTOP
+        ? {
+            formFactor: 'desktop',
+            screenEmulation: { mobile: false, width: 1350, height: 940, deviceScaleFactor: 1, disabled: false },
+            throttling: {
+              rttMs: 40,
+              throughputKbps: 10 * 1024,
+              cpuSlowdownMultiplier: 1,
+              requestLatencyMs: 0,
+              downloadThroughputKbps: 0,
+              uploadThroughputKbps: 0,
+            },
+          }
+        : {}),
+    };
+
     for (const pagePath of PAGES) {
       const url = `${BASE_URL}${pagePath}`;
       console.log(`[lighthouse-check] Auditing ${pagePath}...`);
-      const runnerResult = await lighthouse(url, {
-        port: chrome.port,
-        output: 'json',
-        onlyCategories: CATEGORIES,
-        logLevel: 'error',
-        /* `formFactor` alone does not change emulation — Lighthouse keeps the
-           mobile screen and throttling unless screenEmulation and throttling
-           are switched too, which silently produces a "desktop" run that is
-           really a phone run. These are lighthouse's own desktop preset
-           values. */
-        ...(DESKTOP
-          ? {
-              formFactor: 'desktop',
-              screenEmulation: { mobile: false, width: 1350, height: 940, deviceScaleFactor: 1, disabled: false },
-              throttling: {
-                rttMs: 40,
-                throughputKbps: 10 * 1024,
-                cpuSlowdownMultiplier: 1,
-                requestLatencyMs: 0,
-                downloadThroughputKbps: 0,
-                uploadThroughputKbps: 0,
-              },
-            }
-          : {}),
-      });
+      const runnerResult = await lighthouse(url, lighthouseFlags);
 
       const scores = {};
       for (const cat of CATEGORIES) {
         scores[cat] = runnerResult.lhr.categories[cat]?.score ?? null;
       }
+
+      /* Confirm a sub-threshold result before believing it — see the note
+         above the loop. Only failing pages pay the extra runtime. */
+      let samples = null;
+      let confirmed = runnerResult;
+      if (CATEGORIES.some((cat) => scores[cat] !== null && scores[cat] < THRESHOLD)) {
+        samples = {};
+        for (const cat of CATEGORIES) samples[cat] = [scores[cat]];
+
+        for (let attempt = 2; attempt <= CONFIRM_SAMPLES; attempt++) {
+          console.log(`[lighthouse-check] ${pagePath} scored below ${THRESHOLD * 100}% — confirming (${attempt}/${CONFIRM_SAMPLES})...`);
+          const retry = await lighthouse(url, lighthouseFlags);
+          for (const cat of CATEGORIES) samples[cat].push(retry.lhr.categories[cat]?.score ?? null);
+          /* Keep the worst run's report on disk: if the gate does fail, the
+             uploaded artifact should show the failure, not the lucky sample. */
+          const retryWorst = Math.min(...CATEGORIES.map((c) => retry.lhr.categories[c]?.score ?? 1));
+          const heldWorst = Math.min(...CATEGORIES.map((c) => confirmed.lhr.categories[c]?.score ?? 1));
+          if (retryWorst < heldWorst) confirmed = retry;
+        }
+
+        for (const cat of CATEGORIES) scores[cat] = median(samples[cat]);
+      }
+
       results.push({
         pagePath,
         scores,
-        diagnostics: collectDiagnostics(runnerResult.lhr),
+        samples,
+        diagnostics: collectDiagnostics(confirmed.lhr),
       });
 
       const reportFile = path.join(
         REPORTS_DIR,
         `${pagePath === '/' ? 'home' : pagePath.replace(/\//g, '_')}.json`
       );
-      fs.writeFileSync(reportFile, runnerResult.report);
+      fs.writeFileSync(reportFile, confirmed.report);
     }
   } finally {
     if (chrome) chrome.kill();
@@ -217,7 +273,8 @@ async function run() {
   console.log('-'.repeat(16 * (CATEGORIES.length + 1) + 3 * CATEGORIES.length));
 
   let anyFailed = false;
-  for (const { pagePath, scores } of results) {
+  const retried = [];
+  for (const { pagePath, scores, samples } of results) {
     const row = [pagePath.padEnd(16)];
     for (const cat of CATEGORIES) {
       const score = scores[cat];
@@ -226,7 +283,24 @@ async function run() {
       if (failed) anyFailed = true;
       row.push((failed ? `❌ ${pct}` : `✅ ${pct}`).padEnd(16));
     }
-    console.log(row.join(' | '));
+    console.log(row.join(' | ') + (samples ? '  (median of 3)' : ''));
+    if (samples) retried.push({ pagePath, samples });
+  }
+
+  /* Show the spread for any page that needed confirming. A tight spread that
+     sits under the threshold is a real regression; a wide one is runner
+     noise, and the difference matters when reading a red build. */
+  if (retried.length) {
+    console.log('\n--- confirmation samples (page scored below threshold on first pass) ---');
+    for (const { pagePath, samples } of retried) {
+      for (const cat of CATEGORIES) {
+        const vals = samples[cat].filter((v) => v !== null);
+        if (!vals.length || vals.every((v) => v >= THRESHOLD)) continue;
+        console.log(
+          `  ${pagePath.padEnd(12)} ${cat.padEnd(16)} ${vals.map((v) => `${Math.round(v * 100)}%`).join(' / ')}`
+        );
+      }
+    }
   }
 
   console.log(`\nFull reports written to ${path.relative(ROOT, REPORTS_DIR)}/`);
