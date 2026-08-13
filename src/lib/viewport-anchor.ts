@@ -52,21 +52,40 @@
  * test asserts is that the correction runs, is bound to the right signal, and
  * leaves every control's geometry and inline styles exactly as it found them.
  *
- * COST WHEN NONE OF THIS APPLIES
- * Nothing. `visualViewport` resize does not fire on a desktop browser sitting
- * still, and the handler is a few reads on a handful of elements when it does.
- * On any engine that hit-tests correctly the nudge is a no-op that changes no
- * pixels.
+ * COST, AND THE GATE THAT KEEPS IT DOWN
+ * `visualViewport.scroll` fires continuously while a phone scrolls, and a
+ * layout write per frame during scrolling is the exact thrash this is meant to
+ * avoid — an earlier version had no gate, and with `.modal-overlay` still in
+ * the list (it carries `transition: all 0.4s`) each write also started a 400ms
+ * transition. Both found by the Antigravity audit.
+ *
+ * So the nudge only runs when the viewport GEOMETRY actually changed — size,
+ * offset or scale. Those are the only things that stale a hit region; if none
+ * of them moved there is nothing to invalidate and the pass is a string
+ * compare. Hidden controls are skipped for the same reason: a closed overlay
+ * has no hit region to fix, and writing to it can only start animations nobody
+ * asked for.
  *
  * VERIFIED BY `scripts/e2e-viewport-anchor.test.mjs`, which fires the same
- * events and asserts every control keeps its exact position and stays
- * reachable. Chromium cannot reproduce the stale-hit-region behaviour itself —
- * it hit-tests these correctly — so what is testable here is that the
- * correction runs, is bound to the right signal, and disturbs nothing.
+ * events and asserts every control keeps its exact position and inline styles.
+ * Chromium cannot reproduce the stale-hit-region behaviour itself, so what is
+ * testable here is that the correction runs, is bound to the right signals,
+ * and disturbs nothing.
  */
 
-/** Controls that are fixed, or fixed-anchored, and were reported as untappable. */
-const FIXED_CONTROLS = '#navbar, .nav-toggle, .modal-overlay, .modal-close, .close-fullscreen-btn';
+/**
+ * Controls that are fixed, or fixed-anchored, and were reported as untappable.
+ *
+ * `.modal-overlay` is deliberately NOT here. It carries
+ * `transition: all 0.4s` (modal.css), so the 0.1px padding write below would
+ * start a 400ms transition on it every time this runs — on an element that is
+ * usually closed and invisible, from a handler bound to scroll. Found by the
+ * Antigravity audit. It is the backdrop, not a control; `.modal-close` is the
+ * button that was actually reported, and it is still covered.
+ *
+ * Before adding anything here, check what it transitions.
+ */
+const FIXED_CONTROLS = '#navbar, .nav-toggle, .modal-close, .close-fullscreen-btn';
 
 let bound = false;
 
@@ -77,22 +96,45 @@ export function keepFixedControlsTappable(): void {
   bound = true;
 
   let queued = false;
+  /* The viewport geometry the hit regions were last corrected for. */
+  let lastGeometry = '';
 
   const refresh = () => {
     queued = false;
+
+    /*
+      ONLY NUDGE WHEN THE VIEWPORT ACTUALLY CHANGED.
+
+      `visualViewport.scroll` fires continuously while the page moves on a
+      phone, and a layout write per frame during scrolling is exactly the
+      thrash this is supposed to avoid. But hit regions only go stale when the
+      viewport GEOMETRY changes — a chrome collapse, a rotation, a pinch. If
+      none of those numbers moved, there is nothing to invalidate, so the
+      whole pass is a string compare.
+    */
+    const geometry = `${vv.width}x${vv.height}@${vv.offsetTop},${vv.offsetLeft},${vv.scale}`;
+    const geometryChanged = geometry !== lastGeometry;
+    lastGeometry = geometry;
 
     /* Publish the offset even when it is 0 — a stylesheet reading
        `var(--vv-top)` should get a real length rather than falling back. */
     const offsetTop = Math.max(0, Math.round(vv.offsetTop));
     document.documentElement.style.setProperty('--vv-top', `${offsetTop}px`);
 
+    if (!geometryChanged) return;
+
     /* A value the element does NOT already have, so the box genuinely changes
-       and the engine has something to invalidate. */
+       and the engine has something to invalidate. Skips anything not currently
+       rendered: a closed overlay has no hit region to correct, and writing to
+       it can only start transitions nobody asked for. */
     const nudged: Array<[HTMLElement, string]> = [];
     for (const el of document.querySelectorAll<HTMLElement>(FIXED_CONTROLS)) {
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden') continue;
       nudged.push([el, el.style.paddingBottom]);
       el.style.paddingBottom = '0.1px';
     }
+    if (!nudged.length) return;
 
     /* Reverted on the NEXT frame, so a layout pass lands in between — that gap
        is the entire point, and reverting in the same tick is what made the

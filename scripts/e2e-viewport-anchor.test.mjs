@@ -119,9 +119,36 @@ async function runTests() {
           await new Promise((r) => setTimeout(r, 750));
           const vvTopAfterSettle = root.style.getPropertyValue('--vv-top');
 
+          /*
+            THE THRASH GUARD. `visualViewport.scroll` fires continuously while
+            a phone scrolls; a layout write per event is the thrash this fix is
+            supposed to avoid. Fire a burst of scroll events WITHOUT changing
+            the viewport geometry and assert nothing was written.
+          */
+          let wrote = 0;
+          const watched = document.querySelector('#navbar');
+          const observer = new MutationObserver((records) => {
+            for (const r of records) if (r.attributeName === 'style') wrote++;
+          });
+          observer.observe(watched, { attributes: true, attributeFilter: ['style'] });
+          for (let i = 0; i < 20; i++) {
+            window.visualViewport?.dispatchEvent(new Event('scroll'));
+            await new Promise((r) => requestAnimationFrame(r));
+          }
+          await new Promise((r) => requestAnimationFrame(r));
+          observer.disconnect();
+
+          /* And .modal-overlay must never be touched at all: it carries
+             `transition: all 0.4s`, so any write to it starts a 400ms
+             animation. */
+          const overlay = document.querySelector('.modal-overlay');
+          const overlayInlinePadding = overlay ? overlay.style.paddingBottom : '';
+
           return {
             before,
             after,
+            writesWhileScrollingStill: wrote,
+            overlayInlinePadding,
             afterRotate: snapshot(),
             vvTopAfterRotate,
             vvTopAfterResize,
@@ -155,6 +182,25 @@ async function runTests() {
               `(${result.before[sel].rect} -> ${result.afterRotate[sel].rect}).`
           );
         }
+
+        assert.equal(
+          result.writesWhileScrollingStill,
+          0,
+          `${vp.label} ${route}: 20 visualViewport scroll events with UNCHANGED ` +
+            `viewport geometry produced ${result.writesWhileScrollingStill} style ` +
+            `writes on #navbar. Hit regions only go stale when the geometry ` +
+            `changes; writing layout on every scroll event is thrash. Gate the ` +
+            `nudge on the geometry actually having moved.`
+        );
+
+        assert.equal(
+          result.overlayInlinePadding,
+          '',
+          `${vp.label} ${route}: .modal-overlay was given an inline padding-bottom. ` +
+            `It carries \`transition: all 0.4s\`, so every write starts a 400ms ` +
+            `animation on it. Keep it out of FIXED_CONTROLS — it is the backdrop, ` +
+            `not a control.`
+        );
 
         assert.notEqual(
           result.vvTop,
