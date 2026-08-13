@@ -56,6 +56,7 @@
  *
  *     releaseScrollLock();
  */
+import { jumpTo } from './scroll-to.ts';
 
 /** How many overlays currently want the page held still. */
 let lockCount = 0;
@@ -180,12 +181,10 @@ function applyRelease(scrollY: number, restore: boolean): void {
   /*
     Instant, not smooth. `html { scroll-behavior: smooth }` is global, so a
     plain scrollTo() here animates — which is exactly the scrolling the reader
-    sees on close. Swap it out, jump, put it back.
+    sees on close. See src/lib/scroll-to.ts for why the obvious swap-it-out
+    version of this silently did not work.
   */
-  const previousBehavior = root.style.scrollBehavior;
-  root.style.scrollBehavior = 'auto';
-  window.scrollTo(0, scrollY);
-  root.style.scrollBehavior = previousBehavior;
+  jumpTo(scrollY);
 
   savedScrollY = 0;
 }
@@ -220,6 +219,8 @@ declare global {
       unlock: () => void;
       release: () => void;
       isLocked: () => boolean;
+      /** src/lib/scroll-to.ts — a scroll that jumps instead of animating. */
+      jumpTo: (y?: number, x?: number) => void;
     };
   }
 }
@@ -230,5 +231,6 @@ if (typeof window !== 'undefined') {
     unlock: unlockScroll,
     release: releaseScrollLock,
     isLocked: isScrollLocked,
+    jumpTo,
   };
 }

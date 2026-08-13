@@ -95,7 +95,9 @@ test('arm() scrolls to the top before adding .splash-armed', () => {
   assert.ok(armBody, 'arm() not found in Hero.astro');
   const body = armBody[1];
 
-  const scrollIndex = body.indexOf('window.scrollTo(0, 0)');
+  /* Either the shared helper or a raw scroll — what matters is that the
+     document is forced to the top before the class lands. */
+  const scrollIndex = Math.max(body.indexOf('jumpTo(0)'), body.indexOf('window.scrollTo(0, 0)'));
   const armIndex = body.indexOf("classList.add('splash-armed')");
 
   assert.notEqual(
@@ -115,7 +117,7 @@ test('arm() scrolls to the top before adding .splash-armed', () => {
 test('a while-armed safety net snaps a stray offset back to the top', () => {
   assert.match(
     hero,
-    /splash-armed[\s\S]{0,400}window\.scrollTo\(0,\s*0\)/,
+    /splash-armed[\s\S]{0,400}(jumpTo\(0\)|window\.scrollTo\(0,\s*0\))/,
     'a scroll listener must correct a non-zero offset while armed, in case ' +
       'the browser restores scroll AFTER the curtain is already up'
   );
@@ -123,40 +125,148 @@ test('a while-armed safety net snaps a stray offset back to the top', () => {
 
 console.log('\nEvery reset must JUMP, never animate:');
 
-test('no window.scrollTo() in Hero.astro can animate by accident', () => {
+/*
+  Files that scroll the page programmatically. Any new one belongs here — the
+  point of the sweep is that it is not limited to the file that broke last.
+*/
+const SCROLLERS = [
+  'src/components/Hero.astro',
+  'src/components/Navbar.astro',
+  'src/lib/scroll-lock.ts',
+  'src/lib/scroll-to.ts',
+];
+
+test('no window.scrollTo() anywhere can animate by accident', () => {
   /*
     global-base.css sets `html { scroll-behavior: smooth }` for the whole site,
     so `window.scrollTo(0, 0)` does not jump — it ANIMATES from wherever the
     document currently is. On a refresh part-way down the homepage that turned
-    the reset into a visible glide, and three of them firing in sequence (plus
-    arm()'s own instant jump landing mid-flight) read as a jarring up/down
-    bounce before the reader was dumped at the top.
+    the reset into a visible glide, and several of them firing in sequence read
+    as a jarring up/down bounce before the reader was dumped at the top.
 
-    A call is safe only if it either states its behavior explicitly or runs
-    with scroll-behavior pinned to `auto`. Anything else is a latent animation.
+    A call is safe only if it states a behavior explicitly, or runs with
+    scroll-behavior pinned to `auto` AND that pin actually flushed (see the
+    next test). Anything else is a latent animation.
   */
-  const source = withoutComments(hero);
   const offenders = [];
 
-  for (const match of source.matchAll(/window\.scrollTo\(/g)) {
-    const call = source.slice(match.index, source.indexOf(')', match.index) + 1);
-    if (/behavior\s*:/.test(call)) continue; // explicit — smooth or instant, the author chose
+  for (const file of SCROLLERS) {
+    const source = withoutComments(fs.readFileSync(path.join(ROOT, file), 'utf8'));
 
-    // Otherwise the surrounding block must have pinned scroll-behavior first.
-    const preamble = source.slice(Math.max(0, match.index - 400), match.index);
-    if (/scrollBehavior\s*=\s*['"]auto['"]/.test(preamble)) continue;
+    for (const match of source.matchAll(/window\.scrollTo\(/g)) {
+      const call = source.slice(match.index, source.indexOf(')', match.index) + 1);
+      if (/behavior\s*:/.test(call)) continue; // explicit — the author chose
 
-    const line = source.slice(0, match.index).split('\n').length;
-    offenders.push(`line ~${line}: ${call}`);
+      const preamble = source.slice(Math.max(0, match.index - 400), match.index);
+      if (/scrollBehavior\s*=\s*['"]auto['"]/.test(preamble)) continue;
+
+      const line = source.slice(0, match.index).split('\n').length;
+      offenders.push(`${file}:${line} — ${call}`);
+    }
   }
 
   assert.deepEqual(
     offenders,
     [],
     'these calls inherit the global `scroll-behavior: smooth` and will animate. ' +
-      "Wrap them in the save/`= 'auto'`/restore pattern used elsewhere in this " +
-      'file, or pass an explicit behavior:\n    ' +
+      'Route them through jumpTo() in src/lib/scroll-to.ts, or pass an explicit ' +
+      'behavior:\n    ' +
       offenders.join('\n    ')
+  );
+});
+
+test('pinning scroll-behavior is always followed by a forced style recalc', () => {
+  /*
+    THE SUBTLE ONE — this shipped broken in six places and looked correct.
+
+    Setting `root.style.scrollBehavior = 'auto'` only marks style as dirty; it
+    does not recalculate it. With no recalc before the scroll, scrollTo() still
+    reads the OLD computed value — `smooth` — and animates; and the property is
+    reverted immediately afterwards, so no later recalc ever sees `auto`
+    either. The opt-out silently does nothing.
+
+    Measured on the homepage, jumping from 390 to 0 and reading scrollY on the
+    very next animation frame:
+
+        pin html only ............ 390   ← still animating
+        pin html + body .......... 390   ← still animating
+        pin html + FLUSH ..........  0   ← a real jump
+        behavior: 'instant' .......  0   ← a real jump
+
+    So every pin must be followed by a layout read before the scroll.
+    (`behavior: 'instant'` measures the same but only entered Safari's
+    ScrollBehavior enum in 15.4, and an unknown enum value THROWS rather than
+    degrading — see the note in src/lib/scroll-to.ts.)
+  */
+  const offenders = [];
+
+  for (const file of SCROLLERS) {
+    const source = withoutComments(fs.readFileSync(path.join(ROOT, file), 'utf8'));
+
+    for (const match of source.matchAll(/scrollBehavior\s*=\s*['"]auto['"]/g)) {
+      // The flush has to land between the pin and the scroll that follows it.
+      const after = source.slice(match.index, match.index + 400);
+      const scrollAt = after.search(/window\.scrollTo\(/);
+      if (scrollAt === -1) continue; // pin with no scroll after it — not this test's business
+
+      const between = after.slice(0, scrollAt);
+      if (/offsetHeight|offsetWidth|getBoundingClientRect|getComputedStyle/.test(between)) continue;
+
+      const line = source.slice(0, match.index).split('\n').length;
+      offenders.push(`${file}:${line}`);
+    }
+  }
+
+  assert.deepEqual(
+    offenders,
+    [],
+    'these pin scroll-behavior to `auto` and then scroll WITHOUT forcing a ' +
+      'style recalc in between, so the pin never takes effect and the scroll ' +
+      'animates anyway. Add `void root.offsetHeight;` after the assignment, or ' +
+      'call jumpTo() from src/lib/scroll-to.ts:\n    ' +
+      offenders.join('\n    ')
+  );
+});
+
+test('the inline copy in Hero.astro matches the shared helper', () => {
+  /*
+    Hero's reset must run during parse, before any bundle has loaded, so it
+    cannot import jumpTo() and carries its own copy. Two copies drift; this
+    asserts the part that matters — the flush — is present in both.
+  */
+  const shared = fs.readFileSync(path.join(ROOT, 'src/lib/scroll-to.ts'), 'utf8');
+  assert.match(
+    withoutComments(shared),
+    /scrollBehavior\s*=\s*'auto';[\s\S]{0,120}offsetHeight[\s\S]{0,120}window\.scrollTo/,
+    'src/lib/scroll-to.ts must pin, flush, then scroll — in that order'
+  );
+  assert.match(
+    withoutComments(hero),
+    /function jumpToTop\(\)[\s\S]{0,400}offsetHeight[\s\S]{0,120}window\.scrollTo/,
+    "Hero.astro's inline jumpToTop() has lost its forced recalc and now animates"
+  );
+});
+
+test('a reload holds the top until the reader asks to leave it', () => {
+  /*
+    The three one-shot resets (immediate, next frame, pageshow) can each be
+    beaten by a scroll restore that lands between them — measured: every
+    restore timing tested painted 8-16 frames at the old offset, and one was
+    never corrected at all. The guard makes it a condition rather than a
+    schedule. scripts/e2e-reload-scroll.test.mjs measures the behaviour; this
+    just stops the code being deleted.
+  */
+  assert.match(
+    hero,
+    /isReload[\s\S]{0,3000}addEventListener\(\s*'scroll'/,
+    'the reload path must keep a scroll listener that re-pins the top, not ' +
+      'just fire a fixed number of resets'
+  );
+  assert.match(
+    hero,
+    /touchstart[\s\S]{0,200}pointerdown|pointerdown[\s\S]{0,200}touchstart/,
+    'the top-guard must release on the first real input, or it will fight a ' +
+      'reader who scrolls immediately after refreshing'
   );
 });
 

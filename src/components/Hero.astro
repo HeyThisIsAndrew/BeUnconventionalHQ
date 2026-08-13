@@ -22,14 +22,19 @@ import bannerImg from '../assets/banner.webp';
       each other — then arm() jumps to 0 while an animation is still in flight,
       producing the jarring up/down bounce this block is supposed to prevent.
 
-      Every reset on this path is forced to `auto` for the duration of the call.
-      `behavior: 'instant'` would be shorter but is not old-Safari safe, and the
-      save/restore below is the same pattern arm() and the lift use.
+      This is the inline copy of `jumpTo()` in src/lib/scroll-to.ts — read the
+      full rationale there, including why the forced recalc is load-bearing and
+      why `behavior: 'instant'` is not used. It is duplicated rather than
+      imported because an `is:inline` script never goes through the bundler,
+      and this has to run during parse: by the time a module has loaded, the
+      browser has already restored the offset and painted it.
+      scripts/splash-scroll-lock.test.mjs keeps the two copies honest.
     */
     function jumpToTop() {
       const root = document.documentElement;
       const previousBehavior = root.style.scrollBehavior;
       root.style.scrollBehavior = 'auto';
+      void root.offsetHeight; // forces the recalc; without it scrollTo still sees `smooth`
       window.scrollTo(0, 0);
       root.style.scrollBehavior = previousBehavior;
     }
@@ -47,6 +52,58 @@ import bannerImg from '../assets/banner.webp';
       requestAnimationFrame(jumpToTop);
       // Fallback for Safari which occasionally restores scroll after the first paint
       window.addEventListener('pageshow', jumpToTop, { once: true });
+
+      /*
+        ─── HOLD THE TOP UNTIL THE READER ASKS TO LEAVE IT ────────────────────
+
+        The three resets above are one-shot: each corrects the offset at one
+        instant. `history.scrollRestoration = 'manual'` is supposed to stop the
+        engine restoring at all, but iOS Safari restores anyway, once, at a
+        moment that moves with load timing — so a fixed number of shots can
+        always be beaten by a restore that lands between them.
+
+        Measured before this guard, walking the restore across the startup
+        window (7 timings from DOMContentLoaded+0ms to +600ms, both
+        orientations): EVERY timing painted 8–14 frames at the restored offset
+        of 390px before something snapped it back, and one timing was never
+        corrected at all and simply stayed there. In landscape those frames
+        also carry the hero parallax at its 150px cap, because the parallax is
+        only disabled on portrait touch — which is why landscape looks the
+        worst and why the reader sees the page lurch DOWN and then back UP.
+
+        So this is a condition, not a schedule: while the guard is up, ANY
+        non-zero offset is corrected in the same frame it appears. It is
+        registered here, in the inline script, so it runs before the parallax
+        listener that `astro:page-load` adds — the parallax then reads 0 and
+        never renders the excursion.
+
+        It gets out of the way immediately. The FIRST real input — touch,
+        pointer, wheel, key — releases it, so a reader who flicks the moment
+        the page appears is never fought; and it is gone after
+        GUARD_MS regardless. The splash lift is exempt while it runs, because
+        it legitimately scrolls to a non-zero offset at the end (it is also
+        always preceded by an input, which has already released the guard).
+      */
+      const GUARD_MS = 3000;
+      const GESTURES = ['touchstart', 'pointerdown', 'wheel', 'keydown'];
+
+      const onStrayScroll = () => {
+        if (window.scrollY === 0) return;
+        if (document.documentElement.classList.contains('splash-lifting')) return;
+        jumpToTop();
+      };
+
+      const releaseTopGuard = () => {
+        clearTimeout(guardTimer);
+        window.removeEventListener('scroll', onStrayScroll);
+        GESTURES.forEach((type) => window.removeEventListener(type, releaseTopGuard));
+      };
+
+      const guardTimer = setTimeout(releaseTopGuard, GUARD_MS);
+      window.addEventListener('scroll', onStrayScroll, { passive: true });
+      GESTURES.forEach((type) =>
+        window.addEventListener(type, releaseTopGuard, { passive: true, once: true })
+      );
     }
   </script>
   <div class="hero-bg" aria-hidden="true">
@@ -101,6 +158,7 @@ import bannerImg from '../assets/banner.webp';
     splash's arming condition. See shouldArm().
   */
   import { isScrollLocked } from '../lib/scroll-lock';
+  import { jumpTo } from '../lib/scroll-to';
 
   // Keep track of the current listener so we can remove it on page exit
   declare global {
@@ -359,10 +417,7 @@ import bannerImg from '../assets/banner.webp';
         containing block mid-animation and makes the browser drop the curtain's
         transform transition outright (measured — see the note in splash.css).
       */
-      const previousBehavior = root.style.scrollBehavior;
-      root.style.scrollBehavior = 'auto';
-      window.scrollTo(0, 0);
-      root.style.scrollBehavior = previousBehavior;
+      jumpTo(0);
 
       root.classList.add('splash-armed');
     }
@@ -385,10 +440,7 @@ import bannerImg from '../assets/banner.webp';
         if (!root.classList.contains('splash-armed')) return;
         if (root.classList.contains('splash-lifting')) return; // mid-animation
         if (window.scrollY === 0) return;
-        const behavior = root.style.scrollBehavior;
-        root.style.scrollBehavior = 'auto';
-        window.scrollTo(0, 0);
-        root.style.scrollBehavior = behavior;
+        jumpTo(0);
       },
       { passive: true }
     );
@@ -457,10 +509,7 @@ import bannerImg from '../assets/banner.webp';
             less movement, while everyone else got an instant jump at the end
             of the curtain. Exactly backwards.
           */
-          const previousBehavior = root.style.scrollBehavior;
-          root.style.scrollBehavior = 'auto';
-          window.scrollTo(0, distance);
-          root.style.scrollBehavior = previousBehavior;
+          jumpTo(distance);
           busy = false;
         });
         return;
@@ -476,17 +525,16 @@ import bannerImg from '../assets/banner.webp';
           in ONE synchronous block means the browser never paints an
           intermediate state — the two cancel out exactly.
 
-          scroll-behavior is forced to auto for the jump because the site sets
-          `smooth` globally; without this the "instant" correction would
-          animate and undo the illusion.
+          The jump goes through jumpTo() because the site sets `smooth`
+          globally; without that the "instant" correction animates and undoes
+          the illusion. jumpTo() forces a style recalc before scrolling, which
+          is what makes the opt-out actually take effect — a recalc computes,
+          it does not paint, so the single-frame swap still holds.
         */
-        const previousBehavior = root.style.scrollBehavior;
-        root.style.scrollBehavior = 'auto';
         root.classList.remove('splash-armed', 'splash-lifting');
         root.style.removeProperty('--splash-gutter');
         stripHash();
-        window.scrollTo(0, distance);
-        root.style.scrollBehavior = previousBehavior;
+        jumpTo(distance);
         if (wrapper) wrapper.style.willChange = '';
         busy = false;
       };
