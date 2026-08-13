@@ -39,15 +39,17 @@ const { items = [] } = Astro.props;
                   srcset={sources.srcset}
                   sizes="(max-width: 768px) 45vw, 240px"
                   alt={item.caption?.slice(0, 50) || 'Instagram Media'} 
-                  loading="eager" 
+                  loading="lazy" 
                   decoding="async" 
                   class="ig-tile-img"
+                  width="220"
+                  height="275"
                 />
                 <div class="ig-tile-overlay">
                   {item.mediaType === 'VIDEO' && (
-                    <div class="play-button-wrapper">
+                    <div class="play-button-wrapper" aria-hidden="true">
                       <div class="cinematic-play-button">
-                        <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
                           <path d="M8 5v14l11-7z" />
                         </svg>
                       </div>
@@ -74,7 +76,9 @@ const { items = [] } = Astro.props;
     private _resizeObserver?: ResizeObserver;
     private _isTouching: boolean = false;
     private _isDragging: boolean = false;
+    private _isActuallyDragging: boolean = false;
     private _startX: number = 0;
+    private _startY: number = 0;
     private _scrollLeftStart: number = 0;
 
     constructor() {
@@ -86,10 +90,78 @@ const { items = [] } = Astro.props;
       let groups = Array.from(track.querySelectorAll('.ig-marquee-group'));
       if (groups.length === 0) return;
       
-      // Dynamic Group Cloning (4K Fix)
-      // Ensure we have enough groups to safely loop on Ultrawide screens.
-      // We need the total track width to be at least 3x the viewport.
-      while (track.scrollWidth < window.innerWidth * 3 && groups.length < 20) {
+      const isMobileTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches || window.innerWidth <= 768;
+
+      if (isMobileTouch) {
+        track.classList.add('is-mobile-native');
+        groups.forEach((group, index) => {
+          if (index > 0) group.remove(); 
+        });
+
+        // Create Mobile Title Card (Index 0)
+        const titleCard = document.createElement('div');
+        titleCard.className = 'ig-carousel-tile ig-title-card';
+        titleCard.innerHTML = `
+          <div class="ig-title-content">
+            <svg viewBox="0 0 24 24" width="40" height="40" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="ig-title-icon"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+            <span>LATEST ON<br>INSTAGRAM</span>
+          </div>
+        `;
+        groups[0].insertBefore(titleCard, groups[0].firstChild);
+        
+        // Create Mobile CTA Card
+        const ctaCard = document.createElement('a');
+        ctaCard.href = "https://instagram.com/"; // Fallback URL
+        ctaCard.target = "_blank";
+        ctaCard.rel = "noopener noreferrer";
+        ctaCard.className = 'ig-carousel-tile ig-cta-card';
+        ctaCard.innerHTML = `
+          <div class="ig-cta-content">
+            <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="ig-cta-icon"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+            <span>See More on<br>Instagram</span>
+          </div>
+        `;
+        groups[0].appendChild(ctaCard);
+        
+        // Mobile Intersection Observer for Active State
+        const tiles = track.querySelectorAll('.ig-carousel-tile');
+        const observerOptions = {
+          root: track,
+          rootMargin: '0px -50% 0px -50%', // Razor-thin trigger line in the exact center
+          threshold: 0
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              // 1. Mercilessly strip the class from ALL tiles first
+              document.querySelectorAll('.ig-carousel-tile, .is-active').forEach(el => {
+                el.classList.remove('is-active');
+              });
+              // 2. Apply to the singular intersecting target
+              entry.target.classList.add('is-active');
+            }
+          });
+        }, observerOptions);
+
+        tiles.forEach(tile => {
+          observer.observe(tile);
+          
+          // Tap to center logic
+          tile.addEventListener('click', (e) => {
+            if (!tile.classList.contains('is-active')) {
+              e.preventDefault(); // Prevent opening link if just tapping to center
+              tile.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            }
+          });
+        });
+
+        return; 
+      }
+      
+      // Pre-clone padding for mobile momentum and 4K (Always pad to 15 groups)
+      // This absorbs iOS momentum scrolling so it never hits the physical DOM limits.
+      while (groups.length < 15) {
         const clone = groups[0].cloneNode(true) as HTMLElement;
         clone.setAttribute('aria-hidden', 'true');
         track.appendChild(clone);
@@ -105,25 +177,60 @@ const { items = [] } = Astro.props;
         let isPaused = false;
         
         this._resizeObserver = new ResizeObserver(() => {
-          groupWidth = (groups[1] as HTMLElement).offsetLeft - (groups[0] as HTMLElement).offsetLeft;
+          const newWidth = (groups[1] as HTMLElement).offsetLeft - (groups[0] as HTMLElement).offsetLeft;
+          if (newWidth > 0 && Math.abs(newWidth - groupWidth) > 5) {
+            groupWidth = newWidth;
+            // Snap to middle immediately on layout shift
+            exactScrollLeft = groupWidth * Math.floor(groups.length / 2);
+            track.scrollLeft = exactScrollLeft;
+          }
         });
         this._resizeObserver.observe(track);
   
-        // Start in the middle
         let exactScrollLeft = groupWidth * Math.floor(groups.length / 2);
         track.scrollLeft = exactScrollLeft;
   
+        let interactionTimeout: ReturnType<typeof setTimeout>;
+        
+        const handleInteractionEnd = () => {
+          clearTimeout(interactionTimeout);
+          interactionTimeout = setTimeout(() => {
+            this._isTouching = false;
+            this._isDragging = false;
+            this._isActuallyDragging = false;
+            isPaused = false;
+            track.classList.remove('is-scrolling');
+          }, 150);
+        };
+
         const updateScroll = () => {
           if (!isPaused && !this._isTouching && !this._isDragging) {
-            exactScrollLeft += speed;
+            // Apply infinite wrap boundary ONLY when momentum is completely finished
+            let shift = 0;
+            let currentScroll = track.scrollLeft;
             
-            if (exactScrollLeft >= groupWidth * (groups.length - 2)) {
-              exactScrollLeft -= groupWidth;
-            } else if (exactScrollLeft <= groupWidth) {
-              exactScrollLeft += groupWidth;
+            if (groupWidth > 0) {
+              if (currentScroll >= groupWidth * (groups.length - 2)) {
+                shift = -groupWidth;
+              } else if (currentScroll <= groupWidth) {
+                shift = groupWidth;
+              }
             }
             
-            track.scrollLeft = exactScrollLeft;
+            if (shift !== 0) {
+              exactScrollLeft += shift;
+              track.scrollLeft = exactScrollLeft;
+            }
+
+            // Detect native scroll (trackpad, keyboard) by divergence
+            if (Math.abs(track.scrollLeft - exactScrollLeft) > 2.5) {
+              isPaused = true;
+              exactScrollLeft = track.scrollLeft;
+              handleInteractionEnd();
+            } else {
+              exactScrollLeft += speed;
+              track.scrollLeft = exactScrollLeft;
+            }
           } else {
             exactScrollLeft = track.scrollLeft;
           }
@@ -133,63 +240,55 @@ const { items = [] } = Astro.props;
   
         this._animationFrame = requestAnimationFrame(updateScroll);
   
-        let interactionTimeout: ReturnType<typeof setTimeout>;
-        
-        // Unified interaction end method
-        const handleInteractionEnd = () => {
-          clearTimeout(interactionTimeout);
-          interactionTimeout = setTimeout(() => {
-            this._isTouching = false;
-            this._isDragging = false;
-            isPaused = false;
-            track.classList.remove('is-scrolling');
-            
-            const currentPosition = track.scrollLeft;
-            const middlePosition = groupWidth * Math.floor(groups.length / 2);
-            const offset = currentPosition % groupWidth;
-            
-            if (currentPosition < groupWidth || currentPosition > groupWidth * (groups.length - 2)) {
-              exactScrollLeft = middlePosition + offset;
-              track.scrollTo({ left: exactScrollLeft, behavior: 'instant' });
-            }
-          }, 150);
-        };
-
         // Touch handling
-        track.addEventListener('touchstart', () => {
+        track.addEventListener('touchstart', (e) => {
           isPaused = true;
           this._isTouching = true;
+          this._isActuallyDragging = false;
+          if (e.touches && e.touches.length > 0) {
+            this._startX = e.touches[0].pageX - track.offsetLeft;
+            this._startY = e.touches[0].pageY;
+            this._scrollLeftStart = track.scrollLeft;
+          }
         }, { passive: true });
+        
+        track.addEventListener('touchmove', (e) => {
+          if (!this._isTouching || !e.touches || e.touches.length === 0) return;
+          const x = e.touches[0].pageX - track.offsetLeft;
+          if (!this._isActuallyDragging && (Math.abs(x - this._startX) > 5 || Math.abs(e.touches[0].pageY - this._startY) > 5)) {
+            this._isActuallyDragging = true;
+            track.classList.add('is-scrolling');
+          }
+        }, { passive: true });
+
         track.addEventListener('touchend', handleInteractionEnd, { passive: true });
         track.addEventListener('touchcancel', handleInteractionEnd, { passive: true });
-
-        // Scroll handling
-        track.addEventListener('scroll', () => {
-          if (!this._isDragging) {
-            isPaused = true;
-            this._isTouching = true;
-            track.classList.add('is-scrolling');
-            exactScrollLeft = track.scrollLeft;
-            handleInteractionEnd();
-          }
-        }, {passive: true});
 
         // Desktop Mouse Dragging
         track.addEventListener('mousedown', (e) => {
           this._isDragging = true;
+          this._isActuallyDragging = false;
           isPaused = true;
           this._startX = e.pageX - track.offsetLeft;
+          this._startY = e.pageY;
           this._scrollLeftStart = track.scrollLeft;
-          track.classList.add('is-scrolling');
         });
 
         track.addEventListener('mousemove', (e) => {
           if (!this._isDragging) return;
-          e.preventDefault();
           const x = e.pageX - track.offsetLeft;
           const walk = (x - this._startX) * 1.5;
-          track.scrollLeft = this._scrollLeftStart - walk;
-          exactScrollLeft = track.scrollLeft;
+          
+          if (!this._isActuallyDragging && (Math.abs(x - this._startX) > 5 || Math.abs(e.pageY - this._startY) > 5)) {
+            this._isActuallyDragging = true;
+            track.classList.add('is-scrolling');
+          }
+          
+          if (this._isActuallyDragging) {
+            e.preventDefault();
+            track.scrollLeft = this._scrollLeftStart - walk;
+            exactScrollLeft = track.scrollLeft;
+          }
         });
 
         track.addEventListener('mouseup', () => {
@@ -201,23 +300,20 @@ const { items = [] } = Astro.props;
           if (this._isDragging) handleInteractionEnd();
         });
 
-        // Hover Pause (Moving Target Fix)
+        // Click Interception
+        track.addEventListener('click', (e) => {
+          if (this._isActuallyDragging || track.classList.contains('is-scrolling')) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }, { capture: true });
+
+        // Hover Pause
         track.addEventListener('mouseenter', () => {
           if (!this._isDragging && !this._isTouching) {
             isPaused = true;
           }
         });
-
-        // Desktop Wheel Translation
-        track.addEventListener('wheel', (e) => {
-          if (e.deltaY !== 0) {
-            e.preventDefault();
-            isPaused = true;
-            track.scrollLeft += e.deltaY;
-            exactScrollLeft = track.scrollLeft;
-            handleInteractionEnd();
-          }
-        }, { passive: false });
         
       }, 100);
     }
@@ -266,6 +362,13 @@ const { items = [] } = Astro.props;
     cursor: grab;
   }
 
+  .ig-carousel-track.is-mobile-native {
+    scroll-snap-type: x mandatory;
+    cursor: auto;
+    scroll-padding-inline: 1.25rem;
+    padding-inline: 1.25rem;
+  }
+
   .ig-carousel-track:active {
     cursor: grabbing;
   }
@@ -301,6 +404,10 @@ const { items = [] } = Astro.props;
     text-decoration: none;
     display: block;
   }
+  
+  .ig-carousel-track.is-mobile-native .ig-carousel-tile {
+    scroll-snap-align: center; /* Center snap on mobile */
+  }
 
   @media (max-width: 560px) {
     /* Full bleed on small mobile without using 100vw to prevent horizontal scrollbars */
@@ -314,7 +421,7 @@ const { items = [] } = Astro.props;
     }
   }
 
-  .ig-carousel-tile:hover {
+  .ig-carousel-tile:hover, .ig-carousel-tile.is-active {
     transform: translateY(-8px);
     border-color: var(--color-accent);
     box-shadow: 0 12px 30px rgba(204, 0, 0, 0.2);
@@ -332,7 +439,7 @@ const { items = [] } = Astro.props;
     transition: transform 0.6s ease;
   }
 
-  .ig-carousel-tile:hover .ig-tile-img {
+  .ig-carousel-tile:hover .ig-tile-img, .ig-carousel-tile.is-active .ig-tile-img {
     transform: scale(1.05);
   }
 
@@ -357,7 +464,7 @@ const { items = [] } = Astro.props;
     pointer-events: none;
   }
 
-  .ig-carousel-tile:hover .ig-tile-overlay {
+  .ig-carousel-tile:hover .ig-tile-overlay, .ig-carousel-tile.is-active .ig-tile-overlay {
     background: linear-gradient(
       to top,
       rgba(9, 9, 11, 0.98) 0%,
@@ -378,7 +485,7 @@ const { items = [] } = Astro.props;
     transition: transform 0.3s ease, opacity 0.3s ease;
   }
 
-  .ig-carousel-tile:hover .ig-tile-content {
+  .ig-carousel-tile:hover .ig-tile-content, .ig-carousel-tile.is-active .ig-tile-content {
     transform: translateY(0);
     opacity: 1;
   }
@@ -390,7 +497,7 @@ const { items = [] } = Astro.props;
     transition: width 0.5s ease-out;
   }
 
-  .ig-carousel-tile:hover .ig-accent-line {
+  .ig-carousel-tile:hover .ig-accent-line, .ig-carousel-tile.is-active .ig-accent-line {
     width: 40px;
   }
 
@@ -408,8 +515,97 @@ const { items = [] } = Astro.props;
     transition: color 0.4s ease, text-shadow 0.4s ease;
   }
   
-  .ig-carousel-tile:hover .ig-text {
+  .ig-carousel-tile:hover .ig-text, .ig-carousel-tile.is-active .ig-text {
     color: #fff;
     text-shadow: 0 0 12px rgba(204, 0, 0, 0.4);
+  }
+  
+  /* Mobile CTA Card Styles */
+  .ig-cta-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(204,0,0,0.05), rgba(204,0,0,0.15));
+    border: 1px dashed rgba(255,255,255,0.15);
+  }
+  
+  .ig-cta-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 1rem;
+    color: rgba(255,255,255,0.5); /* Dimmed aesthetic */
+    font-family: var(--font-heading, "Syne", sans-serif);
+    font-size: 0.95rem;
+    text-align: center;
+    transition: color 0.4s ease, transform 0.4s cubic-bezier(0.25, 0.8, 0.2, 1);
+  }
+  
+  .ig-cta-card.is-active {
+    border-style: solid;
+    border-color: var(--color-accent);
+  }
+  
+  .ig-cta-card.is-active .ig-cta-content {
+    color: #fff; /* Bright on hover */
+    transform: scale(1.05);
+  }
+  
+  .ig-cta-icon {
+    stroke: rgba(255,255,255,0.5); /* Dimmed aesthetic */
+    transition: stroke 0.4s ease, filter 0.4s ease;
+  }
+  
+  .ig-cta-card.is-active .ig-cta-icon {
+    stroke: var(--color-accent); /* Red on hover */
+    filter: drop-shadow(0 0 8px rgba(204, 0, 0, 0.6));
+  }
+
+  /* Mobile Title Card Styles */
+  .ig-title-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .ig-title-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 1.5rem;
+    color: rgba(255,255,255,0.8);
+    font-family: var(--font-heading, "Syne", sans-serif);
+    font-size: 1.1rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-align: center;
+    transition: color 0.4s ease, transform 0.4s cubic-bezier(0.25, 0.8, 0.2, 1);
+  }
+  
+  .ig-title-card.is-active {
+    border-color: rgba(255,255,255,0.2);
+  }
+  
+  .ig-title-card.is-active .ig-title-content {
+    color: #fff;
+    transform: scale(1.05);
+  }
+
+  .ig-title-icon {
+    stroke: rgba(255,255,255,0.6);
+    transition: stroke 0.4s ease, filter 0.4s ease;
+  }
+
+  .ig-title-card.is-active .ig-title-icon {
+    stroke: #fff;
+    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
   }
 </style>

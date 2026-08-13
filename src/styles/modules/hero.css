@@ -1,11 +1,29 @@
+/* CRITICAL GUARDRAIL: Do NOT use 100vw for this banner width. It must remain 100% to account for OS scrollbar widths and prevent the right-side gap regression. Ensure overflow-x remains hidden on the parent. */
 .hero {
   position: relative;
-  width: calc(100% + var(--scrollbar-gutter, 0px));
+  width: 100%;
   height: 100vh;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* 
+  Fix for the right-side gap (constrained width regression).
+  When the splash curtain or video modal activates, splash.css/ios-lock.css applies 
+  padding-right to the wrapper/body to replace the scrollbar. This artificially constrains 
+  the content box by ~15px and leaves a black sliver. 
+  We use negative margins to expand the .hero into that exact padding area without using 100vw. 
+*/
+html.splash-armed .hero {
+  width: calc(100% + var(--splash-gutter, 0px));
+  margin-right: calc(-1 * var(--splash-gutter, 0px));
+}
+
+body.scroll-locked .hero {
+  width: calc(100% + var(--scrollbar-gutter, 0px));
+  margin-right: calc(-1 * var(--scrollbar-gutter, 0px));
 }
 
 @media (max-width: 768px), (orientation: landscape) and (max-height: 500px), (pointer: coarse) {

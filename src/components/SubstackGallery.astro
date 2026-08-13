@@ -12,9 +12,6 @@
   import { lockScroll, unlockScroll } from '../lib/scroll-lock';
 
   class SubstackGallery extends HTMLElement {
-    private _resizeObserver?: ResizeObserver;
-    private _scrollTimeout?: ReturnType<typeof setTimeout>;
-
     constructor() {
       super();
       
@@ -28,12 +25,11 @@
       const imageSources = images.map(img => ({ src: img.src, alt: img.alt }));
 
       // Wrap images in a scroll container
+      const wrapper = document.createElement('div');
+      wrapper.className = 'substack-gallery-wrapper';
+      
       const container = document.createElement('div');
       container.className = 'substack-gallery-container';
-      
-      // Base group
-      const baseGroup = document.createElement('div');
-      baseGroup.className = 'substack-marquee-group';
       
       images.forEach((img, index) => {
         const slide = document.createElement('div');
@@ -51,113 +47,64 @@
         
         button.appendChild(img);
         slide.appendChild(button);
-        baseGroup.appendChild(slide);
+        container.appendChild(slide);
       });
       
-      container.appendChild(baseGroup);
+      wrapper.appendChild(container);
+
+      // Create Cinematic Arrows
+      const leftArrow = document.createElement('button');
+      leftArrow.className = 'substack-gallery-arrow left-arrow';
+      leftArrow.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
+      leftArrow.setAttribute('aria-label', 'Previous image');
+
+      const rightArrow = document.createElement('button');
+      rightArrow.className = 'substack-gallery-arrow right-arrow';
+      rightArrow.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>';
+      rightArrow.setAttribute('aria-label', 'Next image');
+
+      wrapper.appendChild(leftArrow);
+      wrapper.appendChild(rightArrow);
+
       this.innerHTML = '';
-      this.appendChild(container);
+      this.appendChild(wrapper);
       
-      const groups: HTMLElement[] = [baseGroup];
-      
-      // Dynamic Group Cloning (4K Fix)
-      // Ensure we have enough groups to safely loop on Ultrawide screens.
-      while (container.scrollWidth < window.innerWidth * 3 && groups.length < 20) {
-        const clone = baseGroup.cloneNode(true) as HTMLElement;
+      // Arrow Logic
+      const updateArrows = () => {
+        const scrollLeft = container.scrollLeft;
+        // Use a 2px tolerance for maxScroll due to browser rounding
+        const maxScroll = container.scrollWidth - container.clientWidth;
         
-        // Re-attach listeners to cloned buttons
-        const buttons = clone.querySelectorAll('.substack-gallery-trigger');
-        buttons.forEach((btn, index) => {
-          btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.openLightbox(index, imageSources, container);
-          });
-        });
+        if (scrollLeft <= 5) {
+          leftArrow.classList.add('disabled');
+        } else {
+          leftArrow.classList.remove('disabled');
+        }
         
-        container.appendChild(clone);
-        groups.push(clone);
-      }
+        if (scrollLeft >= maxScroll - 5) {
+          rightArrow.classList.add('disabled');
+        } else {
+          rightArrow.classList.remove('disabled');
+        }
+      };
 
-      // Initialize infinite scroll teleportation
-      setTimeout(() => {
-        if (groups.length < 2) return;
-        
-        const groupWidth = groups[1].offsetLeft - groups[0].offsetLeft;
-        const middleIndex = Math.floor(groups.length / 2);
-        container.scrollLeft = groupWidth * middleIndex;
-        
-        let isDragging = false;
-        let startX = 0;
-        let scrollLeftStart = 0;
+      container.addEventListener('scroll', () => {
+        requestAnimationFrame(updateArrows);
+      }, { passive: true });
 
-        const handleInteractionEnd = () => {
-          clearTimeout(this._scrollTimeout);
-          this._scrollTimeout = setTimeout(() => {
-            container.style.pointerEvents = '';
-            container.classList.remove('is-dragging');
-            const currentPosition = container.scrollLeft;
-            const middlePosition = groupWidth * middleIndex;
-            const offset = currentPosition % groupWidth;
-            
-            // Snap if outside the middle zone
-            if (currentPosition < groupWidth || currentPosition > groupWidth * (groups.length - 2)) {
-              container.scrollTo({ left: middlePosition + offset, behavior: 'instant' });
-            }
-          }, 150);
-        };
+      // Initial arrow state update
+      setTimeout(updateArrows, 50);
 
-        container.addEventListener('scroll', () => {
-          if (!isDragging) {
-            container.style.pointerEvents = 'none';
-            handleInteractionEnd();
-          }
-        }, { passive: true });
-        
-        container.addEventListener('touchstart', () => {}, { passive: true });
-        container.addEventListener('touchend', handleInteractionEnd, { passive: true });
-        container.addEventListener('touchcancel', handleInteractionEnd, { passive: true });
+      leftArrow.addEventListener('click', () => {
+        const slideWidth = container.querySelector('.substack-gallery-slide')?.clientWidth || 0;
+        // Scroll exactly one slide width minus the gap
+        container.scrollBy({ left: -slideWidth, behavior: 'smooth' });
+      });
 
-        // Desktop Mouse Dragging
-        container.addEventListener('mousedown', (e) => {
-          isDragging = true;
-          startX = e.pageX - container.offsetLeft;
-          scrollLeftStart = container.scrollLeft;
-          container.classList.add('is-dragging');
-        });
-
-        container.addEventListener('mousemove', (e) => {
-          if (!isDragging) return;
-          e.preventDefault();
-          const x = e.pageX - container.offsetLeft;
-          const walk = (x - startX) * 1.5;
-          container.scrollLeft = scrollLeftStart - walk;
-        });
-
-        container.addEventListener('mouseup', () => {
-          if (isDragging) {
-            isDragging = false;
-            handleInteractionEnd();
-          }
-        });
-
-        container.addEventListener('mouseleave', () => {
-          if (isDragging) {
-            isDragging = false;
-            handleInteractionEnd();
-          }
-        });
-        
-        // Re-measure on resize
-        this._resizeObserver = new ResizeObserver(() => {
-          container.dispatchEvent(new Event('scroll'));
-        });
-        this._resizeObserver.observe(container);
-      }, 100);
-    }
-    
-    disconnectedCallback() {
-      if (this._resizeObserver) this._resizeObserver.disconnect();
-      clearTimeout(this._scrollTimeout);
+      rightArrow.addEventListener('click', () => {
+        const slideWidth = container.querySelector('.substack-gallery-slide')?.clientWidth || 0;
+        container.scrollBy({ left: slideWidth, behavior: 'smooth' });
+      });
     }
     
     openLightbox(startIndex: number, imageSources: Array<{src: string, alt: string}>, container: HTMLElement) {
@@ -186,16 +133,49 @@
       
       lightbox.appendChild(closeBtn);
       lightbox.appendChild(img);
+      
+      // Inject Lightbox Arrows
+      const lbLeftArrow = document.createElement('button');
+      lbLeftArrow.className = 'substack-gallery-arrow left-arrow';
+      lbLeftArrow.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
+      lbLeftArrow.setAttribute('aria-label', 'Previous image');
+
+      const lbRightArrow = document.createElement('button');
+      lbRightArrow.className = 'substack-gallery-arrow right-arrow';
+      lbRightArrow.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>';
+      lbRightArrow.setAttribute('aria-label', 'Next image');
+
+      lightbox.appendChild(lbLeftArrow);
+      lightbox.appendChild(lbRightArrow);
+
+      const updateLbArrows = () => {
+        if (currentIndex === 0) lbLeftArrow.classList.add('disabled');
+        else lbLeftArrow.classList.remove('disabled');
+        
+        if (currentIndex === imageSources.length - 1) lbRightArrow.classList.add('disabled');
+        else lbRightArrow.classList.remove('disabled');
+      };
 
       const next = () => {
-        currentIndex = (currentIndex + 1) % imageSources.length;
-        updateImage();
+        if (currentIndex < imageSources.length - 1) {
+          currentIndex++;
+          updateImage();
+          updateLbArrows();
+        }
       };
 
       const prev = () => {
-        currentIndex = (currentIndex - 1 + imageSources.length) % imageSources.length;
-        updateImage();
+        if (currentIndex > 0) {
+          currentIndex--;
+          updateImage();
+          updateLbArrows();
+        }
       };
+      
+      updateLbArrows();
+      
+      lbLeftArrow.addEventListener('click', (e) => { e.stopPropagation(); prev(); });
+      lbRightArrow.addEventListener('click', (e) => { e.stopPropagation(); next(); });
       
       // Close on click outside image or escape key
       const closeHandler = (e?: Event) => {
@@ -206,17 +186,13 @@
         unlockScroll();
         
         // SYNC STATE: Scroll the inline gallery to the last viewed image
-        const groups = container.querySelectorAll('.substack-marquee-group');
-        if (groups.length >= 3) {
-          const middleGroup = groups[2] as HTMLElement;
-          const targetSlide = middleGroup.children[currentIndex] as HTMLElement;
-          if (targetSlide) {
-            // Scroll to the exact position of the slide in the middle group
-            container.scrollTo({
-              left: targetSlide.offsetLeft - container.offsetLeft - 16, // match gap
-              behavior: 'instant'
-            });
-          }
+        const slides = container.querySelectorAll('.substack-gallery-slide');
+        const targetSlide = slides[currentIndex] as HTMLElement;
+        if (targetSlide) {
+          container.scrollTo({
+            left: targetSlide.offsetLeft - container.offsetLeft - 16, // match gap
+            behavior: 'instant'
+          });
         }
       };
       
@@ -277,6 +253,20 @@
     position: relative;
   }
   
+  .substack-gallery-wrapper {
+    position: relative;
+    width: 100%;
+  }
+
+  /* Reveal arrows on hover of the wrapper or in active lightbox */
+  @media (hover: hover) and (pointer: fine) {
+    .substack-gallery-wrapper:hover .substack-gallery-arrow:not(.disabled),
+    .substack-lightbox.active .substack-gallery-arrow:not(.disabled) {
+      opacity: 0.35;
+      pointer-events: auto;
+    }
+  }
+  
   .substack-gallery-container {
     display: flex;
     align-items: center; /* Prevents slides from stretching to the same height */
@@ -286,7 +276,7 @@
     mask-image: linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
     -webkit-mask-image: linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%);
     /* Custom scrollbar for webkit */
-    scrollbar-width: none; /* Hide scrollbar for infinite loop */
+    scrollbar-width: none; /* Hide scrollbar */
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
     container-type: inline-size;
@@ -296,26 +286,14 @@
     display: none;
   }
 
-  .substack-gallery-container.is-dragging {
-    scroll-snap-type: none;
-    cursor: grabbing;
-  }
-  
-  .substack-gallery-container.is-dragging .substack-gallery-trigger {
-    pointer-events: none;
-  }
-
-  .substack-marquee-group {
-    display: flex;
-    gap: 1rem;
-    flex-shrink: 0;
-  }
-
   .substack-gallery-slide {
     flex: 0 0 85cqw;
     scroll-snap-align: center;
+    scroll-snap-stop: always; /* Force precision magnetic stop */
     overflow: hidden;
-    display: block;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
   
   @media (min-width: 768px) {
@@ -347,6 +325,48 @@
     transform: scale(1.02);
   }
   
+  /* Cinematic Arrows */
+  .substack-gallery-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 48px;
+    height: 48px;
+    background: transparent;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease, filter 0.3s ease;
+    z-index: 10;
+    padding: 0;
+  }
+  
+  .substack-gallery-arrow svg {
+    overflow: visible;
+  }
+
+  .substack-gallery-arrow:hover {
+    opacity: 1 !important;
+    filter: drop-shadow(0 0 8px rgba(255, 0, 0, 1)) drop-shadow(0 0 16px rgba(255, 0, 0, 0.8));
+  }
+
+  .substack-gallery-arrow.left-arrow {
+    left: 1rem;
+  }
+
+  .substack-gallery-arrow.right-arrow {
+    right: 1rem;
+  }
+
+  .substack-gallery-arrow.disabled {
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+  
   /* Lightbox Styles */
   .substack-lightbox {
     position: fixed;
@@ -365,7 +385,7 @@
   .substack-lightbox.active {
     opacity: 1;
     pointer-events: auto;
-    cursor: zoom-out;
+    cursor: default !important;
   }
   
   .substack-lightbox-img {
@@ -375,6 +395,7 @@
     transform: scale(0.95);
     transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.2, 1);
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    cursor: default !important;
   }
   
   .substack-lightbox.active .substack-lightbox-img {

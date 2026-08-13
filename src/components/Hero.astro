@@ -4,6 +4,29 @@ import bannerImg from '../assets/banner.webp';
 ---
 
 <section class="hero" data-nav-anchor>
+  <script is:inline>
+    // Prevent the browser from automatically restoring the scroll position on refresh,
+    // which breaks the initial scroll-linked animations and traps the user.
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    
+    // Force aggressive scroll reset on hard reloads
+    const navEntries = performance.getEntriesByType ? performance.getEntriesByType('navigation') : [];
+    
+    /** @type {any} */
+    const p = window.performance;
+    const legacyNav = p ? p.navigation : null;
+    const isReload = (navEntries.length > 0 && navEntries[0].type === 'reload') || 
+                     (legacyNav && legacyNav.type === 1);
+                     
+    if (isReload) {
+      window.scrollTo(0, 0);
+      requestAnimationFrame(() => window.scrollTo(0, 0));
+      // Fallback for Safari which occasionally restores scroll after the first paint
+      window.addEventListener('pageshow', () => window.scrollTo(0, 0), { once: true });
+    }
+  </script>
   <div class="hero-bg" aria-hidden="true">
     <div class="hero-bg-inner">
       <img src={bannerImg.src} alt="" class="hero-bg-image" fetchpriority="high" loading="eager" decoding="sync" />
@@ -228,7 +251,6 @@ import bannerImg from '../assets/banner.webp';
       from "the browser is about to put them back at 2000". It armed, which
       sets `overflow: hidden` and hides the navbar, and the reader's next
       scroll gesture was then read as the dismiss trigger.
-
       Two independent guards, because neither covers every route on its own:
         1. `navDirection`  — Astro's ClientRouter tells us Back/Forward
            directly, but only for in-app navigations it handles itself.
@@ -249,7 +271,7 @@ import bannerImg from '../assets/banner.webp';
       if (!navType && navDirection === 'back') return true;
       const [entry] = performance.getEntriesByType('navigation');
       const type = (entry as PerformanceNavigationTiming | undefined)?.type;
-      return type === 'back_forward' || type === 'reload';
+      return type === 'back_forward';
     }
 
     function measureLift() {
@@ -612,7 +634,7 @@ import bannerImg from '../assets/banner.webp';
       // before the browser paints. This prevents the navbar from flickering 
       // visible during the two-frame delay used by armOnEntry.
       if (window.location.pathname === '/' && !isHistoryNavigation()) {
-        if (window.scrollY < 4) arm();
+        if (!window.location.hash || window.location.hash === '#') arm();
       }
     });
 
