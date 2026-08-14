@@ -48,7 +48,9 @@ import { Image } from 'astro:assets';
 import logoImage from '../assets/logo-mark.webp';
 import { LABELS } from '../data/content.js';
 import { articlePreview } from '../lib/articles';
+import { getCardImageSources } from '../lib/card-images.js';
 import type { ArticleRecord } from '../lib/articles';
+
 
 type MagazineArticle = ArticleRecord & { link: string; isExternal: boolean };
 
@@ -68,6 +70,28 @@ const { articles } = Astro.props;
   exactly that reason.
 */
 const feature: MagazineArticle | undefined = articles[0];
+/*
+  ─── THE FEATURE IMAGE IS THE LCP ELEMENT, SO IT MUST BE A RENDITION ────────
+
+  This used to render `src={feature.image}` — the raw Substack URL, straight
+  from their S3 bucket with no transform. The Lighthouse gate caught it the
+  moment /intel was added to the audited set:
+
+    largest-contentful-paint   9.1 s   score 1/100
+    LCP element  <img id="intel-feature-img" src="https://substack-post-media…">
+    heaviest     1198 kB  substack-post-media.s3.amazonaws.com/public/images/…
+
+  1.2 MB, for an element that renders at 720x405 on desktop and 326x183 on a
+  phone. Every other cover on the site goes through getCardImageSources; this
+  one did not, and it cost /intel 23 points — three identical 75% samples, so
+  not runner noise.
+*/
+const featureSources = feature?.image ? getCardImageSources(feature.image) : null;
+
+/* Measured render size: 720x405 desktop, 326x183 mobile. The srcset offers
+   400/600/900/1200, so this lets the browser take ~900 on a retina desktop and
+   ~400-600 on a phone instead of one 1456px original for both. */
+const FEATURE_SIZES = '(max-width: 900px) 92vw, 720px';
 
 /*
   EVERY article in the spread gets a rail tile — including the one currently
@@ -127,7 +151,9 @@ const activeSlug = feature?.slug ?? '';
             */}
             <img
               id="intel-feature-img"
-              src={feature.image || ''}
+              src={featureSources?.src || ''}
+              srcset={featureSources?.srcset || undefined}
+              sizes={featureSources?.srcset ? FEATURE_SIZES : undefined}
               alt={feature.image ? `Cover image for ${feature.title}` : ''}
               width="1456"
               height="816"
@@ -278,7 +304,16 @@ const activeSlug = feature?.slug ?? '';
 
       if (data.image) {
         if (image) {
-          image.setAttribute('src', data.image);
+          /*
+            Use the RENDITION the rail carries, not the raw url. `data-image`
+            is only a "has a cover?" flag; setting it as the src is what made
+            the feature load a 1.2 MB Substack original. srcset is set (or
+            cleared) in step, or a stale one from the previous article would
+            outrank the new src.
+          */
+          image.setAttribute('src', data.imageSrc || data.image);
+          if (data.imageSrcset) image.setAttribute('srcset', data.imageSrcset);
+          else image.removeAttribute('srcset');
           image.setAttribute('alt', `Cover image for ${data.title ?? ''}`);
           image.removeAttribute('hidden');
         }

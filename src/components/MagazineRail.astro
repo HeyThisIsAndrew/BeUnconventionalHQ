@@ -29,7 +29,18 @@
  */
 import ArticleThumb from './ArticleThumb.astro';
 import { articlePreview } from '../lib/articles';
+import { getCardImageSources } from '../lib/card-images.js';
 import type { ArticleRecord } from '../lib/articles';
+
+/*
+  `data-image` below is the RAW article url and is only a "does this article
+  have a cover?" flag for the swap script. `data-image-src` and
+  `data-image-srcset` carry what the image should actually REQUEST.
+
+  Without them, IntelMagazine's swap set the raw Substack original as the src.
+  On /intel that meant a 1.2 MB S3 upload as the LCP element — 9.1 s, scoring
+  1 out of 100, which is what dragged the page to 75%.
+*/
 
 /** The shape a rail item needs: an article plus its resolved link. */
 type RailArticle = ArticleRecord & { link: string; isExternal: boolean };
@@ -75,6 +86,8 @@ const { side, articles, activeSlug = '' } = Astro.props;
         data-title={article.title}
         data-preview={articlePreview(article).join('\n\n')}
         data-image={article.image}
+        data-image-src={article.image ? getCardImageSources(article.image).src : undefined}
+        data-image-srcset={article.image ? getCardImageSources(article.image).srcset : undefined}
         data-category={article.category}
         data-date={article.date}
         data-href={article.link}

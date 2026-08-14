@@ -185,5 +185,70 @@ test('the sync downloads covers only, not every slide', () => {
   );
 });
 
+test('sharp is a DECLARED dependency, not a transitive accident', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const declared =
+    (pkg.dependencies || {}).sharp ||
+    (pkg.devDependencies || {}).sharp ||
+    (pkg.optionalDependencies || {}).sharp;
+  assert.ok(
+    declared,
+    'The sync imports sharp directly. It was previously only present because\n' +
+      '      astro depends on it — an Astro upgrade that dropped or moved it would\n' +
+      '      break the sync with a module-not-found, at a moment nobody was looking.',
+  );
+});
+
+test('stored images are resized WebP, not originals', () => {
+  assert.ok(
+    /const STORED_EXTENSION = '\.webp'/.test(sync),
+    'images must be stored as .webp',
+  );
+  const m = sync.match(/const TARGET_WIDTH = (\d+)/);
+  assert.ok(m, 'TARGET_WIDTH not found');
+  const width = Number(m[1]);
+  assert.ok(
+    width >= 400 && width <= 700,
+    `TARGET_WIDTH is ${width}. The tile renders at 220 CSS px, so ~440 covers a\n` +
+      '      2x display. Much smaller looks soft on retina; much larger goes back to\n' +
+      '      shipping pixels the page cannot use.',
+  );
+  assert.ok(
+    /withoutEnlargement: true/.test(sync),
+    'withoutEnlargement, or a small original is upscaled into a BIGGER file',
+  );
+});
+
+test('a legacy full-size file is reprocessed, not skipped forever', () => {
+  assert.ok(
+    /existing && existing\.endsWith\(STORED_EXTENSION\)/.test(sync),
+    'the "already downloaded" shortcut must only skip files in the CURRENT\n' +
+      '      stored format. Skipping on id alone would leave every pre-resize\n' +
+      '      original in place permanently.',
+  );
+});
+
+test('every committed Instagram image is webp and reasonably sized', () => {
+  const dir = path.join(ROOT, 'public/instagram');
+  if (!fs.existsSync(dir)) return; // nothing synced in this checkout
+  const files = fs.readdirSync(dir).filter((f) => !f.startsWith('.'));
+  const notWebp = files.filter((f) => !f.endsWith('.webp'));
+  assert.deepEqual(
+    notWebp,
+    [],
+    `${notWebp.length} committed image(s) are not .webp: ${notWebp.slice(0, 5).join(', ')}`,
+  );
+  const oversized = files.filter(
+    (f) => fs.statSync(path.join(dir, f)).size > 120 * 1024
+  );
+  assert.deepEqual(
+    oversized,
+    [],
+    `${oversized.length} committed image(s) exceed 120 KB. The whole set was 8.5 MB\n` +
+      '      of unresized originals before this; a file that large means the resize\n' +
+      '      silently fell back to storing the original.',
+  );
+});
+
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);
 process.exit(failed === 0 ? 0 : 1);

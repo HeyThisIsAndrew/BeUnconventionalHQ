@@ -73,6 +73,34 @@ const { article } = Astro.props;
 */
 const dedupedBody = stripCoverImageFromBody(article.bodyHtml, article.image);
 
+/*
+  ─── BODY IMAGES ARE LEFT AS SUBSTACK SERVES THEM. ON PURPOSE. ──────────────
+
+  A previous pass rewrote every body <img> to a resizing proxy (wsrv.nl) and
+  marked them lazy. On paper it was a large saving: nine images here, several
+  3840x2160, in a ~720px column. In practice it made this page dramatically
+  WORSE on a phone, reported from a real device on the preview deploy:
+  gallery images blank, and still blank while sliding through them.
+
+  Why it backfired, in two compounding parts:
+
+    1. wsrv.nl is a free shared proxy with a cold cache. Serving one of these
+       means fetching a ~1 MB 4K JPEG from S3, decoding it, resizing, and
+       re-encoding — per URL, per WIDTH, on first request. Substack's own CDN
+       has these renditions already warm.
+    2. SubstackGallery's lightbox assigns `img.src` on every slide, with no
+       srcset and nothing preloaded. So each swipe fired a fresh COLD
+       transcode and the reader watched an empty frame until it finished.
+
+  And the saving was never measured, because it could not be: the Lighthouse
+  gate audits `/`, `/feed`, `/intel`, `/events`, `/featured`, `/about` — no
+  article page is in it. Body images are also below the fold by definition, so
+  they are not the LCP even here. All risk, no score.
+
+  The rendition work that DID pay off is still in place, on the pages the gate
+  actually measures: the /intel feature image, the rail thumbs, /feed cards.
+*/
+
 // Headings get ids so the contents rail can anchor-scroll to them; `html` is
 // the body with those ids injected.
 const { entries: tocEntries, html: bodyHtml } = buildToc(dedupedBody);
@@ -226,6 +254,13 @@ if (article.contentType === 'Review') {
               one unit with the headline; this order is a deliberate house call.)
             */}
             {article.image && (
+              /* The URL Substack gives us, not a proxy rendition — see the
+                 note above buildToc(). This is the LCP on an article page and
+                 it is eager, which is exactly the position where a cold
+                 third-party transcode hurts most: the reader waits on a blank
+                 masthead. A large image that starts immediately beats a small
+                 one that starts in three seconds, and no article page is in
+                 the Lighthouse gate, so the trade was never scored anyway. */
               <img
                 class="article-hero"
                 src={article.image}
