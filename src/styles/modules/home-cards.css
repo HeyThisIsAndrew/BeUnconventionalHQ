@@ -287,6 +287,7 @@
 .content-card-media[data-img-failed],
 .intel-rail-thumb[data-img-failed],
 .intel-feature-image[data-img-failed],
+.ig-tile-frame[data-img-failed],
 .article-thumb-fallback[data-img-failed] {
   background:
     radial-gradient(circle at 50% 35%, rgba(204, 0, 0, 0.12) 0%, transparent 62%),
@@ -324,6 +325,24 @@
 .content-card-media[data-img-failed],
 .intel-rail-thumb[data-img-failed],
 .intel-feature-image[data-img-failed],
+/*
+   The Instagram rail belongs here for a reason the others do not share: its
+   tiles point at SIGNED, EXPIRING CDN URLs. Instagram's `oe=` parameter is a
+   hex expiry timestamp, and src/data/instagram.json stores those URLs
+   statically at sync time, so the whole feed goes dead a few days after every
+   sync no matter what the code does. Measured on the day this was added: 188
+   of 188 stored URLs already expired.
+
+   Without this line the marker was still being set on `.ig-tile-frame` by
+   Layout.astro's error listener — there was simply no rule to paint, so the
+   reader got the raw broken-image glyph instead of the branded panel every
+   other thumbnail on the site falls back to. Reported from production with a
+   screenshot.
+
+   This does not fix the expiry; nothing in CSS can. It makes the failure look
+   deliberate instead of broken while the feed is stale.
+*/
+.ig-tile-frame[data-img-failed],
 .article-thumb-fallback[data-img-failed] {
   background-image:
     var(--brand-fallback-mark, none),
