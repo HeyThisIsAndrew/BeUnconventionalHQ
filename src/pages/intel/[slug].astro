@@ -1,4 +1,5 @@
 ---
+import { getCardImageSources } from '../../lib/card-images.js';
 /**
  * Article reader — /intel/<slug>
  *
@@ -226,9 +227,15 @@ if (article.contentType === 'Review') {
               one unit with the headline; this order is a deliberate house call.)
             */}
             {article.image && (
+              /* A RENDITION, not the original. Substack article records
+                 frequently carry the raw S3 upload — this one is 3840x2160 and
+                 1.2 MB — and this element is eager and above the fold, so it is
+                 the LCP on every article page. */
               <img
                 class="article-hero"
-                src={article.image}
+                src={getCardImageSources(article.image).src || article.image}
+                srcset={getCardImageSources(article.image).srcset || undefined}
+                sizes="(max-width: 900px) 92vw, 720px"
                 alt={`Cover image for ${article.title}`}
                 width="1456"
                 height="816"
