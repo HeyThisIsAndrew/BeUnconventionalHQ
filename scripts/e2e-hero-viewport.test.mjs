@@ -165,6 +165,71 @@ async function runTests() {
     }
 
     /*
+      ─── 3b. CLIENT-SIDE NAVIGATION MUST NOT WIPE IT ──────────────────────────
+
+      `--vv-height` is an inline style on <html>, and ClientRouter swaps that
+      element's attributes on every client-side navigation. Measured before the
+      fix: seeded `390px` on first load, `""` after navigating to /feed, still
+      `""` after navigating back to the homepage — so the hero fell back to
+      `100svh`, the guessed height this whole mechanism exists to replace, on
+      any reader who pressed a nav link before rotating.
+
+      `keepFixedControlsTappable()` could not cover this: its "already bound"
+      guard returns before the publish on every page load after the first.
+    */
+    {
+      const page = await browser.newPage();
+      await page.setViewport(LANDSCAPE);
+      await page.goto('http://localhost:4321/', { waitUntil: 'networkidle2' });
+      await new Promise((r) => setTimeout(r, 900));
+
+      const onLoad = await measure(page);
+      assert.notEqual(onLoad.vvHeight, '', '--vv-height missing on first load.');
+
+      /* Away, then back — "press the home button" in the report. */
+      await page.evaluate(() => {
+        const a = document.querySelector('a[href="/feed"], a[href^="/feed"]');
+        if (a) a.click();
+        else location.href = '/feed';
+      });
+      await new Promise((r) => setTimeout(r, 1500));
+      const away = await page.evaluate(() => ({
+        vvHeight: document.documentElement.style.getPropertyValue('--vv-height'),
+        path: location.pathname,
+      }));
+      assert.notEqual(
+        away.vvHeight,
+        '',
+        `--vv-height was wiped by the client-side navigation to ${away.path}. ` +
+          `ClientRouter swaps <html>'s attributes, so it must be re-seeded on ` +
+          `astro:page-load — and not via keepFixedControlsTappable(), whose ` +
+          `"already bound" guard returns before the publish on every load after ` +
+          `the first.`
+      );
+
+      await page.evaluate(() => {
+        const a = document.querySelector('a[href="/"]');
+        if (a) a.click();
+        else location.href = '/';
+      });
+      await new Promise((r) => setTimeout(r, 1500));
+      const back = await measure(page);
+      assert.notEqual(
+        back.vvHeight,
+        '',
+        '--vv-height was wiped by navigating back to the homepage.'
+      );
+      assert.equal(
+        back.heroBottom,
+        back.vh,
+        `After navigating back home the hero ends at ${back.heroBottom} but the ` +
+          `viewport is ${back.vh} tall.`
+      );
+      pass('--vv-height survives client-side navigation away and back');
+      await page.close();
+    }
+
+    /*
       ─── 4. A *SIMULATED* CHROME COLLAPSE — THE ONLY HONEST WAY TO TEST THIS ─
 
       An earlier version of this block just dispatched visualViewport events

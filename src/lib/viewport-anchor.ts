@@ -91,6 +91,39 @@ const FIXED_CONTROLS = '#navbar, .nav-toggle, .modal-close, .close-fullscreen-bt
 
 let bound = false;
 
+/**
+ * Publish the viewport height the hero is sized from.
+ *
+ * ─── WHY THIS IS EXPORTED AND CALLED ON EVERY PAGE LOAD ─────────────────────
+ *
+ * `--vv-height` is an inline style on `<html>`, and Astro's ClientRouter swaps
+ * that element's attributes on every client-side navigation — which WIPES it.
+ * Measured: seeded `390px` on first load, `""` immediately after navigating to
+ * /feed, still `""` after navigating back to the homepage. The hero then falls
+ * back to `100svh`, i.e. silently back to the bug this replaced, until
+ * something else happens to republish.
+ *
+ * `keepFixedControlsTappable()` cannot cover this: it is guarded by `bound` so
+ * that its listeners are only attached once, so on the second and later
+ * `astro:page-load` it returns immediately without reaching the publish.
+ *
+ * So this is its own export, and Layout.astro calls it on every
+ * `astro:page-load` — cheap (one property read, one write), idempotent, and it
+ * is the only thing standing between a client-side navigation and the hero
+ * quietly reverting to a guessed height.
+ *
+ * Reads `visualViewport.height` rather than `innerHeight`: the two disagree
+ * precisely when the browser chrome is overlaying, which is the case that
+ * matters. Falls back to `innerHeight` where visualViewport is unavailable.
+ */
+export function publishViewportHeight(): void {
+  const vv = window.visualViewport;
+  const height = Math.round((vv && vv.height) || window.innerHeight);
+  if (height > 0) {
+    document.documentElement.style.setProperty('--vv-height', `${height}px`);
+  }
+}
+
 export function keepFixedControlsTappable(): void {
   if (bound) return;
   const vv = window.visualViewport;
@@ -208,13 +241,6 @@ export function keepFixedControlsTappable(): void {
     Read from `visualViewport.height` and not `innerHeight`: the two disagree
     precisely when the chrome is overlaying, which is the case that matters.
   */
-  const publishViewportHeight = () => {
-    const height = Math.round(vv.height || window.innerHeight);
-    if (height > 0) {
-      document.documentElement.style.setProperty('--vv-height', `${height}px`);
-    }
-  };
-
   const SETTLE_MS = [0, 120, 320, 600];
   const refreshUntilSettled = () => {
     for (const delay of SETTLE_MS) {

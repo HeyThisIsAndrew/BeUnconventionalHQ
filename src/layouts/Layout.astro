@@ -450,7 +450,7 @@ const fallbackMark = await getImage({
     */}
     <script>
       import { lockScroll, unlockScroll } from '../lib/scroll-lock';
-      import { keepFixedControlsTappable } from '../lib/viewport-anchor';
+      import { keepFixedControlsTappable, publishViewportHeight } from '../lib/viewport-anchor';
 
       /* Bound once, site-wide: iOS Safari leaves fixed elements hit-tested at
          stale coordinates after it resizes the web view (its landscape tab bar
@@ -458,6 +458,23 @@ const fallbackMark = await getImage({
          double-binding, so calling it on every page load is safe. */
       keepFixedControlsTappable();
       document.addEventListener('astro:page-load', keepFixedControlsTappable);
+
+      /*
+        RE-SEED `--vv-height` ON EVERY NAVIGATION.
+
+        It is an inline style on `<html>`, and ClientRouter swaps that
+        element's attributes on a client-side navigation, which wipes it.
+        Measured: `390px` on first load, `""` after navigating to /feed, still
+        `""` after navigating back home — at which point the hero silently
+        falls back to `100svh`, the guessed height this replaced.
+
+        This has to be a SEPARATE call from the line above:
+        `keepFixedControlsTappable()` is guarded by an "already bound" flag so
+        its listeners attach once, which means every page load after the first
+        returns before reaching anything. One property read and one write.
+      */
+      publishViewportHeight();
+      document.addEventListener('astro:page-load', publishViewportHeight);
 
       /* The listeners below are attached to `document` once and must never be
          attached twice, so the "already bound" flags live on `window` rather
