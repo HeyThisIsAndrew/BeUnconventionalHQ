@@ -67,14 +67,41 @@
   }
 
   /* Hero grows with its content instead of clipping it.
-     `svh`, not `dvh` — see the note in hero.css. This rule is the
-     landscape twin of that bug: landscape.css is imported last, so a
-     `dvh` here re-subscribed the hero to iOS Safari's address bar even
-     after hero.css was fixed, and resizing `.hero` forces the blurred
-     `.hero-bg` layer to re-rasterize mid-scroll. */
+
+     `lvh` — NOT `svh`, and NOT `dvh`. This rule is the landscape twin of the
+     unit bug hero.css documents at length, and it got the unit wrong in the
+     same way the original did.
+
+     The note that used to sit here said "`svh`, not `dvh`", and it was half
+     right: the reason it gave — that `dvh` re-resolves as iOS Safari's chrome
+     retracts, resizing `.hero` and forcing the blurred `.hero-bg` layer to
+     re-rasterize mid-scroll — is real, and landscape.css being imported last
+     means a `dvh` here would override hero.css's fix. But it treated `svh` as
+     the only alternative. It is not. `svh` and `lvh` are BOTH fixed per
+     orientation, so both keep the anti-jitter property; they differ only in
+     WHICH fixed height they pick.
+
+     `svh` is the smallest the viewport ever gets — chrome fully expanded. The
+     moment Safari retracts that chrome the real viewport grows toward `lvh`,
+     the hero stops reaching the bottom of the screen, and the next section's
+     header — "EXPLORE THE HQ / WHAT WE COVER" — appears underneath it. That
+     is the identical symptom hero.css already fixed for portrait, reported
+     again from an iPhone in landscape, with the same two section names.
+
+     `lvh` is the correct fixed value: never shorter than the visible area,
+     still constant per orientation.
+
+     NOT REPRODUCIBLE IN CI. Headless Chrome has no retracting chrome, so
+     `svh`, `lvh` and `dvh` all resolve to the same number and every browser
+     test measures a perfect fit. Measured here at 956x440 and 844x390: hero
+     bottom == innerHeight, gap 0px, with `svh` still in place. The static
+     guard in scripts/viewport-units.test.mjs is the only check that can tell
+     these apart, which is why it now reads THIS file too — it previously
+     scanned hero.css alone, which is exactly how the landscape copy kept a
+     unit the portrait copy had already been fixed away from. */
   .hero {
     height: auto;
-    min-height: 100svh;
+    min-height: 100lvh;
     padding-top: 5.5rem;
     padding-bottom: 3rem;
   }
