@@ -37,11 +37,13 @@
  * so the stale hit region survives. Credit to the Antigravity audit for
  * catching it.
  *
- * `padding-bottom: 0.1px` is a value the element does NOT already have, so the
- * box genuinely changes; reverting on the next animation frame means a layout
- * pass actually happens in between. 0.1px on a fixed control is below the
- * threshold of anything visible, and the control is out of flow, so nothing
- * else moves with it.
+ * The mutation is `pointer-events`, toggled off and straight back with a
+ * layout read between the two writes. That is the property the hit-test tree
+ * is built from, so flipping it is exactly what makes WebKit rebuild it, and
+ * it touches no visual geometry at all — nothing can transition, shift or
+ * repaint as a side effect. An earlier version wrote `padding-bottom: 0.1px`
+ * instead, which did dirty layout and fired `transition: all 0.4s` on
+ * `.modal-overlay` on every call.
  *
  * NOT a transform: #navbar's transform is owned by the splash curtain
  * (`html.splash-armed #navbar { transform: translateY(-100%) }`) and stamping
@@ -123,26 +125,27 @@ export function keepFixedControlsTappable(): void {
 
     if (!geometryChanged) return;
 
-    /* A value the element does NOT already have, so the box genuinely changes
-       and the engine has something to invalidate. Skips anything not currently
-       rendered: a closed overlay has no hit region to correct, and writing to
-       it can only start transitions nobody asked for. */
-    const nudged: Array<[HTMLElement, string]> = [];
+    /*
+      Toggle `pointer-events` and read layout back. That is precisely the
+      property the hit-test tree is built from, so flipping it is what forces
+      WebKit to rebuild it — and it touches NO visual geometry, so it cannot
+      start a transition, shift a box, or cost a paint. Credit to the
+      Antigravity audit, which proposed this after correctly identifying that
+      the previous 0.1px padding write fired `transition: all 0.4s` on
+      `.modal-overlay` every time it ran.
+
+      Skips anything not currently rendered: a closed overlay has no hit region
+      worth correcting.
+    */
     for (const el of document.querySelectorAll<HTMLElement>(FIXED_CONTROLS)) {
       const cs = getComputedStyle(el);
       if (cs.display === 'none' || cs.visibility === 'hidden') continue;
-      nudged.push([el, el.style.paddingBottom]);
-      el.style.paddingBottom = '0.1px';
-    }
-    if (!nudged.length) return;
 
-    /* Reverted on the NEXT frame, so a layout pass lands in between — that gap
-       is the entire point, and reverting in the same tick is what made the
-       previous version a no-op. Collected first and reverted in one callback
-       rather than one rAF per element. */
-    requestAnimationFrame(() => {
-      for (const [el, previous] of nudged) el.style.paddingBottom = previous;
-    });
+      const previous = el.style.pointerEvents;
+      el.style.pointerEvents = 'none';
+      void el.offsetHeight; // synchronous layout read, between the two writes
+      el.style.pointerEvents = previous;
+    }
   };
 
   const schedule = () => {

@@ -287,6 +287,24 @@
     left: -48px;
   }
 
+  /*
+    WHEN THE MENU IS OPEN THE BUDGET DISAPPEARS — take it.
+
+    The 6px above exists only because page content sits directly beneath the
+    closed bar, and a deeper band was measured stealing taps from a category
+    tile. Once the menu is OPEN, `.nav-container` covers the entire viewport,
+    so there is nothing underneath to steal from and the X can have the same
+    generous area the category overlay's close button gets. Antigravity's
+    audit spotted this asymmetry; it is a real one.
+
+    scripts/e2e-corner-controls.test.mjs measures the open state separately,
+    so the steal-check still governs the closed one.
+  */
+  #navbar.menu-open .nav-toggle::before {
+    bottom: -48px;
+    left: -48px;
+  }
+
   /* The overlay close buttons sit over their own full-screen overlays, where
      nothing is beneath them, so they keep the deeper band. */
   .close-fullscreen-btn::before,
