@@ -1,17 +1,10 @@
 ---
-// Self-hosted fonts (was Google Fonts). Same-origin, no render-blocking
-// external request, no third-party exposure of visitor IPs.
-// @ts-ignore
-import '@fontsource-variable/syne';
-// @ts-ignore
-import '@fontsource-variable/inter';
 import '../styles/global-base.css';
 import '../styles/global.css';
 import '../styles/theme-red.css';
 import Footer from '../components/Footer.astro';
 import Navbar from '../components/Navbar.astro';
 import BrandGlow from '../components/BrandGlow.astro';
-import ContactModal from '../components/ContactModal.astro';
 import { site } from '../data/site.js';
 import { ClientRouter } from 'astro:transitions';
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
@@ -140,6 +133,8 @@ const fallbackMark = await getImage({
         which put it at byte 1536: ClientRouter alone emits two meta tags plus
         a module script before anything else got a chance to render. */}
     <meta charset="utf-8" />
+    <link rel="preload" href="/fonts/syne.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/inter.woff2" as="font" type="font/woff2" crossorigin />
     {/*
       The hashed URL of the fallback brand mark, handed to CSS. A stylesheet
       cannot read Astro frontmatter, and the filename carries a content hash,
@@ -150,6 +145,49 @@ const fallbackMark = await getImage({
     <ClientRouter />
     <script is:inline>
       document.documentElement.classList.add('js');
+      history.scrollRestoration = 'manual';
+
+      /*
+        ─── THE HERO'S HEIGHT IS MEASURED, NOT GUESSED ───────────────────────
+
+        `--vv-height` is the viewport height as it ACTUALLY is right now.
+        landscape.css sizes the hero from it.
+
+        WHY A MEASUREMENT AND NOT A VIEWPORT UNIT. Every static unit is a
+        guess about the browser chrome, and each one is wrong half the time:
+
+          svh  = smallest (chrome expanded). Arrive with the chrome already
+                 retracted — which is what happens when you scrolled on the
+                 previous page — and the hero is SHORTER than the screen, so
+                 "EXPLORE THE HQ / WHAT WE COVER" shows underneath it.
+          lvh  = largest (chrome retracted). Arrive with the chrome expanded
+                 and the hero is TALLER than the screen, so its centred
+                 content is pushed down out of position.
+          dvh  = always correct, but re-resolves during scroll, resizing the
+                 hero and forcing the blurred `.hero-bg` to re-rasterize.
+                 That is the jitter hero.css rejects at length.
+
+        Both static failures were photographed on the same device, one per
+        unit. There is no third static unit to try.
+
+        A measurement has none of those problems: it is the real height in
+        whatever chrome state the reader is actually in.
+
+        SET HERE, INLINE, BEFORE FIRST PAINT. The hero is the first thing on
+        screen and the splash sizes itself from it, so this cannot wait for a
+        module to load or the hero would paint once at the fallback height and
+        then resize.
+
+        UPDATED ONLY ON ROTATION, never on scroll — see viewport-anchor.ts.
+        That is what keeps it jitter-free: it behaves like a fixed value per
+        orientation, the same property `svh`/`lvh` have and `dvh` lacks, while
+        being the RIGHT fixed value rather than a guess at one.
+      */
+      (function () {
+        var vv = window.visualViewport;
+        var h = (vv && vv.height) || window.innerHeight;
+        if (h > 0) document.documentElement.style.setProperty('--vv-height', h + 'px');
+      })();
     </script>
     <!-- Google Tag Manager (Worker) -->
     {gtmId && (
@@ -227,8 +265,46 @@ const fallbackMark = await getImage({
     {/* Per-page <head> additions, e.g. an article's Article JSON-LD. Renders
         nothing when unused, so existing pages are unaffected. */}
     <slot name="head" />
+    {/*
+      ─── ICON ORDER IS LOAD-BEARING ON SAFARI ────────────────────────────────
+
+      REPORTED, WITH A SCREENSHOT: on iPad, after pressing "See more on
+      Instagram" in the carousel rail, the tab strip paints INSTAGRAM's glyph
+      next to this site's own tab — title and URL still ours — and it stays
+      wrong until a full reload.
+
+      The links themselves were never the problem. Every Instagram link on the
+      site already carries `target="_blank" rel="noopener noreferrer"`, and the
+      icon <link> set is provably identical before and after the navigation.
+      Nothing overwrites this document's metadata.
+
+      What was wrong is which icon Safari can actually USE. The SVG was
+      declared FIRST. Safari's support for `rel="icon"` with `image/svg+xml`
+      is unreliable on iOS/iPadOS — it accepts the declaration and then may
+      fail to produce a rasterised tab icon from it. A tab with no icon it can
+      paint does not go blank; it keeps painting whatever it last resolved,
+      and a `_blank` open to Instagram is exactly how a foreign icon gets into
+      that slot. A hard reload re-runs resolution from scratch, finds the .ico,
+      and the crown comes back — which is precisely the reported behaviour.
+
+      So the raster .ico is declared FIRST, with an explicit `sizes`, and the
+      SVG second. This is the standard ordering for this exact reason: engines
+      that genuinely support SVG icons still prefer the SVG (it is the more
+      specific later match once `type` is honoured), while Safari lands
+      deterministically on a bitmap it is guaranteed to be able to draw.
+
+      Do not put the SVG back on top to "prefer the vector". The vector is
+      still preferred everywhere that can use it.
+
+      NOT VERIFIABLE HERE: there is no WebKit in the build sandbox, and
+      Chromium resolves either ordering correctly, so this cannot be shown to
+      fix the iPad symptom from CI. `scripts/e2e-favicon.test.mjs` holds the
+      part that IS checkable — that a usable raster icon is declared before
+      any SVG-only icon, and that the whole set survives client-side
+      navigation, back-navigation and opening a tile in a new tab.
+    */}
+    <link rel="icon" href={`/favicon.ico`} sizes="32x32" />
     <link rel="icon" type="image/svg+xml" href={`/favicon.svg`} />
-    <link rel="icon" type="image/x-icon" href={`/favicon.ico`} />
     {/*
       Home-screen / web app tile art (issue #66).
 
@@ -282,23 +358,24 @@ const fallbackMark = await getImage({
          #page-content would still let Tab reach them. Wrap all three in
          #app-wrapper and inert THAT while a modal is open — the modals live
          outside the wrapper, so they stay reachable. -->
-    <div id="app-wrapper" class="min-h-[100svh] flex flex-col" data-home={isHomePage ? 'true' : undefined}>
+    <div id="app-wrapper" class="min-h-[100svh] w-full flex flex-col" data-home={isHomePage ? 'true' : undefined}>
       <Navbar />
-      <div id="page-content" class="flex-1 flex flex-col">
+      <div id="page-content" class="flex-1 w-full flex flex-col">
         <slot />
       </div>
       <Footer />
     </div>
     {/*
       ─── TURNSTILE LOADS ONCE, HERE ────────────────────────────────────────
-      It used to be requested by each form that needed it — ContactModal and
+      It used to be requested by each form that needed it — the (since
+      removed) contact modal and
       SubscribeBox as plain `api.js`, NewsletterForm as `api.js?render=explicit`
       — so any page carrying both (/, /events, /featured) fetched the API twice
       from two different URLs.
 
       That is not just a duplicate request. `render=explicit` is a GLOBAL
       switch: when the API is loaded that way it stops scanning the DOM for
-      implicit `.cf-turnstile` widgets. ContactModal and SubscribeBox both rely
+      implicit `.cf-turnstile` widgets. SubscribeBox relies
       on that scan, so whichever tag happened to win the race decided whether
       the contact form got a widget at all — and with no widget its submit
       button stays disabled and the form cannot be sent.
@@ -320,7 +397,7 @@ const fallbackMark = await getImage({
 
       That also fixes what this comment used to record as KNOWN, NOT FIXED:
       the implicit scan runs once, when the script loads, so with ClientRouter
-      a client-side navigation left ContactModal and SubscribeBox with fresh
+      a client-side navigation left SubscribeBox with fresh
       unrendered elements and no widget until a full reload. Deferring the
       load would have made that permanent, so every widget is now rendered
       EXPLICITLY — including on `astro:page-load`. The components keep their
@@ -334,7 +411,6 @@ const fallbackMark = await getImage({
       </script>
     )}
 
-    <ContactModal />
     <slot name="modals" />
 
     <!-- Unified Video Modal -->
@@ -374,6 +450,31 @@ const fallbackMark = await getImage({
     */}
     <script>
       import { lockScroll, unlockScroll } from '../lib/scroll-lock';
+      import { keepFixedControlsTappable, publishViewportHeight } from '../lib/viewport-anchor';
+
+      /* Bound once, site-wide: iOS Safari leaves fixed elements hit-tested at
+         stale coordinates after it resizes the web view (its landscape tab bar
+         collapsing on scroll is the reported trigger). Self-guarded against
+         double-binding, so calling it on every page load is safe. */
+      keepFixedControlsTappable();
+      document.addEventListener('astro:page-load', keepFixedControlsTappable);
+
+      /*
+        RE-SEED `--vv-height` ON EVERY NAVIGATION.
+
+        It is an inline style on `<html>`, and ClientRouter swaps that
+        element's attributes on a client-side navigation, which wipes it.
+        Measured: `390px` on first load, `""` after navigating to /feed, still
+        `""` after navigating back home — at which point the hero silently
+        falls back to `100svh`, the guessed height this replaced.
+
+        This has to be a SEPARATE call from the line above:
+        `keepFixedControlsTappable()` is guarded by an "already bound" flag so
+        its listeners attach once, which means every page load after the first
+        returns before reaching anything. One property read and one write.
+      */
+      publishViewportHeight();
+      document.addEventListener('astro:page-load', publishViewportHeight);
 
       /* The listeners below are attached to `document` once and must never be
          attached twice, so the "already bound" flags live on `window` rather
@@ -400,6 +501,8 @@ const fallbackMark = await getImage({
           ) as HTMLIFrameElement | null;
 
           if (videoId && modal && modalIframe) {
+            if (modal.classList.contains('active')) return;
+
             // Save focus + trap it: inert the whole app wrapper (navbar,
             // content, footer), not just #page-content.
             lastFocused = document.activeElement as HTMLElement | null;
@@ -474,10 +577,8 @@ const fallbackMark = await getImage({
           }
         }
 
-        console.log("LAYOUT SCRIPT EXECUTED!");
         // Global Event Delegation for Video Triggers
         if (!window.videoModalSetup) {
-          console.log("Attaching global click listener for video modal");
           document.addEventListener('click', (e) => {
           if (!(e.target instanceof Element)) return;
           const trigger = e.target.closest('[data-action="open-video"]');
@@ -485,7 +586,6 @@ const fallbackMark = await getImage({
           if (trigger) {
             e.preventDefault();
               const videoId = trigger.getAttribute('data-video-id');
-              console.log('TRIGGER CLICKED! Video ID:', videoId);
               if (videoId) openModal(videoId);
             }
 
@@ -747,10 +847,6 @@ const fallbackMark = await getImage({
         */
         releaseScrollLock();
 
-        const body = document.body;
-        if (body.style.overflow === 'hidden') {
-          body.style.overflow = '';
-        }
         // Never cache an OPEN modal: with the scroll lock already cleared above,
         // a cached-open modal causes a big scroll jump when closed after Back.
         // Release the focus trap and close/reset both modals.
@@ -767,18 +863,6 @@ const fallbackMark = await getImage({
           successContainer.classList.add('hidden');
           const iframe = document.getElementById('hidden_iframe') as HTMLIFrameElement | null;
           if (iframe) iframe.src = 'about:blank';
-        }
-        const contactModal = document.getElementById('contact-modal');
-        if (contactModal) {
-          const formContainer = document.getElementById('form-container');
-          if (formContainer && !formContainer.classList.contains('hidden')) {
-            formContainer.classList.add('hidden');
-            const form = document.getElementById('contact-modal-form') as HTMLFormElement | null;
-            form?.reset();
-          }
-          document
-            .getElementById('modal-form-status')
-            ?.classList.remove('is-visible');
         }
         const calendarModal = document.getElementById('spanning-calendar-modal');
         if (calendarModal) {

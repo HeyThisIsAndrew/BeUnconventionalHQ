@@ -8,7 +8,7 @@
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 9999;
+  z-index: 100;
   background: rgba(10, 10, 10, 0.92);
   backdrop-filter: blur(16px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -26,6 +26,21 @@
   justify-content: space-between !important;
   align-items: center !important;
   width: 100%;
+}
+
+/* Keep the logo and the .nav-toggle (which doubles as the menu's close
+   button) clear of the hardware notch / Dynamic Island. In landscape the
+   inset lands on the LEFT or RIGHT edge, so a top inset alone does nothing
+   and the close button ends up underneath it, unreachable.
+
+   `--nav-inline-pad` restates .container's padding-inline (layout.css) so
+   max() can floor against it: nothing changes on a device with no insets,
+   and the ID selector outranks .container in the cascade regardless of
+   import order. Keep the two clamps in sync. */
+#navbar .nav-inner {
+  --nav-inline-pad: clamp(1.25rem, calc(0.625rem + 2.5vw), 3rem);
+  padding-left: max(var(--nav-inline-pad), env(safe-area-inset-left));
+  padding-right: max(var(--nav-inline-pad), env(safe-area-inset-right));
 }
 .nav-brand-group {
   display: flex;

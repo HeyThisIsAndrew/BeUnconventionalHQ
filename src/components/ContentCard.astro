@@ -9,21 +9,26 @@ export interface Props {
 }
 
 const { item, index = 0 } = Astro.props;
+
+if (!item) return;
+
 const isVideo = item.contentType === 'video' || item.type === 'video';
-const videoId = isVideo ? parseVideoId(item.link) : null;
+const videoId = isVideo ? parseVideoId(item.link || '') : null;
 const isPlayable = isVideo && !!videoId;
 
 // Determine primary label for the badge
-const baseTags = Array.isArray(item.tags) ? item.tags : [];
-const itemTags = [...baseTags, item.category || 'General'];
+const baseTags = Array.isArray(item.tags) ? item.tags : (Array.isArray(item.youtubeTags) ? item.youtubeTags : []);
+const itemTags = [...baseTags, item.category || ''];
 const lowerTags = itemTags.map((t: string) => typeof t === 'string' ? t.toLowerCase() : '');
-let primaryLabel = 'General';
-if (isVideo) primaryLabel = 'Video';
-else if (lowerTags.includes('tv')) primaryLabel = 'TV';
-else if (lowerTags.includes('film')) primaryLabel = 'Film';
-else if (lowerTags.includes('gaming')) primaryLabel = 'Gaming';
-else if (lowerTags.includes('event') || lowerTags.includes('events')) primaryLabel = 'Event';
-else primaryLabel = item.category || 'Article';
+
+let primaryLabel = item.category || '';
+if (!primaryLabel || primaryLabel.toLowerCase() === 'general') {
+  if (lowerTags.includes('gaming') || lowerTags.includes('games')) primaryLabel = 'Gaming';
+  else if (lowerTags.includes('film') || lowerTags.includes('movies')) primaryLabel = 'Film';
+  else if (lowerTags.includes('tv') || lowerTags.includes('television')) primaryLabel = 'TV';
+  else if (lowerTags.includes('event') || lowerTags.includes('events')) primaryLabel = 'Event';
+  else primaryLabel = isVideo ? 'Video' : 'Article';
+}
 
 // Render anchor or div depending on type. We use 'video-card-home' for both
 // so they share the exact hover effects from home-cards.css.
@@ -81,7 +86,7 @@ const wrapperProps = isPlayable
     };
 ---
 
-<CardWrapper {...wrapperProps}>
+<CardWrapper {...wrapperProps} data-play-hover={isVideo ? 'true' : undefined}>
   {/*
     Every style here is a class, not an inline `style` attribute.
 
@@ -125,9 +130,20 @@ const wrapperProps = isPlayable
         <span class="article-thumb-fallback-title">{item.title}</span>
       </div>
     )}
+
+    {isVideo && (
+      <div class="play-button-wrapper" aria-hidden="true">
+        <div class="cinematic-play-button">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        </div>
+      </div>
+    )}
   </div>
 
   <div class="content-card-body">
+
     <div class="content-card-meta">
       <span>{primaryLabel}</span>
       {item.date && (

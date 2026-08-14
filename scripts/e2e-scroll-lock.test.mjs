@@ -63,7 +63,10 @@ try {
   for (const [label, width, height] of [['mobile', 390, 844], ['desktop', 1440, 900]]) {
     const page = await browser.newPage();
     await page.setViewport({ width, height });
-    await page.goto(`http://localhost:${port}/`, { waitUntil: 'networkidle0' });
+
+    // Use a hash fragment so Hero.astro's shouldArm() returns false,
+    // preventing the splash screen from locking scrolling and breaking the test.
+    await page.goto(`http://localhost:${port}/#e2e`, { waitUntil: 'networkidle0' });
 
     const trigger = await page.$('[data-action="open-video"]');
     if (!trigger) {

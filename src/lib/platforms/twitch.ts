@@ -65,7 +65,12 @@ export function createTwitchClient({
     if (!res.ok) {
       throw new TwitchApiError(`Twitch token request failed (${res.status})`, res.status);
     }
-    const data: any = await res.json();
+    let data: any;
+    try {
+      data = await res.json();
+    } catch (err) {
+      throw new TwitchApiError('Twitch token response JSON parse failed', 500);
+    }
     token = data.access_token;
     tokenExpiresAt = nowImpl() + Math.max(0, (data.expires_in ?? 0) - TOKEN_EXPIRY_MARGIN_S) * 1000;
     if (!token) throw new TwitchApiError('Twitch token response missing access_token', 500);
@@ -81,7 +86,11 @@ export function createTwitchClient({
     if (!res.ok) {
       throw new TwitchApiError(`Twitch API error on ${path} (${res.status})`, res.status);
     }
-    return res.json();
+    try {
+      return await res.json();
+    } catch (err) {
+      throw new TwitchApiError(`Twitch API JSON parse error on ${path}`, 500);
+    }
   }
 
   return {

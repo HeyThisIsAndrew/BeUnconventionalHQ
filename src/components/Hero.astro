@@ -1,11 +1,114 @@
 ---
 import { site } from '../data/site.js';
+import bannerImg from '../assets/banner.webp';
 ---
 
 <section class="hero" data-nav-anchor>
+  <script is:inline>
+    // Prevent the browser from automatically restoring the scroll position on refresh,
+    // which breaks the initial scroll-linked animations and traps the user.
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    
+    /*
+      Reset the scroll position on a reload — INSTANTLY.
+
+      `html { scroll-behavior: smooth }` is set globally in global-base.css, so
+      a bare `window.scrollTo(0, 0)` does not jump, it ANIMATES. On a refresh
+      part-way down the page that turns the reset into a visible glide from the
+      restored offset up to the top, and because three resets fire in sequence
+      (here, on the next frame, and on pageshow) they interrupt and re-target
+      each other — then arm() jumps to 0 while an animation is still in flight,
+      producing the jarring up/down bounce this block is supposed to prevent.
+
+      This is the inline copy of `jumpTo()` in src/lib/scroll-to.ts — read the
+      full rationale there, including why the forced recalc is load-bearing and
+      why `behavior: 'instant'` is not used. It is duplicated rather than
+      imported because an `is:inline` script never goes through the bundler,
+      and this has to run during parse: by the time a module has loaded, the
+      browser has already restored the offset and painted it.
+      scripts/splash-scroll-lock.test.mjs keeps the two copies honest.
+    */
+    function jumpToTop() {
+      const root = document.documentElement;
+      const previousBehavior = root.style.scrollBehavior;
+      root.style.scrollBehavior = 'auto';
+      void root.offsetHeight; // forces the recalc; without it scrollTo still sees `smooth`
+      window.scrollTo(0, 0);
+      root.style.scrollBehavior = previousBehavior;
+    }
+
+    const navEntries = performance.getEntriesByType ? performance.getEntriesByType('navigation') : [];
+
+    /** @type {any} */
+    const p = window.performance;
+    const legacyNav = p ? p.navigation : null;
+    const isReload = (navEntries.length > 0 && navEntries[0].type === 'reload') ||
+                     (legacyNav && legacyNav.type === 1);
+
+    if (isReload) {
+      jumpToTop();
+      requestAnimationFrame(jumpToTop);
+      // Fallback for Safari which occasionally restores scroll after the first paint
+      window.addEventListener('pageshow', jumpToTop, { once: true });
+
+      /*
+        ─── HOLD THE TOP UNTIL THE READER ASKS TO LEAVE IT ────────────────────
+
+        The three resets above are one-shot: each corrects the offset at one
+        instant. `history.scrollRestoration = 'manual'` is supposed to stop the
+        engine restoring at all, but iOS Safari restores anyway, once, at a
+        moment that moves with load timing — so a fixed number of shots can
+        always be beaten by a restore that lands between them.
+
+        Measured before this guard, walking the restore across the startup
+        window (7 timings from DOMContentLoaded+0ms to +600ms, both
+        orientations): EVERY timing painted 8–14 frames at the restored offset
+        of 390px before something snapped it back, and one timing was never
+        corrected at all and simply stayed there. In landscape those frames
+        also carry the hero parallax at its 150px cap, because the parallax is
+        only disabled on portrait touch — which is why landscape looks the
+        worst and why the reader sees the page lurch DOWN and then back UP.
+
+        So this is a condition, not a schedule: while the guard is up, ANY
+        non-zero offset is corrected in the same frame it appears. It is
+        registered here, in the inline script, so it runs before the parallax
+        listener that `astro:page-load` adds — the parallax then reads 0 and
+        never renders the excursion.
+
+        It gets out of the way immediately. The FIRST real input — touch,
+        pointer, wheel, key — releases it, so a reader who flicks the moment
+        the page appears is never fought; and it is gone after
+        GUARD_MS regardless. The splash lift is exempt while it runs, because
+        it legitimately scrolls to a non-zero offset at the end (it is also
+        always preceded by an input, which has already released the guard).
+      */
+      const GUARD_MS = 3000;
+      const GESTURES = ['touchstart', 'pointerdown', 'wheel', 'keydown'];
+
+      const onStrayScroll = () => {
+        if (window.scrollY === 0) return;
+        if (document.documentElement.classList.contains('splash-lifting')) return;
+        jumpToTop();
+      };
+
+      const releaseTopGuard = () => {
+        clearTimeout(guardTimer);
+        window.removeEventListener('scroll', onStrayScroll);
+        GESTURES.forEach((type) => window.removeEventListener(type, releaseTopGuard));
+      };
+
+      const guardTimer = setTimeout(releaseTopGuard, GUARD_MS);
+      window.addEventListener('scroll', onStrayScroll, { passive: true });
+      GESTURES.forEach((type) =>
+        window.addEventListener(type, releaseTopGuard, { passive: true, once: true })
+      );
+    }
+  </script>
   <div class="hero-bg" aria-hidden="true">
     <div class="hero-bg-inner">
-      <img src="/banner.webp" alt="" class="hero-bg-image" fetchpriority="high" loading="eager" decoding="sync" />
+      <img src={bannerImg.src} alt="" class="hero-bg-image" fetchpriority="high" loading="eager" decoding="sync" />
       <div class="hero-bg-gradient"></div>
     </div>
   </div>
@@ -55,6 +158,7 @@ import { site } from '../data/site.js';
     splash's arming condition. See shouldArm().
   */
   import { isScrollLocked } from '../lib/scroll-lock';
+  import { jumpTo } from '../lib/scroll-to';
 
   // Keep track of the current listener so we can remove it on page exit
   declare global {
@@ -227,7 +331,6 @@ import { site } from '../data/site.js';
       from "the browser is about to put them back at 2000". It armed, which
       sets `overflow: hidden` and hides the navbar, and the reader's next
       scroll gesture was then read as the dismiss trigger.
-
       Two independent guards, because neither covers every route on its own:
         1. `navDirection`  — Astro's ClientRouter tells us Back/Forward
            directly, but only for in-app navigations it handles itself.
@@ -247,7 +350,8 @@ import { site } from '../data/site.js';
       if (navType === 'traverse') return true;
       if (!navType && navDirection === 'back') return true;
       const [entry] = performance.getEntriesByType('navigation');
-      return (entry as PerformanceNavigationTiming | undefined)?.type === 'back_forward';
+      const type = (entry as PerformanceNavigationTiming | undefined)?.type;
+      return type === 'back_forward';
     }
 
     function measureLift() {
@@ -287,20 +391,65 @@ import { site } from '../data/site.js';
          returns to zero and the page stays pinned forever. */
       if (root.classList.contains('splash-armed')) return;
       measureLift();
+      /* Measure BEFORE hiding the scrollbar — afterwards this always reads 0. */
+      const gutter = Math.max(0, window.innerWidth - root.clientWidth);
+      root.style.setProperty('--splash-gutter', `${gutter}px`);
+
+      /*
+        PIN THE PAGE AT THE TOP *BEFORE* FREEZING IT. Do not remove.
+
+        `html.splash-armed { overflow: hidden }` does not move the document —
+        it freezes whatever offset the document already has. Arming is only
+        ever correct at the top, but on a refresh iOS Safari restores the
+        previous scroll position around first paint, racing the reset at the
+        top of this file. Lose that race and the curtain freezes the reader
+        mid-page: they cannot scroll up, and their next downward gesture is
+        read as the dismiss trigger, so the intro replays from a position the
+        page was never at. That is the reported regression.
+
+        Forcing the offset to 0 here makes the frozen offset the top BY
+        CONSTRUCTION, whatever the browser did a moment earlier. `scrollY < 4`
+        in shouldArm() is not sufficient on its own — it samples one instant,
+        and the restore can land after it.
+
+        Note this cannot be delegated to src/lib/scroll-lock.ts: that pins
+        <body> with `position: fixed`, which re-parents #app-wrapper's
+        containing block mid-animation and makes the browser drop the curtain's
+        transform transition outright (measured — see the note in splash.css).
+      */
+      jumpTo(0);
+
       root.classList.add('splash-armed');
-      
-      if (window.__hqScrollLock) window.__hqScrollLock.lock();
     }
 
+    /*
+      SAFETY NET for the same race.
+
+      If the browser restores a scroll offset AFTER the curtain is already up,
+      the frozen offset is wrong and the reader is stuck. Rather than trust
+      that no engine ever does this, snap back to the top whenever the page
+      reports a non-zero offset while armed. Armed means "at the top", so this
+      can only ever correct a state that should not exist.
+
+      Passive, and a no-op in the normal case — while armed the document does
+      not scroll, so this listener never fires.
+    */
+    window.addEventListener(
+      'scroll',
+      () => {
+        if (!root.classList.contains('splash-armed')) return;
+        if (root.classList.contains('splash-lifting')) return; // mid-animation
+        if (window.scrollY === 0) return;
+        jumpTo(0);
+      },
+      { passive: true }
+    );
+
     function disarm() {
-      const wasArmed = root.classList.contains('splash-armed');
       root.classList.remove('splash-armed', 'splash-lifting', 'splash-dropping');
+      root.style.removeProperty('--splash-gutter');
       const wrapper = document.getElementById('app-wrapper');
       if (wrapper) wrapper.style.willChange = '';
-      
-      if (wasArmed && window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
-        window.__hqScrollLock.release();
-      }
     }
 
     /**
@@ -348,18 +497,19 @@ import { site } from '../data/site.js';
       const distance = hero ? hero.offsetHeight : window.innerHeight;
 
       if (reduceMotion()) {
+        disarm();
+        /* Next frame, so this lands AFTER the router's fragment scroll rather
+           than being overwritten by it. */
         requestAnimationFrame(() => {
           stripHash();
-          
-          if (window.__hqScrollLock) {
-            window.__hqScrollLock.release();
-          }
-          
-          const previousBehavior = root.style.scrollBehavior;
-          root.style.scrollBehavior = 'auto';
-          root.classList.remove('splash-armed', 'splash-lifting', 'splash-dropping');
-          window.scrollTo(0, distance);
-          root.style.scrollBehavior = previousBehavior;
+          /*
+            Force `auto`. `html { scroll-behavior: smooth }` is global, so
+            without this the REDUCED-MOTION path was the one that animated —
+            a ~600ms smooth scroll for the reader who explicitly asked for
+            less movement, while everyone else got an instant jump at the end
+            of the curtain. Exactly backwards.
+          */
+          jumpTo(distance);
           busy = false;
         });
         return;
@@ -375,21 +525,16 @@ import { site } from '../data/site.js';
           in ONE synchronous block means the browser never paints an
           intermediate state — the two cancel out exactly.
 
-          scroll-behavior is forced to auto for the jump because the site sets
-          `smooth` globally; without this the "instant" correction would
-          animate and undo the illusion.
+          The jump goes through jumpTo() because the site sets `smooth`
+          globally; without that the "instant" correction animates and undoes
+          the illusion. jumpTo() forces a style recalc before scrolling, which
+          is what makes the opt-out actually take effect — a recalc computes,
+          it does not paint, so the single-frame swap still holds.
         */
-        const previousBehavior = root.style.scrollBehavior;
-        root.style.scrollBehavior = 'auto';
         root.classList.remove('splash-armed', 'splash-lifting');
+        root.style.removeProperty('--splash-gutter');
         stripHash();
-        
-        if (window.__hqScrollLock) {
-          window.__hqScrollLock.release();
-        }
-        
-        window.scrollTo(0, distance);
-        root.style.scrollBehavior = previousBehavior;
+        jumpTo(distance);
         if (wrapper) wrapper.style.willChange = '';
         busy = false;
       };
@@ -419,6 +564,10 @@ import { site } from '../data/site.js';
       setTimeout(once, 1100);
     }
 
+    /** Location test only — `drop` runs while scrolled, so no scrollY check. */
+    function shouldArmLocation() {
+      return window.location.pathname === '/' && !!document.querySelector('.hero');
+    }
 
     // ── Triggers ─────────────────────────────────────────────────────────
 
@@ -471,13 +620,56 @@ import { site } from '../data/site.js';
           stripHash();
           return;
         }
-      });
 
-      document.addEventListener('hq:lift-splash', () => {
-        if (root.classList.contains('splash-armed')) {
-          lift();
+        /*
+          ─── THE WORDMARK RETURNS TO THE TOP. THE LOGO DOES NOT. ────────────
+
+          This used to match `#navbar a[href="/"]`, which is BOTH brand
+          controls — the logo and the "BE UNCONVENTIONAL HQ" wordmark sit side
+          by side and both carry `href="/"`. Because this listener is on
+          `document` in the CAPTURE phase and calls `stopPropagation()`, it ran
+          first and swallowed the logo's navigation before Navbar.astro's own
+          handler could see the click. So on the homepage the logo stopped
+          being a link and smooth-scrolled to the top instead.
+
+          Reported: "the logo is now causing site to scroll to the top when
+          clicked from the home page. It must remain as Logo is immediate home
+          button and be unconventional hq text is the scroll to the top button
+          for the page it is clicked from."
+
+          This block is NOT on main — it was added on this branch, so it is a
+          real regression rather than long-standing behaviour. (Navbar.astro
+          has a similar-looking intercept that IS on main; that one was a red
+          herring, and this capture handler was reaching the logo first
+          regardless of what Navbar.astro decided.)
+
+          Scoped to `#nav-identity` alone. The wordmark only appears past 100px
+          of scroll, which is exactly when "back to the top" is the useful
+          action, and on the homepage reaching the top re-arms the curtain on
+          its own (see the scroll listener below) — so the return to the splash
+          this was written for still happens, just from the control that should
+          own it. The logo now falls through to being an ordinary "go home"
+          link, which is what a masthead should be.
+        */
+        const brand = target.closest('#nav-identity');
+        if (brand && shouldArmLocation() && !root.classList.contains('splash-armed')) {
+          event.preventDefault();
+          event.stopPropagation(); // Block Astro ClientRouter
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+
+          const navbar = document.getElementById('navbar');
+          if (navbar && navbar.classList.contains('menu-open')) {
+            navbar.classList.remove('menu-open');
+            const toggle = document.querySelector('.nav-toggle');
+            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+            // We use the imported isScrollLocked and unlock if needed. Wait, isScrollLocked is from scroll-lock.ts, we need unlock too.
+            // Actually, we can just use window.__hqScrollLock.unlock() since we know it's there.
+            if (window.__hqScrollLock && window.__hqScrollLock.isLocked()) {
+              window.__hqScrollLock.unlock();
+            }
+          }
         }
-      });
+      }, { capture: true });
 
       /* Scrolling down past the splash lifts it too — the curtain should never
          be something you can get stuck behind. */
@@ -589,7 +781,7 @@ import { site } from '../data/site.js';
       // before the browser paints. This prevents the navbar from flickering 
       // visible during the two-frame delay used by armOnEntry.
       if (window.location.pathname === '/' && !isHistoryNavigation()) {
-        if (window.scrollY < 4) arm();
+        if (!window.location.hash || window.location.hash === '#') arm();
       }
     });
 

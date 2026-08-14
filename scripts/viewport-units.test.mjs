@@ -85,6 +85,101 @@ test('the mobile hero is NOT sized in svh or dvh', () => {
   assert.ok(!height.includes('dvh'), 'dvh re-resolves during scroll and reintroduces the jitter');
 });
 
+/*
+  ─── LANDSCAPE IS MEASURED, NOT GUESSED ─────────────────────────────────────
+
+  landscape.css carries its OWN `.hero` rule and is imported LAST, so it wins.
+  This guard used to read hero.css alone, which is how the landscape copy kept
+  a unit the portrait copy had already been fixed away from.
+
+  Landscape is also where no static unit works at all. The chrome is a large
+  fraction of a short viewport, and both options were tried on a real device
+  and both were photographed failing — `100svh` leaves the next section
+  showing underneath when the reader arrives with the chrome retracted;
+  `100lvh` pushes the centred content down when they arrive with it expanded.
+  `100dvh` fixes both and reintroduces the .hero-bg jitter.
+
+  So landscape sizes the hero from `--vv-height` — the real
+  visualViewport.height, seeded inline before first paint and republished only
+  on rotation. This is the ONLY check that can tell a measurement from a unit:
+  in Chromium all three units resolve to the same number as the measurement,
+  so no browser assertion can discriminate. That is exactly how the unit was
+  got wrong twice.
+*/
+/* Comments stripped first: landscape.css quotes `.hero { padding-top: 5.5rem }`
+   inside its LOAD-BEARING note, and a naive match finds that example instead
+   of the real rule. */
+const landscapeCss = fs
+  .readFileSync(path.join(ROOT, 'src/styles/modules/landscape.css'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '');
+
+test('the landscape hero is MEASURED (--vv-height), not sized in a viewport unit', () => {
+  const rule = landscapeCss.match(/\.hero\s*\{([^}]*)\}/s);
+  assert.ok(rule, 'landscape.css no longer has a .hero rule — has it been renamed?');
+
+  const minHeight = rule[1].match(/min-height:\s*([^;]+);/);
+  assert.ok(minHeight, 'the landscape .hero rule sets no min-height');
+
+  const value = minHeight[1].trim();
+  assert.ok(
+    value.startsWith('var(--vv-height'),
+    `landscape .hero min-height is "${value}".\n\n` +
+      '      It must be var(--vv-height, <fallback>).\n' +
+      '      100svh leaves a gap when the reader arrives with the chrome\n' +
+      '      already retracted — after scrolling on the previous page, or\n' +
+      '      after a rotation — and the next section shows underneath.\n' +
+      '      100lvh pushes the centred content down when they arrive with the\n' +
+      '      chrome expanded. Both were photographed on the device.\n' +
+      '      100dvh fixes both and re-rasterizes the blurred .hero-bg on every\n' +
+      '      scroll, which is the jitter hero.css rejects.\n' +
+      '      Only a measurement is right in every chrome state.\n',
+  );
+
+  assert.ok(
+    /var\(--vv-height,\s*100svh\)/.test(value),
+    `landscape .hero min-height is "${value}" — the fallback must be 100svh, ` +
+      `which is what this rule shipped before JS was involved, so a reader ` +
+      `without scripting sees exactly the previous behaviour rather than ` +
+      `a hero with no height at all.`,
+  );
+});
+
+test('--vv-height is seeded inline, before the hero can paint', () => {
+  const layout = fs.readFileSync(path.join(ROOT, 'src/layouts/Layout.astro'), 'utf8');
+  assert.ok(
+    /is:inline[\s\S]{0,2000}--vv-height/.test(layout),
+    'Layout.astro no longer seeds --vv-height from an is:inline script. It has ' +
+      'to be set before first paint: the hero is the first thing on screen and ' +
+      'the splash measures its lift from it, so waiting for a module means the ' +
+      'hero paints at the fallback height and then resizes.',
+  );
+});
+
+test('viewport-anchor republishes --vv-height, and only on rotation', () => {
+  const anchor = fs.readFileSync(path.join(ROOT, 'src/lib/viewport-anchor.ts'), 'utf8');
+  assert.ok(
+    /--vv-height/.test(anchor),
+    'viewport-anchor.ts no longer publishes --vv-height, so a rotation leaves ' +
+      'the hero at the height of the orientation it no longer has — the ' +
+      'reported bug: "load the homepage and then rotate your phone".',
+  );
+
+  /* The call must be reachable from the rotation settling path and NOT from
+     the geometry/scroll path, which is where a chrome collapse arrives. */
+  const refreshBody = anchor.slice(
+    anchor.indexOf('const refresh = ()'),
+    anchor.indexOf('const schedule = ()'),
+  );
+  assert.ok(
+    !/publishViewportHeight\s*\(/.test(refreshBody),
+    'publishViewportHeight() is called from refresh(), which runs on ' +
+      'visualViewport scroll/resize — that is a chrome collapse. Republishing ' +
+      'there resizes the hero mid-scroll and re-rasterizes the blurred ' +
+      '.hero-bg: the exact jitter 100dvh was rejected for. It belongs only in ' +
+      'the rotation settling path.',
+  );
+});
+
 test('the rationale stays next to the rule', () => {
   // This is the only place the reasoning lives. If someone strips the comment
   // the next person has no way to know why the unit is not the obvious one.

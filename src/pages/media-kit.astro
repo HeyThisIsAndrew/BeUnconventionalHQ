@@ -561,6 +561,22 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
         .footer a {
             color: var(--text-main);
             text-decoration: none;
+            /* Touch target (WCAG 2.5.8). These contact lines render at 11px,
+               well under the 24px a finger needs. This page renders its own
+               standalone <html> and never loads global.css, so it cannot use
+               the shared helper in styles/modules/a11y.css and carries its own
+               copy. An absolutely positioned pseudo-element takes part in
+               hit-testing but not in layout, so the print/PDF output this page
+               also feeds is byte-identical. */
+            position: relative;
+        }
+
+        .footer a::before {
+            content: '';
+            position: absolute;
+            inset-block: -7px;
+            inset-inline: 0;
+            background: none;
         }
 
         .footer-logo-container {
@@ -909,7 +925,7 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
                 </div>
                 <div class="footer-item" style="align-items: center;">
                     <span style="color: var(--accent-red); letter-spacing: 0.1em; font-size: 0.09in; font-weight: 800;">SOCIAL:</span>
-                    <a href="https://youtube.com/@beunconventionalhq" target="_blank">@BEUNCONVENTIONALHQ</a>
+                    <a href="https://youtube.com/@beunconventionalhq" target="_blank" rel="noopener noreferrer">@BEUNCONVENTIONALHQ</a>
                 </div>
             </div>
 

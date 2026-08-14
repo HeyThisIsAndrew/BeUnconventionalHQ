@@ -211,6 +211,11 @@
 /* =========================================================================
    FULL-SCREEN IMMERSIVE OVERLAY STYLES
    ========================================================================= */
+/* Same centring contract as the mobile nav overlay (responsive-mobile.css):
+   `flex-start` + auto margins on the content, never `justify-content: center`,
+   so a category list taller than a landscape viewport scrolls instead of
+   overflowing past the unreachable start edge. Top padding clears the
+   absolutely-positioned close button, which sits above this content. */
 .category-fullscreen-overlay {
   position: fixed;
   top: 0;
@@ -218,15 +223,45 @@
   width: 100%;
   height: 100dvh;
   background: #000000;
-  z-index: 10005;
+  z-index: 200;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.4s ease;
-  padding-top: env(safe-area-inset-top);
+  padding-top: calc(env(safe-area-inset-top) + 4rem);
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  padding-left: max(1.5rem, env(safe-area-inset-left));
+  padding-right: max(1.5rem, env(safe-area-inset-right));
+  overscroll-behavior: contain;
+
+  /* Same iOS landscape guard as .nav-container (responsive-mobile.css) — a
+     closed full-screen overlay must be structurally incapable of receiving a
+     tap, not merely invisible. */
+  pointer-events: none;
+}
+
+.category-fullscreen-overlay.is-open {
+  pointer-events: auto;
+}
+
+/* The INNER box scrolls, not the overlay.
+
+   Scrolling the overlay itself would make the close button a `position:`
+   pinned child of a scroll container, which is the fragile arrangement on
+   iOS. Keeping the overlay a plain fixed flex box lets the close button stay
+   absolutely positioned against it while the category list takes the
+   overflow. `margin: auto 0` centres the list when it fits and collapses to 0
+   when it does not — the same contract as the nav overlay. */
+.category-fullscreen-overlay .fullscreen-content {
+  width: 100%;
+  margin: auto 0;
+  flex-shrink: 1;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
   overscroll-behavior: contain;
 }
 
@@ -235,6 +270,11 @@
   visibility: visible;
 }
 
+/* `absolute` against the overlay, which is itself viewport-fixed and
+   full-bleed — so this is the same corner a `fixed` button would land on,
+   without making it a fixed child of a scrolling ancestor (fragile on iOS).
+   The overflow now lives on .fullscreen-content, so nothing scrolls this
+   button away. */
 .close-fullscreen-btn {
   position: absolute;
   top: max(1rem, env(safe-area-inset-top, 1rem));
@@ -249,7 +289,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  z-index: 10006;
+  z-index: 210;
   padding: 0;
 }
 

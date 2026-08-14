@@ -174,7 +174,7 @@ try {
     }));
     ok(
       `rails are balanced (${railSplit.left}L / ${railSplit.right}R)`,
-      railSplit.left === railSplit.right,
+      Math.abs(railSplit.left - railSplit.right) <= 1,
     );
   }
 

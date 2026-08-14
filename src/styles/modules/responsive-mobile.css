@@ -7,7 +7,7 @@
     right: 0;
     height: env(safe-area-inset-top);
     background: #000000 !important;
-    z-index: 10000;
+    z-index: 110;
     pointer-events: none;
   }
 
@@ -37,16 +37,16 @@
     overflow: visible;
     height: auto;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    z-index: 9999;
+    z-index: 100;
   }
 
   /* When the mobile menu is open, lift the navbar's stacking context above
-     the .safe-area-blackout (z-index: 10000). The .nav-container is nested
-     inside #navbar, so its z-index: 10001 is only resolved WITHIN this
-     context — without this, the whole menu is trapped at 9999 and the
+     the .safe-area-blackout (z-index: 110). The .nav-container is nested
+     inside #navbar, so its z-index: 10 is only resolved WITHIN this
+     context — without this, the whole menu is trapped at 100 and the
      blackout renders on top of it. */
   #navbar.menu-open {
-    z-index: 10001;
+    z-index: 120;
   }
 
   /* Traditional 3-Line Hamburger */
@@ -60,7 +60,7 @@
     background: none;
     border: none;
     cursor: pointer;
-    z-index: 10002;
+    z-index: 20;
     padding: 0;
     align-items: center;
   }
@@ -85,6 +85,18 @@
     transform: translateY(-7px) rotate(-45deg);
   }
 
+  /* The full-screen mobile menu.
+
+     `justify-content: flex-start` + `margin: auto 0` on .nav-list, NOT
+     `justify-content: center`. The two look identical whenever the links fit
+     — auto margins absorb the free space and centre the list exactly as
+     before — but they behave completely differently once the list is taller
+     than the viewport, which is the normal case in landscape on a phone.
+     `justify-content: center` overflows the container equally at BOTH ends
+     and a scroll container cannot reach content that overflows its start
+     edge, so the top links become physically unreachable: the trap. Auto
+     margins collapse to 0 when there is no free space, so the list starts at
+     the top and `overflow-y: auto` can reach all of it. */
   .nav-container {
     position: fixed;
     top: 0;
@@ -95,20 +107,45 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     opacity: 0;
     visibility: hidden;
     transition:
       opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
       visibility 0.4s ease;
-    z-index: 10001;
+    z-index: 10;
     padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+    overflow-y: auto;
     overscroll-behavior: contain;
+
+    /* iOS Safari, landscape: `visibility: hidden` is NOT sufficient to stop a
+       closed overlay from eating taps.
+
+       This element is fixed, full-width and 100dvh, so when it is scrollable
+       it becomes a composited scrolling layer covering the entire viewport on
+       EVERY page — and iOS keeps routing touches to that layer while it is
+       invisible. The result was a phone stuck in landscape: the close button,
+       the nav links, the category overlay and the article gallery were all
+       untappable. It only reproduced in landscape because only landscape.css
+       gives .nav-list `min-height: 100%` plus header clearance, which is what
+       makes the content overflow and creates the scrolling layer in the first
+       place.
+
+       `pointer-events` is the structural fix rather than a workaround: a
+       closed overlay is now incapable of receiving a tap no matter what the
+       compositor does with it. Do not remove it, and do not add
+       `-webkit-overflow-scrolling: touch` here — it is a no-op on modern iOS
+       and it is what promotes this box to the layer that caused the bug. */
+    pointer-events: none;
   }
 
   #navbar.menu-open .nav-container {
     opacity: 1;
     visibility: visible;
+    pointer-events: auto;
   }
 
   /* Prevent background scroll when any overlay is open.
@@ -134,6 +171,22 @@
     list-style: none;
     margin: 0;
     padding: 0;
+    /* A flex item will not shrink below its content in a scroll container
+       without this, which is what clipped the last link in landscape. */
+    flex-shrink: 0;
+  }
+
+  /* The auto margins that actually centre the menu — see the .nav-container
+     note above for why they replace `justify-content: center`.
+
+     They live in their own rule because they have to outrank
+     `#navbar nav ul { margin: 0 }` (navbar.css), an ID selector at (1,0,2)
+     that a bare `.nav-list` at (0,1,0) loses to. Verified in Chromium: with
+     the declaration folded into `.nav-list` above, the computed margin is
+     0px and the menu silently sticks to the top of the viewport. Do not
+     merge this back. */
+  #navbar .nav-container .nav-list {
+    margin: auto 0;
   }
 
   .nav-item a {
@@ -165,9 +218,9 @@
   }
 
   .word-unconventional {
-    font-size: clamp(1.1rem, calc(0.55rem + 3.5vw), 1.65rem) !important; /* Tuning max for screen edge safety */
+    font-size: clamp(1.1rem, calc(0.55rem + 3.5vw), 1.65rem) !important; /* Match production size */
     white-space: nowrap !important;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.04em;
     transform: none !important;
     margin: 0 !important;
   }

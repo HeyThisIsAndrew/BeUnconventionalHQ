@@ -1,27 +1,4 @@
 ---
-/*
-  The "Coverage Hubs" card — a past event in the /events grid.
-
-  ─── WHY THE MARKUP USES .content-card-* AND NOT TAILWIND UTILITIES ────────
-  This card has always carried the `content-card` class, but it built its
-  insides out of Tailwind utilities (`aspect-video`, `flex flex-col p-6`)
-  instead of the `.content-card-media` / `.content-card-body` structure that
-  class is part of. That was invisible above 560px and broken below it.
-
-  `home-cards.css` turns `.content-card` into a HORIZONTAL row on phones —
-  small thumbnail left, copy right — and then fixes up the pieces:
-  `.content-card-media` gets a 42% column, `.content-card-body` gets tighter
-  padding, `.content-card-meta` and `.content-card-title` shrink, and the CTA
-  is hidden because the whole row is already the link. None of those selectors
-  matched here. So this card got the row layout and NONE of the compensation:
-  a full-width `aspect-video` image took most of the row, the copy was left
-  with a sliver, and the title, meta and CTA piled up in a squeezed column
-  with the arrow spilling out of the card. That is the reported bug.
-
-  Using the real class contract means the responsive behaviour is inherited
-  rather than re-derived, and a future change to the compact card applies here
-  automatically instead of silently skipping this one component.
-*/
 import { parseEventDate } from '../lib/events';
 import { parseVideoId } from '../lib/platforms/youtube';
 import { buildImageSet } from '../lib/local-content';
@@ -29,61 +6,141 @@ import { buildImageSet } from '../lib/local-content';
 const { event, index = 0 } = Astro.props;
 const trailerId = parseVideoId(event.trailerUrl);
 
-/*
-  Two sources, chosen per breakpoint by <picture> below — one download either
-  way, decided by the browser before any bytes move.
-
-  - Wide: the 16:9 hero, cover-cropped. The grid is a portfolio wall and the
-    editorial still is what makes it look like one.
-  - Narrow (<=560px): the event LOGO in a small contained square. In the
-    horizontal row a 16:9 hero either crops to a letterbox sliver or eats the
-    width the copy needs, and a hero that is itself logo artwork ends up as a
-    full-bleed wordmark on a card that only needs an identifying mark.
-*/
 const hero = buildImageSet(event.heroImage, { widths: [320, 480, 640, 800], aspect: 16 / 9 });
-const logo = buildImageSet(event.logo, { widths: [96, 160, 240], aspect: 1 });
+const logo = buildImageSet(event.logo, { widths: [96, 160, 240] });
 
-const heroSrc =
-  hero?.src ?? (trailerId ? `https://img.youtube.com/vi/${trailerId}/hqdefault.jpg` : '/placeholder-event.jpg');
+const imageSrc =
+  logo?.src ?? hero?.src ?? (trailerId ? `https://img.youtube.com/vi/${trailerId}/hqdefault.jpg` : '/placeholder-event.jpg');
+const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
 ---
 
 <a
   href={`/events/${event.slug.current}`}
-  class="content-card event-card group animate-on-scroll no-underline"
+  class="content-card past-event-card group animate-on-scroll no-underline"
   style={`--index: ${index};`}
 >
-  {/* alt="" — the <h3> below names the event, so describing the image again
-      just makes a screen reader say it twice. Same call as
-      UpcomingEventsList's thumbnails. */}
-  <div class="content-card-media" data-media={logo ? 'logo' : 'hero'}>
-    <picture class="event-card-picture">
-      {logo && <source media="(max-width: 560px)" srcset={logo.srcset || logo.src} sizes="76px" />}
-      <img
-        class="content-card-img"
-        src={heroSrc}
-        srcset={hero?.srcset || undefined}
-        sizes="(min-width: 1024px) 380px, (min-width: 561px) 50vw, 76px"
-        width={hero?.width || undefined}
-        height={hero?.height || undefined}
-        alt=""
-        loading="lazy"
-        decoding="async"
-      />
-    </picture>
+  <div class="past-event-media">
+    <img
+      src={imageSrc}
+      srcset={imageSrcset}
+      sizes="120px"
+      alt={event.title}
+      loading="lazy"
+      decoding="async"
+      class="past-event-img"
+    />
   </div>
 
-  <div class="content-card-body">
-    <div class="content-card-meta">
+  <div class="past-event-body">
+    <div class="past-event-meta">
       <span>Event</span>
       <span aria-hidden="true">&bull;</span>
       <span>{parseEventDate(event.startDate)?.year ?? 'Recent'}</span>
     </div>
 
-    <h3 class="content-card-title">{event.title}</h3>
+    <h3 class="past-event-title">{event.title}</h3>
 
-    <span class="watch-now-btn">
+    <span class="watch-now-btn" style="margin-top: 0.6rem;">
       View Coverage <span class="content-card-arrow" aria-hidden="true">&rarr;</span>
       <span class="btn-underline"></span>
     </span>
   </div>
 </a>
+
+<style>
+  .past-event-card {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    padding: 0; /* Edge to edge */
+    gap: 0;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0; /* Sharp corners on the card */
+    overflow: hidden;
+    text-decoration: none;
+    transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .past-event-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--color-accent);
+    box-shadow: 0 8px 40px rgba(204, 0, 0, 0.15);
+  }
+
+  .past-event-card:hover .past-event-title {
+    color: var(--color-white);
+  }
+
+  .past-event-card:hover .watch-now-btn {
+    color: var(--color-accent-text);
+  }
+
+  .past-event-card:hover .btn-underline {
+    width: 100%;
+  }
+
+  .past-event-media {
+    flex: 0 0 130px; /* Maintains original row height */
+    height: 130px;
+    padding: 1rem; /* Shrinks the logo so it doesn't touch the edges */
+    background: #0a0a0a; /* Dark background behind the logo */
+    border-radius: 0; /* NO rounded edges */
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  @media (max-width: 560px) {
+    .past-event-media {
+      flex: 0 0 90px;
+      height: 90px;
+      padding: 0.5rem;
+    }
+    .past-event-title {
+      font-size: 1.1rem;
+    }
+  }
+
+  .past-event-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transition: transform 0.5s ease;
+  }
+
+  .past-event-card:hover .past-event-img {
+    transform: scale(1.05);
+  }
+
+  .past-event-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 1rem 1.5rem;
+    flex: 1;
+  }
+
+  .past-event-meta {
+    color: #a1a1aa;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .past-event-title {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--color-white);
+    line-height: 1.2;
+    margin: 0 0 0.6rem 0;
+  }
+</style>

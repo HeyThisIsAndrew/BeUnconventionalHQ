@@ -14,16 +14,25 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10000; /* High z-index to be above navbar */
+  z-index: 300; /* High z-index to be above navbar */
   opacity: 0;
   visibility: hidden;
   transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
   overscroll-behavior: none;
+
+  /* PHANTOM OVERLAY GUARD — see styles/modules/a11y.css for the rule.
+     `visibility: hidden` alone does NOT stop iOS Safari routing touches to a
+     composited, viewport-covering fixed layer. This element sits at z-index
+     300, above the navbar, on every page that mounts it — so while it was
+     tap-transparent on Chromium it was swallowing taps on iPad, which is what
+     made the whole navbar feel dead. */
+  pointer-events: none;
 }
 
 .modal-overlay.active {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
 }
 
 .modal-content {
@@ -77,8 +86,9 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.modal-close:focus {
-  outline: none;
+.modal-close:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 .modal-close:hover {
@@ -113,7 +123,7 @@
     position: fixed;
     top: max(env(safe-area-inset-top, 10px), 10px);
     right: max(env(safe-area-inset-right, 10px), 25px);
-    z-index: 100000;
+    z-index: 310;
     background: rgba(0, 0, 0, 0.6);
     border-radius: 50%;
     width: 44px;

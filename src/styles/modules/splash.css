@@ -81,12 +81,42 @@
    scrolling without touching the animated element's layout.
 */
 html.splash-armed {
-  /* overflow: hidden removed: now handled robustly by src/lib/scroll-lock.ts 
-     to prevent iOS Safari from shifting the page up when the tab bar is visible. */
+  /*
+    `overflow: hidden` ONLY. Do not add `touch-action: none` back.
+
+    Overflow freezes the document at its CURRENT offset — it does not move it.
+    That is fine, because arm() in Hero.astro now scrolls to the top before
+    adding this class, so the frozen offset is the top by construction. What
+    is not fine is `touch-action: none`: it kills touch scrolling outright, so
+    on the one occasion the page IS frozen at the wrong offset (iOS Safari
+    restoring scroll on refresh, racing the reset) the reader has no way out
+    at all. It converted a recoverable glitch into a trap — reported twice as
+    "cannot scroll up, and scrolling down replays the intro".
+
+    Leave the scroll blocking to this single property, and leave getting the
+    offset right to arm(). scripts/splash-scroll-lock.test.mjs fails the build
+    if `touch-action` comes back or if the pin in arm() is removed.
+  */
+  overflow: hidden;
 }
 
 
-/* Scrollbar compensation removed: now handled by src/lib/scroll-lock.ts */
+/*
+   Scrollbar compensation.
+
+   Hiding the overflow removes the document scrollbar, so on a desktop browser
+   with classic scrollbars the content would widen by ~15px the instant the
+   curtain lifts. The splash script measures that width before hiding it and
+   publishes it here; padding the wrapper by the same amount means releasing
+   the lock changes nothing.
+
+   Zero on every touch device and on macOS, where scrollbars are overlaid and
+   occupy no layout space — which is why the reported case (mobile, landscape)
+   never saw a sideways shift, only the vertical jumping fixed above.
+*/
+html.splash-armed #app-wrapper {
+  padding-right: var(--splash-gutter, 0px);
+}
 
 html.splash-lifting #app-wrapper {
   transform: translate3d(0, calc(-1 * var(--splash-lift)), 0);

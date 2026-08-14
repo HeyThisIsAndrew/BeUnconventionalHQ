@@ -9,74 +9,20 @@
 
 .event-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
-  gap: 3rem;
-  max-width: 1536px;
-  margin: 0 auto;
-  padding: 0 2rem;
-}
-
-@media (max-width: 768px) {
-  .event-grid {
-    grid-template-columns: 1fr;
-    gap: 2rem;
-    padding: 0 1.5rem;
-  }
-}
-
-.event-card {
-  position: relative;
-  background: var(--color-surface);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  overflow: hidden;
-  transition:
-    transform 0.4s cubic-bezier(0.25, 0.8, 0.2, 1),
-    border-color 0.3s ease;
-}
-
-/* GEMINI-CLI CHANGE
-   - author: gemini-cli
-   - date: 2026-05-25T00:00:00Z
-   - file: src/styles/global.css
-   - summary: Harmonized event-card hover with canonical HQ card spec
-   - reason: Visual parity across all card types; uses translateY(-4px) instead of scale.
-   - revert: Change back to transform: scale(1.02)
-*/
-.event-card:hover {
-  transform: translateY(-4px);
-  border-color: var(--color-accent);
-  box-shadow: 0 8px 40px rgba(204, 0, 0, 0.15);
-}
-
-.event-image-wrapper {
-  position: relative;
-  aspect-ratio: 16 / 9;
-}
-
-.event-image {
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-top: 2rem;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0.7;
-  transition: opacity 0.3s ease;
 }
 
-.event-card:hover .event-image {
-  opacity: 1;
-}
-
-.event-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to top,
-    rgba(10, 10, 10, 0.9) 0%,
-    transparent 100%
-  );
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: 2rem;
+@media (min-width: 561px) {
+  .event-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem 1.5rem;
+  }
+  .event-grid .content-card-title {
+    font-size: 1.15rem; /* Slightly smaller title for the 2-col layout */
+  }
 }
 
 .event-tag {
@@ -101,3 +47,64 @@
   font-size: 0.8rem;
   letter-spacing: 0.05em;
 }
+
+.event-card {
+  position: relative;
+  background: var(--color-surface);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  transition:
+    transform 0.4s cubic-bezier(0.25, 0.8, 0.2, 1),
+    border-color 0.3s ease;
+  display: block;
+}
+
+.event-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--color-accent);
+  box-shadow: 0 8px 40px rgba(204, 0, 0, 0.15);
+}
+
+.event-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(10, 10, 10, 0.9) 0%,
+    transparent 100%
+  );
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 2rem;
+}
+
+.event-card-logo-wrap {
+  display: inline-block;
+  max-width: 80%;
+  margin-right: auto;
+  filter: drop-shadow(0 4px 15px rgba(0, 0, 0, 0.7));
+}
+
+.event-card-logo {
+  max-height: 80px;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.event-card-sr-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+

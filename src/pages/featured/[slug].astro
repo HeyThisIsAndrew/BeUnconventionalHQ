@@ -6,6 +6,8 @@ import { getFeaturedBrandsLocal, urlFor } from '../../lib/local-content';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
 import HeroTrailer from '../../components/HeroTrailer.astro';
 import ContentCard from '../../components/ContentCard.astro';
+import InstagramFeed from '../../components/InstagramFeed.astro';
+import { getHubTopicKeywords } from '../../lib/instagram-topic';
 import { parseVideoId } from '../../lib/platforms/youtube';
 
 export async function getStaticPaths() {
@@ -110,11 +112,13 @@ const trailerId = parseVideoId(trailerUrl);
       <div class="event-hero-bg-wrapper">
         <div class="event-hero-bg-animated" style={heroUrl ? `background-image: url('${heroUrl}');` : `background-image: ${fallbackGradient};`}></div>
       </div>
-      <div class="event-hero-overlay max-h-[800px] flex flex-col justify-center">
+      <div class="event-hero-overlay flex flex-col justify-center">
         <div
           class:list={[
             'container',
             'hero-grid-container',
+            'lg:!px-20',
+            'xl:!px-24',
             '2xl:!max-w-[1920px]',
             '2xl:!grid-cols-[1fr_1.2fr]',
             '3xl:!max-w-[2400px]',
@@ -193,6 +197,10 @@ const trailerId = parseVideoId(trailerUrl);
         </div>
       )}
     </div>
+    {/* Topic-qualified: this brand's own keywords, not its display title.
+        Renders nothing unless enough qualifying tiles exist to fill the
+        widest row — HUB_CAROUSEL_MIN_TILES in lib/instagram-topic.ts. */}
+    <InstagramFeed topicKeywords={getHubTopicKeywords(event)} />
     <SubscribeCTA />
 
   </main>
@@ -345,6 +353,8 @@ const trailerId = parseVideoId(trailerUrl);
     width: 100%;
     max-width: 600px;
     margin: 0 auto;
+    position: relative;
+    z-index: 10;
   }
   
   .hero-logo {

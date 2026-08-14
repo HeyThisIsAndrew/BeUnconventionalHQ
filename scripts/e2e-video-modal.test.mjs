@@ -82,7 +82,7 @@ async function runTests() {
     assert.ok(appWrapperActive, '#app-wrapper should no longer be inert');
     
     console.log('Testing ESC key close...');
-    await firstTrigger.click();
+    await page.evaluate(el => el.click(), firstTrigger);
     await page.waitForSelector('#video-modal', { visible: true, timeout: 3000 });
     
     await page.keyboard.press('Escape');

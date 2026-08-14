@@ -163,16 +163,6 @@
   width: fit-content;
   transition: color 0.3s ease;
 }
-.btn-underline {
-  position: absolute;
-  bottom: -4px;
-  left: 0;
-  width: 0;
-  height: 1px;
-  background: var(--color-accent);
-  transition: width 0.3s ease;
-}
-
 .video-card-home:hover {
   transform: translateY(-6px);
   border-color: var(--color-accent);
@@ -183,9 +173,6 @@
 }
 .video-card-home:hover .watch-now-btn {
   color: var(--color-accent-text);
-}
-.video-card-home:hover .btn-underline {
-  width: 100%;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -371,6 +358,7 @@
   display: none;
 }
 
+
 .content-card-img {
   width: 100%;
   height: 100%;
@@ -384,6 +372,13 @@
   flex-direction: column;
   flex-grow: 1;
   min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.content-card-body > * {
+  position: relative;
+  z-index: 1;
 }
 
 .content-card-meta {
@@ -515,97 +510,4 @@
     display: none;
   }
 
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   EVENT CARD — the "Coverage Hubs" variant of .content-card
-
-   Everything above assumes a 16:9 YouTube still. An event has two images and
-   neither is that: a wide hero photo and a logo whose shape is whatever the
-   brand's shape is (500x618 for one, 8334x3743 for another). This block is the
-   difference, and only the difference.
-
-   Selectors are `.content-card.event-card …` (two classes), not bare
-   `.event-card`, for two reasons. First, specificity: the rules being
-   refined below are `.content-card .content-card-media`, also two classes,
-   so a single-class override would tie and be decided by source order alone
-   — pairing the classes here means this keeps working even if the cascade
-   above is ever reordered. Second, and the one that actually bit: bare
-   `.event-card` is NOT this component's alone. `events.css` already defines
-   it, unrelated, for the `/featured` brand grid (`background`, `border`, a
-   `translateY` hover, an `.event-image`/`.event-overlay` pair this component
-   has no equivalent of) — the exact "two components, one class name" trap
-   that also produced the `.hero-cta` bug on the event/featured detail pages
-   (see the note there). Both classes together is what keeps this block from
-   ever matching that markup.
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.content-card.event-card {
-  text-decoration: none;
-  transition:
-    transform 0.3s ease,
-    border-color 0.3s ease,
-    box-shadow 0.3s ease;
-}
-.content-card.event-card:hover,
-.content-card.event-card:focus-visible {
-  transform: translateY(-4px);
-  border-color: var(--color-accent);
-  box-shadow: 0 8px 40px rgba(204, 0, 0, 0.15);
-}
-.content-card.event-card:hover .content-card-title,
-.content-card.event-card:focus-visible .content-card-title {
-  color: var(--color-white);
-}
-.content-card.event-card:hover .btn-underline {
-  width: 100%;
-}
-.content-card.event-card:hover .watch-now-btn,
-.content-card.event-card:focus-visible .watch-now-btn {
-  color: var(--color-accent-text);
-}
-
-/* <picture> is inline by default, which would leave a descender-sized gap
-   under the image inside the media box. */
-.event-card-picture {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-@media (max-width: 560px) {
-  /*
-    THE SMALL SQUARE.
-
-    A logo is not a photograph and must never be cropped, so this is a fixed
-    76px square that the mark is fitted INSIDE (`contain` + padding), sitting
-    on the same surface tint used for missing/failed thumbnails. 76px against
-    the row's 100px min-height leaves an even ~12px margin, matching the
-    spacing the 16:9 variant was tuned to.
-
-    `flex: 0 0 auto` replaces the 42% column: a percentage width on a square
-    would make the tile grow with the viewport and start eating the copy again
-    on larger phones, which is the problem this card had in the first place.
-  */
-  .content-card.event-card .content-card-media {
-    flex: 0 0 auto;
-    width: 76px;
-    aspect-ratio: 1 / 1;
-    align-self: center;
-    height: auto;
-    margin-left: 0.85rem;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-black) 100%);
-  }
-
-  .content-card.event-card .content-card-media[data-media='logo'] .content-card-img {
-    object-fit: contain;
-    padding: 0.5rem;
-  }
-
-  /* With the tile carrying its own left margin the body only needs its right
-     and vertical padding; the extra left inset here read as a dead gutter. */
-  .content-card.event-card .content-card-body {
-    padding: 0.85rem 1rem;
-  }
 }

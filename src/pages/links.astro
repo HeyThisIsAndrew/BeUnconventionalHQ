@@ -71,7 +71,21 @@ const socialLinks = [
         <div class="links-grid">
           {
             mainLinks.map((link) => (
-              <a href={link.href} class="links-card">
+              /*
+                This row mixes an internal route with an off-site one, so the
+                target cannot be hardcoded either way. The Amazon storefront
+                was navigating IN PLACE while every one of its siblings on this
+                page — the social row directly beneath it and the bento
+                articles below that — opened in a new tab, which is both
+                inconsistent and the one link on the page that could hand the
+                reader's tab to another origin. `/feed` must stay in place.
+              */
+              <a
+                href={link.href}
+                class="links-card"
+                target={link.href.startsWith('http') ? '_blank' : undefined}
+                rel={link.href.startsWith('http') ? 'noopener noreferrer' : undefined}
+              >
                 <span class="links-label">{link.label}</span>
                 <span class="links-arrow">→</span>
               </a>
@@ -212,18 +226,19 @@ const socialLinks = [
   </div>
 </Layout>
 
-<script is:inline>
+<script>
+  import { lockScroll, unlockScroll } from '../lib/scroll-lock';
   document.addEventListener('astro:page-load', () => {
     const trigger = document.getElementById('qr-trigger');
     const modal = document.getElementById('qr-modal');
     const closeBtn = document.getElementById('close-modal');
 
-    if (!trigger || !modal) return;
+    if (!trigger || !modal || !closeBtn) return;
 
     const openModal = () => {
       modal.classList.add('is-active');
       modal.setAttribute('aria-hidden', 'false');
-      document.body.style.overflow = 'hidden';
+      lockScroll();
       // Focus close button for accessibility
       setTimeout(() => closeBtn.focus(), 100);
     };
@@ -231,7 +246,7 @@ const socialLinks = [
     const closeModal = () => {
       modal.classList.remove('is-active');
       modal.setAttribute('aria-hidden', 'true');
-      document.body.style.overflow = '';
+      unlockScroll();
       trigger.focus();
     };
 

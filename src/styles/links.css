@@ -279,11 +279,19 @@
   inset: 0;
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(10px);
-  z-index: 1000;
+  z-index: 300;
   display: grid;
   place-items: center;
   opacity: 0;
   visibility: hidden;
+
+  /* PHANTOM OVERLAY GUARD — see styles/modules/a11y.css for the rule.
+     `visibility: hidden` alone does NOT stop iOS Safari routing touches to a
+     composited, viewport-covering fixed layer. This element sits at z-index
+     300, above the navbar, on every page that mounts it — so while it was
+     tap-transparent on Chromium it was swallowing taps on iPad, which is what
+     made the whole navbar feel dead. */
+  pointer-events: none;
   transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
   padding: 1.5rem;
 }
@@ -291,6 +299,7 @@
 .qr-modal-overlay.is-active {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
 }
 
 .qr-modal-content {
@@ -314,8 +323,8 @@
 }
 
 /* Matches the close control every other modal on the site uses - the calendar
-   (.close-btn in SpanningCalendarModal) and the contact modal
-   (.contact-modal-close). The shared behaviour is a bare glyph on a
+   (.close-btn in SpanningCalendarModal) and the video modal (.modal-close).
+   The shared behaviour is a bare glyph on a
    transparent background that turns accent-red and rotates 90deg on hover.
    This one had a filled pill instead: a visible grey disc at rest that went
    solid red on hover, which is the only close button on the site that did.
@@ -353,7 +362,8 @@
 }
 
 .qr-modal-close:focus-visible {
-  outline: none;
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
   box-shadow: none;
 }
 
