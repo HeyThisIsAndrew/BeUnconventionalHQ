@@ -170,6 +170,67 @@ async function runTests() {
       await page.close();
     }
 
+    /*
+      EDGE TILES MUST BE HIGHLIGHTABLE.
+
+      Reported on iPad: the two leftmost and two rightmost tiles could never be
+      highlighted. `.is-active` came from an IntersectionObserver with a
+      razor-thin trigger line down the centre of the rail, and a tile can only
+      cross that line if the scroll offset centring it lies in [0, maxScroll].
+      The head and tail tiles fail that by construction, and on touch there is
+      no :hover to fall back on, so they read as dead.
+
+      The active tile is now chosen by mapping scroll progress across the whole
+      tile range, so the extremes resolve to the first and last tiles. This
+      walks the rail and asserts the four tiles the report named are reachable.
+    */
+    for (const vp of [
+      { width: 1366, height: 1024, label: 'iPad Pro landscape' },
+      { width: 1024, height: 1366, label: 'iPad Pro portrait' },
+      { width: 390, height: 844, label: 'iPhone portrait' },
+    ]) {
+      const page = await browser.newPage();
+      await page.setViewport({ ...vp, hasTouch: true, isMobile: false });
+      await page.goto('http://localhost:4321/', { waitUntil: 'networkidle2' });
+      await page.evaluate(() => {
+        document.documentElement.classList.remove('splash-armed', 'splash-lifting', 'splash-dropping');
+        window.__hqScrollLock?.release?.();
+      });
+
+      const seen = await page.evaluate(async () => {
+        const track = document.querySelector('.ig-carousel-track');
+        if (!track) return null;
+        const tiles = [...track.querySelectorAll('.ig-carousel-tile')];
+        if (tiles.length < 4) return null;
+        const max = track.scrollWidth - track.clientWidth;
+        const hit = new Set();
+        for (let i = 0; i <= 40; i++) {
+          track.scrollLeft = (max * i) / 40;
+          await new Promise((r) => requestAnimationFrame(r));
+          await new Promise((r) => requestAnimationFrame(r));
+          const idx = tiles.findIndex((t) => t.classList.contains('is-active'));
+          if (idx >= 0) hit.add(idx);
+        }
+        track.scrollLeft = 0;
+        return { total: tiles.length, hit: [...hit] };
+      });
+      await page.close();
+      if (!seen) continue;
+
+      const last = seen.total - 1;
+      const edges = [0, 1, last - 1, last];
+      const unreachable = edges.filter((i) => !seen.hit.includes(i));
+      assert.deepEqual(
+        unreachable,
+        [],
+        `${vp.label}: edge tiles ${unreachable.join(', ')} of ${seen.total} can never be ` +
+          `highlighted (reachable: ${seen.hit.join(', ')}). On touch there is no hover, ` +
+          `so an unhighlightable tile reads as dead — this is the reported iPad bug.`
+      );
+      console.log(`  ✓ ${vp.label}: all 4 edge tiles highlightable (${seen.hit.length}/${seen.total} total)`);
+      passed++;
+    }
+
     console.log(`\n✅ Carousel Rail E2E tests passed (${passed} assertions groups).`);
   } catch (error) {
     console.error('\n❌ Carousel Rail E2E failed:', error.message);

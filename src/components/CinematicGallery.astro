@@ -137,28 +137,75 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
            and tapping the title (index 0) ran the tap-to-centre path, which
            flashed it and bounced the rail back to the first tile. */
         const tiles = track.querySelectorAll('.ig-carousel-tile');
-        const observerOptions = {
-          root: track,
-          rootMargin: '0px -50% 0px -50%', // Razor-thin trigger line in the exact center
-          threshold: 0
+
+        /*
+          ─── WHY THIS IS NOT AN IntersectionObserver ANY MORE ────────────────
+
+          It was one, with `root: track` and
+          `rootMargin: '0px -50% 0px -50%'` — a razor-thin trigger line down
+          the exact horizontal centre of the rail. A tile got `.is-active`
+          only while crossing that line.
+
+          A tile can only cross the centre if the scroll offset that centres
+          it lies inside [0, maxScroll]. The tiles at each end fail that by
+          construction: at `scrollLeft = 0` the rail has already hit its stop
+          while the first tiles are still left of centre, and the wider the
+          screen the more of them there are. On an iPad, with ~5 tiles
+          visible, the two leftmost and two rightmost could NEVER be
+          highlighted. On touch there is no `:hover` to fall back on, so those
+          tiles simply read as dead.
+
+          Two fixes were tried and rejected, correctly:
+            · `padding-inline: calc(50vw - 110px)` on the track let the edge
+              tiles physically reach the centre, but opened a huge empty gap
+              at the start of the rail. It fixed the mechanism by breaking the
+              layout.
+            · A tap handler that highlighted an edge tile on first tap and
+              opened it on the second. That changes what a tap means.
+
+          So neither the layout nor the interaction moves. What changes is how
+          the active tile is CHOSEN: scroll progress is mapped across the whole
+          tile range rather than asking which tile is over a fixed line.
+
+              index = round(scrollLeft / maxScroll * (tiles.length - 1))
+
+          Both mappings are linear, so through the middle of the rail this
+          picks the same tile the centre line did — the spotlight still tracks
+          the centre where it always did. They diverge only at the two ends,
+          which is exactly where the old one had nothing to offer: at
+          `scrollLeft = 0` this resolves to tile 0, at the far end to the last
+          tile, and every index in between is reachable.
+        */
+        let activeIndex = -1;
+        const setActiveFromScroll = () => {
+          if (!tiles.length) return;
+          const maxScroll = track.scrollWidth - track.clientWidth;
+          const progress = maxScroll > 0 ? track.scrollLeft / maxScroll : 0;
+          const next = Math.round(
+            Math.min(1, Math.max(0, progress)) * (tiles.length - 1)
+          );
+          if (next === activeIndex) return; // no class churn while scrolling
+          activeIndex = next;
+
+          tiles.forEach((tile, i) => tile.classList.toggle('is-active', i === next));
         };
 
-        const observer = new IntersectionObserver((entries) => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              // 1. Mercilessly strip the class from ALL tiles first
-              document.querySelectorAll('.ig-carousel-tile, .is-active').forEach(el => {
-                el.classList.remove('is-active');
-              });
-              // 2. Apply to the singular intersecting target
-              entry.target.classList.add('is-active');
-            }
-          });
-        }, observerOptions);
+        let activeQueued = false;
+        track.addEventListener(
+          'scroll',
+          () => {
+            if (activeQueued) return;
+            activeQueued = true;
+            requestAnimationFrame(() => {
+              activeQueued = false;
+              setActiveFromScroll();
+            });
+          },
+          { passive: true }
+        );
+        setActiveFromScroll();
 
         tiles.forEach(tile => {
-          observer.observe(tile);
-
           /*
             Tap-to-centre, gated on VISIBILITY — never on `.is-active`.
 
