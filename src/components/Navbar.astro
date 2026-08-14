@@ -67,7 +67,44 @@ const isActive = (href: string) =>
       const navbar = document.getElementById('navbar');
       if (!identity || !navbar) return;
 
-      // Instant Jump to Top for ALL home links on the homepage to avoid SPA navigation flicker
+      /*
+        ─── TWO BRAND CONTROLS, TWO DIFFERENT JOBS ───────────────────────────
+
+        The logo and the "BE UNCONVENTIONAL HQ" wordmark sit next to each
+        other and both carry `href="/"`, and this handler used to treat them
+        as the same thing — it bound every `a[href="/"]` and, on the homepage,
+        swallowed the click and jumped to the top. So the logo stopped being a
+        link and became a scroll button. Reported: "the logo is now causing
+        site to scroll to the top when clicked from the home page. It must
+        remain as Logo is immediate home button and be unconventional hq text
+        is the scroll to the top button for the page it is clicked from."
+
+        NOT a regression from the QA branch — main binds the same selector on
+        the same line. What changed is that the jump used to be written with a
+        `scroll-behavior` pin that never took effect (no forced recalc, see
+        src/lib/scroll-to.ts), so it animated instead of jumping and read as
+        ordinary smooth scrolling. Making the jump real made the wrong
+        behaviour obvious.
+
+        So they are separated by role rather than by href:
+
+          .nav-logo    — a home button, ALWAYS. Never intercepted, on any
+                         page. It still runs the housekeeping below so an open
+                         menu closes behind it.
+          #nav-identity — the scroll-to-top control for whatever page it is
+                         on, ALWAYS. It only appears past 100px of scroll,
+                         which is exactly when "back to the top" is the useful
+                         action; sending the reader to the homepage from
+                         halfway down an article never was.
+
+        `href="/"` stays on the wordmark deliberately: without JS it degrades
+        to a home link rather than a dead element, and a modifier-click still
+        opens the homepage in a new tab because those return early above.
+
+        Any OTHER `a[href="/"]` (the footer logo) keeps the original
+        homepage-only jump, which is what avoids the SPA re-render flicker
+        this block was written for.
+      */
       const homeLinks = document.querySelectorAll('a[href="/"]');
       homeLinks.forEach(link => {
         if (!link.dataset.clickBound) {
@@ -85,9 +122,21 @@ const isActive = (href: string) =>
 
             document.dispatchEvent(new CustomEvent('hq:lift-splash'));
 
+            /* THE LOGO IS A HOME BUTTON, ALWAYS. Everything above this line is
+               housekeeping that should still run — an open menu closes behind
+               it — but the navigation itself is never swallowed. */
+            if (link.classList.contains('nav-logo')) return;
+
+            /* The wordmark is the scroll-to-top control for the page it is on,
+               on EVERY page, not just the homepage. */
+            const isIdentity = link.id === 'nav-identity';
+
             // The base path is determined dynamically or falls back to '/'
             const basePath = navbar.dataset.basePath || '/';
-            if (window.location.pathname === basePath || window.location.pathname === '/') {
+            const onHomepage =
+              window.location.pathname === basePath || window.location.pathname === '/';
+
+            if (isIdentity || onHomepage) {
               e.preventDefault();
               if (document.documentElement.classList.contains('splash-lifting')) return;
               
@@ -190,6 +239,31 @@ const isActive = (href: string) =>
 
 
     if (!window.navbarObserverSetup) {
+      /*
+        ─── CALL, THEN LISTEN — NOT LISTEN ALONE ─────────────────────────────
+
+        These used to be registered on `astro:page-load` only, with no direct
+        call, which is a race against the module's own load. `astro:page-load`
+        does fire on the initial load, but if this deferred script executes
+        AFTER it has already fired, the listener is registered too late and
+        initNavObserver never runs for that page.
+
+        It is page-weight dependent, so it looked fine in casual testing and
+        was measured failing on exactly one route: on /feed the wordmark came
+        up with `clickBound="true"`, on the heavier /intel it was unbound and
+        stuck at `pointer-events: none` — i.e. the "BE UNCONVENTIONAL HQ"
+        control was dead on that page, and the nav links never got their
+        active state either.
+
+        Calling directly first fixes the race, and the listener still covers
+        every client-side navigation after it. initNavObserver tears down its
+        previous observer and scroll handler on each run and guards its click
+        bindings with `dataset.clickBound`, so running it one extra time is
+        free — which is the same call-then-listen shape Layout.astro already
+        uses for its own initialisers.
+      */
+      initNavObserver();
+      updateActiveNavLinks();
       document.addEventListener('astro:page-load', initNavObserver);
       document.addEventListener('astro:page-load', updateActiveNavLinks);
       window.navbarObserverSetup = true;

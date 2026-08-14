@@ -622,13 +622,36 @@ import bannerImg from '../assets/banner.webp';
         }
 
         /*
-          The header logo takes you back to the splash. On the homepage that
-          is simply "scroll to the top" — reaching the top re-arms the curtain
-          on its own (see the scroll listener below), so there is no separate
-          drop animation to keep in step with this one. Anywhere else it stays
-          an ordinary "go home" link, which is what a masthead should be.
+          ─── THE WORDMARK RETURNS TO THE TOP. THE LOGO DOES NOT. ────────────
+
+          This used to match `#navbar a[href="/"]`, which is BOTH brand
+          controls — the logo and the "BE UNCONVENTIONAL HQ" wordmark sit side
+          by side and both carry `href="/"`. Because this listener is on
+          `document` in the CAPTURE phase and calls `stopPropagation()`, it ran
+          first and swallowed the logo's navigation before Navbar.astro's own
+          handler could see the click. So on the homepage the logo stopped
+          being a link and smooth-scrolled to the top instead.
+
+          Reported: "the logo is now causing site to scroll to the top when
+          clicked from the home page. It must remain as Logo is immediate home
+          button and be unconventional hq text is the scroll to the top button
+          for the page it is clicked from."
+
+          This block is NOT on main — it was added on this branch, so it is a
+          real regression rather than long-standing behaviour. (Navbar.astro
+          has a similar-looking intercept that IS on main; that one was a red
+          herring, and this capture handler was reaching the logo first
+          regardless of what Navbar.astro decided.)
+
+          Scoped to `#nav-identity` alone. The wordmark only appears past 100px
+          of scroll, which is exactly when "back to the top" is the useful
+          action, and on the homepage reaching the top re-arms the curtain on
+          its own (see the scroll listener below) — so the return to the splash
+          this was written for still happens, just from the control that should
+          own it. The logo now falls through to being an ordinary "go home"
+          link, which is what a masthead should be.
         */
-        const brand = target.closest('#navbar a[href="/"], #navbar a[href="/#"]');
+        const brand = target.closest('#nav-identity');
         if (brand && shouldArmLocation() && !root.classList.contains('splash-armed')) {
           event.preventDefault();
           event.stopPropagation(); // Block Astro ClientRouter
