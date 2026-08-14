@@ -80,6 +80,52 @@ async function downloadMedia(url, id) {
 }
 
 /**
+ * Delete downloaded images no longer referenced by the feed.
+ *
+ * The sync keeps the latest 50 posts, so every run pushes older ones out of
+ * the window. Without this the folder only ever grows — and since a workflow
+ * now runs this daily and COMMITS the result, that growth would be permanent
+ * repository weight for images nothing renders.
+ *
+ * Deliberately conservative: it only ever removes files inside
+ * public/instagram/, only ones absent from the set just written, and it is
+ * unreachable on a dry run because the only caller is localiseMedia(), which
+ * itself only runs under --execute. A delete failure is logged and ignored —
+ * an orphaned file is clutter, not a broken feed, and is not worth failing a
+ * sync over.
+ */
+async function pruneOrphanedMedia(items) {
+  const keep = new Set(
+    items
+      .map((item) => item.localImage)
+      .filter(Boolean)
+      .map((p) => p.slice(`${MEDIA_PUBLIC_PATH}/`.length))
+  );
+
+  let removed = 0;
+  let existing;
+  try {
+    existing = await fs.readdir(MEDIA_DIR);
+  } catch {
+    return; // nothing downloaded yet
+  }
+
+  for (const filename of existing) {
+    if (keep.has(filename)) continue;
+    try {
+      await fs.unlink(new URL(filename, MEDIA_DIR));
+      removed++;
+    } catch (err) {
+      console.warn(`[instagram]   ! could not remove orphan ${filename}: ${err.message}`);
+    }
+  }
+
+  if (removed > 0) {
+    console.log(`[instagram] Pruned ${removed} image(s) no longer in the feed.`);
+  }
+}
+
+/**
  * Fetch every item's display image to disk and attach `localImage`.
  * Sequential on purpose: 50 items is small, and hammering the CDN in parallel
  * is a good way to get rate-limited mid-sync and end up with a half-downloaded
@@ -96,6 +142,7 @@ async function localiseMedia(items) {
     }
   }
   console.log(`[instagram] Downloaded ${ok}/${items.length} images to public/instagram/`);
+  await pruneOrphanedMedia(items);
   if (ok < items.length) {
     console.warn(
       `[instagram] ${items.length - ok} item(s) kept their expiring remote URL and ` +

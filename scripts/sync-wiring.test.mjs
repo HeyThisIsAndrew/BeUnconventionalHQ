@@ -186,5 +186,49 @@ test('an empty API response never blanks the stored feed', () => {
   );
 });
 
+test('an Instagram sync workflow exists and uses the EXISTING Meta secret', () => {
+  const p = path.join(ROOT, '.github/workflows/sync-instagram.yml');
+  assert.ok(
+    fs.existsSync(p),
+    'There is no sync-instagram.yml. META_ACCESS_TOKEN has been a repository\n' +
+      '      secret all along (sync-media-kit.yml uses it), but nothing ever ran the\n' +
+      '      Instagram CONTENT sync with it, so the feed was only refreshed by hand.',
+  );
+  const wf = fs.readFileSync(p, 'utf8');
+  assert.ok(
+    /secrets\.META_ACCESS_TOKEN/.test(wf),
+    'the workflow must read the existing META_ACCESS_TOKEN secret — no new\n' +
+      '      Instagram-specific token exists or is needed; the Graph API reaches\n' +
+      '      Instagram through the linked Facebook Page.',
+  );
+  assert.ok(
+    /npm run sync:instagram -- --execute/.test(wf),
+    'the workflow must pass --execute on its real runs, or it only ever previews.',
+  );
+});
+
+test('the Instagram workflow commits the images as well as the JSON', () => {
+  const wf = fs.readFileSync(path.join(ROOT, '.github/workflows/sync-instagram.yml'), 'utf8');
+  assert.ok(
+    /git add src\/data\/instagram\.json public\/instagram/.test(wf),
+    'the JSON references files in public/instagram/ by path, so committing one\n' +
+      '      without the other ships a feed pointing at images that are not in the\n' +
+      '      repository.',
+  );
+});
+
+test('the sync prunes images that have left the feed', () => {
+  assert.ok(
+    /pruneOrphanedMedia/.test(igSync),
+    'a daily workflow that commits downloaded images needs to remove the ones\n' +
+      '      that age out of the 50-post window, or the repository grows forever.',
+  );
+  assert.ok(
+    /const keep = new Set\(/.test(igSync),
+    'the prune must be driven by the set of files just written, never by a\n' +
+      '      wildcard delete.',
+  );
+});
+
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);
 process.exit(failed === 0 ? 0 : 1);
