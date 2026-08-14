@@ -226,7 +226,6 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      console.log('BROWSER CONSOLE: Form submit triggered!');
 
       const email = input.value.trim();
 
@@ -302,7 +301,6 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
       }
 
       setState('submitting', 'Subscribing…');
-      console.log('BROWSER CONSOLE: About to fetch!');
 
       try {
         const response = await fetch('/api/subscribe', {
@@ -312,7 +310,6 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
              itself uses for the token field. */
           body: JSON.stringify({ email, 'cf-turnstile-response': token }),
         });
-        console.log('BROWSER CONSOLE: Fetch completed with status ' + response.status);
 
         const data = await response.json().catch(() => ({}));
 
@@ -356,7 +353,6 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
           setState('error', data.error ?? 'Something went wrong. Please try again.');
         }
       } catch (e) {
-        console.log('BROWSER CONSOLE: Fetch threw: ' + (e instanceof Error ? e.message : String(e)));
         setState('error', 'Network error. Please try again.');
       }
     });
