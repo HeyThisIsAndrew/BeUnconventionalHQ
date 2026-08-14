@@ -7,6 +7,7 @@
  * Dry-run by default; pass --execute to write src/data/instagram.json.
  */
 import fs from 'node:fs/promises';
+import sharp from 'sharp';
 
 /*
   ─── WHY THIS DOWNLOADS THE MEDIA INSTEAD OF STORING ITS URL ────────────────
@@ -36,13 +37,46 @@ import fs from 'node:fs/promises';
 const MEDIA_DIR = new URL('../public/instagram/', import.meta.url);
 const MEDIA_PUBLIC_PATH = '/instagram';
 
-/** Extension from the response's content-type, since IG URLs carry no suffix. */
-function extensionFor(contentType) {
-  if (!contentType) return '.jpg';
-  if (contentType.includes('png')) return '.png';
-  if (contentType.includes('webp')) return '.webp';
-  if (contentType.includes('gif')) return '.gif';
-  return '.jpg';
+/*
+  ─── EVERY STORED IMAGE IS A RESIZED WEBP ───────────────────────────────────
+
+  Instagram serves originals: 1080x1920, 1290x2294, whatever was uploaded.
+  The tile renders at 220x275 CSS pixels. Storing the original meant shipping
+  roughly ten times the pixels the page can use, and committing them: 50 posts
+  came to 8.5 MB in the repository, averaging 174 KB each, and the homepage's
+  two largest resources were both Instagram photos at 94 KB and 76 KB.
+
+  So each image is resized to 440px wide — 2x the tile's 220px, which covers
+  retina — and encoded as WebP. Measured over five real files from the feed:
+  932 KB became 164 KB, an 82% reduction, and 8.5 MB extrapolates to ~1.5 MB.
+
+  `withoutEnlargement` so a small original is never upscaled into a bigger
+  file than it started as.
+
+  NOT cropped to the tile's exact 4:5. The browser already crops with
+  `object-fit`, and baking a crop in here would silently mangle every stored
+  image the day the tile's aspect ratio changes. Resizing by width alone keeps
+  the whole picture and still removes the overwhelming majority of the bytes.
+
+  A failed conversion falls back to storing the original bytes rather than
+  losing the image — a big file renders, a missing one does not.
+*/
+const TARGET_WIDTH = 440;
+const WEBP_QUALITY = 82;
+const STORED_EXTENSION = '.webp';
+
+async function toStoredFormat(buffer, id) {
+  try {
+    return await sharp(buffer)
+      .resize({ width: TARGET_WIDTH, withoutEnlargement: true })
+      .webp({ quality: WEBP_QUALITY })
+      .toBuffer();
+  } catch (err) {
+    console.warn(
+      `[instagram]   ! ${id}: could not resize (${err.message}), storing the original`
+    );
+    return buffer;
+  }
 }
 
 /**
@@ -62,7 +96,12 @@ async function downloadMedia(url, id, existingByIchId) {
     again, and at four runs a day that is 200 needless image downloads daily.
   */
   const existing = existingByIchId?.get(String(id));
-  if (existing) return `${MEDIA_PUBLIC_PATH}/${existing}`;
+  /* Only skip a file already in the CURRENT stored format. Anything else is
+     from before images were resized, and must be refetched so it is not left
+     as a full-size original forever. */
+  if (existing && existing.endsWith(STORED_EXTENSION)) {
+    return `${MEDIA_PUBLIC_PATH}/${existing}`;
+  }
   try {
     const res = await fetch(url, {
       headers: {
@@ -74,15 +113,16 @@ async function downloadMedia(url, id, existingByIchId) {
       console.warn(`[instagram]   ! ${id}: media fetch returned ${res.status}, keeping remote URL`);
       return null;
     }
-    const ext = extensionFor(res.headers.get('content-type'));
-    /* The Graph API id is opaque and unique, so it is a safe filename. */
-    const filename = `${String(id).replace(/[^a-zA-Z0-9_-]/g, '')}${ext}`;
-    const buffer = Buffer.from(await res.arrayBuffer());
-    if (buffer.length === 0) {
+    const original = Buffer.from(await res.arrayBuffer());
+    if (original.length === 0) {
       console.warn(`[instagram]   ! ${id}: empty body, keeping remote URL`);
       return null;
     }
-    await fs.writeFile(new URL(filename, MEDIA_DIR), buffer);
+
+    const stored = await toStoredFormat(original, id);
+    /* The Graph API id is opaque and unique, so it is a safe filename. */
+    const filename = `${String(id).replace(/[^a-zA-Z0-9_-]/g, '')}${STORED_EXTENSION}`;
+    await fs.writeFile(new URL(filename, MEDIA_DIR), stored);
     return `${MEDIA_PUBLIC_PATH}/${filename}`;
   } catch (err) {
     console.warn(`[instagram]   ! ${id}: download failed (${err.message}), keeping remote URL`);
