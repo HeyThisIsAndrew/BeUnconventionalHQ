@@ -5,6 +5,10 @@ interface GalleryItem {
   id: string;
   mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM';
   displayUrl: string;
+  /* A copy of `displayUrl` downloaded to public/instagram/ by
+     scripts/sync-instagram.mjs. Present only after a sync has run with
+     --execute; see the note at the render site below. */
+  localImage?: string;
   videoUrl?: string;
   caption?: string;
   permalink?: string;
@@ -32,7 +36,22 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
           >
           {items.map((item) => {
             if (!item || !item.displayUrl) return null;
-            const sources = getCardImageSources(item.displayUrl);
+            /*
+              PREFER THE LOCAL COPY. Instagram's CDN URLs are signed and
+              expire in a couple of days — `displayUrl` is guaranteed to rot,
+              and did, taking the whole rail with it (188 of 188 dead when it
+              was reported from production). scripts/sync-instagram.mjs now
+              downloads each image to public/instagram/ and records it as
+              `localImage`.
+
+              `displayUrl` stays as the fallback rather than being replaced:
+              until a sync has run with --execute nothing has a `localImage`,
+              and an item whose download failed should still render from the
+              remote URL for as long as that URL lives. getCardImageSources()
+              passes a root-relative path straight through, so a local image
+              skips the /api/proxy round trip entirely.
+            */
+            const sources = getCardImageSources(item.localImage || item.displayUrl);
             
             return (
               <a href={item.permalink} target="_blank" rel="noopener noreferrer" class="ig-carousel-tile" data-play-hover="true">

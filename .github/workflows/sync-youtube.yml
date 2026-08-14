@@ -2,7 +2,7 @@
 #
 # Closes the loop that ticket #36 promised and never built: upload + tag a
 # video on YouTube, and it shows up on the site without anyone touching a
-# keyboard. This workflow just automates running `npm run sync -- --execute`
+# keyboard. This workflow just automates `npm run sync:youtube -- --execute`
 # on a schedule and committing the result if anything changed — it does NOT
 # change the auto-publish rules themselves. Those already live in
 # scripts/sync-youtube.mjs (planVideoSync): a video only auto-publishes if
@@ -80,11 +80,22 @@ jobs:
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+        # `sync:youtube`, NOT `sync`. This job is given YOUTUBE_API_KEY and
+        # YOUTUBE_CHANNEL_ID and nothing else, but `npm run sync` also runs the
+        # Instagram sync, which needs META_ACCESS_TOKEN and a .env file. On
+        # 2026-08-14 that failed the whole scheduled run:
+        #
+        #   node: .env: not found
+        #   ##[error]Process completed with exit code 9
+        #
+        # The YouTube sync had already finished successfully by then, so a
+        # source this job has no credentials for was failing a source it does.
+        # They are independent and are now invoked independently.
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.execute }}" = "false" ]; then
-            npm run sync
+            npm run sync:youtube
           else
-            npm run sync -- --execute
+            npm run sync:youtube -- --execute
           fi
 
       - name: Commit and push if videos.json changed

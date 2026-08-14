@@ -8,10 +8,174 @@
  */
 import fs from 'node:fs/promises';
 
+/*
+  ─── WHY THIS DOWNLOADS THE MEDIA INSTEAD OF STORING ITS URL ────────────────
+
+  Instagram's CDN URLs are SIGNED AND TIME-LIMITED. The `oe=` query parameter
+  is a hex expiry timestamp, typically two to three days out. This script used
+  to write those URLs straight into src/data/instagram.json, which meant the
+  entire feed went dead a few days after every sync, no matter what any code
+  did with it.
+
+  That is not a hypothetical. It was reported from production with a
+  screenshot of the rail showing nothing but broken images, and measured on
+  the spot: 188 of 188 stored URLs had already expired, the last of them
+  earlier the same morning. Nothing in the site was broken — the data had
+  simply rotted on schedule, as it always would.
+
+  So the media is fetched ONCE, here, and written to public/instagram/. Those
+  files never expire, are served from our own origin, and remove the
+  /api/proxy round trip on every tile.
+
+  ADDITIVE ON PURPOSE. Each item keeps its original `displayUrl` and gains a
+  `localImage` only when the download succeeded. The components prefer
+  `localImage` and fall back to `displayUrl`, so a sync that partially fails —
+  or a checkout where this has never been run — behaves exactly as before
+  rather than rendering nothing.
+*/
+const MEDIA_DIR = new URL('../public/instagram/', import.meta.url);
+const MEDIA_PUBLIC_PATH = '/instagram';
+
+/** Extension from the response's content-type, since IG URLs carry no suffix. */
+function extensionFor(contentType) {
+  if (!contentType) return '.jpg';
+  if (contentType.includes('png')) return '.png';
+  if (contentType.includes('webp')) return '.webp';
+  if (contentType.includes('gif')) return '.gif';
+  return '.jpg';
+}
+
+/**
+ * Download one media URL into public/instagram/.
+ * Returns the public path, or null if anything went wrong — callers keep the
+ * remote URL in that case rather than losing the item.
+ */
+async function downloadMedia(url, id) {
+  if (!url) return null;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      },
+    });
+    if (!res.ok) {
+      console.warn(`[instagram]   ! ${id}: media fetch returned ${res.status}, keeping remote URL`);
+      return null;
+    }
+    const ext = extensionFor(res.headers.get('content-type'));
+    /* The Graph API id is opaque and unique, so it is a safe filename. */
+    const filename = `${String(id).replace(/[^a-zA-Z0-9_-]/g, '')}${ext}`;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    if (buffer.length === 0) {
+      console.warn(`[instagram]   ! ${id}: empty body, keeping remote URL`);
+      return null;
+    }
+    await fs.writeFile(new URL(filename, MEDIA_DIR), buffer);
+    return `${MEDIA_PUBLIC_PATH}/${filename}`;
+  } catch (err) {
+    console.warn(`[instagram]   ! ${id}: download failed (${err.message}), keeping remote URL`);
+    return null;
+  }
+}
+
+/**
+ * Delete downloaded images no longer referenced by the feed.
+ *
+ * The sync keeps the latest 50 posts, so every run pushes older ones out of
+ * the window. Without this the folder only ever grows — and since a workflow
+ * now runs this daily and COMMITS the result, that growth would be permanent
+ * repository weight for images nothing renders.
+ *
+ * Deliberately conservative: it only ever removes files inside
+ * public/instagram/, only ones absent from the set just written, and it is
+ * unreachable on a dry run because the only caller is localiseMedia(), which
+ * itself only runs under --execute. A delete failure is logged and ignored —
+ * an orphaned file is clutter, not a broken feed, and is not worth failing a
+ * sync over.
+ */
+async function pruneOrphanedMedia(items) {
+  const keep = new Set(
+    items
+      .map((item) => item.localImage)
+      .filter(Boolean)
+      .map((p) => p.slice(`${MEDIA_PUBLIC_PATH}/`.length))
+  );
+
+  let removed = 0;
+  let existing;
+  try {
+    existing = await fs.readdir(MEDIA_DIR);
+  } catch {
+    return; // nothing downloaded yet
+  }
+
+  for (const filename of existing) {
+    if (keep.has(filename)) continue;
+    try {
+      await fs.unlink(new URL(filename, MEDIA_DIR));
+      removed++;
+    } catch (err) {
+      console.warn(`[instagram]   ! could not remove orphan ${filename}: ${err.message}`);
+    }
+  }
+
+  if (removed > 0) {
+    console.log(`[instagram] Pruned ${removed} image(s) no longer in the feed.`);
+  }
+}
+
+/**
+ * Fetch every item's display image to disk and attach `localImage`.
+ * Sequential on purpose: 50 items is small, and hammering the CDN in parallel
+ * is a good way to get rate-limited mid-sync and end up with a half-downloaded
+ * feed.
+ */
+async function localiseMedia(items) {
+  await fs.mkdir(MEDIA_DIR, { recursive: true });
+  let ok = 0;
+  for (const item of items) {
+    const local = await downloadMedia(item.displayUrl, item.id);
+    if (local) {
+      item.localImage = local;
+      ok++;
+    }
+  }
+  console.log(`[instagram] Downloaded ${ok}/${items.length} images to public/instagram/`);
+  await pruneOrphanedMedia(items);
+  if (ok < items.length) {
+    console.warn(
+      `[instagram] ${items.length - ok} item(s) kept their expiring remote URL and ` +
+        `will break when it lapses. Re-run the sync to retry them.`
+    );
+  }
+  return items;
+}
+
 async function fetchInstagramMedia() {
   const token = process.env.META_ACCESS_TOKEN;
   if (!token) {
-    throw new Error('META_ACCESS_TOKEN is required in .env');
+    /*
+      SKIP, LOUDLY — do not throw.
+
+      This used to be a hard error, which is right for `npm run sync:instagram`
+      run deliberately and wrong for everything else. An unconfigured Instagram
+      sync must never take a working YouTube sync down with it, and it did:
+      the 2026-08-14 scheduled run finished the YouTube half and then failed
+      the job on this path.
+
+      Returning null (rather than an empty array) lets the caller tell "not
+      configured, leave the data alone" apart from "configured, and the account
+      genuinely has no media" — the second would otherwise blank
+      src/data/instagram.json, which is exactly the never-delete contract the
+      articles sync documents.
+    */
+    console.warn(
+      '[instagram] META_ACCESS_TOKEN not set — skipping the Instagram sync.\n' +
+        '[instagram] src/data/instagram.json is left untouched. Set the token in\n' +
+        '[instagram] .env (local) or as a repository secret (CI) to enable it.'
+    );
+    return null;
   }
 
   // 1. Get the Facebook Page linked to this account
@@ -88,13 +252,39 @@ async function run() {
 
   try {
     const media = await fetchInstagramMedia();
+
+    /* null means "not configured" — distinct from an empty array, which would
+       mean the account really has no media. Neither should ever blank the
+       existing data, but only the first is a clean, expected exit. */
+    if (media === null) {
+      console.log('[instagram] Skipped (no credentials). Nothing written.');
+      return;
+    }
+
     console.log(`[instagram] Fetched ${media.length} media items.`);
 
+    if (media.length === 0) {
+      console.warn(
+        '[instagram] The API returned zero items. Refusing to overwrite\n' +
+          '[instagram] src/data/instagram.json with an empty feed — that is far more\n' +
+          '[instagram] likely to be a bad token or a rate limit than a genuinely empty\n' +
+          '[instagram] account. Nothing written.'
+      );
+      return;
+    }
+
     if (isExecute) {
+      /* Download BEFORE writing the JSON: the file should never claim a
+         `localImage` that is not on disk. */
+      await localiseMedia(media);
       await fs.writeFile(outPath, JSON.stringify(media, null, 2));
       console.log(`[instagram] ✓ Wrote to src/data/instagram.json`);
+      console.log(`[instagram]   Remember to commit public/instagram/ along with it.`);
     } else {
-      console.log(`[dry-run] Nothing written. Pass --execute to write src/data/instagram.json.`);
+      console.log(
+        `[dry-run] Nothing written and nothing downloaded. Pass --execute to write ` +
+          `src/data/instagram.json and populate public/instagram/.`
+      );
     }
   } catch (err) {
     console.error('[instagram] ❌ Sync failed:', err.message);
