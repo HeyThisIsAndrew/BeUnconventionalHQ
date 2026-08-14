@@ -6,6 +6,18 @@ export interface InstagramMediaChild {
   mediaType: 'IMAGE' | 'VIDEO';
   url: string;
   thumbnailUrl: string;
+  /**
+   * This slide's own copy of `thumbnailUrl`, downloaded to public/instagram/
+   * by scripts/sync-instagram.mjs. Optional because it exists only after a
+   * sync has run with --execute, and because one slide's download can fail
+   * without taking the rest of the album with it.
+   *
+   * Per-slide by necessity: the flattener spreads the parent post into every
+   * child tile, so a child without its own local file would otherwise inherit
+   * the PARENT's `localImage` and the whole album would render as identical
+   * tiles.
+   */
+  localThumbnail?: string;
 }
 
 export interface InstagramPost {
@@ -65,6 +77,24 @@ export function getFlattenedGallery(topicKeywords?: readonly string[]) {
         gallery.push({
           ...post, // keep caption and permalink for the overlay
           displayUrl: child.thumbnailUrl,
+          /*
+            `localImage` MUST be overridden, not inherited.
+
+            The spread above copies every field of the parent, and once the
+            sync started downloading media that included the parent's
+            `localImage`. The gallery prefers `localImage` over `displayUrl`,
+            so each slide of an album rendered the PARENT's picture and a
+            five-image carousel became five identical tiles. Reported from
+            production the first time the sync ran for real, on the Scary
+            Movie 6 album.
+
+            `child.localThumbnail` is the child's own downloaded file. When it
+            is absent — the sync has not run, or that one download failed —
+            this resolves to `undefined`, which is exactly right: the tile
+            falls back to `displayUrl`, which was already overridden to the
+            child's own thumbnail. It must never fall back to the parent's.
+          */
+          localImage: child.localThumbnail,
           mediaType: child.mediaType,
           videoUrl: child.mediaType === 'VIDEO' ? child.url : undefined,
         });

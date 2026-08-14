@@ -49,6 +49,7 @@ const gallery = fs.readFileSync(
   'utf8'
 );
 const sync = fs.readFileSync(path.join(ROOT, 'scripts/sync-instagram.mjs'), 'utf8');
+const flatten = fs.readFileSync(path.join(ROOT, 'src/lib/instagram.ts'), 'utf8');
 
 console.log('Instagram local media:');
 
@@ -149,6 +150,50 @@ test('the Instagram rail fallback outranks the component’s own background', ()
       '      Layout.astro already marks the container when an image fails — with\n' +
       '      no rule to match, the reader gets a raw broken-image glyph, which is\n' +
       '      exactly what was photographed in production.',
+  );
+});
+
+test('a carousel slide never inherits the parent post’s image', () => {
+  /*
+    getFlattenedGallery spreads the parent into every child tile. Once the
+    sync began downloading media that spread included the parent's
+    `localImage`, and because the gallery PREFERS localImage over displayUrl,
+    every slide of an album rendered the parent's picture. Measured on the
+    real feed: 8 distinct images across 10 tiles — the Scary Movie 6 album
+    appearing as identical tiles in a row, exactly as reported.
+
+    Overriding displayUrl alone is not enough; localImage has to be
+    overridden too, and to the CHILD's own file.
+  */
+  const block = flatten.slice(
+    flatten.indexOf('gallery.push({'),
+    flatten.indexOf('mediaType: child.mediaType')
+  );
+  assert.ok(
+    /localImage:\s*child\.localThumbnail/.test(block),
+    'The carousel branch of getFlattenedGallery must set\n' +
+      '      `localImage: child.localThumbnail`. Without it the spread carries the\n' +
+      '      parent\'s localImage into every slide and the album renders as N\n' +
+      '      identical tiles.',
+  );
+});
+
+test('the sync downloads each carousel slide, not just the post', () => {
+  assert.ok(
+    /child\.localThumbnail = /.test(sync),
+    'localiseMedia() must download each child thumbnail and record\n' +
+      '      child.localThumbnail, or the slides have no local file to point at\n' +
+      '      and fall back to URLs that expire in days.',
+  );
+});
+
+test('the prune keeps carousel slides as well as posts', () => {
+  const block = sync.slice(sync.indexOf('async function pruneOrphanedMedia'), sync.indexOf('async function localiseMedia'));
+  assert.ok(
+    /localThumbnail/.test(block),
+    'pruneOrphanedMedia() must treat child.localThumbnail as referenced.\n' +
+      '      Collecting only item.localImage would delete every slide file\n' +
+      '      immediately after downloading it.',
   );
 });
 

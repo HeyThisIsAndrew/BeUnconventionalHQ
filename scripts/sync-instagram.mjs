@@ -95,11 +95,19 @@ async function downloadMedia(url, id) {
  * sync over.
  */
 async function pruneOrphanedMedia(items) {
+  /* Posts AND carousel slides. Collecting only item.localImage here would
+     delete every child file immediately after downloading it. */
+  const referenced = [];
+  for (const item of items) {
+    if (item.localImage) referenced.push(item.localImage);
+    if (Array.isArray(item.children)) {
+      for (const child of item.children) {
+        if (child?.localThumbnail) referenced.push(child.localThumbnail);
+      }
+    }
+  }
   const keep = new Set(
-    items
-      .map((item) => item.localImage)
-      .filter(Boolean)
-      .map((p) => p.slice(`${MEDIA_PUBLIC_PATH}/`.length))
+    referenced.map((p) => p.slice(`${MEDIA_PUBLIC_PATH}/`.length))
   );
 
   let removed = 0;
@@ -134,18 +142,47 @@ async function pruneOrphanedMedia(items) {
 async function localiseMedia(items) {
   await fs.mkdir(MEDIA_DIR, { recursive: true });
   let ok = 0;
+  let total = 0;
   for (const item of items) {
+    total++;
     const local = await downloadMedia(item.displayUrl, item.id);
     if (local) {
       item.localImage = local;
       ok++;
     }
+
+    /*
+      CAROUSEL CHILDREN NEED THEIR OWN FILE, ONE PER SLIDE.
+
+      getFlattenedGallery() turns a CAROUSEL_ALBUM into one tile per child by
+      spreading the parent and overriding `displayUrl` with the child's
+      thumbnail. It does NOT override `localImage` — so downloading only the
+      parent made every slide of an album render the PARENT's picture. Reported
+      from production the first time this sync ran for real: the Scary Movie 6
+      album appeared as several identical tiles in a row.
+
+      Each child therefore gets its own download, keyed by the child's own id,
+      and the flattener maps it to `localThumbnail`. A child whose download
+      fails is left without one, which is what makes it fall back to its OWN
+      remote thumbnail rather than inheriting the parent's local file.
+    */
+    if (Array.isArray(item.children)) {
+      for (const child of item.children) {
+        if (!child || !child.thumbnailUrl) continue;
+        total++;
+        const childLocal = await downloadMedia(child.thumbnailUrl, child.id);
+        if (childLocal) {
+          child.localThumbnail = childLocal;
+          ok++;
+        }
+      }
+    }
   }
-  console.log(`[instagram] Downloaded ${ok}/${items.length} images to public/instagram/`);
+  console.log(`[instagram] Downloaded ${ok}/${total} images to public/instagram/ (posts + carousel slides)`);
   await pruneOrphanedMedia(items);
-  if (ok < items.length) {
+  if (ok < total) {
     console.warn(
-      `[instagram] ${items.length - ok} item(s) kept their expiring remote URL and ` +
+      `[instagram] ${total - ok} image(s) kept their expiring remote URL and ` +
         `will break when it lapses. Re-run the sync to retry them.`
     );
   }
