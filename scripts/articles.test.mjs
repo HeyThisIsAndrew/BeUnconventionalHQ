@@ -6,6 +6,9 @@
  * against the real thing.
  */
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parsePostsResponse, planArticleSync } from './sync-articles.mjs';
 import {
   demoteHeadings,
@@ -18,7 +21,9 @@ import {
   buildPreview,
   mergeSnapshot,
 } from '../src/lib/articles-transform.ts';
-import { imageFingerprint, optimiseBodyImages, stripCoverImageFromBody } from '../src/lib/article-media.ts';
+import { imageFingerprint, stripCoverImageFromBody } from '../src/lib/article-media.ts';
+
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 let passed = 0;
 let failed = 0;
@@ -508,61 +513,75 @@ test('no cover image means the body is returned unchanged', () => {
 });
 
 /*
-  ─── BODY IMAGES: REWRITTEN, BUT NOTHING ELSE TOUCHED ───────────────────────
+  ─── ARTICLE-PAGE IMAGES MUST NOT GO THROUGH A RESIZING PROXY ───────────────
 
-  Substack embeds body images at upload size. One review on /intel carried
-  nine, several 3840x2160, in a ~720px column — megabytes the page cannot use,
-  and invisible to the components because the body arrives as a string.
+  THE INCIDENT
+  A performance pass rewrote the article hero AND every body <img> to wsrv.nl
+  renditions, and marked the body ones lazy. Reported from a real phone on the
+  preview deploy: the Spider-Man review's gallery images were blank, and STAYED
+  blank while sliding through them.
 
-  This is a transform on SOMEONE ELSE'S markup, so the risk is not that it
-  fails to optimise — it is that it silently drops or mangles content. Hence
-  the count/order assertions.
+  WHY IT WAS SO MUCH WORSE, NOT BETTER
+    • wsrv.nl is a free shared proxy with a cold cache. A first request means
+      fetching a ~1 MB 3840x2160 JPEG from S3, decoding, resizing and
+      re-encoding — once per URL AND per srcset width. Substack's own CDN
+      already holds warm renditions of exactly these images.
+    • SubstackGallery's lightbox sets `img.src` on every slide, with no srcset
+      and no preloading, so each swipe triggered a fresh cold transcode.
+    • The hero is eager and above the fold, so the cold wait landed on the
+      masthead, where a reader has nothing else to look at.
+
+  AND IT WAS NEVER WORTH ANYTHING. The Lighthouse gate audits `/`, `/feed`,
+  `/intel`, `/events`, `/featured` and `/about` — NO article page is in it. So
+  the whole trade was unmeasured by construction, while the rendition work on
+  the audited pages (the /intel feature image, rail thumbs, /feed cards) is
+  real and stays.
+
+  The rule this pins: on an article page, serve the URL Substack gave us. A
+  large image that starts loading immediately beats a small one that starts in
+  three seconds. If article images are ever optimised again, it has to be with
+  something warm — build-time renditions, or Substack's own CDN — not a cold
+  third-party hop.
 */
-const fakeSources = (url) => ({
-  src: `https://cdn.example/r?u=${encodeURIComponent(url)}&w=600`,
-  srcset: `https://cdn.example/r?u=${encodeURIComponent(url)}&w=400 400w`,
+const articlePage = fs.readFileSync(
+  path.join(ROOT, 'src/pages/intel/[slug].astro'),
+  'utf8'
+);
+
+test('the article hero is served from Substack, not a proxy rendition', () => {
+  const hero = articlePage.slice(
+    articlePage.indexOf('class="article-hero"'),
+    articlePage.indexOf('class="article-hero"') + 400
+  );
+  assert.ok(hero.includes('src={article.image}'), 'the hero must render article.image directly');
+  assert.ok(
+    !/getCardImageSources/.test(hero),
+    'the hero must not be routed through the rendition helper — it resolves to\n' +
+      '      a cold wsrv.nl transcode of a 4K original, on the eager, above-the-fold\n' +
+      '      element where the reader has nothing else to look at.',
+  );
 });
 
-test('body images are rewritten to renditions and lazy-loaded', () => {
-  const html = '<figure><img src="https://sub.example/a_3840x2160.jpeg" alt="x"></figure>';
-  const out = optimiseBodyImages(html, fakeSources);
-  assert.ok(out.includes('cdn.example/r?u='), 'src should be a rendition');
-  assert.ok(!out.includes('src="https://sub.example'), 'the original src must be gone');
-  assert.ok(out.includes('loading="lazy"'), 'body images are below the fold');
-  assert.ok(out.includes('srcset='), 'a srcset lets a phone take a smaller one');
+test('the article body html is passed through untouched', () => {
+  assert.ok(
+    !/optimiseBodyImages/.test(articlePage),
+    'body images must not be rewritten. The gallery lightbox reassigns img.src\n' +
+      '      per slide, so a proxied src means a cold transcode per swipe — which is\n' +
+      '      what was photographed as "blank while sliding" on a phone.',
+  );
+  assert.ok(
+    /buildToc\(dedupedBody\)/.test(articlePage),
+    'buildToc must receive the deduped body directly, with no rewrite between.',
+  );
 });
 
-test('a relative or data src is left completely alone', () => {
-  for (const html of ['<img src="/local/a.png">', '<img src="data:image/png;base64,AA">']) {
-    assert.equal(optimiseBodyImages(html, fakeSources), html);
-  }
-});
-
-test('existing loading/srcset attributes are never overwritten', () => {
-  const html = '<img src="https://sub.example/a.jpg" loading="eager" srcset="already 1w">';
-  const out = optimiseBodyImages(html, fakeSources);
-  assert.ok(out.includes('loading="eager"'), 'an explicit loading must survive');
-  assert.ok(out.includes('srcset="already 1w"'), 'an explicit srcset must survive');
-  assert.ok(!out.includes('400w'), 'and must not be joined by a second one');
-});
-
-test('image COUNT and order are preserved', () => {
-  const html = '<img src="https://s/1.jpg"><p>a</p><img src="/rel.png"><p>b</p><img src="https://s/2.jpg">';
-  const out = optimiseBodyImages(html, fakeSources);
-  assert.equal((out.match(/<img/g) || []).length, 3, 'no image may be dropped');
-  assert.ok(out.indexOf('1.jpg') < out.indexOf('rel.png'), 'order must be preserved');
-  assert.equal((out.match(/<p>/g) || []).length, 2, 'surrounding markup is untouched');
-});
-
-test('a throwing or empty source helper leaves the tag verbatim', () => {
-  const html = '<img src="https://sub.example/a.jpg">';
-  assert.equal(optimiseBodyImages(html, () => { throw new Error('boom'); }), html);
-  assert.equal(optimiseBodyImages(html, () => ({ src: '', srcset: '' })), html);
-});
-
-test('empty or missing body html is handled', () => {
-  assert.equal(optimiseBodyImages('', fakeSources), '');
-  assert.equal(optimiseBodyImages(null, fakeSources), '');
+test('no article-page image is routed through wsrv.nl', () => {
+  assert.ok(
+    !/getCardImageSources/.test(articlePage),
+    'nothing on the article page should reach the rendition helper: for a\n' +
+      '      Substack S3 upload it returns a wsrv.nl URL, and no article page is in\n' +
+      '      the Lighthouse gate, so it buys no score to offset the risk.',
+  );
 });
 
 if (failed > 0) {
