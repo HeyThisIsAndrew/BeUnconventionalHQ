@@ -115,16 +115,65 @@ test('an UNKNOWN visibility is kept, not hidden', () => {
   );
 });
 
-test('the real stored feed still renders in full today', () => {
-  /* The strongest available evidence, because this is the actual data that
-     will be on the site the moment this merges. */
-  const withField = feed.filter((p) => typeof p.isSharedToFeed === 'boolean').length;
-  const out = selectVisiblePosts(feed);
-  assert.equal(
-    out.length,
-    feed.length,
-    `${feed.length} stored posts, ${withField} carrying isSharedToFeed, but only ` +
-      `${out.length} would render. Nothing should be filtered before a sync runs.`,
+/*
+  ─── AGAINST THE REAL STORED FEED ───────────────────────────────────────────
+
+  An earlier version of this block asserted that the whole stored feed renders,
+  on the reasoning that no record carried `isSharedToFeed` yet. That was a
+  SNAPSHOT, not an invariant: it described the data on the day it was written
+  and was guaranteed to fail the first time a sync populated the field and the
+  feature did its job. It duly did — 47 of 50, with 3 reels-tab-only posts
+  correctly hidden — and reported working code as a failure.
+
+  What follows asserts the properties that stay true whatever the feed
+  contains: nothing is hidden except for a stated reason, and a post the API
+  said nothing about is never hidden.
+*/
+test('every post the API said nothing about still renders', () => {
+  /* THE safety property. `is_shared_to_feed` is a reels-only field, so albums
+     and images never carry it — 9 of the 50 today. If "unknown" were ever
+     treated as "hidden", every non-reel would silently vanish from the rail. */
+  const unknown = feed.filter((p) => typeof p.isSharedToFeed !== 'boolean');
+  const shown = new Set(selectVisiblePosts(feed).map((p) => p.id));
+  const dropped = unknown.filter((p) => !shown.has(p.id));
+  assert.deepEqual(
+    dropped.map((p) => p.permalink),
+    [],
+    `${dropped.length} post(s) with no isSharedToFeed were filtered out. Unknown\n` +
+      '      must always mean visible.',
+  );
+});
+
+test('nothing is filtered except for a stated reason', () => {
+  /* The complement of the test above: not just "the right ones survive" but
+     "no others were removed". A filter that quietly drops posts for some
+     unrelated reason would otherwise pass unnoticed. */
+  const excludedSet = toShortcodeSet(excluded.shortcodes);
+  const expected = feed.filter(
+    (p) =>
+      p.isSharedToFeed !== false &&
+      !excludedSet.has(permalinkShortcode(p.permalink))
+  );
+  const actual = selectVisiblePosts(feed, excludedSet);
+  assert.deepEqual(
+    actual.map((p) => p.id),
+    expected.map((p) => p.id),
+    'the rendered set must be exactly: everything minus reels-tab-only posts\n' +
+      '      minus manual exclusions — same posts, same order.',
+  );
+});
+
+test('the real stored feed still fills the rail', () => {
+  /* A floor on the outcome rather than an exact count: the rail holds ten
+     tiles, and the point of the whole feature is that it keeps showing
+     content while hiding the posts that do not belong on the feed. */
+  const out = selectVisiblePosts(feed, toShortcodeSet(excluded.shortcodes));
+  const hidden = feed.length - out.length;
+  assert.ok(
+    out.length >= 10,
+    `only ${out.length} of ${feed.length} posts would render (${hidden} hidden).\n` +
+      '      The carousel shows ten tiles, so this is no longer enough to fill it —\n' +
+      '      check whether is_shared_to_feed is being reported as expected.',
   );
 });
 
