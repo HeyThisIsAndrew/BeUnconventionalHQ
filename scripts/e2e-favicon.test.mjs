@@ -140,40 +140,108 @@ async function runTests() {
       list.map((i) => `${i.rel}|${i.type}|${i.href}|${i.sizes}`).join(' ~ ');
     const onLoad = serialise(icons);
 
-    /* Instagram links must not be able to reach back into this document. The
-       carousel tiles, the view-all link, and the JS-injected "See more on
-       Instagram" CTA — the one actually reported — are all checked. */
-    const links = await page.evaluate(() =>
-      [...document.querySelectorAll('a[href*="instagram.com"]')].map((a) => ({
-        href: a.getAttribute('href'),
-        target: a.getAttribute('target') || '',
-        rel: a.getAttribute('rel') || '',
-      }))
-    );
+    /*
+      EVERY off-site link, not just Instagram.
+
+      The report arrived as an Instagram bug and was very nearly fixed as one.
+      Then: "it also occurred with the Threads and TikTok icon too… the links
+      in the footer all need to be checked too." That is the observation that
+      identified this correctly — the tab does not care WHOSE icon it kept, so
+      auditing one destination proves nothing about the rest.
+
+      So this sweeps every external link on every route rather than one host,
+      and the sweep is what found three unrelated gaps that predate the
+      Instagram report: the Amazon storefront on /links navigating in place
+      while every sibling around it opened in a new tab, and the YouTube
+      handle on the press kit and media kit carrying target="_blank" with no
+      `rel` at all — an open reverse-tabnabbing handle on both.
+
+      Links to our OWN production domain are exempt: they are written absolute
+      but are not off-site, and forcing them into a new tab would be wrong.
+    */
+    const OWN_HOSTS = ['beunconventionalhq.com', 'www.beunconventionalhq.com'];
+    const AUDIT_ROUTES = [
+      '/', '/feed', '/intel', '/events', '/featured', '/about', '/links',
+      '/collaborations', '/collaborations/press-kit', '/media-kit', '/privacy',
+    ];
+
+    let audited = 0;
+    const offenders = [];
+
+    for (const route of AUDIT_ROUTES) {
+      const auditPage = await browser.newPage();
+      await auditPage.setViewport({ width: 1024, height: 1366 });
+      let reachable = true;
+      try {
+        const res = await auditPage.goto(`http://localhost:4321${route}`, {
+          waitUntil: 'networkidle2',
+          timeout: 30000,
+        });
+        if (!res || res.status() >= 400) reachable = false;
+      } catch {
+        reachable = false;
+      }
+      if (!reachable) {
+        await auditPage.close();
+        continue;
+      }
+
+      /* The carousel's "See more on Instagram" CTA — the element actually
+         reported — is injected by script, so give it a beat to appear. */
+      await new Promise((r) => setTimeout(r, 1200));
+
+      const found = await auditPage.evaluate(
+        (ownHosts) =>
+          [...document.querySelectorAll('a[href]')]
+            .map((a) => {
+              let u;
+              try {
+                u = new URL(a.getAttribute('href'), location.href);
+              } catch {
+                return null;
+              }
+              if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+              if (u.host === location.host) return null;
+              if (ownHosts.includes(u.host)) return null;
+              return {
+                host: u.host,
+                target: a.getAttribute('target') || '',
+                rel: a.getAttribute('rel') || '',
+                label: (a.getAttribute('aria-label') || a.textContent || '').trim().slice(0, 40),
+              };
+            })
+            .filter(Boolean),
+        OWN_HOSTS
+      );
+
+      for (const link of found) {
+        audited++;
+        const relOk = link.rel.includes('noopener') && link.rel.includes('noreferrer');
+        if (link.target !== '_blank' || !relOk) {
+          offenders.push(`${route} → ${link.host} [${link.label}] target="${link.target}" rel="${link.rel}"`);
+        }
+      }
+      await auditPage.close();
+    }
 
     assert.ok(
-      links.length > 0,
-      'No Instagram links found on the homepage, so this test is not looking ' +
-        'at the reported surface. The carousel rail should render tiles and a ' +
-        '"See more on Instagram" CTA.'
+      audited > 50,
+      `Only ${audited} external links were audited across ${AUDIT_ROUTES.length} ` +
+        `routes. That is too few to be looking at the real surface — the ` +
+        `carousel and footer alone should contribute far more. Did the pages ` +
+        `fail to render?`
     );
 
-    for (const link of links) {
-      assert.equal(
-        link.target,
-        '_blank',
-        `Instagram link ${link.href} does not open in a new tab (target=` +
-          `"${link.target}"). In-place navigation to Instagram and back is a ` +
-          `second, worse way for the tab to end up holding their icon.`
-      );
-      assert.ok(
-        link.rel.includes('noopener') && link.rel.includes('noreferrer'),
-        `Instagram link ${link.href} has rel="${link.rel}" — it must include ` +
-          `both noopener and noreferrer so the opened page cannot reach back ` +
-          `into this document.`
-      );
-    }
-    pass(`all ${links.length} Instagram links are _blank + noopener noreferrer`);
+    assert.equal(
+      offenders.length,
+      0,
+      `${offenders.length} external link(s) are not \`target="_blank"\` with ` +
+        `\`rel="noopener noreferrer"\`:\n    ${offenders.join('\n    ')}\n` +
+        `  Without _blank the reader leaves the site in place, and coming back ` +
+        `is a second way for the tab to end up holding a foreign icon. Without ` +
+        `noopener+noreferrer the opened page keeps a handle on this document.`
+    );
+    pass(`all ${audited} external links across ${AUDIT_ROUTES.length} routes are _blank + noopener noreferrer`);
 
     /* Client-side navigation: ClientRouter swaps the <head>, so this is where
        the icon set could silently be lost. */
