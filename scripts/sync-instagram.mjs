@@ -108,7 +108,27 @@ async function localiseMedia(items) {
 async function fetchInstagramMedia() {
   const token = process.env.META_ACCESS_TOKEN;
   if (!token) {
-    throw new Error('META_ACCESS_TOKEN is required in .env');
+    /*
+      SKIP, LOUDLY — do not throw.
+
+      This used to be a hard error, which is right for `npm run sync:instagram`
+      run deliberately and wrong for everything else. An unconfigured Instagram
+      sync must never take a working YouTube sync down with it, and it did:
+      the 2026-08-14 scheduled run finished the YouTube half and then failed
+      the job on this path.
+
+      Returning null (rather than an empty array) lets the caller tell "not
+      configured, leave the data alone" apart from "configured, and the account
+      genuinely has no media" — the second would otherwise blank
+      src/data/instagram.json, which is exactly the never-delete contract the
+      articles sync documents.
+    */
+    console.warn(
+      '[instagram] META_ACCESS_TOKEN not set — skipping the Instagram sync.\n' +
+        '[instagram] src/data/instagram.json is left untouched. Set the token in\n' +
+        '[instagram] .env (local) or as a repository secret (CI) to enable it.'
+    );
+    return null;
   }
 
   // 1. Get the Facebook Page linked to this account
@@ -185,7 +205,26 @@ async function run() {
 
   try {
     const media = await fetchInstagramMedia();
+
+    /* null means "not configured" — distinct from an empty array, which would
+       mean the account really has no media. Neither should ever blank the
+       existing data, but only the first is a clean, expected exit. */
+    if (media === null) {
+      console.log('[instagram] Skipped (no credentials). Nothing written.');
+      return;
+    }
+
     console.log(`[instagram] Fetched ${media.length} media items.`);
+
+    if (media.length === 0) {
+      console.warn(
+        '[instagram] The API returned zero items. Refusing to overwrite\n' +
+          '[instagram] src/data/instagram.json with an empty feed — that is far more\n' +
+          '[instagram] likely to be a bad token or a rate limit than a genuinely empty\n' +
+          '[instagram] account. Nothing written.'
+      );
+      return;
+    }
 
     if (isExecute) {
       /* Download BEFORE writing the JSON: the file should never claim a
