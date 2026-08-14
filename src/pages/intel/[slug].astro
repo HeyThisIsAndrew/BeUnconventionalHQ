@@ -51,7 +51,7 @@ import {
   topicPath,
 } from '../../lib/articles';
 import { buildToc } from '../../lib/article-toc';
-import { stripCoverImageFromBody } from '../../lib/article-media';
+import { optimiseBodyImages, stripCoverImageFromBody } from '../../lib/article-media';
 import logoImage from '../../assets/logo.webp';
 
 export async function getStaticPaths() {
@@ -73,10 +73,15 @@ const { article } = Astro.props;
   actually rendered.
 */
 const dedupedBody = stripCoverImageFromBody(article.bodyHtml, article.image);
+/* Substack embeds body images at whatever size the author uploaded — this post
+   carries nine, several 3840x2160, in a ~720px column. Rewrites the src to a
+   rendition and marks them lazy; see optimiseBodyImages for how carefully it
+   leaves everything else alone. */
+const optimisedBody = optimiseBodyImages(dedupedBody, getCardImageSources);
 
 // Headings get ids so the contents rail can anchor-scroll to them; `html` is
 // the body with those ids injected.
-const { entries: tocEntries, html: bodyHtml } = buildToc(dedupedBody);
+const { entries: tocEntries, html: bodyHtml } = buildToc(optimisedBody);
 
 const nextArticle = getNextArticle(article.slug);
 const related = getRelatedArticles(article.slug, article.category, 4);

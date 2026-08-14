@@ -18,7 +18,7 @@ import {
   buildPreview,
   mergeSnapshot,
 } from '../src/lib/articles-transform.ts';
-import { imageFingerprint, stripCoverImageFromBody } from '../src/lib/article-media.ts';
+import { imageFingerprint, optimiseBodyImages, stripCoverImageFromBody } from '../src/lib/article-media.ts';
 
 let passed = 0;
 let failed = 0;
@@ -505,6 +505,64 @@ test('a bare img with no figure wrapper is still removed', () => {
 test('no cover image means the body is returned unchanged', () => {
   const body = `<figure><img src="${MK_IN_BODY}"></figure>`;
   assert.equal(stripCoverImageFromBody(body, ''), body);
+});
+
+/*
+  ─── BODY IMAGES: REWRITTEN, BUT NOTHING ELSE TOUCHED ───────────────────────
+
+  Substack embeds body images at upload size. One review on /intel carried
+  nine, several 3840x2160, in a ~720px column — megabytes the page cannot use,
+  and invisible to the components because the body arrives as a string.
+
+  This is a transform on SOMEONE ELSE'S markup, so the risk is not that it
+  fails to optimise — it is that it silently drops or mangles content. Hence
+  the count/order assertions.
+*/
+const fakeSources = (url) => ({
+  src: `https://cdn.example/r?u=${encodeURIComponent(url)}&w=600`,
+  srcset: `https://cdn.example/r?u=${encodeURIComponent(url)}&w=400 400w`,
+});
+
+test('body images are rewritten to renditions and lazy-loaded', () => {
+  const html = '<figure><img src="https://sub.example/a_3840x2160.jpeg" alt="x"></figure>';
+  const out = optimiseBodyImages(html, fakeSources);
+  assert.ok(out.includes('cdn.example/r?u='), 'src should be a rendition');
+  assert.ok(!out.includes('src="https://sub.example'), 'the original src must be gone');
+  assert.ok(out.includes('loading="lazy"'), 'body images are below the fold');
+  assert.ok(out.includes('srcset='), 'a srcset lets a phone take a smaller one');
+});
+
+test('a relative or data src is left completely alone', () => {
+  for (const html of ['<img src="/local/a.png">', '<img src="data:image/png;base64,AA">']) {
+    assert.equal(optimiseBodyImages(html, fakeSources), html);
+  }
+});
+
+test('existing loading/srcset attributes are never overwritten', () => {
+  const html = '<img src="https://sub.example/a.jpg" loading="eager" srcset="already 1w">';
+  const out = optimiseBodyImages(html, fakeSources);
+  assert.ok(out.includes('loading="eager"'), 'an explicit loading must survive');
+  assert.ok(out.includes('srcset="already 1w"'), 'an explicit srcset must survive');
+  assert.ok(!out.includes('400w'), 'and must not be joined by a second one');
+});
+
+test('image COUNT and order are preserved', () => {
+  const html = '<img src="https://s/1.jpg"><p>a</p><img src="/rel.png"><p>b</p><img src="https://s/2.jpg">';
+  const out = optimiseBodyImages(html, fakeSources);
+  assert.equal((out.match(/<img/g) || []).length, 3, 'no image may be dropped');
+  assert.ok(out.indexOf('1.jpg') < out.indexOf('rel.png'), 'order must be preserved');
+  assert.equal((out.match(/<p>/g) || []).length, 2, 'surrounding markup is untouched');
+});
+
+test('a throwing or empty source helper leaves the tag verbatim', () => {
+  const html = '<img src="https://sub.example/a.jpg">';
+  assert.equal(optimiseBodyImages(html, () => { throw new Error('boom'); }), html);
+  assert.equal(optimiseBodyImages(html, () => ({ src: '', srcset: '' })), html);
+});
+
+test('empty or missing body html is handled', () => {
+  assert.equal(optimiseBodyImages('', fakeSources), '');
+  assert.equal(optimiseBodyImages(null, fakeSources), '');
 });
 
 if (failed > 0) {
