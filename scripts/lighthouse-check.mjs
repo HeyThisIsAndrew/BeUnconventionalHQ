@@ -33,7 +33,16 @@ const PREVIEW_URL = `http://localhost:${PREVIEW_PORT}`;
 const BASE_URL = `http://localhost:${PROXY_PORT}`;
 const THRESHOLD = 0.9; // 90%
 const CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo'];
-const PAGES = ['/', '/feed', '/events', '/featured', '/about'];
+/*
+  Every primary surface of the site. `/intel` was missing for as long as this
+  list has existed — not for any reason, it was simply never added, and nothing
+  checked the list against the site's actual routes. It is the articles index,
+  one of the four things in the main nav, and it was the only one unaudited.
+
+  Kept in sync by scripts/lighthouse-pages.test.mjs, which fails if a route in
+  the main navigation is absent here.
+*/
+const PAGES = ['/', '/feed', '/intel', '/events', '/featured', '/about'];
 const SERVER_READY_TIMEOUT_MS = 30_000;
 /*
   Form factor. Lighthouse's default is MOBILE (a throttled mid-tier phone),
