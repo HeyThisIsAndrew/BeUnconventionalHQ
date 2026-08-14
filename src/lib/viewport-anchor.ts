@@ -185,11 +185,48 @@ export function keepFixedControlsTappable(): void {
     elements, reverted on the next frame — so an extra one costs nothing and a
     missed one costs the reader a dead button.
   */
+  /*
+    ─── AND THE HERO'S HEIGHT, WHICH ROTATION ALSO STALES ────────────────────
+
+    Reported: load the homepage, then rotate the phone, and the hero is the
+    wrong height — its centred content sits out of position and the section
+    below can show through. Same trigger as the dead buttons above, same
+    cause: the viewport changed after layout.
+
+    `--vv-height` is seeded inline in Layout.astro before first paint (see the
+    long note there for why the hero is measured rather than sized in
+    svh/lvh/dvh — every static unit is a guess about the browser chrome and is
+    wrong in one of its two states). This republishes it after a rotation.
+
+    ONLY ON ROTATION. Deliberately NOT on `visualViewport.resize`/`scroll`,
+    which is where a chrome collapse arrives. Updating there would resize the
+    hero mid-scroll and re-rasterize the blurred `.hero-bg` — exactly the
+    jitter `dvh` was rejected for, reintroduced by hand. Not updating there
+    means the value behaves like a constant per orientation, which is the
+    property that makes it safe.
+
+    Read from `visualViewport.height` and not `innerHeight`: the two disagree
+    precisely when the chrome is overlaying, which is the case that matters.
+  */
+  const publishViewportHeight = () => {
+    const height = Math.round(vv.height || window.innerHeight);
+    if (height > 0) {
+      document.documentElement.style.setProperty('--vv-height', `${height}px`);
+    }
+  };
+
   const SETTLE_MS = [0, 120, 320, 600];
   const refreshUntilSettled = () => {
     for (const delay of SETTLE_MS) {
-      if (delay === 0) schedule();
-      else setTimeout(schedule, delay);
+      if (delay === 0) {
+        schedule();
+        publishViewportHeight();
+      } else {
+        setTimeout(() => {
+          schedule();
+          publishViewportHeight();
+        }, delay);
+      }
     }
   };
 
@@ -197,4 +234,5 @@ export function keepFixedControlsTappable(): void {
   window.addEventListener('resize', refreshUntilSettled);
 
   refresh();
+  publishViewportHeight();
 }

@@ -66,15 +66,46 @@
     font-size: clamp(1rem, 5vh, 1.5rem);
   }
 
-  /* Hero grows with its content instead of clipping it.
-     `svh`, not `dvh` — see the note in hero.css. This rule is the
-     landscape twin of that bug: landscape.css is imported last, so a
-     `dvh` here re-subscribed the hero to iOS Safari's address bar even
-     after hero.css was fixed, and resizing `.hero` forces the blurred
-     `.hero-bg` layer to re-rasterize mid-scroll. */
+  /*
+    Hero grows with its content instead of clipping it, and is MEASURED
+    rather than sized in a viewport unit.
+
+    WHY NOT A UNIT. Landscape is where this matters most, because the chrome
+    is a large fraction of a short viewport. Both static options were tried on
+    a real device and both were photographed failing, one per chrome state:
+
+      `100svh` — the smallest height, chrome expanded. Land here with the
+      chrome already RETRACTED, which is what happens after scrolling on the
+      previous page or after a rotation, and the hero is shorter than the
+      screen: "EXPLORE THE HQ / WHAT WE COVER" appears underneath it.
+
+      `100lvh` — the largest height, chrome retracted. Land with the chrome
+      EXPANDED and the hero is taller than the screen, so the flex-centred
+      content is pushed down and out of position.
+
+      `100dvh` — always correct, but re-resolves during scroll, resizing the
+      hero and re-rasterizing the blurred `.hero-bg`. That is the jitter
+      hero.css rejects, and landscape.css being imported last means a `dvh`
+      here would silently override that decision.
+
+    `--vv-height` is the real `visualViewport.height`: seeded inline in
+    Layout.astro before first paint, republished by src/lib/viewport-anchor.ts
+    after a rotation settles, and NEVER touched on scroll. So it is constant
+    per orientation exactly like `svh`/`lvh` — no jitter, no re-rasterize —
+    while being the height the reader actually has rather than a guess at
+    which chrome state they are in.
+
+    The reported repro is rotation: load the homepage, rotate, and the hero
+    keeps a height belonging to the orientation it no longer has. That is the
+    same stale-after-resize failure as the dead tap targets, which is why the
+    correction lives in the same module and rides the same settling window.
+
+    `100svh` stays as the fallback for no-JS: it is what this rule has always
+    shipped, so without scripting nothing changes.
+  */
   .hero {
     height: auto;
-    min-height: 100svh;
+    min-height: var(--vv-height, 100svh);
     padding-top: 5.5rem;
     padding-bottom: 3rem;
   }

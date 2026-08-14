@@ -146,6 +146,48 @@ const fallbackMark = await getImage({
     <script is:inline>
       document.documentElement.classList.add('js');
       history.scrollRestoration = 'manual';
+
+      /*
+        ─── THE HERO'S HEIGHT IS MEASURED, NOT GUESSED ───────────────────────
+
+        `--vv-height` is the viewport height as it ACTUALLY is right now.
+        landscape.css sizes the hero from it.
+
+        WHY A MEASUREMENT AND NOT A VIEWPORT UNIT. Every static unit is a
+        guess about the browser chrome, and each one is wrong half the time:
+
+          svh  = smallest (chrome expanded). Arrive with the chrome already
+                 retracted — which is what happens when you scrolled on the
+                 previous page — and the hero is SHORTER than the screen, so
+                 "EXPLORE THE HQ / WHAT WE COVER" shows underneath it.
+          lvh  = largest (chrome retracted). Arrive with the chrome expanded
+                 and the hero is TALLER than the screen, so its centred
+                 content is pushed down out of position.
+          dvh  = always correct, but re-resolves during scroll, resizing the
+                 hero and forcing the blurred `.hero-bg` to re-rasterize.
+                 That is the jitter hero.css rejects at length.
+
+        Both static failures were photographed on the same device, one per
+        unit. There is no third static unit to try.
+
+        A measurement has none of those problems: it is the real height in
+        whatever chrome state the reader is actually in.
+
+        SET HERE, INLINE, BEFORE FIRST PAINT. The hero is the first thing on
+        screen and the splash sizes itself from it, so this cannot wait for a
+        module to load or the hero would paint once at the fallback height and
+        then resize.
+
+        UPDATED ONLY ON ROTATION, never on scroll — see viewport-anchor.ts.
+        That is what keeps it jitter-free: it behaves like a fixed value per
+        orientation, the same property `svh`/`lvh` have and `dvh` lacks, while
+        being the RIGHT fixed value rather than a guess at one.
+      */
+      (function () {
+        var vv = window.visualViewport;
+        var h = (vv && vv.height) || window.innerHeight;
+        if (h > 0) document.documentElement.style.setProperty('--vv-height', h + 'px');
+      })();
     </script>
     <!-- Google Tag Manager (Worker) -->
     {gtmId && (
