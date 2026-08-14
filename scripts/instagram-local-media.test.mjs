@@ -114,9 +114,34 @@ test('the sync is still dry-run by default', () => {
   );
 });
 
-test('the Instagram rail has a branded fallback for a dead image', () => {
+test('the Instagram rail fallback outranks the component’s own background', () => {
   const css = fs.readFileSync(path.join(ROOT, 'src/styles/modules/home-cards.css'), 'utf8');
-  const rules = css.match(/\.ig-tile-frame\[data-img-failed\]/g) || [];
+  /*
+    The selector must carry a descendant, not just the class + attribute.
+    CinematicGallery's scoped style sets `.ig-tile-frame { background: … }`,
+    which Astro compiles to `.ig-tile-frame[data-astro-cid-…]` — the SAME
+    (0,2,0) specificity a bare `.ig-tile-frame[data-img-failed]` would have,
+    and injected later, so it won on source order and reset background-image
+    to none. The first version of this fix painted nothing while looking
+    correct in the diff; it was caught by reading computed style in a browser,
+    not by review.
+  */
+  /* Comments stripped first — the explanation above the rule quotes the bare
+     selector, and matching prose instead of code is how a guard starts lying. */
+  const code = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const bare = code
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.startsWith('.ig-tile-frame[data-img-failed]'));
+  assert.equal(
+    bare.length,
+    0,
+    `${bare.length} bare .ig-tile-frame[data-img-failed] selector(s) found. At\n` +
+      '      (0,2,0) they tie with the component\'s own scoped rule and lose on\n' +
+      '      source order, so the fallback silently paints nothing. Qualify them,\n' +
+      '      e.g. `.ig-carousel-tile .ig-tile-frame[data-img-failed]`.',
+  );
+  const rules = code.match(/\.ig-carousel-tile \.ig-tile-frame\[data-img-failed\]/g) || [];
   assert.ok(
     rules.length >= 2,
     `.ig-tile-frame[data-img-failed] appears ${rules.length} time(s); it must be in\n` +

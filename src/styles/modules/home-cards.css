@@ -287,7 +287,7 @@
 .content-card-media[data-img-failed],
 .intel-rail-thumb[data-img-failed],
 .intel-feature-image[data-img-failed],
-.ig-tile-frame[data-img-failed],
+.ig-carousel-tile .ig-tile-frame[data-img-failed],
 .article-thumb-fallback[data-img-failed] {
   background:
     radial-gradient(circle at 50% 35%, rgba(204, 0, 0, 0.12) 0%, transparent 62%),
@@ -341,8 +341,20 @@
 
    This does not fix the expiry; nothing in CSS can. It makes the failure look
    deliberate instead of broken while the feed is stale.
+
+   AND WHY THE SELECTOR CARRIES `.ig-carousel-tile` WHEN ITS NEIGHBOURS DO NOT.
+   CinematicGallery's scoped style sets `.ig-tile-frame { background: var(
+   --color-surface, #111) }`. Astro compiles that to
+   `.ig-tile-frame[data-astro-cid-…]`, which is specificity (0,2,0) — exactly
+   what a bare `.ig-tile-frame[data-img-failed]` here would be — and component
+   styles are injected after this stylesheet, so it won on source order and its
+   `background` shorthand reset background-image to `none`. The first version
+   of this rule therefore painted nothing at all, while looking correct in the
+   diff. The descendant selector takes it to (0,3,0) so it wins outright.
+   Verified in a browser, not reasoned about: setting the attribute on a live
+   tile now resolves background-image to the brand mark.
 */
-.ig-tile-frame[data-img-failed],
+.ig-carousel-tile .ig-tile-frame[data-img-failed],
 .article-thumb-fallback[data-img-failed] {
   background-image:
     var(--brand-fallback-mark, none),
