@@ -95,19 +95,14 @@ async function downloadMedia(url, id) {
  * sync over.
  */
 async function pruneOrphanedMedia(items) {
-  /* Posts AND carousel slides. Collecting only item.localImage here would
-     delete every child file immediately after downloading it. */
-  const referenced = [];
-  for (const item of items) {
-    if (item.localImage) referenced.push(item.localImage);
-    if (Array.isArray(item.children)) {
-      for (const child of item.children) {
-        if (child?.localThumbnail) referenced.push(child.localThumbnail);
-      }
-    }
-  }
+  /* One file per post — the cover. Carousel slides are not downloaded, so
+     anything on disk that is not a current post's cover is an orphan from a
+     previous run or from the revision that did download slides. */
   const keep = new Set(
-    referenced.map((p) => p.slice(`${MEDIA_PUBLIC_PATH}/`.length))
+    items
+      .map((item) => item.localImage)
+      .filter(Boolean)
+      .map((p) => p.slice(`${MEDIA_PUBLIC_PATH}/`.length))
   );
 
   let removed = 0;
@@ -152,31 +147,16 @@ async function localiseMedia(items) {
     }
 
     /*
-      CAROUSEL CHILDREN NEED THEIR OWN FILE, ONE PER SLIDE.
+      ONLY THE POST'S COVER. Carousel slides are deliberately NOT downloaded.
 
-      getFlattenedGallery() turns a CAROUSEL_ALBUM into one tile per child by
-      spreading the parent and overriding `displayUrl` with the child's
-      thumbnail. It does NOT override `localImage` — so downloading only the
-      parent made every slide of an album render the PARENT's picture. Reported
-      from production the first time this sync ran for real: the Scary Movie 6
-      album appeared as several identical tiles in a row.
+      An earlier revision fetched every child thumbnail, because the gallery
+      unpacked albums into one tile per slide. It no longer does — a post is
+      one tile, showing its cover (see getGalleryPosts in src/lib/instagram.ts
+      for why: a single ten-image post would otherwise fill the entire row).
 
-      Each child therefore gets its own download, keyed by the child's own id,
-      and the flattener maps it to `localThumbnail`. A child whose download
-      fails is left without one, which is what makes it fall back to its OWN
-      remote thumbnail rather than inheriting the parent's local file.
+      Downloading the slides would mean committing 106 files instead of 50 for
+      this feed, every one of them for an image nothing renders.
     */
-    if (Array.isArray(item.children)) {
-      for (const child of item.children) {
-        if (!child || !child.thumbnailUrl) continue;
-        total++;
-        const childLocal = await downloadMedia(child.thumbnailUrl, child.id);
-        if (childLocal) {
-          child.localThumbnail = childLocal;
-          ok++;
-        }
-      }
-    }
   }
   console.log(`[instagram] Downloaded ${ok}/${total} images to public/instagram/ (posts + carousel slides)`);
   await pruneOrphanedMedia(items);

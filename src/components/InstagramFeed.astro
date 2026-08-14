@@ -1,5 +1,5 @@
 ---
-import { getFlattenedGallery } from '../lib/instagram.js';
+import { getGalleryPosts } from '../lib/instagram.js';
 import { GLOBAL_CAROUSEL_MIN_TILES, HUB_CAROUSEL_MIN_TILES } from '../lib/instagram-topic';
 import CinematicGallery from './CinematicGallery.astro';
 import { SOCIAL_ICONS } from '../data/icons.js';
@@ -43,11 +43,14 @@ const {
   the raw feed. Nothing tops the row up from the global feed when a hub falls
   short; there is deliberately no fallback path.
 
-  `getFlattenedGallery` unpacks carousel albums, so `items` counts media tiles
-  rather than posts: one 5-image album is 5 tiles toward the minimum, which is
-  the right unit when the question is whether the row can be filled.
+  `getGalleryPosts` returns ONE tile per post, so `items` counts posts rather
+  than media. An album contributes its cover and nothing else: unpacking it
+  meant a single ten-image post could fill the entire ten-tile row and push
+  every other post off the rail, which is the wrong unit for "is there enough
+  here to show". A hub that only cleared its minimum by unpacking one album
+  now renders nothing, which is the honest answer.
 */
-const feed = getFlattenedGallery(topicKeywords) || [];
+const feed = getGalleryPosts(topicKeywords) || [];
 // Drop malformed entries BEFORE the limit, so `limit` yields up to N usable
 // tiles instead of N entries that might include unrenderable ones.
 const validItems = Array.isArray(feed) ? feed.filter((item) => item && item.displayUrl) : [];

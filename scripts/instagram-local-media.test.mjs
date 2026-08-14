@@ -153,47 +153,35 @@ test('the Instagram rail fallback outranks the component’s own background', ()
   );
 });
 
-test('a carousel slide never inherits the parent post’s image', () => {
-  /*
-    getFlattenedGallery spreads the parent into every child tile. Once the
-    sync began downloading media that spread included the parent's
-    `localImage`, and because the gallery PREFERS localImage over displayUrl,
-    every slide of an album rendered the parent's picture. Measured on the
-    real feed: 8 distinct images across 10 tiles — the Scary Movie 6 album
-    appearing as identical tiles in a row, exactly as reported.
-
-    Overriding displayUrl alone is not enough; localImage has to be
-    overridden too, and to the CHILD's own file.
-  */
-  const block = flatten.slice(
-    flatten.indexOf('gallery.push({'),
-    flatten.indexOf('mediaType: child.mediaType')
+test('an album contributes ONE tile, not one per slide', () => {
+  assert.ok(
+    !/for \(const child of post\.children\)/.test(flatten),
+    'getGalleryPosts must not unpack CAROUSEL_ALBUM children into tiles.\n' +
+      '      The rail holds ten tiles; one ten-image post would fill all of them\n' +
+      '      and push every other post off the row. The feed already contains an\n' +
+      '      18-slide album, so this is not hypothetical.',
   );
   assert.ok(
-    /localImage:\s*child\.localThumbnail/.test(block),
-    'The carousel branch of getFlattenedGallery must set\n' +
-      '      `localImage: child.localThumbnail`. Without it the spread carries the\n' +
-      '      parent\'s localImage into every slide and the album renders as N\n' +
-      '      identical tiles.',
+    /gallery\.push\(post\)/.test(flatten),
+    'each qualifying post must be pushed once, as itself, so the tile shows the\n' +
+      '      post cover (verified equal to the first slide on every album in the feed).',
   );
 });
 
-test('the sync downloads each carousel slide, not just the post', () => {
+test('posts are deduped by id, not by image URL', () => {
   assert.ok(
-    /child\.localThumbnail = /.test(sync),
-    'localiseMedia() must download each child thumbnail and record\n' +
-      '      child.localThumbnail, or the slides have no local file to point at\n' +
-      '      and fall back to URLs that expire in days.',
+    /const key = post\.id \|\| post\.displayUrl/.test(flatten),
+    'dedupe must key on the post id. Keying on the image made an album\'s\n' +
+      '      identity ambiguous, and a signed CDN URL is not stable across a\n' +
+      '      re-sync anyway.',
   );
 });
 
-test('the prune keeps carousel slides as well as posts', () => {
-  const block = sync.slice(sync.indexOf('async function pruneOrphanedMedia'), sync.indexOf('async function localiseMedia'));
+test('the sync downloads covers only, not every slide', () => {
   assert.ok(
-    /localThumbnail/.test(block),
-    'pruneOrphanedMedia() must treat child.localThumbnail as referenced.\n' +
-      '      Collecting only item.localImage would delete every slide file\n' +
-      '      immediately after downloading it.',
+    !/child\.localThumbnail/.test(sync),
+    'carousel slides must not be downloaded — nothing renders them, and it\n' +
+      '      would commit 106 files instead of 50 for this feed.',
   );
 });
 
