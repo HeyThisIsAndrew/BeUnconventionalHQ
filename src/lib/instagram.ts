@@ -1,5 +1,8 @@
 import instagramData from '../data/instagram.json';
-import { postQualifiesForTopic } from './instagram-topic';
+import excludedData from '../data/instagram-excluded.json';
+/* Explicit .ts extensions, per the repo convention. */
+import { postQualifiesForTopic } from './instagram-topic.ts';
+import { selectVisiblePosts, toShortcodeSet } from './instagram-visibility.ts';
 
 export interface InstagramMediaChild {
   id: string;
@@ -17,7 +20,27 @@ export interface InstagramPost {
   permalink: string;
   timestamp: string;
   children: InstagramMediaChild[];
+  /*
+    Reels only, and only when the Graph API reported it. `true` = the reel is
+    on the profile feed AND the Reels tab; `false` = Reels tab only.
+    `undefined` = the API did not say, which is NOT the same as false — see
+    isOnProfileFeed().
+  */
+  isSharedToFeed?: boolean;
+  /** FEED | REELS | AD | STORY, when reported. Diagnostic only. */
+  mediaProductType?: string;
 }
+
+/*
+  The visibility RULE lives in ./instagram-visibility.ts, which imports
+  nothing — this module statically imports JSON and so cannot be loaded by
+  plain `node`, which is what the offline suites run under. Keeping the rule
+  separate is what lets it be tested against real inputs rather than by
+  matching source text.
+*/
+const EXCLUDED_SHORTCODES = toShortcodeSet(
+  (excludedData as { shortcodes?: unknown }).shortcodes
+);
 
 /**
  * Returns the cached Instagram feed from the build-time sync.
@@ -75,12 +98,18 @@ export function getInstagramFeed(): InstagramPost[] {
  */
 export function getGalleryPosts(topicKeywords?: readonly string[]) {
   const feed = getInstagramFeed();
+
+  /* Reels-tab-only posts and hand-excluded posts are dropped here — including
+     the floor that stops an over-eager filter deleting the whole rail. See
+     selectVisiblePosts in ./instagram-visibility.ts. */
+  const visible = selectVisiblePosts(feed, EXCLUDED_SHORTCODES);
+
   const gallery = [];
   const seen = new Set<string>();
 
   const qualify = topicKeywords !== undefined;
 
-  for (const post of feed) {
+  for (const post of visible) {
     if (!post || !post.displayUrl || !post.mediaType) continue; // Skip corrupt posts
 
     if (qualify && !postQualifiesForTopic(post, topicKeywords)) continue;
