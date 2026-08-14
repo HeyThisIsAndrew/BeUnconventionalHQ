@@ -26,6 +26,29 @@ If you believe a visual change would fix a functional bug, **say so in the repor
 Everything below assumes both rules. A report that breaks either one is worth less than no report, because it costs a cycle to undo.
 
 
+## WHERE THE LAST PASS LANDED — read this before repeating it
+
+You returned NO-GO on four findings. **One was real and valuable. Three were not.** Calibrate against this before you spend a cycle.
+
+**RIGHT, and now fixed:** `.modal-overlay` carries `transition: all 0.4s` (modal.css:20) and was in `FIXED_CONTROLS`, so the 0.1px padding write started a 400ms transition on it, from a handler bound to `visualViewport.scroll`. Reproduced: **20 scroll events with unchanged viewport geometry produced 40 style writes** on `#navbar`. The nudge is now gated on the viewport geometry actually changing (same 20 events → **0 writes**), `.modal-overlay` is out of the list, and hidden controls are skipped. Good catch — that is exactly the job.
+
+**WRONG — `menu-open` on `<html>` "does nothing":** correct that nothing sets it there, therefore removing it is harmless dead code, not a failure. Menu state is cleared on `#navbar` by `purgeNavbarState`. A no-op is not a bug; show the broken behaviour or do not file it.
+
+**WRONG — "Turnstile breaks the CI pipeline":** it does not. All four `test-and-build` jobs have passed on every commit for the last six pushes. That suite talks to the network and flakes in sandboxes without egress; check GitHub's actual check runs before claiming CI is broken.
+
+**MISREAD — "Claude fabricated `HUB_CAROUSEL_MIN_TILES` = 6 and DC = 0":** that sentence is in THIS BRIEF, describing an *earlier* audit's fabrication so you would not repeat it. Claude never made that claim; 7 and 6 are the values Claude reported originally, and your own run confirmed them. Read whose words you are quoting.
+
+**SUSPECT — Lighthouse Best Practices 77:** CI reports **100**. Your sandbox blocks `cdninstagram.com`, `i.ytimg.com` and `wsrv.nl`, and the console errors from those blocked requests sink that category. If you report a Best Practices number again, first list the console errors it is counting and say which are from blocked hosts.
+
+**Scroll-lock losing position on refresh:** you correctly marked it pre-existing on main. Also note the homepage *deliberately* resets to the top on reload — that is bug 5/6 below, a fix, not a defect.
+
+### New since your last pass — verify these specifically
+
+- The geometry gate above. Confirm 0 writes on geometry-unchanged scroll bursts, and confirm it still nudges when the geometry DOES change, or the whole fix is dead.
+- `orientationchange` and window `resize` listeners, with the correction repeated at 0/120/320/600ms. **Newest device repro:** load, press ENTER THE HQ, THEN rotate to landscape — navbar and X stop responding; starting in landscape is fine. Unverified on hardware.
+- 89 lines of dead `.content-card.event-card` CSS were removed from `home-cards.css`. Confirm nothing regressed on `/events`, `/featured` or the homepage.
+- `e2e-phantom-overlay` now sweeps 4 viewports, not 1. It was blind at 1024×1366, where `.nav-container` is a static 498×53 strip.
+
 ## Context
 
 You are the **independent verifier** on a release candidate for **Be Unconventional HQ** — Astro 7 (static + `@astrojs/cloudflare`), Tailwind v4, deployed on Cloudflare Workers.
@@ -191,10 +214,10 @@ Be adversarial and specific. "Looks fine" is not a finding; neither is a defect 
 
 **Model:** use **Gemini 3.1 Pro**. It is the stronger reasoner of the two available and this is an analysis job, not a code-writing job. Do **not** switch to the Claude agent in Antigravity — the whole point is an independent second opinion, and a second Claude checking the first Claude's work is worth much less to you.
 
-10. **Pull the branch in Antigravity:** `feature/ui-qa-polish`. Confirm it is at commit `475e4b4` or later.
-11. **Paste the prompt** — everything between the two `---` dividers above, starting at `/goal`.
-12. **Let it run.** It is told it has no time budget. Expect a long run if it is doing the job properly; a fast answer is a warning sign, not a good sign.
-13. **When it reports back, paste the whole report to me.** Do not act on it yourself — the last audit's report contained two false criticals and one fabricated number, and I will need to verify each finding against the code before anything changes.
+1. **Pull the branch in Antigravity:** `feature/ui-qa-polish`. Confirm it is at commit `4251681` or later.
+2. **Paste the prompt** — everything between the two `---` dividers above, starting at `/goal`.
+3. **Let it run.** It is told it has no time budget. Expect a long run if it is doing the job properly; a fast answer is a warning sign, not a good sign.
+4. **When it reports back, paste the whole report to me.** Do not act on it yourself — the last audit's report contained two false criticals and one fabricated number, and I will need to verify each finding against the code before anything changes.
 5. **What I need from you in parallel** (only you can do these — no sandbox has a real iPhone):
    - Load the site, press **ENTER THE HQ**, then **rotate to landscape**, then tap the hamburger and the X. Newest repro; the fix is unverified.
    - Landscape, **3+ tabs open**, scroll until Safari's tab bar collapses, then tap the hamburger **on the glyph**. If it still needs a low tap, roughly how far below — "half an icon", "a whole icon"?
