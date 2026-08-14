@@ -50,8 +50,19 @@ function extensionFor(contentType) {
  * Returns the public path, or null if anything went wrong — callers keep the
  * remote URL in that case rather than losing the item.
  */
-async function downloadMedia(url, id) {
+async function downloadMedia(url, id, existingByIchId) {
   if (!url) return null;
+
+  /*
+    ALREADY HAVE IT? DON'T REFETCH.
+
+    The media for a given post id never changes — Instagram does not let you
+    swap the photo on a published post. Only the URL's signature rotates. So
+    once a file exists for this id there is nothing to gain by pulling it
+    again, and at four runs a day that is 200 needless image downloads daily.
+  */
+  const existing = existingByIchId?.get(String(id));
+  if (existing) return `${MEDIA_PUBLIC_PATH}/${existing}`;
   try {
     const res = await fetch(url, {
       headers: {
@@ -95,6 +106,9 @@ async function downloadMedia(url, id) {
  * sync over.
  */
 async function pruneOrphanedMedia(items) {
+  /* One file per post — the cover. Carousel slides are not downloaded, so
+     anything on disk that is not a current post's cover is an orphan from a
+     previous run or from the revision that did download slides. */
   const keep = new Set(
     items
       .map((item) => item.localImage)
@@ -133,23 +147,77 @@ async function pruneOrphanedMedia(items) {
  */
 async function localiseMedia(items) {
   await fs.mkdir(MEDIA_DIR, { recursive: true });
+
+  /* id -> filename for everything already downloaded, read once rather than
+     stat-ing per item. */
+  const existingByIchId = new Map();
+  for (const filename of await fs.readdir(MEDIA_DIR).catch(() => [])) {
+    const id = filename.replace(/\.[^.]+$/, '');
+    existingByIchId.set(id, filename);
+  }
+
   let ok = 0;
+  let total = 0;
+  let fetched = 0;
   for (const item of items) {
-    const local = await downloadMedia(item.displayUrl, item.id);
+    total++;
+    const had = existingByIchId.has(String(item.id));
+    const local = await downloadMedia(item.displayUrl, item.id, existingByIchId);
+    if (local && !had) fetched++;
     if (local) {
       item.localImage = local;
       ok++;
     }
+
+    /*
+      ONLY THE POST'S COVER. Carousel slides are deliberately NOT downloaded.
+
+      An earlier revision fetched every child thumbnail, because the gallery
+      unpacked albums into one tile per slide. It no longer does — a post is
+      one tile, showing its cover (see getGalleryPosts in src/lib/instagram.ts
+      for why: a single ten-image post would otherwise fill the entire row).
+
+      Downloading the slides would mean committing 106 files instead of 50 for
+      this feed, every one of them for an image nothing renders.
+    */
   }
-  console.log(`[instagram] Downloaded ${ok}/${items.length} images to public/instagram/`);
+  console.log(
+    `[instagram] ${ok}/${total} post images available in public/instagram/ ` +
+      `(${fetched} newly downloaded, ${ok - fetched} already present)`
+  );
   await pruneOrphanedMedia(items);
-  if (ok < items.length) {
+  if (ok < total) {
     console.warn(
-      `[instagram] ${items.length - ok} item(s) kept their expiring remote URL and ` +
+      `[instagram] ${total - ok} image(s) kept their expiring remote URL and ` +
         `will break when it lapses. Re-run the sync to retry them.`
     );
   }
   return items;
+}
+
+/*
+  ─── DO NOT REWRITE THE FILE FOR A CHANGED SIGNATURE ────────────────────────
+
+  Instagram re-signs its CDN URLs on every fetch, so `displayUrl` differs on
+  every single sync even when the post, its caption and its image are all
+  identical. Writing that back means a commit, and a commit means a Cloudflare
+  rebuild — four times a day, for nothing.
+
+  The signature lives entirely in the query string, and none of it is content.
+  So the comparison is made against a normalised copy with query strings
+  dropped, and the file is only written when something real changed: a new
+  post, an edited caption, a post deleted.
+
+  The URLs are still STORED with their query strings — they remain the
+  fallback for an item whose download failed, and a signed URL without its
+  signature is useless. Only the CHANGE DETECTION ignores them.
+*/
+function stableShape(items) {
+  return JSON.stringify(items, (_key, value) =>
+    typeof value === 'string' && value.startsWith('https://')
+      ? value.split('?')[0]
+      : value
+  );
 }
 
 async function fetchInstagramMedia() {
@@ -277,6 +345,25 @@ async function run() {
       /* Download BEFORE writing the JSON: the file should never claim a
          `localImage` that is not on disk. */
       await localiseMedia(media);
+
+      /* Only write when something other than a URL signature moved — see
+         stableShape() above. */
+      let previous = null;
+      try {
+        previous = JSON.parse(await fs.readFile(outPath, 'utf8'));
+      } catch {
+        /* first run, or unreadable — fall through and write */
+      }
+
+      if (previous && stableShape(previous) === stableShape(media)) {
+        console.log(
+          `[instagram] No content change (only URL signatures moved). ` +
+            `Leaving src/data/instagram.json untouched so this does not ` +
+            `trigger a rebuild.`
+        );
+        return;
+      }
+
       await fs.writeFile(outPath, JSON.stringify(media, null, 2));
       console.log(`[instagram] ✓ Wrote to src/data/instagram.json`);
       console.log(`[instagram]   Remember to commit public/instagram/ along with it.`);

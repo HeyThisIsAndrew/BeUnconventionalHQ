@@ -230,5 +230,67 @@ test('the sync prunes images that have left the feed', () => {
   );
 });
 
+test('a quiet run does not rewrite the JSON (no needless rebuild)', () => {
+  assert.ok(
+    /function stableShape\(/.test(igSync),
+    'The sync must compare against a signature-normalised shape before writing.\n' +
+      '      Instagram re-signs its CDN URLs on every fetch, so displayUrl differs\n' +
+      '      every run even when nothing changed — writing that back means a\n' +
+      '      commit and a Cloudflare rebuild four times a day for nothing.',
+  );
+  assert.ok(
+    /stableShape\(previous\) === stableShape\(media\)[\s\S]{0,400}return;/.test(igSync),
+    'the equality check must return WITHOUT writing when only signatures moved.',
+  );
+});
+
+test('the signature normaliser ignores query strings but not content', () => {
+  /* Extracted and executed, not pattern-matched: this one is pure and its
+     behaviour is the whole point, so it is worth actually running. */
+  const body = igSync.slice(
+    igSync.indexOf('function stableShape'),
+    igSync.indexOf('async function fetchInstagramMedia')
+  );
+  const stableShape = new Function(body + '; return stableShape;')();
+
+  const base = [{ id: '1', caption: 'hello', displayUrl: 'https://cdn/x.jpg?oe=AAAA' }];
+  const resigned = [{ id: '1', caption: 'hello', displayUrl: 'https://cdn/x.jpg?oe=BBBB' }];
+  const edited = [{ id: '1', caption: 'edited', displayUrl: 'https://cdn/x.jpg?oe=AAAA' }];
+  const added = [...base, { id: '2', caption: 'new', displayUrl: 'https://cdn/y.jpg?oe=C' }];
+
+  assert.equal(stableShape(base), stableShape(resigned), 'a re-signed URL must compare EQUAL');
+  assert.notEqual(stableShape(base), stableShape(edited), 'an edited caption must compare different');
+  assert.notEqual(stableShape(base), stableShape(added), 'a new post must compare different');
+});
+
+test('media already on disk is not re-downloaded', () => {
+  assert.ok(
+    /existingByIchId/.test(igSync),
+    'localiseMedia() must index public/instagram/ once and skip ids it already\n' +
+      '      has. The media behind a post id never changes — only the URL signature\n' +
+      '      rotates — so refetching all 50 every run is 200 needless downloads a\n' +
+      '      day at the 6-hourly cadence.',
+  );
+});
+
+test('the Instagram schedule runs at least every 6 hours, offset from the others', () => {
+  const wf = fs.readFileSync(path.join(ROOT, '.github/workflows/sync-instagram.yml'), 'utf8');
+  const cron = (wf.match(/cron:\s*'([^']+)'/) || [])[1];
+  assert.ok(cron, 'no cron schedule found');
+  const [minute, hour] = cron.split(' ');
+  assert.match(
+    hour,
+    /^\*\/[1-6]$/,
+    `cron hour field is "${hour}"; the owner asked for at least every 6 hours.`,
+  );
+  assert.notEqual(
+    minute,
+    '0',
+    'offset the minute from :00 — sync-youtube and sync-articles both run there,\n' +
+      '      and three jobs racing for a runner and a rebuild at the same instant is\n' +
+      '      avoidable.',
+  );
+});
+
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);
 process.exit(failed === 0 ? 0 : 1);

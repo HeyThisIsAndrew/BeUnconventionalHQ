@@ -49,6 +49,7 @@ const gallery = fs.readFileSync(
   'utf8'
 );
 const sync = fs.readFileSync(path.join(ROOT, 'scripts/sync-instagram.mjs'), 'utf8');
+const flatten = fs.readFileSync(path.join(ROOT, 'src/lib/instagram.ts'), 'utf8');
 
 console.log('Instagram local media:');
 
@@ -149,6 +150,38 @@ test('the Instagram rail fallback outranks the component’s own background', ()
       '      Layout.astro already marks the container when an image fails — with\n' +
       '      no rule to match, the reader gets a raw broken-image glyph, which is\n' +
       '      exactly what was photographed in production.',
+  );
+});
+
+test('an album contributes ONE tile, not one per slide', () => {
+  assert.ok(
+    !/for \(const child of post\.children\)/.test(flatten),
+    'getGalleryPosts must not unpack CAROUSEL_ALBUM children into tiles.\n' +
+      '      The rail holds ten tiles; one ten-image post would fill all of them\n' +
+      '      and push every other post off the row. The feed already contains an\n' +
+      '      18-slide album, so this is not hypothetical.',
+  );
+  assert.ok(
+    /gallery\.push\(post\)/.test(flatten),
+    'each qualifying post must be pushed once, as itself, so the tile shows the\n' +
+      '      post cover (verified equal to the first slide on every album in the feed).',
+  );
+});
+
+test('posts are deduped by id, not by image URL', () => {
+  assert.ok(
+    /const key = post\.id \|\| post\.displayUrl/.test(flatten),
+    'dedupe must key on the post id. Keying on the image made an album\'s\n' +
+      '      identity ambiguous, and a signed CDN URL is not stable across a\n' +
+      '      re-sync anyway.',
+  );
+});
+
+test('the sync downloads covers only, not every slide', () => {
+  assert.ok(
+    !/child\.localThumbnail/.test(sync),
+    'carousel slides must not be downloaded — nothing renders them, and it\n' +
+      '      would commit 106 files instead of 50 for this feed.',
   );
 });
 

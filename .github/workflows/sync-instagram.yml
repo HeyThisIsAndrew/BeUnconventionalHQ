@@ -22,11 +22,28 @@
 # whatever Instagram does to its signatures afterwards, and the tiles stop
 # going through /api/proxy on every render.
 #
-# CADENCE. Daily, not hourly. Downloading the media is the expensive half, and
-# because the images are now local an out-of-date feed degrades to "a few days
-# behind" rather than "broken", so there is nothing to race. Cloudflare build
-# minutes are the constrained resource, which is why the commit step only runs
-# when something actually changed.
+# CADENCE: every 6 hours, on the owner's call ("a couple times a day, or at
+# least once every six hours"). Offset by 15 minutes from sync-youtube.yml and
+# sync-articles.yml, which both run at :00, so three jobs are not competing for
+# a runner and a rebuild at the same instant.
+#
+# THE API IS NOT THE CONSTRAINT. A run makes exactly THREE Graph API calls —
+# me/accounts, the Page's instagram_business_account field, and one media list
+# — so four runs a day is 12 calls against a ceiling measured in hundreds per
+# hour. There is no rate-limit risk at this cadence or several times it.
+#
+# WHAT IS CONSTRAINED is Cloudflare build minutes, and this cadence would have
+# burned them badly without two changes made alongside it:
+#
+#   1. Images already on disk are not re-downloaded. The media behind a post id
+#      never changes — only the URL's signature rotates — so a run fetches only
+#      genuinely new posts instead of all 50 every time.
+#   2. src/data/instagram.json is only rewritten when something other than a
+#      URL signature moved. Instagram re-signs on every fetch, so a naive sync
+#      produces a diff every run, which means a commit and a rebuild four times
+#      a day for no content change at all.
+#
+# Together those make a quiet run cost three API calls and produce no commit.
 #
 # INERT UNTIL CONFIGURED: if META_ACCESS_TOKEN is absent the job logs a skip
 # and exits green, matching sync-youtube.yml and daily-rebuild.yml.
@@ -34,7 +51,7 @@ name: Sync Instagram feed
 
 on:
   schedule:
-    - cron: '30 5 * * *' # Daily, offset from the other syncs to spread the load
+    - cron: '15 */6 * * *' # Every 6 hours, offset 15m from the other syncs
   workflow_dispatch:
     inputs:
       execute:
