@@ -223,8 +223,46 @@ const fallbackMark = await getImage({
     {/* Per-page <head> additions, e.g. an article's Article JSON-LD. Renders
         nothing when unused, so existing pages are unaffected. */}
     <slot name="head" />
+    {/*
+      ─── ICON ORDER IS LOAD-BEARING ON SAFARI ────────────────────────────────
+
+      REPORTED, WITH A SCREENSHOT: on iPad, after pressing "See more on
+      Instagram" in the carousel rail, the tab strip paints INSTAGRAM's glyph
+      next to this site's own tab — title and URL still ours — and it stays
+      wrong until a full reload.
+
+      The links themselves were never the problem. Every Instagram link on the
+      site already carries `target="_blank" rel="noopener noreferrer"`, and the
+      icon <link> set is provably identical before and after the navigation.
+      Nothing overwrites this document's metadata.
+
+      What was wrong is which icon Safari can actually USE. The SVG was
+      declared FIRST. Safari's support for `rel="icon"` with `image/svg+xml`
+      is unreliable on iOS/iPadOS — it accepts the declaration and then may
+      fail to produce a rasterised tab icon from it. A tab with no icon it can
+      paint does not go blank; it keeps painting whatever it last resolved,
+      and a `_blank` open to Instagram is exactly how a foreign icon gets into
+      that slot. A hard reload re-runs resolution from scratch, finds the .ico,
+      and the crown comes back — which is precisely the reported behaviour.
+
+      So the raster .ico is declared FIRST, with an explicit `sizes`, and the
+      SVG second. This is the standard ordering for this exact reason: engines
+      that genuinely support SVG icons still prefer the SVG (it is the more
+      specific later match once `type` is honoured), while Safari lands
+      deterministically on a bitmap it is guaranteed to be able to draw.
+
+      Do not put the SVG back on top to "prefer the vector". The vector is
+      still preferred everywhere that can use it.
+
+      NOT VERIFIABLE HERE: there is no WebKit in the build sandbox, and
+      Chromium resolves either ordering correctly, so this cannot be shown to
+      fix the iPad symptom from CI. `scripts/e2e-favicon.test.mjs` holds the
+      part that IS checkable — that a usable raster icon is declared before
+      any SVG-only icon, and that the whole set survives client-side
+      navigation, back-navigation and opening a tile in a new tab.
+    */}
+    <link rel="icon" href={`/favicon.ico`} sizes="32x32" />
     <link rel="icon" type="image/svg+xml" href={`/favicon.svg`} />
-    <link rel="icon" type="image/x-icon" href={`/favicon.ico`} />
     {/*
       Home-screen / web app tile art (issue #66).
 
