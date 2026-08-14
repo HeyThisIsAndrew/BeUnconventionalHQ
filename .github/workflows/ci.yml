@@ -119,3 +119,59 @@ jobs:
           path: .lighthouse-reports/
           include-hidden-files: true
           retention-days: 14
+
+  # ── Browser end-to-end suites ───────────────────────────────────────────────
+  #
+  # Nineteen Puppeteer suites that had NEVER run in CI. They were invoked by
+  # hand, which means in practice they ran when someone remembered — and
+  # several of them cover things that have already broken in production once:
+  # the landscape hero, the logo/wordmark split, the broken-image fallbacks,
+  # the splash scroll lock.
+  #
+  # A SEPARATE JOB, not extra steps on test-and-build, for two reasons: it
+  # takes ~7 minutes and would otherwise double the wait for the Lighthouse
+  # result, and it needs a browser download that the other job has no use for.
+  # Running in parallel keeps the fast feedback fast.
+  #
+  # scripts/e2e-run.mjs is what makes this viable as a gate at all — each suite
+  # boots its own worker and Chrome, and chained back to back they contend and
+  # time out. It waits for the port handover and retries a suite once, so a
+  # load flake does not turn the gate into noise everyone learns to ignore.
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      PUBLIC_DISABLE_ANALYTICS: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Puppeteer's own Chrome. `npm ci` fetches it into ~/.npm/_cacache via
+      # the postinstall, but the browser itself lands in ~/.cache/puppeteer,
+      # which the npm cache above does not cover — so it is cached explicitly
+      # rather than re-downloaded on every run.
+      - name: Cache Puppeteer browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chrome for Puppeteer
+        run: npx puppeteer browsers install chrome
+
+      # Same reasoning as the Lighthouse job: keep the real Turnstile key out
+      # of the pages the suites drive.
+      - name: Keep Turnstile out of the e2e build
+        run: echo "PUBLIC_TURNSTILE_SITE_KEY=" >> .env
+
+      - name: Production build
+        run: npm run build
+
+      - name: End-to-end suites
+        run: npm run test:e2e
