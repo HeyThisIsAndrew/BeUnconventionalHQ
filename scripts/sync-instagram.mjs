@@ -84,18 +84,32 @@ async function toStoredFormat(buffer, id) {
  * Returns the public path, or null if anything went wrong — callers keep the
  * remote URL in that case rather than losing the item.
  */
-async function downloadMedia(url, id, existingByIchId) {
+async function downloadMedia(url, id, existingByIchId, forceRefresh = false) {
   if (!url) return null;
 
   /*
-    ALREADY HAVE IT? DON'T REFETCH.
+    ALREADY HAVE IT? DON'T REFETCH — UNLESS ASKED TO.
 
-    The media for a given post id never changes — Instagram does not let you
-    swap the photo on a published post. Only the URL's signature rotates. So
-    once a file exists for this id there is nothing to gain by pulling it
-    again, and at four runs a day that is 200 needless image downloads daily.
+    At four scheduled runs a day, refetching all 50 covers every time is 200
+    needless downloads daily, so the default is to keep what is on disk and
+    let only the URL signature rotate.
+
+    ─── THE ASSUMPTION THIS USED TO MAKE, AND WHY IT WAS WRONG ───────────────
+
+    The original note here claimed "the media for a given post id never
+    changes — Instagram does not let you swap the photo on a published post."
+    That is true of a photo post and FALSE of a reel: the cover can be changed
+    after publishing, and the owner did exactly that after a reel published
+    without one and stored as a 894-byte near-black frame (640x1136, mean
+    brightness 2/255). Updating the cover on Instagram changed nothing on the
+    site, because this shortcut never looked again.
+
+    Comparing URLs cannot detect it — Instagram re-signs them every fetch, so
+    they always differ — and comparing content would mean downloading, which
+    is the cost the shortcut exists to avoid. So the escape hatch is explicit:
+    `--refresh-media` refetches everything, for the run where a cover changed.
   */
-  const existing = existingByIchId?.get(String(id));
+  const existing = forceRefresh ? undefined : existingByIchId?.get(String(id));
   /* Only skip a file already in the CURRENT stored format. Anything else is
      from before images were resized, and must be refetched so it is not left
      as a full-size original forever. */
@@ -185,8 +199,15 @@ async function pruneOrphanedMedia(items) {
  * is a good way to get rate-limited mid-sync and end up with a half-downloaded
  * feed.
  */
-async function localiseMedia(items) {
+async function localiseMedia(items, forceRefresh = false) {
   await fs.mkdir(MEDIA_DIR, { recursive: true });
+
+  if (forceRefresh) {
+    console.log(
+      '[instagram] --refresh-media: refetching every cover, ignoring what is ' +
+        'already on disk (use this when a reel cover changed).'
+    );
+  }
 
   /* id -> filename for everything already downloaded, read once rather than
      stat-ing per item. */
@@ -202,8 +223,8 @@ async function localiseMedia(items) {
   for (const item of items) {
     total++;
     const had = existingByIchId.has(String(item.id));
-    const local = await downloadMedia(item.displayUrl, item.id, existingByIchId);
-    if (local && !had) fetched++;
+    const local = await downloadMedia(item.displayUrl, item.id, existingByIchId, forceRefresh);
+    if (local && (!had || forceRefresh)) fetched++;
     if (local) {
       item.localImage = local;
       ok++;
@@ -310,10 +331,51 @@ async function fetchInstagramMedia() {
   const igId = igData.instagram_business_account.id;
   console.log(`[instagram] Found linked IG Account: ${igId}`);
 
-  // 3. Fetch the latest media (Limit 50 to keep build fast and payload small)
-  const mediaRes = await fetch(
-    `https://graph.facebook.com/v19.0/${igId}/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,children{id,media_type,media_url,thumbnail_url}&limit=50&access_token=${pageToken}`
-  );
+  /*
+    3. Fetch the latest media (limit 50 to keep the build fast and the payload
+       small).
+
+    ─── `is_shared_to_feed` IS THE WHOLE POINT OF THE EXTRA FIELDS ────────────
+
+    The brief: "if it's not present on my feed then it should not appear" in
+    the homepage carousel. Nothing already stored can answer that — every reel
+    has a `/reel/` permalink and `media_type: VIDEO` whether or not it is on
+    the profile grid, so the two cases are indistinguishable in the old shape.
+
+    The Graph API answers it directly. For a reel, `is_shared_to_feed` is true
+    when it appears in BOTH the Feed and Reels tabs, and false when it lives
+    in the Reels tab only — which is exactly the distinction being asked for.
+    `media_product_type` (FEED | REELS | AD | STORY) is stored alongside it as
+    the corroborating signal, and because it makes a surprising feed
+    diagnosable without another API round trip.
+
+    ─── AND WHY THE REQUEST IS TRIED TWICE ───────────────────────────────────
+
+    Field availability varies by account type and API version, and an
+    unrecognised field is a 400 for the WHOLE request — not a null column. So
+    a rejected field here would take down a sync that was working fine, on a
+    schedule, for a feature that is only an enhancement. The retry drops the
+    optional fields and carries on with exactly the old behaviour: no
+    `isSharedToFeed` recorded, so nothing gets filtered, so the carousel keeps
+    rendering what it renders today. Degrade, never fail.
+  */
+  const BASE_FIELDS =
+    'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,' +
+    'children{id,media_type,media_url,thumbnail_url}';
+  const OPTIONAL_FIELDS = 'is_shared_to_feed,media_product_type';
+
+  const mediaUrl = (fields) =>
+    `https://graph.facebook.com/v19.0/${igId}/media?fields=${fields}&limit=50&access_token=${pageToken}`;
+
+  let mediaRes = await fetch(mediaUrl(`${BASE_FIELDS},${OPTIONAL_FIELDS}`));
+  if (!mediaRes.ok) {
+    console.warn(
+      `[instagram] ! media request with feed-visibility fields returned ` +
+        `${mediaRes.status} ${mediaRes.statusText}. Retrying without them — ` +
+        `posts will not be filtered by feed visibility this run.`
+    );
+    mediaRes = await fetch(mediaUrl(BASE_FIELDS));
+  }
   if (!mediaRes.ok) throw new Error(`Failed to fetch media: ${mediaRes.statusText}`);
   const mediaData = await mediaRes.json();
 
@@ -348,6 +410,15 @@ async function fetchInstagramMedia() {
       videoUrl: item.media_type === 'VIDEO' ? item.media_url : undefined,
       permalink: item.permalink,
       timestamp: item.timestamp,
+      /*
+        Recorded ONLY when the API actually said so. `undefined` (the field was
+        not returned, or the retry above dropped it) must stay distinguishable
+        from an explicit `false`: the gallery hides false and keeps unknown, so
+        conflating them would silently empty the rail.
+      */
+      isSharedToFeed:
+        typeof item.is_shared_to_feed === 'boolean' ? item.is_shared_to_feed : undefined,
+      mediaProductType: item.media_product_type || undefined,
       children,
     });
     return acc;
@@ -356,6 +427,8 @@ async function fetchInstagramMedia() {
 
 async function run() {
   const isExecute = process.argv.includes('--execute');
+  /* Refetch covers already on disk. Off by default — see downloadMedia(). */
+  const forceRefresh = process.argv.includes('--refresh-media');
   const outPath = new URL('../src/data/instagram.json', import.meta.url);
 
   try {
@@ -371,6 +444,27 @@ async function run() {
 
     console.log(`[instagram] Fetched ${media.length} media items.`);
 
+    /*
+      Say out loud how many posts the carousel will hide, and why. This filter
+      is applied at RENDER time from stored data, so without this line the
+      first sync that returns `is_shared_to_feed` could quietly remove most of
+      the homepage rail and the only evidence would be the diff.
+    */
+    const hidden = media.filter((m) => m.isSharedToFeed === false).length;
+    const unknown = media.filter((m) => m.isSharedToFeed === undefined).length;
+    console.log(
+      `[instagram] Feed visibility: ${media.length - hidden - unknown} shared to feed, ` +
+        `${hidden} reels-tab only (will be hidden from the carousel), ` +
+        `${unknown} not reported by the API (kept — see getGalleryPosts).`
+    );
+    if (hidden > 0 && hidden === media.length) {
+      console.warn(
+        '[instagram] ! EVERY post reports is_shared_to_feed=false. The carousel ' +
+          'falls back to showing all posts rather than rendering an empty row — ' +
+          'check the account type before trusting this field.'
+      );
+    }
+
     if (media.length === 0) {
       console.warn(
         '[instagram] The API returned zero items. Refusing to overwrite\n' +
@@ -384,7 +478,7 @@ async function run() {
     if (isExecute) {
       /* Download BEFORE writing the JSON: the file should never claim a
          `localImage` that is not on disk. */
-      await localiseMedia(media);
+      await localiseMedia(media, forceRefresh);
 
       /* Only write when something other than a URL signature moved — see
          stableShape() above. */
