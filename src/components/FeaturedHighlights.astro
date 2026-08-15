@@ -56,8 +56,10 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
         // State matching
         const isActive = index === 0;
 
+        const isVideo = item.type === 'video' || item.contentType === 'video';
         return (
-          <button type="button" class={`fh-row ${isActive ? 'is-active' : ''}`} data-index={index} aria-pressed={isActive ? 'true' : 'false'}>
+          <button type="button" class={`fh-row ${isActive ? 'is-active' : ''} is-${isVideo ? 'video' : 'article'}`} data-index={index} aria-pressed={isActive ? 'true' : 'false'}>
+            <div class="fh-row-progress"></div>
             <div class="fh-row-thumb">
               <img src={src} srcset={srcset} alt={title} loading="lazy" decoding="async" />
             </div>
@@ -111,6 +113,19 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     opacity: 1;
     visibility: visible;
     z-index: 2;
+  }
+
+  .fh-row-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    background: var(--color-accent, #cc0000);
+    width: 100%;
+    transform: scaleX(0);
+    transform-origin: left;
+    z-index: 5;
+    /* Transition applied dynamically via JS to handle pause/resume/reset */
   }
 
   /* Ensure the existing ContentCard fills its new 50% container nicely */
@@ -221,6 +236,35 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
 </style>
 
 <script>
+  function loadYouTubeAPI() {
+    return new Promise((resolve) => {
+      const win = window as any;
+      if (win.YT && win.YT.Player) {
+        resolve(win.YT);
+        return;
+      }
+      if (win.onYouTubeIframeAPIReady) {
+        const oldCallback = win.onYouTubeIframeAPIReady;
+        win.onYouTubeIframeAPIReady = () => {
+          oldCallback();
+          resolve(win.YT);
+        };
+        return;
+      }
+      win.onYouTubeIframeAPIReady = () => {
+        resolve(win.YT);
+      };
+      const tag = document.createElement('script');
+      tag.src = "https://www.youtube.com/iframe_api";
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      if (firstScriptTag && firstScriptTag.parentNode) {
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+      } else {
+        document.head.appendChild(tag);
+      }
+    });
+  }
+
   function initFeaturedHighlights() {
     const section = document.querySelector('.featured-highlights');
     if (!section) return;
@@ -230,7 +274,23 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     if (rows.length === 0) return;
 
     let currentIndex = 0;
-    let autoPlayInterval: ReturnType<typeof setInterval>;
+    let autoPlayTimeout: ReturnType<typeof setTimeout> | null = null;
+    let isPaused = false;
+    let activePlayer: any = null;
+
+    function getDurationForIndex(index: number) {
+      const row = rows[index];
+      return row.classList.contains('is-video') ? 15000 : 7000;
+    }
+
+    function destroyActivePlayer() {
+      if (activePlayer && typeof activePlayer.destroy === 'function') {
+        activePlayer.destroy();
+      }
+      activePlayer = null;
+      section.querySelectorAll('.yt-player-target').forEach(el => el.remove());
+      section.querySelectorAll('.is-playing-inline').forEach(media => media.classList.remove('is-playing-inline'));
+    }
 
     function activateIndex(index: number) {
       if (index < 0 || index >= rows.length) return;
@@ -238,28 +298,62 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
       const row = rows[index];
       const targetId = row.getAttribute('data-index');
 
-      // Destroy any playing inline videos when switching slides
-      const playingIframes = section.querySelectorAll('.inline-video-frame');
-      const playingMedias = section.querySelectorAll('.is-playing-inline');
-      if (playingIframes.length > 0) {
-        playingIframes.forEach(iframe => iframe.remove());
-        playingMedias.forEach(media => media.classList.remove('is-playing-inline'));
-        // Re-attach hover listener that was removed to lock auto-play
-        section.addEventListener('mouseleave', startAutoPlay);
-      }
+      destroyActivePlayer();
 
-      // Update rows
       rows.forEach(r => {
         r.classList.remove('is-active');
         r.setAttribute('aria-pressed', 'false');
+        const progress = r.querySelector('.fh-row-progress') as HTMLElement;
+        if (progress) {
+          progress.style.opacity = '1';
+          progress.style.transition = 'none';
+          progress.style.transform = 'scaleX(0)';
+        }
       });
+
       row.classList.add('is-active');
       row.setAttribute('aria-pressed', 'true');
 
-      // Update hero cards
       heroCards.forEach(card => {
         if (card.getAttribute('data-index') === targetId) {
           card.classList.add('active');
+          const isVideo = row.classList.contains('is-video');
+          const videoBtn = card.querySelector('[data-action="inline-video"]');
+          const win = window as any;
+          if (isVideo && videoBtn && win.YT && win.YT.Player) {
+            const videoId = videoBtn.getAttribute('data-video-id');
+            const mediaContainer = card.querySelector('.content-card-media');
+            if (videoId && mediaContainer) {
+              const targetDiv = document.createElement('div');
+              targetDiv.className = 'yt-player-target';
+              targetDiv.style.position = 'absolute';
+              targetDiv.style.top = '0';
+              targetDiv.style.left = '0';
+              targetDiv.style.width = '100%';
+              targetDiv.style.height = '100%';
+              targetDiv.style.pointerEvents = 'none';
+              targetDiv.style.zIndex = '5'; // Above image, behind play button
+              mediaContainer.appendChild(targetDiv);
+              
+              activePlayer = new win.YT.Player(targetDiv, {
+                videoId: videoId,
+                playerVars: {
+                  autoplay: 1,
+                  controls: 0,
+                  mute: 1,
+                  modestbranding: 1,
+                  loop: 1,
+                  playlist: videoId,
+                  playsinline: 1
+                },
+                events: {
+                  onReady: (e: any) => {
+                    e.target.playVideo();
+                  }
+                }
+              });
+            }
+          }
         } else {
           card.classList.remove('active');
         }
@@ -269,86 +363,126 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     }
 
     function nextSlide() {
-      // Pause auto-advance if the global video modal is currently open
       const videoModal = document.getElementById('video-modal');
       if (videoModal && videoModal.classList.contains('active')) {
+        startAutoPlay();
         return;
       }
+      if (isPaused) return;
 
       const nextIndex = (currentIndex + 1) % rows.length;
       activateIndex(nextIndex);
+      startAutoPlay();
     }
 
     function startAutoPlay() {
       stopAutoPlay();
-      // 5 seconds auto-advance
-      autoPlayInterval = setInterval(nextSlide, 5000);
+      if (isPaused) return;
+
+      const duration = getDurationForIndex(currentIndex);
+      const row = rows[currentIndex];
+      const progress = row.querySelector('.fh-row-progress') as HTMLElement;
+      
+      if (progress) {
+        void progress.offsetWidth; // Force reflow
+        progress.style.transition = `transform ${duration}ms linear`;
+        progress.style.transform = 'scaleX(1)';
+      }
+
+      autoPlayTimeout = setTimeout(nextSlide, duration);
     }
 
     function stopAutoPlay() {
-      if (autoPlayInterval) {
-        clearInterval(autoPlayInterval);
+      if (autoPlayTimeout) {
+        clearTimeout(autoPlayTimeout);
+        autoPlayTimeout = null;
+      }
+      const row = rows[currentIndex];
+      if (row) {
+        const progress = row.querySelector('.fh-row-progress') as HTMLElement;
+        if (progress) {
+          const computedStyle = window.getComputedStyle(progress);
+          const matrix = computedStyle.transform;
+          progress.style.transition = 'none';
+          progress.style.transform = matrix !== 'none' ? matrix : 'scaleX(0)';
+        }
       }
     }
 
-    // Manual click on rows
     rows.forEach((row, index) => {
       row.addEventListener('click', () => {
+        isPaused = false;
+        section.addEventListener('mouseleave', resumeAutoPlay);
         activateIndex(index);
-        // Reset timer on manual click to give them a full 5 seconds to read
         startAutoPlay();
       });
     });
 
-    // Inline Video Player logic
     const inlineVideoButtons = section.querySelectorAll('[data-action="inline-video"]');
     inlineVideoButtons.forEach(button => {
       button.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
 
-        const videoId = button.getAttribute('data-video-id');
-        if (!videoId) return;
-
-        // Find the media container inside this specific card
         const mediaContainer = button.querySelector('.content-card-media') || button.closest('.content-card')?.querySelector('.content-card-media');
         if (!mediaContainer) return;
 
-        // Destroy any existing playing iframes globally in section
-        section.querySelectorAll('.inline-video-frame').forEach(iframe => iframe.remove());
-        section.querySelectorAll('.is-playing-inline').forEach(media => media.classList.remove('is-playing-inline'));
+        if (activePlayer && typeof activePlayer.unMute === 'function') {
+          activePlayer.unMute();
+          activePlayer.setVolume(100);
+          
+          const iframe = mediaContainer.querySelector('iframe');
+          if (iframe) {
+            iframe.style.pointerEvents = 'auto';
+          }
+          
+          mediaContainer.classList.add('is-playing-inline');
 
-        // Inject new iframe
-        const iframe = document.createElement('iframe');
-        iframe.className = 'inline-video-frame';
-        iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
-        iframe.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
-        iframe.allowFullscreen = true;
-        
-        mediaContainer.appendChild(iframe);
-        mediaContainer.classList.add('is-playing-inline');
-
-        // Permanently pause autoplay while video is playing
-        stopAutoPlay();
-        // Remove the mouseleave listener so it doesn't resume when mouse moves off player
-        section.removeEventListener('mouseleave', startAutoPlay);
+          isPaused = true;
+          stopAutoPlay();
+          section.removeEventListener('mouseleave', resumeAutoPlay);
+          
+          const row = rows[currentIndex];
+          if (row) {
+             const progress = row.querySelector('.fh-row-progress') as HTMLElement;
+             if (progress) progress.style.opacity = '0';
+          }
+        }
       });
     });
 
-    // Pause on hover for better UX (prevents switching while reading)
-    section.addEventListener('mouseenter', stopAutoPlay);
-    section.addEventListener('mouseleave', startAutoPlay);
+    function pauseAutoPlay() {
+      if (!isPaused) stopAutoPlay();
+    }
+    
+    function resumeAutoPlay() {
+      if (!isPaused) {
+        const row = rows[currentIndex];
+        if (row) {
+          const progress = row.querySelector('.fh-row-progress') as HTMLElement;
+          if (progress) {
+            progress.style.transition = 'none';
+            progress.style.transform = 'scaleX(0)';
+          }
+        }
+        startAutoPlay();
+      }
+    }
 
-    // Kickoff
-    startAutoPlay();
+    section.addEventListener('mouseenter', pauseAutoPlay);
+    section.addEventListener('mouseleave', resumeAutoPlay);
 
-    // Cleanup on page navigation
-    document.addEventListener('astro:before-swap', stopAutoPlay, { once: true });
+    loadYouTubeAPI().then(() => {
+      activateIndex(currentIndex);
+      startAutoPlay();
+    });
+
+    document.addEventListener('astro:before-swap', () => {
+      stopAutoPlay();
+      destroyActivePlayer();
+    }, { once: true });
   }
 
-  // Run on load
   document.addEventListener('DOMContentLoaded', initFeaturedHighlights);
-  
-  // Astro View Transitions support
   document.addEventListener('astro:page-load', initFeaturedHighlights);
 </script>
