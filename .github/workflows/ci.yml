@@ -226,27 +226,51 @@ jobs:
       - name: Install Chrome for Puppeteer
         run: npx puppeteer browsers install chrome
 
-      # ── NO "keep Turnstile out" STEP HERE. THAT IS DELIBERATE. ──────────────
+      # ── TURNSTILE: THE TEST KEY, NOT EMPTY AND NOT PRODUCTION'S ─────────────
       #
-      # The Lighthouse job writes an empty PUBLIC_TURNSTILE_SITE_KEY so the
-      # widget omits itself and its ~234 KB of challenge-platform script never
-      # lands in the pages being measured.
+      # Two suites pull in opposite directions here, and getting this wrong
+      # failed CI twice in a row — once each way.
       #
-      # Copying that step into this job broke the first green-ish e2e run:
-      # 19/20, with e2e-turnstile-lazy failing on
+      #   EMPTY KEY (copied from the Lighthouse job) → e2e-turnstile-lazy fails
       #
-      #   ✗ the newsletter widget container exists but nothing is rendered yet
-      #   TimeoutError: Waiting failed: 5000ms exceeded
+      #     ✗ the newsletter widget container exists but nothing is rendered yet
+      #     TimeoutError: Waiting failed: 5000ms exceeded
       #
-      # An empty key makes the widget omit ITSELF — that is the entire point of
-      # it in the other job — and e2e-turnstile-lazy exists precisely to test
-      # that widget's lazy-load behaviour. The step disabled the thing the
-      # suite tests, so the suite could never pass.
+      #   An empty key makes the widget omit ITSELF. That is exactly why the
+      #   Lighthouse job sets it — to keep ~234 KB of challenge-platform script
+      #   out of the pages it measures — but e2e-turnstile-lazy exists to test
+      #   that widget, so the step disabled the thing the suite tests.
       #
-      # These suites must drive the pages as PRODUCTION builds them. The key
-      # comes from wrangler.jsonc `vars` and is already public in the
-      # repository; the built pages here are served to a local preview and
-      # thrown away.
+      #   PRODUCTION KEY (from wrangler.jsonc) → e2e-newsletter-subscribe fails
+      #
+      #     BROWSER: [Cloudflare Turnstile] Error: 600010.
+      #     TimeoutError: Timed out after waiting 8000ms
+      #
+      #   600010 is "sitekey not valid for this domain". The production key is
+      #   registered for beunconventionalhq.com and the suites run against
+      #   localhost:4321, so Turnstile refuses to issue a token and the
+      #   subscribe flow waits forever.
+      #
+      # Cloudflare's documented ALWAYS-PASSES test key is the one thing that
+      # satisfies both: it renders (so the lazy-load suite has a widget to
+      # watch) and it is valid on ANY domain (so the subscribe suite gets a
+      # token). e2e-turnstile-lazy only asserts a sitekey is present, never a
+      # particular value, so nothing here is pinned to production's.
+      #
+      # Note this does NOT hide a real failure: it is not reachable from a dev
+      # sandbox that blocks challenges.cloudflare.com, which is why both suites
+      # pass locally with the production key — the server fails open when no
+      # token arrives. CI can reach Cloudflare, so CI sees the domain check.
+      #
+      # It goes through `.env` rather than the job env for the reason spelled
+      # out in the Lighthouse job: PUBLIC_TURNSTILE_SITE_KEY is in the
+      # astro:env schema, and @astrojs/cloudflare resolves those from
+      # wrangler.jsonc `vars`, which outranks process.env.
+      - name: Use Cloudflare's always-passes Turnstile test key
+        run: |
+          echo "PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA" >> .env
+          echo "TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA" >> .env
+
       - name: Production build
         run: npm run build
 

@@ -165,8 +165,46 @@ test('the e2e job does NOT blank the Turnstile site key', () => {
   const job = jobBlock('e2e');
   assert.ok(
     !/PUBLIC_TURNSTILE_SITE_KEY=\s*(\"|'|$)/m.test(job),
-    'The e2e job must not write an empty PUBLIC_TURNSTILE_SITE_KEY. It makes the\n' +
+    'The e2e job must not write an EMPTY PUBLIC_TURNSTILE_SITE_KEY. It makes the\n' +
       '      widget omit itself, and e2e-turnstile-lazy tests that widget.',
+  );
+});
+
+test('the e2e job uses the always-passes TEST key, not production\'s', () => {
+  /*
+    THE SECOND FAILURE, after removing the empty key. Production's key went in
+    instead, and e2e-newsletter-subscribe died:
+
+      BROWSER: [Cloudflare Turnstile] Error: 600010.
+      TimeoutError: Timed out after waiting 8000ms
+
+    600010 is "sitekey not valid for this domain". The production key is
+    registered for beunconventionalhq.com; the suites run on localhost:4321, so
+    Turnstile refuses a token and the subscribe flow waits forever.
+
+    Cloudflare's test key is the only value that satisfies BOTH suites: it
+    renders, so the lazy-load suite has a widget to watch, and it is valid on
+    any domain, so the subscribe suite gets a token.
+
+    Worth knowing why this cannot be caught locally: a dev sandbox that blocks
+    challenges.cloudflare.com never reaches the domain check, so both suites
+    pass there with the production key — the server fails open when no token
+    arrives. Only CI sees it.
+  */
+  const job = jobBlock('e2e');
+  assert.ok(
+    /PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA/.test(job),
+    "the e2e job must use Cloudflare's always-passes site key. Production's is\n" +
+      '      domain-locked to beunconventionalhq.com and fails with 600010 on localhost.',
+  );
+  const production = fs
+    .readFileSync(path.join(ROOT, 'wrangler.jsonc'), 'utf8')
+    .match(/"PUBLIC_TURNSTILE_SITE_KEY":\s*"([^"]+)"/)?.[1];
+  assert.ok(production, 'could not read the production site key from wrangler.jsonc');
+  assert.ok(
+    !job.includes(production),
+    `the e2e job must not pin production's site key (${production}) — it is\n` +
+      '      registered for beunconventionalhq.com and cannot issue a token on localhost.',
   );
 });
 
