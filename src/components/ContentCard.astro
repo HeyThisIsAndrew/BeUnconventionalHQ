@@ -73,7 +73,7 @@ if (variant === 'hero') {
     }
   }
 
-  let finalTags: string[] = [];
+  // Use the outer finalTags array
   if (tag1) finalTags.push(tag1);
   else if (parsedTags.length > 0) finalTags.push(parsedTags.shift() as string);
 
@@ -83,7 +83,8 @@ if (variant === 'hero') {
   if (tag3) finalTags.push(tag3);
   else if (parsedTags.length > 0) finalTags.push(parsedTags.shift() as string);
 
-  finalTags = finalTags.filter(Boolean);
+  // Keep only truthy elements and limit to 3 just to be safe
+  finalTags = finalTags.filter(Boolean).slice(0, 3);
 
   // Clean up any HTML tags if present (e.g., from article excerpts)
   if (typeof excerpt === 'string') {
