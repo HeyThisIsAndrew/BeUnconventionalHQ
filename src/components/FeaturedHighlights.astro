@@ -119,12 +119,12 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     position: absolute;
     bottom: 0;
     left: 0;
-    height: 2px;
+    height: 4px;
     background: var(--color-accent, #cc0000);
     width: 100%;
     transform: scaleX(0);
     transform-origin: left;
-    z-index: 5;
+    z-index: 10;
     /* Transition applied dynamically via JS to handle pause/resume/reset */
   }
 
@@ -256,6 +256,10 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
       };
       const tag = document.createElement('script');
       tag.src = "https://www.youtube.com/iframe_api";
+      tag.onerror = () => {
+        console.warn('YouTube Iframe API blocked. Falling back to static carousel.');
+        resolve(null);
+      };
       const firstScriptTag = document.getElementsByTagName('script')[0];
       if (firstScriptTag && firstScriptTag.parentNode) {
         firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
@@ -384,9 +388,15 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
       const progress = row.querySelector('.fh-row-progress') as HTMLElement;
       
       if (progress) {
-        void progress.offsetWidth; // Force reflow
-        progress.style.transition = `transform ${duration}ms linear`;
-        progress.style.transform = 'scaleX(1)';
+        progress.style.transition = 'none';
+        progress.style.transform = 'scaleX(0)';
+        
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            progress.style.transition = `transform ${duration}ms linear`;
+            progress.style.transform = 'scaleX(1)';
+          });
+        });
       }
 
       autoPlayTimeout = setTimeout(nextSlide, duration);
