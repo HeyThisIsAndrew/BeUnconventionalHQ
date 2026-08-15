@@ -6,11 +6,22 @@ import { LABELS } from '../data/content.js';
 export interface Props {
   item: any;
   index: number;
+  variant?: 'default' | 'hero';
 }
 
-const { item, index = 0 } = Astro.props;
+const { item, index = 0, variant = 'default' } = Astro.props;
 
 if (!item) return;
+
+let excerpt = '';
+if (variant === 'hero') {
+  // Use preview/excerpt for articles, or description for videos
+  excerpt = item.preview || item.excerpt || item.description || '';
+  // Clean up any HTML tags if present (e.g., from article excerpts)
+  if (typeof excerpt === 'string') {
+    excerpt = excerpt.replace(/<[^>]*>?/gm, '').trim();
+  }
+}
 
 const isVideo = item.contentType === 'video' || item.type === 'video';
 const videoId = isVideo ? parseVideoId(item.link || '') : null;
@@ -66,7 +77,7 @@ const externalLinkProps = isExternalLink
 const CardWrapper = isPlayable ? 'div' : 'a';
 const wrapperProps = isPlayable
   ? {
-      class: "reveal video-card-home content-card w-full",
+      class: `reveal video-card-home content-card w-full variant-${variant}`,
       'data-delay': index * 100,
       'data-type': 'video',
       'data-categories': lowerTags.join(','),
@@ -79,7 +90,7 @@ const wrapperProps = isPlayable
   : {
       href: cardHref,
       ...externalLinkProps,
-      class: `reveal video-card-home content-card w-full`,
+      class: `reveal video-card-home content-card w-full variant-${variant}`,
       'data-categories': lowerTags.join(','),
       'data-type': isVideo ? 'video' : 'article',
       'data-delay': index * 100
@@ -156,6 +167,10 @@ const wrapperProps = isPlayable
 
     <h3 class="content-card-title">{item.title}</h3>
 
+    {variant === 'hero' && excerpt && (
+      <p class="content-card-excerpt">{excerpt}</p>
+    )}
+
     <span class="watch-now-btn">
       {isVideo ? LABELS.watchNow : LABELS.readNow}{' '}
       <span class="content-card-arrow" aria-hidden="true">&rarr;</span>
@@ -163,3 +178,28 @@ const wrapperProps = isPlayable
     </span>
   </div>
 </CardWrapper>
+
+<style>
+  .content-card-excerpt {
+    font-family: var(--font-body, 'Inter', sans-serif);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.75);
+    margin: 0.5rem 0 1rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Lock hero heights to prevent layout jumping when switching active items */
+  .variant-hero .content-card-excerpt {
+    height: 4.5em; /* Exactly 3 lines at 1.5 line-height */
+  }
+
+  .variant-hero :global(.content-card-title) {
+    -webkit-line-clamp: 2;
+    height: 2.8em; /* Exactly 2 lines at 1.4 line-height */
+    margin-bottom: 0.5rem;
+  }
+</style>

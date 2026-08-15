@@ -64,6 +64,12 @@ export const SECTIONS = {
     primary: 'What We',
     secondary: 'Cover',
   },
+  /** The 50/50 split featured highlights section on the homepage. */
+  featuredHighlights: {
+    kicker: 'Editorial Depth',
+    primary: 'Featured',
+    secondary: 'Highlights',
+  },
   /** The article row on the homepage. */
   /*
     The homepage article row.

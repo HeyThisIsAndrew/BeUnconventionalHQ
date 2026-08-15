@@ -1,0 +1,284 @@
+---
+import ContentCard from './ContentCard.astro';
+import { getVideosUnified } from '../lib/videos-source';
+import { getPublishedArticles, articleHref } from '../lib/articles';
+import { getCardImageSources } from '../lib/card-images';
+
+const allVideos = await getVideosUnified();
+const allArticles = getPublishedArticles();
+
+const FLAGSHIP_VIDEOS = [
+  'yLYtMt0h3uA', // Mortal Kombat 2 Review
+  'fPQ_8fCuE50', // Spider-Man: Brand New Day
+  '4rTMi6E5nrc'  // Wolverine
+];
+
+const videos = FLAGSHIP_VIDEOS.map(id => allVideos.find(v => v.youtubeId === id)).filter(Boolean);
+
+// Pick the first published article
+let article = allArticles.length > 0 ? allArticles[0] : null;
+
+if (article) {
+  // Override the Substack link with the local Intel page link
+  article = { ...article, link: articleHref(article) };
+}
+
+// Mix them into a single highlighted list and sort by date descending
+const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: any) => {
+  const dateA = new Date(a.publishedAt || a.isoDate || a.date).getTime();
+  const dateB = new Date(b.publishedAt || b.isoDate || b.date).getTime();
+  return dateB - dateA;
+});
+---
+
+<div class="featured-highlights animate-on-scroll">
+  <div class="fh-layout">
+    <!-- Left Side: 50% width, single large focused tile -->
+    <div class="fh-left">
+      {highlightedItems.map((item, index) => (
+        <div class={`fh-hero-card ${index === 0 ? 'active' : ''}`} data-index={index}>
+          <ContentCard item={item} index={index} variant="hero" />
+        </div>
+      ))}
+    </div>
+    
+    <!-- Right Side: 50% width, vertical list -->
+    <div class="fh-right">
+      {highlightedItems.map((item: any, index: number) => {
+        if (!item) return null;
+        const title = item.title;
+        const badge = item.category || (item.type === 'video' || item.contentType === 'video' ? 'Video' : 'Article');
+        
+        // Use the existing utility to get the best thumbnail
+        const rawImage = item.image ?? item.thumbnail;
+        const { src, srcset } = getCardImageSources(rawImage);
+
+        // State matching
+        const isActive = index === 0;
+
+        return (
+          <button type="button" class={`fh-row ${isActive ? 'is-active' : ''}`} data-index={index} aria-pressed={isActive ? 'true' : 'false'}>
+            <div class="fh-row-thumb">
+              <img src={src} srcset={srcset} alt={title} loading="lazy" decoding="async" />
+            </div>
+            <div class="fh-row-info">
+              <span class="fh-row-badge">{badge}</span>
+              <h4 class="fh-row-title">{title}</h4>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  </div>
+</div>
+
+<style>
+  .featured-highlights {
+    width: 100%;
+    margin-top: 1rem;
+  }
+  
+  .fh-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  /* 50/50 Split on Desktop */
+  @media (min-width: 1024px) {
+    .fh-layout {
+      grid-template-columns: 1fr 1fr;
+      align-items: stretch; /* Forces equal height columns */
+    }
+  }
+
+  .fh-left {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  /* Render all cards but hide the inactive ones */
+  .fh-hero-card {
+    display: none;
+    height: 100%;
+    animation: fadeIn 0.4s ease forwards;
+  }
+
+  .fh-hero-card.active {
+    display: block;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Ensure the existing ContentCard fills its new 50% container nicely */
+  .fh-left :global(.video-card-home) {
+    height: 100%;
+    margin: 0;
+  }
+
+  .fh-right {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    gap: 1rem;
+  }
+
+  .fh-row {
+    flex: 1; /* Stretch rows to evenly fill height */
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    text-align: left;
+    cursor: pointer;
+    color: var(--color-white, #ffffff);
+    transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+  }
+
+  .fh-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--color-accent, #cc0000);
+    box-shadow: 0 10px 30px rgba(204, 0, 0, 0.15);
+  }
+
+  .fh-row.is-active {
+    border-color: var(--color-accent, #cc0000);
+    background: rgba(204, 0, 0, 0.08);
+    box-shadow: 0 10px 30px rgba(204, 0, 0, 0.15);
+  }
+
+  .fh-row-thumb {
+    width: 140px;
+    height: 100%; /* Fill the flex item */
+    max-height: 90px; /* Prevent it from getting absurdly tall if rows stretch a lot */
+    aspect-ratio: 16 / 9;
+    flex-shrink: 0;
+    overflow: hidden;
+    background: #111;
+  }
+
+  .fh-row-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .fh-row-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .fh-row-badge {
+    font-family: var(--font-body, 'Inter', sans-serif);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--color-accent, #cc0000);
+  }
+
+  .fh-row-title {
+    margin: 0;
+    font-family: var(--font-display, 'Syne', sans-serif);
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+</style>
+
+<script>
+  function initFeaturedHighlights() {
+    const section = document.querySelector('.featured-highlights');
+    if (!section) return;
+
+    const rows = Array.from(section.querySelectorAll('.fh-row'));
+    const heroCards = section.querySelectorAll('.fh-hero-card');
+    if (rows.length === 0) return;
+
+    let currentIndex = 0;
+    let autoPlayInterval: ReturnType<typeof setInterval>;
+
+    function activateIndex(index: number) {
+      if (index < 0 || index >= rows.length) return;
+      
+      const row = rows[index];
+      const targetId = row.getAttribute('data-index');
+
+      // Update rows
+      rows.forEach(r => {
+        r.classList.remove('is-active');
+        r.setAttribute('aria-pressed', 'false');
+      });
+      row.classList.add('is-active');
+      row.setAttribute('aria-pressed', 'true');
+
+      // Update hero cards
+      heroCards.forEach(card => {
+        if (card.getAttribute('data-index') === targetId) {
+          card.classList.add('active');
+        } else {
+          card.classList.remove('active');
+        }
+      });
+      
+      currentIndex = index;
+    }
+
+    function nextSlide() {
+      // Pause auto-advance if the global video modal is currently open
+      const videoModal = document.getElementById('video-modal');
+      if (videoModal && videoModal.classList.contains('active')) {
+        return;
+      }
+
+      const nextIndex = (currentIndex + 1) % rows.length;
+      activateIndex(nextIndex);
+    }
+
+    function startAutoPlay() {
+      stopAutoPlay();
+      // 5 seconds auto-advance
+      autoPlayInterval = setInterval(nextSlide, 5000);
+    }
+
+    function stopAutoPlay() {
+      if (autoPlayInterval) {
+        clearInterval(autoPlayInterval);
+      }
+    }
+
+    // Manual click
+    rows.forEach((row, index) => {
+      row.addEventListener('click', () => {
+        activateIndex(index);
+        // Reset timer on manual click to give them a full 5 seconds to read
+        startAutoPlay();
+      });
+    });
+
+    // Pause on hover for better UX and performance
+    section.addEventListener('mouseenter', stopAutoPlay);
+    section.addEventListener('mouseleave', startAutoPlay);
+
+    // Kickoff
+    startAutoPlay();
+  }
+
+  // Run on load
+  document.addEventListener('DOMContentLoaded', initFeaturedHighlights);
+  
+  // Astro View Transitions support
+  document.addEventListener('astro:page-load', initFeaturedHighlights);
+</script>
