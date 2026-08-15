@@ -84,8 +84,8 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     gap: 2rem;
   }
 
-  /* 50/50 Split on Desktop */
-  @media (min-width: 1024px) {
+  /* 50/50 Split on Desktop & Landscape Tablet */
+  @media (min-width: 768px) {
     .fh-layout {
       grid-template-columns: 1fr 1fr;
       align-items: stretch; /* Forces equal height columns */
@@ -274,6 +274,9 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
 
     // Kickoff
     startAutoPlay();
+
+    // Cleanup on page navigation
+    document.addEventListener('astro:before-swap', stopAutoPlay, { once: true });
   }
 
   // Run on load
