@@ -2,6 +2,7 @@
 import { parseVideoId } from '../lib/platforms/youtube';
 import { getCardImageSources, CARD_IMAGE_SIZES } from '../lib/card-images';
 import { LABELS } from '../data/content.js';
+import logoImage from '../assets/logo-mark.webp';
 
 export interface Props {
   item: any;
@@ -143,6 +144,10 @@ const wrapperProps = isPlayable
     )}
 
     {isVideo && (
+      <img src={logoImage.src} alt="Be Unconventional logo" class="video-watermark-logo" aria-hidden="true" />
+    )}
+
+    {isVideo && (
       <div class="play-button-wrapper" aria-hidden="true">
         <div class="cinematic-play-button">
           <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
@@ -217,6 +222,33 @@ const wrapperProps = isPlayable
     border: none;
     z-index: 0;
     background: black;
+  }
+
+  /* Watermark Logo */
+  .video-watermark-logo {
+    position: absolute;
+    bottom: 0.75rem;
+    left: 0.75rem;
+    width: auto;
+    height: 24px;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.8));
+  }
+
+  /* Move to top left for Hero cards since text covers bottom left */
+  :global(.variant-hero) .video-watermark-logo {
+    bottom: auto;
+    top: 2rem;
+    left: 2rem;
+    height: 36px;
+  }
+
+  /* Only show watermark when video is actively playing inline */
+  :global(.is-playing-inline) .video-watermark-logo {
+    opacity: 0.8;
   }
   
   /* Hide the underlying image and play button when video is playing */
