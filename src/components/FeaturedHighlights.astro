@@ -375,6 +375,15 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
                           logo.style.opacity = '0.8';
                         }
                       }, 1500);
+                    } else if (e.data === win.YT.PlayerState.PAUSED || e.data === win.YT.PlayerState.ENDED) {
+                      // Hide the iframe immediately to hide YouTube's messy paused UI (More videos, title bar, etc.)
+                      const iframe = mediaContainer.querySelector('iframe');
+                      if (iframe) iframe.style.opacity = '0';
+                      
+                      const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
+                      if (logo) logo.style.opacity = '0';
+                      
+                      mediaContainer.classList.remove('is-playing-inline');
                     }
                   }
                 }
@@ -461,6 +470,7 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
         if (!mediaContainer) return;
 
         if (activePlayer && typeof activePlayer.unMute === 'function') {
+          activePlayer.playVideo();
           activePlayer.unMute();
           activePlayer.setVolume(100);
           
