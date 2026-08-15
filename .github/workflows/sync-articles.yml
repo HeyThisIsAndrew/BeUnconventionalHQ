@@ -35,14 +35,30 @@ jobs:
             npm run sync-articles -- --execute
           fi
 
-      - name: Commit and push if articles.json changed
+      # Build local renditions for any image the new articles introduced.
+      #
+      # Runs AFTER the article sync and unconditionally, not only when
+      # articles.json changed: a previous run can legitimately have skipped an
+      # image whose host was briefly unreachable, and that image should be
+      # picked up on the next run rather than waiting for the next new post.
+      #
+      # It is non-fatal by construction — an image it cannot fetch keeps its
+      # original URL and the page renders as it does today — so it must not be
+      # able to fail this job. See scripts/sync-article-images.mjs.
+      - name: Build article image renditions
+        run: npm run sync:article-images -- --execute || echo "article-image sync degraded; originals still render"
+
+      - name: Commit and push if anything changed
         run: |
-          if git diff --quiet -- src/data/articles.json; then
+          if git diff --quiet -- src/data/articles.json src/data/article-images.json public/article-images; then
             echo "No changes — nothing to sync."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add src/data/articles.json
+          # The manifest references files in public/article-images/ by path, so
+          # committing one without the other ships 404s where a working remote
+          # URL used to be.
+          git add src/data/articles.json src/data/article-images.json public/article-images
           git commit -m "chore: automated Substack articles sync" -m "Synced by the sync-articles.yml workflow (run ${{ github.run_id }})."
           git push origin HEAD:${{ github.ref }}

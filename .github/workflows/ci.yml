@@ -120,6 +120,67 @@ jobs:
           include-hidden-files: true
           retention-days: 14
 
+  # ── What production actually serves ─────────────────────────────────────────
+  #
+  # REPORTING ONLY. This job never fails the build, and that is deliberate.
+  #
+  # The gate above builds with PUBLIC_DISABLE_ANALYTICS=true, so it has never
+  # measured GTM, gtag or the Cloudflare beacon — and production serves all
+  # three. That is why the gate reports 96-100 while a real desktop run of
+  # production came back at 88:
+  #
+  #   Performance 88 | FCP 0.5s | LCP 0.7s | TBT 280ms | CLS 0.002 | SI 1.1s
+  #
+  # Every metric is excellent except TBT, which is 30% of the desktop score.
+  # The 280ms is third-party analytics on the main thread.
+  #
+  # The decision taken, deliberately: analytics keeps loading immediately.
+  # Deferring it until first interaction would recover most of those points but
+  # would stop counting visitors who leave without interacting, and the owner
+  # is growing an audience and needs that data. So this does not gate — it
+  # MEASURES, so the gap between what CI checks and what a reader gets is
+  # visible in every run instead of being discovered from a PageSpeed
+  # screenshot months later.
+  #
+  # `continue-on-error` on the job, not just the step: the point is a number in
+  # the log and an artifact, never a red X someone has to triage.
+  lighthouse-production-equivalent:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Turnstile is still kept out — it is a per-page widget cost that is
+      # being attacked in the app rather than measured here, and leaving the
+      # real site key in would put it in every built page.
+      - name: Keep Turnstile out
+        run: echo "PUBLIC_TURNSTILE_SITE_KEY=" >> .env
+
+      # NOTE: no PUBLIC_DISABLE_ANALYTICS. That omission is the entire purpose
+      # of this job.
+      - name: Build with analytics enabled
+        run: npm run build
+
+      - name: Lighthouse — desktop, analytics on (reporting only)
+        run: npm run lighthouse -- --desktop || true
+
+      - name: Upload production-equivalent reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports-production-equivalent
+          path: .lighthouse-reports-desktop/
+          include-hidden-files: true
+          retention-days: 14
+
   # ── Browser end-to-end suites ───────────────────────────────────────────────
   #
   # Nineteen Puppeteer suites that had NEVER run in CI. They were invoked by

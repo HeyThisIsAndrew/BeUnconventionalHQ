@@ -22,6 +22,11 @@ import {
   mergeSnapshot,
 } from '../src/lib/articles-transform.ts';
 import { imageFingerprint, stripCoverImageFromBody } from '../src/lib/article-media.ts';
+import {
+  ALREADY_OPTIMISED,
+  lookupRendition,
+  rewriteBodyImages,
+} from '../src/lib/article-images-transform.ts';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -513,74 +518,216 @@ test('no cover image means the body is returned unchanged', () => {
 });
 
 /*
-  ─── ARTICLE-PAGE IMAGES MUST NOT GO THROUGH A RESIZING PROXY ───────────────
+  ─── ARTICLE-PAGE IMAGES MUST NOT GO THROUGH A LIVE PROXY ───────────────────
 
   THE INCIDENT
   A performance pass rewrote the article hero AND every body <img> to wsrv.nl
-  renditions, and marked the body ones lazy. Reported from a real phone on the
-  preview deploy: the Spider-Man review's gallery images were blank, and STAYED
-  blank while sliding through them.
+  renditions. Reported from a real phone on the preview deploy: the Spider-Man
+  review's gallery images were blank, and STAYED blank while sliding through
+  them.
 
-  WHY IT WAS SO MUCH WORSE, NOT BETTER
-    • wsrv.nl is a free shared proxy with a cold cache. A first request means
-      fetching a ~1 MB 3840x2160 JPEG from S3, decoding, resizing and
-      re-encoding — once per URL AND per srcset width. Substack's own CDN
-      already holds warm renditions of exactly these images.
+  WHY IT WAS WORSE, NOT BETTER
+    • wsrv.nl has a cold cache. A first request meant fetching a ~1 MB
+      3840x2160 JPEG from S3, decoding, resizing and re-encoding — once per
+      URL AND per srcset width.
     • SubstackGallery's lightbox sets `img.src` on every slide, with no srcset
       and no preloading, so each swipe triggered a fresh cold transcode.
-    • The hero is eager and above the fold, so the cold wait landed on the
-      masthead, where a reader has nothing else to look at.
+    • The hero is eager and above the fold, so the wait landed on the masthead.
 
-  AND IT WAS NEVER WORTH ANYTHING. The Lighthouse gate audits `/`, `/feed`,
-  `/intel`, `/events`, `/featured` and `/about` — NO article page is in it. So
-  the whole trade was unmeasured by construction, while the rendition work on
-  the audited pages (the /intel feature image, rail thumbs, /feed cards) is
-  real and stays.
+  WHAT IS ALLOWED NOW, AND WHY IT IS NOT THE SAME THING
+  The images are rewritten again — but to renditions built ahead of time by
+  scripts/sync-article-images.mjs and COMMITTED to public/article-images/. A
+  local file cannot be cold, cannot expire, cannot rate-limit and cannot 403.
+  The failure mode above requires a live third-party transcoder in the request
+  path, and there no longer is one.
 
-  The rule this pins: on an article page, serve the URL Substack gave us. A
-  large image that starts loading immediately beats a small one that starts in
-  three seconds. If article images are ever optimised again, it has to be with
-  something warm — build-time renditions, or Substack's own CDN — not a cold
-  third-party hop.
+  So these guards pin the actual rule rather than the shape of the old code:
+  an article image is either a committed local rendition or the URL Substack
+  gave us. Never a proxy.
 */
-const articlePage = fs.readFileSync(
-  path.join(ROOT, 'src/pages/intel/[slug].astro'),
-  'utf8'
+/*
+  Comments stripped before ANY of these match.
+
+  The first version of this guard failed against correct code, because the
+  explanation above the rewrite names wsrv.nl as the thing that was reverted —
+  so the guard matched its own prose. That is not a small annoyance: a guard
+  that reads comments is a guard that can be satisfied, or broken, by editing a
+  sentence. The identical mistake was made once already in
+  instagram-local-media.test.mjs and is called out in its header.
+*/
+function stripComments(source) {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    /* `(?<![:/])` so `https://…` inside real code is not mistaken for a
+       line comment and used to swallow the rest of the line. */
+    .replace(/(?<![:/])\/\/[^\n]*/g, '');
+}
+
+const articlePage = stripComments(
+  fs.readFileSync(path.join(ROOT, 'src/pages/intel/[slug].astro'), 'utf8')
+);
+const articleImagesLib = stripComments(
+  fs.readFileSync(path.join(ROOT, 'src/lib/article-images.ts'), 'utf8')
+) + stripComments(
+  fs.readFileSync(path.join(ROOT, 'src/lib/article-images-transform.ts'), 'utf8')
 );
 
-test('the article hero is served from Substack, not a proxy rendition', () => {
-  const hero = articlePage.slice(
-    articlePage.indexOf('class="article-hero"'),
-    articlePage.indexOf('class="article-hero"') + 400
-  );
-  assert.ok(hero.includes('src={article.image}'), 'the hero must render article.image directly');
+test('no article-page image is routed through a live resizing proxy', () => {
   assert.ok(
-    !/getCardImageSources/.test(hero),
-    'the hero must not be routed through the rendition helper — it resolves to\n' +
-      '      a cold wsrv.nl transcode of a 4K original, on the eager, above-the-fold\n' +
-      '      element where the reader has nothing else to look at.',
+    !/wsrv\.nl/.test(articlePage) && !/wsrv\.nl/.test(articleImagesLib),
+    'wsrv.nl must not appear anywhere in the article-page path. It is a free\n' +
+      '      shared proxy with a cold cache, and putting it behind the gallery\n' +
+      '      lightbox is what produced "blank while sliding" on a phone.',
   );
-});
-
-test('the article body html is passed through untouched', () => {
-  assert.ok(
-    !/optimiseBodyImages/.test(articlePage),
-    'body images must not be rewritten. The gallery lightbox reassigns img.src\n' +
-      '      per slide, so a proxied src means a cold transcode per swipe — which is\n' +
-      '      what was photographed as "blank while sliding" on a phone.',
-  );
-  assert.ok(
-    /buildToc\(dedupedBody\)/.test(articlePage),
-    'buildToc must receive the deduped body directly, with no rewrite between.',
-  );
-});
-
-test('no article-page image is routed through wsrv.nl', () => {
   assert.ok(
     !/getCardImageSources/.test(articlePage),
-    'nothing on the article page should reach the rendition helper: for a\n' +
-      '      Substack S3 upload it returns a wsrv.nl URL, and no article page is in\n' +
-      '      the Lighthouse gate, so it buys no score to offset the risk.',
+    'the card rendition helper must not be used here: for a Substack S3 upload\n' +
+      '      it returns a wsrv.nl URL, which is exactly the reverted behaviour.',
+  );
+});
+
+test('the hero falls back to the original when there is no local rendition', () => {
+  const hero = articlePage.slice(
+    articlePage.indexOf('class="article-hero"'),
+    articlePage.indexOf('class="article-hero"') + 500
+  );
+  assert.ok(
+    /heroImageSources\?\.src \|\| article\.image/.test(hero),
+    'the hero `src` must be `local || article.image`. Without the fallback, an\n' +
+      '      article published between syncs — or a checkout where the sync has never\n' +
+      '      run — renders an empty src, which resolves to the page URL itself.',
+  );
+});
+
+test('the body transform is applied to the html that is actually rendered', () => {
+  assert.ok(
+    /const bodyWithLocalImages = localiseBodyImages\(dedupedBody\)/.test(articlePage),
+    'body images must be localised from the DEDUPED body',
+  );
+  assert.ok(
+    /buildToc\(bodyWithLocalImages\)/.test(articlePage),
+    'buildToc must receive the localised body, or the contents rail is built\n' +
+      '      from different html than the page renders.',
+  );
+});
+
+const FIXTURE_MANIFEST = {
+  'https://s3.example/big_3840x2160.jpeg': {
+    src: '/article-images/abc-720.webp',
+    srcset: '/article-images/abc-480.webp 480w, /article-images/abc-720.webp 720w',
+  },
+};
+const fixtureLookup = (url) => lookupRendition(FIXTURE_MANIFEST, url);
+
+test('a known image is rewritten to its committed rendition', () => {
+  const html = '<figure><img src="https://s3.example/big_3840x2160.jpeg" alt="x"></figure>';
+  const out = rewriteBodyImages(html, fixtureLookup);
+  assert.ok(out.includes('src="/article-images/abc-720.webp"'), 'src must be the local file');
+  assert.ok(out.includes('srcset="/article-images/abc-480.webp 480w'), 'srcset must be added');
+  assert.ok(out.includes('loading="lazy"'), 'body images are below the fold');
+  assert.ok(!out.includes('s3.example'), 'the original URL must be gone');
+  assert.ok(out.includes('alt="x"'), 'other attributes must survive');
+});
+
+test('a URL with no manifest entry is returned BYTE-IDENTICAL', () => {
+  /* The safety property: this can make things faster, never broken. */
+  for (const html of [
+    '<figure><img src="https://unknown.example/a.jpg" alt="x"></figure>',
+    '<img src="/local/a.png">',
+    '<img src="data:image/png;base64,AA">',
+    '<img alt="no src">',
+  ]) {
+    assert.equal(rewriteBodyImages(html, fixtureLookup), html);
+  }
+  assert.equal(lookupRendition(FIXTURE_MANIFEST, 'https://unknown.example/a.jpg'), null);
+  for (const bad of ['', null, undefined, 42]) {
+    assert.equal(lookupRendition(FIXTURE_MANIFEST, bad), null);
+  }
+});
+
+test('an already-optimised substackcdn URL is deliberately left alone', () => {
+  /* Those carry w_1456,c_limit,f_auto,q_auto:good — already renditions on a
+     warm CDN, and not where the weight is. Localising them would add repo
+     weight to fix nothing. */
+  const url =
+    'https://substackcdn.com/image/fetch/$s_!QE3h!,w_1456,c_limit,f_auto,q_auto:good/https%3A%2F%2Fx.jpg';
+  assert.ok(ALREADY_OPTIMISED.test(url));
+  assert.equal(
+    lookupRendition({ [url]: { src: '/article-images/x-720.webp' } }, url),
+    null,
+    'even WITH a manifest entry it must be skipped, or the sync and the lookup\n' +
+      '      disagree and a downloaded file is never used',
+  );
+});
+
+test('an existing srcset/loading/decoding is never overwritten', () => {
+  const html =
+    '<img src="https://s3.example/big_3840x2160.jpeg" loading="eager" srcset="already 1w">';
+  const out = rewriteBodyImages(html, fixtureLookup);
+  assert.ok(out.includes('loading="eager"'), 'an explicit loading must survive');
+  assert.ok(out.includes('srcset="already 1w"'), 'an explicit srcset must survive');
+  assert.ok(!out.includes('480w'), 'and must not be joined by a second one');
+});
+
+test('a throwing lookup leaves the tag verbatim', () => {
+  const html = '<img src="https://s3.example/big_3840x2160.jpeg">';
+  assert.equal(rewriteBodyImages(html, () => { throw new Error('boom'); }), html);
+  assert.equal(rewriteBodyImages(html, () => ({ src: '', srcset: '' })), html);
+  assert.equal(rewriteBodyImages('', fixtureLookup), '');
+  assert.equal(rewriteBodyImages(null, fixtureLookup), '');
+});
+
+test('image COUNT and order are preserved by the body transform', () => {
+  const html =
+    '<img src="https://s3.example/big_3840x2160.jpeg"><p>a</p><img src="/rel.png"><p>b</p>' +
+    '<img src="https://unknown.example/2.jpg">';
+  const out = rewriteBodyImages(html, fixtureLookup);
+  assert.equal((out.match(/<img/g) || []).length, 3, 'no image may be dropped');
+  assert.ok(out.indexOf('abc-720') < out.indexOf('rel.png'), 'order must be preserved');
+  assert.equal((out.match(/<p>/g) || []).length, 2, 'surrounding markup is untouched');
+});
+
+test('every manifest entry points at a file that is actually committed', () => {
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(ROOT, 'src/data/article-images.json'), 'utf8')
+  );
+  /*
+    Entries must be NON-EMPTY first. An earlier version of the sync wrote `{}`
+    for every entry — JSON.stringify's second argument is a property allowlist
+    applied at every level, so passing the sorted key list stripped the nested
+    src/srcset. The manifest had the right number of entries, every file was on
+    disk, and every lookup returned null, so the feature was completely inert
+    while looking correct. This test passed too, vacuously: with no paths in
+    the entries there was nothing to find missing.
+  */
+  const empty = Object.entries(manifest)
+    .filter(([, entry]) => !entry || !String(entry.src || '').trim())
+    .map(([source]) => source.slice(0, 60));
+  assert.deepEqual(
+    empty,
+    [],
+    `${empty.length} manifest entr(ies) have no usable \`src\`. Every lookup for\n` +
+      '      them returns null, so the renditions are built and never served.',
+  );
+
+  const missing = [];
+  for (const [source, entry] of Object.entries(manifest)) {
+    const files = [
+      entry.src,
+      ...String(entry.srcset || '')
+        .split(',')
+        .map((c) => c.trim().split(' ')[0]),
+    ].filter(Boolean);
+    for (const file of files) {
+      if (!fs.existsSync(path.join(ROOT, 'public', file))) missing.push(`${file} (${source.slice(0, 50)})`);
+    }
+  }
+  assert.deepEqual(
+    missing,
+    [],
+    `${missing.length} manifest entr(ies) reference a file that is not on disk.\n` +
+      '      The manifest and public/article-images/ must be committed together, or\n' +
+      '      the page serves 404s where the old URL used to work.',
   );
 });
 
