@@ -294,6 +294,7 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
       activePlayer = null;
       section.querySelectorAll('.yt-player-target').forEach(el => el.remove());
       section.querySelectorAll('.is-playing-inline').forEach(media => media.classList.remove('is-playing-inline'));
+      section.querySelectorAll('.video-watermark-logo').forEach((logo: any) => logo.style.opacity = '0');
     }
 
     function activateIndex(index: number) {
@@ -368,6 +369,10 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
                         const iframe = mediaContainer.querySelector('iframe');
                         if (iframe) {
                           iframe.style.opacity = '1';
+                        }
+                        const logo = mediaContainer.querySelector('.video-watermark-logo');
+                        if (logo) {
+                          logo.style.opacity = '0.8';
                         }
                       }, 1500);
                     }
@@ -464,6 +469,9 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
             iframe.style.pointerEvents = 'auto';
             iframe.style.opacity = '1';
           }
+          
+          const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
+          if (logo) logo.style.opacity = '0.8';
           
           mediaContainer.classList.add('is-playing-inline');
 
