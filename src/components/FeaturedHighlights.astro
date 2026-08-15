@@ -337,6 +337,8 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
               targetDiv.style.height = '100%';
               targetDiv.style.pointerEvents = 'none';
               targetDiv.style.zIndex = '0'; // Above image, behind play button and gradient
+              targetDiv.style.opacity = '0';
+              targetDiv.style.transition = 'opacity 1s ease';
               mediaContainer.appendChild(targetDiv);
               
               activePlayer = new win.YT.Player(targetDiv, {
@@ -348,11 +350,27 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
                   modestbranding: 1,
                   loop: 1,
                   playlist: videoId,
-                  playsinline: 1
+                  playsinline: 1,
+                  cc_load_policy: 0, // Disable captions
+                  iv_load_policy: 3, // Disable annotations
+                  rel: 0,
+                  disablekb: 1
                 },
                 events: {
                   onReady: (e: any) => {
                     e.target.playVideo();
+                  },
+                  onStateChange: (e: any) => {
+                    // When video actually starts playing, wait 1.5s for YouTube UI to fade out, then fade video in
+                    if (e.data === win.YT.PlayerState.PLAYING) {
+                      setTimeout(() => {
+                        // Check if the player is still active (hasn't been destroyed by slide switch)
+                        const iframe = mediaContainer.querySelector('iframe');
+                        if (iframe) {
+                          iframe.style.opacity = '1';
+                        }
+                      }, 1500);
+                    }
                   }
                 }
               });
@@ -444,6 +462,7 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
           const iframe = mediaContainer.querySelector('iframe');
           if (iframe) {
             iframe.style.pointerEvents = 'auto';
+            iframe.style.opacity = '1';
           }
           
           mediaContainer.classList.add('is-playing-inline');
