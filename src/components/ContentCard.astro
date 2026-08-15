@@ -82,7 +82,7 @@ const wrapperProps = isPlayable
       'data-type': 'video',
       'data-categories': lowerTags.join(','),
       'data-video-id': videoId,
-      'data-action': 'open-video',
+      'data-action': variant === 'hero' ? 'inline-video' : 'open-video',
       role: 'button' as const,
       tabindex: 0,
       'aria-label': `Play video: ${item.title}`
@@ -196,6 +196,33 @@ const wrapperProps = isPlayable
   .variant-hero .content-card-excerpt {
     color: rgba(255, 255, 255, 0.55);
     height: 4.5em; /* Exactly 3 lines at 1.5 line-height */
+  }
+
+  .variant-hero :global(.content-card-media) {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: var(--bg-surface-elevated, #1a1a1a);
+  }
+
+  /* Inline video iframe styles */
+  :global(.inline-video-frame) {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    z-index: 10;
+    background: black;
+  }
+  
+  /* Hide the underlying image and play button when video is playing */
+  .content-card-media.is-playing-inline img,
+  .content-card-media.is-playing-inline .play-button {
+    opacity: 0;
+    pointer-events: none;
   }
 
   .variant-hero :global(.content-card-title) {

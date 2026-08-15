@@ -238,6 +238,16 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
       const row = rows[index];
       const targetId = row.getAttribute('data-index');
 
+      // Destroy any playing inline videos when switching slides
+      const playingIframes = section.querySelectorAll('.inline-video-frame');
+      const playingMedias = section.querySelectorAll('.is-playing-inline');
+      if (playingIframes.length > 0) {
+        playingIframes.forEach(iframe => iframe.remove());
+        playingMedias.forEach(media => media.classList.remove('is-playing-inline'));
+        // Re-attach hover listener that was removed to lock auto-play
+        section.addEventListener('mouseleave', startAutoPlay);
+      }
+
       // Update rows
       rows.forEach(r => {
         r.classList.remove('is-active');
@@ -281,12 +291,47 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
       }
     }
 
-    // Manual click
+    // Manual click on rows
     rows.forEach((row, index) => {
       row.addEventListener('click', () => {
         activateIndex(index);
         // Reset timer on manual click to give them a full 5 seconds to read
         startAutoPlay();
+      });
+    });
+
+    // Inline Video Player logic
+    const inlineVideoButtons = section.querySelectorAll('[data-action="inline-video"]');
+    inlineVideoButtons.forEach(button => {
+      button.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const videoId = button.getAttribute('data-video-id');
+        if (!videoId) return;
+
+        // Find the media container inside this specific card
+        const mediaContainer = button.querySelector('.content-card-media') || button.closest('.content-card')?.querySelector('.content-card-media');
+        if (!mediaContainer) return;
+
+        // Destroy any existing playing iframes globally in section
+        section.querySelectorAll('.inline-video-frame').forEach(iframe => iframe.remove());
+        section.querySelectorAll('.is-playing-inline').forEach(media => media.classList.remove('is-playing-inline'));
+
+        // Inject new iframe
+        const iframe = document.createElement('iframe');
+        iframe.className = 'inline-video-frame';
+        iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+        iframe.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
+        iframe.allowFullscreen = true;
+        
+        mediaContainer.appendChild(iframe);
+        mediaContainer.classList.add('is-playing-inline');
+
+        // Permanently pause autoplay while video is playing
+        stopAutoPlay();
+        // Remove the mouseleave listener so it doesn't resume when mouse moves off player
+        section.removeEventListener('mouseleave', startAutoPlay);
       });
     });
 
