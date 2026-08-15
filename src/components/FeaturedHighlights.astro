@@ -91,6 +91,7 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     .fh-layout {
       grid-template-columns: 1.2fr 1fr;
       align-items: stretch; /* Forces equal height columns */
+      max-height: 480px; /* Reduced to fit typical laptop viewports */
     }
   }
 
@@ -125,6 +126,7 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     transform: scaleX(0);
     transform-origin: left;
     z-index: 10;
+    box-shadow: 0 2px 15px rgba(204, 0, 0, 0.8);
     /* Transition applied dynamically via JS to handle pause/resume/reset */
   }
 
@@ -139,7 +141,7 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     flex-direction: column;
     justify-content: space-between;
     height: 100%;
-    gap: 1rem;
+    gap: 0.5rem;
     min-width: 0; /* Prevents grid blowout */
   }
 
@@ -149,13 +151,13 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     display: flex;
     gap: 1rem;
     align-items: center;
-    padding: 0.75rem;
+    padding: 0.5rem 0.75rem;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(255, 255, 255, 0.05);
     text-align: left;
     cursor: pointer;
     color: var(--color-white, #ffffff);
-    opacity: 0.5;
+    opacity: 0.6;
     filter: grayscale(40%);
     transition: all 0.4s ease;
   }
@@ -191,7 +193,7 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
   }
 
   .fh-row-thumb {
-    width: 140px;
+    width: 110px;
     height: 100%; /* Fill the flex item */
     max-height: 90px; /* Prevent it from getting absurdly tall if rows stretch a lot */
     aspect-ratio: 16 / 9;
@@ -270,7 +272,7 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
   }
 
   function initFeaturedHighlights() {
-    const section = document.querySelector('.featured-highlights');
+    const section = document.querySelector('.featured-highlights') as HTMLElement;
     if (!section) return;
 
     const rows = Array.from(section.querySelectorAll('.fh-row'));
@@ -281,6 +283,8 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     let autoPlayTimeout: ReturnType<typeof setTimeout> | null = null;
     let isPaused = false;
     let activePlayer: any = null;
+    let slideStartTime = 0;
+    let accumulatedTime = 0;
 
     function getDurationForIndex(index: number) {
       const row = rows[index];
@@ -299,6 +303,8 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
 
     function activateIndex(index: number) {
       if (index < 0 || index >= rows.length) return;
+      accumulatedTime = 0;
+      slideStartTime = Date.now();
       
       const row = rows[index];
       const targetId = row.getAttribute('data-index');
@@ -370,15 +376,19 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
                         if (iframe) {
                           iframe.style.opacity = '1';
                         }
-                        const logo = mediaContainer.querySelector('.video-watermark-logo');
+                        const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
                         if (logo) {
                           logo.style.opacity = '0.8';
                         }
+                        mediaContainer.classList.add('is-playing-inline');
                       }, 1500);
                     } else if (e.data === win.YT.PlayerState.PAUSED || e.data === win.YT.PlayerState.ENDED) {
                       // Hide the iframe immediately to hide YouTube's messy paused UI (More videos, title bar, etc.)
                       const iframe = mediaContainer.querySelector('iframe');
-                      if (iframe) iframe.style.opacity = '0';
+                      if (iframe) {
+                        iframe.style.opacity = '0';
+                        iframe.style.pointerEvents = 'none';
+                      }
                       
                       const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
                       if (logo) logo.style.opacity = '0';
@@ -401,6 +411,7 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     function nextSlide() {
       const videoModal = document.getElementById('video-modal');
       if (videoModal && videoModal.classList.contains('active')) {
+        accumulatedTime = 0;
         startAutoPlay();
         return;
       }
@@ -412,41 +423,45 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     }
 
     function startAutoPlay() {
-      stopAutoPlay();
       if (isPaused) return;
+      if (autoPlayTimeout) return;
 
       const duration = getDurationForIndex(currentIndex);
+      const remaining = Math.max(0, duration - accumulatedTime);
+      slideStartTime = Date.now();
+      
       const row = rows[currentIndex];
-      const progress = row.querySelector('.fh-row-progress') as HTMLElement;
+      const progress = row?.querySelector('.fh-row-progress') as HTMLElement;
       
       if (progress) {
         progress.style.transition = 'none';
-        progress.style.transform = 'scaleX(0)';
+        progress.style.transform = `scaleX(${accumulatedTime / duration})`;
         
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            progress.style.transition = `transform ${duration}ms linear`;
-            progress.style.transform = 'scaleX(1)';
-          });
-        });
+        void progress.offsetWidth; // Force reflow
+        
+        progress.style.transition = `transform ${remaining}ms linear`;
+        progress.style.transform = 'scaleX(1)';
       }
 
-      autoPlayTimeout = setTimeout(nextSlide, duration);
+      autoPlayTimeout = setTimeout(() => {
+        autoPlayTimeout = null;
+        nextSlide();
+      }, remaining);
     }
 
     function stopAutoPlay() {
       if (autoPlayTimeout) {
         clearTimeout(autoPlayTimeout);
         autoPlayTimeout = null;
+        accumulatedTime += Date.now() - slideStartTime;
       }
       const row = rows[currentIndex];
       if (row) {
         const progress = row.querySelector('.fh-row-progress') as HTMLElement;
         if (progress) {
-          const computedStyle = window.getComputedStyle(progress);
-          const matrix = computedStyle.transform;
+          const duration = getDurationForIndex(currentIndex);
           progress.style.transition = 'none';
-          progress.style.transform = matrix !== 'none' ? matrix : 'scaleX(0)';
+          progress.style.transform = `scaleX(${Math.min(accumulatedTime / duration, 1)})`;
         }
       }
     }
@@ -454,7 +469,8 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     rows.forEach((row, index) => {
       row.addEventListener('click', () => {
         isPaused = false;
-        section.addEventListener('mouseleave', resumeAutoPlay);
+        section.addEventListener('mouseleave', startAutoPlay);
+        stopAutoPlay();
         activateIndex(index);
         startAutoPlay();
       });
@@ -488,7 +504,7 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
 
           isPaused = true;
           stopAutoPlay();
-          section.removeEventListener('mouseleave', resumeAutoPlay);
+          section.removeEventListener('mouseleave', startAutoPlay);
           
           const row = rows[currentIndex];
           if (row) {
@@ -534,8 +550,7 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
               }
             }
             if (!isPaused) {
-              // resumeAutoPlay handles recalculating the remaining time beautifully
-              resumeAutoPlay();
+              startAutoPlay();
             }
           }
         });
@@ -544,42 +559,8 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
       observer.observe(section);
     }
 
-    function pauseAutoPlay() {
-      if (!isPaused) stopAutoPlay();
-    }
-    
-    function resumeAutoPlay() {
-      if (!isPaused) {
-        const row = rows[currentIndex];
-        let remainingDuration = getDurationForIndex(currentIndex);
-        
-        if (row) {
-          const progress = row.querySelector('.fh-row-progress') as HTMLElement;
-          if (progress) {
-            const computedStyle = window.getComputedStyle(progress);
-            const matrix = computedStyle.transform;
-            
-            if (matrix && matrix.startsWith('matrix')) {
-              const values = matrix.split('(')[1].split(')')[0].split(',');
-              const currentScale = parseFloat(values[0]);
-              if (!isNaN(currentScale) && currentScale >= 0 && currentScale <= 1) {
-                remainingDuration = remainingDuration * (1 - currentScale);
-              }
-            }
-            
-            void progress.offsetWidth; // Force reflow
-            progress.style.transition = `transform ${remainingDuration}ms linear`;
-            progress.style.transform = 'scaleX(1)';
-          }
-        }
-        
-        if (autoPlayTimeout) clearTimeout(autoPlayTimeout);
-        autoPlayTimeout = setTimeout(nextSlide, remainingDuration);
-      }
-    }
-
-    section.addEventListener('mouseenter', pauseAutoPlay);
-    section.addEventListener('mouseleave', resumeAutoPlay);
+    section.addEventListener('mouseenter', stopAutoPlay);
+    section.addEventListener('mouseleave', startAutoPlay);
 
     loadYouTubeAPI().then(() => {
       activateIndex(currentIndex);
