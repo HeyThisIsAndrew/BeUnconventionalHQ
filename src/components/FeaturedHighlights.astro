@@ -396,6 +396,12 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
                       if (logo) logo.style.opacity = '0';
                       
                       mediaContainer.classList.remove('is-playing-inline');
+
+                      // If the user was actively watching and the video just ended, move to the next tile
+                      if (e.data === win.YT.PlayerState.ENDED && isPaused) {
+                        isPaused = false;
+                        nextSlide();
+                      }
                     }
                   }
                 }
