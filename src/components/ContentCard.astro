@@ -18,70 +18,117 @@ let excerpt = '';
 let finalTags: string[] = [];
 
 if (variant === 'hero') {
-  // Use preview/excerpt for articles, or description for videos
-  excerpt = item.preview || item.excerpt || item.description || '';
+  // 1. Extract explicit tokens: hashtags, @ mentions, youtubeTags, tags
+  let explicitTokens: string[] = [];
   
-  // Extract full searchable text pool for smart tagging
-  const allText = `${item.title} ${excerpt} ${(item.youtubeTags || []).join(' ')} ${(item.tags || []).join(' ')}`.toUpperCase();
-
-  // 1. Brand / Franchise (Tile 1)
-  let tag1 = '';
-  if (/MARVEL|WOLVERINE|AVENGERS|SPIDER|X-MEN|MCU|DEADPOOL|VENOM/.test(allText)) tag1 = 'MARVEL';
-  else if (/DC\b|BATMAN|SUPERMAN|WONDER WOMAN|JUSTICE LEAGUE|DCU|JOKER/.test(allText)) tag1 = 'DC';
-  else if (/NETFLIX/.test(allText)) tag1 = 'NETFLIX';
-  else if (/APPLE TV|APPLETV/.test(allText)) tag1 = 'APPLE TV+';
-  else if (/DISNEY/.test(allText)) tag1 = 'DISNEY';
-  else if (/SONY|PLAYSTATION|PS5|PS4/.test(allText)) tag1 = 'PLAYSTATION';
-  else if (/WARNER|WB/.test(allText)) tag1 = 'WARNER BROS';
-  else if (/HBO|MAX/.test(allText)) tag1 = 'HBO';
-  else if (/PRIME|AMAZON|THE BOYS/.test(allText)) tag1 = 'PRIME VIDEO';
-  else if (/HULU/.test(allText)) tag1 = 'HULU';
-  else if (/NINTENDO|SWITCH|ZELDA|MARIO/.test(allText)) tag1 = 'NINTENDO';
-  else if (/XBOX|HALO|GEARS/.test(allText)) tag1 = 'XBOX';
-  else if (/STAR WARS|STARWARS|JEDI/.test(allText)) tag1 = 'STAR WARS';
-  else if (/INSOMNIAC/.test(allText)) tag1 = 'INSOMNIAC';
-
-  // 2. Content Type (Tile 2)
-  let tag2 = '';
-  if (/REVIEW/.test(allText)) tag2 = 'REVIEW';
-  else if (/TRAILER/.test(allText)) tag2 = 'TRAILER';
-  else if (/ANALYSIS|DEEP DIVE/.test(allText)) tag2 = 'ANALYSIS';
-  else if (/BREAKDOWN/.test(allText)) tag2 = 'BREAKDOWN';
-  else if (/PODCAST/.test(allText)) tag2 = 'PODCAST';
-  else if (/PREMIERE/.test(allText)) tag2 = 'PREMIERE';
-  else if (/REACTION/.test(allText)) tag2 = 'REACTION';
-  else if (/INTERVIEW/.test(allText)) tag2 = 'INTERVIEW';
-
-  // 3. Event (Tile 3)
-  let tag3 = '';
-  if (/SDCC|COMIC CON|COMIC-CON|COMICCON/.test(allText)) tag3 = 'SDCC';
-  else if (/D23/.test(allText)) tag3 = 'D23';
-  else if (/E3/.test(allText)) tag3 = 'E3';
-  else if (/GAMESCOM/.test(allText)) tag3 = 'GAMESCOM';
-  else if (/SGF|SUMMER GAME FEST/.test(allText)) tag3 = 'SUMMER GAME FEST';
-  else if (/TGA|GAME AWARDS/.test(allText)) tag3 = 'THE GAME AWARDS';
-  else if (/PAX/.test(allText)) tag3 = 'PAX';
-  else if (/GDC/.test(allText)) tag3 = 'GDC';
-  else if (/FANDOME/.test(allText)) tag3 = 'DC FANDOME';
-
-  // Backfill with other raw tags if slots are empty, just in case
-  let parsedTags: string[] = [];
+  if (Array.isArray(item.youtubeTags)) explicitTokens.push(...item.youtubeTags);
+  if (Array.isArray(item.tags)) explicitTokens.push(...item.tags);
+  
   if (typeof excerpt === 'string') {
-    const matches = excerpt.match(/#[\w-]+/g);
-    if (matches) {
-      parsedTags = matches.map((tag: string) => tag.replace('#', '').toUpperCase());
+    const hashMatches = excerpt.match(/#[\w-]+/g) || [];
+    const atMatches = excerpt.match(/@[\w-]+/g) || [];
+    explicitTokens.push(...hashMatches, ...atMatches);
+  }
+
+  // Normalize tokens (uppercase, remove #, @, and spaces)
+  let cleanTokens = explicitTokens.map(t => t.replace(/[#@\s]/g, '').toUpperCase());
+  cleanTokens = [...new Set(cleanTokens)]; // unique
+
+  const titleText = (item.title || '').toUpperCase().replace(/\s/g, '');
+
+  // 1. Brand (Tile 1)
+  let tag1 = '';
+  const brandMap = [
+    { label: 'MARVEL', regex: /MARVEL|WOLVERINE|AVENGERS|SPIDER|XMEN|MCU|DEADPOOL|VENOM/ },
+    { label: 'DC', regex: /DC$|DCU|BATMAN|SUPERMAN|WONDERWOMAN|JUSTICELEAGUE|JOKER/ },
+    { label: 'NETFLIX', regex: /NETFLIX/ },
+    { label: 'APPLE TV+', regex: /APPLE/ },
+    { label: 'DISNEY', regex: /DISNEY/ },
+    { label: 'PLAYSTATION', regex: /SONY|PLAYSTATION|PS5|PS4/ },
+    { label: 'WARNER BROS', regex: /WARNER|WB/ },
+    { label: 'HBO', regex: /HBO|MAX/ },
+    { label: 'PRIME VIDEO', regex: /PRIME|AMAZON|THEBOYS/ },
+    { label: 'HULU', regex: /HULU/ },
+    { label: 'NINTENDO', regex: /NINTENDO|SWITCH|ZELDA|MARIO/ },
+    { label: 'XBOX', regex: /XBOX|HALO|GEARS/ },
+    { label: 'STAR WARS', regex: /STARWARS|JEDI/ },
+    { label: 'INSOMNIAC', regex: /INSOMNIAC/ }
+  ];
+
+  for (const b of brandMap) {
+    if (cleanTokens.some(t => b.regex.test(t)) || b.regex.test(titleText)) {
+      tag1 = b.label;
+      break;
     }
   }
 
+  // Fallback: If no mapped brand found, use the first @ mention from the excerpt
+  if (!tag1 && typeof excerpt === 'string') {
+    const atMatch = excerpt.match(/@([\w-]+)/);
+    if (atMatch) {
+      tag1 = atMatch[1].toUpperCase();
+    }
+  }
+
+  // 2. Content Type (Tile 2)
+  let tag2 = '';
+  const typeMap = [
+    { label: 'REVIEW', regex: /REVIEW/ },
+    { label: 'TRAILER', regex: /TRAILER/ },
+    { label: 'ANALYSIS', regex: /ANALYSIS|DEEPDIVE/ },
+    { label: 'BREAKDOWN', regex: /BREAKDOWN/ },
+    { label: 'PODCAST', regex: /PODCAST/ },
+    { label: 'PREMIERE', regex: /PREMIERE/ },
+    { label: 'REACTION', regex: /REACTION/ },
+    { label: 'INTERVIEW', regex: /INTERVIEW/ }
+  ];
+
+  for (const type of typeMap) {
+    // ONLY check explicit tags for content type to prevent false positives from body text
+    if (cleanTokens.some(t => type.regex.test(t))) {
+      tag2 = type.label;
+      break;
+    }
+  }
+
+  // 3. Event (Tile 3)
+  let tag3 = '';
+  const eventMap = [
+    { label: 'SDCC', regex: /SDCC|COMICCON/ },
+    { label: 'D23', regex: /D23/ },
+    { label: 'E3', regex: /E3/ },
+    { label: 'GAMESCOM', regex: /GAMESCOM/ },
+    { label: 'SUMMER GAME FEST', regex: /SGF|SUMMERGAMEFEST/ },
+    { label: 'THE GAME AWARDS', regex: /TGA|GAMEAWARDS/ },
+    { label: 'PAX', regex: /PAX/ },
+    { label: 'GDC', regex: /GDC/ },
+    { label: 'DC FANDOME', regex: /FANDOME/ }
+  ];
+
+  for (const e of eventMap) {
+    if (cleanTokens.some(t => e.regex.test(t)) || e.regex.test(titleText)) {
+      tag3 = e.label;
+      break;
+    }
+  }
+
+  // Filter out used tokens so backfills don't repeat them
+  let unusedTokens = cleanTokens.filter(t => {
+    const used1 = tag1 ? tag1.replace(/\s/g, '') : '';
+    const used2 = tag2 ? tag2.replace(/\s/g, '') : '';
+    const used3 = tag3 ? tag3.replace(/\s/g, '') : '';
+    return !t.includes(used1) && !t.includes(used2) && !t.includes(used3);
+  });
+
   // Use the outer finalTags array
   if (tag1) finalTags.push(tag1);
-  else if (parsedTags.length > 0) finalTags.push(parsedTags.shift() as string);
+  else if (unusedTokens.length > 0) finalTags.push(unusedTokens.shift() as string);
 
   if (tag2) finalTags.push(tag2);
-  else if (parsedTags.length > 0) finalTags.push(parsedTags.shift() as string);
+  else if (unusedTokens.length > 0) finalTags.push(unusedTokens.shift() as string);
 
   if (tag3) finalTags.push(tag3);
-  else if (parsedTags.length > 0) finalTags.push(parsedTags.shift() as string);
+  else if (unusedTokens.length > 0) finalTags.push(unusedTokens.shift() as string);
 
   // Keep only truthy elements and limit to 3 just to be safe
   finalTags = finalTags.filter(Boolean).slice(0, 3);
