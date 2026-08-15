@@ -21,47 +21,69 @@ if (variant === 'hero') {
   // Use preview/excerpt for articles, or description for videos
   excerpt = item.preview || item.excerpt || item.description || '';
   
-  // Extract hashtags from the raw description before HTML stripping
-  let rawText = typeof excerpt === 'string' ? excerpt : (Array.isArray(excerpt) ? excerpt.join(' ') : '');
+  // Extract full searchable text pool for smart tagging
+  const allText = `${item.title} ${excerpt} ${(item.youtubeTags || []).join(' ')} ${(item.tags || []).join(' ')}`.toUpperCase();
+
+  // 1. Brand / Franchise (Tile 1)
+  let tag1 = '';
+  if (/MARVEL|WOLVERINE|AVENGERS|SPIDER|X-MEN|MCU|DEADPOOL|VENOM/.test(allText)) tag1 = 'MARVEL';
+  else if (/DC\b|BATMAN|SUPERMAN|WONDER WOMAN|JUSTICE LEAGUE|DCU|JOKER/.test(allText)) tag1 = 'DC';
+  else if (/NETFLIX/.test(allText)) tag1 = 'NETFLIX';
+  else if (/APPLE TV|APPLETV/.test(allText)) tag1 = 'APPLE TV+';
+  else if (/DISNEY/.test(allText)) tag1 = 'DISNEY';
+  else if (/SONY|PLAYSTATION|PS5|PS4/.test(allText)) tag1 = 'PLAYSTATION';
+  else if (/WARNER|WB/.test(allText)) tag1 = 'WARNER BROS';
+  else if (/HBO|MAX/.test(allText)) tag1 = 'HBO';
+  else if (/PRIME|AMAZON|THE BOYS/.test(allText)) tag1 = 'PRIME VIDEO';
+  else if (/HULU/.test(allText)) tag1 = 'HULU';
+  else if (/NINTENDO|SWITCH|ZELDA|MARIO/.test(allText)) tag1 = 'NINTENDO';
+  else if (/XBOX|HALO|GEARS/.test(allText)) tag1 = 'XBOX';
+  else if (/STAR WARS|STARWARS|JEDI/.test(allText)) tag1 = 'STAR WARS';
+  else if (/INSOMNIAC/.test(allText)) tag1 = 'INSOMNIAC';
+
+  // 2. Content Type (Tile 2)
+  let tag2 = '';
+  if (/REVIEW/.test(allText)) tag2 = 'REVIEW';
+  else if (/TRAILER/.test(allText)) tag2 = 'TRAILER';
+  else if (/ANALYSIS|DEEP DIVE/.test(allText)) tag2 = 'ANALYSIS';
+  else if (/BREAKDOWN/.test(allText)) tag2 = 'BREAKDOWN';
+  else if (/PODCAST/.test(allText)) tag2 = 'PODCAST';
+  else if (/PREMIERE/.test(allText)) tag2 = 'PREMIERE';
+  else if (/REACTION/.test(allText)) tag2 = 'REACTION';
+  else if (/INTERVIEW/.test(allText)) tag2 = 'INTERVIEW';
+
+  // 3. Event (Tile 3)
+  let tag3 = '';
+  if (/SDCC|COMIC CON|COMIC-CON|COMICCON/.test(allText)) tag3 = 'SDCC';
+  else if (/D23/.test(allText)) tag3 = 'D23';
+  else if (/E3/.test(allText)) tag3 = 'E3';
+  else if (/GAMESCOM/.test(allText)) tag3 = 'GAMESCOM';
+  else if (/SGF|SUMMER GAME FEST/.test(allText)) tag3 = 'SUMMER GAME FEST';
+  else if (/TGA|GAME AWARDS/.test(allText)) tag3 = 'THE GAME AWARDS';
+  else if (/PAX/.test(allText)) tag3 = 'PAX';
+  else if (/GDC/.test(allText)) tag3 = 'GDC';
+  else if (/FANDOME/.test(allText)) tag3 = 'DC FANDOME';
+
+  // Backfill with other raw tags if slots are empty, just in case
   let parsedTags: string[] = [];
-  
-  if (rawText) {
-    const matches = rawText.match(/#[\w-]+/g);
+  if (typeof excerpt === 'string') {
+    const matches = excerpt.match(/#[\w-]+/g);
     if (matches) {
       parsedTags = matches.map((tag: string) => tag.replace('#', '').toUpperCase());
     }
   }
 
-  // Fallback to youtubeTags or tags if no hashtags in description
-  if (parsedTags.length === 0) {
-    const fallbackTags = Array.isArray(item.youtubeTags) && item.youtubeTags.length > 0 
-      ? item.youtubeTags 
-      : (Array.isArray(item.tags) ? item.tags : []);
-    parsedTags = fallbackTags.map((t: string) => t.toUpperCase().replace(/\s+/g, ''));
-  }
-
-  parsedTags = [...new Set(parsedTags)];
-
-  const brands = ['MARVEL', 'DC', 'NETFLIX', 'APPLE', 'DISNEY', 'SONY', 'WARNER', 'HBO', 'PRIME', 'HULU', 'NINTENDO', 'PLAYSTATION', 'XBOX', 'STARWARS', 'INSOMNIAC', 'SEGA', 'CAPCOM'];
-  const contentTypes = ['REVIEW', 'TRAILER', 'ANALYSIS', 'BREAKDOWN', 'PODCAST', 'PREMIERE'];
-  const events = ['SDCC', 'D23', 'E3', 'GAMESCOM', 'SGF', 'TGA', 'COMICCON', 'PAX', 'GDC', 'FANDOME'];
-
-  let tag1 = parsedTags.find((t: string) => brands.some(k => t.includes(k)));
-  let tag2 = parsedTags.find((t: string) => contentTypes.some(k => t.includes(k)));
-  let tag3 = parsedTags.find((t: string) => events.some(k => t.includes(k)));
-
-  let usedTags = [tag1, tag2, tag3].filter(Boolean);
-  let remainingTags = parsedTags.filter((t: string) => !usedTags.includes(t));
-
   let finalTags: string[] = [];
   if (tag1) finalTags.push(tag1);
-  else if (remainingTags.length > 0) finalTags.push(remainingTags.shift() as string);
+  else if (parsedTags.length > 0) finalTags.push(parsedTags.shift() as string);
 
   if (tag2) finalTags.push(tag2);
-  else if (remainingTags.length > 0) finalTags.push(remainingTags.shift() as string);
+  else if (parsedTags.length > 0) finalTags.push(parsedTags.shift() as string);
 
   if (tag3) finalTags.push(tag3);
-  else if (remainingTags.length > 0) finalTags.push(remainingTags.shift() as string);
+  else if (parsedTags.length > 0) finalTags.push(parsedTags.shift() as string);
+
+  finalTags = finalTags.filter(Boolean);
 
   // Clean up any HTML tags if present (e.g., from article excerpts)
   if (typeof excerpt === 'string') {
@@ -375,6 +397,9 @@ const wrapperProps = isPlayable
     height: 3.0em; /* Exactly 2 lines at 1.5 line-height */
     overflow: hidden;
     margin-bottom: 0.3rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
   }
 
   .variant-hero :global(.content-card-title) {
