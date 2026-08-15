@@ -499,6 +499,52 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
       });
     });
 
+    // IntersectionObserver to pause video and autoplay when out of view
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) {
+            // Scrolled out of view: pause the video and stop autoplay
+            if (activePlayer && typeof activePlayer.pauseVideo === 'function') {
+              activePlayer.pauseVideo();
+            }
+            if (!isPaused) {
+               stopAutoPlay();
+            }
+          } else {
+            // Scrolled into view: resume video and autoplay
+            if (activePlayer && typeof activePlayer.playVideo === 'function') {
+              activePlayer.playVideo();
+              
+              // If the user was manually watching the video (isPaused is true), restore the UI instantly
+              if (isPaused) {
+                const row = rows[currentIndex];
+                const mediaContainer = row?.querySelector('.content-card-media');
+                if (mediaContainer) {
+                  mediaContainer.classList.add('is-playing-inline');
+                  const iframe = mediaContainer.querySelector('iframe');
+                  if (iframe) {
+                    iframe.style.pointerEvents = 'auto';
+                    iframe.style.transition = 'none';
+                    iframe.style.opacity = '1';
+                  }
+                  const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
+                  if (logo) logo.style.opacity = '0.8';
+                }
+              }
+            }
+            if (!isPaused) {
+              // resumeAutoPlay handles recalculating the remaining time beautifully
+              resumeAutoPlay();
+            }
+          }
+        });
+      }, { threshold: 0.1 }); // Trigger when less than 10% is visible
+      
+      observer.observe(section);
+    }
+  }
+
     function pauseAutoPlay() {
       if (!isPaused) stopAutoPlay();
     }
