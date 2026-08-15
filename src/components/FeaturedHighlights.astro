@@ -500,6 +500,10 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
       button.addEventListener('click', (e) => {
         // If the user clicked the secondary outbound link, let it navigate instead of playing inline
         if ((e.target as Element).closest('a.watch-now-btn')) {
+          // Pause the video so it doesn't keep playing in the background tab
+          if (activePlayer && typeof activePlayer.pauseVideo === 'function') {
+            activePlayer.pauseVideo();
+          }
           return;
         }
 
