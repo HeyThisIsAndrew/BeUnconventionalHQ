@@ -226,11 +226,27 @@ jobs:
       - name: Install Chrome for Puppeteer
         run: npx puppeteer browsers install chrome
 
-      # Same reasoning as the Lighthouse job: keep the real Turnstile key out
-      # of the pages the suites drive.
-      - name: Keep Turnstile out of the e2e build
-        run: echo "PUBLIC_TURNSTILE_SITE_KEY=" >> .env
-
+      # ── NO "keep Turnstile out" STEP HERE. THAT IS DELIBERATE. ──────────────
+      #
+      # The Lighthouse job writes an empty PUBLIC_TURNSTILE_SITE_KEY so the
+      # widget omits itself and its ~234 KB of challenge-platform script never
+      # lands in the pages being measured.
+      #
+      # Copying that step into this job broke the first green-ish e2e run:
+      # 19/20, with e2e-turnstile-lazy failing on
+      #
+      #   ✗ the newsletter widget container exists but nothing is rendered yet
+      #   TimeoutError: Waiting failed: 5000ms exceeded
+      #
+      # An empty key makes the widget omit ITSELF — that is the entire point of
+      # it in the other job — and e2e-turnstile-lazy exists precisely to test
+      # that widget's lazy-load behaviour. The step disabled the thing the
+      # suite tests, so the suite could never pass.
+      #
+      # These suites must drive the pages as PRODUCTION builds them. The key
+      # comes from wrangler.jsonc `vars` and is already public in the
+      # repository; the built pages here are served to a local preview and
+      # thrown away.
       - name: Production build
         run: npm run build
 

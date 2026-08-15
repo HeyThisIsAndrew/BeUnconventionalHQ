@@ -52,6 +52,17 @@ function test(name, fn) {
 }
 
 const runner = fs.readFileSync(path.join(ROOT, 'scripts/e2e-run.mjs'), 'utf8');
+const ci = fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
+
+/** The steps of one job in ci.yml, as raw text. */
+function jobBlock(name) {
+  const start = ci.indexOf(`\n  ${name}:\n`);
+  assert.ok(start !== -1, `job "${name}" not found in ci.yml`);
+  /* Up to the next top-level job key (two-space indent, non-comment). */
+  const rest = ci.slice(start + 1);
+  const next = rest.search(/\n  [a-z][a-z0-9-]*:\n/);
+  return next === -1 ? rest : rest.slice(0, next);
+}
 
 import { sandboxUnavailableFor } from './e2e-browser.mjs';
 
@@ -130,6 +141,44 @@ test('an unreclaimable port aborts the run instead of repeating per suite', () =
     /failed\.push\(file, \.\.\.suites\.slice\(index \+ 1\)\)/.test(runner),
     'the un-run suites must still be reported as failed — silently skipping them\n' +
       '      would turn an aborted run into a green one.',
+  );
+});
+
+test('the e2e job does NOT blank the Turnstile site key', () => {
+  /*
+    THE INCIDENT — first otherwise-healthy CI run of these suites, 19/20:
+
+      ✗ the newsletter widget container exists but nothing is rendered yet
+      TimeoutError: Waiting failed: 5000ms exceeded
+
+    The e2e job had copied `echo "PUBLIC_TURNSTILE_SITE_KEY=" >> .env` from the
+    Lighthouse job. An empty key makes the Turnstile widget omit ITSELF — which
+    is exactly why the Lighthouse job sets it, to keep ~234 KB of
+    challenge-platform script out of the pages it measures.
+
+    But e2e-turnstile-lazy exists to test that widget's lazy-load behaviour.
+    The step disabled the thing the suite tests, so the suite could not pass at
+    any point. Reproduced locally by adding the line, and it passes without it.
+
+    The suites must drive the pages as production builds them.
+  */
+  const job = jobBlock('e2e');
+  assert.ok(
+    !/PUBLIC_TURNSTILE_SITE_KEY=\s*(\"|'|$)/m.test(job),
+    'The e2e job must not write an empty PUBLIC_TURNSTILE_SITE_KEY. It makes the\n' +
+      '      widget omit itself, and e2e-turnstile-lazy tests that widget.',
+  );
+});
+
+test('the Lighthouse gate still DOES blank it', () => {
+  /* The complement — removing it there would put a third party's variable
+     response time back inside the performance gate. */
+  const job = jobBlock('test-and-build');
+  assert.ok(
+    /PUBLIC_TURNSTILE_SITE_KEY=/.test(job),
+    'the Lighthouse job must keep writing an empty key: the widget pulls api.js\n' +
+      '      and ~234 KB of challenge-platform script, which is most of a second of\n' +
+      '      bandwidth taken from the LCP image on a throttled connection.',
   );
 });
 
