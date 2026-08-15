@@ -3,6 +3,7 @@ import { parseVideoId } from '../lib/platforms/youtube';
 import { getCardImageSources, CARD_IMAGE_SIZES } from '../lib/card-images';
 import { LABELS } from '../data/content.js';
 import logoImage from '../assets/logo-mark.webp';
+import { getImage } from 'astro:assets';
 
 export interface Props {
   item: any;
@@ -215,6 +216,36 @@ const wrapperProps = isPlayable
       'data-type': isVideo ? 'video' : 'article',
       'data-delay': index * 100
     };
+
+/*
+  THE WATERMARK MUST GO THROUGH getImage(), NOT `logoImage.src`.
+
+  This shipped as `<img src={logoImage.src}>` and 404'd on every single video
+  card in the production build. `@astrojs/cloudflare` turns on compile-time
+  image optimization, so the build emits only the TRANSFORMED renditions
+  (`logo-mark.<hash>_<variant>.webp`); the untransformed path that
+  `logoImage.src` resolves to — `/assets/logo-mark.<hash>.webp` — is never
+  written. It looks correct in dev, where the dev server serves the original
+  on demand, and only breaks once built.
+
+  That one 404 was the whole black-thumbnail bug, and it is worth spelling
+  out why a decorative overlay could do that much damage: this <img> is a
+  SIBLING of the cover inside `.content-card-media`, the fail-safe in
+  Layout.astro marks the shared CONTAINER, and home-cards.css then hides
+  every `> img` in it. So a broken watermark took the perfectly good
+  thumbnail down with it, on every card, deterministically.
+
+  Layout.astro already reaches for the same asset the right way (see
+  `fallbackMark`). Requested at 72px because the mark renders at 24px tall in
+  the standard card and 36px in the hero — 2x the widest of those, rather
+  than the 414 KB original.
+*/
+const watermark = await getImage({
+  src: logoImage,
+  height: 72,
+  format: 'webp',
+  quality: 70,
+});
 ---
 
 <CardWrapper {...wrapperProps} data-play-hover={isVideo ? 'true' : undefined}>
@@ -255,7 +286,6 @@ const wrapperProps = isPlayable
         alt={item.title}
         loading="lazy"
         decoding="async"
-        onerror="this.onerror=null; this.removeAttribute('srcset'); this.src=this.src; this.parentElement?.removeAttribute('data-img-failed');"
       />
     ) : (
       <div class="article-thumb-fallback" data-fallback="true">
@@ -264,7 +294,7 @@ const wrapperProps = isPlayable
     )}
 
     {isVideo && (
-      <img src={logoImage.src} alt="Be Unconventional logo" class="video-watermark-logo" aria-hidden="true" />
+      <img src={watermark.src} alt="" class="video-watermark-logo" aria-hidden="true" />
     )}
 
     {isVideo && (
@@ -428,10 +458,28 @@ const wrapperProps = isPlayable
     opacity: 0.8;
   }
   
-  /* Hide the underlying image and play button when video is playing */
+  /* The cover gives way to the preview as soon as it is playing... */
   :global(.content-card-media.is-playing-inline) img.content-card-img,
-  :global(.content-card-media.is-playing-inline) .article-thumb-fallback,
-  :global(.content-card-media.is-playing-inline) .play-button-wrapper {
+  :global(.content-card-media.is-playing-inline) .article-thumb-fallback {
+    opacity: 0 !important;
+    pointer-events: none;
+    transition: opacity 0.1s ease !important;
+  }
+
+  /*
+    ...but THE PLAY ICON OUTLASTS IT, deliberately.
+
+    It used to fade with the cover, which left a silent, muted video playing
+    over a card with no affordance on it at all — nothing said "click for
+    sound". Keeping it up through the preview is the whole point: it is the
+    one control on screen while the iframe is inert, and it is what the
+    reader clicks to unmute.
+
+    It stands down only once they have actually activated the video, because
+    from that moment YouTube's own controls are live underneath and two
+    stacked play/pause buttons is exactly the overlap being fixed here.
+  */
+  :global(.content-card-media.is-user-activated) .play-button-wrapper {
     opacity: 0 !important;
     pointer-events: none;
     transition: opacity 0.1s ease !important;

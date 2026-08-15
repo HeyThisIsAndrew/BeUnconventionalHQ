@@ -412,8 +412,34 @@
   transition: opacity 0.5s ease;
 }
 
+/*
+   TWO STATES, NOT ONE — and conflating them broke both click and hover.
+
+     .is-playing-inline   the MUTED AUTOPLAY PREVIEW. Visible, and strictly
+                          inert: the card owns every pointer event.
+     .is-user-activated   the reader asked for this video. Now the iframe
+                          takes the clicks so YouTube's own controls work.
+
+   `pointer-events: auto` used to arrive with the preview, 1.5s after
+   autoplay began, and that single declaration caused both reported bugs.
+   The iframe is stacked over the whole media box, so once it was live:
+
+     - clicking the card hit YOUTUBE, not us. YouTube's default response to
+       a click on the video is to PAUSE, and our handler — the one that
+       calls playVideo()/unMute() — never ran. Hence "click the video and it
+       pauses rather than starts or unmutes".
+     - hovering summoned YouTube's own pause affordance on top of our play
+       icon. Two buttons, same spot. `controls: 0` does not suppress that
+       one; only withholding the pointer does.
+
+   So the preview keeps `pointer-events: none` (inherited from the base rule
+   above) and only opacity changes here.
+*/
 .content-card-media.is-playing-inline iframe {
   opacity: 1 !important;
+}
+
+.content-card-media.is-user-activated iframe {
   pointer-events: auto !important;
 }
 

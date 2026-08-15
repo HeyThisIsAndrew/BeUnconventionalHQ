@@ -66,9 +66,23 @@ await test('no topics, no categorize → General', () => {
   assert.equal(mapSanityVideo({ ...DOC, topics: [] }).category, 'General');
 });
 
-await test('missing thumbnailUrl falls back to the maxres thumbnail', () => {
+await test('missing thumbnailUrl falls back to hqdefault, never maxres', () => {
+  /*
+    This used to synthesise `maxresdefault.jpg`, which is a GUESS: YouTube
+    only generates that rendition for uploads at 720p or better, and asking
+    for a missing one gets a 404 or a grey 120x90 placeholder. Worse, the
+    guess is indistinguishable downstream from a real one — card-images.ts
+    treats "the URL says maxresdefault" as proof the rendition exists and
+    offers it in a srcset, and srcset has no fallback semantics, so the card
+    dies rather than stepping down.
+
+    hqdefault is generated for every video, so the fallback is now a fact
+    rather than a guess. Asserted negatively too: the point is not the exact
+    string, it is that nothing unverified reaches the srcset builder.
+  */
   const v = mapSanityVideo({ ...DOC, thumbnailUrl: undefined });
-  assert.equal(v.thumbnail, 'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg');
+  assert.equal(v.thumbnail, 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
+  assert.ok(!v.thumbnail.includes('maxresdefault'), v.thumbnail);
 });
 
 await test('docs missing id or title are rejected (null)', () => {

@@ -61,7 +61,25 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
           <button type="button" class={`fh-row ${isActive ? 'is-active' : ''} is-${isVideo ? 'video' : 'article'}`} data-index={index} aria-pressed={isActive ? 'true' : 'false'}>
             <div class="fh-row-progress"></div>
             <div class="fh-row-thumb">
-              <img src={src} srcset={srcset} alt={title} loading="lazy" decoding="async" onerror="this.onerror=null; this.removeAttribute('srcset'); this.src=this.src; this.parentElement?.removeAttribute('data-img-failed');" />
+              {/*
+                `sizes` is not optional here. With `w` descriptors and no
+                `sizes`, the spec's default source size is 100vw — so for a
+                thumbnail the CSS pins at 140px the browser was computing a
+                need of a full viewport width and picking `maxresdefault`
+                (1280w) every time on desktop. That is ~9x the pixels the box
+                can show, and it is also the rendition YouTube does not always
+                generate, so the widest-possible pick was also the likeliest
+                to 404. `.fh-row-thumb` is 140px at every breakpoint (no media
+                query touches it), so the value is exact rather than an
+                estimate — the shared CARD_IMAGE_SIZES does not apply, that
+                one describes the card grid.
+
+                Recovery when a rendition is missing anyway is owned by the
+                global fail-safe in Layout.astro, NOT by an `onerror` here —
+                an inline handler cannot see YouTube's HTTP 200 placeholder
+                response, and it races the capture-phase listener.
+              */}
+              <img src={src} srcset={srcset} sizes={srcset ? '140px' : undefined} alt={title} loading="lazy" decoding="async" />
             </div>
             <div class="fh-row-info">
               <span class="fh-row-badge">{badge}</span>
@@ -276,6 +294,30 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     const section = document.querySelector('.featured-highlights') as HTMLElement;
     if (!section) return;
 
+    /*
+      ONCE PER SECTION ELEMENT.
+
+      This is bound to BOTH `DOMContentLoaded` and `astro:page-load`, and on
+      a first page load Astro fires the second one after the first — so
+      without this guard the whole thing was built twice over the same DOM:
+      two sets of click listeners on every row, and two independent autoplay
+      state machines with their own `activePlayer` and their own timers.
+
+      That is not merely wasteful. The timers advance the carousel at double
+      speed, and `destroyActivePlayer()` in one closure cannot see the other
+      closure's player, so switching slides orphans a live iframe that keeps
+      playing underneath. It also made a single click run the activation
+      handler twice, which is visible in the call log as unMute/playVideo
+      pairs.
+
+      The flag lives on the ELEMENT, not in a module variable, which is what
+      keeps client-side navigation working: `astro:page-load` after a swap
+      hands us a brand new section node with no flag, so it initialises
+      exactly once again.
+    */
+    if (section.dataset.fhInit === '1') return;
+    section.dataset.fhInit = '1';
+
     const rows = Array.from(section.querySelectorAll('.fh-row'));
     const heroCards = section.querySelectorAll('.fh-hero-card');
     if (rows.length === 0) return;
@@ -300,6 +342,10 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
       activePlayer = null;
       section.querySelectorAll('.yt-player-target').forEach(el => el.remove());
       section.querySelectorAll('.is-playing-inline').forEach(media => media.classList.remove('is-playing-inline'));
+      /* Activation belongs to one player instance. Leaving it set would give
+         the NEXT slide's iframe the pointer while it is still a muted
+         preview, which is the bug this pair of classes exists to prevent. */
+      section.querySelectorAll('.is-user-activated').forEach(media => media.classList.remove('is-user-activated'));
       section.querySelectorAll('.video-watermark-logo').forEach((logo: any) => logo.style.opacity = '0');
     }
 
@@ -394,8 +440,11 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
                       
                       const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
                       if (logo) logo.style.opacity = '0';
-                      
+
                       mediaContainer.classList.remove('is-playing-inline');
+                      /* Back to poster + play icon, so the next click is ours
+                         again rather than YouTube's. */
+                      mediaContainer.classList.remove('is-user-activated');
 
                       // If the user was actively watching and the video just ended, move to the next tile
                       if (e.data === win.YT.PlayerState.ENDED && isPaused) {
@@ -519,13 +568,20 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
         if (!mediaContainer) return;
 
         if (activePlayer && typeof activePlayer.unMute === 'function') {
-          activePlayer.playVideo();
           activePlayer.unMute();
           activePlayer.setVolume(100);
-          
+          activePlayer.playVideo();
+
+          /*
+            Hand the pointer to YouTube only NOW. Until this click the iframe
+            is inert by CSS, which is what let this handler receive the click
+            at all — while it was interactive during the preview, the click
+            went to YouTube's player and simply paused it.
+          */
+          mediaContainer.classList.add('is-user-activated');
+
           const iframe = mediaContainer.querySelector('iframe');
           if (iframe) {
-            iframe.style.pointerEvents = 'auto';
             iframe.style.transition = 'none'; // Snap instantly on manual play
             iframe.style.opacity = '1';
           }

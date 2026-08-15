@@ -81,6 +81,49 @@ function youtubeSources(url: string): CardImageSources {
 }
 
 /*
+  ─── THE RENDITION THAT ALWAYS EXISTS ──────────────────────────────────────
+
+  srcset has NO fallback semantics. Once the browser has picked a candidate,
+  a dead candidate is a dead <img> — it does not retry a neighbour. So when
+  the `maxresdefault` offered above turns out not to exist, the whole element
+  fails and Layout.astro's fail-safe paints a branded panel over a video that
+  has a perfectly good thumbnail one rendition down.
+
+  Two different ways it turns out not to exist, and they need different
+  detection (see Layout.astro):
+
+    404          the plain missing case, fires an `error` event
+    HTTP 200 +   YouTube answers some missing renditions with its grey 120x90
+    placeholder  "no thumbnail" graphic instead, which fires `load`
+
+  `hqdefault` is the recovery target for both: YouTube generates it for every
+  video, live or not, and it is what `youtubeSources()` already puts in `src`.
+
+  Exported so the client-side recovery cannot drift from the build-time
+  rewrite — they must agree on which rendition is the safe one, and the
+  string surgery is identical either way. Pure, so it is testable offline.
+*/
+
+/** Renditions that already ARE the safe one, or are below it. */
+const YT_SAFE_RENDITIONS = new Set(['hqdefault', 'mqdefault', 'default']);
+
+/**
+ * The always-present rendition for a YouTube thumbnail URL, or `''` when
+ * there is nothing safer to fall back to — not a YouTube URL, or already at
+ * or below `hqdefault`. An empty return means "stop, this one is final".
+ */
+export function youtubeFallbackSrc(raw: unknown): string {
+  const url = String(raw ?? '').trim();
+  if (!url || !url.includes(YT_HOST)) return '';
+
+  const match = url.match(YT_RENDITION);
+  if (!match) return '';
+  if (YT_SAFE_RENDITIONS.has(match[1])) return '';
+
+  return url.replace(YT_RENDITION, '/hqdefault.jpg');
+}
+
+/*
   ─── SUBSTACK ──────────────────────────────────────────────────────────────
 
   Substack proxies through Cloudinary:
