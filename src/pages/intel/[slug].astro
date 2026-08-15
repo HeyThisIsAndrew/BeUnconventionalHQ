@@ -51,6 +51,7 @@ import {
 } from '../../lib/articles';
 import { buildToc } from '../../lib/article-toc';
 import { stripCoverImageFromBody } from '../../lib/article-media';
+import { localArticleImage, localiseBodyImages } from '../../lib/article-images.ts';
 import logoImage from '../../assets/logo.webp';
 
 export async function getStaticPaths() {
@@ -74,36 +75,43 @@ const { article } = Astro.props;
 const dedupedBody = stripCoverImageFromBody(article.bodyHtml, article.image);
 
 /*
-  ─── BODY IMAGES ARE LEFT AS SUBSTACK SERVES THEM. ON PURPOSE. ──────────────
+  ─── BODY IMAGES: COMMITTED RENDITIONS, NEVER A LIVE PROXY ──────────────────
 
-  A previous pass rewrote every body <img> to a resizing proxy (wsrv.nl) and
-  marked them lazy. On paper it was a large saving: nine images here, several
-  3840x2160, in a ~720px column. In practice it made this page dramatically
-  WORSE on a phone, reported from a real device on the preview deploy:
-  gallery images blank, and still blank while sliding through them.
+  These are rewritten to renditions built ahead of time by
+  scripts/sync-article-images.mjs and committed to public/article-images/.
 
-  Why it backfired, in two compounding parts:
+  THE DISTINCTION THAT MATTERS, because the first attempt at this was reverted.
+  That pass rewrote the same tags to a resizing proxy (wsrv.nl) and it made the
+  page dramatically WORSE on a real phone: gallery images blank, and still
+  blank while sliding through them. Two compounding reasons —
 
-    1. wsrv.nl is a free shared proxy with a cold cache. Serving one of these
-       means fetching a ~1 MB 4K JPEG from S3, decoding it, resizing, and
-       re-encoding — per URL, per WIDTH, on first request. Substack's own CDN
-       has these renditions already warm.
-    2. SubstackGallery's lightbox assigns `img.src` on every slide, with no
-       srcset and nothing preloaded. So each swipe fired a fresh COLD
-       transcode and the reader watched an empty frame until it finished.
+    1. wsrv.nl has a cold cache, so serving one of these meant fetching a ~1 MB
+       4K JPEG from S3, decoding, resizing and re-encoding, per URL AND per
+       srcset width, on first request;
+    2. SubstackGallery's lightbox reassigns `img.src` on every slide with no
+       srcset and nothing preloaded, so each swipe paid that cost again.
 
-  And the saving was never measured, because it could not be: the Lighthouse
-  gate audits `/`, `/feed`, `/intel`, `/events`, `/featured`, `/about` — no
-  article page is in it. Body images are also below the fold by definition, so
-  they are not the LCP even here. All risk, no score.
+  A committed local file has neither problem: it cannot be cold, cannot expire,
+  cannot rate-limit and cannot 403. That is the whole difference.
 
-  The rendition work that DID pay off is still in place, on the pages the gate
-  actually measures: the /intel feature image, the rail thumbs, /feed cards.
+  Anything the sync has no rendition for — an unreachable host, an article
+  published since the last sync, a substackcdn URL that is already a sized
+  rendition on a warm CDN — is returned byte-identical and renders exactly as
+  it does today. See src/lib/article-images.ts.
+
+  Measured on the three articles in the store: 10 raw S3 uploads totalling
+  22.54 MB, several 3840x2160, rendering into a ~720px column. As committed
+  WebP that is 1.63 MB across every width, and a phone downloads one width.
 */
+const bodyWithLocalImages = localiseBodyImages(dedupedBody);
+
+/* Same treatment for the cover. `null` when the sync has no rendition, and the
+   markup falls back to `article.image`. */
+const heroImageSources = localArticleImage(article.image);
 
 // Headings get ids so the contents rail can anchor-scroll to them; `html` is
 // the body with those ids injected.
-const { entries: tocEntries, html: bodyHtml } = buildToc(dedupedBody);
+const { entries: tocEntries, html: bodyHtml } = buildToc(bodyWithLocalImages);
 
 const nextArticle = getNextArticle(article.slug);
 const related = getRelatedArticles(article.slug, article.category, 4);
@@ -254,16 +262,19 @@ if (article.contentType === 'Review') {
               one unit with the headline; this order is a deliberate house call.)
             */}
             {article.image && (
-              /* The URL Substack gives us, not a proxy rendition — see the
-                 note above buildToc(). This is the LCP on an article page and
-                 it is eager, which is exactly the position where a cold
+              /* A COMMITTED rendition when one exists, otherwise the URL
+                 Substack gave us — never a live proxy. This is the eager,
+                 above-the-fold LCP element, which is precisely where a cold
                  third-party transcode hurts most: the reader waits on a blank
-                 masthead. A large image that starts immediately beats a small
-                 one that starts in three seconds, and no article page is in
-                 the Lighthouse gate, so the trade was never scored anyway. */
+                 masthead. A local file cannot be cold, so the objection that
+                 reverted the proxy version does not apply here. The Spider-Man
+                 cover is a 1.17 MB 3840x2160 upload; as a rendition it is
+                 137 KB across every width. */
               <img
                 class="article-hero"
-                src={article.image}
+                src={heroImageSources?.src || article.image}
+                srcset={heroImageSources?.srcset || undefined}
+                sizes={heroImageSources?.srcset ? '(max-width: 900px) 92vw, 720px' : undefined}
                 alt={`Cover image for ${article.title}`}
                 width="1456"
                 height="816"
