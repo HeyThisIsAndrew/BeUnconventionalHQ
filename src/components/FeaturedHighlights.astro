@@ -468,14 +468,30 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     function resumeAutoPlay() {
       if (!isPaused) {
         const row = rows[currentIndex];
+        let remainingDuration = getDurationForIndex(currentIndex);
+        
         if (row) {
           const progress = row.querySelector('.fh-row-progress') as HTMLElement;
           if (progress) {
-            progress.style.transition = 'none';
-            progress.style.transform = 'scaleX(0)';
+            const computedStyle = window.getComputedStyle(progress);
+            const matrix = computedStyle.transform;
+            
+            if (matrix && matrix.startsWith('matrix')) {
+              const values = matrix.split('(')[1].split(')')[0].split(',');
+              const currentScale = parseFloat(values[0]);
+              if (!isNaN(currentScale) && currentScale >= 0 && currentScale <= 1) {
+                remainingDuration = remainingDuration * (1 - currentScale);
+              }
+            }
+            
+            void progress.offsetWidth; // Force reflow
+            progress.style.transition = `transform ${remainingDuration}ms linear`;
+            progress.style.transform = 'scaleX(1)';
           }
         }
-        startAutoPlay();
+        
+        if (autoPlayTimeout) clearTimeout(autoPlayTimeout);
+        autoPlayTimeout = setTimeout(nextSlide, remainingDuration);
       }
     }
 
