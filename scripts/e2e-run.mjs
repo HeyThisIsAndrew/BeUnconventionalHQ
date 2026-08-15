@@ -89,6 +89,50 @@ async function waitForPortFree(port) {
   return false;
 }
 
+/**
+ * Kill whatever is still holding the preview port.
+ *
+ * ─── WHY THIS EXISTS ───────────────────────────────────────────────────────
+ * A suite that dies BEFORE its `finally` runs — a browser that fails to launch,
+ * an uncaught throw during setup — leaves its wrangler/workerd child holding
+ * 4321. Every later suite then fails the "already listening" check.
+ *
+ * The first CI run of these suites did exactly that, and the runner made it
+ * worse: it detected the held port, printed a helpful message, and moved on to
+ * the next suite, which found the same held port. Nineteen suites x a 30s wait
+ * = nine minutes to report 0/19, when the real failure was the first browser
+ * launch. Detecting a stuck port and doing nothing about it is not a check, it
+ * is a slow way to fail.
+ *
+ * ─── WHY IT IS SAFE TO KILL ────────────────────────────────────────────────
+ * Only ever called BETWEEN suites, i.e. after at least one has run. At that
+ * point anything on this port is our own orphan. Before the first suite the
+ * runner deliberately does NOT reclaim: a developer with `npm run dev` already
+ * on 4321 should get startPreviewServer's clear error, not have their dev
+ * server killed out from under them.
+ */
+async function reclaimPort(port) {
+  const targets = [
+    /* Narrowest first: only the process actually bound to the port. */
+    `lsof -ti tcp:${port} | xargs -r kill -9`,
+    /* Fallback for images without lsof. workerd is wrangler's child and is
+       what actually holds the socket. */
+    'pkill -9 -f workerd',
+    "pkill -9 -f 'astro preview'",
+  ];
+  for (const command of targets) {
+    if (!(await canConnect(port))) return true;
+    await new Promise((resolve) => {
+      const child = spawn('sh', ['-c', command], { stdio: 'ignore' });
+      child.on('close', resolve);
+      child.on('error', resolve);
+    });
+    /* Give the kernel a moment to release the socket. */
+    await new Promise((r) => setTimeout(r, 750));
+  }
+  return !(await canConnect(port));
+}
+
 function runSuite(file) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [path.join(SCRIPTS_DIR, file)], {
@@ -110,20 +154,38 @@ console.log(`[e2e] Running ${suites.length} suites (up to ${ATTEMPTS} attempts e
 
 const failed = [];
 const flaky = [];
+let aborted = false;
 const startedAt = Date.now();
 
 for (const [index, file] of suites.entries()) {
+  if (aborted) break;
   let passed = false;
   let attemptsUsed = 0;
 
   for (let attempt = 1; attempt <= ATTEMPTS && !passed; attempt++) {
     attemptsUsed = attempt;
+
     if (!(await waitForPortFree(PREVIEW_PORT))) {
-      console.error(
-        `[e2e] Port ${PREVIEW_PORT} is still held after ${PORT_FREE_TIMEOUT_MS}ms — ` +
-          'an orphaned wrangler/workerd is likely. Try `pkill -f workerd`.'
-      );
-      break;
+      /* Before the first suite this is someone else's server and not ours to
+         kill; after it, it is our own orphan. See reclaimPort(). */
+      const reclaimed = index > 0 && (await reclaimPort(PREVIEW_PORT));
+      if (!reclaimed) {
+        console.error(
+          `[e2e] Port ${PREVIEW_PORT} is held and could not be reclaimed.` +
+            (index === 0
+              ? ' Something was already listening before the run started —\n' +
+                '      kill it first (e.g. `pkill -f workerd`) and re-run.'
+              : ' An orphaned wrangler/workerd survived a kill -9, which means\n' +
+                '      every remaining suite would fail the same way.')
+        );
+        /* Abort the WHOLE run rather than repeating this per suite. The first
+           CI run burned nine minutes discovering the same fact nineteen
+           times. */
+        failed.push(file, ...suites.slice(index + 1));
+        aborted = true;
+        break;
+      }
+      console.warn(`[e2e] Reclaimed port ${PREVIEW_PORT} from an orphaned process.`);
     }
 
     console.log(
@@ -158,8 +220,12 @@ if (flaky.length > 0) {
   console.log(`[e2e] Passed on retry (worth a look): ${flaky.join(', ')}`);
 }
 
+if (aborted) {
+  console.error('[e2e] RUN ABORTED — the preview port could not be reclaimed.');
+}
+
 if (failed.length > 0) {
-  console.error(`[e2e] FAILED (both attempts): ${failed.join(', ')}`);
+  console.error(`[e2e] FAILED: ${failed.join(', ')}`);
   process.exit(1);
 }
 
