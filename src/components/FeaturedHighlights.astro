@@ -468,13 +468,24 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
       }
     }
 
+    let isHovering = false;
+    section.addEventListener('mouseenter', () => {
+      isHovering = true;
+      stopAutoPlay();
+    });
+    section.addEventListener('mouseleave', () => {
+      isHovering = false;
+      startAutoPlay();
+    });
+
     rows.forEach((row, index) => {
       row.addEventListener('click', () => {
         isPaused = false;
-        section.addEventListener('mouseleave', startAutoPlay);
         stopAutoPlay();
         activateIndex(index);
-        startAutoPlay();
+        if (!isHovering) {
+          startAutoPlay();
+        }
       });
     });
 
@@ -566,8 +577,7 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
       observer.observe(section);
     }
 
-    section.addEventListener('mouseenter', stopAutoPlay);
-    section.addEventListener('mouseleave', startAutoPlay);
+    // (Hover logic is now defined above)
 
     loadYouTubeAPI().then(() => {
       activateIndex(currentIndex);
