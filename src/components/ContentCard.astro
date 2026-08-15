@@ -15,9 +15,46 @@ const { item, index = 0, variant = 'default' } = Astro.props;
 if (!item) return;
 
 let excerpt = '';
+let finalTags: string[] = [];
+
 if (variant === 'hero') {
   // Use preview/excerpt for articles, or description for videos
   excerpt = item.preview || item.excerpt || item.description || '';
+  
+  // Extract hashtags from the raw description before HTML stripping
+  let rawText = typeof excerpt === 'string' ? excerpt : (Array.isArray(excerpt) ? excerpt.join(' ') : '');
+  let parsedTags: string[] = [];
+  
+  if (rawText) {
+    const matches = rawText.match(/#[\w-]+/g);
+    if (matches) {
+      parsedTags = matches.map((tag: string) => tag.replace('#', '').toUpperCase());
+    }
+  }
+
+  // Fallback to youtubeTags or tags if no hashtags in description
+  if (parsedTags.length === 0) {
+    const fallbackTags = Array.isArray(item.youtubeTags) && item.youtubeTags.length > 0 
+      ? item.youtubeTags 
+      : (Array.isArray(item.tags) ? item.tags : []);
+    parsedTags = fallbackTags.map((t: string) => t.toUpperCase().replace(/\s+/g, ''));
+  }
+
+  parsedTags = [...new Set(parsedTags)];
+
+  const keywords1 = ['EVENT', 'FEATURED', 'EXCLUSIVE', 'PREMIERE'];
+  const keywords2 = ['REVIEW', 'TRAILER', 'ANALYSIS', 'BREAKDOWN', 'PODCAST'];
+
+  let tag1 = parsedTags.find((t: string) => keywords1.some(k => t.includes(k)));
+  let tag2 = parsedTags.find((t: string) => keywords2.some(k => t.includes(k)) && t !== tag1);
+
+  let remainingTags = parsedTags.filter((t: string) => t !== tag1 && t !== tag2);
+
+  if (tag1) finalTags.push(tag1);
+  if (tag2) finalTags.push(tag2);
+  finalTags.push(...remainingTags);
+  finalTags = finalTags.slice(0, 3);
+
   // Clean up any HTML tags if present (e.g., from article excerpts)
   if (typeof excerpt === 'string') {
     // Strip HTML tags and any leading/trailing hashtags clusters
@@ -171,7 +208,18 @@ const wrapperProps = isPlayable
       )}
     </div>
 
-    <h3 class="content-card-title">{item.title}</h3>
+    {variant === 'hero' ? (
+      <div class="content-card-title-wrapper">
+        <h3 class="content-card-title">{item.title}</h3>
+        {finalTags.length > 0 && (
+          <div class="content-card-dynamic-tags">
+            {finalTags.join(' | ')}
+          </div>
+        )}
+      </div>
+    ) : (
+      <h3 class="content-card-title">{item.title}</h3>
+    )}
 
     {variant === 'hero' && (
       <p class="content-card-excerpt">{excerpt || ''}</p>
@@ -313,11 +361,33 @@ const wrapperProps = isPlayable
     flex-direction: column;
   }
 
-  .variant-hero :global(.content-card-title) {
-    -webkit-line-clamp: 2;
+  .variant-hero :global(.content-card-title-wrapper) {
+    font-size: 1.1rem;
     line-height: 1.5;
     height: 3.0em; /* Exactly 2 lines at 1.5 line-height */
+    overflow: hidden;
     margin-bottom: 0.3rem;
+  }
+
+  .variant-hero :global(.content-card-title) {
+    -webkit-line-clamp: 2;
+    font-size: 1em;
+    line-height: inherit;
+    height: auto;
+    margin-bottom: 0;
+  }
+
+  .variant-hero :global(.content-card-dynamic-tags) {
+    font-family: var(--font-body, 'Inter', sans-serif);
+    font-size: 0.75em;
+    line-height: 2; /* 0.75em * 2 = 1.5em (exactly 1 line of the wrapper) */
+    color: var(--color-accent, #cc0000);
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
 </style>
