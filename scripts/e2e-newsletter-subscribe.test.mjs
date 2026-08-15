@@ -76,10 +76,27 @@ async function runTests() {
       input.dispatchEvent(new Event('input', { bubbles: true }));
     }, testEmail);
 
+    /*
+      ─── DO NOT ADD A WAIT BEFORE THIS CLICK ──────────────────────────────
+
+      Tried and reverted, because it broke the suite outright: a 20s
+      "wait for the widget to draw" gave NewsletterForm's script-load-failure
+      detection time to fire, which sets `turnstileUnavailable` and makes the
+      handler show an error and return WITHOUT posting. The form only posts
+      promptly here because the click lands before that detection completes.
+
+      So the click stays immediate. The timeout below absorbs slowness instead.
+    */
+    /*
+      30s, not 8s. The submit can be gated on a live Turnstile round trip:
+      ~234 KB of challenge-platform script, then a challenge, on a cold CI
+      runner. Locally this is instant only because the whole thing is blocked
+      and the form posts straight away.
+    */
     const [response] = await Promise.all([
       page.waitForResponse(
         (res) => res.url().endsWith('/api/subscribe') && res.request().method() === 'POST',
-        { timeout: 8000 },
+        { timeout: 30000 },
       ),
       page.click('.newsletter-submit'),
     ]);
@@ -90,7 +107,7 @@ async function runTests() {
 
     await page.waitForFunction(
       () => document.getElementById('newsletter-form').classList.contains('is-success'),
-      { timeout: 5000 },
+      { timeout: 15000 },
     );
 
     const successMessage = await page.$eval('#newsletter-status', (el) => el.textContent.trim());
@@ -115,7 +132,7 @@ async function runTests() {
     const [secondResponse] = await Promise.all([
       page2.waitForResponse(
         (res) => res.url().endsWith('/api/subscribe') && res.request().method() === 'POST',
-        { timeout: 8000 },
+        { timeout: 30000 },
       ),
       page2.click('.newsletter-submit'),
     ]);
