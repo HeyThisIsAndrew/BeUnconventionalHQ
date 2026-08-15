@@ -97,7 +97,7 @@ export function mapSanityVideo(doc: any, { categorize }: MapOptions = {}): Unifi
     link: isShort
       ? `https://www.youtube.com/shorts/${id}`
       : `https://www.youtube.com/watch?v=${id}`,
-    thumbnail: doc.thumbnailUrl || `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
+    thumbnail: doc.thumbnailUrl || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
     category: topicMatch ?? categorize?.(doc.title) ?? 'General',
     tags: (doc.topics ?? []).map(String),
     youtubeTags: doc.youtubeTags ?? [],

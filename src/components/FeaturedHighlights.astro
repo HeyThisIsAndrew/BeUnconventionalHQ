@@ -286,10 +286,11 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     let activePlayer: any = null;
     let slideStartTime = 0;
     let accumulatedTime = 0;
+    const duration = 8000;
 
     function getDurationForIndex(index: number) {
       const row = rows[index];
-      return row.classList.contains('is-video') ? 15000 : 7000;
+      return row.classList.contains('is-video') ? 15000 : duration;
     }
 
     function destroyActivePlayer() {
@@ -474,14 +475,19 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     }
 
     let isHovering = false;
-    section.addEventListener('mouseenter', () => {
-      isHovering = true;
-      stopAutoPlay();
-    });
-    section.addEventListener('mouseleave', () => {
-      isHovering = false;
-      startAutoPlay();
-    });
+    const fhRight = section.querySelector('.fh-right');
+    if (fhRight) {
+      fhRight.addEventListener('mouseenter', () => {
+        isHovering = true;
+        stopAutoPlay();
+      });
+      fhRight.addEventListener('mouseleave', () => {
+        isHovering = false;
+        if (!isPaused) {
+          startAutoPlay();
+        }
+      });
+    }
 
     rows.forEach((row, index) => {
       row.addEventListener('click', () => {
