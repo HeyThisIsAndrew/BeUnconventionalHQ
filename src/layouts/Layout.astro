@@ -5,6 +5,7 @@ import '../styles/theme-red.css';
 import Footer from '../components/Footer.astro';
 import Navbar from '../components/Navbar.astro';
 import BrandGlow from '../components/BrandGlow.astro';
+import VideoDebugOverlay from '../components/VideoDebugOverlay.astro';
 import { site } from '../data/site.js';
 import { ClientRouter } from 'astro:transitions';
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
@@ -410,6 +411,14 @@ const fallbackMark = await getImage({
         initTurnstileLazyLoading();
       </script>
     )}
+
+    {/*
+      Dev-only geometry overlay for the inline YouTube player. The guard is
+      what keeps it out of production entirely — `astro build` evaluates
+      `import.meta.env.DEV` as false, so neither the markup nor its script is
+      emitted. Activate with `?debug=video`, or press `d`.
+    */}
+    {import.meta.env.DEV && <VideoDebugOverlay />}
 
     <slot name="modals" />
 
