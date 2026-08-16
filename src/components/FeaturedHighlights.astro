@@ -481,7 +481,39 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
               targetDiv.style.transition = 'opacity 1s ease';
               mediaContainer.appendChild(targetDiv);
               
+              /*
+                ─── TELL THE PLAYER ITS REAL SIZE AT BIRTH ─────────────────
+
+                Measured on an iPhone 17 Pro Max in landscape via the debug
+                overlay: the iframe ELEMENT is pixel-perfect on its box
+                (dx=0 dy=0 dW=0 dH=0) and nothing clips it — yet its size
+                ATTRIBUTES read 640x360 against a rendered 470.7x264.8.
+
+                That is the whole bug. `YT.Player` defaults to 640x360 when
+                the constructor is given no dimensions, so the player's first
+                internal layout is computed for a canvas 169px wider than the
+                one it occupies, and it centres the picture against that —
+                pushing it right and leaving a black band down the left.
+
+                It needed no rotation to happen, which is what ruled out every
+                resize-based explanation: the wrong number is present from the
+                first frame. `setSize()` only ever ran from a resize handler,
+                and a fresh landscape load produces no resize, so nothing ever
+                corrected it.
+
+                Rounded because the API takes integers, and read from the box
+                rather than assumed — CSS still owns the rendered geometry
+                either way (a stylesheet `width` beats these attributes, which
+                are only presentational hints). These numbers exist purely so
+                the player's own maths starts from the truth.
+              */
+              const initialRect = mediaContainer.getBoundingClientRect();
+              const initialWidth = Math.max(1, Math.round(initialRect.width));
+              const initialHeight = Math.max(1, Math.round(initialRect.height));
+
               activePlayer = new win.YT.Player(targetDiv, {
+                width: initialWidth,
+                height: initialHeight,
                 videoId: videoId,
                 playerVars: {
                   autoplay: 1,
@@ -498,6 +530,22 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
                 },
                 events: {
                   onReady: (e: any) => {
+                    /*
+                      Re-assert the size once the player exists. The
+                      constructor value above is measured BEFORE the iframe
+                      is inserted, so a layout that settles afterwards — the
+                      hero card's flex pass, a late font, the safe-area
+                      insets landing — would leave the player composing for a
+                      box it no longer occupies. This is the same correction
+                      the resize path makes, applied to the one case that has
+                      no resize to hang off: first paint.
+                    */
+                    if (typeof e.target.setSize === 'function') {
+                      const r = mediaContainer.getBoundingClientRect();
+                      if (r.width > 0 && r.height > 0) {
+                        e.target.setSize(Math.round(r.width), Math.round(r.height));
+                      }
+                    }
                     e.target.playVideo();
                   },
                   onStateChange: (e: any) => {
