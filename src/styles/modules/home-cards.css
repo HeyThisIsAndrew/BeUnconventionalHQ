@@ -162,6 +162,21 @@
   position: relative;
   width: fit-content;
   transition: color 0.3s ease;
+  /*
+    WCAG 2.5.8 target size (Lighthouse `target-size`). At 12px/uppercase this
+    box was only about 14px tall, and in the hero card it is a real <a> to
+    YouTube — a tappable target, not decoration, so it is audited. 24px is
+    the minimum; the extra height is added with padding and pulled back out
+    with a negative margin so the text keeps sitting exactly where the layout
+    puts it and only the hit area grows.
+
+    `min-height` alone would not do it: the element is `inline-block`, so the
+    box grows downward from the baseline and shifts the underline with it.
+  */
+  min-height: 24px;
+  padding-block: 5px;
+  margin-block: -5px;
+  box-sizing: content-box;
 }
 .video-card-home:hover {
   transform: translateY(-6px);

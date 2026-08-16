@@ -120,6 +120,21 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
   /* Stack all cards perfectly on top of each other for a true cross-fade */
   .fh-hero-card {
     grid-area: 1 / 1;
+    /*
+      The `min-width: 0` on .fh-left above is NOT enough on its own — this is
+      the grid ITEM, and a grid item's default `min-width: auto` floors it at
+      its own min-content width. ContentCard's hero variant sets
+      `white-space: nowrap` on `.content-card-dynamic-tags`, so that floor is
+      an entire unbreakable tag line ("WARNER BROS | REVIEW"), which measured
+      478px inside a 390px phone viewport and pushed the card — and the
+      headline and excerpt with it — off the right edge.
+
+      Zeroing it lets the card shrink to its track, which is also what finally
+      lets the `overflow: hidden` + `text-overflow: ellipsis` already declared
+      on that tag row actually do its job instead of being overruled from
+      above.
+    */
+    min-width: 0;
     opacity: 0;
     pointer-events: none;
     visibility: hidden;
@@ -177,9 +192,40 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     text-align: left;
     cursor: pointer;
     color: var(--color-white, #ffffff);
+    transition: all 0.4s ease;
+  }
+
+  /*
+    ─── DIM THE ARTWORK, NOT THE TEXT ──────────────────────────────────────
+
+    The inactive state used to be `opacity: 0.6` + `grayscale(40%)` on the
+    whole row. Both compose onto every descendant, so the badge was being
+    rendered at 60% over a near-black background AND desaturated toward grey
+    — Lighthouse measured the result as a contrast failure, and no red is
+    recoverable through that: even a near-white red only reaches ~4.0:1 once
+    it has been through 0.6 opacity, against a 4.5:1 requirement for text
+    this size.
+
+    Since a child cannot opt out of an ancestor's opacity or filter, the
+    dimming has to move DOWN rather than be overridden. It lands on the
+    thumbnail, which is the dominant visual and carries the inactive read on
+    its own, while the text dims by colour instead — a value that can be
+    picked to stay above threshold.
+  */
+  .fh-row-thumb {
     opacity: 0.6;
     filter: grayscale(40%);
-    transition: all 0.4s ease;
+    transition: opacity 0.4s ease, filter 0.4s ease;
+  }
+
+  .fh-row:hover .fh-row-thumb {
+    opacity: 0.8;
+    filter: grayscale(0%);
+  }
+
+  .fh-row.is-active .fh-row-thumb {
+    opacity: 1;
+    filter: grayscale(0%);
   }
 
   .fh-row::before {
@@ -197,15 +243,11 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
 
   .fh-row:hover {
     background: rgba(255, 255, 255, 0.05);
-    opacity: 0.8;
-    filter: grayscale(0%);
   }
 
   .fh-row.is-active {
     background: radial-gradient(circle at left, rgba(204, 0, 0, 0.15) 0%, rgba(255, 255, 255, 0.02) 100%);
     border-color: rgba(204, 0, 0, 0.2);
-    opacity: 1;
-    filter: grayscale(0%);
   }
 
   .fh-row.is-active::before {
@@ -240,7 +282,16 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     text-transform: uppercase;
     font-weight: 700;
     letter-spacing: 0.05em;
-    color: var(--color-accent, #cc0000);
+    /*
+      NOT `--color-accent` (#cc0000). At 10.4px this is "normal" text and
+      needs 4.5:1; brand red on this near-black row measures about 3.2:1 and
+      fails on its own, before any dimming. This is the same hue lifted in
+      luminance until it clears the bar (~6:1 measured), which reads as the
+      brand red at badge size while actually being legible. The 3px active
+      rail and the card chrome still use the true accent — large blocks of
+      colour are held to 3:1, which #cc0000 does meet.
+    */
+    color: #ff5252;
   }
 
   .fh-row-title {
@@ -253,6 +304,20 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+    /*
+      Carries the rest of the inactive read that the row's `opacity` used to
+      provide, but as a COLOUR so it stays measurable: white at 72% over this
+      background is ~10:1, comfortably above the 4.5:1 floor, where the old
+      0.6 row opacity was applying the same visual idea in a way that also
+      dragged the badge under it.
+    */
+    color: rgba(255, 255, 255, 0.72);
+    transition: color 0.4s ease;
+  }
+
+  .fh-row:hover .fh-row-title,
+  .fh-row.is-active .fh-row-title {
+    color: var(--color-white, #ffffff);
   }
 </style>
 
@@ -603,6 +668,44 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
         }
       });
     });
+
+    /*
+      ─── TELL THE PLAYER WHEN ITS BOX CHANGES SHAPE ────────────────────────
+
+      The iframe is stretched to the container by CSS (`width/height: 100%`),
+      so OUR geometry is always right — measured at 390px and 844px wide, the
+      iframe rect matches the media box exactly. What CSS cannot do is reach
+      inside a cross-origin iframe: YouTube lays its video out once, against
+      the size the iframe had when the player was constructed, and it does not
+      re-measure just because the element was restretched.
+
+      Rotate the phone and the box changes shape underneath a player that is
+      still composing for the old one — which is the black band down the left
+      of the video, with the picture shoved to the right. Nothing in the DOM
+      looks wrong at that point, because nothing in the DOM IS wrong.
+
+      `setSize()` is the API's way of saying "re-measure": it rewrites the
+      iframe's width/height attributes and posts the change into the player so
+      it re-lays out. Our stylesheet still owns the visual size, so this only
+      ever corrects the internal composition.
+
+      Batched into a rAF because a rotation fires a burst of resizes and each
+      call posts a message across the frame boundary.
+    */
+    if ('ResizeObserver' in window) {
+      let resizeFrame = 0;
+      const resizeObserver = new ResizeObserver((entries) => {
+        if (resizeFrame) return;
+        resizeFrame = requestAnimationFrame(() => {
+          resizeFrame = 0;
+          if (!activePlayer || typeof activePlayer.setSize !== 'function') return;
+          const entry = entries[entries.length - 1];
+          const { width, height } = entry.target.getBoundingClientRect();
+          if (width > 0 && height > 0) activePlayer.setSize(width, height);
+        });
+      });
+      section.querySelectorAll('.content-card-media').forEach((box) => resizeObserver.observe(box));
+    }
 
     // IntersectionObserver to pause video and autoplay when out of view
     if ('IntersectionObserver' in window) {

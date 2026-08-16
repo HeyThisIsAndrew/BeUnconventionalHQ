@@ -206,7 +206,22 @@ const wrapperProps = isPlayable
       'data-action': variant === 'hero' ? 'inline-video' : 'open-video',
       role: 'button' as const,
       tabindex: 0,
-      'aria-label': `Play video: ${item.title}`
+      /*
+        NO `aria-label` HERE — it is what broke `label-content-name-mismatch`.
+
+        `role="button"` takes its name from its content, and WCAG 2.5.3
+        (Label in Name) requires the accessible name to CONTAIN the visible
+        text. An `aria-label` of "Play video: <title>" replaced a name built
+        from the card's own words — the kicker, headline, tag row, excerpt
+        and "Watch Now" — with a much shorter string that does not contain
+        them, so speech input users saying what they can read ("watch now")
+        could not address the control.
+
+        Dropping it lets the name come from the content, which contains the
+        visible text by construction. The "Play video" framing is kept as an
+        sr-only span inside the card instead: it joins the accessible name
+        without adding visible text for the name to have to contain.
+      */
     }
   : {
       href: cardHref,
@@ -249,6 +264,14 @@ const watermark = await getImage({
 ---
 
 <CardWrapper {...wrapperProps} data-play-hover={isVideo ? 'true' : undefined}>
+  {/*
+    Supplies the action verb the removed `aria-label` used to carry. It is
+    part of the accessible name (name-from-content walks hidden-from-sight
+    text) but not part of the visible text, which is exactly the asymmetry
+    Label in Name needs: the name becomes "Play video: <everything visible>",
+    which still contains every word a reader can see.
+  */}
+  {isPlayable && <span class="sr-only">Play video:</span>}
   {/*
     Every style here is a class, not an inline `style` attribute.
 
