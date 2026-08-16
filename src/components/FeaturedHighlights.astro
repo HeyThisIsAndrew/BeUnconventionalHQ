@@ -391,6 +391,7 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     let autoPlayTimeout: ReturnType<typeof setTimeout> | null = null;
     let isPaused = false;
     let activePlayer: any = null;
+    let activeMediaContainer: HTMLElement | null = null;
     let slideStartTime = 0;
     let accumulatedTime = 0;
     const duration = 8000;
@@ -405,6 +406,7 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
         activePlayer.destroy();
       }
       activePlayer = null;
+      activeMediaContainer = null;
       section.querySelectorAll('.yt-player-target').forEach(el => el.remove());
       section.querySelectorAll('.is-playing-inline').forEach(media => media.classList.remove('is-playing-inline'));
       /* Activation belongs to one player instance. Leaving it set would give
@@ -448,6 +450,7 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
             const videoId = videoBtn.getAttribute('data-video-id');
             const mediaContainer = card.querySelector('.content-card-media');
             if (videoId && mediaContainer) {
+              activeMediaContainer = mediaContainer as HTMLElement;
               const targetDiv = document.createElement('div');
               targetDiv.className = 'yt-player-target';
               targetDiv.style.position = 'absolute';
@@ -694,13 +697,12 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     */
     if ('ResizeObserver' in window) {
       let resizeFrame = 0;
-      const resizeObserver = new ResizeObserver((entries) => {
+      const resizeObserver = new ResizeObserver(() => {
         if (resizeFrame) return;
         resizeFrame = requestAnimationFrame(() => {
           resizeFrame = 0;
-          if (!activePlayer || typeof activePlayer.setSize !== 'function') return;
-          const entry = entries[entries.length - 1];
-          const { width, height } = entry.target.getBoundingClientRect();
+          if (!activePlayer || typeof activePlayer.setSize !== 'function' || !activeMediaContainer) return;
+          const { width, height } = activeMediaContainer.getBoundingClientRect();
           if (width > 0 && height > 0) activePlayer.setSize(width, height);
         });
       });
