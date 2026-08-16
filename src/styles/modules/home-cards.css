@@ -279,6 +279,34 @@
   flex-shrink: 0;
 }
 
+/*
+   ─── HARD RULE 3: NOTHING CLIPS A YOUTUBE IFRAME ─────────────────────────
+
+   CLAUDE.md: "No `overflow: hidden` on any ancestor of a YouTube iframe —
+   iOS Safari renders the iframe as a black box." Both `.content-card-media`
+   (the iframe's direct parent) and `.content-card` (its grandparent) clip.
+
+   That was harmless for as long as a card's video opened in the modal: there
+   was no iframe inside a card to clip. The inline hero player put one there,
+   and iOS Safari duly mis-composited it — the picture shoved right with a
+   black band down the left, on a real iPhone, while Chromium renders it
+   perfectly because the bug is WebKit's.
+
+   The clipping is only ever protecting the `scale(1.05)` hover zoom on the
+   thumbnail. While a player exists that image is hidden — and the iframe is
+   absolutely positioned to fill the box exactly, so clipping it removes no
+   pixels. Releasing the clip for exactly that window therefore costs nothing
+   visually and takes the card out of the WebKit bug's path.
+
+   `has-player` is set from FeaturedHighlights.astro when the player is
+   constructed, NOT `is-playing-inline`: that one arrives 1.5s later, and the
+   iframe has to be un-clipped from the moment it exists.
+*/
+.content-card.has-player,
+.content-card.has-player .content-card-media {
+  overflow: visible;
+}
+
 /* ── BROKEN-IMAGE FAIL-SAFE ──────────────────────────────────────────────────
 
    A card whose cover URL is present but FAILS TO LOAD — a remote host that is

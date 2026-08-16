@@ -409,6 +409,9 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
       activeMediaContainer = null;
       section.querySelectorAll('.yt-player-target').forEach(el => el.remove());
       section.querySelectorAll('.is-playing-inline').forEach(media => media.classList.remove('is-playing-inline'));
+      /* Restore the clip now the iframe is gone, so the thumbnail's
+         `scale(1.05)` hover zoom is contained by the card again. */
+      section.querySelectorAll('.has-player').forEach(card => card.classList.remove('has-player'));
       /* Activation belongs to one player instance. Leaving it set would give
          the NEXT slide's iframe the pointer while it is still a muted
          preview, which is the bug this pair of classes exists to prevent. */
@@ -451,6 +454,20 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
             const mediaContainer = card.querySelector('.content-card-media');
             if (videoId && mediaContainer) {
               activeMediaContainer = mediaContainer as HTMLElement;
+
+              /*
+                Release the clip BEFORE the iframe exists (hard rule 3 — see
+                home-cards.css). `.content-card-media` and `.content-card`
+                both carry `overflow: hidden`, and on iOS Safari a clipped
+                cross-origin iframe mis-composites: the picture is shoved
+                right with a black band down the left. Marking the CARD (not
+                the media box) is what lets one class lift both levels — the
+                `.content-card` is the clipping grandparent AND the element
+                carrying `variant-hero`, so it is the only node from which
+                both `overflow` declarations can be overridden.
+              */
+              mediaContainer.closest('.content-card')?.classList.add('has-player');
+
               const targetDiv = document.createElement('div');
               targetDiv.className = 'yt-player-target';
               targetDiv.style.position = 'absolute';
@@ -673,40 +690,70 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     });
 
     /*
-      ─── TELL THE PLAYER WHEN ITS BOX CHANGES SHAPE ────────────────────────
+      ─── RE-MEASURE ON THE SETTLED FRAME, NEVER MID-ROTATION ───────────────
 
-      The iframe is stretched to the container by CSS (`width/height: 100%`),
-      so OUR geometry is always right — measured at 390px and 844px wide, the
-      iframe rect matches the media box exactly. What CSS cannot do is reach
-      inside a cross-origin iframe: YouTube lays its video out once, against
-      the size the iframe had when the player was constructed, and it does not
-      re-measure just because the element was restretched.
+      CSS OWNS THE GEOMETRY. The iframe is `position: absolute; inset: 0;
+      width: 100%; height: 100%`, and a stylesheet `width` beats the width
+      CONTENT ATTRIBUTE that the API writes — attributes are only
+      presentational hints. So `setSize()` can never move or resize the
+      iframe; the fluid layout is always in charge. Its one job here is to
+      hand the cross-origin player a number so it re-runs its own internal
+      centring, which CSS cannot reach into.
 
-      Rotate the phone and the box changes shape underneath a player that is
-      still composing for the old one — which is the black band down the left
-      of the video, with the picture shoved to the right. Nothing in the DOM
-      looks wrong at that point, because nothing in the DOM IS wrong.
+      That distinction is what makes the previous version wrong. It batched
+      on `requestAnimationFrame` LEADING-edge — first callback of a burst
+      wins, every later one is dropped while a frame is pending. iOS Safari
+      animates a rotation over many frames, so the value that survived was an
+      early, unsettled rect measured before the safe-area insets and the
+      final flex pass had been applied. The player was then centring on a
+      canvas wider than the one it ended up in.
 
-      `setSize()` is the API's way of saying "re-measure": it rewrites the
-      iframe's width/height attributes and posts the change into the player so
-      it re-lays out. Our stylesheet still owns the visual size, so this only
-      ever corrects the internal composition.
+      Inverted here to a TRAILING-edge settle: every resize restarts the
+      timer, and only the final one — after the burst stops — is acted on.
+      That guarantees the settled rect rather than guaranteeing the stale one.
+      `orientationchange` is listened to as well because iOS can finish the
+      visual rotation without a further size change on the observed box, and
+      a rect read in that handler is still mid-animation, so it too goes
+      through the same settle rather than measuring immediately.
 
-      Batched into a rAF because a rotation fires a burst of resizes and each
-      call posts a message across the frame boundary.
+      Rounded, and skipped when unchanged: the API takes integers, and a
+      burst that settles on the size it started at should post nothing.
     */
     if ('ResizeObserver' in window) {
-      let resizeFrame = 0;
-      const resizeObserver = new ResizeObserver(() => {
-        if (resizeFrame) return;
-        resizeFrame = requestAnimationFrame(() => {
-          resizeFrame = 0;
-          if (!activePlayer || typeof activePlayer.setSize !== 'function' || !activeMediaContainer) return;
+      let settleTimer: ReturnType<typeof setTimeout> | null = null;
+      let lastSize = '';
+
+      /* Long enough to outlast an iOS rotation animation, short enough to be
+         invisible against a correction the reader is not looking for. */
+      const SETTLE_MS = 250;
+
+      function remeasureWhenSettled() {
+        if (settleTimer) clearTimeout(settleTimer);
+        settleTimer = setTimeout(() => {
+          settleTimer = null;
+          if (!activePlayer || typeof activePlayer.setSize !== 'function') return;
+          if (!activeMediaContainer) return;
+
           const { width, height } = activeMediaContainer.getBoundingClientRect();
-          if (width > 0 && height > 0) activePlayer.setSize(width, height);
-        });
-      });
+          if (!(width > 0 && height > 0)) return;
+
+          const w = Math.round(width);
+          const h = Math.round(height);
+          const key = `${w}x${h}`;
+          if (key === lastSize) return;
+          lastSize = key;
+
+          activePlayer.setSize(w, h);
+        }, SETTLE_MS);
+      }
+
+      const resizeObserver = new ResizeObserver(remeasureWhenSettled);
       section.querySelectorAll('.content-card-media').forEach((box) => resizeObserver.observe(box));
+
+      window.addEventListener('orientationchange', remeasureWhenSettled);
+      /* `resize` covers the desktop case and the iOS builds that report a
+         rotation only as a viewport change. Passive: it never preventDefaults. */
+      window.addEventListener('resize', remeasureWhenSettled, { passive: true });
     }
 
     // IntersectionObserver to pause video and autoplay when out of view

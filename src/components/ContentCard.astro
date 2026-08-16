@@ -316,8 +316,19 @@ const watermark = await getImage({
       </div>
     )}
 
+    {/*
+      The shadow belongs to the WRAPPER, not the <img> — hard rule 6
+      ("no `filter: drop-shadow` on an <img>", for known iOS Safari rendering
+      bugs). It matters more than usual here because this element is a
+      compositing sibling of a cross-origin iframe, which is the exact
+      neighbourhood of the WebKit bug the clip release above is fixing. The
+      <img> keeps the class and the opacity, so the player script's
+      `.video-watermark-logo` lookups are unchanged.
+    */}
     {isVideo && (
-      <img src={watermark.src} alt="" class="video-watermark-logo" aria-hidden="true" />
+      <span class="video-watermark" aria-hidden="true">
+        <img src={watermark.src} alt="" class="video-watermark-logo" aria-hidden="true" />
+      </span>
     )}
 
     {isVideo && (
@@ -418,6 +429,16 @@ const watermark = await getImage({
     overflow: hidden;
     background: var(--bg-surface-elevated, #1a1a1a);
   }
+
+  /*
+    Hard rule 3 again — this hero-scoped rule re-declares the clip that
+    home-cards.css just learned to release, and being scoped it carries the
+    higher specificity, so without this it would win and keep the iframe
+    clipped on iOS Safari. See the long note in home-cards.css.
+  */
+  .variant-hero.has-player :global(.content-card-media) {
+    overflow: visible;
+  }
   
   .variant-hero :global(.content-card-media)::after {
     content: '';
@@ -454,25 +475,32 @@ const watermark = await getImage({
   }
 
   /* Watermark Logo */
-  .video-watermark-logo {
+  .video-watermark {
     position: absolute;
     bottom: 0.75rem;
     left: 0.75rem;
+    z-index: 10;
+    pointer-events: none;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.8));
+  }
+
+  .video-watermark-logo {
+    display: block;
     width: auto;
     height: 24px;
-    z-index: 10;
     opacity: 0;
     transition: opacity 0.5s ease;
-    pointer-events: none;
-    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.8));
   }
 
   /* Move to bottom left for Hero cards */
-  :global(.variant-hero) .video-watermark-logo {
+  :global(.variant-hero) .video-watermark {
     top: auto;
     bottom: 2rem;
     left: 2rem;
     right: auto;
+  }
+
+  :global(.variant-hero) .video-watermark-logo {
     height: 36px;
   }
 
