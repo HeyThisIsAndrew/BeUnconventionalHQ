@@ -527,7 +527,11 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
       
       const container = section.querySelector('.fh-right') as HTMLElement;
       if (container && container.scrollWidth > container.clientWidth) {
-        row.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        const scrollPos = (row as HTMLElement).offsetLeft - (container.clientWidth / 2) + (row.clientWidth / 2);
+        container.scrollTo({
+          left: scrollPos,
+          behavior: 'smooth'
+        });
       }
 
       heroCards.forEach(card => {

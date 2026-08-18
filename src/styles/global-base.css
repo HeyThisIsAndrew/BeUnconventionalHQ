@@ -40,6 +40,21 @@ html {
   overflow-x: clip;
 }
 
+/* Prevent smooth scrolling from hijacking View Transitions, which causes a jarring slide effect */
+html[data-astro-transition] {
+  scroll-behavior: auto !important;
+}
+
+/* 
+   Disable the browser's default View Transition slide animation.
+   When navigating to a new page, Astro forces the scroll position to 0. 
+   By default, the View Transition API attempts to animate this scroll difference 
+   by sliding the entire `::view-transition-group(root)` up or down.
+*/
+::view-transition-group(root) {
+  animation-duration: 0s !important;
+}
+
 
 /*
    Scale the entire layout down by 12.5% on tablet and desktop to achieve a 
