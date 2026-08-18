@@ -373,7 +373,7 @@ const watermark = await getImage({
 
     {variant === 'hero' ? (
       isVideo ? (
-        <a href={cardHref} {...externalLinkProps} class="watch-now-btn" style="position: relative; z-index: 10; display: inline-flex; align-items: center; gap: 0.25rem;">
+        <a href={cardHref} {...externalLinkProps} class="watch-now-btn" style="position: relative; z-index: 10; display: inline-flex; align-items: center; gap: 0.25rem; margin-top: auto; margin-bottom: 1.5rem;">
           {LABELS.watchNow}
           <svg class="youtube-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
             <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
@@ -381,7 +381,7 @@ const watermark = await getImage({
           <span class="btn-underline" />
         </a>
       ) : (
-        <span class="watch-now-btn" style="position: relative; z-index: 10; display: inline-flex; align-items: center; gap: 0.25rem;">
+        <span class="watch-now-btn" style="position: relative; z-index: 10; display: inline-flex; align-items: center; gap: 0.25rem; margin-top: auto; margin-bottom: 1.5rem;">
           {LABELS.readNow}
           <span class="content-card-arrow" aria-hidden="true">&rarr;</span>
           <span class="btn-underline" />
@@ -430,16 +430,6 @@ const watermark = await getImage({
     background: var(--bg-surface-elevated, #1a1a1a);
   }
 
-  /*
-    Hard rule 3 again — this hero-scoped rule re-declares the clip that
-    home-cards.css just learned to release, and being scoped it carries the
-    higher specificity, so without this it would win and keep the iframe
-    clipped on iOS Safari. See the long note in home-cards.css.
-  */
-  .variant-hero.has-player :global(.content-card-media) {
-    overflow: visible;
-  }
-  
   .variant-hero :global(.content-card-media)::after {
     content: '';
     position: absolute;
@@ -458,15 +448,18 @@ const watermark = await getImage({
     transition: opacity 0.1s ease !important;
   }
 
-  /* Inline video iframe styles */
+  /* Inline video iframe styles - forced via !important to override YouTube JS */
   :global(.yt-player-target),
   .variant-hero :global(iframe) {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    border: none;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: translateZ(0) !important;
+    border: none !important;
     z-index: 0;
     background: transparent;
     opacity: 0;
@@ -481,7 +474,6 @@ const watermark = await getImage({
     left: 0.75rem;
     z-index: 10;
     pointer-events: none;
-    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.8));
   }
 
   .video-watermark-logo {

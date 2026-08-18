@@ -174,25 +174,59 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
 
   .fh-right {
     display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 0.5rem;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    gap: 1rem;
+    padding-bottom: 0.5rem; /* space for scrollbar */
     min-width: 0; /* Prevents grid blowout */
+    /* Hide scrollbar for cleaner look */
+    scrollbar-width: none;
+  }
+  .fh-right::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Desktop layout */
+  @media (min-width: 768px) {
+    .fh-right {
+      flex-direction: column;
+      justify-content: space-between;
+      overflow-x: visible;
+      overflow-y: visible;
+      scroll-snap-type: none;
+      gap: 0.5rem;
+      padding-bottom: 0;
+    }
   }
 
   .fh-row {
-    flex: 1; /* Stretch rows to evenly fill height */
+    flex: 0 0 260px; /* Carousel fixed sizing */
+    scroll-snap-align: start;
     position: relative;
     display: flex;
-    gap: 1rem;
-    align-items: center;
-    padding: 0.5rem 0.75rem;
+    flex-direction: column; /* Stack vertically on mobile */
+    gap: 0.75rem;
+    align-items: flex-start;
+    padding: 0.75rem;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(255, 255, 255, 0.05);
     text-align: left;
     cursor: pointer;
     color: var(--color-white, #ffffff);
     transition: all 0.4s ease;
+  }
+
+  @media (min-width: 768px) {
+    .fh-row {
+      flex: 1; /* Stretch rows to evenly fill height on desktop */
+      flex-direction: row; /* Side-by-side on desktop */
+      gap: 1rem;
+      align-items: center;
+      padding: 0.5rem 0.75rem;
+      scroll-snap-align: none;
+    }
   }
 
   /*
@@ -255,12 +289,18 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
   }
 
   .fh-row-thumb {
-    width: 140px;
+    width: 100%; /* full width of tile on mobile */
     height: auto;
     aspect-ratio: 16 / 9;
     flex-shrink: 0;
     overflow: hidden;
     background: #111;
+  }
+
+  @media (min-width: 768px) {
+    .fh-row-thumb {
+      width: 140px; /* fixed width on desktop */
+    }
   }
 
   .fh-row-thumb img {
@@ -390,11 +430,53 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     let currentIndex = 0;
     let autoPlayTimeout: ReturnType<typeof setTimeout> | null = null;
     let isPaused = false;
+    let isInteracting = false;
     let activePlayer: any = null;
     let activeMediaContainer: HTMLElement | null = null;
     let slideStartTime = 0;
     let accumulatedTime = 0;
     const duration = 8000;
+    
+    heroCards.forEach(card => {
+      const pauseHero = () => {
+        isInteracting = true;
+        stopAutoPlay();
+      };
+      card.addEventListener('touchstart', pauseHero, { passive: true });
+      card.addEventListener('click', pauseHero);
+    });
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) {
+          isInteracting = false;
+          if (!isPaused) startAutoPlay();
+        }
+      });
+    }, { threshold: 0 });
+    observer.observe(section);
+
+    const documentInteractionHandler = (e: Event) => {
+      if (!section.isConnected) {
+        document.removeEventListener('click', documentInteractionHandler);
+        document.removeEventListener('touchstart', documentInteractionHandler);
+        return;
+      }
+      if (!isInteracting) return;
+      const target = e.target as Node;
+      
+      const activeCard = section.querySelector('.fh-hero-card.active');
+      const fhRightNav = section.querySelector('.fh-right');
+      const clickedInsideCard = activeCard?.contains(target);
+      const clickedInsideNav = fhRightNav?.contains(target);
+      
+      if (!clickedInsideCard && !clickedInsideNav) {
+        isInteracting = false;
+        if (!isPaused) startAutoPlay();
+      }
+    };
+    document.addEventListener('click', documentInteractionHandler);
+    document.addEventListener('touchstart', documentInteractionHandler, { passive: true });
 
     function getDurationForIndex(index: number) {
       const row = rows[index];
@@ -442,6 +524,11 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
 
       row.classList.add('is-active');
       row.setAttribute('aria-pressed', 'true');
+      
+      const container = section.querySelector('.fh-right') as HTMLElement;
+      if (container && container.scrollWidth > container.clientWidth) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
 
       heroCards.forEach(card => {
         if (card.getAttribute('data-index') === targetId) {
@@ -507,87 +594,88 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
                 are only presentational hints). These numbers exist purely so
                 the player's own maths starts from the truth.
               */
-              const initialRect = mediaContainer.getBoundingClientRect();
-              const initialWidth = Math.max(1, Math.round(initialRect.width));
-              const initialHeight = Math.max(1, Math.round(initialRect.height));
+              /*
+                ─── THE FIRST-PAINT LAYOUT FIX (150ms TIMEOUT) ───
+                As hypothesized, WebKit's dynamic CSS Grid calculations
+                can take longer than 2 paint cycles to settle on heavy DOMs.
+                By abandoning synchronous JS pixel measurement and relying entirely
+                 on CSS 100% bounds, we wrap the injection in a 150ms timeout
+                to guarantee the parent grid has rigidly settled its fractional widths.
+              */
+              let playingTimeout: ReturnType<typeof setTimeout> | null = null;
+              
+              setTimeout(() => {
+                if (!mediaContainer.isConnected) return; // safeguard if component unmounted
 
-              activePlayer = new win.YT.Player(targetDiv, {
-                width: initialWidth,
-                height: initialHeight,
-                videoId: videoId,
-                playerVars: {
-                  autoplay: 1,
-                  controls: 0,
-                  mute: 1,
-                  modestbranding: 1,
-                  loop: 1,
-                  playlist: videoId,
-                  playsinline: 1,
-                  cc_load_policy: 0, // Disable captions
-                  iv_load_policy: 3, // Disable annotations
-                  rel: 0,
-                  disablekb: 1
-                },
-                events: {
-                  onReady: (e: any) => {
-                    /*
-                      Re-assert the size once the player exists. The
-                      constructor value above is measured BEFORE the iframe
-                      is inserted, so a layout that settles afterwards — the
-                      hero card's flex pass, a late font, the safe-area
-                      insets landing — would leave the player composing for a
-                      box it no longer occupies. This is the same correction
-                      the resize path makes, applied to the one case that has
-                      no resize to hang off: first paint.
-                    */
-                    if (typeof e.target.setSize === 'function') {
-                      const r = mediaContainer.getBoundingClientRect();
-                      if (r.width > 0 && r.height > 0) {
-                        e.target.setSize(Math.round(r.width), Math.round(r.height));
-                      }
-                    }
-                    e.target.playVideo();
+                activePlayer = new win.YT.Player(targetDiv, {
+                  width: '100%',
+                  height: '100%',
+                  videoId: videoId,
+                  playerVars: {
+                    autoplay: 1,
+                    controls: 0,
+                    mute: 1,
+                    modestbranding: 1,
+                    playsinline: 1,
+                    cc_load_policy: 0,
+                    iv_load_policy: 3,
+                    rel: 0,
+                    disablekb: 1
                   },
-                  onStateChange: (e: any) => {
-                    // When video actually starts playing, wait 1.5s for YouTube UI to fade out, then fade video in
-                    if (e.data === win.YT.PlayerState.PLAYING) {
-                      setTimeout(() => {
-                        // Check if the player is still active (hasn't been destroyed by slide switch)
+                  events: {
+                    onReady: (e: any) => {
+                      e.target.playVideo();
+                    },
+                    onStateChange: (e: any) => {
+                      // When video actually starts playing, wait 1.5s for YouTube UI to fade out, then fade video in
+                      if (e.data === win.YT.PlayerState.PLAYING) {
+                        if (playingTimeout) clearTimeout(playingTimeout);
+                        playingTimeout = setTimeout(() => {
+                          // Check if the player is still active (hasn't been destroyed by slide switch)
+                          const iframe = mediaContainer.querySelector('iframe');
+                          if (iframe) {
+                            iframe.style.opacity = '1';
+                          }
+                          const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
+                          if (logo) {
+                            logo.style.opacity = '0.8';
+                          }
+                          mediaContainer.classList.add('is-playing-inline');
+                        }, 1500);
+                      } else if (e.data === win.YT.PlayerState.PAUSED || e.data === win.YT.PlayerState.ENDED) {
+                        if (playingTimeout) {
+                          clearTimeout(playingTimeout);
+                          playingTimeout = null;
+                        }
+                        
+                        // Hide the iframe immediately to hide YouTube's messy paused UI (More videos, title bar, etc.)
                         const iframe = mediaContainer.querySelector('iframe');
                         if (iframe) {
-                          iframe.style.opacity = '1';
+                          iframe.style.opacity = '0';
+                          iframe.style.pointerEvents = 'none';
                         }
+                        
                         const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
-                        if (logo) {
-                          logo.style.opacity = '0.8';
-                        }
-                        mediaContainer.classList.add('is-playing-inline');
-                      }, 1500);
-                    } else if (e.data === win.YT.PlayerState.PAUSED || e.data === win.YT.PlayerState.ENDED) {
-                      // Hide the iframe immediately to hide YouTube's messy paused UI (More videos, title bar, etc.)
-                      const iframe = mediaContainer.querySelector('iframe');
-                      if (iframe) {
-                        iframe.style.opacity = '0';
-                        iframe.style.pointerEvents = 'none';
-                      }
-                      
-                      const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
-                      if (logo) logo.style.opacity = '0';
+                        if (logo) logo.style.opacity = '0';
 
-                      mediaContainer.classList.remove('is-playing-inline');
-                      /* Back to poster + play icon, so the next click is ours
-                         again rather than YouTube's. */
-                      mediaContainer.classList.remove('is-user-activated');
+                        mediaContainer.classList.remove('is-playing-inline');
+                        /* Back to poster + play icon, so the next click is ours
+                           again rather than YouTube's. */
+                        mediaContainer.classList.remove('is-user-activated');
 
-                      // If the user was actively watching and the video just ended, move to the next tile
-                      if (e.data === win.YT.PlayerState.ENDED && isPaused) {
+                        const wasWatching = isPaused;
                         isPaused = false;
-                        nextSlide();
+                        
+                        if (e.data === win.YT.PlayerState.PAUSED) {
+                          if (!isInteracting) startAutoPlay();
+                        } else if (e.data === win.YT.PlayerState.ENDED) {
+                          if (wasWatching) nextSlide();
+                        }
                       }
                     }
                   }
-                }
-              });
+                });
+              }, 150);
             }
           }
         } else {
@@ -624,13 +712,18 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
       const progress = row?.querySelector('.fh-row-progress') as HTMLElement;
       
       if (progress) {
+        progress.style.opacity = '1';
         progress.style.transition = 'none';
         progress.style.transform = `scaleX(${accumulatedTime / duration})`;
         
-        void progress.offsetWidth; // Force reflow
+        // Force layout reflow
+        progress.getBoundingClientRect();
+        void progress.offsetWidth;
         
-        progress.style.transition = `transform ${remaining}ms linear`;
-        progress.style.transform = 'scaleX(1)';
+        requestAnimationFrame(() => {
+          progress.style.transition = `transform ${remaining}ms linear`;
+          progress.style.transform = 'scaleX(1)';
+        });
       }
 
       autoPlayTimeout = setTimeout(() => {
@@ -659,11 +752,13 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     let isHovering = false;
     const fhRight = section.querySelector('.fh-right');
     if (fhRight) {
-      fhRight.addEventListener('mouseenter', () => {
+      fhRight.addEventListener('pointerenter', (e: any) => {
+        if (e.pointerType !== 'mouse') return;
         isHovering = true;
         stopAutoPlay();
       });
-      fhRight.addEventListener('mouseleave', () => {
+      fhRight.addEventListener('pointerleave', (e: any) => {
+        if (e.pointerType !== 'mouse') return;
         isHovering = false;
         if (!isPaused) {
           startAutoPlay();
@@ -673,8 +768,15 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
 
     rows.forEach((row, index) => {
       row.addEventListener('click', () => {
+        isInteracting = false;
         isPaused = false;
-        stopAutoPlay();
+        accumulatedTime = 0;
+        
+        if (autoPlayTimeout) {
+          clearTimeout(autoPlayTimeout);
+          autoPlayTimeout = null;
+        }
+        
         activateIndex(index);
         if (!isHovering) {
           startAutoPlay();
