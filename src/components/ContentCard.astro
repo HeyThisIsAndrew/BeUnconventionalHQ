@@ -13,6 +13,9 @@ export interface Props {
 
 const { item, index = 0, variant = 'default' } = Astro.props;
 
+// Determine if this is the Largest Contentful Paint (LCP) element
+const isLCP = variant === 'hero' && index === 0;
+
 if (!item) return;
 
 let excerpt = '';
@@ -307,8 +310,9 @@ const watermark = await getImage({
         srcset={cardImageSrcset || undefined}
         sizes={cardImageSrcset ? CARD_IMAGE_SIZES : undefined}
         alt={item.title}
-        loading="lazy"
-        decoding="async"
+        loading={isLCP ? 'eager' : 'lazy'}
+        fetchpriority={isLCP ? 'high' : 'auto'}
+        decoding={isLCP ? 'sync' : 'async'}
       />
     ) : (
       <div class="article-thumb-fallback" data-fallback="true">
