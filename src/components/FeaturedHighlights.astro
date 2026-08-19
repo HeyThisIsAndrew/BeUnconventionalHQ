@@ -435,6 +435,7 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     let activeMediaContainer: HTMLElement | null = null;
     let slideStartTime = 0;
     let accumulatedTime = 0;
+    let rAF_ID = 0;
     const duration = 8000;
     
     heroCards.forEach(card => {
@@ -477,6 +478,14 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     };
     document.addEventListener('click', documentInteractionHandler);
     document.addEventListener('touchstart', documentInteractionHandler, { passive: true });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (!isPaused) stopAutoPlay();
+      } else {
+        if (!isPaused && !isInteracting) startAutoPlay();
+      }
+    });
 
     function getDurationForIndex(index: number) {
       const row = rows[index];
@@ -724,7 +733,8 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
         progress.getBoundingClientRect();
         void progress.offsetWidth;
         
-        requestAnimationFrame(() => {
+        if (rAF_ID) cancelAnimationFrame(rAF_ID);
+        rAF_ID = requestAnimationFrame(() => {
           progress.style.transition = `transform ${remaining}ms linear`;
           progress.style.transform = 'scaleX(1)';
         });
@@ -737,6 +747,10 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     }
 
     function stopAutoPlay() {
+      if (rAF_ID) {
+        cancelAnimationFrame(rAF_ID);
+        rAF_ID = 0;
+      }
       if (autoPlayTimeout) {
         clearTimeout(autoPlayTimeout);
         autoPlayTimeout = null;
@@ -754,21 +768,18 @@ const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: a
     }
 
     let isHovering = false;
-    const fhRight = section.querySelector('.fh-right');
-    if (fhRight) {
-      fhRight.addEventListener('pointerenter', (e: any) => {
-        if (e.pointerType !== 'mouse') return;
-        isHovering = true;
-        stopAutoPlay();
-      });
-      fhRight.addEventListener('pointerleave', (e: any) => {
-        if (e.pointerType !== 'mouse') return;
-        isHovering = false;
-        if (!isPaused) {
-          startAutoPlay();
-        }
-      });
-    }
+    section.addEventListener('pointerenter', (e: any) => {
+      if (e.pointerType !== 'mouse') return;
+      isHovering = true;
+      stopAutoPlay();
+    });
+    section.addEventListener('pointerleave', (e: any) => {
+      if (e.pointerType !== 'mouse') return;
+      isHovering = false;
+      if (!isPaused) {
+        startAutoPlay();
+      }
+    });
 
     rows.forEach((row, index) => {
       row.addEventListener('click', () => {
