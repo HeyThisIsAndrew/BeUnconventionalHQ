@@ -32,18 +32,11 @@ import bannerImg from '../assets/banner.webp';
     */
     function jumpToTop() {
       const root = document.documentElement;
-      // Force auto with !important to strictly override global-base.css smooth scrolling
-      root.style.setProperty('scroll-behavior', 'auto', 'important');
-      void root.offsetHeight; // Force reflow
-      
-      // Try standard instant behavior, fallback to coordinate scroll
-      try {
-        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-      } catch (e) {
-        window.scrollTo(0, 0);
-      }
-      
-      root.style.removeProperty('scroll-behavior');
+      const previousBehavior = root.style.scrollBehavior;
+      root.style.scrollBehavior = 'auto';
+      void root.offsetHeight; // forces the recalc; without it scrollTo still sees `smooth`
+      window.scrollTo(0, 0);
+      root.style.scrollBehavior = previousBehavior;
     }
 
     const navEntries = performance.getEntriesByType ? performance.getEntriesByType('navigation') : [];
