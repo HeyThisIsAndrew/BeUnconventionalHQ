@@ -327,7 +327,7 @@ const older = {
 };
 
 test('a record that has aged out of the feed window is NEVER deleted', () => {
-  const incoming = [{ ...older, guid: 'b', isoDate: '2026-06-01T00:00:00.000Z' }];
+  const incoming = [{ ...older, guid: 'b', slug: 'b-slug', isoDate: '2026-06-01T00:00:00.000Z' }];
   const { merged } = mergeSnapshot([older], incoming);
   assert.equal(merged.length, 2);
   assert.ok(merged.some((r) => r.guid === 'a'), 'aged-out record was dropped');
@@ -366,7 +366,7 @@ test('a feed that stops returning bodies does not blank an archived body', () =>
 });
 
 test('merged output is sorted newest first', () => {
-  const newer = { ...older, guid: 'b', isoDate: '2026-06-01T00:00:00.000Z' };
+  const newer = { ...older, guid: 'b', slug: 'b-slug', isoDate: '2026-06-01T00:00:00.000Z' };
   const { merged } = mergeSnapshot([older], [newer]);
   assert.equal(merged[0].guid, 'b');
 });
