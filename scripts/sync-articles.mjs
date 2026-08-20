@@ -93,7 +93,7 @@ function mapTags(post) {
 export function parsePostsResponse(json) {
   return asArray(json).map((post) => {
     const slug = String(post?.slug ?? '').trim();
-    const link = String(post?.canonical_url ?? '').trim() || (slug ? `${PUBLICATION_URL}/p/${slug}` : '');
+    const link = String(post?.canonical_url ?? post?.link ?? '').trim() || (slug ? `${PUBLICATION_URL}/p/${slug}` : '');
 
     return {
       title: String(post?.title ?? '').trim(),
