@@ -115,8 +115,14 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   deliberately NOT robots-blocked so crawlers can read its noindex),
   `/admin` (Sanity Studio, header-gated via `public/_headers`), `/local-cms`
   (Local CMS, dev-only — shows a static "Restricted Access" message in prod).
-- The muted-grey text palette fails WCAG contrast in places — that is a known,
-  deliberate design trade-off; don't "fix" it without the owner.
+- The muted-grey text palette is a deliberate design trade-off; don't "fix" it
+  without the owner. It does NOT, however, fail WCAG the way this note used to
+  claim: an automated pass over six routes found zero failures at rest.
+  `--color-white-muted` (#888888) on `--color-surface` (#111111) is 5.33:1 and
+  `--color-accent-text` (#ef4444) is 5.02:1, both clearing AA. The one token
+  that genuinely fails is `--color-accent` (#cc0000) at 3.21:1: it is a border
+  and glow colour only, never a text or icon colour. Use `--color-accent-text`
+  when red needs to be legible.
 - `.sr-only` is global (`src/styles/global-base.css`). Card grids under an h1
   get a structural sr-only `<h2>`.
 - Secrets: never committed; see `.env.example`. The sync script requires

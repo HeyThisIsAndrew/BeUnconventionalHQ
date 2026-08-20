@@ -146,7 +146,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       await KV.put(`subscriber:${email}`, JSON.stringify({
         email,
         subscribedAt: timestamp,
-        source: 'SubscribeBox'
+        // Provenance, not a component reference. It said 'SubscribeBox' long
+        // after that component stopped being the thing posting here, and it
+        // has now been deleted outright. NewsletterForm is the only caller.
+        // Nothing reads this field back; it exists so a future second form
+        // can be told apart in the KV dump.
+        source: 'NewsletterForm'
       }));
     } else {
       // Fallback for local development if KV binding isn't set up yet
