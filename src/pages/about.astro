@@ -6,7 +6,19 @@ import SectionHeader from '../components/SectionHeader.astro';
 import PageTitle from '../components/PageTitle.astro';
 import { SOCIAL_ICONS } from '../data/icons.js';
 import { Image } from 'astro:assets';
-import logoImage from '../assets/logo.webp';
+import Button from '../components/Button.astro';
+/*
+  The PRE-CROPPED mark (src/assets/logo-mark.webp), not logo.webp.
+
+  logo.webp is a 2000x2000 square canvas whose artwork is only 1909x839, so
+  the other 58% of its height is transparent padding. Because the <Image>
+  width/height attributes set the reserved aspect ratio, `.about-image-container`
+  was sizing a SQUARE box for artwork that fills 42% of it, and on a two-column
+  hero that empty box is what set the section's height. logo-mark.webp is the
+  same artwork on its real content box, so the box size IS the mark size.
+  Same reasoning as the fallback mark in ArticleThumb.astro.
+*/
+import logoImage from '../assets/logo-mark.webp';
 import andrewHeadshot from '../assets/andrew-headshot.webp';
 
 const title = `About | ${site.name}`;
@@ -15,28 +27,29 @@ const description =
 
 const pillars = [
   {
-    label: 'Production Quality',
+    value: 'FILM \u00b7 TV \u00b7 GAMING',
+    label: 'Coverage',
+    desc: 'Reviews, analysis, and event reporting',
+    backText: 'Film, television, and gaming, plus reporting from the events where that work gets shown.',
+    longValue: true,
+  },
+  {
+    value: '2026',
+    label: 'Founded',
+    desc: 'Independent, no publisher',
+    backText: 'Founded in 2026 and run independently. No publisher, no network, and no editorial mandate from anyone else.',
+  },
+  {
+    value: 'Weekly',
+    label: 'Publishing Cadence',
+    desc: 'New coverage every week',
+    backText: 'New coverage every week, so what we publish keeps pace with what is actually releasing.',
+  },
+  {
     value: '4K',
-    desc: 'Cinematic film-standard visuals',
-    backText: 'Every video is shot, graded, and finished to industry standards, ensuring the visuals respect the craft of the subjects we cover.',
-  },
-  {
-    label: 'Filmmaker Perspective',
-    value: 'Pro',
-    desc: 'Expertise-driven industry analysis',
-    backText: 'We look past the surface to analyze the lighting, pacing, writing, and design choices that make great stories work.',
-  },
-  {
-    label: 'Passionate Community',
-    value: 'HQ',
-    desc: 'Connecting nerd culture enthusiasts',
-    backText: 'A hub for creators, fans, and critics to engage in thoughtful discussion without the toxicity of typical internet discourse.',
-  },
-  {
-    label: 'Unfiltered Truth',
-    value: '100%',
-    desc: 'Honest reviews and deep dives',
-    backText: 'No paid opinions. No manufactured outrage. Just genuine, independent critique focused on the art and the audience.',
+    label: 'Production Standard',
+    desc: 'Sony Alpha, DaVinci Resolve, Shure',
+    backText: 'Shot on Sony Alpha bodies, recorded with Shure microphones, and graded in DaVinci Resolve. Finished in 4K.',
   },
 ];
 
@@ -50,7 +63,13 @@ const founderSocials = [
   { name: 'Bluesky', url: 'https://bsky.app/profile/thisisandrew.bsky.social', icon: SOCIAL_ICONS.Bluesky },
   { name: 'LinkedIn', url: 'https://www.linkedin.com/in/andrewlwyrbaxter/', icon: SOCIAL_ICONS.LinkedIn },
   { name: 'Substack', url: 'https://thisiscoffeetalk.substack.com/', icon: SOCIAL_ICONS.Substack },
-  { name: 'Amazon', url: 'https://www.amazon.com/shop/influencer-0931c541?ref=ac_inf_tb_vh', icon: SOCIAL_ICONS.Amazon },
+];
+
+/* The mobile social row splits into two lines. Derived from the list rather
+   than hardcoded so removing a platform cannot leave a dangling separator. */
+const mobileSocialRows = [
+  founderSocials.slice(0, Math.ceil(founderSocials.length / 2)),
+  founderSocials.slice(Math.ceil(founderSocials.length / 2)),
 ];
 ---
 
@@ -62,8 +81,8 @@ const founderSocials = [
           src={logoImage}
           alt="Be Unconventional HQ"
           class="about-profile-img"
-          width={800}
-          height={800}
+          width={1000}
+          height={460}
           loading="eager"
           fetchpriority="high"
         />
@@ -97,7 +116,7 @@ const founderSocials = [
     <section class="masthead-section animate-on-scroll">
       <SectionHeader class="about-section-header">
         <PageTitle
-          kicker="THE TEAM"
+          kicker="MASTHEAD"
           primary="INSIDE THE"
           secondary="HQ"
           scale="secondary"
@@ -130,26 +149,18 @@ const founderSocials = [
           </div>
 
           <div class="mobile-socials">
-            <div class="social-row">
-              {founderSocials.slice(0, 5).map((social, index) => (
-                <>
-                  <a href={social.url} target="_blank" rel="noopener noreferrer" aria-label={social.name} class="founder-social-link">
-                    <span class="social-icon-wrapper" set:html={social.icon} />
-                  </a>
-                  {index < 4 && <span class="social-separator">|</span>}
-                </>
-              ))}
-            </div>
-            <div class="social-row">
-              {founderSocials.slice(5, 10).map((social, index) => (
-                <>
-                  <a href={social.url} target="_blank" rel="noopener noreferrer" aria-label={social.name} class="founder-social-link">
-                    <span class="social-icon-wrapper" set:html={social.icon} />
-                  </a>
-                  {index < 4 && <span class="social-separator">|</span>}
-                </>
-              ))}
-            </div>
+            {mobileSocialRows.map((row) => (
+              <div class="social-row">
+                {row.map((social, index) => (
+                  <>
+                    <a href={social.url} target="_blank" rel="noopener noreferrer" aria-label={social.name} class="founder-social-link">
+                      <span class="social-icon-wrapper" set:html={social.icon} />
+                    </a>
+                    {index < row.length - 1 && <span class="social-separator">|</span>}
+                  </>
+                ))}
+              </div>
+            ))}
           </div>
           <div class="founder-text">
             <p>
@@ -171,7 +182,9 @@ const founderSocials = [
             >
               <div class="flip-card-inner">
                 <div class="flip-card-front">
-                  <span class="stat-value">{pillar.value}</span>
+                  <span class:list={['stat-value', pillar.longValue && 'stat-value-long']}>
+                    {pillar.value}
+                  </span>
                   <span class="stat-label">{pillar.label}</span>
                   <p class="pillar-desc">{pillar.desc}</p>
                 </div>
@@ -186,13 +199,37 @@ const founderSocials = [
     </section>
 
     <SocialsSection />
+
+    <section class="press-kit-section press-inquiries-section animate-on-scroll">
+      {/* Deliberately NOT the stacked <PageTitle /> used by the masthead: that
+          treatment overlaps its second line onto the first by design (it is
+          drawn for a one-word tail like "HQ"), and "Editorial Inquiries" is
+          unreadable in it. This uses the same kicker + `.press-kit-title` pair
+          as the subscribe and event-booking panels. */}
+      <p class="section-kicker">Media</p>
+      <h2 class="press-kit-title">Press and Editorial Inquiries</h2>
+      <p class="press-kit-desc press-inquiries-desc">
+        Screeners, review copies, event credentials, and partnership requests all start in one place.
+      </p>
+      <Button href="/collaborations">Visit Collaborations</Button>
+    </section>
   </main>
 
 </Layout>
 
 <style>
   .about-section-header {
-    margin-bottom: 5rem;
+    /* Was 5rem, stacking on top of `.about-hero`'s own 5rem bottom margin for
+       ~10rem of dead run between the publication copy and the founder card.
+       3rem here plus the hero's 5rem reads as one section break, not two. */
+    margin-bottom: 3rem;
+  }
+
+  /* Match the kicker treatment "The Publication" uses in the hero: accent
+     colour and the wider tracking, on top of the cinematic PageTitle stack. */
+  .about-section-header :global(.page-title-kicker) {
+    color: var(--color-accent-text);
+    letter-spacing: 0.3em;
   }
 
   .about-kicker {
@@ -243,6 +280,15 @@ const founderSocials = [
     .about-motto br {
       display: none;
     }
+  }
+
+  /* "FILM · TV · GAMING" cannot ride the numeric `.stat-value` scale without
+     overflowing the card, so long values get their own step down. */
+  .stat-value-long {
+    font-size: clamp(1rem, calc(0.7rem + 0.9vw), 1.25rem);
+    letter-spacing: 0.06em;
+    line-height: 1.3;
+    text-wrap: balance;
   }
 
   .pillar-desc {
@@ -443,7 +489,33 @@ const founderSocials = [
     text-wrap: balance;
   }
 
+  /* Rides the shared `.press-kit-section` panel (styles/modules/about.css) so
+     this reads as the same class of section as the subscribe and event CTAs,
+     rather than as a link stranded above the footer. Only the spacing differs:
+     the shared rule's 6rem top margin is tuned for a panel that follows a card
+     grid, and this one follows the socials grid. */
+  .press-inquiries-section {
+    margin: 0 auto 5rem;
+  }
+
+  .press-inquiries-desc {
+    font-size: 1.05rem;
+    line-height: 1.6;
+    text-wrap: balance;
+    max-width: 46ch;
+    margin: 0 auto 2.5rem;
+  }
+
   @media (max-width: 768px) {
+    .press-inquiries-section {
+      padding: 3rem 1.5rem;
+      margin-bottom: 4rem;
+    }
+
+    .press-inquiries-desc {
+      font-size: 0.95rem;
+    }
+
     .about-story h1.about-title-main {
       font-size: clamp(1.2rem, calc(0.5rem + 3vw), 1.6rem);
       text-align: center;
