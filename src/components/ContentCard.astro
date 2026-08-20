@@ -92,7 +92,7 @@ let finalTags: string[] = [];
 
   for (const type of typeMap) {
     // ONLY check explicit tags for content type to prevent false positives from body text
-    if (cleanTokens.some(t => type.regex.test(t))) {
+    if (cleanTokens.some(t => type.regex.test(t)) || (item.contentType && type.regex.test(item.contentType.toUpperCase()))) {
       tag2 = type.label;
       break;
     }
