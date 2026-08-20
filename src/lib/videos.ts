@@ -14,6 +14,7 @@ import { PUBLISH_TIME_ZONE } from './publish-timezone.js';
 /** Sanity-sourced entries. */
 export interface UnifiedVideo {
   title: string;
+  description?: string;
   link: string;
   thumbnail: string;
   category: string;
@@ -50,7 +51,7 @@ export interface UnifiedVideo {
 /** Published queries. Kept minimal: pages do their own slicing. */
 export function buildPublishedQuery(docType: string = 'video') {
   return `*[_type == "${docType}" && contentStatus == "published"] | order(publishedAt desc) [0...1000] {
-    youtubeId, title, thumbnailUrl, durationSeconds, isShort, isLive, isEvent, publishedAt,
+    youtubeId, title, description, thumbnailUrl, durationSeconds, isShort, isLive, isEvent, publishedAt,
     youtubeTags, "topics": topics[]->slug.current, featured
   }`;
 }
@@ -92,10 +93,11 @@ export function mapSanityVideo(doc: any, { categorize }: MapOptions = {}): Unifi
 
   return {
     title: doc.title,
+    description: doc.description,
     link: isShort
       ? `https://www.youtube.com/shorts/${id}`
       : `https://www.youtube.com/watch?v=${id}`,
-    thumbnail: doc.thumbnailUrl || `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
+    thumbnail: doc.thumbnailUrl || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
     category: topicMatch ?? categorize?.(doc.title) ?? 'General',
     tags: (doc.topics ?? []).map(String),
     youtubeTags: doc.youtubeTags ?? [],

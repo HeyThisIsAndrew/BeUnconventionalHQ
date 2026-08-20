@@ -98,12 +98,12 @@ export function parsePostsResponse(json) {
     return {
       title: String(post?.title ?? '').trim(),
       link,
-      guid: String(post?.id ?? link ?? '').trim(),
-      pubDate: String(post?.post_date ?? '').trim(),
+      guid: String(post?.id ?? post?.guid ?? link ?? '').trim(),
+      pubDate: String(post?.post_date ?? post?.pubDate ?? '').trim(),
       description: String(post?.subtitle ?? post?.description ?? '').trim(),
-      contentEncoded: String(post?.body_html ?? '').trim(),
-      categories: mapTags(post),
-      enclosureUrl: String(post?.cover_image ?? '').trim(),
+      contentEncoded: String(post?.body_html ?? post?.contentEncoded ?? post?.content ?? '').trim(),
+      categories: mapTags(post).length ? mapTags(post) : (post?.categories || []),
+      enclosureUrl: String(post?.cover_image ?? post?.enclosureUrl ?? '').trim(),
     };
   });
 }
@@ -174,14 +174,43 @@ async function fetchAllPosts() {
   const collected = [];
 
   // 1. Fetch RSS feed to get the latest posts
-  const response = await fetch(SUBSTACK_FEED, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      Accept: 'text/html,application/rss+xml,application/xml;q=0.9,*/*;q=0.8',
-    },
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status} fetching RSS`);
-  const xml = await response.text();
+  let xml = '';
+  try {
+    const response = await fetch(SUBSTACK_FEED, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/rss+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'no-cache',
+      },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    xml = await response.text();
+  } catch (err) {
+    console.warn(`[articles] ⚠ Direct RSS fetch failed (${err.message}), falling back to proxy...`);
+    const proxyUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(SUBSTACK_FEED)}`;
+    const proxyRes = await fetch(proxyUrl);
+    if (!proxyRes.ok) throw new Error(`HTTP ${proxyRes.status} from proxy`);
+    const proxyJson = await proxyRes.json();
+    if (proxyJson.status !== 'ok') throw new Error(`Proxy error: ${proxyJson.message}`);
+    
+    // Convert rss2json back to the shape expected below, or just map it directly.
+    // Actually, rss2json returns JSON, not XML. We need to handle this carefully.
+    // To keep it simple, let's map rss2json format to our `rawItems` shape.
+    const collected = proxyJson.items.map(item => ({
+      title: item.title,
+      link: item.link,
+      guid: item.guid,
+      pubDate: item.pubDate,
+      description: item.description,
+      contentEncoded: item.content,
+      categories: item.categories || [],
+      enclosureUrl: item.enclosure?.link || item.thumbnail
+    }));
+    
+    // Return early since we can't scrape HTML via proxy anyway
+    return { posts: collected, pages: 1 };
+  }
 
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
   const result = parser.parse(xml);
@@ -201,8 +230,10 @@ async function fetchAllPosts() {
     try {
       const htmlRes = await fetch(link, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Cache-Control': 'no-cache',
         },
       });
       if (!htmlRes.ok) {

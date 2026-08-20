@@ -162,6 +162,21 @@
   position: relative;
   width: fit-content;
   transition: color 0.3s ease;
+  /*
+    WCAG 2.5.8 target size (Lighthouse `target-size`). At 12px/uppercase this
+    box was only about 14px tall, and in the hero card it is a real <a> to
+    YouTube — a tappable target, not decoration, so it is audited. 24px is
+    the minimum; the extra height is added with padding and pulled back out
+    with a negative margin so the text keeps sitting exactly where the layout
+    puts it and only the hit area grows.
+
+    `min-height` alone would not do it: the element is `inline-block`, so the
+    box grows downward from the baseline and shifts the underline with it.
+  */
+  min-height: 24px;
+  padding-block: 5px;
+  margin-block: -5px;
+  box-sizing: content-box;
 }
 .video-card-home:hover {
   transform: translateY(-6px);
@@ -263,6 +278,31 @@
   overflow: hidden;
   flex-shrink: 0;
 }
+
+/*
+   ─── HARD RULE 3: NOTHING CLIPS A YOUTUBE IFRAME ─────────────────────────
+
+   CLAUDE.md: "No `overflow: hidden` on any ancestor of a YouTube iframe —
+   iOS Safari renders the iframe as a black box." Both `.content-card-media`
+   (the iframe's direct parent) and `.content-card` (its grandparent) clip.
+
+   That was harmless for as long as a card's video opened in the modal: there
+   was no iframe inside a card to clip. The inline hero player put one there,
+   and iOS Safari duly mis-composited it — the picture shoved right with a
+   black band down the left, on a real iPhone, while Chromium renders it
+   perfectly because the bug is WebKit's.
+
+   The clipping is only ever protecting the `scale(1.05)` hover zoom on the
+   thumbnail. While a player exists that image is hidden — and the iframe is
+   absolutely positioned to fill the box exactly, so clipping it removes no
+   pixels. Releasing the clip for exactly that window therefore costs nothing
+   visually and takes the card out of the WebKit bug's path.
+
+   `has-player` is set from FeaturedHighlights.astro when the player is
+   constructed, NOT `is-playing-inline`: that one arrives 1.5s later, and the
+   iframe has to be un-clipped from the moment it exists.
+*/
+
 
 /* ── BROKEN-IMAGE FAIL-SAFE ──────────────────────────────────────────────────
 
@@ -397,6 +437,55 @@
   transition: transform 0.5s ease;
 }
 
+.content-card-media .yt-player-target,
+.content-card-media iframe {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  transform: translateZ(0) !important;
+  border: none !important;
+  z-index: 0;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+/*
+   TWO STATES, NOT ONE — and conflating them broke both click and hover.
+
+     .is-playing-inline   the MUTED AUTOPLAY PREVIEW. Visible, and strictly
+                          inert: the card owns every pointer event.
+     .is-user-activated   the reader asked for this video. Now the iframe
+                          takes the clicks so YouTube's own controls work.
+
+   `pointer-events: auto` used to arrive with the preview, 1.5s after
+   autoplay began, and that single declaration caused both reported bugs.
+   The iframe is stacked over the whole media box, so once it was live:
+
+     - clicking the card hit YOUTUBE, not us. YouTube's default response to
+       a click on the video is to PAUSE, and our handler — the one that
+       calls playVideo()/unMute() — never ran. Hence "click the video and it
+       pauses rather than starts or unmutes".
+     - hovering summoned YouTube's own pause affordance on top of our play
+       icon. Two buttons, same spot. `controls: 0` does not suppress that
+       one; only withholding the pointer does.
+
+   So the preview keeps `pointer-events: none` (inherited from the base rule
+   above) and only opacity changes here.
+*/
+.content-card-media.is-playing-inline iframe {
+  opacity: 1 !important;
+}
+
+.content-card-media.is-user-activated iframe {
+  pointer-events: auto !important;
+}
+
 .content-card-body {
   padding: 1.5rem;
   display: flex;
@@ -514,6 +603,8 @@
     */
     padding: 0.85rem 1rem;
     justify-content: center;
+    flex: 1;
+    min-width: 0;
   }
 
   /* Keeps rows even when a headline runs short, so the image column does not

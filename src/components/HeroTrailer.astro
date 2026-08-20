@@ -53,6 +53,8 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
         alt=""
         aria-hidden="true"
         loading="eager"
+        fetchpriority="high"
+        decoding="sync"
         data-fallback={posterFallback}
       />
       <div class="ht-play-wrapper" aria-hidden="true">
@@ -104,11 +106,14 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
   /* The injected/native iframes fill their side. */
   .ht-root :global(iframe.ht-frame),
   .ht-mount :global(iframe) {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    border: 0;
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: translateZ(0) !important;
+    border: 0 !important;
   }
 
   /* --- Desktop poster --- */
@@ -169,9 +174,7 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
     padding: 0;
     border-radius: 50%;
     border: 1px solid rgba(255, 255, 255, 0.25);
-    background: rgba(0, 0, 0, 0.55);
-    -webkit-backdrop-filter: blur(6px);
-    backdrop-filter: blur(6px);
+    background: rgba(0, 0, 0, 0.85); /* Removed backdrop-filter to prevent iOS Safari iframe compositing bug */
     color: #fff;
     cursor: pointer;
     transition: background 0.25s ease, border-color 0.25s ease, transform 0.2s ease;

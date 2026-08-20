@@ -11,7 +11,11 @@
   Offline and pure: plain `node scripts/card-images.test.mjs`.
 */
 import assert from 'node:assert/strict';
-import { getCardImageSources, CARD_IMAGE_SIZES } from '../src/lib/card-images.ts';
+import {
+  getCardImageSources,
+  CARD_IMAGE_SIZES,
+  youtubeFallbackSrc,
+} from '../src/lib/card-images.ts';
 
 let passed = 0;
 let failed = 0;
@@ -232,6 +236,78 @@ test('CARD_IMAGE_SIZES covers every grid breakpoint', () => {
   assert.match(CARD_IMAGE_SIZES, /max-width:\s*1100px\)\s*47vw/);
   assert.match(CARD_IMAGE_SIZES, /min-width:\s*1536px\)\s*360px/);
   assert.ok(CARD_IMAGE_SIZES.trim().endsWith('23vw'), CARD_IMAGE_SIZES);
+});
+
+console.log('\nyoutubeFallbackSrc (client recovery target):');
+
+/*
+  This is the half of the contract srcset cannot express. The browser will
+  not retry a neighbouring candidate when its pick 404s, so Layout.astro's
+  fail-safe re-points the <img> at the rendition YouTube always generates.
+  Both sides share this function so they cannot disagree about which one
+  that is.
+*/
+
+test('maxresdefault falls back to hqdefault', () => {
+  assert.equal(
+    youtubeFallbackSrc(MAXRES),
+    'https://i.ytimg.com/vi/zGA4XXAkE_s/hqdefault.jpg',
+  );
+});
+
+test('sddefault falls back too — it is 4:3 but it is not guaranteed either', () => {
+  assert.equal(
+    youtubeFallbackSrc('https://i.ytimg.com/vi/abc123/sddefault.jpg'),
+    'https://i.ytimg.com/vi/abc123/hqdefault.jpg',
+  );
+});
+
+test('the guaranteed renditions decline, so the caller stops instead of looping', () => {
+  /*
+    An empty return is what makes the recovery single-shot in the honest
+    case: if hqdefault itself is what failed, there is nothing better to
+    ask for and the container should get the branded panel.
+  */
+  for (const rendition of ['hqdefault', 'mqdefault', 'default']) {
+    assert.equal(
+      youtubeFallbackSrc(`https://i.ytimg.com/vi/abc123/${rendition}.jpg`),
+      '',
+      rendition,
+    );
+  }
+});
+
+test('non-YouTube URLs decline', () => {
+  // Article covers must keep reaching markFailed() and their branded panel.
+  for (const url of [
+    'https://substackcdn.com/image/fetch/w_600,c_limit/https%3A%2F%2Fx.jpg',
+    'https://wsrv.nl/?url=example.com%2Fa.jpg&w=600',
+    '/article-images/0104b20cd77d37bb-720.webp',
+    '',
+  ]) {
+    assert.equal(youtubeFallbackSrc(url), '', JSON.stringify(url));
+  }
+});
+
+test('the video id survives, and query strings are preserved', () => {
+  assert.equal(
+    youtubeFallbackSrc('https://i.ytimg.com/vi/a-B_c1D2e3F/maxresdefault.jpg?sqp=xyz'),
+    'https://i.ytimg.com/vi/a-B_c1D2e3F/hqdefault.jpg?sqp=xyz',
+  );
+});
+
+test('it agrees with the src getCardImageSources already chose', () => {
+  /*
+    The build-time rewrite and the client-side recovery must land on the
+    same URL, or a retry would fetch a second distinct file and defeat the
+    cache. This is the whole reason the helper is shared.
+  */
+  assert.equal(youtubeFallbackSrc(MAXRES), getCardImageSources(MAXRES).src);
+});
+
+test('applying it twice is a no-op', () => {
+  const once = youtubeFallbackSrc(MAXRES);
+  assert.equal(youtubeFallbackSrc(once), '');
 });
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);

@@ -5,6 +5,7 @@ import '../styles/theme-red.css';
 import Footer from '../components/Footer.astro';
 import Navbar from '../components/Navbar.astro';
 import BrandGlow from '../components/BrandGlow.astro';
+import VideoDebugOverlay from '../components/VideoDebugOverlay.astro';
 import { site } from '../data/site.js';
 import { ClientRouter } from 'astro:transitions';
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
@@ -145,7 +146,9 @@ const fallbackMark = await getImage({
     <ClientRouter />
     <script is:inline>
       document.documentElement.classList.add('js');
-      history.scrollRestoration = 'manual';
+      if ('scrollRestoration' in history) {
+        history.scrollRestoration = 'manual';
+      }
 
       /*
         ─── THE HERO'S HEIGHT IS MEASURED, NOT GUESSED ───────────────────────
@@ -237,7 +240,7 @@ const fallbackMark = await getImage({
 
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
+      content="width=device-width, initial-scale=1"
     />
     <meta name="theme-color" content="#000000" />
     <meta name="description" content={description} />
@@ -410,6 +413,14 @@ const fallbackMark = await getImage({
         initTurnstileLazyLoading();
       </script>
     )}
+
+    {/*
+      Dev-only geometry overlay for the inline YouTube player. The guard is
+      what keeps it out of production entirely — `astro build` evaluates
+      `import.meta.env.DEV` as false, so neither the markup nor its script is
+      emitted. Activate with `?debug=video`, or press `d`.
+    */}
+    {import.meta.env.DEV && <VideoDebugOverlay />}
 
     <slot name="modals" />
 
@@ -709,6 +720,8 @@ const fallbackMark = await getImage({
       document.addEventListener('astro:page-load', handlePageLoad);
     </script>
     <script>
+      import { youtubeFallbackSrc } from '../lib/card-images';
+
       /*
         BROKEN-IMAGE FAIL-SAFE
 
@@ -722,30 +735,144 @@ const fallbackMark = await getImage({
         covers images added later by the Feed's client-side filtering, without
         re-binding on every render.
       */
+
+      /*
+        ─── DOWNGRADE BEFORE GIVING UP ──────────────────────────────────────
+
+        A missing `maxresdefault` is not a broken card, it is the wrong
+        rendition — `hqdefault` exists for every video. But srcset has no
+        fallback semantics: the browser picks one candidate and a dead pick
+        kills the whole <img>, so nothing recovers it on its own.
+
+        THIS IS WHY THE RECOVERY LIVES HERE rather than in an `onerror`
+        attribute on each <img>. Two reasons, both learned from the version
+        that did it inline and still shipped black boxes:
+
+        1. An inline `onerror` cannot see the HTTP 200 placeholder case at
+           all. YouTube answers some missing renditions with its grey 120x90
+           graphic and a 200, so `error` never fires — `load` does. The
+           inline handler was dead code for exactly the failure that paints
+           the black box, because `isProviderPlaceholder` below then marks the
+           container and `home-cards.css` sets `display: none` on the <img>.
+
+        2. Two handlers for one condition is a race. This listener runs in
+           the CAPTURE phase, so it always marks the container BEFORE an
+           attribute handler on the element (target phase) gets to unmark it
+           — a fix that depends on running second is a fix that depends on
+           phase ordering nobody should have to reason about.
+
+        One owner, both triggers, one retry. `data-yt-fallback` makes it
+        single-shot: if hqdefault ALSO fails, this declines and the caller
+        marks the container failed, which is the correct end state.
+      */
+      function recoverYouTubeThumb(img: HTMLImageElement) {
+        if (img.dataset.ytFallback) return false;
+
+        /*
+          THE SRCSET IS THE SUSPECT, NOT THE `src`.
+
+          `youtubeSources()` already puts the guaranteed `hqdefault` in `src`
+          and offers `maxresdefault` only in `srcset`. So the risky rendition
+          is the one the browser PICKED, and asking the element where it is
+          now is unreliable in the case that matters: on a failed fetch the
+          browser may never populate `currentSrc`, leaving only the `src`
+          attribute — which is already hqdefault, reads as perfectly safe,
+          and made an earlier version of this decline the recovery and brand
+          the card failed instead. Measured, not assumed: it declined on
+          exactly the 404 cards it existed to rescue.
+
+          So look at the srcset itself. If it offers a rendition YouTube does
+          not guarantee, that candidate is the failure whether or not the
+          browser will admit to having chosen it, and dropping the srcset is
+          the fix regardless.
+        */
+        const attrSrc = img.getAttribute('src') || '';
+        const candidates = (img.getAttribute('srcset') || '')
+          .split(',')
+          .map((part) => part.trim().split(/\s+/)[0])
+          .filter(Boolean);
+
+        const risky = candidates.find((url) => youtubeFallbackSrc(url));
+        const next = risky
+          ? youtubeFallbackSrc(risky)
+          : youtubeFallbackSrc(img.currentSrc || attrSrc);
+        if (!next) return false;
+
+        img.dataset.ytFallback = '1';
+
+        /* Both must go. Leaving `srcset` in place would let the browser
+           re-pick the very candidate that just failed, and a `sizes` without
+           a `srcset` is meaningless. Removing them is also what makes
+           `naturalWidth` un-density-corrected again, so the placeholder
+           check below reads true pixels on the retry. */
+        img.removeAttribute('srcset');
+        img.removeAttribute('sizes');
+        img.src = next;
+
+        /* Clear a mark set earlier in this same event: the capture listener
+           runs before we get here on the `error` path, and the sweep may have
+           marked it on a previous pass. Without this the branded panel stays
+           painted over a thumbnail that is about to load correctly. */
+        containerOf(img)?.removeAttribute('data-img-failed');
+        return true;
+      }
+
+      /*
+        The MEDIA CONTAINER is the target, not literally the parent node. An
+        <img> inside a <picture> (art-directed sources, e.g. EventCard's
+        logo-on-mobile swap) has the <picture> as its parent, and marking
+        that leaves the styled container — `.content-card-media` and friends
+        — unmarked, so the branded panel never paints and the broken image
+        stays visible. <picture> is a grouping element with no box of its
+        own; step through it to the element that actually has one.
+      */
+      function containerOf(img: HTMLImageElement) {
+        const parent = img.parentElement;
+        return parent?.tagName === 'PICTURE' ? parent.parentElement : parent;
+      }
+
       function markFailed(img: HTMLImageElement) {
         /* An image with no src is not a load failure — components render a
            branded fallback instead of an <img> when they have no cover, so
            there is nothing to rescue here. */
         if (!img.currentSrc && !img.getAttribute('src')) return;
+
         /*
-          The MEDIA CONTAINER is the target, not literally the parent node. An
-          <img> inside a <picture> (art-directed sources, e.g. EventCard's
-          logo-on-mobile swap) has the <picture> as its parent, and marking
-          that leaves the styled container — `.content-card-media` and friends
-          — unmarked, so the branded panel never paints and the broken image
-          stays visible. <picture> is a grouping element with no box of its
-          own; step through it to the element that actually has one.
+          A DECORATIVE OVERLAY IS NOT THE COVER.
+
+          This marker condemns the whole CONTAINER, and home-cards.css then
+          hides every `> img` inside it. That is right when the cover fails,
+          and catastrophic when an overlay does: a card can hold the cover
+          AND `aria-hidden` decoration (ContentCard's watermark), all
+          siblings in `.content-card-media`. A single broken overlay was
+          therefore enough to black out a thumbnail that had loaded fine —
+          which is precisely what shipped, on every video card, because the
+          watermark's `src` 404'd in the production build.
+
+          The watermark's own URL is fixed at the source now, but the
+          coupling is the real defect: any future decoration dropped into a
+          media container would inherit the same power to blank the card.
+          Decorative images are `aria-hidden`/`alt=""` BY DEFINITION not the
+          content, so a failure in one is a cosmetic loss, never a reason to
+          replace the cover with a branded panel. Let it fail silently.
         */
-        const parent = img.parentElement;
-        const container = parent?.tagName === 'PICTURE' ? parent.parentElement : parent;
-        container?.setAttribute('data-img-failed', 'true');
+        if (img.getAttribute('aria-hidden') === 'true') return;
+
+        containerOf(img)?.setAttribute('data-img-failed', 'true');
+      }
+
+      /* Try the cheaper rendition first; only brand it as failed once there
+         is nothing left to try. */
+      function handleUnusable(img: HTMLImageElement) {
+        if (recoverYouTubeThumb(img)) return;
+        markFailed(img);
       }
 
       document.addEventListener(
         'error',
         (event) => {
           const target = event.target;
-          if (target instanceof HTMLImageElement) markFailed(target);
+          if (target instanceof HTMLImageElement) handleUnusable(target);
         },
         true
       );
@@ -764,8 +891,8 @@ const fallbackMark = await getImage({
       */
       function sweepBrokenImages() {
         document.querySelectorAll('img').forEach((img) => {
-          if (img.complete && img.naturalWidth === 0) markFailed(img);
-          else if (img.complete && isProviderPlaceholder(img)) markFailed(img);
+          if (img.complete && img.naturalWidth === 0) handleUnusable(img);
+          else if (img.complete && isProviderPlaceholder(img)) handleUnusable(img);
         });
       }
 
@@ -819,7 +946,7 @@ const fallbackMark = await getImage({
         (event) => {
           const target = event.target;
           if (target instanceof HTMLImageElement && isProviderPlaceholder(target)) {
-            markFailed(target);
+            handleUnusable(target);
           }
         },
         true

@@ -1,0 +1,983 @@
+---
+import ContentCard from './ContentCard.astro';
+import { getVideosUnified } from '../lib/videos-source';
+import { getPublishedArticles, articleHref } from '../lib/articles';
+import { getCardImageSources } from '../lib/card-images';
+
+const allVideos = await getVideosUnified();
+const allArticles = getPublishedArticles();
+
+const FLAGSHIP_VIDEOS = [
+  'yLYtMt0h3uA', // Mortal Kombat 2 Review
+  'fPQ_8fCuE50', // Spider-Man: Brand New Day
+  '4rTMi6E5nrc'  // Wolverine
+];
+
+const videos = FLAGSHIP_VIDEOS.map(id => allVideos.find(v => v.youtubeId === id)).filter(Boolean);
+
+// Pick the first published article
+let article = allArticles.length > 0 ? allArticles[0] : null;
+
+if (article) {
+  // Override the Substack link with the local Intel page link
+  article = { ...article, link: articleHref(article) };
+}
+
+// Mix them into a single highlighted list and sort by date descending
+const highlightedItems = [...videos, article].filter(Boolean).sort((a: any, b: any) => {
+  const dateA = new Date(a.publishedAt || a.isoDate || a.date).getTime();
+  const dateB = new Date(b.publishedAt || b.isoDate || b.date).getTime();
+  return dateB - dateA;
+});
+---
+
+<div class="featured-highlights animate-on-scroll">
+  <div class="fh-layout">
+    <!-- Left Side: 50% width, single large focused tile -->
+    <div class="fh-left">
+      {highlightedItems.map((item, index) => (
+        <div class={`fh-hero-card ${index === 0 ? 'active' : ''}`} data-index={index}>
+          <ContentCard item={item} index={index} variant="hero" />
+        </div>
+      ))}
+    </div>
+    
+    <!-- Right Side: 50% width, vertical list -->
+    <div class="fh-right">
+      {highlightedItems.map((item: any, index: number) => {
+        if (!item) return null;
+        const title = item.title;
+        const badge = item.category || (item.type === 'video' || item.contentType === 'video' ? 'Video' : 'Article');
+        
+        // Use the existing utility to get the best thumbnail
+        const rawImage = item.image ?? item.thumbnail;
+        const { src, srcset } = getCardImageSources(rawImage);
+
+        // State matching
+        const isActive = index === 0;
+
+        const isVideo = item.type === 'video' || item.contentType === 'video';
+        return (
+          <button type="button" class={`fh-row ${isActive ? 'is-active' : ''} is-${isVideo ? 'video' : 'article'}`} data-index={index} aria-pressed={isActive ? 'true' : 'false'}>
+            <div class="fh-row-progress"></div>
+            <div class="fh-row-thumb">
+              {/*
+                `sizes` is not optional here. With `w` descriptors and no
+                `sizes`, the spec's default source size is 100vw — so for a
+                thumbnail the CSS pins at 140px the browser was computing a
+                need of a full viewport width and picking `maxresdefault`
+                (1280w) every time on desktop. That is ~9x the pixels the box
+                can show, and it is also the rendition YouTube does not always
+                generate, so the widest-possible pick was also the likeliest
+                to 404. `.fh-row-thumb` is 140px at every breakpoint (no media
+                query touches it), so the value is exact rather than an
+                estimate — the shared CARD_IMAGE_SIZES does not apply, that
+                one describes the card grid.
+
+                Recovery when a rendition is missing anyway is owned by the
+                global fail-safe in Layout.astro, NOT by an `onerror` here —
+                an inline handler cannot see YouTube's HTTP 200 placeholder
+                response, and it races the capture-phase listener.
+              */}
+              <img src={src} srcset={srcset} sizes={srcset ? '140px' : undefined} alt={title} loading="lazy" decoding="async" />
+            </div>
+            <div class="fh-row-info">
+              <span class="fh-row-badge">{badge}</span>
+              <h4 class="fh-row-title">{title}</h4>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  </div>
+</div>
+
+<style>
+  .featured-highlights {
+    width: 100%;
+    margin-top: 1rem;
+  }
+  
+  .fh-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  /* 55/45 Split on Desktop & Landscape Tablet */
+  @media (min-width: 768px) {
+    .fh-layout {
+      grid-template-columns: 1.2fr 1fr;
+      align-items: stretch; /* Forces equal height columns */
+    }
+  }
+
+  .fh-left {
+    display: grid; /* Stack cards via grid */
+    min-width: 0; /* Prevents grid blowout */
+  }
+
+  /* Stack all cards perfectly on top of each other for a true cross-fade */
+  .fh-hero-card {
+    grid-area: 1 / 1;
+    /*
+      The `min-width: 0` on .fh-left above is NOT enough on its own — this is
+      the grid ITEM, and a grid item's default `min-width: auto` floors it at
+      its own min-content width. ContentCard's hero variant sets
+      `white-space: nowrap` on `.content-card-dynamic-tags`, so that floor is
+      an entire unbreakable tag line ("WARNER BROS | REVIEW"), which measured
+      478px inside a 390px phone viewport and pushed the card — and the
+      headline and excerpt with it — off the right edge.
+
+      Zeroing it lets the card shrink to its track, which is also what finally
+      lets the `overflow: hidden` + `text-overflow: ellipsis` already declared
+      on that tag row actually do its job instead of being overruled from
+      above.
+    */
+    min-width: 0;
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+    transition: opacity 0.5s ease, visibility 0.5s ease;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .fh-hero-card.active {
+    opacity: 1;
+    visibility: visible;
+    z-index: 2;
+    pointer-events: auto;
+  }
+
+  .fh-row-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 4px;
+    background: var(--color-accent, #cc0000);
+    width: 100%;
+    transform: scaleX(0);
+    transform-origin: left;
+    z-index: 10;
+    box-shadow: 0 2px 15px rgba(204, 0, 0, 0.8);
+    /* Transition applied dynamically via JS to handle pause/resume/reset */
+  }
+
+  /* Ensure the existing ContentCard fills its new 50% container nicely */
+  .fh-left :global(.video-card-home) {
+    flex: 1;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .fh-right {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    gap: 1rem;
+    padding-bottom: 0.5rem; /* space for scrollbar */
+    min-width: 0; /* Prevents grid blowout */
+    /* Hide scrollbar for cleaner look */
+    scrollbar-width: none;
+  }
+  .fh-right::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Desktop layout */
+  @media (min-width: 768px) {
+    .fh-right {
+      flex-direction: column;
+      justify-content: space-between;
+      overflow-x: visible;
+      overflow-y: visible;
+      scroll-snap-type: none;
+      gap: 0.5rem;
+      padding-bottom: 0;
+    }
+  }
+
+  .fh-row {
+    flex: 0 0 260px; /* Carousel fixed sizing */
+    scroll-snap-align: start;
+    position: relative;
+    display: flex;
+    flex-direction: column; /* Stack vertically on mobile */
+    gap: 0.75rem;
+    align-items: flex-start;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    text-align: left;
+    cursor: pointer;
+    color: var(--color-white, #ffffff);
+    transition: all 0.4s ease;
+  }
+
+  @media (min-width: 768px) {
+    .fh-row {
+      flex: 1; /* Stretch rows to evenly fill height on desktop */
+      flex-direction: row; /* Side-by-side on desktop */
+      gap: 1rem;
+      align-items: center;
+      padding: 0.5rem 0.75rem;
+      scroll-snap-align: none;
+    }
+  }
+
+  /*
+    ─── DIM THE ARTWORK, NOT THE TEXT ──────────────────────────────────────
+
+    The inactive state used to be `opacity: 0.6` + `grayscale(40%)` on the
+    whole row. Both compose onto every descendant, so the badge was being
+    rendered at 60% over a near-black background AND desaturated toward grey
+    — Lighthouse measured the result as a contrast failure, and no red is
+    recoverable through that: even a near-white red only reaches ~4.0:1 once
+    it has been through 0.6 opacity, against a 4.5:1 requirement for text
+    this size.
+
+    Since a child cannot opt out of an ancestor's opacity or filter, the
+    dimming has to move DOWN rather than be overridden. It lands on the
+    thumbnail, which is the dominant visual and carries the inactive read on
+    its own, while the text dims by colour instead — a value that can be
+    picked to stay above threshold.
+  */
+  .fh-row-thumb {
+    opacity: 0.6;
+    filter: grayscale(40%);
+    transition: opacity 0.4s ease, filter 0.4s ease;
+  }
+
+  .fh-row:hover .fh-row-thumb {
+    opacity: 0.8;
+    filter: grayscale(0%);
+  }
+
+  .fh-row.is-active .fh-row-thumb {
+    opacity: 1;
+    filter: grayscale(0%);
+  }
+
+  .fh-row::before {
+    content: '';
+    position: absolute;
+    left: -1px; /* Align over the border */
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--color-accent, #cc0000);
+    box-shadow: 0 0 10px var(--color-accent, #cc0000);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  .fh-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .fh-row.is-active {
+    background: radial-gradient(circle at left, rgba(204, 0, 0, 0.15) 0%, rgba(255, 255, 255, 0.02) 100%);
+    border-color: rgba(204, 0, 0, 0.2);
+  }
+
+  .fh-row.is-active::before {
+    opacity: 1;
+  }
+
+  .fh-row-thumb {
+    width: 100%; /* full width of tile on mobile */
+    height: auto;
+    aspect-ratio: 16 / 9;
+    flex-shrink: 0;
+    overflow: hidden;
+    background: #111;
+  }
+
+  @media (min-width: 768px) {
+    .fh-row-thumb {
+      width: 140px; /* fixed width on desktop */
+    }
+  }
+
+  .fh-row-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .fh-row-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0; /* Prevents flexbox text blowout */
+  }
+
+  .fh-row-badge {
+    font-family: var(--font-body, 'Inter', sans-serif);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    /*
+      NOT `--color-accent` (#cc0000). At 10.4px this is "normal" text and
+      needs 4.5:1; brand red on this near-black row measures about 3.2:1 and
+      fails on its own, before any dimming. This is the same hue lifted in
+      luminance until it clears the bar (~6:1 measured), which reads as the
+      brand red at badge size while actually being legible. The 3px active
+      rail and the card chrome still use the true accent — large blocks of
+      colour are held to 3:1, which #cc0000 does meet.
+    */
+    color: #ff5252;
+  }
+
+  .fh-row-title {
+    margin: 0;
+    font-family: var(--font-display, 'Syne', sans-serif);
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    /*
+      Carries the rest of the inactive read that the row's `opacity` used to
+      provide, but as a COLOUR so it stays measurable: white at 72% over this
+      background is ~10:1, comfortably above the 4.5:1 floor, where the old
+      0.6 row opacity was applying the same visual idea in a way that also
+      dragged the badge under it.
+    */
+    color: rgba(255, 255, 255, 0.72);
+    transition: color 0.4s ease;
+  }
+
+  .fh-row:hover .fh-row-title,
+  .fh-row.is-active .fh-row-title {
+    color: var(--color-white, #ffffff);
+  }
+</style>
+
+<script>
+  function loadYouTubeAPI() {
+    return new Promise((resolve) => {
+      const win = window as any;
+      if (win.YT && win.YT.Player) {
+        resolve(win.YT);
+        return;
+      }
+      if (win.onYouTubeIframeAPIReady) {
+        const oldCallback = win.onYouTubeIframeAPIReady;
+        win.onYouTubeIframeAPIReady = () => {
+          oldCallback();
+          resolve(win.YT);
+        };
+        return;
+      }
+      win.onYouTubeIframeAPIReady = () => {
+        resolve(win.YT);
+      };
+      const tag = document.createElement('script');
+      tag.src = "https://www.youtube.com/iframe_api";
+      tag.onerror = () => {
+        console.warn('YouTube Iframe API blocked. Falling back to static carousel.');
+        resolve(null);
+      };
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      if (firstScriptTag && firstScriptTag.parentNode) {
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+      } else {
+        document.head.appendChild(tag);
+      }
+    });
+  }
+
+  function initFeaturedHighlights() {
+    const section = document.querySelector('.featured-highlights') as HTMLElement;
+    if (!section) return;
+
+    /*
+      ONCE PER SECTION ELEMENT.
+
+      This is bound to BOTH `DOMContentLoaded` and `astro:page-load`, and on
+      a first page load Astro fires the second one after the first — so
+      without this guard the whole thing was built twice over the same DOM:
+      two sets of click listeners on every row, and two independent autoplay
+      state machines with their own `activePlayer` and their own timers.
+
+      That is not merely wasteful. The timers advance the carousel at double
+      speed, and `destroyActivePlayer()` in one closure cannot see the other
+      closure's player, so switching slides orphans a live iframe that keeps
+      playing underneath. It also made a single click run the activation
+      handler twice, which is visible in the call log as unMute/playVideo
+      pairs.
+
+      The flag lives on the ELEMENT, not in a module variable, which is what
+      keeps client-side navigation working: `astro:page-load` after a swap
+      hands us a brand new section node with no flag, so it initialises
+      exactly once again.
+    */
+    if (section.dataset.fhInit === '1') return;
+    section.dataset.fhInit = '1';
+
+    const rows = Array.from(section.querySelectorAll('.fh-row'));
+    const heroCards = section.querySelectorAll('.fh-hero-card');
+    if (rows.length === 0) return;
+
+    let currentIndex = 0;
+    let autoPlayTimeout: ReturnType<typeof setTimeout> | null = null;
+    let isPaused = false;
+    let isInteracting = false;
+    let activePlayer: any = null;
+    let activeMediaContainer: HTMLElement | null = null;
+    let slideStartTime = 0;
+    let accumulatedTime = 0;
+    let rAF_ID = 0;
+    const duration = 8000;
+    
+    heroCards.forEach(card => {
+      const pauseHero = () => {
+        isInteracting = true;
+        stopAutoPlay();
+      };
+      card.addEventListener('touchstart', pauseHero, { passive: true });
+      card.addEventListener('click', pauseHero);
+    });
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) {
+          isInteracting = false;
+          if (!isPaused) startAutoPlay();
+        }
+      });
+    }, { threshold: 0 });
+    observer.observe(section);
+
+    const documentInteractionHandler = (e: Event) => {
+      if (!section.isConnected) {
+        document.removeEventListener('click', documentInteractionHandler);
+        document.removeEventListener('touchstart', documentInteractionHandler);
+        return;
+      }
+      if (!isInteracting) return;
+      const target = e.target as Node;
+      
+      const activeCard = section.querySelector('.fh-hero-card.active');
+      const fhRightNav = section.querySelector('.fh-right');
+      const clickedInsideCard = activeCard?.contains(target);
+      const clickedInsideNav = fhRightNav?.contains(target);
+      
+      if (!clickedInsideCard && !clickedInsideNav) {
+        isInteracting = false;
+        if (!isPaused) startAutoPlay();
+      }
+    };
+    document.addEventListener('click', documentInteractionHandler);
+    document.addEventListener('touchstart', documentInteractionHandler, { passive: true });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (!isPaused) stopAutoPlay();
+      } else {
+        if (!isPaused && !isInteracting) startAutoPlay();
+      }
+    });
+
+    function getDurationForIndex(index: number) {
+      const row = rows[index];
+      return row.classList.contains('is-video') ? 15000 : duration;
+    }
+
+    function destroyActivePlayer() {
+      if (activePlayer && typeof activePlayer.destroy === 'function') {
+        activePlayer.destroy();
+      }
+      activePlayer = null;
+      activeMediaContainer = null;
+      section.querySelectorAll('.yt-player-target').forEach(el => el.remove());
+      section.querySelectorAll('.is-playing-inline').forEach(media => media.classList.remove('is-playing-inline'));
+      /* Restore the clip now the iframe is gone, so the thumbnail's
+         `scale(1.05)` hover zoom is contained by the card again. */
+      section.querySelectorAll('.has-player').forEach(card => card.classList.remove('has-player'));
+      /* Activation belongs to one player instance. Leaving it set would give
+         the NEXT slide's iframe the pointer while it is still a muted
+         preview, which is the bug this pair of classes exists to prevent. */
+      section.querySelectorAll('.is-user-activated').forEach(media => media.classList.remove('is-user-activated'));
+      section.querySelectorAll('.video-watermark-logo').forEach((logo: any) => logo.style.opacity = '0');
+    }
+
+    function activateIndex(index: number) {
+      if (index < 0 || index >= rows.length) return;
+      accumulatedTime = 0;
+      slideStartTime = Date.now();
+      
+      const row = rows[index];
+      const targetId = row.getAttribute('data-index');
+
+      destroyActivePlayer();
+
+      rows.forEach(r => {
+        r.classList.remove('is-active');
+        r.setAttribute('aria-pressed', 'false');
+        const progress = r.querySelector('.fh-row-progress') as HTMLElement;
+        if (progress) {
+          progress.style.opacity = '1';
+          progress.style.transition = 'none';
+          progress.style.transform = 'scaleX(0)';
+        }
+      });
+
+      row.classList.add('is-active');
+      row.setAttribute('aria-pressed', 'true');
+      
+      const container = section.querySelector('.fh-right') as HTMLElement;
+      if (container && container.scrollWidth > container.clientWidth) {
+        const scrollPos = (row as HTMLElement).offsetLeft - (container.clientWidth / 2) + (row.clientWidth / 2);
+        container.scrollTo({
+          left: scrollPos,
+          behavior: 'smooth'
+        });
+      }
+
+      heroCards.forEach(card => {
+        if (card.getAttribute('data-index') === targetId) {
+          card.classList.add('active');
+          const isVideo = row.classList.contains('is-video');
+          const videoBtn = card.querySelector('[data-action="inline-video"]');
+          const win = window as any;
+          if (isVideo && videoBtn && win.YT && win.YT.Player) {
+            const videoId = videoBtn.getAttribute('data-video-id');
+            const mediaContainer = card.querySelector('.content-card-media');
+            if (videoId && mediaContainer) {
+              activeMediaContainer = mediaContainer as HTMLElement;
+
+              /*
+                Release the clip BEFORE the iframe exists (hard rule 3 — see
+                home-cards.css). `.content-card-media` and `.content-card`
+                both carry `overflow: hidden`, and on iOS Safari a clipped
+                cross-origin iframe mis-composites: the picture is shoved
+                right with a black band down the left. Marking the CARD (not
+                the media box) is what lets one class lift both levels — the
+                `.content-card` is the clipping grandparent AND the element
+                carrying `variant-hero`, so it is the only node from which
+                both `overflow` declarations can be overridden.
+              */
+              mediaContainer.closest('.content-card')?.classList.add('has-player');
+
+              const targetDiv = document.createElement('div');
+              targetDiv.className = 'yt-player-target';
+              targetDiv.style.position = 'absolute';
+              targetDiv.style.top = '0';
+              targetDiv.style.left = '0';
+              targetDiv.style.width = '100%';
+              targetDiv.style.height = '100%';
+              targetDiv.style.pointerEvents = 'none';
+              targetDiv.style.zIndex = '0'; // Above image, behind play button and gradient
+              targetDiv.style.opacity = '0';
+              targetDiv.style.transition = 'opacity 1s ease';
+              mediaContainer.appendChild(targetDiv);
+              
+              /*
+                ─── TELL THE PLAYER ITS REAL SIZE AT BIRTH ─────────────────
+
+                Measured on an iPhone 17 Pro Max in landscape via the debug
+                overlay: the iframe ELEMENT is pixel-perfect on its box
+                (dx=0 dy=0 dW=0 dH=0) and nothing clips it — yet its size
+                ATTRIBUTES read 640x360 against a rendered 470.7x264.8.
+
+                That is the whole bug. `YT.Player` defaults to 640x360 when
+                the constructor is given no dimensions, so the player's first
+                internal layout is computed for a canvas 169px wider than the
+                one it occupies, and it centres the picture against that —
+                pushing it right and leaving a black band down the left.
+
+                It needed no rotation to happen, which is what ruled out every
+                resize-based explanation: the wrong number is present from the
+                first frame. `setSize()` only ever ran from a resize handler,
+                and a fresh landscape load produces no resize, so nothing ever
+                corrected it.
+
+                Rounded because the API takes integers, and read from the box
+                rather than assumed — CSS still owns the rendered geometry
+                either way (a stylesheet `width` beats these attributes, which
+                are only presentational hints). These numbers exist purely so
+                the player's own maths starts from the truth.
+              */
+              /*
+                ─── THE FIRST-PAINT LAYOUT FIX (150ms TIMEOUT) ───
+                As hypothesized, WebKit's dynamic CSS Grid calculations
+                can take longer than 2 paint cycles to settle on heavy DOMs.
+                By abandoning synchronous JS pixel measurement and relying entirely
+                 on CSS 100% bounds, we wrap the injection in a 150ms timeout
+                to guarantee the parent grid has rigidly settled its fractional widths.
+              */
+              let playingTimeout: ReturnType<typeof setTimeout> | null = null;
+              
+              setTimeout(() => {
+                if (!mediaContainer.isConnected) return; // safeguard if component unmounted
+
+                activePlayer = new win.YT.Player(targetDiv, {
+                  width: '100%',
+                  height: '100%',
+                  videoId: videoId,
+                  playerVars: {
+                    autoplay: 1,
+                    controls: 0,
+                    mute: 1,
+                    modestbranding: 1,
+                    playsinline: 1,
+                    cc_load_policy: 0,
+                    iv_load_policy: 3,
+                    rel: 0,
+                    disablekb: 1
+                  },
+                  events: {
+                    onReady: (e: any) => {
+                      e.target.playVideo();
+                    },
+                    onStateChange: (e: any) => {
+                      // When video actually starts playing, wait 1.5s for YouTube UI to fade out, then fade video in
+                      if (e.data === win.YT.PlayerState.PLAYING) {
+                        if (playingTimeout) clearTimeout(playingTimeout);
+                        playingTimeout = setTimeout(() => {
+                          // Check if the player is still active (hasn't been destroyed by slide switch)
+                          const iframe = mediaContainer.querySelector('iframe');
+                          if (iframe) {
+                            iframe.style.opacity = '1';
+                          }
+                          const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
+                          if (logo) {
+                            logo.style.opacity = '0.8';
+                          }
+                          mediaContainer.classList.add('is-playing-inline');
+                        }, 1500);
+                      } else if (e.data === win.YT.PlayerState.PAUSED || e.data === win.YT.PlayerState.ENDED) {
+                        if (playingTimeout) {
+                          clearTimeout(playingTimeout);
+                          playingTimeout = null;
+                        }
+                        
+                        // Hide the iframe immediately to hide YouTube's messy paused UI (More videos, title bar, etc.)
+                        const iframe = mediaContainer.querySelector('iframe');
+                        if (iframe) {
+                          iframe.style.opacity = '0';
+                          iframe.style.pointerEvents = 'none';
+                        }
+                        
+                        const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
+                        if (logo) logo.style.opacity = '0';
+
+                        mediaContainer.classList.remove('is-playing-inline');
+                        /* Back to poster + play icon, so the next click is ours
+                           again rather than YouTube's. */
+                        mediaContainer.classList.remove('is-user-activated');
+
+                        const wasWatching = isPaused;
+                        isPaused = false;
+                        
+                        if (e.data === win.YT.PlayerState.PAUSED) {
+                          if (!isInteracting) startAutoPlay();
+                        } else if (e.data === win.YT.PlayerState.ENDED) {
+                          if (wasWatching) nextSlide();
+                        }
+                      }
+                    }
+                  }
+                });
+              }, 150);
+            }
+          }
+        } else {
+          card.classList.remove('active');
+        }
+      });
+      
+      currentIndex = index;
+    }
+
+    function nextSlide() {
+      const videoModal = document.getElementById('video-modal');
+      if (videoModal && videoModal.classList.contains('active')) {
+        accumulatedTime = 0;
+        startAutoPlay();
+        return;
+      }
+      if (isPaused) return;
+
+      const nextIndex = (currentIndex + 1) % rows.length;
+      activateIndex(nextIndex);
+      startAutoPlay();
+    }
+
+    function startAutoPlay() {
+      if (isPaused) return;
+      if (autoPlayTimeout) return;
+
+      const duration = getDurationForIndex(currentIndex);
+      const remaining = Math.max(0, duration - accumulatedTime);
+      slideStartTime = Date.now();
+      
+      const row = rows[currentIndex];
+      const progress = row?.querySelector('.fh-row-progress') as HTMLElement;
+      
+      if (progress) {
+        progress.style.opacity = '1';
+        progress.style.transition = 'none';
+        progress.style.transform = `scaleX(${accumulatedTime / duration})`;
+        
+        // Force layout reflow
+        progress.getBoundingClientRect();
+        void progress.offsetWidth;
+        
+        if (rAF_ID) cancelAnimationFrame(rAF_ID);
+        rAF_ID = requestAnimationFrame(() => {
+          progress.style.transition = `transform ${remaining}ms linear`;
+          progress.style.transform = 'scaleX(1)';
+        });
+      }
+
+      autoPlayTimeout = setTimeout(() => {
+        autoPlayTimeout = null;
+        nextSlide();
+      }, remaining);
+    }
+
+    function stopAutoPlay() {
+      if (rAF_ID) {
+        cancelAnimationFrame(rAF_ID);
+        rAF_ID = 0;
+      }
+      if (autoPlayTimeout) {
+        clearTimeout(autoPlayTimeout);
+        autoPlayTimeout = null;
+        accumulatedTime += Date.now() - slideStartTime;
+      }
+      const row = rows[currentIndex];
+      if (row) {
+        const progress = row.querySelector('.fh-row-progress') as HTMLElement;
+        if (progress) {
+          const duration = getDurationForIndex(currentIndex);
+          progress.style.transition = 'none';
+          progress.style.transform = `scaleX(${Math.min(accumulatedTime / duration, 1)})`;
+        }
+      }
+    }
+
+    let isHovering = false;
+    section.addEventListener('pointerenter', (e: any) => {
+      if (e.pointerType !== 'mouse') return;
+      isHovering = true;
+      stopAutoPlay();
+    });
+    section.addEventListener('pointerleave', (e: any) => {
+      if (e.pointerType !== 'mouse') return;
+      isHovering = false;
+      if (!isPaused) {
+        startAutoPlay();
+      }
+    });
+
+    rows.forEach((row, index) => {
+      row.addEventListener('click', () => {
+        isInteracting = false;
+        isPaused = false;
+        accumulatedTime = 0;
+        
+        if (autoPlayTimeout) {
+          clearTimeout(autoPlayTimeout);
+          autoPlayTimeout = null;
+        }
+        
+        activateIndex(index);
+        if (!isHovering) {
+          startAutoPlay();
+        }
+      });
+    });
+
+    const inlineVideoButtons = section.querySelectorAll('[data-action="inline-video"]');
+    inlineVideoButtons.forEach(button => {
+      button.addEventListener('click', (e) => {
+        // If the user clicked the secondary outbound link, let it navigate instead of playing inline
+        if ((e.target as Element).closest('a.watch-now-btn')) {
+          // Pause the video so it doesn't keep playing in the background tab
+          if (activePlayer && typeof activePlayer.pauseVideo === 'function') {
+            activePlayer.pauseVideo();
+          }
+          return;
+        }
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const mediaContainer = button.querySelector('.content-card-media') || button.closest('.content-card')?.querySelector('.content-card-media');
+        if (!mediaContainer) return;
+
+        if (activePlayer && typeof activePlayer.unMute === 'function') {
+          activePlayer.unMute();
+          activePlayer.setVolume(100);
+          activePlayer.playVideo();
+
+          /*
+            Hand the pointer to YouTube only NOW. Until this click the iframe
+            is inert by CSS, which is what let this handler receive the click
+            at all — while it was interactive during the preview, the click
+            went to YouTube's player and simply paused it.
+          */
+          mediaContainer.classList.add('is-user-activated');
+
+          const iframe = mediaContainer.querySelector('iframe');
+          if (iframe) {
+            iframe.style.transition = 'none'; // Snap instantly on manual play
+            iframe.style.opacity = '1';
+          }
+          
+          const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
+          if (logo) logo.style.opacity = '0.8';
+          
+          mediaContainer.classList.add('is-playing-inline');
+
+          isPaused = true;
+          stopAutoPlay();
+          section.removeEventListener('mouseleave', startAutoPlay);
+          
+          const row = rows[currentIndex];
+          if (row) {
+             const progress = row.querySelector('.fh-row-progress') as HTMLElement;
+             if (progress) progress.style.opacity = '0';
+          }
+        }
+      });
+    });
+
+    /*
+      ─── RE-MEASURE ON THE SETTLED FRAME, NEVER MID-ROTATION ───────────────
+
+      CSS OWNS THE GEOMETRY. The iframe is `position: absolute; inset: 0;
+      width: 100%; height: 100%`, and a stylesheet `width` beats the width
+      CONTENT ATTRIBUTE that the API writes — attributes are only
+      presentational hints. So `setSize()` can never move or resize the
+      iframe; the fluid layout is always in charge. Its one job here is to
+      hand the cross-origin player a number so it re-runs its own internal
+      centring, which CSS cannot reach into.
+
+      That distinction is what makes the previous version wrong. It batched
+      on `requestAnimationFrame` LEADING-edge — first callback of a burst
+      wins, every later one is dropped while a frame is pending. iOS Safari
+      animates a rotation over many frames, so the value that survived was an
+      early, unsettled rect measured before the safe-area insets and the
+      final flex pass had been applied. The player was then centring on a
+      canvas wider than the one it ended up in.
+
+      Inverted here to a TRAILING-edge settle: every resize restarts the
+      timer, and only the final one — after the burst stops — is acted on.
+      That guarantees the settled rect rather than guaranteeing the stale one.
+      `orientationchange` is listened to as well because iOS can finish the
+      visual rotation without a further size change on the observed box, and
+      a rect read in that handler is still mid-animation, so it too goes
+      through the same settle rather than measuring immediately.
+
+      Rounded, and skipped when unchanged: the API takes integers, and a
+      burst that settles on the size it started at should post nothing.
+    */
+    if ('ResizeObserver' in window) {
+      let settleTimer: ReturnType<typeof setTimeout> | null = null;
+      let lastSize = '';
+
+      /* Long enough to outlast an iOS rotation animation, short enough to be
+         invisible against a correction the reader is not looking for. */
+      const SETTLE_MS = 250;
+
+      function remeasureWhenSettled() {
+        if (settleTimer) clearTimeout(settleTimer);
+        settleTimer = setTimeout(() => {
+          settleTimer = null;
+          if (!activePlayer || typeof activePlayer.setSize !== 'function') return;
+          if (!activeMediaContainer) return;
+
+          const { width, height } = activeMediaContainer.getBoundingClientRect();
+          if (!(width > 0 && height > 0)) return;
+
+          const w = Math.round(width);
+          const h = Math.round(height);
+          const key = `${w}x${h}`;
+          if (key === lastSize) return;
+          lastSize = key;
+
+          activePlayer.setSize(w, h);
+        }, SETTLE_MS);
+      }
+
+      const resizeObserver = new ResizeObserver(remeasureWhenSettled);
+      section.querySelectorAll('.content-card-media').forEach((box) => resizeObserver.observe(box));
+
+      window.addEventListener('orientationchange', remeasureWhenSettled);
+      /* `resize` covers the desktop case and the iOS builds that report a
+         rotation only as a viewport change. Passive: it never preventDefaults. */
+      window.addEventListener('resize', remeasureWhenSettled, { passive: true });
+    }
+
+    // IntersectionObserver to pause video and autoplay when out of view
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) {
+            // Scrolled out of view: pause the video and stop autoplay
+            if (activePlayer && typeof activePlayer.pauseVideo === 'function') {
+              activePlayer.pauseVideo();
+            }
+            if (!isPaused) {
+               stopAutoPlay();
+            }
+          } else {
+            // Scrolled into view: resume video and autoplay
+            if (activePlayer && typeof activePlayer.playVideo === 'function') {
+              activePlayer.playVideo();
+              
+              // If the user was manually watching the video (isPaused is true), restore the UI instantly
+              if (isPaused) {
+                const row = rows[currentIndex];
+                const mediaContainer = row?.querySelector('.content-card-media');
+                if (mediaContainer) {
+                  mediaContainer.classList.add('is-playing-inline');
+                  const iframe = mediaContainer.querySelector('iframe');
+                  if (iframe) {
+                    iframe.style.pointerEvents = 'auto';
+                    iframe.style.transition = 'none';
+                    iframe.style.opacity = '1';
+                  }
+                  const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
+                  if (logo) logo.style.opacity = '0.8';
+                }
+              }
+            }
+            if (!isPaused) {
+              startAutoPlay();
+            }
+          }
+        });
+      }, { threshold: 0.1 }); // Trigger when less than 10% is visible
+      
+      observer.observe(section);
+    }
+
+    // (Hover logic is now defined above)
+
+    loadYouTubeAPI().then(() => {
+      activateIndex(currentIndex);
+      startAutoPlay();
+    });
+
+    document.addEventListener('astro:before-swap', () => {
+      stopAutoPlay();
+      destroyActivePlayer();
+    }, { once: true });
+  }
+
+  document.addEventListener('DOMContentLoaded', initFeaturedHighlights);
+  document.addEventListener('astro:page-load', initFeaturedHighlights);
+</script>

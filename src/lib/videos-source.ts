@@ -7,7 +7,7 @@ export async function getVideosUnified(): Promise<UnifiedVideo[]> {
     fetch: async () => {
       return (Array.isArray(localVideos) ? localVideos : []).filter(v => {
         const effectiveType = v.manualTypeOverride || v._type;
-        return effectiveType === "video" && v.contentStatus === "published";
+        return effectiveType === "video" && (v.contentStatus === "published" || !v.contentStatus);
       });
     }
   };

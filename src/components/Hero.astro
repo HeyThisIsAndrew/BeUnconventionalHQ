@@ -87,6 +87,10 @@ import bannerImg from '../assets/banner.webp';
       const GUARD_MS = 3000;
       const GESTURES = ['touchstart', 'pointerdown', 'wheel', 'keydown'];
 
+      // HARD LOCK: prevent the compositor from scrolling at all
+      // We use a unique class to avoid conflicting with actual modals.
+      document.documentElement.classList.add('reload-lock');
+      
       const onStrayScroll = () => {
         if (window.scrollY === 0) return;
         if (document.documentElement.classList.contains('splash-lifting')) return;
@@ -95,6 +99,7 @@ import bannerImg from '../assets/banner.webp';
 
       const releaseTopGuard = () => {
         clearTimeout(guardTimer);
+        document.documentElement.classList.remove('reload-lock');
         window.removeEventListener('scroll', onStrayScroll);
         GESTURES.forEach((type) => window.removeEventListener(type, releaseTopGuard));
       };

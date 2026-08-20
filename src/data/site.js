@@ -39,6 +39,6 @@ export const site = {
     twitter: 'https://x.com/beunconhq',
     letterboxd: 'https://letterboxd.com/beunconhq/',
     amazon: 'https://www.amazon.com/shop/influencer-0931c541',
-    bluesky: 'https://bsky.app/profile/beunconventionalhq.bsky.social',
+    bluesky: 'https://bsky.app/profile/beunconventionalhq.com',
   },
 };

@@ -59,8 +59,8 @@ async function testFilterInteractions(page, contextName) {
     return;
   }
 
-  // Wait for the filters to be present in the DOM
-  await page.waitForSelector('.filter-btn', { timeout: 5000 });
+  // Wait for the filters to be present and hydrated in the DOM
+  await page.waitForSelector('.filter-btn[data-bound="true"]', { timeout: 5000 });
   
   // Get all content cards
   const cards = await page.$$('.content-card');

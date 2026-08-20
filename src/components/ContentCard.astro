@@ -2,15 +2,150 @@
 import { parseVideoId } from '../lib/platforms/youtube';
 import { getCardImageSources, CARD_IMAGE_SIZES } from '../lib/card-images';
 import { LABELS } from '../data/content.js';
+import logoImage from '../assets/logo-mark.webp';
+import { getImage } from 'astro:assets';
 
 export interface Props {
   item: any;
   index: number;
+  variant?: 'default' | 'hero';
 }
 
-const { item, index = 0 } = Astro.props;
+const { item, index = 0, variant = 'default' } = Astro.props;
+
+// Determine if this is the Largest Contentful Paint (LCP) element
+const isLCP = variant === 'hero' && index === 0;
 
 if (!item) return;
+
+let excerpt = '';
+let finalTags: string[] = [];
+
+if (variant === 'hero') {
+  // Use preview/excerpt for articles, or description for videos
+  excerpt = item.preview || item.excerpt || item.description || '';
+
+  // 1. Extract explicit tokens: hashtags, @ mentions, youtubeTags, tags
+  let explicitTokens: string[] = [];
+  
+  if (Array.isArray(item.youtubeTags)) explicitTokens.push(...item.youtubeTags);
+  if (Array.isArray(item.tags)) explicitTokens.push(...item.tags);
+  
+  if (typeof excerpt === 'string') {
+    const hashMatches = excerpt.match(/#[\w-]+/g) || [];
+    const atMatches = excerpt.match(/@[\w-]+/g) || [];
+    explicitTokens.push(...hashMatches, ...atMatches);
+  }
+
+  // Normalize tokens (uppercase, remove #, @, and spaces)
+  let cleanTokens = explicitTokens.map(t => t.replace(/[#@\s]/g, '').toUpperCase());
+  cleanTokens = [...new Set(cleanTokens)]; // unique
+
+  const titleText = (item.title || '').toUpperCase().replace(/\s/g, '');
+
+  // 1. Brand (Tile 1)
+  let tag1 = '';
+  const brandMap = [
+    { label: 'MARVEL', regex: /MARVEL|WOLVERINE|AVENGERS|SPIDER|XMEN|MCU|DEADPOOL|VENOM/ },
+    { label: 'DC', regex: /DC$|DCU|BATMAN|SUPERMAN|WONDERWOMAN|JUSTICELEAGUE|JOKER/ },
+    { label: 'NETFLIX', regex: /NETFLIX/ },
+    { label: 'APPLE TV+', regex: /APPLE/ },
+    { label: 'DISNEY', regex: /DISNEY/ },
+    { label: 'PLAYSTATION', regex: /SONY|PLAYSTATION|PS5|PS4/ },
+    { label: 'WARNER BROS', regex: /WARNER|WB/ },
+    { label: 'HBO', regex: /HBO|MAX/ },
+    { label: 'PRIME VIDEO', regex: /PRIME|AMAZON|THEBOYS/ },
+    { label: 'HULU', regex: /HULU/ },
+    { label: 'NINTENDO', regex: /NINTENDO|SWITCH|ZELDA|MARIO/ },
+    { label: 'XBOX', regex: /XBOX|HALO|GEARS/ },
+    { label: 'STAR WARS', regex: /STARWARS|JEDI/ },
+    { label: 'INSOMNIAC', regex: /INSOMNIAC/ }
+  ];
+
+  for (const b of brandMap) {
+    if (cleanTokens.some(t => b.regex.test(t)) || b.regex.test(titleText)) {
+      tag1 = b.label;
+      break;
+    }
+  }
+
+  // Fallback: If no mapped brand found, use the first @ mention from the excerpt
+  if (!tag1 && typeof excerpt === 'string') {
+    const atMatch = excerpt.match(/@([\w-]+)/);
+    if (atMatch) {
+      tag1 = atMatch[1].toUpperCase();
+    }
+  }
+
+  // 2. Content Type (Tile 2)
+  let tag2 = '';
+  const typeMap = [
+    { label: 'REVIEW', regex: /REVIEW/ },
+    { label: 'TRAILER', regex: /TRAILER/ },
+    { label: 'ANALYSIS', regex: /ANALYSIS|DEEPDIVE/ },
+    { label: 'BREAKDOWN', regex: /BREAKDOWN/ },
+    { label: 'PODCAST', regex: /PODCAST/ },
+    { label: 'PREMIERE', regex: /PREMIERE/ },
+    { label: 'REACTION', regex: /REACTION/ },
+    { label: 'INTERVIEW', regex: /INTERVIEW/ }
+  ];
+
+  for (const type of typeMap) {
+    // ONLY check explicit tags for content type to prevent false positives from body text
+    if (cleanTokens.some(t => type.regex.test(t))) {
+      tag2 = type.label;
+      break;
+    }
+  }
+
+  // 3. Event (Tile 3)
+  let tag3 = '';
+  const eventMap = [
+    { label: 'SDCC', regex: /SDCC|COMICCON/ },
+    { label: 'D23', regex: /D23/ },
+    { label: 'E3', regex: /E3/ },
+    { label: 'GAMESCOM', regex: /GAMESCOM/ },
+    { label: 'SUMMER GAME FEST', regex: /SGF|SUMMERGAMEFEST/ },
+    { label: 'THE GAME AWARDS', regex: /TGA|GAMEAWARDS/ },
+    { label: 'PAX', regex: /PAX/ },
+    { label: 'GDC', regex: /GDC/ },
+    { label: 'DC FANDOME', regex: /FANDOME/ }
+  ];
+
+  for (const e of eventMap) {
+    if (cleanTokens.some(t => e.regex.test(t)) || e.regex.test(titleText)) {
+      tag3 = e.label;
+      break;
+    }
+  }
+
+  // Filter out used tokens so backfills don't repeat them
+  let unusedTokens = cleanTokens.filter(t => {
+    const used1 = tag1 ? tag1.replace(/\s/g, '') : '';
+    const used2 = tag2 ? tag2.replace(/\s/g, '') : '';
+    const used3 = tag3 ? tag3.replace(/\s/g, '') : '';
+    return !t.includes(used1) && !t.includes(used2) && !t.includes(used3);
+  });
+
+  // Use the outer finalTags array
+  if (tag1) finalTags.push(tag1);
+  else if (unusedTokens.length > 0) finalTags.push(unusedTokens.shift() as string);
+
+  if (tag2) finalTags.push(tag2);
+  else if (unusedTokens.length > 0) finalTags.push(unusedTokens.shift() as string);
+
+  if (tag3) finalTags.push(tag3);
+  else if (unusedTokens.length > 0) finalTags.push(unusedTokens.shift() as string);
+
+  // Keep only truthy elements and limit to 3 just to be safe
+  finalTags = finalTags.filter(Boolean).slice(0, 3);
+
+  // Clean up any HTML tags if present (e.g., from article excerpts)
+  if (typeof excerpt === 'string') {
+    // Strip HTML tags and any leading/trailing hashtags clusters
+    excerpt = excerpt.replace(/<[^>]*>?/gm, '').replace(/^(?:\s*#[\w-]+\s*)+/, '').replace(/(?:\s*#[\w-]+\s*)+$/, '').trim();
+  }
+}
 
 const isVideo = item.contentType === 'video' || item.type === 'video';
 const videoId = isVideo ? parseVideoId(item.link || '') : null;
@@ -66,27 +201,80 @@ const externalLinkProps = isExternalLink
 const CardWrapper = isPlayable ? 'div' : 'a';
 const wrapperProps = isPlayable
   ? {
-      class: "reveal video-card-home content-card w-full",
+      class: `reveal video-card-home content-card w-full variant-${variant}`,
       'data-delay': index * 100,
       'data-type': 'video',
       'data-categories': lowerTags.join(','),
       'data-video-id': videoId,
-      'data-action': 'open-video',
+      'data-action': variant === 'hero' ? 'inline-video' : 'open-video',
       role: 'button' as const,
       tabindex: 0,
-      'aria-label': `Play video: ${item.title}`
+      /*
+        NO `aria-label` HERE — it is what broke `label-content-name-mismatch`.
+
+        `role="button"` takes its name from its content, and WCAG 2.5.3
+        (Label in Name) requires the accessible name to CONTAIN the visible
+        text. An `aria-label` of "Play video: <title>" replaced a name built
+        from the card's own words — the kicker, headline, tag row, excerpt
+        and "Watch Now" — with a much shorter string that does not contain
+        them, so speech input users saying what they can read ("watch now")
+        could not address the control.
+
+        Dropping it lets the name come from the content, which contains the
+        visible text by construction. The "Play video" framing is kept as an
+        sr-only span inside the card instead: it joins the accessible name
+        without adding visible text for the name to have to contain.
+      */
     }
   : {
       href: cardHref,
       ...externalLinkProps,
-      class: `reveal video-card-home content-card w-full`,
+      class: `reveal video-card-home content-card w-full variant-${variant}`,
       'data-categories': lowerTags.join(','),
       'data-type': isVideo ? 'video' : 'article',
       'data-delay': index * 100
     };
+
+/*
+  THE WATERMARK MUST GO THROUGH getImage(), NOT `logoImage.src`.
+
+  This shipped as `<img src={logoImage.src}>` and 404'd on every single video
+  card in the production build. `@astrojs/cloudflare` turns on compile-time
+  image optimization, so the build emits only the TRANSFORMED renditions
+  (`logo-mark.<hash>_<variant>.webp`); the untransformed path that
+  `logoImage.src` resolves to — `/assets/logo-mark.<hash>.webp` — is never
+  written. It looks correct in dev, where the dev server serves the original
+  on demand, and only breaks once built.
+
+  That one 404 was the whole black-thumbnail bug, and it is worth spelling
+  out why a decorative overlay could do that much damage: this <img> is a
+  SIBLING of the cover inside `.content-card-media`, the fail-safe in
+  Layout.astro marks the shared CONTAINER, and home-cards.css then hides
+  every `> img` in it. So a broken watermark took the perfectly good
+  thumbnail down with it, on every card, deterministically.
+
+  Layout.astro already reaches for the same asset the right way (see
+  `fallbackMark`). Requested at 72px because the mark renders at 24px tall in
+  the standard card and 36px in the hero — 2x the widest of those, rather
+  than the 414 KB original.
+*/
+const watermark = await getImage({
+  src: logoImage,
+  height: 72,
+  format: 'webp',
+  quality: 70,
+});
 ---
 
 <CardWrapper {...wrapperProps} data-play-hover={isVideo ? 'true' : undefined}>
+  {/*
+    Supplies the action verb the removed `aria-label` used to carry. It is
+    part of the accessible name (name-from-content walks hidden-from-sight
+    text) but not part of the visible text, which is exactly the asymmetry
+    Label in Name needs: the name becomes "Play video: <everything visible>",
+    which still contains every word a reader can see.
+  */}
+  {isPlayable && <span class="sr-only">Play video:</span>}
   {/*
     Every style here is a class, not an inline `style` attribute.
 
@@ -122,13 +310,29 @@ const wrapperProps = isPlayable
         srcset={cardImageSrcset || undefined}
         sizes={cardImageSrcset ? CARD_IMAGE_SIZES : undefined}
         alt={item.title}
-        loading="lazy"
-        decoding="async"
+        loading={isLCP ? 'eager' : 'lazy'}
+        fetchpriority={isLCP ? 'high' : 'auto'}
+        decoding={isLCP ? 'sync' : 'async'}
       />
     ) : (
       <div class="article-thumb-fallback" data-fallback="true">
         <span class="article-thumb-fallback-title">{item.title}</span>
       </div>
+    )}
+
+    {/*
+      The shadow belongs to the WRAPPER, not the <img> — hard rule 6
+      ("no `filter: drop-shadow` on an <img>", for known iOS Safari rendering
+      bugs). It matters more than usual here because this element is a
+      compositing sibling of a cross-origin iframe, which is the exact
+      neighbourhood of the WebKit bug the clip release above is fixing. The
+      <img> keeps the class and the opacity, so the player script's
+      `.video-watermark-logo` lookups are unchanged.
+    */}
+    {isVideo && (
+      <span class="video-watermark" aria-hidden="true">
+        <img src={watermark.src} alt="" class="video-watermark-logo" aria-hidden="true" />
+      </span>
     )}
 
     {isVideo && (
@@ -154,12 +358,227 @@ const wrapperProps = isPlayable
       )}
     </div>
 
-    <h3 class="content-card-title">{item.title}</h3>
+    {variant === 'hero' ? (
+      <div class="content-card-title-wrapper">
+        <h3 class="content-card-title">{item.title}</h3>
+        {finalTags.length > 0 && (
+          <div class="content-card-dynamic-tags">
+            {finalTags.join(' | ')}
+          </div>
+        )}
+      </div>
+    ) : (
+      <h3 class="content-card-title">{item.title}</h3>
+    )}
 
-    <span class="watch-now-btn">
-      {isVideo ? LABELS.watchNow : LABELS.readNow}{' '}
-      <span class="content-card-arrow" aria-hidden="true">&rarr;</span>
-      <span class="btn-underline" />
-    </span>
+    {variant === 'hero' && (
+      <p class="content-card-excerpt">{excerpt || ''}</p>
+    )}
+
+    {variant === 'hero' ? (
+      isVideo ? (
+        <a href={cardHref} {...externalLinkProps} class="watch-now-btn" style="position: relative; z-index: 10; display: inline-flex; align-items: center; gap: 0.25rem; margin-top: auto; margin-bottom: 1.5rem;">
+          {LABELS.watchNow}
+          <svg class="youtube-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+          </svg>
+          <span class="btn-underline" />
+        </a>
+      ) : (
+        <span class="watch-now-btn" style="position: relative; z-index: 10; display: inline-flex; align-items: center; gap: 0.25rem; margin-top: auto; margin-bottom: 1.5rem;">
+          {LABELS.readNow}
+          <span class="content-card-arrow" aria-hidden="true">&rarr;</span>
+          <span class="btn-underline" />
+        </span>
+      )
+    ) : (
+      <span class="watch-now-btn" style="display: inline-flex; align-items: center; gap: 0.25rem;">
+        {isVideo ? LABELS.watchNow : LABELS.readNow}
+        {isVideo ? (
+          <svg class="youtube-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+          </svg>
+        ) : (
+          <span class="content-card-arrow" aria-hidden="true">&rarr;</span>
+        )}
+        <span class="btn-underline" />
+      </span>
+    )}
   </div>
 </CardWrapper>
+
+<style>
+  .content-card-excerpt {
+    font-family: var(--font-body, 'Inter', sans-serif);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.75);
+    margin: 0.5rem 0 1rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Lock hero heights to prevent layout jumping when switching active items */
+  .variant-hero .content-card-excerpt {
+    color: #A3A3A3;
+    height: 4.5em; /* Exactly 3 lines at 1.5 line-height */
+  }
+
+  .variant-hero :global(.content-card-media) {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: var(--bg-surface-elevated, #1a1a1a);
+  }
+
+  .variant-hero :global(.content-card-media)::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 30%;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 1; /* Below play button (z-index 2), above iframe (z-index 0) */
+  }
+  
+  /* Hide vignette when video plays */
+  :global(.content-card-media.is-playing-inline)::after {
+    opacity: 0 !important;
+    transition: opacity 0.1s ease !important;
+  }
+
+  /* Inline video iframe styles - forced via !important to override YouTube JS */
+  :global(.yt-player-target),
+  .variant-hero :global(iframe) {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: translateZ(0) !important;
+    border: none !important;
+    z-index: 0;
+    background: transparent;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+  }
+
+  /* Watermark Logo */
+  .video-watermark {
+    position: absolute;
+    bottom: 0.75rem;
+    left: 0.75rem;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  .video-watermark-logo {
+    display: block;
+    width: auto;
+    height: 24px;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+
+  /* Move to bottom left for Hero cards */
+  :global(.variant-hero) .video-watermark {
+    top: auto;
+    bottom: 2rem;
+    left: 2rem;
+    right: auto;
+  }
+
+  :global(.variant-hero) .video-watermark-logo {
+    height: 36px;
+  }
+
+  /* Only show watermark when video is actively playing inline */
+  :global(.is-playing-inline) .video-watermark-logo {
+    opacity: 0.8;
+  }
+  
+  /* The cover gives way to the preview as soon as it is playing... */
+  :global(.content-card-media.is-playing-inline) img.content-card-img,
+  :global(.content-card-media.is-playing-inline) .article-thumb-fallback {
+    opacity: 0 !important;
+    pointer-events: none;
+    transition: opacity 0.1s ease !important;
+  }
+
+  /*
+    ...but THE PLAY ICON OUTLASTS IT, deliberately.
+
+    It used to fade with the cover, which left a silent, muted video playing
+    over a card with no affordance on it at all — nothing said "click for
+    sound". Keeping it up through the preview is the whole point: it is the
+    one control on screen while the iframe is inert, and it is what the
+    reader clicks to unmute.
+
+    It stands down only once they have actually activated the video, because
+    from that moment YouTube's own controls are live underneath and two
+    stacked play/pause buttons is exactly the overlap being fixed here.
+  */
+  :global(.content-card-media.is-user-activated) .play-button-wrapper {
+    opacity: 0 !important;
+    pointer-events: none;
+    transition: opacity 0.1s ease !important;
+  }
+
+  .variant-hero :global(.content-card-body) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .variant-hero :global(.content-card-title-wrapper) {
+    font-size: 1.1rem;
+    line-height: 1.4;
+    min-height: 2.8em; /* Accommodate up to 2 lines */
+    height: auto;
+    overflow: visible;
+    margin-bottom: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 0.3rem; /* ensures title pushes tags down safely */
+  }
+
+  .variant-hero :global(.content-card-title) {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 1em;
+    line-height: 1.4;
+    height: auto;
+    margin-bottom: 0;
+  }
+
+  .variant-hero :global(.content-card-dynamic-tags) {
+    font-family: var(--font-body, 'Inter', sans-serif);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.7);
+    
+    height: auto;
+    min-height: 1.2rem;
+    display: flex;
+    align-items: center; /* Vertically center within the gap */
+    
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+</style>
