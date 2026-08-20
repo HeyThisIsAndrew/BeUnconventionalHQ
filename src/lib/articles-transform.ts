@@ -577,23 +577,35 @@ export function mergeSnapshot(
   incoming: ArticleRecord[],
 ): { merged: ArticleRecord[]; added: number; updated: number } {
   const byGuid = new Map<string, ArticleRecord>();
+  const bySlug = new Map<string, string>(); // slug -> guid
+
   for (const record of (Array.isArray(existing) ? existing : [])) {
-    if (record?.guid) byGuid.set(record.guid, record);
+    if (record?.guid) {
+      byGuid.set(record.guid, record);
+      if (record?.slug) bySlug.set(record.slug, record.guid);
+    }
   }
 
   let added = 0;
   let updated = 0;
 
   for (const record of (Array.isArray(incoming) ? incoming : [])) {
-    const prior = byGuid.get(record.guid);
+    // try finding by guid first, then fallback to slug
+    const priorGuid = byGuid.has(record.guid) ? record.guid : bySlug.get(record.slug ?? '');
+    const prior = priorGuid ? byGuid.get(priorGuid) : null;
+    
     if (!prior) {
       byGuid.set(record.guid, record);
+      if (record?.slug) bySlug.set(record.slug, record.guid);
       added += 1;
       continue;
     }
-    byGuid.set(record.guid, {
+    
+    // Update the existing record using its ORIGINAL guid to keep it stable
+    byGuid.set(priorGuid!, {
       ...prior,
       ...record,
+      guid: prior.guid, // preserve the original stable guid
       // Never let a re-sync rewrite when we first saw a post.
       firstSeen: prior.firstSeen ?? record.firstSeen,
       // A feed that stops returning bodies must not blank an archived one.
