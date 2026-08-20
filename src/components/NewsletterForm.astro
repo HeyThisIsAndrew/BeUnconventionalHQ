@@ -3,12 +3,8 @@
  * NewsletterForm — native email capture.
  *
  * ─── WHY THIS EXISTS ──────────────────────────────────────────────────────
- * The subscribe band used to send readers to Substack. That is a traffic
- * leak: the reader leaves, Substack owns the relationship, and we cannot mail
- * our own audience. This captures the address here instead.
- *
- * The Substack and YouTube links are NOT removed — they still sit alongside
- * as secondary options. This is an addition, not a replacement.
+ * This form captures email addresses natively so we own the audience directly,
+ * rather than sending traffic away to external platforms like Substack.
  *
  * ─── WHERE THE EMAIL GOES ─────────────────────────────────────────────────
  * POSTs to `/api/subscribe` (src/pages/api/subscribe.ts), which stores the
@@ -261,7 +257,7 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
       if (turnstileUnavailable) {
         setState(
           'error',
-          "Our anti-spam check couldn't load. This is usually caused by an ad blocker or network filter. Please disable it to subscribe, or use the Substack link below."
+          "Our anti-spam check couldn't load. This is usually caused by an ad blocker or network filter. Please disable it to subscribe."
         );
         return;
       }
@@ -280,7 +276,7 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
       if (widgetId && !widgetDrew) {
         setState(
           'error',
-          "Our anti-spam check failed to display. Please refresh the page to try again, or use the Substack link below."
+          "Our anti-spam check failed to display. Please refresh the page to try again."
         );
         return;
       }
