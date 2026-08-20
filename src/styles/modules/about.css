@@ -105,6 +105,22 @@
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
+  /*
+    EVERY CARD THE SAME HEIGHT, at every column count.
+
+    Grid rows are sized independently, so once these stack (one column below
+    560px, two below 1024px) each row took its own content height and the
+    cards stopped matching: the "FILM / TV / GAMING" card ran 27-32px shorter
+    than the rest because its value wraps at a smaller size than "2026" does.
+
+    `1fr` on the implicit rows is what equalises them. With the grid's own
+    height indefinite, every `1fr` row resolves to the max-content of the
+    tallest row and they all take that size, so the tallest card sets the
+    height and the others fill it. That is also why this is a grid property
+    and not a `min-height` on the card: no magic number to re-tune when the
+    copy changes.
+  */
+  grid-auto-rows: 1fr;
   gap: 1.5rem;
 }
 
