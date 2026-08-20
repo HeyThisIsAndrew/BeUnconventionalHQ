@@ -173,32 +173,41 @@ BeUnconventionalHQ is evolving toward a "Creator-Owned Media Operating System"�
 
 ---
 
-## 🚀 Content Organization & Routing Guide (v1.0 Keyword Engine)
+## 🚀 Strict Tagging System (v2.0)
 
-The HQ platform uses a **Weighted Signal Engine** to automatically route your YouTube videos and Substack articles to the correct pages (Film, TV, Gaming, Events).
+The HQ platform relies **strictly on tags** to route and categorize your YouTube videos and Substack articles. 
+We **do not** scrape titles or descriptions for metadata—this prevents accidental routing errors from creative titles. 
 
-To ensure your content appears where it belongs, include at least one of the following **Required Keywords** in your **YouTube Video Title** or your **Substack Article Title/Description**.
+To ensure your content appears where it belongs, include the correct **Tags** on YouTube or Substack.
 
-### Destination: FILM
+### 1. Primary Category (Required)
+Include exactly **one** of these in your tags to route the item to the correct page:
+- `Film` (or `Movies`)
+- `TV` (or `Television`)
+- `Gaming` (or `Games`)
+- `Event` (or `Events`)
 
-- **Keywords:** `Movie Review`, `Out of the Theater`, `4DX`, `Box Office`, `Movie`, `Film`, `Cinema`, `Theatrical`, `Reaction`, `Trailer`.
+### 2. Content Type (Consolidated)
+Include **one** of these to define what kind of content this is (appears in the dynamic tags on the card):
+- `Review` (For formal reviews and verdicts)
+- `Analysis` (For deep dives, breakdowns, and essays)
+- `Commentary` (For general commentary and discussions)
+- `Reaction` (For first impressions and live reactions)
 
-### Destination: TV
+*(Other supported secondary types: `Trailer`, `Interview`, `Premiere`, `Podcast`)*
 
-- **Keywords:** `Season`, `Episode`, `Spoiler-Free`, `Series Premiere`, `Netflix`, `HBO`, `Disney+`, `Streaming`, `Binge`, `Series`, `TV Show`.
+### 3. Brands & Studios
+The system will automatically recognize these brands if included in the tags:
+`Marvel`, `DC`, `Netflix`, `Apple TV+`, `Disney`, `PlayStation`, `Xbox`, `Nintendo`, `Star Wars`, `Warner Bros`, `HBO`, `Universal Pictures`, `20th Century`, `Lionsgate`, `A24`, `Paramount`.
 
-### Destination: GAMING
-
-- **Keywords:** `Gameplay`, `Playthrough`, `Game Review`, `Boss Fight`, `Speedrun`, `PlayStation`, `Xbox`, `Nintendo`, `Steam Deck`, `Video Game`.
-
-### Destination: EVENTS
-
-- **Keywords:** `Vlog`, `On Location`, `Live Coverage`, `Behind the Scenes`, `WonderCon`, `Comic-Con`, `SDCC`, `Expo`, `Festival`, `Red Carpet`, `Premiere`, `Convention`.
+### 4. Events
+The system recognizes specific event tags to categorize coverage:
+`SDCC`, `WonderCon`, `D23`, `E3`, `Gamescom`, `Summer Game Fest`, `The Game Awards`, `PAX`, `GDC`, `Convention`, `Premiere`.
 
 ---
 
 **⚠️ Note on Precision:**
-If an item hits multiple categories (e.g., "The Minecraft Movie Game"), the engine will route based on the highest weighted word. A "Playlist Router" migration is planned for the future to allow 100% manual control over routing.
+Tags are matched strictly against your explicit YouTube tags or Substack tags. The system ignores video titles entirely for metadata extraction.
 
 ## License
 
