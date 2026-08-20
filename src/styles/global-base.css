@@ -23,6 +23,26 @@
   --font-display: 'Syne Variable', 'Syne', sans-serif;
   --font-body: 'Inter Variable', 'Inter', sans-serif;
   --section-spacing-y: clamp(4.35rem, calc(2.175rem + 4.25vw), 7.25rem);
+
+  /*
+    SECTION RHYTHM IS VIEWPORT-DRIVEN, NOT REM-DRIVEN.
+
+    `html { font-size: 80% }` below is a deliberate type-density decision for
+    tablet and desktop, and it should stay one. But every section margin on
+    the site was written in `rem`, so that one decision was silently also
+    deciding the vertical rhythm, and deciding it backwards: `5rem` resolves
+    to 80px on a 375px phone and 64px on a 1440px monitor. Section breaks got
+    TIGHTER exactly where there is more room to breathe.
+
+    These two tokens are px + vw so they are immune to the type scaling.
+    Type density and section rhythm are now separate decisions, which is what
+    they always were conceptually.
+
+      --space-section         64px -> 96px   (between major sections)
+      --space-section-header  40px -> 64px   (a header to its own content)
+  */
+  --space-section: clamp(64px, calc(40px + 3vw), 96px);
+  --space-section-header: clamp(40px, calc(24px + 2vw), 64px);
 }
 
 * {

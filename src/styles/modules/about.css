@@ -16,10 +16,25 @@
 */
 .about-hero {
   display: grid;
-  grid-template-columns: 1fr 1.2fr;
+  /*
+    The logo column needs a FLOOR, not just a fraction.
+
+    `1fr` is `minmax(auto, 1fr)`, and `auto` resolves to the other column's
+    min-content width when that column refuses to wrap. `.about-title-main`
+    used to be `white-space: nowrap`, so the text column claimed the full
+    width of "WHERE NERD CULTURE GETS CINEMATIC" as its minimum and the logo
+    got whatever was left: measured at 149x69px on a 1000px viewport and
+    164x75px at 1024px. The site's own wordmark was rendering SMALLER on a
+    desktop than on a 375px phone, where it gets 300px.
+
+    Two changes, and both are load-bearing: the floor below, and dropping
+    that nowrap (see `.about-story h1.about-title-main` in about.astro) so
+    the title can take two balanced lines instead of dictating the grid.
+  */
+  grid-template-columns: minmax(240px, 1fr) 1.2fr;
   gap: 4rem;
   max-width: 1536px;
-  margin: 0 auto 5rem;
+  margin: 0 auto var(--space-section);
   padding: 0 2rem;
   align-items: center;
 }
@@ -83,7 +98,7 @@
 
 .stats-section {
   max-width: 1536px;
-  margin: 0 auto 5rem;
+  margin: 0 auto var(--space-section);
   padding: 0 2rem;
 }
 
@@ -149,7 +164,7 @@
 
 .press-kit-section {
   max-width: 1536px;
-  margin: 6rem auto 2rem;
+  margin: var(--space-section) auto 2rem;
   padding: 4rem 2rem;
   background:
     radial-gradient(
@@ -162,12 +177,19 @@
   text-align: center;
 }
 
-.press-kit-title {
-  font-family: var(--font-display);
-  font-size: clamp(1.5rem, 1.3rem + 1.4vw, 2rem);
-  font-weight: 700;
-  margin-bottom: 1rem;
+/* The /about press panel follows the socials grid, which already carries its
+   own bottom margin, so it drops the panel's usual top section break. Lives
+   here rather than in about.astro's scoped block because the <section> is
+   rendered by CtaPanel.astro and never receives the page's scope attribute. */
+.press-inquiries-section {
+  margin-top: 0;
+  margin-bottom: var(--space-section);
 }
+
+/* `.press-kit-title` used to live here. It was the fourth heading treatment
+   on the site and the panel's own <PageTitle /> lockup replaced it when the
+   three copies of this panel became <CtaPanel />. Verified unreferenced
+   across src/ and public/ before removal. */
 
 .press-kit-desc {
   color: var(--color-white-muted);
@@ -192,6 +214,15 @@
    - file: src/styles/global.css
    - summary: Added specific mobile overrides for About page to prevent oversized image and improve pacing.
    - reason: Resolves layout compression on iPhone-sized screens.
+
+   Every declaration in this block used to carry `!important` (26 of them).
+   Nothing was ever competing for them: no other stylesheet in the manifest
+   styles a `.about-*` selector, and these rules already sit later in this
+   same file than the base rules they override, so plain source order wins.
+   What the `!important`s actually did was make the block unadjustable, which
+   is why earlier attempts to close the gap under the publication section
+   ended up overlapping sections instead of moving them. Removed; verified
+   identical geometry at 320, 375, 414 and 768.
 */
 @media (max-width: 768px) {
   /* Aggressive Editorial Overlap */
@@ -204,49 +235,49 @@
   }
 
   .about-hero {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    gap: 2.5rem !important;
-    padding: 0 1.5rem !important;
-    margin-bottom: 3rem !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2.5rem;
+    padding: 0 1.5rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   .about-image-container {
-    width: 100% !important;
-    max-width: 300px !important;
-    margin: 0 auto !important;
-    display: block !important;
+    width: 100%;
+    max-width: 300px;
+    margin: 0 auto;
+    display: block;
   }
 
   .about-story {
-    width: 100% !important;
-    max-width: 100% !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    box-sizing: border-box !important;
+    width: 100%;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-sizing: border-box;
   }
 
   .about-text {
-    width: 100% !important;
-    max-width: 100% !important;
-    font-size: 1rem !important;
-    line-height: 1.6 !important;
-    text-align: left !important;
-    padding: 0 !important;
-    box-sizing: border-box !important;
+    width: 100%;
+    max-width: 100%;
+    font-size: 1rem;
+    line-height: 1.6;
+    text-align: left;
+    padding: 0;
+    box-sizing: border-box;
   }
 
-  .stats-section {
-    margin-bottom: 4rem;
-  }
+  /* `.stats-section`'s bottom margin used to be re-declared here at 4rem.
+     `--space-section` already resolves smaller on a phone than on a desktop,
+     which is the whole point of the token, so the override is redundant. */
 
   .press-kit-section {
-    margin: 4rem 1.5rem 2rem;
+    margin-left: 1.5rem;
+    margin-right: 1.5rem;
     padding: 3rem 1.5rem;
     width: auto;
   }

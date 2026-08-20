@@ -7,6 +7,7 @@ import PageTitle from '../components/PageTitle.astro';
 import { SOCIAL_ICONS } from '../data/icons.js';
 import { Image } from 'astro:assets';
 import Button from '../components/Button.astro';
+import CtaPanel from '../components/CtaPanel.astro';
 /*
   The PRE-CROPPED mark (src/assets/logo-mark.webp), not logo.webp.
 
@@ -173,12 +174,21 @@ const mobileSocialRows = [
 
     <section class="stats-section">
       <div class="stats-grid">
+        {/*
+          The button takes an EXPLICIT name rather than computing one from its
+          contents. Both faces of the card live inside it, so left to itself it
+          announced the value, the label, the sub-line and then the whole
+          back-face paragraph as a single run. `aria-label` fixes what is read;
+          `aria-describedby` then offers the back copy as the description,
+          which is what it actually is.
+        */}
         {
           pillars.map((pillar, index) => (
             <button
               class="stat-card flip-card animate-on-scroll"
               data-delay={100 + index * 100}
-              aria-label={`More info about ${pillar.label}`}
+              aria-label={`${pillar.label}: ${pillar.value}. ${pillar.desc}`}
+              aria-describedby={`pillar-back-${index}`}
             >
               <div class="flip-card-inner">
                 <div class="flip-card-front">
@@ -187,9 +197,19 @@ const mobileSocialRows = [
                   </span>
                   <span class="stat-label">{pillar.label}</span>
                   <p class="pillar-desc">{pillar.desc}</p>
+                  {/* The affordance. Nothing previously signalled that these
+                      cards had a back at all. `aria-hidden` because the
+                      description below already tells a screen reader what is
+                      there, in words rather than a glyph. */}
+                  <span class="flip-hint" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M2 12a10 10 0 0 1 17-7.1L22 8" />
+                      <path d="M22 3v5h-5" />
+                    </svg>
+                  </span>
                 </div>
                 <div class="flip-card-back">
-                  <p>{pillar.backText}</p>
+                  <p id={`pillar-back-${index}`}>{pillar.backText}</p>
                 </div>
               </div>
             </button>
@@ -200,36 +220,30 @@ const mobileSocialRows = [
 
     <SocialsSection />
 
-    <section class="press-kit-section press-inquiries-section animate-on-scroll">
-      {/* Deliberately NOT the stacked <PageTitle /> used by the masthead: that
-          treatment overlaps its second line onto the first by design (it is
-          drawn for a one-word tail like "HQ"), and "Editorial Inquiries" is
-          unreadable in it. This uses the same kicker + `.press-kit-title` pair
-          as the subscribe and event-booking panels. */}
-      <p class="section-kicker">Media</p>
-      <h2 class="press-kit-title">Press and Editorial Inquiries</h2>
-      <p class="press-kit-desc press-inquiries-desc">
-        Screeners, review copies, event credentials, and partnership requests all start in one place.
-      </p>
+    {/* `stagger={false}` because "Editorial Inquiries" is a multi-word tail:
+        the lockup's default tuck would run it through the line above. */}
+    <CtaPanel
+      class="press-inquiries-section"
+      kicker="Media"
+      primary="Press and"
+      secondary="Editorial Inquiries"
+      description="Screeners, review copies, event credentials, and partnership requests all start in one place."
+      stagger={false}
+    >
       <Button href="/collaborations">Visit Collaborations</Button>
-    </section>
+    </CtaPanel>
   </main>
 
 </Layout>
 
 <style>
   .about-section-header {
-    /* Was 5rem, stacking on top of `.about-hero`'s own 5rem bottom margin for
-       ~10rem of dead run between the publication copy and the founder card.
-       3rem here plus the hero's 5rem reads as one section break, not two. */
-    margin-bottom: 3rem;
-  }
-
-  /* Match the kicker treatment "The Publication" uses in the hero: accent
-     colour and the wider tracking, on top of the cinematic PageTitle stack. */
-  .about-section-header :global(.page-title-kicker) {
-    color: var(--color-accent-text);
-    letter-spacing: 0.3em;
+    /* Was 5rem, stacking on top of `.about-hero`'s own bottom margin for a
+       double section break between the publication copy and the founder card.
+       The shared `--space-section-header` token is the single source of that
+       header-to-content gap now, so this rule can go away entirely once the
+       global `.section-header` rule is the only one that sets it. */
+    margin-bottom: var(--space-section-header);
   }
 
   .about-kicker {
@@ -250,7 +264,10 @@ const mobileSocialRows = [
     color: var(--color-white);
     text-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
     line-height: 1.2;
-    white-space: nowrap;
+    /* NOT `white-space: nowrap`. See the grid note in about.css: nowrap made
+       this heading's min-content width the hero's column sizer and starved
+       the logo beside it. `text-wrap: balance` above splits it evenly when it
+       does wrap, which on a wide desktop it still does not need to. */
     margin-bottom: 1rem;
   }
 
@@ -302,7 +319,7 @@ const mobileSocialRows = [
   .masthead-section {
     padding: 0 2rem;
     max-width: 1536px;
-    margin: 0 auto 5rem auto;
+    margin: 0 auto var(--space-section) auto;
   }
 
   .masthead-container {
@@ -382,7 +399,16 @@ const mobileSocialRows = [
   }
 
   .founder-social-link:hover {
-    color: var(--color-accent);
+    /* `--color-accent-text` (#ef4444), not `--color-accent` (#cc0000).
+
+       These marks sit on the masthead card, which resolves to #111111. The
+       deep red measures 3.21:1 there: it clears the 3:1 floor for a non-text
+       graphic, but only just, and it is LOWER than the icons' own resting
+       #888888 at 5.33:1. A hover state that reduces contrast is backwards.
+       The lighter accent reads at 5.02:1 and is the same brand red the
+       kickers use. `--color-accent` stays what it is: a border and glow
+       colour, which is the only role it has the contrast for. */
+    color: var(--color-accent-text);
     transform: translateY(-2px);
   }
   
@@ -412,6 +438,38 @@ const mobileSocialRows = [
     margin-bottom: 1rem;
   }
 
+  /*
+    The flip affordance.
+
+    A card that hides half its content behind hover has to say so. This is a
+    small rotate glyph in the corner of the front face: dim at rest, accent on
+    hover or keyboard focus, and gone the moment the card turns (it belongs to
+    the front, and the front is what is leaving).
+  */
+  .flip-hint {
+    position: absolute;
+    right: 0.85rem;
+    bottom: 0.85rem;
+    display: inline-flex;
+    color: var(--color-white-muted);
+    opacity: 0.45;
+    transition: opacity 0.3s ease, color 0.3s ease;
+  }
+
+  .flip-card:hover .flip-hint,
+  .flip-card:focus-visible .flip-hint {
+    color: var(--color-accent-text);
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .flip-hint {
+      /* Without the turn to explain it, a rotate arrow is a lie. The cards
+         still swap faces below; the glyph just stops implying motion. */
+      opacity: 0.6;
+    }
+  }
+
   /* FLIP CARD STYLES */
   .flip-card {
     background: transparent;
@@ -435,6 +493,14 @@ const mobileSocialRows = [
   .flip-card:focus .flip-card-inner,
   .flip-card:focus-within .flip-card-inner {
     transform: rotateY(180deg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* Swap the faces without spinning them. The information stays reachable;
+       only the 600ms 3D rotation goes away. */
+    .flip-card-inner {
+      transition: none;
+    }
   }
 
   /* Reset global stat-card hover translateY since inner flips */
@@ -489,40 +555,10 @@ const mobileSocialRows = [
     text-wrap: balance;
   }
 
-  /* Rides the shared `.press-kit-section` panel (styles/modules/about.css) so
-     this reads as the same class of section as the subscribe and event CTAs,
-     rather than as a link stranded above the footer. Only the spacing differs:
-     the shared rule's 6rem top margin is tuned for a panel that follows a card
-     grid, and this one follows the socials grid. */
-  .press-inquiries-section {
-    margin: 0 auto 5rem;
-  }
-
-  .press-inquiries-desc {
-    font-size: 1.05rem;
-    line-height: 1.6;
-    text-wrap: balance;
-    max-width: 46ch;
-    margin: 0 auto 2.5rem;
-  }
-
   @media (max-width: 768px) {
-    .press-inquiries-section {
-      padding: 3rem 1.5rem;
-      margin-bottom: 4rem;
-    }
-
-    .press-inquiries-desc {
-      font-size: 0.95rem;
-    }
-
     .about-story h1.about-title-main {
       font-size: clamp(1.2rem, calc(0.5rem + 3vw), 1.6rem);
       text-align: center;
-      white-space: normal;
-    }
-    .masthead-section {
-      margin-bottom: 4rem;
     }
     .masthead-container {
       padding: 2rem;

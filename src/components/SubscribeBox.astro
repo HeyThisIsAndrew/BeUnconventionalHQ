@@ -1,5 +1,5 @@
 ---
-import PageTitle from './PageTitle.astro';
+import CtaPanel from './CtaPanel.astro';
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
 
 export interface Props {
@@ -24,13 +24,7 @@ const {
 const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
 ---
 
-<section class="press-kit-section animate-on-scroll" style="text-align: center;">
-  <div class="section-header" style="margin-bottom: 2rem;">
-    <PageTitle kicker={kicker} primary={primary} secondary={secondary} scale="secondary" />
-  </div>
-  <p class="press-kit-desc" style="max-width: 800px; margin: 0 auto 2rem; color: #a0a0a0;">
-    {subtitle}
-  </p>
+<CtaPanel kicker={kicker} primary={primary} secondary={secondary} description={subtitle}>
   
   {/* The Turnstile API script itself is loaded ONCE in Layout.astro — see the
       note there on why per-form loads raced each other. The site-key guard
@@ -56,7 +50,7 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
     
     <div id="subscribe-form-status" class="form-status-message" role="status" aria-live="polite"></div>
   </form>
-</section>
+</CtaPanel>
 
 <script is:inline>
   window.onSubscribeTurnstileSuccess = function() {
