@@ -220,11 +220,13 @@ export function mapCategory(tags: string[] = [], text = ''): string {
  * the title. Tagging a Substack post `Review` is the reliable path; the title
  * scan is a fallback so untagged posts still get something sensible.
  */
-export const CONTENT_TYPES = ['Review', 'Analysis', 'Dispatch', 'Announcement', 'Interview'] as const;
+export const CONTENT_TYPES = ['Review', 'Analysis', 'Dispatch', 'Announcement', 'Interview', 'Commentary', 'Reaction'] as const;
 export type ContentType = (typeof CONTENT_TYPES)[number];
 
 const CONTENT_TYPE_KEYWORDS: Record<string, string[]> = {
   Review: ['review', 'reviewed', 'verdict', 'rating'],
+  Commentary: ['commentary', 'comments', 'thoughts'],
+  Reaction: ['reaction', 'reacts', 'first impression'],
   // "Dispatch" is on-the-ground reporting: conventions, premieres, set visits.
   Dispatch: ['dispatch', 'onlocation', 'hallh', 'sdcc', 'd23', 'nycc', 'premiere', 'recap', 'coverage'],
   Announcement: ['announced', 'announcement', 'revealed', 'confirms', 'confirmed', 'trailer', 'release date'],
@@ -611,6 +613,10 @@ export function mergeSnapshot(
       // A feed that stops returning bodies must not blank an archived one.
       bodyHtml: record.bodyHtml || prior.bodyHtml,
       hasBody: record.hasBody || prior.hasBody,
+      // Allow feed to clear tags if the user removed them
+      tags: record.tags || [],
+      category: record.tags?.length ? record.category : '',
+      contentType: record.tags?.length ? record.contentType : '',
       // Editorial overrides win over anything the feed says.
       ...(prior as any).editorial ? { editorial: (prior as any).editorial } : {},
     });

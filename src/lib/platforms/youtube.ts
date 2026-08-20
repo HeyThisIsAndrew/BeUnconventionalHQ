@@ -261,6 +261,14 @@ export function createYouTubeClient(opts: YouTubeClientOptions) {
             } catch (err) {
               console.error(`Short network check failed for ${item.id}`, err);
             }
+            
+            // Fallback heuristic: If network check fails or says false, but it looks like a short
+            const durationSecs = parseISO8601Duration(item.contentDetails?.duration);
+            const title = item.snippet?.title || '';
+            if (!isShort && (durationSecs > 0 && durationSecs <= 61 || title.toLowerCase().includes('#shorts'))) {
+              isShort = true;
+            }
+            
             return { item, isShort };
           })
         );
