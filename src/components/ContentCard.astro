@@ -105,6 +105,7 @@ let finalTags: string[] = [];
   let tag3 = '';
   const eventMap = [
     { label: 'SDCC', regex: /SDCC|COMICCON/ },
+    { label: 'CONVENTION', regex: /CONVENTION|WONDERCON/ },
     { label: 'D23', regex: /D23/ },
     { label: 'E3', regex: /E3/ },
     { label: 'GAMESCOM', regex: /GAMESCOM/ },
@@ -112,11 +113,13 @@ let finalTags: string[] = [];
     { label: 'THE GAME AWARDS', regex: /TGA|GAMEAWARDS/ },
     { label: 'PAX', regex: /PAX/ },
     { label: 'GDC', regex: /GDC/ },
-    { label: 'DC FANDOME', regex: /FANDOME/ }
+    { label: 'DC FANDOME', regex: /FANDOME/ },
+    { label: 'PREMIERE', regex: /PREMIERE/, strict: true }
   ];
 
   for (const e of eventMap) {
-    if (cleanTokens.some(t => e.regex.test(t)) || e.regex.test(titleText)) {
+    if (tag2 === e.label) continue;
+    if (cleanTokens.some(t => e.regex.test(t)) || (!e.strict && e.regex.test(titleText))) {
       tag3 = e.label;
       break;
     }
