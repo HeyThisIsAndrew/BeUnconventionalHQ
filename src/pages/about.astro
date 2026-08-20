@@ -96,10 +96,13 @@ const founderSocials = [
           <h2 class="founder-name">Andrew Baxter</h2>
           <h3 class="founder-title">Founder & Editor</h3>
           <div class="founder-socials">
-            {founderSocials.map((social) => (
-              <a href={social.url} target="_blank" rel="noopener noreferrer" aria-label={social.name} class="founder-social-link">
-                <span set:html={social.icon} />
-              </a>
+            {founderSocials.map((social, index) => (
+              <>
+                <a href={social.url} target="_blank" rel="noopener noreferrer" aria-label={social.name} class="founder-social-link">
+                  <span class="social-icon-wrapper" set:html={social.icon} />
+                </a>
+                {index < founderSocials.length - 1 && <span class="social-separator">|</span>}
+              </>
             ))}
           </div>
           <div class="founder-text">
@@ -257,7 +260,9 @@ const founderSocials = [
 
   .founder-socials {
     display: flex;
-    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
     margin-bottom: 1.5rem;
   }
 
@@ -265,8 +270,6 @@ const founderSocials = [
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
     color: var(--color-white-muted);
     transition: color 0.2s ease, transform 0.2s ease;
   }
@@ -276,9 +279,23 @@ const founderSocials = [
     transform: translateY(-2px);
   }
   
-  .founder-social-link :global(svg) {
+  .social-icon-wrapper {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+  }
+
+  .social-icon-wrapper :global(svg) {
     width: 100%;
     height: 100%;
+    display: block;
+    fill: currentColor;
+  }
+
+  .social-separator {
+    color: var(--color-white-muted);
+    opacity: 0.3;
+    font-size: 0.9rem;
   }
 
   .founder-text p {
