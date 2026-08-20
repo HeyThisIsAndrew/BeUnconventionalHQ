@@ -30,18 +30,11 @@ let finalTags: string[] = [];
   
   if (Array.isArray(item.youtubeTags)) explicitTokens.push(...item.youtubeTags);
   if (Array.isArray(item.tags)) explicitTokens.push(...item.tags);
-  
-  if (typeof excerpt === 'string') {
-    const hashMatches = excerpt.match(/#[\w-]+/g) || [];
-    const atMatches = excerpt.match(/@[\w-]+/g) || [];
-    explicitTokens.push(...hashMatches, ...atMatches);
-  }
+  // No longer scraping excerpt for tags.
 
   // Normalize tokens (uppercase, remove #, @, and spaces)
   let cleanTokens = explicitTokens.map(t => t.replace(/[#@\s]/g, '').toUpperCase());
   cleanTokens = [...new Set(cleanTokens)]; // unique
-
-  const titleText = (item.title || '').toUpperCase().replace(/\s/g, '');
 
   // 1. Brand (Tile 1)
   let tag1 = '';
@@ -66,17 +59,9 @@ let finalTags: string[] = [];
   ];
 
   for (const b of brandMap) {
-    if (cleanTokens.some(t => b.regex.test(t)) || b.regex.test(titleText)) {
+    if (cleanTokens.some(t => b.regex.test(t))) {
       tag1 = b.label;
       break;
-    }
-  }
-
-  // Fallback: If no mapped brand found, use the first @ mention from the excerpt
-  if (!tag1 && typeof excerpt === 'string') {
-    const atMatch = excerpt.match(/@([\w-]+)/);
-    if (atMatch) {
-      tag1 = atMatch[1].toUpperCase();
     }
   }
 
@@ -114,12 +99,12 @@ let finalTags: string[] = [];
     { label: 'PAX', regex: /PAX/ },
     { label: 'GDC', regex: /GDC/ },
     { label: 'DC FANDOME', regex: /FANDOME/ },
-    { label: 'PREMIERE', regex: /PREMIERE/, strict: true }
+    { label: 'PREMIERE', regex: /PREMIERE/ }
   ];
 
   for (const e of eventMap) {
     if (tag2 === e.label) continue;
-    if (cleanTokens.some(t => e.regex.test(t)) || (!e.strict && e.regex.test(titleText))) {
+    if (cleanTokens.some(t => e.regex.test(t))) {
       tag3 = e.label;
       break;
     }
