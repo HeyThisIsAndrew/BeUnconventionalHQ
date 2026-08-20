@@ -370,18 +370,22 @@ const fallbackMark = await getImage({
     </div>
     {/*
       ─── TURNSTILE LOADS ONCE, HERE ────────────────────────────────────────
-      It used to be requested by each form that needed it — the (since
-      removed) contact modal and
-      SubscribeBox as plain `api.js`, NewsletterForm as `api.js?render=explicit`
-      — so any page carrying both (/, /events, /featured) fetched the API twice
-      from two different URLs.
+      It used to be requested by each form that needed it: the (since removed)
+      contact modal and SubscribeBox as plain `api.js`, NewsletterForm as
+      `api.js?render=explicit`, so any page carrying both (/, /events,
+      /featured) fetched the API twice from two different URLs.
+
+      SubscribeBox has since been removed too, so NewsletterForm is the only
+      form left on this path. The history is kept because the CONCLUSION below
+      is still what the code does, and the reasoning is why it must not be
+      undone the next time a second form appears.
 
       That is not just a duplicate request. `render=explicit` is a GLOBAL
       switch: when the API is loaded that way it stops scanning the DOM for
-      implicit `.cf-turnstile` widgets. SubscribeBox relies
-      on that scan, so whichever tag happened to win the race decided whether
-      the contact form got a widget at all — and with no widget its submit
-      button stays disabled and the form cannot be sent.
+      implicit `.cf-turnstile` widgets. SubscribeBox relied on that scan, so
+      whichever tag happened to win the race decided whether the contact form
+      got a widget at all, and with no widget its submit button stays disabled
+      and the form cannot be sent.
 
       One plain (implicit) load removes the race. `window.turnstile.render()`
       is still exposed in implicit mode, so NewsletterForm's explicit render
@@ -400,7 +404,7 @@ const fallbackMark = await getImage({
 
       That also fixes what this comment used to record as KNOWN, NOT FIXED:
       the implicit scan runs once, when the script loads, so with ClientRouter
-      a client-side navigation left SubscribeBox with fresh
+      a client-side navigation left an implicitly-scanned form with fresh
       unrendered elements and no widget until a full reload. Deferring the
       load would have made that permanent, so every widget is now rendered
       EXPLICITLY — including on `astro:page-load`. The components keep their

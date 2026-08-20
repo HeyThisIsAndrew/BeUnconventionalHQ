@@ -31,7 +31,9 @@
   The existing widgets keep their markup and their `data-callback` contract:
   this reads the same `data-*` attributes the implicit renderer would have
   and dispatches to the same window globals the components already define.
-  That is deliberate — it keeps SubscribeBox and ContactModal untouched.
+  That is deliberate: it kept the form components untouched when this moved
+  to explicit rendering, and it is why NewsletterForm still carries plain
+  `data-*` attributes rather than renderer-specific wiring.
 */
 
 /**
