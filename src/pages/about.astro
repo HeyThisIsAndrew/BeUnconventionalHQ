@@ -2,34 +2,55 @@
 import Layout from '../layouts/Layout.astro';
 import { site } from '../data/site.js';
 import SocialsSection from '../components/SocialsSection.astro';
+import SectionHeader from '../components/SectionHeader.astro';
+import PageTitle from '../components/PageTitle.astro';
+import { SOCIAL_ICONS } from '../data/icons.js';
 import { Image } from 'astro:assets';
 import logoImage from '../assets/logo.webp';
+import andrewHeadshot from '../assets/andrew-headshot.webp';
 
 const title = `About | ${site.name}`;
 const description =
-  'Discover the story behind Be Unconventional HQ: a space dedicated to movies, games, technology, and storytelling from a cinematic perspective.';
+  'Be Unconventional HQ is an editorial publication where nerd culture gets cinematic. Covering Film, TV, Gaming, and Events with a focus on the craft behind the stories.';
 
 const pillars = [
   {
     label: 'Production Quality',
     value: '4K',
     desc: 'Cinematic film-standard visuals',
+    backText: 'Every video is shot, graded, and finished to industry standards, ensuring the visuals respect the craft of the subjects we cover.',
   },
   {
     label: 'Filmmaker Perspective',
     value: 'Pro',
     desc: 'Expertise-driven industry analysis',
+    backText: 'We look past the surface to analyze the lighting, pacing, writing, and design choices that make great stories work.',
   },
   {
     label: 'Passionate Community',
     value: 'HQ',
     desc: 'Connecting nerd culture enthusiasts',
+    backText: 'A hub for creators, fans, and critics to engage in thoughtful discussion without the toxicity of typical internet discourse.',
   },
   {
     label: 'Unfiltered Truth',
     value: '100%',
     desc: 'Honest reviews and deep dives',
+    backText: 'No paid opinions. No manufactured outrage. Just genuine, independent critique focused on the art and the audience.',
   },
+];
+
+const founderSocials = [
+  { name: 'Instagram', url: 'https://www.instagram.com/hey_thisisandrew/', icon: SOCIAL_ICONS.Instagram },
+  { name: 'YouTube', url: 'https://www.youtube.com/@HeyThisIsAndrew', icon: SOCIAL_ICONS.YouTube },
+  { name: 'TikTok', url: 'https://www.tiktok.com/@hey_thisisandrew', icon: SOCIAL_ICONS.TikTok },
+  { name: 'Threads', url: 'https://www.threads.net/@hey_thisisandrew', icon: SOCIAL_ICONS.Threads },
+  { name: 'Facebook', url: 'https://www.facebook.com/thisisandrew', icon: SOCIAL_ICONS.Facebook },
+  { name: 'Twitter', url: 'https://twitter.com/_ThisIsAndrew', icon: SOCIAL_ICONS.Twitter },
+  { name: 'Bluesky', url: 'https://bsky.app/profile/thisisandrew.bsky.social', icon: SOCIAL_ICONS.Bluesky },
+  { name: 'LinkedIn', url: 'https://www.linkedin.com/in/andrewlwyrbaxter/', icon: SOCIAL_ICONS.LinkedIn },
+  { name: 'Substack', url: 'https://thisiscoffeetalk.substack.com/', icon: SOCIAL_ICONS.Substack },
+  { name: 'Amazon', url: 'https://www.amazon.com/shop/influencer-0931c541?ref=ac_inf_tb_vh', icon: SOCIAL_ICONS.Amazon },
 ];
 ---
 
@@ -48,24 +69,93 @@ const pillars = [
         />
       </div>
       <div class="about-story animate-on-scroll" data-delay="200">
-        <p class="section-kicker about-kicker">The Story</p>
-        <h1 class="about-title-main">UNCONVENTIONAL</h1>
-        {/* A tagline, not a section heading — <p> keeps the heading outline
-            valid (h1 was followed directly by h3). Styling is class-based. */}
-        <p class="about-title-sub">SOMETIMES UNCONVENTIONAL IS THE ONLY WAY FORWARD</p>
+        <p class="section-kicker about-kicker">The Publication</p>
+        <h1 class="about-title-main">WHERE NERD CULTURE GETS CINEMATIC</h1>
+        <p class="about-title-sub">FILM | TV | GAMING | EVENTS</p>
         <div class="about-text">
           <p>
-            “Be who you are and say what you feel, because those who mind don’t matter, and those who matter don’t mind.” That belief has guided me through much of my life, and it’s the foundation of <strong>Be Unconventional HQ</strong>. I created this space to share my passion for movies, games, technology, and storytelling with honesty, curiosity, and a cinematic perspective.
+            <strong>BE Unconventional HQ</strong> is an editorial publication for people who love the craft behind the stories. Our principle is simple: if we're talking cinema, then our content should look like cinema.
           </p>
           <p>
-            Whether it’s breaking down the cinematography of a Batman film, exploring the latest gaming mechanics, or geeking out over the technology behind the creative process, the goal is always the same: to slow down, appreciate the craft, and have genuine conversations instead of chasing hot takes or clickbait.
+            From breaking down the cinematography of a new film or show to exploring game design, covering live events, and diving into the filmmaking process, our goal is to slow down, appreciate the details, and have genuine conversations.
           </p>
           <p>
-            Every video and article is created with the same care and attention to detail as the work that inspires it. My hope is that you’ll find something that makes you think, discover something new, and feel at home celebrating the things you love.
+            No clickbait, no artificial outrage, just unfiltered honesty and expertise-driven industry analysis.
           </p>
           <p>
-            Be yourself. Be passionate. Be unconventional.
+            If you're passionate about Movies, TV, Gaming, and Events you're in the right place.
           </p>
+          <p class="about-motto">
+            BE YOURSELF. <br />
+            BE PASSIONATE. <br />
+            BE UNCONVENTIONAL.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="masthead-section animate-on-scroll">
+      <SectionHeader class="about-section-header">
+        <PageTitle
+          kicker="THE TEAM"
+          primary="INSIDE THE"
+          secondary="HQ"
+          scale="secondary"
+        />
+      </SectionHeader>
+      <div class="masthead-container">
+        <div class="masthead-image">
+          <div class="masthead-image-wrapper">
+            <Image
+              src={andrewHeadshot}
+              alt="Andrew Baxter"
+              class="founder-img"
+              width={400}
+              height={400}
+            />
+          </div>
+        </div>
+        <div class="masthead-bio">
+          <h2 class="founder-name">Andrew Baxter</h2>
+          <h3 class="founder-title">Founder & Editor</h3>
+          <div class="founder-socials desktop-socials">
+            {founderSocials.map((social, index) => (
+              <>
+                <a href={social.url} target="_blank" rel="noopener noreferrer" aria-label={social.name} class="founder-social-link">
+                  <span class="social-icon-wrapper" set:html={social.icon} />
+                </a>
+                {index < founderSocials.length - 1 && <span class="social-separator">|</span>}
+              </>
+            ))}
+          </div>
+
+          <div class="mobile-socials">
+            <div class="social-row">
+              {founderSocials.slice(0, 5).map((social, index) => (
+                <>
+                  <a href={social.url} target="_blank" rel="noopener noreferrer" aria-label={social.name} class="founder-social-link">
+                    <span class="social-icon-wrapper" set:html={social.icon} />
+                  </a>
+                  {index < 4 && <span class="social-separator">|</span>}
+                </>
+              ))}
+            </div>
+            <div class="social-row">
+              {founderSocials.slice(5, 10).map((social, index) => (
+                <>
+                  <a href={social.url} target="_blank" rel="noopener noreferrer" aria-label={social.name} class="founder-social-link">
+                    <span class="social-icon-wrapper" set:html={social.icon} />
+                  </a>
+                  {index < 4 && <span class="social-separator">|</span>}
+                </>
+              ))}
+            </div>
+          </div>
+          <div class="founder-text">
+            <p>
+              I am documenting the messy reality of building a brand. I’m pushing past perfectionism, learning new technical workflows (Sony Alpha, DaVinci Resolve, AI tools), and building my creative ecosystem in public. There is no hyper-polished fake expertise here. Just raw behind-the-scenes progress as I figure it out as I go.
+            </p>
+          </div>
         </div>
       </div>
     </section>
@@ -74,43 +164,37 @@ const pillars = [
       <div class="stats-grid">
         {
           pillars.map((pillar, index) => (
-            <div
-              class="stat-card animate-on-scroll"
+            <button
+              class="stat-card flip-card animate-on-scroll"
               data-delay={100 + index * 100}
+              aria-label={`More info about ${pillar.label}`}
             >
-              <span class="stat-value">{pillar.value}</span>
-              <span class="stat-label">{pillar.label}</span>
-              <p class="pillar-desc">{pillar.desc}</p>
-            </div>
+              <div class="flip-card-inner">
+                <div class="flip-card-front">
+                  <span class="stat-value">{pillar.value}</span>
+                  <span class="stat-label">{pillar.label}</span>
+                  <p class="pillar-desc">{pillar.desc}</p>
+                </div>
+                <div class="flip-card-back">
+                  <p>{pillar.backText}</p>
+                </div>
+              </div>
+            </button>
           ))
         }
       </div>
     </section>
 
-    <div class="pb-8">
-      <SocialsSection />
-    </div>
-
-    <!-- Currently disabled. If this section is revived, re-add
-         `import { SECTIONS } from '../data/content.js';` above — its copy
-         lives at SECTIONS.aboutPress. -->
-    <!-- <section class="press-kit-section animate-on-scroll">
-      <div class="section-header" style="margin-bottom: 2rem;">
-        <PageTitle
-          {...SECTIONS.aboutPress}
-          scale="secondary"
-        />
-      </div>
-      <p class="press-kit-desc">
-        Interested in working together or want to feature Be Unconventional HQ?
-        Download our media kit below.
-      </p>
-      <a href={`/collaborations`} class="cta-button-primary">View Press Kit</a>
-    </section> -->
+    <SocialsSection />
   </main>
+
 </Layout>
 
 <style>
+  .about-section-header {
+    margin-bottom: 3rem;
+  }
+
   .about-kicker {
     color: var(--color-accent-text);
     font-size: clamp(0.75rem, calc(0.375rem + 0.9vw), 1.1rem);
@@ -120,26 +204,45 @@ const pillars = [
     text-align: center;
   }
 
-  .about-title-main {
+  .about-story h1.about-title-main {
     text-align: center;
-    font-size: clamp(1.5rem, calc(0.75rem + 1.5vw), 2.5rem);
+    text-wrap: balance;
+    font-size: clamp(1.2rem, calc(0.75rem + 1.2vw), 2.2rem);
     font-weight: 800;
-    letter-spacing: -0.04em;
+    letter-spacing: -0.02em;
     color: var(--color-white);
     text-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
-    line-height: 1;
+    line-height: 1.2;
+    white-space: nowrap;
+    margin-bottom: 1rem;
   }
 
   .about-title-sub {
     text-align: center;
     color: rgba(255, 255, 255, 0.9);
-    font-size: clamp(0.35rem, calc(0.15rem + 0.65vw), 0.75rem);
-    letter-spacing: 0.25em;
+    font-size: clamp(0.6rem, calc(0.4rem + 1vw), 1rem);
+    letter-spacing: 0.3em;
     text-transform: uppercase;
     text-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
-    margin-top: -1rem;
+    margin-top: 0.5rem;
     margin-bottom: 2rem;
     white-space: nowrap;
+  }
+
+  .about-motto {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: clamp(0.6rem, calc(0.4rem + 1vw), 1rem);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    text-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+    margin-top: 2.5rem;
+    /* Do not force nowrap so it can wrap on mobile gracefully */
+  }
+
+  @media (min-width: 769px) {
+    .about-motto br {
+      display: none;
+    }
   }
 
   .pillar-desc {
@@ -147,12 +250,239 @@ const pillars = [
     color: var(--color-white-muted);
     margin-top: 0.5rem;
     line-height: 1.4;
+    text-wrap: balance;
+  }
+
+  .masthead-section {
+    padding: 0 2rem;
+    max-width: 1536px;
+    margin: 0 auto 5rem auto;
+  }
+
+  .masthead-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3rem;
+    background: rgba(25, 25, 25, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 3rem;
+    border-radius: 0;
+  }
+
+  @media (min-width: 768px) {
+    .masthead-container {
+      flex-direction: row;
+      align-items: flex-start;
+    }
+  }
+
+  .masthead-image {
+    flex-shrink: 0;
+  }
+
+  .masthead-image-wrapper {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    border: 2px solid var(--color-accent);
+    overflow: hidden;
+  }
+
+  .founder-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  .masthead-bio {
+    flex-grow: 1;
+  }
+
+  .founder-name {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--color-white);
+    margin-bottom: 0.25rem;
+  }
+
+  .founder-title {
+    font-size: 1rem;
+    color: var(--color-accent-text);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 1rem;
+  }
+
+  .desktop-socials {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: clamp(0.15rem, 1vw, 1rem);
+    margin-bottom: 1.5rem;
+  }
+
+  .mobile-socials {
+    display: none;
+  }
+
+  .founder-social-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-white-muted);
+    transition: color 0.2s ease, transform 0.2s ease;
+  }
+
+  .founder-social-link:hover {
+    color: var(--color-accent);
+    transform: translateY(-2px);
+  }
+  
+  .social-icon-wrapper {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+  }
+
+  .social-icon-wrapper :global(svg) {
+    width: 100%;
+    height: 100%;
+    display: block;
+    fill: currentColor;
+  }
+
+  .social-separator {
+    color: var(--color-white-muted);
+    opacity: 0.3;
+    font-size: 0.9rem;
+  }
+
+  .founder-text p {
+    color: var(--color-white-muted);
+    font-size: 1.25rem;
+    line-height: 1.6;
+    margin-bottom: 1rem;
+  }
+
+  /* FLIP CARD STYLES */
+  .flip-card {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    perspective: 1000px;
+    width: 100%;
+  }
+
+  .flip-card-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-style: preserve-3d;
+  }
+
+  .flip-card:hover .flip-card-inner,
+  .flip-card:focus .flip-card-inner,
+  .flip-card:focus-within .flip-card-inner {
+    transform: rotateY(180deg);
+  }
+
+  /* Reset global stat-card hover translateY since inner flips */
+  .stat-card.flip-card:hover {
+    transform: none;
+    border-color: transparent;
+    box-shadow: none;
+  }
+
+  .flip-card-front, .flip-card-back {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    border-radius: 0;
+    padding: 2.5rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: var(--color-surface);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .flip-card:hover .flip-card-front,
+  .flip-card:hover .flip-card-back {
+    border-color: var(--color-accent);
+    box-shadow: 0 8px 30px rgba(204, 0, 0, 0.1);
+  }
+
+  /* The front needs position relative to dictate the total height of the container */
+  .flip-card-front {
+    position: relative; 
+  }
+
+  .flip-card-back {
+    transform: rotateY(180deg);
+    background: rgba(25, 25, 25, 0.95);
+    text-align: center;
+  }
+
+  .flip-card-back p {
+    color: var(--color-white);
+    font-size: 1.05rem;
+    line-height: 1.5;
+    margin: 0;
+    width: 100%;
+    text-wrap: balance;
   }
 
   @media (max-width: 768px) {
-    .about-title-main {
-      font-size: clamp(1rem, calc(0.5rem + 2.75vw), 1.35rem);
+    .about-story h1.about-title-main {
+      font-size: clamp(1.2rem, calc(0.5rem + 3vw), 1.6rem);
       text-align: center;
+      white-space: normal;
+    }
+    .masthead-section {
+      margin-bottom: 4rem;
+    }
+    .masthead-container {
+      padding: 2rem;
+      text-align: center;
+    }
+    .founder-text {
+      text-align: left;
+      text-wrap: pretty;
+      max-width: 100%;
+      margin: 0 auto;
+    }
+    .founder-text p {
+      font-size: 0.95rem;
+    }
+    .flip-card-back p {
+      font-size: 0.9rem;
+    }
+    .desktop-socials {
+      display: none;
+    }
+    .mobile-socials {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      width: 100%;
+      margin: 0 auto 2rem auto;
+    }
+    .social-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
     }
   }
 </style>

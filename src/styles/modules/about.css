@@ -26,16 +26,16 @@
 
 .about-image-container {
   position: relative;
-  aspect-ratio: 4 / 5;
-  /* No border/box/vignette: the transparent logo floats in place. The
-     container is kept only to reserve the same area and position. */
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .about-profile-img {
   width: 100%;
-  height: 100%;
-  /* Logo (transparent, wide) instead of a photo: contain shows the whole
-     lockup inside the unchanged frame rather than cropping its sides. */
+  height: auto;
+  max-width: 600px;
   object-fit: contain;
 }
 
@@ -66,7 +66,7 @@
 
 .about-text {
   color: var(--color-white-muted);
-  font-size: 1.1rem;
+  font-size: 1.25rem;
   line-height: 1.8;
   margin-bottom: 2.5rem;
 }
@@ -76,19 +76,34 @@
 }
 
 .about-text strong {
+  font-family: var(--font-display);
+  font-weight: 800;
   color: var(--color-white);
 }
 
 .stats-section {
   max-width: 1536px;
-  margin: 0 auto 6rem;
+  margin: 0 auto 5rem;
   padding: 0 2rem;
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 1.5rem;
+}
+
+@media (max-width: 1024px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .stat-card {
@@ -201,7 +216,6 @@
   }
 
   .about-image-container {
-    aspect-ratio: 1 / 1 !important;
     width: 100% !important;
     max-width: 300px !important;
     margin: 0 auto !important;
