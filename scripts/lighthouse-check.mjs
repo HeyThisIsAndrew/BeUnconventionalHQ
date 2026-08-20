@@ -269,6 +269,10 @@ async function run() {
     if (chrome) chrome.kill();
     if (proxy) proxy.close();
     try {
+      // kill using astro preview stop since the pid is detached
+      import('node:child_process').then((cp) => cp.spawnSync('npx', ['astro', 'preview', 'stop']));
+    } catch {}
+    try {
       process.kill(-server.pid, 'SIGKILL');
     } catch {
       server.kill('SIGKILL');
