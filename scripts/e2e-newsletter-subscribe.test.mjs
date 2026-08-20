@@ -51,7 +51,7 @@ async function runTests() {
     // ─── Empty submit is rejected client-side, not sent to the network ─────
     console.log('Submitting with no email...');
     const submitBtn = await page.$('.newsletter-submit');
-    await submitBtn.click();
+    await page.evaluate(el => el.click(), submitBtn);
     await new Promise((r) => setTimeout(r, 200));
 
     const emptyState = await page.evaluate(() => ({

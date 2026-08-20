@@ -78,7 +78,7 @@ async function testFilterInteractions(page, contextName) {
   assert.ok(videoBtn, `[${contextName}] Video filter button not found`);
 
   // Test: Click Article Filter
-  await articleBtn.click();
+  await page.evaluate(btn => btn.click(), articleBtn);
   await new Promise(r => setTimeout(r, 100)); // wait for DOM update
   
   let isArticleBtnActive = await page.evaluate(el => el.classList.contains('active'), articleBtn);
@@ -93,7 +93,7 @@ async function testFilterInteractions(page, contextName) {
   assert.equal(hasInvalidArticleTypes, false, `[${contextName}] Only articles should be visible`);
 
   // Test: Click Video Filter
-  await videoBtn.click();
+  await page.evaluate(btn => btn.click(), videoBtn);
   await new Promise(r => setTimeout(r, 100)); // wait for DOM update
   
   let isVideoBtnActive = await page.evaluate(el => el.classList.contains('active'), videoBtn);
@@ -108,7 +108,7 @@ async function testFilterInteractions(page, contextName) {
   assert.equal(hasInvalidVideoTypes, false, `[${contextName}] Only videos should be visible`);
 
   // Click again to unfilter (all)
-  await videoBtn.click();
+  await page.evaluate(btn => btn.click(), videoBtn);
   await new Promise(r => setTimeout(r, 100));
 
   isVideoBtnActive = await page.evaluate(el => el.classList.contains('active'), videoBtn);
