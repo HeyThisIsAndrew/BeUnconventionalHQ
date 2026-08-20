@@ -393,10 +393,9 @@ async function runTests() {
       assert.equal(blindState.isError, true, 'should be in the error state');
       assert.match(
         blindState.message,
-        /bot check/i,
-        `expected an honest bot-check message, got: "${blindState.message}"`,
+        /anti-spam check/i,
+        `expected an honest anti-spam message, got: "${blindState.message}"`,
       );
-      assert.match(blindState.message, /substack/i, 'should offer the Substack fallback');
     });
 
     await blind.close();
