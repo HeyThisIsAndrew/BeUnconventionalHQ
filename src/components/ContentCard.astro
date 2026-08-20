@@ -2,7 +2,6 @@
 import { parseVideoId } from '../lib/platforms/youtube';
 import { getCardImageSources, CARD_IMAGE_SIZES } from '../lib/card-images';
 import { LABELS } from '../data/content.js';
-import { DEFAULT_BYLINE } from '../data/sections.js';
 import logoImage from '../assets/logo-mark.webp';
 import { getImage } from 'astro:assets';
 
@@ -332,7 +331,14 @@ const watermark = await getImage({
     */}
     {isVideo && (
       <span class="video-watermark" aria-hidden="true">
-        <img src={watermark.src} alt="" class="video-watermark-logo" aria-hidden="true" />
+        <img 
+          src={watermark.src} 
+          width={watermark.attributes.width}
+          height={watermark.attributes.height}
+          alt="" 
+          class="video-watermark-logo" 
+          aria-hidden="true" 
+        />
       </span>
     )}
 
@@ -355,12 +361,6 @@ const watermark = await getImage({
         <>
           <span aria-hidden="true">&bull;</span>
           <span>{item.date}</span>
-        </>
-      )}
-      {!isVideo && (
-        <>
-          <span aria-hidden="true">&bull;</span>
-          <span>By {DEFAULT_BYLINE.name}</span>
         </>
       )}
     </div>
