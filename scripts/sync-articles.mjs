@@ -102,7 +102,7 @@ export function parsePostsResponse(json) {
       pubDate: String(post?.post_date ?? post?.pubDate ?? '').trim(),
       description: String(post?.subtitle ?? post?.description ?? '').trim(),
       contentEncoded: String(post?.body_html ?? post?.contentEncoded ?? post?.content ?? '').trim(),
-      categories: mapTags(post).length ? mapTags(post) : (post?.categories || []),
+      categories: mapTags(post),
       enclosureUrl: String(post?.cover_image ?? post?.enclosureUrl ?? '').trim(),
     };
   });

@@ -611,10 +611,10 @@ export function mergeSnapshot(
       // A feed that stops returning bodies must not blank an archived one.
       bodyHtml: record.bodyHtml || prior.bodyHtml,
       hasBody: record.hasBody || prior.hasBody,
-      // A feed that stops returning tags must not blank archived ones.
-      tags: record.tags?.length ? record.tags : (prior.tags || []),
-      category: record.tags?.length ? record.category : (prior.category || record.category),
-      contentType: record.tags?.length ? record.contentType : (prior.contentType || record.contentType),
+      // Allow feed to clear tags if the user removed them
+      tags: record.tags || [],
+      category: record.tags?.length ? record.category : '',
+      contentType: record.tags?.length ? record.contentType : '',
       // Editorial overrides win over anything the feed says.
       ...(prior as any).editorial ? { editorial: (prior as any).editorial } : {},
     });
