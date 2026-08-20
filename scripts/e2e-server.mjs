@@ -61,6 +61,9 @@ function canConnect(port, timeoutMs = 1200) {
 
 /** SIGKILL the tree if a polite stop does not take. */
 function stopServer(server) {
+  try {
+    spawn('npx', ['astro', 'preview', 'stop']);
+  } catch {}
   if (!server || server.exitCode !== null) return;
   try {
     /* Negative pid targets the process GROUP. wrangler spawns a workerd child;
@@ -122,7 +125,7 @@ export async function startPreviewServer({ port = 4321, timeoutMs = 120000 } = {
   let lastError = null;
 
   while (Date.now() < deadline) {
-    if (server.exitCode !== null) {
+    if (server.exitCode !== null && server.exitCode !== 0) {
       throw new Error(`Preview server exited with code ${server.exitCode}.\n\n${output}`);
     }
     if (await canConnect(port)) {
