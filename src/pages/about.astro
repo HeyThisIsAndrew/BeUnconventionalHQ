@@ -115,7 +115,7 @@ const founderSocials = [
         <div class="masthead-bio">
           <h2 class="founder-name">Andrew Baxter</h2>
           <h3 class="founder-title">Founder & Editor</h3>
-          <div class="founder-socials">
+          <div class="founder-socials desktop-socials">
             {founderSocials.map((social, index) => (
               <>
                 <a href={social.url} target="_blank" rel="noopener noreferrer" aria-label={social.name} class="founder-social-link">
@@ -124,6 +124,29 @@ const founderSocials = [
                 {index < founderSocials.length - 1 && <span class="social-separator">|</span>}
               </>
             ))}
+          </div>
+
+          <div class="mobile-socials">
+            <div class="social-row">
+              {founderSocials.slice(0, 5).map((social, index) => (
+                <>
+                  <a href={social.url} target="_blank" rel="noopener noreferrer" aria-label={social.name} class="founder-social-link">
+                    <span class="social-icon-wrapper" set:html={social.icon} />
+                  </a>
+                  {index < 4 && <span class="social-separator">|</span>}
+                </>
+              ))}
+            </div>
+            <div class="social-row">
+              {founderSocials.slice(5, 10).map((social, index) => (
+                <>
+                  <a href={social.url} target="_blank" rel="noopener noreferrer" aria-label={social.name} class="founder-social-link">
+                    <span class="social-icon-wrapper" set:html={social.icon} />
+                  </a>
+                  {index < 4 && <span class="social-separator">|</span>}
+                </>
+              ))}
+            </div>
           </div>
           <div class="founder-text">
             <p>
@@ -283,8 +306,15 @@ const founderSocials = [
     margin-bottom: 1rem;
   }
 
-  .founder-socials {
+  .desktop-socials {
     display: flex;
+  }
+
+  .mobile-socials {
+    display: none;
+  }
+
+  .founder-socials {
     flex-wrap: wrap;
     align-items: center;
     gap: 1rem;
@@ -421,14 +451,21 @@ const founderSocials = [
       max-width: 100%;
       margin: 0 auto;
     }
-    .founder-socials {
-      display: grid;
-      grid-template-columns: repeat(5, max-content);
-      justify-content: center;
-      gap: 1.25rem 1rem;
-    }
-    .social-separator {
+    .desktop-socials {
       display: none;
+    }
+    .mobile-socials {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      width: 100%;
+      margin-bottom: 2rem;
+    }
+    .social-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
     }
   }
 </style>
