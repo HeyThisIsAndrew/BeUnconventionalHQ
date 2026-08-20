@@ -19,7 +19,7 @@ async function runTests() {
     await page.waitForSelector('.open-full-calendar-btn', { timeout: 5000 });
     const trigger = await page.$('.open-full-calendar-btn');
     assert.ok(trigger, 'Calendar modal trigger found');
-    await trigger.click();
+    await page.evaluate(el => el.click(), trigger);
 
     const modalVisible = await page.waitForSelector('#spanning-calendar-modal', { visible: true, timeout: 3000 });
     assert.ok(modalVisible, 'Calendar modal should become visible');

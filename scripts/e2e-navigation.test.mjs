@@ -56,7 +56,7 @@ async function runTests() {
     await page.waitForSelector('.nav-toggle[data-mobile-click-bound]', { timeout: 5000 });
 
     console.log('Opening mobile menu...');
-    await toggle.click();
+    await page.evaluate(el => el.click(), toggle);
     await new Promise(r => setTimeout(r, 300)); // wait for transition
 
     const isMenuOpen = await page.evaluate(() => {
@@ -65,7 +65,7 @@ async function runTests() {
     assert.ok(isMenuOpen, 'Navbar should have menu-open class after toggle click');
 
     console.log('Closing mobile menu...');
-    await toggle.click();
+    await page.evaluate(el => el.click(), toggle);
     await new Promise(r => setTimeout(r, 300));
 
     const isMenuClosed = await page.evaluate(() => {

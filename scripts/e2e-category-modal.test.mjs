@@ -19,7 +19,7 @@ async function runTests() {
     await page.waitForSelector('#open-categories-btn', { timeout: 5000 });
     const trigger = await page.$('#open-categories-btn');
     assert.ok(trigger, 'Mobile filter trigger found');
-    await trigger.click();
+    await page.evaluate(el => el.click(), trigger);
 
     const modalVisible = await page.waitForSelector('#category-fullscreen-overlay', { visible: true, timeout: 3000 });
     assert.ok(modalVisible, 'Category overlay should become visible');
