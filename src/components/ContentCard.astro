@@ -363,6 +363,9 @@ const watermark = await getImage({
       )}
     </div>
 
+    {variant === 'hero' && excerpt && (
+      <p class="content-card-excerpt">{excerpt}</p>
+    )}
     
     <span class="watch-now-btn" style="position: relative; z-index: 10; display: inline-flex; align-items: center; gap: 0.25rem; margin-top: auto; margin-bottom: 1.5rem;">
       {isVideo ? LABELS.watchNow : LABELS.readNow}
@@ -379,6 +382,24 @@ const watermark = await getImage({
 </CardWrapper>
 
 <style>
+  .content-card-excerpt {
+    font-family: var(--font-body, 'Inter', sans-serif);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.75);
+    margin: 0.5rem 0 1rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Lock heights to prevent layout jumping when switching active items */
+  :global(.content-card-excerpt) {
+    color: #A3A3A3;
+    height: 4.5em; /* Exactly 3 lines at 1.5 line-height */
+  }
+
   .variant-hero :global(.content-card-media) {
     position: relative;
     width: 100%;
