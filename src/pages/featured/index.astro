@@ -1,144 +1,104 @@
 ---
-import { SECTIONS } from '../../data/content.js';
 import Layout from '../../layouts/Layout.astro';
-import PageTitle from '../../components/PageTitle.astro';
-import CategoryOverlay from '../../components/CategoryOverlay.astro';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
-import { site } from '../../data/site.js';
 import { getFeaturedBrandsLocal, urlFor } from '../../lib/local-content';
 
-const title = `Featured | ${site.name}`;
-const description =
-  'Deep dives and dedicated coverage hubs for our favorite brands and topics.';
 
-// Published, sluggable brands only — same defensive filter as the detail page,
-// so drafts/incomplete docs never break the listing or produce dead links.
-const brands = getFeaturedBrandsLocal();
+const brands = await getFeaturedBrandsLocal();
 
-// TEMPORARY: Hardcoded map until Sanity schema is updated and synced
-// Contains the 15+ hubs we discussed to ensure they group correctly as they are added
+// Temporary category map to bridge Sanity's "Brand" taxonomy into the UI.
 const categoryMap: Record<string, string> = {
-  // The Universes
   'marvel-comics': 'universes',
   'dc-comics': 'universes',
+  'sony-pictures': 'universes',
   
-  // Streaming
   'netflix': 'streaming',
   'prime-video': 'streaming',
-  'disney-plus': 'streaming',
   'max': 'streaming',
-  'hulu': 'streaming',
   'apple-tv-plus': 'streaming',
+  'disney-plus': 'streaming',
+  'hulu': 'streaming',
   
-  // The Studios
-  'a24': 'studios',
   'warner-bros': 'studios',
   'universal': 'studios',
-  'sony-pictures': 'studios',
+  'a24': 'studios',
   
-  // Gaming
   'playstation': 'gaming',
-  'xbox': 'gaming',
   'nintendo': 'gaming',
+  'xbox': 'gaming'
 };
 
-// Group brands by category
-const groupedBrands = brands.reduce((acc, brand) => {
-  const slug = brand.slug.current;
-  const cat = brand.category || categoryMap[slug] || 'universes'; // Default fallback
-  if (!acc[cat]) acc[cat] = [];
-  acc[cat].push(brand);
-  return acc;
-}, {} as Record<string, any[]>);
-
-// Category display labels
 const categoryLabels: Record<string, string> = {
   'universes': 'The Multiverse',
   'streaming': 'Streamers',
   'studios': 'Studios',
-  'gaming': 'Gaming',
+  'gaming': 'Gaming'
 };
 
-// Sort order for categories so they appear consistently
-const categoryOrder = ['universes', 'streaming', 'studios', 'gaming'];
-const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
-  return categoryOrder.indexOf(a) - categoryOrder.indexOf(b);
-});
+// Group the brands
+const groupedBrands = brands.reduce((acc, brand) => {
+  const category = categoryMap[brand.slug?.current || ''] || 'other';
+  if (!acc[category]) acc[category] = [];
+  acc[category].push(brand);
+  return acc;
+}, {} as Record<string, typeof brands>);
 
-const overlayItems = sortedCategories.map(cat => ({
-  label: categoryLabels[cat].toUpperCase(),
-  href: '#', // Handled by JS
-  slug: cat,
-  active: false
-}));
+// Sort categories explicitly based on user instruction
+const desiredOrder = ['universes', 'streaming', 'studios', 'gaming'];
+const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
+  const indexA = desiredOrder.indexOf(a);
+  const indexB = desiredOrder.indexOf(b);
+  if (indexA === -1 && indexB === -1) return 0;
+  if (indexA === -1) return 1;
+  if (indexB === -1) return -1;
+  return indexA - indexB;
+});
 ---
 
-<Layout title={title} description={description} preconnect={["https://cdn.sanity.io"]}>
-  <main class="events-page" style="display: flex; flex-direction: column; flex: 1 1 0%; width: 100%; min-height: 50vh; padding-top: 120px;">
-    <div class="container-page" style="width: 100%;">
-      <header class="section-header animate-on-scroll" data-nav-anchor style="text-align: center; margin-bottom: 2rem;">
-        <PageTitle as="h1" {...SECTIONS.featured} />
-      </header>
+<Layout title="Featured Hubs">
+  <main class="featured-directory-page">
+    {sortedCategories.length > 0 ? (
+      <div class="accordion-container animate-on-scroll">
+        {sortedCategories.map((category, index) => {
+          let categoryBrands = groupedBrands[category];
+          // Force order for gaming
+          if (category === 'gaming') {
+            const gamingOrder = ['playstation', 'nintendo', 'xbox'];
+            categoryBrands = categoryBrands.sort((a, b) => {
+              const aIdx = gamingOrder.indexOf(a.slug?.current || '');
+              const bIdx = gamingOrder.indexOf(b.slug?.current || '');
+              if (aIdx === -1 && bIdx === -1) return 0;
+              if (aIdx === -1) return 1;
+              if (bIdx === -1) return -1;
+              return aIdx - bIdx;
+            });
+          }
 
-      {/* FILTER BUTTONS (Using QuadrantFilter styling) */}
-      <CategoryOverlay items={overlayItems} />
+          // First one is expanded by default
+          const isExpanded = index === 0;
 
-      <div class="filter-row category-row desktop-category-row animate-on-scroll" style="margin-bottom: 3rem; display: flex; justify-content: center; width: 100%;">
-        <div class="filter-grid" style="width: 100%;">
-          <button class="quadrant-btn cat-btn featured-cat-btn" data-filter="universes">THE UNIVERSES</button>
-          <button class="quadrant-btn cat-btn featured-cat-btn" data-filter="streaming">STREAMING</button>
-          <button class="quadrant-btn cat-btn featured-cat-btn" data-filter="studios">THE STUDIOS</button>
-          <button class="quadrant-btn cat-btn featured-cat-btn" data-filter="gaming">GAMING</button>
-        </div>
-      </div>
+          return (
+            <div class={`accordion-section ${isExpanded ? 'expanded' : 'collapsed'}`} data-category={category}>
+              
+              {/* THE COLLAPSED / HEADER STATE */}
+              <div class="accordion-header">
+                <div class="accordion-header-bg"></div>
+                <h2 class="accordion-title">{categoryLabels[category] || category}</h2>
+              </div>
 
-      {/*
-        Structural sr-only <h2> so the card <h3>s do not skip a level.
-      */}
-      {brands.length > 0 ? (
-        <>
-        <h2 class="sr-only">Featured collections</h2>
-        <div class="featured-sections-container">
-          {sortedCategories.map((category, index) => {
-            let categoryBrands = groupedBrands[category];
-            if (category === 'gaming') {
-              const gamingOrder = ['playstation', 'nintendo', 'xbox'];
-              categoryBrands.sort((a: any, b: any) => {
-                const aIdx = gamingOrder.indexOf(a.slug.current);
-                const bIdx = gamingOrder.indexOf(b.slug.current);
-                if (aIdx === -1 && bIdx === -1) return 0;
-                if (aIdx === -1) return 1;
-                if (bIdx === -1) return -1;
-                return aIdx - bIdx;
-              });
-            }
-            return (
-              <section class="featured-category-section animate-on-scroll" data-category={category}>
-                
-                {/* Premium Cinematic Category Header */}
-                <div class="editorial-header-wrapper animate-on-scroll">
-                  <span class="editorial-kicker">// {String(index + 1).padStart(2, '0')}</span>
-                  <h3 class="category-heading">{categoryLabels[category] || category}</h3>
-                </div>
-                
-                {/* Existing Grid Math Preserved */}
-                <div class={`featured-hub-grid ${categoryBrands.length === 4 ? 'grid-2x2' : ''}`}>
-                  {categoryBrands.map((brand: any, index: number) => {
-                    const heroUrl = brand.heroImage
-                      ? urlFor(brand.heroImage).width(800).height(450).auto('format').url()
+              {/* THE EXPANDED CAROUSEL STATE */}
+              <div class="accordion-body">
+                <div class="carousel-track">
+                  {categoryBrands.map(brand => {
+                    const heroUrl = brand.heroImage 
+                      ? urlFor(brand.heroImage).width(800).height(450).url() 
                       : null;
+                    const logoWidth = 160;
                     const logoHeight = 96;
-                    const logoWidth = brand.logo?.dimensions?.aspectRatio
-                      ? Math.round(logoHeight * brand.logo.dimensions.aspectRatio)
-                      : undefined;
 
                     return (
-                      <a
-                        href={`/featured/${brand.slug.current}`}
-                        class="event-card"
-                        style={`--index: ${index}; width: 100%;`}
-                      >
-                        <div class="event-image-wrapper w-full aspect-video">
+                      <a href={`/featured/${brand.slug?.current}`} class="carousel-item event-card">
+                        <div class="event-image-wrapper">
                           {heroUrl ? (
                             <img
                               src={heroUrl}
@@ -150,12 +110,6 @@ const overlayItems = sortedCategories.map(cat => ({
                           ) : (
                             <div class="article-thumb-fallback" style="position: absolute; inset: 0; width: 100%; height: 100%;" aria-hidden="true"></div>
                           )}
-                          <div class="intel-card-accents">
-                            <span class="crosshair top-left">+</span>
-                            <span class="crosshair top-right">+</span>
-                            <span class="crosshair bottom-left">+</span>
-                            <span class="crosshair bottom-right">+</span>
-                          </div>
                           <div class="event-overlay">
                             {brand.logo ? (
                               <>
@@ -180,152 +134,250 @@ const overlayItems = sortedCategories.map(cat => ({
                     );
                   })}
                 </div>
-              </section>
-            );
-          })}
-        </div>
-        </>
-      ) : (
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    ) : (
+      <div class="container-page">
         <p class="featured-empty">Dedicated coverage hubs are coming soon.</p>
-      )}
-    </div>
+      </div>
+    )}
   </main>
-
-  <SubscribeCTA />
-
 </Layout>
 
 <script>
-  function initFeaturedFilters() {
+  function initAccordion() {
+    const sections = document.querySelectorAll('.accordion-section');
     
-    const pills = document.querySelectorAll('.featured-cat-btn, #category-fullscreen-overlay .cat-btn');
-    const openBtn = document.getElementById('open-categories-btn');
-
-    const sections = document.querySelectorAll('.featured-category-section');
-
-    if (!pills.length || !sections.length) return;
-
-    pills.forEach(pill => {
-      // Remove old listeners to prevent duplicates on astro:page-load
-      const newPill = pill.cloneNode(true) as HTMLElement;
-      if (pill.parentNode) {
-        pill.parentNode.replaceChild(newPill, pill);
-      }
+    sections.forEach(section => {
+      const header = section.querySelector('.accordion-header');
+      if (!header) return;
       
-      newPill.addEventListener('click', (e) => {
-        e.preventDefault();
-        const targetCategory = newPill.getAttribute('data-filter') || newPill.getAttribute('data-category');
-        const isAlreadyActive = newPill.classList.contains('active');
+      header.addEventListener('click', () => {
+        // If it's already expanded, do nothing (keep one open at a time)
+        if (section.classList.contains('expanded')) return;
         
-        // Remove active from all
-        document.querySelectorAll('.featured-cat-btn, #category-fullscreen-overlay .cat-btn').forEach(p => p.classList.remove('active'));
-        
-        if (!isAlreadyActive) {
-          document.querySelectorAll('.featured-cat-btn, #category-fullscreen-overlay .cat-btn').forEach(p => {
-             const cat = p.getAttribute('data-filter') || p.getAttribute('data-category');
-             if (cat === targetCategory) p.classList.add('active');
-          });
-        }
-
-        // Update mobile open button text
-        if (openBtn) {
-          if (!isAlreadyActive) {
-             openBtn.textContent = `Categories | ${newPill.textContent?.trim()}`;
-             openBtn.classList.add('active');
-          } else {
-             openBtn.textContent = 'Categories';
-             openBtn.classList.remove('active');
-          }
-        }
-
-        sections.forEach(section => {
-          const sectionEl = section as HTMLElement;
-          const sectionCategory = sectionEl.getAttribute('data-category');
-          if (isAlreadyActive || targetCategory === sectionCategory) {
-            sectionEl.style.display = 'block';
-          } else {
-            sectionEl.style.display = 'none';
-          }
+        // Collapse all
+        sections.forEach(s => {
+          s.classList.remove('expanded');
+          s.classList.add('collapsed');
         });
+        
+        // Expand the clicked one
+        section.classList.remove('collapsed');
+        section.classList.add('expanded');
       });
     });
   }
 
-  initFeaturedFilters();
-  document.addEventListener('astro:page-load', initFeaturedFilters);
+  initAccordion();
+  document.addEventListener('astro:page-load', initAccordion);
 </script>
 
 <style>
-  /* Page width wrapper now shared: `.container-page` in modules/layout.css */
-  /* Shared `.event-card` and `.event-overlay` styles moved to `events.css` */
-  /* Filter grid button styles are globally available from `modules/filters.css` via `.quadrant-btn` and `.cat-btn` */
+  /* 
+    ACCORDION LAYOUT
+    Full screen cinematic takeover.
+  */
+  .featured-directory-page {
+    width: 100%;
+    /* Fill screen minus the header approx height (80px) */
+    height: calc(100vh - 80px); 
+    min-height: 600px;
+    background: #000;
+    overflow: hidden; /* Prevent page scroll, accordion does the work */
+  }
 
-  .featured-sections-container {
+  .accordion-container {
     display: flex;
     flex-direction: column;
-    gap: 4rem;
-  }
-
-  .featured-category-section {
-    display: block;
+    height: 100%;
     width: 100%;
   }
 
-  .category-heading {
-    font-family: var(--font-display);
-    text-align: center;
-    font-size: 2.5rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    margin-bottom: 2.5rem;
-    color: #fff;
-    border-bottom: none;
-    padding-bottom: 0;
+  .accordion-section {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    transition: flex 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+    display: flex;
+    flex-direction: column;
+    border-bottom: 2px solid #000;
+    background: #0a0a0a;
   }
 
-  /*
-    Hub grid.
-    Filling the wrapper puts it back in line with the rest of the site.
-  */
-  .featured-hub-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
-    gap: 2rem;
+  .accordion-section.expanded {
+    flex: 6; /* expanded takes 6x the space of a collapsed row */
+  }
+
+  /* THEMES: Alternate dark red and black cinematic gradients for the backgrounds */
+  .accordion-section:nth-child(1) .accordion-header-bg { background: linear-gradient(135deg, rgba(138, 0, 0, 0.4) 0%, #000 100%); }
+  .accordion-section:nth-child(2) .accordion-header-bg { background: linear-gradient(135deg, rgba(20, 20, 20, 0.8) 0%, #000 100%); }
+  .accordion-section:nth-child(3) .accordion-header-bg { background: linear-gradient(135deg, rgba(80, 0, 0, 0.3) 0%, #000 100%); }
+  .accordion-section:nth-child(4) .accordion-header-bg { background: linear-gradient(135deg, rgba(40, 40, 40, 0.5) 0%, #000 100%); }
+
+  /* HEADER (Collapsed state) */
+  .accordion-header {
+    height: 100%;
     width: 100%;
-    margin: 0 auto;
-  }
-
-  @media (min-width: 768px) {
-    .featured-hub-grid.grid-2x2 {
-      grid-template-columns: repeat(2, 1fr);
-    }
-  }
-
-  .featured-empty {
-    text-align: center;
-    color: #888;
-    font-size: 1.1rem;
-    padding: 4rem 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: absolute;
+    inset: 0;
+    z-index: 10;
   }
   
+  .accordion-section.expanded .accordion-header {
+    height: auto;
+    position: relative;
+    padding: 2rem 2rem 0 2rem;
+    background: transparent;
+    justify-content: flex-start;
+    cursor: default; /* Not clickable to expand if already expanded */
+  }
+
+  .accordion-title {
+    font-family: var(--font-display);
+    font-size: clamp(3rem, 6vw, 6rem);
+    text-transform: uppercase;
+    font-weight: 800;
+    letter-spacing: 0.15em;
+    color: #fff;
+    margin: 0;
+    z-index: 2;
+    transition: font-size 0.6s ease, padding 0.6s ease, text-shadow 0.3s ease;
+    text-align: center;
+  }
+  
+  /* Hover effect on collapsed rows */
+  .accordion-section.collapsed:hover .accordion-title {
+    color: var(--color-accent);
+    text-shadow: 0 0 20px rgba(204, 0, 0, 0.4);
+    transform: scale(1.02);
+  }
+
+  .accordion-section.expanded .accordion-title {
+    font-size: clamp(1.5rem, 3vw, 2.5rem);
+    text-align: left;
+    color: #fff;
+    text-shadow: none;
+    transform: scale(1);
+  }
+
+  .accordion-header-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    opacity: 0.6;
+    transition: opacity 0.4s ease;
+  }
+  .accordion-section.collapsed:hover .accordion-header-bg {
+    opacity: 0.9;
+  }
+  .accordion-section.expanded .accordion-header-bg {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* BODY (Expanded Carousel) */
+  .accordion-body {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.4s ease;
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    width: 100%;
+  }
+  .accordion-section.expanded .accordion-body {
+    opacity: 1;
+    visibility: visible;
+    transition-delay: 0.3s; /* fade in after expansion starts */
+  }
+
+  /* CAROUSEL TRACK */
+  .carousel-track {
+    display: flex;
+    gap: 1.5rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding: 1rem 2rem;
+    width: 100%;
+    scrollbar-width: none; /* Firefox */
+    align-items: center;
+  }
+  .carousel-track::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+  }
+
+  /* CAROUSEL CARDS */
+  .carousel-item {
+    flex-shrink: 0;
+    width: clamp(280px, 30vw, 450px);
+    aspect-ratio: 16 / 9;
+    scroll-snap-align: center;
+    border-radius: 4px; /* subtle cinematic curve */
+    overflow: hidden;
+    position: relative;
+    transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.4s ease;
+    background: #111;
+  }
+  
+  .carousel-item:hover {
+    transform: scale(1.05);
+    z-index: 10;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 20px rgba(204,0,0,0.3);
+  }
+
+  .event-image-wrapper {
+    width: 100%;
+    height: 100%;
+    position: relative;
+  }
+
+  .event-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.6s ease;
+  }
+  
+  .carousel-item:hover .event-image {
+    transform: scale(1.02);
+  }
+
+  .event-overlay {
+    position: absolute;
+    inset: 0;
+    padding: 1.5rem;
+    background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.3) 50%, transparent 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    pointer-events: none;
+  }
+
   .event-card-logo-wrap {
     display: inline-block;
-    max-width: 80%;
-    margin-right: auto;
-    filter: drop-shadow(0 4px 15px rgba(0, 0, 0, 0.7));
+    max-width: 70%;
+    filter: drop-shadow(0 4px 15px rgba(0, 0, 0, 0.9));
   }
   
   .event-card-logo {
-    max-height: 80px;
-    max-width: 100%;
+    max-height: 60px;
     width: auto;
-    height: auto;
     object-fit: contain;
-    display: block;
-    transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transition: transform 0.4s ease;
   }
   
+  .carousel-item:hover .event-card-logo {
+    transform: scale(1.05) translateY(-5px);
+  }
+
   .event-card-sr-title {
     position: absolute;
     width: 1px;
@@ -334,128 +386,12 @@ const overlayItems = sortedCategories.map(cat => ({
     margin: -1px;
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
   }
 
-  .event-image-wrapper {
-    overflow: hidden;
-    position: relative;
-  }
-
-  .event-image {
-    transform: scale(1.05);
-    transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  }
-
-  .event-card:hover .event-image {
-    transform: scale(1);
-  }
-
-  .event-card:hover .event-card-logo {
-    transform: scale(1.1);
-  }
-
-  @media (max-width: 768px) {
-    .desktop-category-row {
-      display: none !important;
-    }
-  }
-
-
-  /* EDITORIAL HEADERS (INTEL STYLE) */
-  .editorial-header-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin-bottom: 2.5rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.09);
-    position: relative;
-  }
-  
-  .editorial-kicker {
+  .event-title {
+    color: #fff;
     font-family: var(--font-display);
-    color: var(--color-accent);
-    font-size: 0.85rem;
-    font-weight: 700;
-    letter-spacing: 0.2em;
-    margin-bottom: 0.5rem;
-    opacity: 0.9;
+    margin: 0;
+    font-size: 1.2rem;
   }
-  
-  .category-heading {
-    margin-bottom: 0 !important;
-  }
-
-  /* INTEL CARD STYLING */
-  .event-card {
-    position: relative;
-    display: block;
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    background: var(--color-surface);
-    transition: border-color 0.3s ease, transform 0.3s ease;
-  }
-
-  .event-image-wrapper {
-    overflow: hidden;
-    position: relative;
-    width: 100%;
-    aspect-ratio: 16 / 9; /* Ensure exact 16:9 box */
-  }
-
-  .event-image {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transform: scale(1.05);
-    transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  }
-
-  /* ACCENTS */
-  .intel-card-accents {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 10;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-  }
-  .crosshair {
-    position: absolute;
-    color: var(--color-accent);
-    font-family: monospace;
-    font-size: 14px;
-    line-height: 1;
-  }
-  .crosshair.top-left { top: 8px; left: 8px; }
-  .crosshair.top-right { top: 8px; right: 8px; }
-  .crosshair.bottom-left { bottom: 8px; left: 8px; }
-  .crosshair.bottom-right { bottom: 8px; right: 8px; }
-
-  /* HOVER STATES */
-  .event-card:hover {
-    border-color: var(--color-accent);
-  }
-  .event-card:hover .intel-card-accents {
-    opacity: 1;
-  }
-  .event-card:hover .event-image {
-    transform: scale(1.02);
-  }
-  
-  /* OVERLAY REFINEMENT */
-  .event-overlay {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 1.5rem;
-    background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 40%, transparent 100%);
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    pointer-events: none;
-  }
-
 </style>
