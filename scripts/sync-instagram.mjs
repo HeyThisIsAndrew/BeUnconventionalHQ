@@ -372,7 +372,7 @@ async function fetchInstagramMedia() {
   if (!mediaRes.ok) {
     console.warn(
       `[instagram] ! media request with feed-visibility fields returned ` +
-        `${mediaRes.status} ${mediaRes.statusText}. Your access token might lack permissions; ` +
+        `${mediaRes.status} ${mediaRes.statusText}. Retrying without them — ` +
         `posts will not be filtered by feed visibility this run.`
     );
     mediaRes = await fetch(mediaUrl(BASE_FIELDS), { signal: AbortSignal.timeout(15000) });
