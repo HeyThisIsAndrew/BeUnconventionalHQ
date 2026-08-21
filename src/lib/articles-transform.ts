@@ -616,8 +616,8 @@ export function mergeSnapshot(
       hasBody: record.hasBody || prior.hasBody,
       // Allow feed to clear tags if the user removed them
       tags: record.tags || [],
-      category: record.tags?.length ? record.category : '',
-      contentType: record.tags?.length ? record.contentType : '',
+      category: record.category || prior.category || '',
+      contentType: record.contentType || prior.contentType || '',
       // Editorial overrides win over anything the feed says.
       ...(prior as any).editorial ? { editorial: (prior as any).editorial } : {},
     });
