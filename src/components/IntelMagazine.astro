@@ -48,6 +48,8 @@ import { Image } from 'astro:assets';
 import logoImage from '../assets/logo-mark.webp';
 import { LABELS } from '../data/content.js';
 import { articlePreview } from '../lib/articles';
+import { getDisplayTags } from '../lib/tags';
+
 import { getCardImageSources } from '../lib/card-images.js';
 import type { ArticleRecord } from '../lib/articles';
 
@@ -187,9 +189,10 @@ const activeSlug = feature?.slug ?? '';
 
           <div class="intel-feature-copy">
             <span class="intel-feature-meta">
-              <span id="intel-feature-category">{feature.category}</span>
-              <span class="dot">&bull;</span>
-              <span id="intel-feature-date">{feature.date}</span>
+              <span id="intel-feature-category">{(() => {
+                const finalTags = getDisplayTags(feature);
+                return finalTags.length > 0 ? finalTags.join(' | ') + ' | ' : '';
+              })()}</span><span id="intel-feature-date">{feature.date}</span>
             </span>
 
             {/* h2: the page <h1> is the "THE INTEL" title in the header. */}
@@ -292,7 +295,7 @@ const activeSlug = feature?.slug ?? '';
         );
       }
 
-      if (category) category.textContent = data.category ?? '';
+      if (category) category.textContent = data.tags ?? '';
       if (date) date.textContent = data.date ?? '';
 
       /*
