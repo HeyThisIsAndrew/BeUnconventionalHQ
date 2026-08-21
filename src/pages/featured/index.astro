@@ -135,10 +135,10 @@ const overlayItems = sortedCategories.map(cat => ({
                     return (
                       <a
                         href={`/featured/${brand.slug.current}`}
-                        class={`event-card ${index === 0 ? 'marquee-hub' : 'bento-hub'}`}
+                        class="event-card"
                         style={`--index: ${index}; width: 100%;`}
                       >
-                        <div class="event-image-wrapper">
+                        <div class="event-image-wrapper w-full aspect-video">
                           {heroUrl ? (
                             <img
                               src={heroUrl}
@@ -150,26 +150,30 @@ const overlayItems = sortedCategories.map(cat => ({
                           ) : (
                             <div class="article-thumb-fallback" style="position: absolute; inset: 0; width: 100%; height: 100%;" aria-hidden="true"></div>
                           )}
+                          <div class="intel-card-accents">
+                            <span class="crosshair top-left">+</span>
+                            <span class="crosshair top-right">+</span>
+                            <span class="crosshair bottom-left">+</span>
+                            <span class="crosshair bottom-right">+</span>
+                          </div>
                           <div class="event-overlay">
-                            <div class="glass-panel">
-                              {brand.logo ? (
-                                <>
-                                  <span class="event-card-logo-wrap">
-                                    <img
-                                      src={urlFor(brand.logo).height(96).url()}
-                                      alt={`${brand.title} logo`}
-                                      class="event-card-logo"
-                                      height={logoHeight}
-                                      width={logoWidth}
-                                      loading="lazy"
-                                    />
-                                  </span>
-                                  <h4 class="event-card-sr-title">{brand.title}</h4>
-                                </>
-                              ) : (
-                                <h4 class="event-title line-clamp-2">{brand.title}</h4>
-                              )}
-                            </div>
+                            {brand.logo ? (
+                              <>
+                                <span class="event-card-logo-wrap">
+                                  <img
+                                    src={urlFor(brand.logo).height(96).url()}
+                                    alt={`${brand.title} logo`}
+                                    class="event-card-logo"
+                                    height={logoHeight}
+                                    width={logoWidth}
+                                    loading="lazy"
+                                  />
+                                </span>
+                                <h4 class="event-card-sr-title">{brand.title}</h4>
+                              </>
+                            ) : (
+                              <h4 class="event-title line-clamp-2">{brand.title}</h4>
+                            )}
                           </div>
                         </div>
                       </a>
@@ -284,9 +288,19 @@ const overlayItems = sortedCategories.map(cat => ({
     Hub grid.
     Filling the wrapper puts it back in line with the rest of the site.
   */
-  /* .featured-hub-grid moved */
+  .featured-hub-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
+    gap: 2rem;
+    width: 100%;
+    margin: 0 auto;
+  }
 
-  /* .grid-2x2 removed for bento */
+  @media (min-width: 768px) {
+    .featured-hub-grid.grid-2x2 {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
 
   .featured-empty {
     text-align: center;
@@ -349,26 +363,7 @@ const overlayItems = sortedCategories.map(cat => ({
   }
 
 
-  /* AMBIENT GLOW */
-  .featured-directory-page {
-    position: relative;
-    margin-top: 4rem;
-    margin-bottom: 6rem;
-  }
-  .featured-directory-page::before {
-    content: '';
-    position: absolute;
-    top: -10rem;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 100vw;
-    height: 800px;
-    background: radial-gradient(circle at top, rgba(204, 0, 0, 0.08) 0%, transparent 70%);
-    pointer-events: none;
-    z-index: -1;
-  }
-
-  /* EDITORIAL HEADERS */
+  /* EDITORIAL HEADERS (INTEL STYLE) */
   .editorial-header-wrapper {
     display: flex;
     flex-direction: column;
@@ -388,95 +383,79 @@ const overlayItems = sortedCategories.map(cat => ({
     margin-bottom: 0.5rem;
     opacity: 0.9;
   }
-
-  /* MARQUEE BENTO GRID */
-  .featured-hub-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
-    gap: 1.5rem;
-    width: 100%;
-    margin: 0 auto;
-  }
   
-  @media (min-width: 768px) {
-    .featured-hub-grid {
-      gap: 2rem;
-    }
-    .marquee-hub {
-      grid-column: 1 / -1;
-    }
+  .category-heading {
+    margin-bottom: 0 !important;
   }
 
+  /* INTEL CARD STYLING */
   .event-card {
-    display: block;
     position: relative;
-    border-radius: 0.5rem;
-    text-decoration: none;
+    display: block;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: var(--color-surface);
+    transition: border-color 0.3s ease, transform 0.3s ease;
   }
 
   .event-image-wrapper {
     overflow: hidden;
     position: relative;
     width: 100%;
-    background: var(--color-surface);
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    transition: border-color 0.4s ease, box-shadow 0.4s ease;
-  }
-  
-  .bento-hub .event-image-wrapper {
-    aspect-ratio: 16 / 9;
-  }
-  
-  .marquee-hub .event-image-wrapper {
-    aspect-ratio: 16 / 9;
+    aspect-ratio: 16 / 9; /* Ensure exact 16:9 box */
   }
 
-  @media (min-width: 768px) {
-    .marquee-hub .event-image-wrapper {
-      aspect-ratio: 21 / 9;
-    }
+  .event-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scale(1.05);
+    transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
 
-  /* GLASSMORPHISM OVERLAY */
+  /* ACCENTS */
+  .intel-card-accents {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .crosshair {
+    position: absolute;
+    color: var(--color-accent);
+    font-family: monospace;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .crosshair.top-left { top: 8px; left: 8px; }
+  .crosshair.top-right { top: 8px; right: 8px; }
+  .crosshair.bottom-left { bottom: 8px; left: 8px; }
+  .crosshair.bottom-right { bottom: 8px; right: 8px; }
+
+  /* HOVER STATES */
+  .event-card:hover {
+    border-color: var(--color-accent);
+  }
+  .event-card:hover .intel-card-accents {
+    opacity: 1;
+  }
+  .event-card:hover .event-image {
+    transform: scale(1.02);
+  }
+  
+  /* OVERLAY REFINEMENT */
   .event-overlay {
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
     padding: 1.5rem;
+    background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 40%, transparent 100%);
     display: flex;
-    align-items: flex-end;
-    background: linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%);
+    flex-direction: column;
+    justify-content: flex-end;
     pointer-events: none;
-  }
-
-  .glass-panel {
-    background: rgba(15, 15, 15, 0.5);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 1rem 1.5rem;
-    display: inline-flex;
-    align-items: center;
-    border-radius: 4px;
-    transform: translateY(10px);
-    transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1), background 0.4s ease, border-color 0.4s ease;
-  }
-
-  .event-card:hover .glass-panel {
-    transform: translateY(0);
-    background: rgba(20, 20, 20, 0.8);
-    border-color: rgba(255, 255, 255, 0.25);
-  }
-
-  .event-card:hover .event-image-wrapper {
-    border-color: var(--color-accent);
-    box-shadow: 0 0 40px rgba(204, 0, 0, 0.15);
-  }
-
-  /* Fix for category-heading overrides */
-  .category-heading {
-    margin-bottom: 0 !important; /* override the old margin since the wrapper handles it */
   }
 
 </style>
