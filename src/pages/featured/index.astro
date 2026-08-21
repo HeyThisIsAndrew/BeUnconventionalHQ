@@ -5,23 +5,19 @@ import { getFeaturedBrandsLocal, urlFor } from '../../lib/local-content';
 
 const brands = await getFeaturedBrandsLocal();
 
-// Temporary category map
 const categoryMap: Record<string, string> = {
   'marvel-comics': 'universes',
   'dc-comics': 'universes',
   'sony-pictures': 'universes',
-  
   'netflix': 'streaming',
   'prime-video': 'streaming',
   'max': 'streaming',
   'apple-tv-plus': 'streaming',
   'disney-plus': 'streaming',
   'hulu': 'streaming',
-  
   'warner-bros': 'studios',
   'universal': 'studios',
   'a24': 'studios',
-  
   'playstation': 'gaming',
   'nintendo': 'gaming',
   'xbox': 'gaming'
@@ -81,25 +77,20 @@ function extractYoutubeId(url: string) {
           return (
             <div class={`accordion-section ${isExpanded ? 'expanded' : 'collapsed'}`} data-category={category}>
               
-              {/* COLLAPSED HEADER */}
               <div class="accordion-header">
                 <div class="accordion-header-bg"></div>
                 <h2 class="accordion-title">{categoryLabels[category] || category}</h2>
               </div>
 
-              {/* EXPANDED 3D DECK VIEW */}
               <div class="accordion-body">
                 <div class="deck-view-container">
                   
-                  {/* LEFT: 3D STACK */}
                   <div class="deck-column">
                     <div class="deck-stack">
                       {categoryBrands.map((brand, bIndex) => {
                         const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).height(1600).url() : null;
                         return (
                           <div class={`deck-card ${bIndex === 0 ? 'active' : bIndex === 1 ? 'next-1' : bIndex === 2 ? 'next-2' : 'hidden'}`} data-index={bIndex}>
-                            
-                            {/* The peeking text for the spine of the card */}
                             <div class="peeking-spine">
                                <span class="spine-text">{brand.title}</span>
                             </div>
@@ -121,12 +112,10 @@ function extractYoutubeId(url: string) {
                     </div>
                   </div>
 
-                  {/* RIGHT: INFO PANEL */}
                   <div class="info-column">
                     <div class="info-panels-wrapper">
                       {categoryBrands.map((brand, bIndex) => {
                         const ytId = extractYoutubeId(brand.trailerUrl || '');
-                        // Muted, Autoplay, Loop, hide controls
                         const ytSrc = ytId ? `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&controls=0&modestbranding=1&showinfo=0&rel=0` : null;
                         const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).height(800).url() : null;
 
@@ -134,7 +123,6 @@ function extractYoutubeId(url: string) {
                           <div class={`brand-info-panel ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex}>
                             <div class="large-trailer-card">
                               
-                              {/* BACKGROUND VIDEO OR IMAGE */}
                               <div class="trailer-bg-wrapper">
                                 {ytSrc ? (
                                   <iframe class="trailer-iframe" data-src={ytSrc} allow="autoplay; encrypted-media" tabindex="-1"></iframe>
@@ -145,11 +133,9 @@ function extractYoutubeId(url: string) {
                                 )}
                               </div>
 
-                              {/* OVERLAYS */}
                               <div class="trailer-dark-overlay"></div>
                               <div class="trailer-gradient-bottom"></div>
 
-                              {/* LOGO DEAD CENTER OR TOP */}
                               <div class="trailer-logo-container">
                                 {brand.logo ? (
                                   <img src={urlFor(brand.logo).height(200).url()} alt={`${brand.title} logo`} class="trailer-logo" />
@@ -158,7 +144,6 @@ function extractYoutubeId(url: string) {
                                 )}
                               </div>
 
-                              {/* BOTTOM CONTENT */}
                               <div class="trailer-bottom-content">
                                 <p class="brand-desc">
                                   Explore the cinematic universe of {brand.title}. Dive into our curated hub featuring the latest trailers, exclusive news, breaking updates, and deep-dive intel.
@@ -188,54 +173,51 @@ function extractYoutubeId(url: string) {
 
 <script>
   function initAccordionAndDecks() {
-    // 1. Accordion Logic
     const sections = document.querySelectorAll('.accordion-section');
     sections.forEach(section => {
       const header = section.querySelector('.accordion-header');
       if (!header) return;
       
-      header.addEventListener('click', () => {
-        if (section.classList.contains('expanded')) return;
-        
-        sections.forEach(s => {
-          s.classList.remove('expanded');
-          s.classList.add('collapsed');
-          // Pause all videos in collapsed sections
-          const iframes = s.querySelectorAll('.trailer-iframe');
-          iframes.forEach(iframe => { iframe.src = ''; });
-        });
-        
-        section.classList.remove('collapsed');
-        section.classList.add('expanded');
+      if (!header.dataset.hasClickListener) {
+        header.dataset.hasClickListener = 'true';
+        header.addEventListener('click', () => {
+          if (section.classList.contains('expanded')) return;
+          
+          sections.forEach(s => {
+            s.classList.remove('expanded');
+            s.classList.add('collapsed');
+            const iframes = s.querySelectorAll('.trailer-iframe');
+            iframes.forEach(iframe => { iframe.src = ''; });
+          });
+          
+          section.classList.remove('collapsed');
+          section.classList.add('expanded');
 
-        // Restart video for active card in newly expanded section
-        const activeCard = section.querySelector('.deck-card.active');
-        if (activeCard) {
-           const activeIdx = activeCard.getAttribute('data-index');
-           const activePanel = section.querySelector(`.brand-info-panel[data-index="${activeIdx}"]`);
-           if (activePanel) {
-             const iframe = activePanel.querySelector('.trailer-iframe');
-             if (iframe && !iframe.src && iframe.dataset.src) {
-               iframe.src = iframe.dataset.src;
+          const activeCard = section.querySelector('.deck-card.active');
+          if (activeCard) {
+             const activeIdx = activeCard.getAttribute('data-index');
+             const activePanel = section.querySelector(`.brand-info-panel[data-index="${activeIdx}"]`);
+             if (activePanel) {
+               const iframe = activePanel.querySelector('.trailer-iframe');
+               if (iframe && !iframe.src && iframe.dataset.src) {
+                 iframe.src = iframe.dataset.src;
+               }
              }
-           }
-        }
-      });
+          }
+        });
+      }
 
-      // 2. Deck Shuffle Logic
       const cards = Array.from(section.querySelectorAll('.deck-card'));
       const infoPanels = Array.from(section.querySelectorAll('.brand-info-panel'));
       
-      // Initialize state from DOM
       let activeIndex = 0;
       cards.forEach((c, idx) => {
         if (c.classList.contains('active')) activeIndex = idx;
       });
 
-      // Initialize the first video if this section is expanded on load
       if (section.classList.contains('expanded')) {
         const firstIframe = infoPanels[activeIndex]?.querySelector('.trailer-iframe');
-        if (firstIframe && firstIframe.dataset.src) {
+        if (firstIframe && firstIframe.dataset.src && !firstIframe.src) {
           firstIframe.src = firstIframe.dataset.src;
         }
       }
@@ -244,20 +226,17 @@ function extractYoutubeId(url: string) {
         cards.forEach((card, i) => {
           card.className = 'deck-card'; 
           infoPanels[i].className = 'brand-info-panel';
-
           const iframe = infoPanels[i].querySelector('.trailer-iframe');
 
           if (i === activeIndex) {
             card.classList.add('active');
             infoPanels[i].classList.add('active');
-            
-            // Autoplay the iframe only when it becomes active
             if (iframe && !iframe.src && iframe.dataset.src) {
               iframe.src = iframe.dataset.src;
             }
           } else if (i === (activeIndex + 1) % cards.length) {
             card.classList.add('next-1');
-            if (iframe && iframe.src) iframe.src = ''; // Stop hidden videos
+            if (iframe && iframe.src) iframe.src = ''; 
           } else if (i === (activeIndex + 2) % cards.length) {
             card.classList.add('next-2');
             if (iframe && iframe.src) iframe.src = '';
@@ -269,14 +248,17 @@ function extractYoutubeId(url: string) {
       }
 
       cards.forEach((card, i) => {
-        card.addEventListener('click', (e) => {
-          if (i !== activeIndex) {
-            e.preventDefault();
-            e.stopPropagation();
-            activeIndex = i;
-            renderDeck();
-          }
-        });
+        if (!card.dataset.hasClickListener) {
+          card.dataset.hasClickListener = 'true';
+          card.addEventListener('click', (e) => {
+            if (i !== activeIndex) {
+              e.preventDefault();
+              e.stopPropagation();
+              activeIndex = i;
+              renderDeck();
+            }
+          });
+        }
       });
     });
   }
@@ -286,10 +268,8 @@ function extractYoutubeId(url: string) {
 </script>
 
 <style>
-  /* FULL PAGE TAKEOVER */
   .featured-directory-page {
     width: 100%;
-    /* Navbar fix */
     padding-top: var(--header-height, 80px);
     height: 100vh;
     min-height: 700px;
@@ -320,7 +300,6 @@ function extractYoutubeId(url: string) {
     flex: 8; 
   }
 
-  /* RED BRANDING - RIGHT TO LEFT BLEED */
   .accordion-header-bg {
     position: absolute;
     inset: 0;
@@ -340,7 +319,6 @@ function extractYoutubeId(url: string) {
     pointer-events: none;
   }
 
-  /* HEADER (Collapsed state) */
   .accordion-header {
     height: 100%;
     width: 100%;
@@ -386,7 +364,6 @@ function extractYoutubeId(url: string) {
     transform: none;
   }
 
-  /* EXPANDED VIEW LAYOUT */
   .accordion-body {
     opacity: 0;
     visibility: hidden;
@@ -409,20 +386,17 @@ function extractYoutubeId(url: string) {
     padding: 0 5vw 2rem 5vw;
   }
 
-  /* LEFT: 3D DECK */
   .deck-column {
     flex: 0 0 50%;
     position: relative;
     height: 100%;
-    z-index: 20; /* Keep Deck ALWAYS above Info Column to guarantee clicks */
+    z-index: 20;
   }
 
   .deck-stack {
     position: relative;
     width: 100%;
     height: 100%;
-    perspective: 1500px;
-    transform-style: preserve-3d;
   }
 
   .deck-card {
@@ -442,33 +416,31 @@ function extractYoutubeId(url: string) {
     border: 1px solid rgba(255,255,255,0.1);
   }
 
-  /* DECK POSITIONS */
   .deck-card.active {
     z-index: 10;
-    transform: translateX(0) translateZ(0) scale(1);
+    transform: translateX(0) scale(1);
     opacity: 1;
   }
   
   .deck-card.next-1 {
     z-index: 9;
-    transform: translateX(25%) translateZ(-100px) scale(0.9);
+    transform: translateX(25%) scale(0.9);
     opacity: 0.8;
   }
   
   .deck-card.next-2 {
     z-index: 8;
-    transform: translateX(45%) translateZ(-200px) scale(0.8);
+    transform: translateX(45%) scale(0.8);
     opacity: 0.5;
   }
   
   .deck-card.hidden {
     z-index: 1;
-    transform: translateX(65%) translateZ(-300px) scale(0.7);
+    transform: translateX(65%) scale(0.7);
     opacity: 0;
     pointer-events: none;
   }
 
-  /* PEEKING SPINE */
   .peeking-spine {
     position: absolute;
     right: 0;
@@ -555,7 +527,6 @@ function extractYoutubeId(url: string) {
     opacity: 1;
   }
 
-  /* RIGHT: INFO PANEL */
   .info-column {
     flex: 0 0 50%;
     position: relative;
@@ -563,7 +534,7 @@ function extractYoutubeId(url: string) {
     z-index: 10;
     display: flex;
     align-items: center;
-    justify-content: flex-end; /* push right */
+    justify-content: flex-end; 
   }
 
   .info-panels-wrapper {
@@ -586,7 +557,6 @@ function extractYoutubeId(url: string) {
     transform: translateX(0);
   }
 
-  /* LARGE TRAILER CARD */
   .large-trailer-card {
     position: relative;
     width: 100%;
@@ -603,7 +573,7 @@ function extractYoutubeId(url: string) {
     width: 150%;
     height: 150%;
     transform: translate(-50%, -50%);
-    pointer-events: none; /* Disable iframe clicks */
+    pointer-events: none;
     z-index: 1;
   }
   
@@ -614,7 +584,6 @@ function extractYoutubeId(url: string) {
     object-fit: cover;
   }
 
-  /* Slow zoom on fallback img */
   .trailer-fallback-img {
     animation: slowPan 20s linear infinite alternate;
   }
@@ -623,7 +592,6 @@ function extractYoutubeId(url: string) {
     100% { transform: scale(1.1); }
   }
 
-  /* OVERLAYS FOR THE TRAILER CARD */
   .trailer-dark-overlay {
     position: absolute;
     inset: 0;
@@ -640,7 +608,6 @@ function extractYoutubeId(url: string) {
     z-index: 3;
   }
 
-  /* LOGO OVERLAY */
   .trailer-logo-container {
     position: absolute;
     top: 0;
@@ -651,7 +618,7 @@ function extractYoutubeId(url: string) {
     align-items: center;
     justify-content: center;
     z-index: 4;
-    padding-bottom: 5rem; /* slight offset upward */
+    padding-bottom: 5rem;
   }
   
   .trailer-logo {
@@ -675,7 +642,6 @@ function extractYoutubeId(url: string) {
     text-shadow: 0 10px 30px rgba(0,0,0,0.8);
   }
 
-  /* BOTTOM CONTENT INSIDE TRAILER CARD */
   .trailer-bottom-content {
     position: absolute;
     bottom: 0;
@@ -697,7 +663,6 @@ function extractYoutubeId(url: string) {
     text-shadow: 0 2px 4px rgba(0,0,0,0.8);
   }
 
-  /* ENTER BUTTON */
   .brand-enter-btn {
     display: inline-block;
     background: #fff;
