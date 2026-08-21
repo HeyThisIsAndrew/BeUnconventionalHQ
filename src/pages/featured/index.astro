@@ -76,14 +76,15 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
         <PageTitle as="h1" {...SECTIONS.featured} />
       </header>
 
-      {/* FILTER PILLS NAV */}
-      <nav class="featured-filters animate-on-scroll" aria-label="Hub Categories">
-        <button class="filter-pill active" data-filter="all">All</button>
-        <button class="filter-pill" data-filter="universes">The Universes</button>
-        <button class="filter-pill" data-filter="streaming">Streaming</button>
-        <button class="filter-pill" data-filter="studios">The Studios</button>
-        <button class="filter-pill" data-filter="gaming">Gaming</button>
-      </nav>
+      {/* FILTER BUTTONS (Using QuadrantFilter styling) */}
+      <div class="filter-row category-row animate-on-scroll" style="margin-bottom: 3rem; display: flex; justify-content: center; width: 100%;">
+        <div class="filter-grid" style="width: 100%;">
+          <button class="quadrant-btn cat-btn featured-cat-btn" data-filter="universes">THE UNIVERSES</button>
+          <button class="quadrant-btn cat-btn featured-cat-btn" data-filter="streaming">STREAMING</button>
+          <button class="quadrant-btn cat-btn featured-cat-btn" data-filter="studios">THE STUDIOS</button>
+          <button class="quadrant-btn cat-btn featured-cat-btn" data-filter="gaming">GAMING</button>
+        </div>
+      </div>
 
       {/*
         Structural sr-only <h2> so the card <h3>s do not skip a level.
@@ -166,7 +167,7 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
 
 <script>
   function initFeaturedFilters() {
-    const pills = document.querySelectorAll('.filter-pill');
+    const pills = document.querySelectorAll('.featured-cat-btn');
     const sections = document.querySelectorAll('.featured-category-section');
 
     if (!pills.length || !sections.length) return;
@@ -174,17 +175,21 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
     pills.forEach(pill => {
       pill.addEventListener('click', () => {
         const targetCategory = pill.getAttribute('data-filter');
+        const isAlreadyActive = pill.classList.contains('active');
 
-        // 1. Update active state on pills
+        // 1. Update active state on buttons (null-state if clicked while active)
         pills.forEach(p => p.classList.remove('active'));
-        pill.classList.add('active');
+        if (!isAlreadyActive) {
+          pill.classList.add('active');
+        }
 
         // 2. Toggle sections
         sections.forEach(section => {
           const sectionCategory = section.getAttribute('data-category');
           
-          if (targetCategory === 'all' || targetCategory === sectionCategory) {
-            // Show section
+          if (isAlreadyActive || targetCategory === sectionCategory) {
+            // Null state (isAlreadyActive means we just toggled it off) -> Show all
+            // Or target matches section -> Show section
             (section as HTMLElement).style.display = 'block';
           } else {
             // Hide section entirely
@@ -203,40 +208,7 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
 <style>
   /* Page width wrapper now shared: `.container-page` in modules/layout.css */
   /* Shared `.event-card` and `.event-overlay` styles moved to `events.css` */
-
-  .featured-filters {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.75rem;
-    margin-bottom: 3rem;
-  }
-
-  .filter-pill {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #ccc;
-    padding: 0.5rem 1.5rem;
-    border-radius: 9999px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    cursor: pointer;
-    transition: all 0.3s ease;
-  }
-
-  .filter-pill:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
-    transform: translateY(-2px);
-  }
-
-  .filter-pill.active {
-    background: #fff;
-    color: #000;
-    border-color: #fff;
-  }
+  /* Filter grid button styles are globally available from `modules/filters.css` via `.quadrant-btn` and `.cat-btn` */
 
   .featured-sections-container {
     display: flex;
