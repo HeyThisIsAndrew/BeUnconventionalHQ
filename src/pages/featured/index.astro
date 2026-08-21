@@ -14,24 +14,14 @@ type Brand = any;
 // getFeaturedBrandsLocal() is synchronous — it filters an imported JSON array.
 const brands: Brand[] = getFeaturedBrandsLocal();
 
-const categoryMap: Record<string, string> = {
-  'marvel-comics': 'universes',
-  'dc-comics': 'universes',
-  'netflix': 'streaming',
-  'prime-video': 'streaming',
-  'max': 'streaming',
-  'apple-tv-plus': 'streaming',
-  'disney-plus': 'streaming',
-  'hulu': 'streaming',
-  'warner-bros': 'studios',
-  'universal': 'studios',
-  'sony-pictures': 'studios',
-  'a24': 'studios',
-  'playstation': 'gaming',
-  'nintendo': 'gaming',
-  'xbox': 'gaming'
-};
-
+/*
+  Which category a hub sits in is now a FIELD ON THE HUB (`hubCategory`),
+  edited in the Local CMS, not a lookup table in this file. The table that
+  used to live here meant a newly created hub landed in a nameless "other"
+  row until someone edited page code, which is not something an editor can
+  do. The label and ordering below stay here on purpose: adding a hub is a
+  data change, adding a CATEGORY is a design decision.
+*/
 const categoryLabels: Record<string, string> = {
   'universes': 'The Multiverse',
   'streaming': 'Streamers',
@@ -40,7 +30,7 @@ const categoryLabels: Record<string, string> = {
 };
 
 const groupedBrands = brands.reduce((acc: Record<string, Brand[]>, brand: Brand) => {
-  const category = categoryMap[brand.slug?.current || ''] || 'other';
+  const category = brand.hubCategory || 'other';
   if (!acc[category]) acc[category] = [];
   acc[category].push(brand);
   return acc;
@@ -64,23 +54,40 @@ interface BrandMeta {
   desc: string;
 }
 
-const brandMeta: Record<string, BrandMeta> = {
-  'marvel-comics': { color: '#E23636', rgb: '226, 54, 54', desc: 'Presenting Marvel, the MCU, and Marvel Games.' },
-  'dc-comics': { color: '#0476F2', rgb: '4, 118, 242', desc: 'Presenting DC, the DCU, and DC Games.' },
-  'netflix': { color: '#E50914', rgb: '229, 9, 20', desc: 'The definitive source for Netflix Originals, series, and films.' },
-  'prime-video': { color: '#00A8E1', rgb: '0, 168, 225', desc: 'The definitive source for Amazon Originals and Prime Video exclusives.' },
-  'max': { color: '#002BE7', rgb: '0, 43, 231', desc: 'Presenting HBO, Max Originals, and Warner Bros. Discovery streams.' },
-  'apple-tv-plus': { color: '#FFFFFF', rgb: '255, 255, 255', desc: 'The definitive source for Apple Original films and series.' },
-  'disney-plus': { color: '#113CCF', rgb: '17, 60, 207', desc: 'Presenting Disney, Pixar, Marvel, and Star Wars streams.' },
-  'hulu': { color: '#1CE783', rgb: '28, 231, 131', desc: 'The definitive source for Hulu Originals and FX exclusives.' },
-  'warner-bros': { color: '#002BE7', rgb: '0, 43, 231', desc: 'Presenting Warner Bros. Pictures and the WB catalog.' },
-  'universal': { color: '#FFFFFF', rgb: '255, 255, 255', desc: 'Presenting Universal Pictures, Illumination, and DreamWorks.' },
-  'sony-pictures': { color: '#FFFFFF', rgb: '255, 255, 255', desc: 'Presenting Sony Pictures, Columbia, and Sony Animation.' },
-  'a24': { color: '#FFFFFF', rgb: '255, 255, 255', desc: 'The definitive source for A24 films and independent cinema.' },
-  'playstation': { color: '#00439C', rgb: '0, 67, 156', desc: 'Presenting PlayStation Studios, PS5, and exclusive titles.' },
-  'nintendo': { color: '#E60012', rgb: '230, 0, 18', desc: 'Presenting Nintendo, the Switch, and iconic franchises.' },
-  'xbox': { color: '#107C10', rgb: '16, 124, 16', desc: 'Presenting Xbox Game Studios, Game Pass, and Series X|S.' }
-};
+/*
+  Brand colour and the one-line description are fields on the hub too
+  (`brandColor.hex` and `description`). They were a hardcoded table here,
+  which meant the two things an editor most wants to change about a hub —
+  what it says and what colour it glows — were the two things they could not
+  reach from the CMS.
+
+  The RGB triple the dynamic lighting needs is DERIVED from the hex rather
+  than stored beside it. Storing both invites them to drift apart, and there
+  is only ever one right answer for a given colour.
+*/
+function hexToRgbTriple(hex?: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex ?? '').trim());
+  if (!m) return '204, 0, 0'; // site accent, matching the CSS fallback
+  const int = parseInt(m[1], 16);
+  return `${(int >> 16) & 255}, ${(int >> 8) & 255}, ${int & 255}`;
+}
+
+interface BrandMeta {
+  color: string;
+  rgb: string;
+  desc: string;
+}
+
+function metaFor(brand: Brand): BrandMeta {
+  const hex = brand?.brandColor?.hex;
+  return {
+    color: hex || 'var(--color-accent)',
+    rgb: hexToRgbTriple(hex),
+    desc:
+      brand?.description ||
+      `The definitive source for ${brand?.title ?? 'this hub'} intel, trailers, and updates.`,
+  };
+}
 
 /* ─────────────────────────────────────────────────────────────────────────
    CINEMATIC TYPOGRAPHY — candidates, and the one that ships.
@@ -252,7 +259,7 @@ function extractYoutubeId(url: string) {
                     <div class="deck-stack">
                       {categoryBrands.map((brand: Brand, bIndex: number) => {
                         const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).url() : null;
-                        const metaCard = brandMeta[brand.slug?.current] || { rgb: "204, 0, 0" };
+                        const metaCard = metaFor(brand);
                         return (
                           <div
                             class={`deck-card ${bIndex === 0 ? "active" : bIndex === 1 ? "next-1" : bIndex === 2 ? "next-2" : "hidden"}`}
@@ -303,7 +310,7 @@ function extractYoutubeId(url: string) {
                         const ytId = extractYoutubeId(brand.trailerUrl || '');
                         const ytSrc = ytId ? `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&controls=0&modestbranding=1&showinfo=0&rel=0` : null;
                         const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).height(800).url() : null;
-                        const meta = brandMeta[brand.slug?.current] || { color: 'var(--color-accent)', desc: `The definitive source for ${brand.title} intel, trailers, and updates.` };
+                        const meta = metaFor(brand);
 
                         return (
                           <div class={`brand-info-panel ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex} style={`--brand-color: ${meta.color};`}>
