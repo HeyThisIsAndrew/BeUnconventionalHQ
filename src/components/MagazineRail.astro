@@ -28,6 +28,8 @@
  * divider border and which side the active accent bar sits on.
  */
 import ArticleThumb from './ArticleThumb.astro';
+import { getDisplayTags } from '../lib/tags';
+
 import { articlePreview } from '../lib/articles';
 import { getCardImageSources } from '../lib/card-images.js';
 import type { ArticleRecord } from '../lib/articles';
@@ -63,21 +65,11 @@ const { side, articles, activeSlug = '' } = Astro.props;
 
 <div class:list={['intel-rail', `intel-rail-${side}`]}>
   {
-    articles.map((article) => (
-      /*
-        The data-* attributes below are read by the script in
-        IntelMagazine.astro when this item is clicked, to repaint the centre
-        feature. If you add a field to the centre feature, add it here too.
-
-        `data-preview` carries the article's opening PARAGRAPHS, joined with a
-        blank line. An HTML attribute can only hold a string, so the array is
-        flattened here and split back apart in the script. It is deliberately
-        not HTML: the script rebuilds each paragraph with `textContent`, so
-        nothing from the feed is ever re-parsed as markup in the browser.
-
-        Note: a comment has to sit OUTSIDE the tag like this one. Astro cannot
-        parse a comment placed between two attributes inside a tag.
-      */
+    articles.map((article) => {
+      const finalTags = getDisplayTags(article);
+      const tagsString = finalTags.length > 0 ? finalTags.join(' | ') + ' | ' : (article.category ? article.category + ' | ' : '');
+      
+      return (
       <a
         class:list={['intel-rail-item', { active: article.slug === activeSlug }]}
         aria-current={article.slug === activeSlug ? 'true' : undefined}
@@ -88,26 +80,23 @@ const { side, articles, activeSlug = '' } = Astro.props;
         data-image={article.image}
         data-image-src={article.image ? getCardImageSources(article.image).src : undefined}
         data-image-srcset={article.image ? getCardImageSources(article.image).srcset : undefined}
-        data-category={article.category}
+        data-tags={tagsString}
         data-date={article.date}
         data-href={article.link}
         data-external={article.isExternal ? 'true' : 'false'}
       >
         <div class="intel-rail-thumb">
-          {/* decorative: the headline directly below already names the article,
-              so describing the image too would announce it twice. */}
           <ArticleThumb image={article.image} title={article.title} size="rail" decorative />
         </div>
 
         <div class="intel-rail-copy">
           <span class="intel-rail-meta">
-            {article.category} <span class="dot">&bull;</span> {article.date}
+            {tagsString}{article.date}
           </span>
-          {/* h3 because the page's h1 is the title and the magazine sits
-              under an h2 — going straight to h3 keeps the outline valid. */}
           <h3 class="intel-rail-title">{article.title}</h3>
         </div>
       </a>
-    ))
+      );
+    })
   }
 </div>

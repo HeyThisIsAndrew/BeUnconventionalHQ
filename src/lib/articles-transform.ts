@@ -220,7 +220,7 @@ export function mapCategory(tags: string[] = [], text = ''): string {
  * the title. Tagging a Substack post `Review` is the reliable path; the title
  * scan is a fallback so untagged posts still get something sensible.
  */
-export const CONTENT_TYPES = ['Review', 'Analysis', 'Dispatch', 'Announcement', 'Interview', 'Commentary', 'Reaction'] as const;
+export const CONTENT_TYPES = ['Review', 'Analysis', 'Dispatch', 'Announcement', 'Interview', 'Commentary', 'Reaction', 'News'] as const;
 export type ContentType = (typeof CONTENT_TYPES)[number];
 
 const CONTENT_TYPE_KEYWORDS: Record<string, string[]> = {
@@ -231,6 +231,7 @@ const CONTENT_TYPE_KEYWORDS: Record<string, string[]> = {
   Dispatch: ['dispatch', 'onlocation', 'hallh', 'sdcc', 'd23', 'nycc', 'premiere', 'recap', 'coverage'],
   Announcement: ['announced', 'announcement', 'revealed', 'confirms', 'confirmed', 'trailer', 'release date'],
   Interview: ['interview', 'sitdown', 'conversation with', 'talks'],
+  News: ['news', 'update', 'breaking'],
   // Analysis is the default for opinion/essay pieces, so its keywords are the
   // broadest and it is checked last.
   Analysis: ['analysis', 'why', 'explained', 'breakdown', 'deepdive', 'essay', 'the case for'],

@@ -47,8 +47,8 @@ import {
   getNextArticle,
   getRelatedArticles,
   RESERVED_SLUGS,
-  topicPath,
 } from '../../lib/articles';
+import { getDisplayTags } from '../../lib/tags';
 import { buildToc } from '../../lib/article-toc';
 import { stripCoverImageFromBody } from '../../lib/article-media';
 import { localArticleImage, localiseBodyImages } from '../../lib/article-images.ts';
@@ -238,12 +238,9 @@ if (article.contentType === 'Review') {
               know both, and the content type is what selects the schema above.
             */}
             <div class="article-eyebrow">
-              <a class="article-tag article-tag-category" href={topicPath(article.category)}>
-                {article.category}
-              </a>
-              {article.contentType && (
-                <span class="article-tag article-tag-type">{article.contentType}</span>
-              )}
+              <span class="article-tag article-tag-category">
+                {getDisplayTags(article).join(' | ') || article.category}
+              </span>
               <span class="dot">&bull;</span>
               <time datetime={article.isoDate}>{readableDate}</time>
               {article.score && (
@@ -332,8 +329,7 @@ if (article.contentType === 'Review') {
                   <li>
                     <a href={`${ARTICLE_SECTION.path}/${item.slug}`} class="article-related-item">
                       <span class="article-related-meta">
-                        {item.category}
-                        {item.contentType ? ` • ${item.contentType}` : ''}
+                        {getDisplayTags(item).join(' | ') || item.category}
                       </span>
                       <span class="article-related-title">{item.title}</span>
                     </a>
