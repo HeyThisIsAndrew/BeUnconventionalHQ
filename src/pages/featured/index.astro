@@ -13,6 +13,60 @@ const description =
 // Published, sluggable brands only — same defensive filter as the detail page,
 // so drafts/incomplete docs never break the listing or produce dead links.
 const brands = getFeaturedBrandsLocal();
+
+// TEMPORARY: Hardcoded map until Sanity schema is updated and synced
+// Contains the 15+ hubs we discussed to ensure they group correctly as they are added
+const categoryMap: Record<string, string> = {
+  // The Universes
+  'marvel-comics': 'universes',
+  'dc-comics': 'universes',
+  'star-wars': 'universes',
+  'harry-potter': 'universes',
+  
+  // Streaming
+  'netflix': 'streaming',
+  'prime-video': 'streaming',
+  'disney-plus': 'streaming',
+  'max': 'streaming',
+  'hulu': 'streaming',
+  'apple-tv-plus': 'streaming',
+  
+  // The Studios
+  'a24': 'studios',
+  'warner-bros': 'studios',
+  'universal': 'studios',
+  'paramount': 'studios',
+  
+  // Gaming
+  'playstation': 'gaming',
+  'xbox': 'gaming',
+  'nintendo': 'gaming',
+  'insomniac-games': 'gaming',
+  'rockstar-games': 'gaming',
+};
+
+// Group brands by category
+const groupedBrands = brands.reduce((acc, brand) => {
+  const slug = brand.slug.current;
+  const cat = brand.category || categoryMap[slug] || 'universes'; // Default fallback
+  if (!acc[cat]) acc[cat] = [];
+  acc[cat].push(brand);
+  return acc;
+}, {} as Record<string, any[]>);
+
+// Category display labels
+const categoryLabels: Record<string, string> = {
+  'universes': 'The Universes',
+  'streaming': 'Streaming',
+  'studios': 'The Studios',
+  'gaming': 'Gaming',
+};
+
+// Sort order for categories so they appear consistently
+const categoryOrder = ['universes', 'streaming', 'studios', 'gaming'];
+const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
+  return categoryOrder.indexOf(a) - categoryOrder.indexOf(b);
+});
 ---
 
 <Layout title={title} description={description} preconnect={["https://cdn.sanity.io"]}>
@@ -22,67 +76,80 @@ const brands = getFeaturedBrandsLocal();
         <PageTitle as="h1" {...SECTIONS.featured} />
       </header>
 
+      {/* FILTER PILLS NAV */}
+      <nav class="featured-filters animate-on-scroll" aria-label="Hub Categories">
+        <button class="filter-pill active" data-filter="all">All</button>
+        <button class="filter-pill" data-filter="universes">The Universes</button>
+        <button class="filter-pill" data-filter="streaming">Streaming</button>
+        <button class="filter-pill" data-filter="studios">The Studios</button>
+        <button class="filter-pill" data-filter="gaming">Gaming</button>
+      </nav>
+
       {/*
         Structural sr-only <h2> so the card <h3>s do not skip a level.
-
-        Each card renders an `.event-card-sr-title` <h3>, and the only heading
-        above them here was the page <h1> — axe flags that h1 -> h3 jump as
-        "Heading elements are not in a sequentially-descending order", which
-        cost this page 5 accessibility points (95). It is the same convention
-        FeedLayout.astro already uses for its card grid, and the site
-        convention recorded in CLAUDE.md: "Card grids under an h1 get a
-        structural sr-only <h2>."
       */}
       {brands.length > 0 ? (
         <>
         <h2 class="sr-only">Featured collections</h2>
-        <div class="featured-hub-grid">
-          {brands.map((brand: any, index: number) => {
-            const heroUrl = brand.heroImage
-              ? urlFor(brand.heroImage).width(800).height(450).auto('format').url()
-              : '/placeholder-event.jpg';
-            const logoHeight = 96;
-            const logoWidth = brand.logo?.dimensions?.aspectRatio
-              ? Math.round(logoHeight * brand.logo.dimensions.aspectRatio)
-              : undefined;
-
+        <div class="featured-sections-container">
+          {sortedCategories.map((category) => {
+            const categoryBrands = groupedBrands[category];
             return (
-              <a
-                href={`/featured/${brand.slug.current}`}
-                class="event-card animate-on-scroll"
-                style={`--index: ${index}; width: 100%;`}
-              >
-                <div class="event-image-wrapper w-full aspect-video">
-                  <img
-                    src={heroUrl}
-                    alt={brand.title}
-                    loading="lazy"
-                    decoding="async"
-                    class="event-image"
-                  />
-                  <div class="event-overlay">
-                    {brand.logo ? (
-                      <>
-                        <span class="event-card-logo-wrap">
+              <section class="featured-category-section animate-on-scroll" data-category={category}>
+                
+                {/* Premium Cinematic Category Header */}
+                <h3 class="category-heading">{categoryLabels[category] || category}</h3>
+                
+                {/* Existing Grid Math Preserved */}
+                <div class="featured-hub-grid">
+                  {categoryBrands.map((brand: any, index: number) => {
+                    const heroUrl = brand.heroImage
+                      ? urlFor(brand.heroImage).width(800).height(450).auto('format').url()
+                      : '/placeholder-event.jpg';
+                    const logoHeight = 96;
+                    const logoWidth = brand.logo?.dimensions?.aspectRatio
+                      ? Math.round(logoHeight * brand.logo.dimensions.aspectRatio)
+                      : undefined;
+
+                    return (
+                      <a
+                        href={`/featured/${brand.slug.current}`}
+                        class="event-card"
+                        style={`--index: ${index}; width: 100%;`}
+                      >
+                        <div class="event-image-wrapper w-full aspect-video">
                           <img
-                            src={urlFor(brand.logo).height(96).url()}
-                            alt={`${brand.title} logo`}
-                            class="event-card-logo"
-                            height={logoHeight}
-                            width={logoWidth}
+                            src={heroUrl}
+                            alt={brand.title}
                             loading="lazy"
+                            decoding="async"
+                            class="event-image"
                           />
-                        </span>
-                        {/* Heading kept for structure/SEO even when the logo is
-                            the visual identity (mirrors FeaturedEvent). */}
-                        <h3 class="event-card-sr-title">{brand.title}</h3>
-                      </>
-                    ) : (
-                      <h3 class="event-title line-clamp-2">{brand.title}</h3>
-                    )}
-                  </div>
+                          <div class="event-overlay">
+                            {brand.logo ? (
+                              <>
+                                <span class="event-card-logo-wrap">
+                                  <img
+                                    src={urlFor(brand.logo).height(96).url()}
+                                    alt={`${brand.title} logo`}
+                                    class="event-card-logo"
+                                    height={logoHeight}
+                                    width={logoWidth}
+                                    loading="lazy"
+                                  />
+                                </span>
+                                <h4 class="event-card-sr-title">{brand.title}</h4>
+                              </>
+                            ) : (
+                              <h4 class="event-title line-clamp-2">{brand.title}</h4>
+                            )}
+                          </div>
+                        </div>
+                      </a>
+                    );
+                  })}
                 </div>
-              </a>
+              </section>
             );
           })}
         </div>
@@ -97,25 +164,105 @@ const brands = getFeaturedBrandsLocal();
 
 </Layout>
 
+<script>
+  function initFeaturedFilters() {
+    const pills = document.querySelectorAll('.filter-pill');
+    const sections = document.querySelectorAll('.featured-category-section');
+
+    if (!pills.length || !sections.length) return;
+
+    pills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        const targetCategory = pill.getAttribute('data-filter');
+
+        // 1. Update active state on pills
+        pills.forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+
+        // 2. Toggle sections
+        sections.forEach(section => {
+          const sectionCategory = section.getAttribute('data-category');
+          
+          if (targetCategory === 'all' || targetCategory === sectionCategory) {
+            // Show section
+            (section as HTMLElement).style.display = 'block';
+          } else {
+            // Hide section entirely
+            (section as HTMLElement).style.display = 'none';
+          }
+        });
+      });
+    });
+  }
+
+  // Initialize on load and on Astro view transitions
+  document.addEventListener('DOMContentLoaded', initFeaturedFilters);
+  document.addEventListener('astro:page-load', initFeaturedFilters);
+</script>
+
 <style>
   /* Page width wrapper now shared: `.container-page` in modules/layout.css */
   /* Shared `.event-card` and `.event-overlay` styles moved to `events.css` */
 
+  .featured-filters {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-bottom: 3rem;
+  }
+
+  .filter-pill {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ccc;
+    padding: 0.5rem 1.5rem;
+    border-radius: 9999px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .filter-pill:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    transform: translateY(-2px);
+  }
+
+  .filter-pill.active {
+    background: #fff;
+    color: #000;
+    border-color: #fff;
+  }
+
+  .featured-sections-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4rem;
+  }
+
+  .featured-category-section {
+    display: block;
+    width: 100%;
+  }
+
+  .category-heading {
+    font-size: 1.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 1.5rem;
+    color: #fff;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 0.5rem;
+  }
+
   /*
     Hub grid.
-
-    This carried an inline `max-width: 1200px`, which made it the only card
-    grid on the site that did not fill its page wrapper: measured at 1920px
-    the row spanned 1200px against a 1536px Subscribe box below it — 168px
-    short on each side — while /events and /feed both run their rows to the
-    full width of `.container-page`. Two hubs in a 1200px box also left the
-    tiles noticeably smaller than the cards on every neighbouring page.
-
-    Filling the wrapper puts it back in line with the rest of the site: the
-    row now ends where the Subscribe box ends, and with two hubs each tile
-    grows from 587px to ~720px. `auto-fit` keeps that honest as hubs are
-    added — a third hub reflows to three even columns rather than shrinking
-    the row.
+    Filling the wrapper puts it back in line with the rest of the site.
   */
   .featured-hub-grid {
     display: grid;
@@ -125,23 +272,20 @@ const brands = getFeaturedBrandsLocal();
     margin: 0 auto;
   }
 
-
   .featured-empty {
     text-align: center;
     color: #888;
     font-size: 1.1rem;
     padding: 4rem 0;
   }
-  /* drop-shadow lives on the WRAPPER, not the <img>. It still follows the
-     logo's transparent-PNG alpha (identical look), but keeping filter OFF the
-     image element avoids the iOS Safari bug that renders a filtered <img> as
-     broken — the reason drop-shadow was removed from the hero/EventCard logos. */
+  
   .event-card-logo-wrap {
     display: inline-block;
     max-width: 80%;
-    margin-right: auto; /* left-align */
+    margin-right: auto;
     filter: drop-shadow(0 4px 15px rgba(0, 0, 0, 0.7));
   }
+  
   .event-card-logo {
     max-height: 80px;
     max-width: 100%;
@@ -151,8 +295,7 @@ const brands = getFeaturedBrandsLocal();
     display: block;
     transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
-  /* Visually-hidden heading — keeps document structure when the logo is the
-     visual identity. */
+  
   .event-card-sr-title {
     position: absolute;
     width: 1px;
