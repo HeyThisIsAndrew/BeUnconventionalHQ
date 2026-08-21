@@ -241,7 +241,14 @@ async function fetchAllPosts() {
       const htmlRes = await fetch(link, {
         signal: AbortSignal.timeout(15000),
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/122.0.0.0',
+          // Real Chrome always ends `Safari/537.36`, whatever the Chrome
+          // version — that trailing token is a compatibility relic, not a
+          // version number. This had been changed to `Safari/122.0.0.0`,
+          // which no real browser sends, so it made the request MORE
+          // fingerprintable as automation. That is backwards for the one
+          // code path whose entire purpose is not being turned away by
+          // Cloudflare. Matches the five other UA strings in scripts/.
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.9',
           'Cache-Control': 'no-cache',
