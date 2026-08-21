@@ -50,21 +50,21 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
 
 
 const brandMeta = {
-  'marvel-comics': { color: '#E23636', desc: 'Presenting Marvel, the MCU, and Marvel Games.' },
-  'dc-comics': { color: '#0476F2', desc: 'Presenting DC, the DCU, and DC Games.' },
-  'netflix': { color: '#E50914', desc: 'The definitive source for Netflix Originals, series, and films.' },
-  'prime-video': { color: '#00A8E1', desc: 'The definitive source for Amazon Originals and Prime Video exclusives.' },
-  'max': { color: '#002BE7', desc: 'Presenting HBO, Max Originals, and Warner Bros. Discovery streams.' },
-  'apple-tv-plus': { color: '#FFFFFF', desc: 'The definitive source for Apple Original films and series.' },
-  'disney-plus': { color: '#113CCF', desc: 'Presenting Disney, Pixar, Marvel, and Star Wars streams.' },
-  'hulu': { color: '#1CE783', desc: 'The definitive source for Hulu Originals and FX exclusives.' },
-  'warner-bros': { color: '#002BE7', desc: 'Presenting Warner Bros. Pictures and the WB catalog.' },
-  'universal': { color: '#FFFFFF', desc: 'Presenting Universal Pictures, Illumination, and DreamWorks.' },
-  'sony-pictures': { color: '#FFFFFF', desc: 'Presenting Sony Pictures, Columbia, and Sony Animation.' },
-  'a24': { color: '#FFFFFF', desc: 'The definitive source for A24 films and independent cinema.' },
-  'playstation': { color: '#00439C', desc: 'Presenting PlayStation Studios, PS5, and exclusive titles.' },
-  'nintendo': { color: '#E60012', desc: 'Presenting Nintendo, the Switch, and iconic franchises.' },
-  'xbox': { color: '#107C10', desc: 'Presenting Xbox Game Studios, Game Pass, and Series X|S.' }
+  'marvel-comics': { color: '#E23636', rgb: '226, 54, 54', desc: 'Presenting Marvel, the MCU, and Marvel Games.' },
+  'dc-comics': { color: '#0476F2', rgb: '4, 118, 242', desc: 'Presenting DC, the DCU, and DC Games.' },
+  'netflix': { color: '#E50914', rgb: '229, 9, 20', desc: 'The definitive source for Netflix Originals, series, and films.' },
+  'prime-video': { color: '#00A8E1', rgb: '0, 168, 225', desc: 'The definitive source for Amazon Originals and Prime Video exclusives.' },
+  'max': { color: '#002BE7', rgb: '0, 43, 231', desc: 'Presenting HBO, Max Originals, and Warner Bros. Discovery streams.' },
+  'apple-tv-plus': { color: '#FFFFFF', rgb: '255, 255, 255', desc: 'The definitive source for Apple Original films and series.' },
+  'disney-plus': { color: '#113CCF', rgb: '17, 60, 207', desc: 'Presenting Disney, Pixar, Marvel, and Star Wars streams.' },
+  'hulu': { color: '#1CE783', rgb: '28, 231, 131', desc: 'The definitive source for Hulu Originals and FX exclusives.' },
+  'warner-bros': { color: '#002BE7', rgb: '0, 43, 231', desc: 'Presenting Warner Bros. Pictures and the WB catalog.' },
+  'universal': { color: '#FFFFFF', rgb: '255, 255, 255', desc: 'Presenting Universal Pictures, Illumination, and DreamWorks.' },
+  'sony-pictures': { color: '#FFFFFF', rgb: '255, 255, 255', desc: 'Presenting Sony Pictures, Columbia, and Sony Animation.' },
+  'a24': { color: '#FFFFFF', rgb: '255, 255, 255', desc: 'The definitive source for A24 films and independent cinema.' },
+  'playstation': { color: '#00439C', rgb: '0, 67, 156', desc: 'Presenting PlayStation Studios, PS5, and exclusive titles.' },
+  'nintendo': { color: '#E60012', rgb: '230, 0, 18', desc: 'Presenting Nintendo, the Switch, and iconic franchises.' },
+  'xbox': { color: '#107C10', rgb: '16, 124, 16', desc: 'Presenting Xbox Game Studios, Game Pass, and Series X|S.' }
 };
 
 function extractYoutubeId(url: string) {
@@ -120,8 +120,10 @@ function extractYoutubeId(url: string) {
                     <div class="deck-stack">
                       {categoryBrands.map((brand, bIndex) => {
                         const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).height(1600).url() : null;
+                        const metaCard = brandMeta[brand.slug?.current] || { rgb: "204, 0, 0" };
                         return (
-                          <div class={`deck-card ${bIndex === 0 ? 'active' : bIndex === 1 ? 'next-1' : bIndex === 2 ? 'next-2' : 'hidden'}`} data-index={bIndex}>
+                          <div class={`deck-card ${bIndex === 0 ? "active" : bIndex === 1 ? "next-1" : bIndex === 2 ? "next-2" : "hidden"}`} data-index={bIndex} data-brand-rgb={metaCard.rgb}>
+
                             <div class="peeking-spine">
                                <span class="spine-text">{brand.title}</span>
                             </div>
@@ -193,10 +195,10 @@ function extractYoutubeId(url: string) {
                                 ) : (
                                   <h3 class="trailer-text-title">{brand.title}</h3>
                                 )}
-                                <p class="brand-desc">
-                                  {meta.desc}
-                                </p>
-                                <a href={`/featured/${brand.slug?.current}`} class="cta-button-primary dynamic-brand-btn">ENTER {brand.title}</a>
+                                <div class="trailer-text-btn-row">
+                                  <p class="brand-desc">{meta.desc}</p>
+                                  <a href={`/featured/${brand.slug?.current}`} class="cta-button-primary dynamic-brand-btn">ENTER {brand.title}</a>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -313,11 +315,19 @@ function extractYoutubeId(url: string) {
 
           const iframe = infoPanels[i].querySelector('.trailer-iframe');
 
+
           if (i === activeIndex) {
             card.classList.add('active');
             infoPanels[i].classList.add('active');
             if (navThumbs[i]) navThumbs[i].classList.add('active');
             if (glowLayers[i]) glowLayers[i].classList.add('active');
+            
+            // Set dynamic left row color
+            const brandRgb = card.getAttribute('data-brand-rgb');
+            if (brandRgb) {
+              section.style.setProperty('--category-accent-rgb', brandRgb);
+            }
+
 
             if (iframe && !iframe.src && iframe.dataset.src) {
               iframe.src = iframe.dataset.src;
@@ -431,13 +441,13 @@ function extractYoutubeId(url: string) {
     inset: 0;
     z-index: 1;
     opacity: 0.6;
-    background: linear-gradient(to right, rgba(100, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.95) 60%);
+    background: linear-gradient(to right, rgba(var(--category-accent-rgb, 100, 0, 0), 0.75) 0%, rgba(0, 0, 0, 0.95) 60%);
     transition: opacity 0.4s ease, background 0.4s ease;
   }
   
   .accordion-section.collapsed:hover .accordion-header-bg {
     opacity: 1;
-    background: linear-gradient(to right, rgba(153, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.95) 60%);
+    background: linear-gradient(to right, rgba(var(--category-accent-rgb, 153, 0, 0), 0.95) 0%, rgba(0, 0, 0, 0.95) 60%);
   }
   
   .accordion-section.expanded .accordion-header-bg {
@@ -893,12 +903,20 @@ function extractYoutubeId(url: string) {
     flex-direction: column;
     align-items: flex-start;
   }
+  .trailer-text-btn-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 2rem;
+  }
   .trailer-logo {
-    max-height: 120px;
+    max-height: 130px;
     max-width: 70%;
     object-fit: contain;
     margin-bottom: 1.5rem;
     filter: drop-shadow(0 10px 20px rgba(0,0,0,0.9));
+    animation: none; /* explicitly ensure no floating */
   }
   .trailer-text-title {
     font-family: var(--font-display);
@@ -906,16 +924,22 @@ function extractYoutubeId(url: string) {
     color: #fff;
     text-transform: uppercase;
     text-shadow: 0 10px 30px rgba(0,0,0,0.8);
-    margin-bottom: 1rem;
+    margin-bottom: 1.5rem;
   }
   .brand-desc {
-    font-size: 1.3rem;
+    font-size: 1.35rem;
     font-weight: 500;
     letter-spacing: 0.05em;
     color: rgba(255,255,255,0.8);
-    margin-bottom: 2.5rem;
-    max-width: 80%;
+    margin-bottom: 0;
+    max-width: 55%;
+    line-height: 1.5;
     text-shadow: 0 4px 10px rgba(0,0,0,0.9);
+  }
+  .dynamic-brand-btn {
+    flex-shrink: 0;
+    font-size: 0.95rem;
+    padding: 1.25rem 3.5rem;
   }
 
 
