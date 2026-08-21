@@ -52,6 +52,8 @@ type Doc = {
   heroImage?: any;
   youtubeSyncKeywords?: string[];
   brandColor?: { hex?: string };
+  /** Which accordion row this hub appears in on /featured. */
+  hubCategory?: string;
   socialLinks?: { platform: string; url: string }[];
   metrics?: {
     snapshots: { date: string; viewCount: number }[];
@@ -184,6 +186,11 @@ function makeBlankDoc(type: DocType): Doc {
       logo: '',
       heroImage: '',
       youtubeSyncKeywords: [],
+      // Defaults so a brand-new hub renders in a real row with a real glow
+      // instead of dropping into a nameless "other" section.
+      hubCategory: 'streaming',
+      brandColor: { hex: '#CC0000' },
+      description: '',
     };
   }
   if (type === 'topic') {
@@ -1351,6 +1358,19 @@ function EventForm({
   );
 }
 
+/*
+  Mirrors `categoryLabels` in src/pages/featured/index.astro. Kept as a fixed
+  list rather than a free-text box because these four rows are a design
+  decision — a typo here would strand a hub in a row that never renders.
+*/
+const HUB_CATEGORIES = [
+  { value: 'universes', label: 'The Multiverse' },
+  { value: 'streaming', label: 'Streamers' },
+  { value: 'studios', label: 'Studios' },
+  { value: 'gaming', label: 'Gaming' },
+  { value: 'other', label: 'Uncategorised' },
+];
+
 function BrandForm({
   doc,
   updateDoc,
@@ -1391,7 +1411,54 @@ function BrandForm({
         />
       </div>
 
-      <TagsInput label="YouTube Sync Keywords (hub auto-tagging)" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
+      <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5 mt-5">
+        <Field label="Hub Category">
+          <select
+            value={doc.hubCategory || 'other'}
+            onChange={(e) => update('hubCategory', e.target.value)}
+            className={inputClass}
+          >
+            {HUB_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-600 mt-1.5">Which row this hub appears in on /featured.</p>
+        </Field>
+
+        <Field label="Brand Colour">
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              value={doc.brandColor?.hex || '#CC0000'}
+              onChange={(e) => update('brandColor', { hex: e.target.value.toUpperCase() })}
+              className="h-[46px] w-14 shrink-0 cursor-pointer rounded-md border border-white/10 bg-transparent p-1"
+            />
+            <input
+              type="text"
+              value={doc.brandColor?.hex || ''}
+              onChange={(e) => update('brandColor', { hex: e.target.value.toUpperCase() })}
+              placeholder="#CC0000"
+              className={`${inputClass} font-mono`}
+            />
+          </div>
+          <p className="text-xs text-gray-600 mt-1.5">Drives this hub's glow, row tint, and button.</p>
+        </Field>
+      </div>
+
+      <div className="mt-5">
+        <Field label="Description">
+          <textarea
+            value={doc.description || ''}
+            onChange={(e) => update('description', e.target.value)}
+            className={textareaClass}
+            placeholder="One line, shown under the logo on /featured. Set in caps, so keep it short."
+          />
+        </Field>
+      </div>
+
+      <div className="mt-5">
+        <TagsInput label="YouTube Sync Keywords (hub auto-tagging)" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
+      </div>
     </div>
   );
 }

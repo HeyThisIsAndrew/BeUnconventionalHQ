@@ -89,9 +89,17 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   `video.hubs` (slugs) against `event.slug.current` / `brand.slug.current` — hubs
   are slugs in the local sync, not Sanity `_id` references, so this replaces the
   old `references($hubId)` GROQ query, it isn't a shortcut around it.
-  **Known gap:** there's no local flow to create a *new* event/featuredBrand doc
-  — `src/data/videos.json`'s `event`/`featuredBrand` entries are a frozen export
-  from Sanity. LocalCmsApp only edits existing docs of any type.
+  LocalCmsApp creates *and* edits `event`/`featuredBrand` docs (the "New
+  Featured" / "New event" buttons) — the old "no local flow to create one"
+  gap is closed. Hubs still carry Sanity asset refs for `logo`/`heroImage`
+  from the original export; new ones upload through the CMS instead.
+  A `featuredBrand` owns everything /featured renders about it:
+  `hubCategory` (which accordion row it sits in), `brandColor.hex` (its glow,
+  row tint and button — the RGB triple is derived from this, never stored),
+  `description` (the line under the logo) and `youtubeSyncKeywords`. None of
+  these are hardcoded in `src/pages/featured/index.astro` any more; adding a
+  hub is a data edit. Adding a *category* is still a code change, by design —
+  the four rows are a design decision, not editor content.
 - **Local CMS:** `/local-cms` (dev-only route, `src/components/admin/LocalCmsApp.tsx`)
   — master/detail editor over `src/data/videos.json`, backed by a dev-server-only
   Vite middleware (`localCmsMiddleware` in `astro.config.mjs`) at
