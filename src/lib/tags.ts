@@ -9,7 +9,6 @@ export function getDisplayTags(item: any): string[] {
   cleanTokens = [...new Set(cleanTokens.filter(Boolean))];
 
   let tag1 = '';
-  let matchedToken1 = '';
   const brandMap = [
     { label: 'MARVEL', regex: /MARVEL|WOLVERINE|AVENGERS|SPIDER|XMEN|MCU|DEADPOOL|VENOM/ },
     { label: 'DC', regex: /DC$|DCU|BATMAN|SUPERMAN|WONDERWOMAN|JUSTICELEAGUE|JOKER|LANTERNS/ },
@@ -37,13 +36,11 @@ export function getDisplayTags(item: any): string[] {
     const match = cleanTokens.find(t => b.regex.test(t));
     if (match) {
       tag1 = b.label;
-      matchedToken1 = match;
       break;
     }
   }
 
   let tag2 = '';
-  let matchedToken2 = '';
   const typeMap = [
     { label: 'REVIEW', regex: /REVIEW/ },
     { label: 'COMMENTARY', regex: /COMMENTARY/ },
@@ -63,7 +60,6 @@ export function getDisplayTags(item: any): string[] {
     const match = cleanTokens.find(t => type.regex.test(t));
     if (match) {
       tag2 = type.label;
-      matchedToken2 = match;
       break;
     } else if (item.contentType && type.regex.test(item.contentType.toUpperCase())) {
       tag2 = type.label;
@@ -72,7 +68,6 @@ export function getDisplayTags(item: any): string[] {
   }
 
   let tag3 = '';
-  let matchedToken3 = '';
   const eventMap = [
     { label: 'SDCC', regex: /SDCC|COMICCON/ },
     { label: 'CONVENTION', regex: /^CONVENTIONS?$|WONDERCON/ },
@@ -92,7 +87,6 @@ export function getDisplayTags(item: any): string[] {
     const match = cleanTokens.find(t => e.regex.test(t));
     if (match) {
       tag3 = e.label;
-      matchedToken3 = match;
       break;
     }
   }

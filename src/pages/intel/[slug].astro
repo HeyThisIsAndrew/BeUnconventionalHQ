@@ -238,10 +238,12 @@ if (article.contentType === 'Review') {
               know both, and the content type is what selects the schema above.
             */}
             <div class="article-eyebrow">
-              <span class="article-tag article-tag-category">
-                {getDisplayTags(article).join(' | ') || article.category}
-              </span>
-              <span class="dot">&bull;</span>
+              {getDisplayTags(article).length > 0 && (
+                <span class="article-tag article-tag-category">
+                  {getDisplayTags(article).join(' | ')}
+                </span>
+              )}
+              {getDisplayTags(article).length > 0 && <span class="dot">&bull;</span>}
               <time datetime={article.isoDate}>{readableDate}</time>
               {article.score && (
                 <span class="article-score">
@@ -328,9 +330,11 @@ if (article.contentType === 'Review') {
                 {related.map((item) => (
                   <li>
                     <a href={`${ARTICLE_SECTION.path}/${item.slug}`} class="article-related-item">
-                      <span class="article-related-meta">
-                        {getDisplayTags(item).join(' | ') || item.category}
-                      </span>
+                      {getDisplayTags(item).length > 0 && (
+                        <span class="article-related-meta">
+                          {getDisplayTags(item).join(' | ')}
+                        </span>
+                      )}
                       <span class="article-related-title">{item.title}</span>
                     </a>
                   </li>
