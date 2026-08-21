@@ -47,6 +47,26 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
   return indexA - indexB;
 });
 
+
+
+const brandMeta = {
+  'marvel-comics': { color: '#E23636', desc: 'Presenting Marvel, the MCU, and Marvel Games.' },
+  'dc-comics': { color: '#0476F2', desc: 'Presenting DC, the DCU, and DC Games.' },
+  'netflix': { color: '#E50914', desc: 'The definitive source for Netflix Originals, series, and films.' },
+  'prime-video': { color: '#00A8E1', desc: 'The definitive source for Amazon Originals and Prime Video exclusives.' },
+  'max': { color: '#002BE7', desc: 'Presenting HBO, Max Originals, and Warner Bros. Discovery streams.' },
+  'apple-tv-plus': { color: '#FFFFFF', desc: 'The definitive source for Apple Original films and series.' },
+  'disney-plus': { color: '#113CCF', desc: 'Presenting Disney, Pixar, Marvel, and Star Wars streams.' },
+  'hulu': { color: '#1CE783', desc: 'The definitive source for Hulu Originals and FX exclusives.' },
+  'warner-bros': { color: '#002BE7', desc: 'Presenting Warner Bros. Pictures and the WB catalog.' },
+  'universal': { color: '#FFFFFF', desc: 'Presenting Universal Pictures, Illumination, and DreamWorks.' },
+  'sony-pictures': { color: '#FFFFFF', desc: 'Presenting Sony Pictures, Columbia, and Sony Animation.' },
+  'a24': { color: '#FFFFFF', desc: 'The definitive source for A24 films and independent cinema.' },
+  'playstation': { color: '#00439C', desc: 'Presenting PlayStation Studios, PS5, and exclusive titles.' },
+  'nintendo': { color: '#E60012', desc: 'Presenting Nintendo, the Switch, and iconic franchises.' },
+  'xbox': { color: '#107C10', desc: 'Presenting Xbox Game Studios, Game Pass, and Series X|S.' }
+};
+
 function extractYoutubeId(url: string) {
   if (!url) return null;
   const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:.*v=|.*\/))([^"&?\s]{11})/);
@@ -148,9 +168,10 @@ function extractYoutubeId(url: string) {
                         const ytId = extractYoutubeId(brand.trailerUrl || '');
                         const ytSrc = ytId ? `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&controls=0&modestbranding=1&showinfo=0&rel=0` : null;
                         const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).height(800).url() : null;
+                        const meta = brandMeta[brand.slug?.current] || { color: 'var(--color-accent)', desc: `The definitive source for ${brand.title} intel, trailers, and updates.` };
 
                         return (
-                          <div class={`brand-info-panel ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex}>
+                          <div class={`brand-info-panel ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex} style={`--brand-color: ${meta.color};`}>
                             <div class="large-trailer-card">
                               
                               <div class="trailer-bg-wrapper">
@@ -166,19 +187,16 @@ function extractYoutubeId(url: string) {
                               <div class="trailer-dark-overlay"></div>
                               <div class="trailer-gradient-bottom"></div>
 
-                              <div class="trailer-logo-container">
+                              <div class="trailer-bottom-content">
                                 {brand.logo ? (
-                                  <img src={urlFor(brand.logo).height(200).url()} alt={`${brand.title} logo`} class="trailer-logo" />
+                                  <img src={urlFor(brand.logo).height(120).url()} alt={`${brand.title} logo`} class="trailer-logo" />
                                 ) : (
                                   <h3 class="trailer-text-title">{brand.title}</h3>
                                 )}
-                              </div>
-
-                              <div class="trailer-bottom-content">
                                 <p class="brand-desc">
-                                  Explore the cinematic universe of {brand.title}. Dive into our curated hub featuring the latest trailers, exclusive news, breaking updates, and deep-dive intel.
+                                  {meta.desc}
                                 </p>
-                                <a href={`/featured/${brand.slug?.current}`} class="brand-enter-btn">ENTER HUB <span class="arrow">→</span></a>
+                                <a href={`/featured/${brand.slug?.current}`} class="cta-button-primary dynamic-brand-btn">ENTER {brand.title}</a>
                               </div>
                             </div>
                           </div>
@@ -533,7 +551,10 @@ function extractYoutubeId(url: string) {
     width: 100%;
     flex: 1;
     min-height: 0; 
-    z-index: 2; /* above glow */
+    z-index: 2;
+    /* Feather out the cards on the right side into the right column */
+    -webkit-mask-image: linear-gradient(to left, transparent 0%, rgba(0,0,0,0.2) 20%, black 60%);
+    mask-image: linear-gradient(to left, transparent 0%, rgba(0,0,0,0.2) 20%, black 60%);
   }
 
   .deck-card {
@@ -813,8 +834,8 @@ function extractYoutubeId(url: string) {
     transform: translate(-50%, -50%);
     pointer-events: none;
     z-index: 1;
-    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 30%, black 100%);
-    mask-image: linear-gradient(to right, transparent 0%, black 30%, black 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.05) 40%, black 80%, black 100%);
+    mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.05) 40%, black 80%, black 100%);
   }
   
   .trailer-iframe, .trailer-fallback-img {
@@ -835,7 +856,7 @@ function extractYoutubeId(url: string) {
   .trailer-dark-overlay {
     position: absolute;
     inset: 0;
-    background: linear-gradient(to right, #050505 0%, rgba(5,5,5,0.3) 40%, rgba(5,5,5,0.1) 100%);
+    background: linear-gradient(to right, #050505 0%, rgba(5,5,5,0.8) 25%, rgba(5,5,5,0.2) 60%, transparent 100%);
     z-index: 2;
     pointer-events: none;
   }
@@ -849,40 +870,18 @@ function extractYoutubeId(url: string) {
     z-index: 3;
   }
 
-  .trailer-logo-container {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 4;
-    padding-bottom: 5rem;
+
+  /* Dynamic button override to use --brand-color */
+  .dynamic-brand-btn {
+    border-color: var(--brand-color, var(--color-accent)) !important;
+  }
+  .dynamic-brand-btn:hover {
+    background-color: var(--brand-color, var(--color-accent)) !important;
+    box-shadow: 0 0 30px var(--brand-color, var(--color-accent)) !important;
+    color: #fff !important;
   }
   
-  .trailer-logo {
-    max-height: 160px;
-    max-width: 70%;
-    object-fit: contain;
-    filter: drop-shadow(0 10px 30px rgba(0,0,0,0.8));
-    animation: floatLogo 6s ease-in-out infinite;
-  }
-  @keyframes floatLogo {
-    0% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-    100% { transform: translateY(0); }
-  }
-
-  .trailer-text-title {
-    font-family: var(--font-display);
-    font-size: 4rem;
-    color: #fff;
-    text-transform: uppercase;
-    text-shadow: 0 10px 30px rgba(0,0,0,0.8);
-  }
-
+  /* Update trailer bottom layout */
   .trailer-bottom-content {
     position: absolute;
     bottom: 0;
@@ -894,43 +893,30 @@ function extractYoutubeId(url: string) {
     flex-direction: column;
     align-items: flex-start;
   }
-
-  .brand-desc {
-    font-size: 1.15rem;
-    line-height: 1.6;
-    color: #ccc;
-    margin-bottom: 2rem;
-    max-width: 85%;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  .trailer-logo {
+    max-height: 120px;
+    max-width: 70%;
+    object-fit: contain;
+    margin-bottom: 1.5rem;
+    filter: drop-shadow(0 10px 20px rgba(0,0,0,0.9));
   }
-
-  .brand-enter-btn {
-    display: inline-block;
-    background: #fff;
-    color: #000;
-    font-weight: 900;
-    padding: 1.2rem 3rem;
-    font-size: 1.1rem;
-    border-radius: 0;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    width: fit-content;
-    transition: all 0.3s ease;
-    text-decoration: none;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.5);
-  }
-  .brand-enter-btn:hover {
-    background: var(--color-accent);
+  .trailer-text-title {
+    font-family: var(--font-display);
+    font-size: 3rem;
     color: #fff;
-    transform: translateY(-2px);
-    box-shadow: 0 10px 30px rgba(204,0,0,0.7);
+    text-transform: uppercase;
+    text-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    margin-bottom: 1rem;
   }
-  .arrow {
-    margin-left: 0.5rem;
-    transition: margin-left 0.3s ease;
+  .brand-desc {
+    font-size: 1.3rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    color: rgba(255,255,255,0.8);
+    margin-bottom: 2.5rem;
+    max-width: 80%;
+    text-shadow: 0 4px 10px rgba(0,0,0,0.9);
   }
-  .brand-enter-btn:hover .arrow {
-    margin-left: 1rem;
-  }
+
 
 </style>
