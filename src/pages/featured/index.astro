@@ -8,7 +8,6 @@ const brands = await getFeaturedBrandsLocal();
 const categoryMap: Record<string, string> = {
   'marvel-comics': 'universes',
   'dc-comics': 'universes',
-  'sony-pictures': 'universes',
   'netflix': 'streaming',
   'prime-video': 'streaming',
   'max': 'streaming',
@@ -17,6 +16,7 @@ const categoryMap: Record<string, string> = {
   'hulu': 'streaming',
   'warner-bros': 'studios',
   'universal': 'studios',
+  'sony-pictures': 'studios',
   'a24': 'studios',
   'playstation': 'gaming',
   'nintendo': 'gaming',
@@ -108,6 +108,22 @@ function extractYoutubeId(url: string) {
                             </div>
                           </div>
                         );
+                      })}
+                    </div>
+
+                    {/* NEW QUICK SELECTION NAV TRACK */}
+                    <div class="deck-nav-track">
+                      {categoryBrands.map((brand, bIndex) => {
+                         const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(400).height(200).url() : null;
+                         return (
+                           <div class={`deck-nav-thumb ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex} title={brand.title}>
+                             {heroUrl ? (
+                                <img src={heroUrl} alt={brand.title} loading="lazy" class="nav-thumb-img" />
+                             ) : (
+                                <div class="nav-thumb-fallback">{brand.title}</div>
+                             )}
+                           </div>
+                         );
                       })}
                     </div>
                   </div>
@@ -208,6 +224,7 @@ function extractYoutubeId(url: string) {
       }
 
       const cards = Array.from(section.querySelectorAll('.deck-card'));
+      const navThumbs = Array.from(section.querySelectorAll('.deck-nav-thumb'));
       const infoPanels = Array.from(section.querySelectorAll('.brand-info-panel'));
       
       let activeIndex = 0;
@@ -226,11 +243,19 @@ function extractYoutubeId(url: string) {
         cards.forEach((card, i) => {
           card.className = 'deck-card'; 
           infoPanels[i].className = 'brand-info-panel';
+          
+          // Thumb logic
+          if (navThumbs[i]) {
+            navThumbs[i].className = 'deck-nav-thumb';
+          }
+
           const iframe = infoPanels[i].querySelector('.trailer-iframe');
 
           if (i === activeIndex) {
             card.classList.add('active');
             infoPanels[i].classList.add('active');
+            if (navThumbs[i]) navThumbs[i].classList.add('active');
+
             if (iframe && !iframe.src && iframe.dataset.src) {
               iframe.src = iframe.dataset.src;
             }
@@ -247,10 +272,26 @@ function extractYoutubeId(url: string) {
         });
       }
 
+      // Deck Stack Clicks
       cards.forEach((card, i) => {
         if (!card.dataset.hasClickListener) {
           card.dataset.hasClickListener = 'true';
           card.addEventListener('click', (e) => {
+            if (i !== activeIndex) {
+              e.preventDefault();
+              e.stopPropagation();
+              activeIndex = i;
+              renderDeck();
+            }
+          });
+        }
+      });
+
+      // Quick Nav Thumb Clicks
+      navThumbs.forEach((thumb, i) => {
+        if (!thumb.dataset.hasClickListener) {
+          thumb.dataset.hasClickListener = 'true';
+          thumb.addEventListener('click', (e) => {
             if (i !== activeIndex) {
               e.preventDefault();
               e.stopPropagation();
@@ -272,7 +313,7 @@ function extractYoutubeId(url: string) {
     width: 100%;
     padding-top: var(--header-height, 80px);
     height: 100vh;
-    min-height: 700px;
+    min-height: 750px;
     background: #000;
     overflow: hidden;
   }
@@ -335,7 +376,7 @@ function extractYoutubeId(url: string) {
   .accordion-section.expanded .accordion-header {
     height: auto;
     position: relative;
-    padding: 2rem 5vw 1rem 5vw;
+    padding: 1.5rem 5vw 1rem 5vw;
     background: transparent;
     cursor: default;
   }
@@ -383,7 +424,7 @@ function extractYoutubeId(url: string) {
     display: flex;
     width: 100%;
     height: 100%;
-    padding: 0 5vw 2rem 5vw;
+    padding: 0 5vw 1.5rem 5vw;
   }
 
   .deck-column {
@@ -391,20 +432,24 @@ function extractYoutubeId(url: string) {
     position: relative;
     height: 100%;
     z-index: 20;
+    display: flex;
+    flex-direction: column;
   }
 
+  /* Reduce stack height to leave room for the navigation track below */
   .deck-stack {
     position: relative;
     width: 100%;
-    height: 100%;
+    flex: 1;
+    min-height: 0; 
   }
 
   .deck-card {
     position: absolute;
-    top: 5%;
+    top: 0;
     left: 0;
     width: 80%;
-    height: 90%;
+    height: 95%;
     border-radius: 0; 
     overflow: hidden;
     box-shadow: 0 30px 60px rgba(0,0,0,0.9);
@@ -496,7 +541,7 @@ function extractYoutubeId(url: string) {
     pointer-events: none; 
   }
   .deck-card.active .deck-card-overlay {
-    background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 40%);
+    background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%);
     opacity: 0;
     pointer-events: auto; 
   }
@@ -527,6 +572,76 @@ function extractYoutubeId(url: string) {
     opacity: 1;
   }
 
+  /* QUICK NAV TRACK */
+  .deck-nav-track {
+    width: 80%; /* aligns with active card width */
+    height: 80px;
+    margin-top: 1rem;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    overflow-x: auto;
+    padding-bottom: 5px; /* for scrollbar */
+  }
+  
+  /* Hide scrollbar for clean look */
+  .deck-nav-track::-webkit-scrollbar {
+    height: 4px;
+  }
+  .deck-nav-track::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.05);
+  }
+  .deck-nav-track::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.2);
+  }
+
+  .deck-nav-thumb {
+    width: 120px;
+    height: 60px;
+    flex-shrink: 0;
+    background: #111;
+    border: 1px solid rgba(255,255,255,0.1);
+    opacity: 0.4;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .deck-nav-thumb:hover {
+    opacity: 0.8;
+    transform: translateY(-2px);
+  }
+  
+  .deck-nav-thumb.active {
+    opacity: 1;
+    border-color: var(--color-accent);
+    transform: scale(1.05);
+    box-shadow: 0 5px 15px rgba(204,0,0,0.4);
+  }
+
+  .nav-thumb-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .nav-thumb-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    color: #fff;
+    text-transform: uppercase;
+    font-weight: bold;
+    padding: 0.5rem;
+    text-align: center;
+  }
+
+
+  /* RIGHT COLUMN */
   .info-column {
     flex: 0 0 50%;
     position: relative;
@@ -540,7 +655,7 @@ function extractYoutubeId(url: string) {
   .info-panels-wrapper {
     position: relative;
     width: 100%;
-    height: 90%; 
+    height: 95%; 
   }
 
   .brand-info-panel {
@@ -595,7 +710,7 @@ function extractYoutubeId(url: string) {
   .trailer-dark-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0,0,0,0.3);
+    background: rgba(0,0,0,0.4);
     z-index: 2;
   }
   .trailer-gradient-bottom {
