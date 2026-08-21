@@ -25,7 +25,7 @@ function getNetworkIP() {
 
 const ip = getNetworkIP();
 
-const localUrl = `http://localhost:${PORT}${BASE_PATH}`;
+const localUrl = `http://127.0.0.1:${PORT}${BASE_PATH}`;
 const networkUrl = `http://${ip}:${PORT}${BASE_PATH}`;
 
 console.log('\n🚀 Dev server starting...\n');
@@ -39,7 +39,7 @@ console.log(networkUrl);
 console.log('\n📲 Scan to open:');
 qrcode.generate(networkUrl, { small: true });
 
-const astro = spawn('astro', ['dev', '--host', '0.0.0.0', '--port', PORT], {
+const astro = spawn('astro', ['dev', '--host', '--port', PORT], {
   stdio: 'inherit',
   shell: true,
 });

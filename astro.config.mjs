@@ -1,3 +1,5 @@
+import dns from 'node:dns';
+dns.setDefaultResultOrder('ipv4first');
 // @ts-check
 import { defineConfig, envField } from 'astro/config';
 import fs from 'node:fs';
@@ -140,6 +142,9 @@ function localCmsMiddleware() {
 }
 
 export default defineConfig({
+  server: {
+    host: '::'
+  },
   site: 'https://beunconventionalhq.com',
   base: '/',
   // 'ignore' (default): dev accepts links with or without a trailing slash.
