@@ -188,25 +188,22 @@ async function fetchAllPosts() {
     xml = await response.text();
   } catch (err) {
     console.warn(`[articles] ⚠ Direct RSS fetch failed (${err.message}), falling back to proxy...`);
-    const proxyUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(SUBSTACK_FEED)}`;
+    // Substack blocks bots, so use a proxy to fetch the posts API which includes tags and full body HTML.
+    const apiUrl = `${PUBLICATION_URL}/api/v1/posts?limit=50`;
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`;
     const proxyRes = await fetch(proxyUrl);
     if (!proxyRes.ok) throw new Error(`HTTP ${proxyRes.status} from proxy`);
     const proxyJson = await proxyRes.json();
-    if (proxyJson.status !== 'ok') throw new Error(`Proxy error: ${proxyJson.message}`);
     
-    // Convert rss2json back to the shape expected below, or just map it directly.
-    // Actually, rss2json returns JSON, not XML. We need to handle this carefully.
-    // To keep it simple, let's map rss2json format to our `rawItems` shape.
-    const collected = proxyJson.items.map(item => ({
-      title: item.title,
-      link: item.link,
-      guid: item.guid,
-      pubDate: item.pubDate,
-      description: item.description,
-      contentEncoded: item.content,
-      categories: item.categories || [],
-      enclosureUrl: item.enclosure?.link || item.thumbnail
-    }));
+    // allorigins returns the response body as a string in the "contents" field
+    let collected;
+    try {
+      collected = JSON.parse(proxyJson.contents);
+    } catch (e) {
+      throw new Error(`Failed to parse proxy contents: ${e.message}`);
+    }
+    
+    if (!Array.isArray(collected)) throw new Error('Proxy did not return an array of posts');
     
     // Return early since we can't scrape HTML via proxy anyway
     return { posts: collected, pages: 1 };

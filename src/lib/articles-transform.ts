@@ -70,42 +70,33 @@ export function extractSubstackGalleries(html: string): string {
         const jsonStr = dataMatch[1].replace(/&quot;/g, '"');
         const parsed = JSON.parse(jsonStr);
         
-        // Find all URLs recursively
-        const extractUrls = (obj: any): string[] => {
-          let found: string[] = [];
-          if (typeof obj === 'string') {
-            if (obj.startsWith('https://') && 
-                (obj.includes('image') || obj.includes('bucketeer') || /\.(jpe?g|png|webp|gif)/i.test(obj)) && 
-                !obj.includes('youtube') && 
-                !obj.includes('vimeo')) {
-              found.push(obj);
+        // Extract URLs specifically from the images array to avoid the static collage
+        const urls: string[] = [];
+        if (parsed?.gallery?.images && Array.isArray(parsed.gallery.images)) {
+          for (const img of parsed.gallery.images) {
+            if (img?.src && typeof img.src === 'string') {
+              urls.push(img.src);
             }
-          } else if (Array.isArray(obj)) {
-            obj.forEach(item => found.push(...extractUrls(item)));
-          } else if (obj && typeof obj === 'object') {
-            Object.values(obj).forEach(val => found.push(...extractUrls(val)));
           }
-          return found;
-        };
-
-        const urls = extractUrls(parsed);
-        const uniqueUrls = [...new Set(urls)];
+        }
         
-        const imgTags = uniqueUrls.map(url => {
+        if (urls.length === 0) return match;
+        
+        const imgTags = urls.map(url => {
           let width = '';
           let height = '';
-          // Ignore query params when extracting dimensions
-          const cleanUrl = url.split('?')[0];
-          const dimMatch = cleanUrl.match(/_(\d+)x(\d+)(\.[a-z0-9]+)?$/i);
+          
+          // Try to extract dimensions from filename (e.g. ..._3840x2160.jpeg)
+          const dimMatch = url.match(/_(\d+)x(\d+)\.[a-z0-9]+$/i);
           if (dimMatch) {
             width = ` width="${dimMatch[1]}"`;
             height = ` height="${dimMatch[2]}"`;
           }
+          
           return `<img src="${url}"${width}${height} loading="lazy" />`;
-        }).join('');
+        });
         
-        if (!imgTags) return '';
-        return `<substack-gallery>${imgTags}</substack-gallery>`;
+        return `<substack-gallery>${imgTags.join('')}</substack-gallery>`;
       } catch (e) {
         // Gracefully fail and let the sanitizer strip the malformed gallery div
         return ''; 

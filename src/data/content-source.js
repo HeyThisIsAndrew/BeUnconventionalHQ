@@ -53,7 +53,7 @@ const SIGNALS = {
     [3, /\b(season \d+|episode|spoiler-free|series premiere)\b/],
     [
       3,
-      /\b(netflix|syfy|hulu|hbo|disney\+|prime video|peacock|paramount\+|apple tv)\b/,
+      /\b(syfy|hulu|hbo|disney\+|prime video|peacock|paramount\+|apple tv)\b/,
     ],
     [
       3,
@@ -77,9 +77,12 @@ const SIGNALS = {
     [2, /\b(vlog|on location|live coverage|behind the scenes)\b/],
     [1, /\bcon\b/],
   ],
+  Netflix: [
+    [3, /\b(netflix)\b/],
+  ],
 };
 
-const ORDER = ['Film', 'TV', 'Gaming', 'Events'];
+const ORDER = ['Film', 'TV', 'Gaming', 'Events', 'Netflix'];
 
 export function categorize(text) {
   const pool = (text || '').toLowerCase();
