@@ -135,21 +135,35 @@ const DEMO_FONTS: DemoFont[] = [
   // Unbounded: contemporary streaming-brand display, wide and geometric.
   { id: 'unbounded', short: 'Unbounded', label: 'UNBOUNDED (Modern Streamer)',
     family: 'Unbounded:wght@800', stack: "'Unbounded', sans-serif", weight: 800, tracking: '-0.02em' },
+
+  /*
+    GOTHAM STAND-INS.
+
+    Gotham is a licensed Hoefler & Co typeface — it is not on Google Fonts
+    and cannot be self-hosted without buying a webfont licence, so it cannot
+    simply be dropped in. Montserrat is the long-standing open substitute:
+    the same geometric-sans skeleton and near-identical proportions.
+
+    Both weights are here because "Medium" behaves very differently at these
+    two jobs. At 90px across a full-bleed bar, Medium is genuinely light —
+    elegant and modern, but it does not hold against a bright still. The
+    ExtraBold cut is what film marketing actually uses at poster size.
+  */
+  { id: 'gotham', short: 'Montserrat Md', label: 'MONTSERRAT MEDIUM (Gotham-like)',
+    family: 'Montserrat:wght@500', stack: "'Montserrat', sans-serif", weight: 500, tracking: '0.02em' },
+  { id: 'gotham-heavy', short: 'Montserrat XB', label: 'MONTSERRAT EXTRABOLD (Gotham Black-like)',
+    family: 'Montserrat:wght@800', stack: "'Montserrat', sans-serif", weight: 800, tracking: '-0.01em' },
 ];
 
 /*
   THE FACE THAT SHIPS.
 
-  Anton. The category words are short, all-caps, and set enormous across a
-  full-bleed bar — that is a movie one-sheet, and Anton is the face that job
-  has used for twenty years. It is the only candidate here that is both heavy
-  enough to hold a 7rem banner against a bright hero still AND condensed
-  enough that "THE MULTIVERSE" stays on one line at 390px. Syncopate is the
-  most distinctive but sets ultra-WIDE, which is exactly wrong for the longest
-  label; Cinzel reads prestige-drama rather than entertainment media; Oswald
-  and Archivo are competent but generic next to the site's existing Syne.
+  Montserrat Medium, as the Gotham-like direction asked for. Toggle in dev to
+  compare — `gotham-heavy` is the same face at ExtraBold and is the one to
+  reach for if the Medium cut reads too light over bright hero art, which is
+  the usual outcome at banner size.
 */
-const PROD_FONT = 'anton';
+const PROD_FONT = 'gotham';
 
 const IS_DEV = import.meta.env.DEV;
 const activeFonts = IS_DEV ? DEMO_FONTS : DEMO_FONTS.filter((f) => f.id === PROD_FONT);
@@ -240,7 +254,12 @@ function extractYoutubeId(url: string) {
                         const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).url() : null;
                         const metaCard = brandMeta[brand.slug?.current] || { rgb: "204, 0, 0" };
                         return (
-                          <div class={`deck-card ${bIndex === 0 ? "active" : bIndex === 1 ? "next-1" : bIndex === 2 ? "next-2" : "hidden"}`} data-index={bIndex} data-brand-rgb={metaCard.rgb}>
+                          <div
+                            class={`deck-card ${bIndex === 0 ? "active" : bIndex === 1 ? "next-1" : bIndex === 2 ? "next-2" : "hidden"}`}
+                            data-index={bIndex}
+                            data-brand-rgb={metaCard.rgb}
+                            data-href={`/featured/${brand.slug?.current}`}
+                          >
 
                             <div class="peeking-spine">
                                <span class="spine-text">{brand.title}</span>
@@ -312,8 +331,17 @@ function extractYoutubeId(url: string) {
                                   <h3 class="trailer-text-title">{brand.title}</h3>
                                 )}
                                 <div class="trailer-text-btn-row">
-                                  <a href={`/featured/${brand.slug?.current}`} class="cta-button-primary dynamic-brand-btn">ENTER {brand.title}</a>
                                   <p class="brand-desc">{meta.desc}</p>
+                                  <a
+                                    href={`/featured/${brand.slug?.current}`}
+                                    class="cta-button-primary dynamic-brand-btn"
+                                    aria-label={`Enter the ${brand.title} hub`}
+                                  >
+                                    <span>Enter</span>
+                                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                      <path d="M5 12h13M13 6l6 6-6 6" />
+                                    </svg>
+                                  </a>
                                 </div>
                               </div>
                             </div>
@@ -494,12 +522,28 @@ function extractYoutubeId(url: string) {
           card.dataset.hasClickListener = 'true';
           card.addEventListener('click', (e) => {
             if (i !== activeIndex) {
+              // A card behind the front one means "bring me forward".
               e.preventDefault();
               e.stopPropagation();
               activeIndex = i;
               playCinematicThud();
               renderDeck();
+              return;
             }
+            /*
+              The FRONT card means "go in".
+
+              Previously clicking it did nothing, which left a large piece of
+              artwork that looks clickable and is not — and pushed the whole
+              job onto a button in the corner. This is the tile-is-the-target
+              behaviour every TV app uses.
+
+              It is an enhancement layered on top, not the only route: the
+              real <a> in the corner is what keyboards and screen readers
+              use, so nothing depends on this handler existing.
+            */
+            const href = card.getAttribute('data-href');
+            if (href) window.location.href = href;
           });
 
           // Parallax hover depth on active card
@@ -1360,12 +1404,24 @@ function extractYoutubeId(url: string) {
     flex-direction: column;
     align-items: flex-start;
   }
+  /*
+    KEY-ART STACK, not a form row.
+
+    This was a horizontal row: button on the left, a sentence of grey body
+    copy beside it. That arrangement is why the corner read as a web form —
+    a control with a label next to it. Film key art stacks the same three
+    parts vertically instead: mark, then a tracked-out line, then the way in.
+
+    Reading order matches the visual order now (what this is, then what to
+    do about it), which is also the right order for a screen reader.
+  */
   .trailer-text-btn-row {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
     justify-content: flex-start;
     width: 100%;
-    gap: 3rem;
+    gap: 1.4rem;
   }
   /* HARD RULE 6: drop-shadow lives on the WRAPPER, never the <img> — a
      filtered <img> renders broken on iOS Safari. Identical look: the filter
@@ -1390,20 +1446,68 @@ function extractYoutubeId(url: string) {
     text-shadow: 0 10px 30px rgba(0,0,0,0.8);
     margin-bottom: 1.5rem;
   }
+  /*
+    Set as a subtitle, not a paragraph.
+
+    At 1.35rem in sentence case this was the largest text in the corner and
+    read as body copy on a marketing page. Small, uppercase and widely
+    tracked is how a title card carries the same words: it becomes texture
+    supporting the logo rather than a block competing with it.
+  */
   .brand-desc {
-    font-size: 1.35rem;
+    font-size: 0.95rem;
     font-weight: 500;
-    letter-spacing: 0.05em;
-    color: rgba(255,255,255,0.8);
-    margin-bottom: 0;
-    max-width: 55%;
-    line-height: 1.5;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+    margin: 0;
+    max-width: 52ch;
+    line-height: 1.7;
     text-shadow: 0 4px 10px rgba(0,0,0,0.9);
   }
+  /*
+    "ENTER DC" next to a DC logo said DC twice, and repeated the same
+    sentence fifteen times down the page. The logo directly above already
+    names the brand, so the control only has to name the ACTION. Screen
+    readers still get the full "Enter the DC hub" through aria-label — the
+    shortening is visual only.
+
+    It is also deliberately quieter now. The front card is the primary way
+    in (see the click handler); this is the explicit, keyboard-reachable
+    path to the same place, and it should not out-shout the artwork.
+  */
   .dynamic-brand-btn {
     flex-shrink: 0;
-    font-size: 0.95rem;
-    padding: 1.25rem 3.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.88rem;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    padding: 1rem 2.25rem;
+  }
+
+  .dynamic-brand-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .dynamic-brand-btn:hover svg {
+    transform: translateX(4px);
+  }
+
+  /*
+    The front card is a link in behaviour, so it should say so on hover.
+    The cards behind it still mean "bring me forward".
+  */
+  .deck-card.active {
+    cursor: pointer;
   }
 
 
@@ -1791,15 +1895,16 @@ function extractYoutubeId(url: string) {
 
     /* Button beside a 55%-wide paragraph does not fit; stack them. */
     .trailer-text-btn-row {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.6rem;
+      gap: 0.75rem;
     }
 
+    /* Keep the subtitle subordinate here too — it was set larger than the
+       desktop size, which inverted the hierarchy on the smaller screen. */
     .brand-desc {
       max-width: 100%;
-      font-size: 0.85rem;
-      line-height: 1.4;
+      font-size: 0.78rem;
+      letter-spacing: 0.2em;
+      line-height: 1.6;
     }
 
     .dynamic-brand-btn {
