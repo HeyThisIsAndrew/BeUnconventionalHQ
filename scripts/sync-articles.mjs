@@ -259,10 +259,15 @@ async function fetchAllPosts() {
       let match = null;
       
       if (prefixIdx !== -1) {
-        const startIdx = prefixIdx + 'window._preloads = JSON.parse('.length;
-        // Find the closing ")
-        // Substack escapes quotes inside the string, so we just look for ")
-        const endIdx = html.indexOf('")', startIdx);
+        const startIdx = prefixIdx + preloadsPrefix.length;
+        let endIdx = -1;
+        for (let i = startIdx; i < html.length; i++) {
+          // Look for an unescaped closing quote followed by parenthesis
+          if (html[i] === '"' && html[i+1] === ')' && html[i-1] !== '\\') {
+            endIdx = i;
+            break;
+          }
+        }
         if (endIdx !== -1) {
           match = [null, html.substring(startIdx, endIdx + 1)];
         }

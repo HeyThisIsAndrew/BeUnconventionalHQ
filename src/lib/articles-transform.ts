@@ -39,7 +39,8 @@ const ALLOWED_ATTRS: Record<string, string[]> = {
 export function demoteHeadings(html: string): string {
   if (!html) return '';
   return html.replace(
-    /<(\/?)h([1-6])\b([^>]*)>/gi,
+    // Safely match attributes even if they contain >, by skipping over quoted strings
+    /<(\/?)h([1-6])\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi,
     (_m, slash: string, level: string, rest: string) => {
       const demoted = Math.min(Number(level) + 1, 4);
       return `<${slash}h${demoted}${rest}>`;
@@ -55,19 +56,21 @@ export function demoteHeadings(html: string): string {
 export function extractSubstackGalleries(html: string): string {
   if (!html) return '';
   return html.replace(
-    /<div\b([^>]*image-gallery-embed[^>]+)>([\s\S]*?)<\/div>/gi,
+    // Safely match attributes even if they contain >, by skipping over quoted strings
+    /<div\b((?:[^>"']|"[^"]*"|'[^']*')*)>([\s\S]*?)<\/div>/gi,
     (match, attrs) => {
-      // Must have the data attributes
-      if (!attrs.includes('data-attrs=')) {
+      // Must have the class and data attributes
+      if (!attrs.includes('image-gallery-embed') || !attrs.includes('data-attrs=')) {
         return match;
       }
       
-      const dataMatch = attrs.match(/data-attrs=["']([^"']+)["']/);
+      // Safely extract data-attrs using a backreference for the quote type
+      const dataMatch = attrs.match(/data-attrs=(["'])(.*?)\1/);
       if (!dataMatch) return match;
       
       try {
         // Substack HTML-entity encodes the JSON
-        const jsonStr = dataMatch[1].replace(/&quot;/g, '"');
+        const jsonStr = dataMatch[2].replace(/&quot;/g, '"');
         const parsed = JSON.parse(jsonStr);
         
         // Extract URLs specifically from the images array to avoid the static collage
@@ -113,8 +116,16 @@ export function extractSubstackGalleries(html: string): string {
 export function extractYouTubeEmbeds(html: string): string {
   if (!html) return '';
   return html.replace(
-    /<iframe\b[^>]*src=["'](?:https?:)?\/\/(?:www\.)?(?:youtube\.com|youtube-nocookie\.com)\/embed\/([A-Za-z0-9_-]+)[^"']*["'][^>]*>[\s\S]*?<\/iframe>/gi,
-    (_match, videoId) => `<youtube-embed video-id="${videoId}"></youtube-embed>`
+    // Safely match attributes even if they contain >, by skipping over quoted strings
+    /<iframe\b((?:[^>"']|"[^"]*"|'[^']*')*)>([\s\S]*?)<\/iframe>/gi,
+    (match, attrs) => {
+      // Find a YouTube src attribute
+      const srcMatch = attrs.match(/src=["'](?:https?:)?\/\/(?:www\.)?(?:youtube\.com|youtube-nocookie\.com)\/embed\/([A-Za-z0-9_-]+)[^"']*["']/i);
+      if (srcMatch) {
+        return `<youtube-embed video-id="${srcMatch[1]}"></youtube-embed>`;
+      }
+      return match;
+    }
   );
 }
 
