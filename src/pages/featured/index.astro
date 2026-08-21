@@ -98,11 +98,11 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
                 <h3 class="category-heading">{categoryLabels[category] || category}</h3>
                 
                 {/* Existing Grid Math Preserved */}
-                <div class="featured-hub-grid">
+                <div class={`featured-hub-grid ${categoryBrands.length === 4 ? 'grid-2x2' : ''}`}>
                   {categoryBrands.map((brand: any, index: number) => {
                     const heroUrl = brand.heroImage
                       ? urlFor(brand.heroImage).width(800).height(450).auto('format').url()
-                      : '/placeholder-event.jpg';
+                      : null;
                     const logoHeight = 96;
                     const logoWidth = brand.logo?.dimensions?.aspectRatio
                       ? Math.round(logoHeight * brand.logo.dimensions.aspectRatio)
@@ -115,13 +115,17 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
                         style={`--index: ${index}; width: 100%;`}
                       >
                         <div class="event-image-wrapper w-full aspect-video">
-                          <img
-                            src={heroUrl}
-                            alt={brand.title}
-                            loading="lazy"
-                            decoding="async"
-                            class="event-image"
-                          />
+                          {heroUrl ? (
+                            <img
+                              src={heroUrl}
+                              alt={brand.title}
+                              loading="lazy"
+                              decoding="async"
+                              class="event-image"
+                            />
+                          ) : (
+                            <div class="article-thumb-fallback" style="position: absolute; inset: 0; width: 100%; height: 100%;" aria-hidden="true"></div>
+                          )}
                           <div class="event-overlay">
                             {brand.logo ? (
                               <>
@@ -169,35 +173,37 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
     if (!pills.length || !sections.length) return;
 
     pills.forEach(pill => {
-      pill.addEventListener('click', () => {
-        const targetCategory = pill.getAttribute('data-filter');
-        const isAlreadyActive = pill.classList.contains('active');
-
-        // 1. Update active state on buttons (null-state if clicked while active)
-        pills.forEach(p => p.classList.remove('active'));
+      // Remove old listeners to prevent duplicates on astro:page-load
+      const newPill = pill.cloneNode(true) as HTMLElement;
+      if (pill.parentNode) {
+        pill.parentNode.replaceChild(newPill, pill);
+      }
+      
+      newPill.addEventListener('click', () => {
+        const targetCategory = newPill.getAttribute('data-filter');
+        const isAlreadyActive = newPill.classList.contains('active');
+        
+        // Remove active from all
+        document.querySelectorAll('.featured-cat-btn').forEach(p => p.classList.remove('active'));
+        
         if (!isAlreadyActive) {
-          pill.classList.add('active');
+          newPill.classList.add('active');
         }
 
-        // 2. Toggle sections
         sections.forEach(section => {
-          const sectionCategory = section.getAttribute('data-category');
-          
+          const sectionEl = section as HTMLElement;
+          const sectionCategory = sectionEl.getAttribute('data-category');
           if (isAlreadyActive || targetCategory === sectionCategory) {
-            // Null state (isAlreadyActive means we just toggled it off) -> Show all
-            // Or target matches section -> Show section
-            (section as HTMLElement).style.display = 'block';
+            sectionEl.style.display = 'block';
           } else {
-            // Hide section entirely
-            (section as HTMLElement).style.display = 'none';
+            sectionEl.style.display = 'none';
           }
         });
       });
     });
   }
 
-  // Initialize on load and on Astro view transitions
-  document.addEventListener('DOMContentLoaded', initFeaturedFilters);
+  initFeaturedFilters();
   document.addEventListener('astro:page-load', initFeaturedFilters);
 </script>
 
@@ -238,6 +244,12 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
     gap: 2rem;
     width: 100%;
     margin: 0 auto;
+  }
+
+  @media (min-width: 768px) {
+    .featured-hub-grid.grid-2x2 {
+      grid-template-columns: repeat(2, 1fr);
+    }
   }
 
   .featured-empty {

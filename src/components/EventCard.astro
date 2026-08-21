@@ -10,7 +10,7 @@ const hero = buildImageSet(event.heroImage, { widths: [320, 480, 640, 800], aspe
 const logo = buildImageSet(event.logo, { widths: [96, 160, 240] });
 
 const imageSrc =
-  logo?.src ?? hero?.src ?? (trailerId ? `https://img.youtube.com/vi/${trailerId}/hqdefault.jpg` : '/placeholder-event.jpg');
+  logo?.src ?? hero?.src ?? (trailerId ? `https://img.youtube.com/vi/${trailerId}/hqdefault.jpg` : null);
 const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
 ---
 
@@ -20,15 +20,19 @@ const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
   style={`--index: ${index};`}
 >
   <div class="past-event-media">
-    <img
-      src={imageSrc}
-      srcset={imageSrcset}
-      sizes="120px"
-      alt={event.title}
-      loading="lazy"
-      decoding="async"
-      class="past-event-img"
-    />
+    {imageSrc ? (
+      <img
+        src={imageSrc}
+        srcset={imageSrcset}
+        sizes="120px"
+        alt={event.title}
+        loading="lazy"
+        decoding="async"
+        class="past-event-img"
+      />
+    ) : (
+      <div class="article-thumb-fallback w-full h-full" aria-hidden="true" style="position: absolute; top: 0; left: 0;"></div>
+    )}
   </div>
 
   <div class="past-event-body">
