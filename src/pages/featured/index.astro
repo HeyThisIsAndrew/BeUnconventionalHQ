@@ -1,8 +1,8 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
+import { getFeaturedBrands } from '../../lib/local-cms';
 import { getFeaturedBrandsLocal, urlFor } from '../../lib/local-content';
-
 
 const brands = await getFeaturedBrandsLocal();
 
@@ -35,7 +35,6 @@ const categoryLabels: Record<string, string> = {
   'gaming': 'Gaming'
 };
 
-// Group the brands
 const groupedBrands = brands.reduce((acc, brand) => {
   const category = categoryMap[brand.slug?.current || ''] || 'other';
   if (!acc[category]) acc[category] = [];
@@ -43,7 +42,6 @@ const groupedBrands = brands.reduce((acc, brand) => {
   return acc;
 }, {} as Record<string, typeof brands>);
 
-// Sort categories explicitly based on user instruction
 const desiredOrder = ['universes', 'streaming', 'studios', 'gaming'];
 const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
   const indexA = desiredOrder.indexOf(a);
@@ -53,6 +51,13 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
   if (indexB === -1) return -1;
   return indexA - indexB;
 });
+
+// Helper for youtube ID
+function extractYoutubeId(url: string) {
+  if (!url) return null;
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:.*v=|.*\/))([^"&?\s]{11})/);
+  return match ? match[1] : null;
+}
 ---
 
 <Layout title="Featured Hubs">
@@ -61,7 +66,6 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
       <div class="accordion-container animate-on-scroll">
         {sortedCategories.map((category, index) => {
           let categoryBrands = groupedBrands[category];
-          // Force order for gaming
           if (category === 'gaming') {
             const gamingOrder = ['playstation', 'nintendo', 'xbox'];
             categoryBrands = categoryBrands.sort((a, b) => {
@@ -74,65 +78,88 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
             });
           }
 
-          // First one is expanded by default
           const isExpanded = index === 0;
 
           return (
             <div class={`accordion-section ${isExpanded ? 'expanded' : 'collapsed'}`} data-category={category}>
               
-              {/* THE COLLAPSED / HEADER STATE */}
+              {/* COLLAPSED HEADER */}
               <div class="accordion-header">
                 <div class="accordion-header-bg"></div>
                 <h2 class="accordion-title">{categoryLabels[category] || category}</h2>
               </div>
 
-              {/* THE EXPANDED CAROUSEL STATE */}
+              {/* EXPANDED 3D DECK VIEW */}
               <div class="accordion-body">
-                <div class="carousel-track">
-                  {categoryBrands.map(brand => {
-                    const heroUrl = brand.heroImage 
-                      ? urlFor(brand.heroImage).width(800).height(450).url() 
-                      : null;
-                    const logoWidth = 160;
-                    const logoHeight = 96;
-
-                    return (
-                      <a href={`/featured/${brand.slug?.current}`} class="carousel-item event-card">
-                        <div class="event-image-wrapper">
-                          {heroUrl ? (
-                            <img
-                              src={heroUrl}
-                              alt={brand.title}
-                              loading="lazy"
-                              decoding="async"
-                              class="event-image"
-                            />
-                          ) : (
-                            <div class="article-thumb-fallback" style="position: absolute; inset: 0; width: 100%; height: 100%;" aria-hidden="true"></div>
-                          )}
-                          <div class="event-overlay">
-                            {brand.logo ? (
-                              <>
-                                <span class="event-card-logo-wrap">
-                                  <img
-                                    src={urlFor(brand.logo).height(96).url()}
-                                    alt={`${brand.title} logo`}
-                                    class="event-card-logo"
-                                    height={logoHeight}
-                                    width={logoWidth}
-                                    loading="lazy"
-                                  />
-                                </span>
-                                <h4 class="event-card-sr-title">{brand.title}</h4>
-                              </>
+                <div class="deck-view-container">
+                  
+                  {/* LEFT: 3D STACK */}
+                  <div class="deck-column">
+                    <div class="deck-stack">
+                      {categoryBrands.map((brand, bIndex) => {
+                        const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).height(1600).url() : null;
+                        return (
+                          <a href={`/featured/${brand.slug?.current}`} class={`deck-card ${bIndex === 0 ? 'active' : bIndex === 1 ? 'next-1' : bIndex === 2 ? 'next-2' : 'hidden'}`} data-index={bIndex}>
+                            {heroUrl ? (
+                              <img src={heroUrl} alt={brand.title} loading="lazy" class="deck-card-image" />
                             ) : (
-                              <h4 class="event-title line-clamp-2">{brand.title}</h4>
+                              <div class="article-thumb-fallback"></div>
                             )}
+                            <div class="deck-card-overlay">
+                               <span class="click-to-enter-text">Click to View Hub</span>
+                            </div>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* RIGHT: INFO PANEL */}
+                  <div class="info-column">
+                    <div class="info-panels-wrapper">
+                      {categoryBrands.map((brand, bIndex) => {
+                        const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(600).height(338).url() : null;
+                        const ytId = extractYoutubeId(brand.trailerUrl || '');
+                        const thumbUrl = ytId ? `https://i.ytimg.com/vi/${ytId}/maxresdefault.jpg` : heroUrl;
+
+                        return (
+                          <div class={`brand-info-panel ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex}>
+                            <div class="brand-logo-area">
+                              {brand.logo ? (
+                                <img src={urlFor(brand.logo).height(120).url()} alt={`${brand.title} logo`} class="panel-logo" />
+                              ) : (
+                                <h3 class="panel-text-title">{brand.title}</h3>
+                              )}
+                            </div>
+                            
+                            <p class="brand-desc">
+                              Explore the cinematic universe of {brand.title}. Dive into our curated hub featuring the latest trailers, exclusive news, breaking updates, and deep-dive intel.
+                            </p>
+
+                            <a href={`/featured/${brand.slug?.current}`} class="featured-preview-card">
+                              <div class="preview-thumb">
+                                {thumbUrl ? (
+                                  <img src={thumbUrl} alt="Trailer preview" />
+                                ) : (
+                                  <div class="article-thumb-fallback"></div>
+                                )}
+                                <div class="play-btn">
+                                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                </div>
+                              </div>
+                              <div class="preview-meta">
+                                <span class="preview-tag">FEATURED CONTENT</span>
+                                <h4 class="preview-title">{brand.trailerUrl ? 'Watch the Latest Trailer' : `Explore ${brand.title}`}</h4>
+                              </div>
+                            </a>
+                            
+                            <a href={`/featured/${brand.slug?.current}`} class="brand-enter-btn">ENTER HUB</a>
                           </div>
-                        </div>
-                      </a>
-                    );
-                  })}
+                        );
+                      })}
+                    </div>
+                  </div>
+
                 </div>
               </div>
             </div>
@@ -148,46 +175,74 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
 </Layout>
 
 <script>
-  function initAccordion() {
+  function initAccordionAndDecks() {
+    // 1. Accordion Logic
     const sections = document.querySelectorAll('.accordion-section');
-    
     sections.forEach(section => {
       const header = section.querySelector('.accordion-header');
       if (!header) return;
       
       header.addEventListener('click', () => {
-        // If it's already expanded, do nothing (keep one open at a time)
         if (section.classList.contains('expanded')) return;
         
-        // Collapse all
         sections.forEach(s => {
           s.classList.remove('expanded');
           s.classList.add('collapsed');
         });
         
-        // Expand the clicked one
         section.classList.remove('collapsed');
         section.classList.add('expanded');
+      });
+
+      // 2. Deck Shuffle Logic
+      const cards = Array.from(section.querySelectorAll('.deck-card'));
+      const infoPanels = Array.from(section.querySelectorAll('.brand-info-panel'));
+      let activeIndex = 0;
+
+      function renderDeck() {
+        cards.forEach((card, i) => {
+          card.className = 'deck-card'; // reset
+          infoPanels[i].classList.remove('active');
+
+          if (i === activeIndex) {
+            card.classList.add('active');
+            infoPanels[i].classList.add('active');
+          } else if (i === (activeIndex + 1) % cards.length) {
+            card.classList.add('next-1');
+          } else if (i === (activeIndex + 2) % cards.length) {
+            card.classList.add('next-2');
+          } else {
+            card.classList.add('hidden');
+          }
+        });
+      }
+
+      cards.forEach((card, i) => {
+        card.addEventListener('click', (e) => {
+          if (i !== activeIndex) {
+            e.preventDefault(); // Don't follow link, shuffle instead
+            activeIndex = i;
+            renderDeck();
+          }
+        });
       });
     });
   }
 
-  initAccordion();
-  document.addEventListener('astro:page-load', initAccordion);
+  initAccordionAndDecks();
+  document.addEventListener('astro:page-load', initAccordionAndDecks);
 </script>
 
 <style>
-  /* 
-    ACCORDION LAYOUT
-    Full screen cinematic takeover.
-  */
+  /* FULL PAGE TAKEOVER */
   .featured-directory-page {
     width: 100%;
-    /* Fill screen minus the header approx height (80px) */
-    height: calc(100vh - 80px); 
-    min-height: 600px;
+    /* Navbar fix: Push down to not hide behind header */
+    padding-top: var(--header-height, 80px);
+    height: 100vh;
+    min-height: 700px;
     background: #000;
-    overflow: hidden; /* Prevent page scroll, accordion does the work */
+    overflow: hidden;
   }
 
   .accordion-container {
@@ -195,28 +250,31 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
     flex-direction: column;
     height: 100%;
     width: 100%;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .accordion-section {
     flex: 1;
     position: relative;
     overflow: hidden;
-    transition: flex 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+    transition: flex 0.7s cubic-bezier(0.25, 1, 0.5, 1);
     display: flex;
     flex-direction: column;
-    border-bottom: 2px solid #000;
-    background: #0a0a0a;
+    /* Clear borders so tallness is obvious */
+    border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+    background: #050505;
   }
 
   .accordion-section.expanded {
-    flex: 6; /* expanded takes 6x the space of a collapsed row */
+    flex: 8; /* Expanded takes up massive height */
   }
 
-  /* THEMES: Alternate dark red and black cinematic gradients for the backgrounds */
-  .accordion-section:nth-child(1) .accordion-header-bg { background: linear-gradient(135deg, rgba(138, 0, 0, 0.4) 0%, #000 100%); }
-  .accordion-section:nth-child(2) .accordion-header-bg { background: linear-gradient(135deg, rgba(20, 20, 20, 0.8) 0%, #000 100%); }
-  .accordion-section:nth-child(3) .accordion-header-bg { background: linear-gradient(135deg, rgba(80, 0, 0, 0.3) 0%, #000 100%); }
-  .accordion-section:nth-child(4) .accordion-header-bg { background: linear-gradient(135deg, rgba(40, 40, 40, 0.5) 0%, #000 100%); }
+  /* THEMES / VISUAL CLARITY */
+  /* Giving each row a clear distinct cinematic gradient */
+  .accordion-section:nth-child(1) .accordion-header-bg { background: linear-gradient(90deg, rgba(160, 0, 0, 0.8) 0%, #000 70%); }
+  .accordion-section:nth-child(2) .accordion-header-bg { background: linear-gradient(90deg, rgba(0, 80, 160, 0.8) 0%, #000 70%); }
+  .accordion-section:nth-child(3) .accordion-header-bg { background: linear-gradient(90deg, rgba(80, 80, 80, 0.8) 0%, #000 70%); }
+  .accordion-section:nth-child(4) .accordion-header-bg { background: linear-gradient(90deg, rgba(0, 120, 50, 0.8) 0%, #000 70%); }
 
   /* HEADER (Collapsed state) */
   .accordion-header {
@@ -224,7 +282,8 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
     width: 100%;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start; /* LEFT ALIGNED */
+    padding-left: 5vw;
     cursor: pointer;
     position: absolute;
     inset: 0;
@@ -234,45 +293,41 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
   .accordion-section.expanded .accordion-header {
     height: auto;
     position: relative;
-    padding: 2rem 2rem 0 2rem;
+    padding: 2rem 5vw 1rem 5vw;
     background: transparent;
-    justify-content: flex-start;
-    cursor: default; /* Not clickable to expand if already expanded */
+    cursor: default;
   }
 
+  /* CINEMATIC FONT REPLACEMENT */
   .accordion-title {
-    font-family: var(--font-display);
-    font-size: clamp(3rem, 6vw, 6rem);
+    font-family: 'Helvetica Neue', Helvetica, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    font-size: clamp(3rem, 7vw, 7rem);
     text-transform: uppercase;
-    font-weight: 800;
-    letter-spacing: 0.15em;
-    color: #fff;
+    font-weight: 900; /* Ultra bold */
+    letter-spacing: -0.04em; /* Tight cinematic kerning */
+    color: rgba(255, 255, 255, 0.7); /* Slightly dimmed */
     margin: 0;
     z-index: 2;
-    transition: font-size 0.6s ease, padding 0.6s ease, text-shadow 0.3s ease;
-    text-align: center;
+    transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
   }
   
-  /* Hover effect on collapsed rows */
   .accordion-section.collapsed:hover .accordion-title {
-    color: var(--color-accent);
-    text-shadow: 0 0 20px rgba(204, 0, 0, 0.4);
-    transform: scale(1.02);
+    color: #fff;
+    transform: scale(1.02) translateX(10px);
   }
 
   .accordion-section.expanded .accordion-title {
     font-size: clamp(1.5rem, 3vw, 2.5rem);
-    text-align: left;
     color: #fff;
-    text-shadow: none;
-    transform: scale(1);
+    letter-spacing: -0.02em;
+    transform: none;
   }
 
   .accordion-header-bg {
     position: absolute;
     inset: 0;
     z-index: 1;
-    opacity: 0.6;
+    opacity: 0.5;
     transition: opacity 0.4s ease;
   }
   .accordion-section.collapsed:hover .accordion-header-bg {
@@ -283,115 +338,280 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
     pointer-events: none;
   }
 
-  /* BODY (Expanded Carousel) */
+  /* EXPANDED VIEW LAYOUT */
   .accordion-body {
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.4s ease;
+    transition: opacity 0.5s ease;
     flex-grow: 1;
-    display: flex;
-    align-items: center;
+    height: 100%;
     width: 100%;
+    position: relative;
   }
   .accordion-section.expanded .accordion-body {
     opacity: 1;
     visibility: visible;
-    transition-delay: 0.3s; /* fade in after expansion starts */
+    transition-delay: 0.3s;
   }
 
-  /* CAROUSEL TRACK */
-  .carousel-track {
+  .deck-view-container {
     display: flex;
-    gap: 1.5rem;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    padding: 1rem 2rem;
-    width: 100%;
-    scrollbar-width: none; /* Firefox */
-    align-items: center;
-  }
-  .carousel-track::-webkit-scrollbar {
-    display: none; /* Chrome/Safari */
-  }
-
-  /* CAROUSEL CARDS */
-  .carousel-item {
-    flex-shrink: 0;
-    width: clamp(280px, 30vw, 450px);
-    aspect-ratio: 16 / 9;
-    scroll-snap-align: center;
-    border-radius: 4px; /* subtle cinematic curve */
-    overflow: hidden;
-    position: relative;
-    transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.4s ease;
-    background: #111;
-  }
-  
-  .carousel-item:hover {
-    transform: scale(1.05);
-    z-index: 10;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 20px rgba(204,0,0,0.3);
-  }
-
-  .event-image-wrapper {
     width: 100%;
     height: 100%;
-    position: relative;
+    padding: 0 5vw 2rem 5vw;
   }
 
-  .event-image {
+  /* LEFT: 3D DECK */
+  .deck-column {
+    flex: 0 0 55%;
+    position: relative;
+    height: 100%;
+  }
+
+  .deck-stack {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    perspective: 1500px;
+    transform-style: preserve-3d;
+  }
+
+  .deck-card {
+    position: absolute;
+    top: 5%;
+    left: 0;
+    width: 80%;
+    height: 90%;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.8);
+    transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), 
+                opacity 0.8s cubic-bezier(0.2, 0.8, 0.2, 1),
+                z-index 0s;
+    background: #111;
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+
+  /* DECK POSITIONS */
+  .deck-card.active {
+    z-index: 10;
+    transform: translateX(0) translateZ(0) scale(1);
+    opacity: 1;
+  }
+  
+  .deck-card.next-1 {
+    z-index: 9;
+    transform: translateX(20%) translateZ(-100px) scale(0.9);
+    opacity: 0.7;
+  }
+  
+  .deck-card.next-2 {
+    z-index: 8;
+    transform: translateX(35%) translateZ(-200px) scale(0.8);
+    opacity: 0.4;
+  }
+  
+  .deck-card.hidden {
+    z-index: 1;
+    transform: translateX(50%) translateZ(-300px) scale(0.7);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .deck-card-image {
     width: 100%;
     height: 100%;
     object-fit: cover;
     transition: transform 0.6s ease;
   }
-  
-  .carousel-item:hover .event-image {
-    transform: scale(1.02);
+  .deck-card:hover .deck-card-image {
+    transform: scale(1.05);
+  }
+  .deck-card.active:hover .deck-card-image {
+    transform: scale(1.02); /* Less zoom for the active one since it's clickable to enter */
   }
 
-  .event-overlay {
+  .deck-card-overlay {
     position: absolute;
     inset: 0;
-    padding: 1.5rem;
-    background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.3) 50%, transparent 100%);
+    background: rgba(0,0,0,0.4);
+    transition: opacity 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .deck-card.active .deck-card-overlay {
+    background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 40%);
+    opacity: 0;
+  }
+  .deck-card.active:hover .deck-card-overlay {
+    opacity: 1;
+  }
+
+  .click-to-enter-text {
+    background: var(--color-accent);
+    color: #fff;
+    padding: 0.8rem 1.5rem;
+    font-weight: bold;
+    border-radius: 40px;
+    letter-spacing: 0.05em;
+    transform: translateY(20px);
+    opacity: 0;
+    transition: all 0.3s ease;
+  }
+  .deck-card.active:hover .click-to-enter-text {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  /* RIGHT: INFO PANEL */
+  .info-column {
+    flex: 0 0 45%;
+    position: relative;
+    height: 100%;
+    padding-left: 3rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .info-panels-wrapper {
+    position: relative;
+    width: 100%;
+    height: 80%; /* Match relative height */
+  }
+
+  .brand-info-panel {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(40px);
+    transition: all 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
-    pointer-events: none;
+    justify-content: center;
+  }
+  .brand-info-panel.active {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0);
   }
 
-  .event-card-logo-wrap {
-    display: inline-block;
-    max-width: 70%;
-    filter: drop-shadow(0 4px 15px rgba(0, 0, 0, 0.9));
+  .brand-logo-area {
+    margin-bottom: 2rem;
+    height: 100px; /* fixed space for logo so text doesn't jump */
+    display: flex;
+    align-items: flex-end;
   }
-  
-  .event-card-logo {
-    max-height: 60px;
-    width: auto;
+  .panel-logo {
+    max-height: 100%;
+    max-width: 100%;
     object-fit: contain;
-    transition: transform 0.4s ease;
+    filter: drop-shadow(0 4px 20px rgba(0,0,0,0.8));
   }
-  
-  .carousel-item:hover .event-card-logo {
-    transform: scale(1.05) translateY(-5px);
-  }
-
-  .event-card-sr-title {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-  }
-
-  .event-title {
-    color: #fff;
+  .panel-text-title {
     font-family: var(--font-display);
+    font-size: 3rem;
     margin: 0;
-    font-size: 1.2rem;
+    color: #fff;
   }
+
+  .brand-desc {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    color: #aaa;
+    margin-bottom: 2.5rem;
+    max-width: 90%;
+  }
+
+  /* PREVIEW CARD */
+  .featured-preview-card {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 2.5rem;
+    transition: background 0.3s ease, border-color 0.3s ease;
+    max-width: 90%;
+  }
+  .featured-preview-card:hover {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.2);
+  }
+
+  .preview-thumb {
+    width: 120px;
+    aspect-ratio: 16 / 9;
+    position: relative;
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .preview-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .play-btn {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 32px;
+    height: 32px;
+    background: rgba(204,0,0,0.9);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+  }
+  .play-btn svg {
+    width: 16px;
+    height: 16px;
+    margin-left: 2px;
+  }
+
+  .preview-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .preview-tag {
+    font-family: monospace;
+    font-size: 0.75rem;
+    color: var(--color-accent);
+    letter-spacing: 0.1em;
+  }
+  .preview-title {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #fff;
+    font-weight: 600;
+  }
+
+  /* ENTER BUTTON */
+  .brand-enter-btn {
+    display: inline-block;
+    background: #fff;
+    color: #000;
+    font-weight: 800;
+    padding: 1rem 3rem;
+    font-size: 1.1rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    width: fit-content;
+    transition: all 0.3s ease;
+  }
+  .brand-enter-btn:hover {
+    background: var(--color-accent);
+    color: #fff;
+    transform: scale(1.05);
+    box-shadow: 0 10px 30px rgba(204,0,0,0.4);
+  }
+
 </style>
