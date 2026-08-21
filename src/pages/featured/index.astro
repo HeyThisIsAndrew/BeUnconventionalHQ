@@ -82,6 +82,99 @@ const brandMeta: Record<string, BrandMeta> = {
   'xbox': { color: '#107C10', rgb: '16, 124, 16', desc: 'Presenting Xbox Game Studios, Game Pass, and Series X|S.' }
 };
 
+/* ─────────────────────────────────────────────────────────────────────────
+   CINEMATIC TYPOGRAPHY — candidates, and the one that ships.
+
+   Two modes, and which one you get depends on the build:
+
+     • `npm run dev` — the picker renders and every candidate is loaded, so
+       faces can be compared live. Default is "Demo all", which puts a
+       DIFFERENT candidate on each category with its name beside it.
+     • production build — the picker is not emitted at all, only PROD_FONT is
+       downloaded, and every title renders in it. No review chrome, and no
+       paying for seven unused webfonts on a page that is in the Lighthouse
+       gate.
+
+   `family` is the Google Fonts css2 query fragment; `stack` is the CSS
+   font-family. To change what ships, change PROD_FONT — nothing else.
+   ───────────────────────────────────────────────────────────────────────── */
+interface DemoFont {
+  id: string;
+  short: string;
+  label: string;
+  family: string;
+  stack: string;
+  weight: number;
+  /** Extra tracking for faces that set too tight at banner sizes. */
+  tracking: string;
+}
+
+const DEMO_FONTS: DemoFont[] = [
+  // ── The four original candidates (issue #138) ──
+  { id: 'syncopate', short: 'Syncopate', label: 'SYNCOPATE (Epic Ultra-Wide)',
+    family: 'Syncopate:wght@700', stack: "'Syncopate', sans-serif", weight: 700, tracking: '-0.01em' },
+  { id: 'bebas', short: 'Bebas Neue', label: 'BEBAS NEUE (Tall/Condensed)',
+    family: 'Bebas+Neue', stack: "'Bebas Neue', sans-serif", weight: 400, tracking: '0.01em' },
+  { id: 'cinzel', short: 'Cinzel', label: 'CINZEL (Prestige Serif)',
+    family: 'Cinzel:wght@700..900', stack: "'Cinzel', serif", weight: 800, tracking: '0.01em' },
+  { id: 'oswald', short: 'Oswald', label: 'OSWALD (Modern Tech/Heavy)',
+    family: 'Oswald:wght@700', stack: "'Oswald', sans-serif", weight: 700, tracking: '-0.01em' },
+
+  // ── Added candidates, all chosen for behaviour at banner size ──
+  // Anton: the blockbuster one-sheet face. Very heavy, tightly condensed, so
+  // "THE MULTIVERSE" holds one line where a wide face wraps.
+  { id: 'anton', short: 'Anton', label: 'ANTON (Blockbuster Poster)',
+    family: 'Anton', stack: "'Anton', sans-serif", weight: 400, tracking: '-0.01em' },
+  // Big Shoulders: editorial-cinematic, tall and narrow — title-card energy
+  // without Anton's bluntness.
+  { id: 'bigshoulders', short: 'Big Shoulders', label: 'BIG SHOULDERS (Tall Editorial)',
+    family: 'Big+Shoulders+Display:wght@800', stack: "'Big Shoulders Display', sans-serif", weight: 800, tracking: '0.01em' },
+  // Archivo Black: neutral heavy grotesque, closest to the site's own Syne.
+  { id: 'archivo', short: 'Archivo Black', label: 'ARCHIVO BLACK (Heavy Neutral)',
+    family: 'Archivo+Black', stack: "'Archivo Black', sans-serif", weight: 400, tracking: '-0.02em' },
+  // Unbounded: contemporary streaming-brand display, wide and geometric.
+  { id: 'unbounded', short: 'Unbounded', label: 'UNBOUNDED (Modern Streamer)',
+    family: 'Unbounded:wght@800', stack: "'Unbounded', sans-serif", weight: 800, tracking: '-0.02em' },
+];
+
+/*
+  THE FACE THAT SHIPS.
+
+  Anton. The category words are short, all-caps, and set enormous across a
+  full-bleed bar — that is a movie one-sheet, and Anton is the face that job
+  has used for twenty years. It is the only candidate here that is both heavy
+  enough to hold a 7rem banner against a bright hero still AND condensed
+  enough that "THE MULTIVERSE" stays on one line at 390px. Syncopate is the
+  most distinctive but sets ultra-WIDE, which is exactly wrong for the longest
+  label; Cinzel reads prestige-drama rather than entertainment media; Oswald
+  and Archivo are competent but generic next to the site's existing Syne.
+*/
+const PROD_FONT = 'anton';
+
+const IS_DEV = import.meta.env.DEV;
+const activeFonts = IS_DEV ? DEMO_FONTS : DEMO_FONTS.filter((f) => f.id === PROD_FONT);
+const fontImportUrl =
+  `https://fonts.googleapis.com/css2?${activeFonts.map((f) => `family=${f.family}`).join('&')}&display=swap`;
+
+/*
+  Emitted as one inline <style> rather than written out in the scoped block,
+  so the face list stays a single source of truth: adding a candidate to
+  DEMO_FONTS is all it takes, and production automatically ships exactly one
+  @import instead of eight.
+*/
+const fontCss = `@import url('${fontImportUrl}');
+${activeFonts
+  .map(
+    (f) => `[data-title-font='${f.id}'] .accordion-title,
+.accordion-title[data-demo-font='${f.id}'] {
+  font-family: ${f.stack};
+  font-weight: ${f.weight};
+  letter-spacing: ${f.tracking};
+  text-transform: uppercase;
+}`,
+  )
+  .join('\n')}`;
+
 function extractYoutubeId(url: string) {
   if (!url) return null;
   const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:.*v=|.*\/))([^"&?\s]{11})/);
@@ -90,7 +183,8 @@ function extractYoutubeId(url: string) {
 ---
 
 <Layout title="Featured Hubs">
-  <main class="featured-directory-page">
+  <style is:inline set:html={fontCss}></style>
+  <main class="featured-directory-page" data-title-font={IS_DEV ? 'demo' : PROD_FONT}>
     {sortedCategories.length > 0 ? (
       <div class="accordion-container animate-on-scroll">
         {sortedCategories.map((category, index) => {
@@ -115,22 +209,14 @@ function extractYoutubeId(url: string) {
               <div class="accordion-header">
                 <div class="accordion-header-bg"></div>
                 
-                                            <h2 class="accordion-title" style={
-                        index === 0 ? "font-family: 'Syncopate', sans-serif; font-weight: 700; text-transform: uppercase;" :
-                        index === 1 ? "font-family: 'Bebas Neue', sans-serif; text-transform: uppercase;" :
-                        index === 2 ? "font-family: 'Cinzel', serif; font-weight: 700; text-transform: uppercase;" :
-                        "font-family: 'Oswald', sans-serif; font-weight: 700; text-transform: uppercase;"
-                      }>
-                        {categoryLabels[category] || category}
-                        <span style="font-size: clamp(1rem, 2vw, 2rem); opacity: 0.5; font-family: monospace; letter-spacing: normal; margin-left: 2rem; vertical-align: middle;">
-                          — {
-                            index === 0 ? "SYNCOPATE (Epic Ultra-Wide)" :
-                            index === 1 ? "BEBAS NEUE (Tall/Condensed)" :
-                            index === 2 ? "CINZEL (Prestige Serif)" :
-                            "OSWALD (Modern Tech/Heavy)"
-                          }
-                        </span>
-                      </h2>
+                <h2 class="accordion-title" data-demo-font={DEMO_FONTS[index % DEMO_FONTS.length].id}>
+                  {categoryLabels[category] || category}
+                  {IS_DEV && (
+                    <span class="accordion-title-demo-label">
+                      — {DEMO_FONTS[index % DEMO_FONTS.length].label}
+                    </span>
+                  )}
+                </h2>
 
               </div>
 
@@ -246,6 +332,21 @@ function extractYoutubeId(url: string) {
     ) : (
       <div class="container-page">
         <p class="featured-empty">Dedicated coverage hubs are coming soon.</p>
+      </div>
+    )}
+  
+    {/*
+      Typeface picker — DEV ONLY. `import.meta.env.DEV` is false for
+      `astro build`, so this markup, and the seven non-shipping webfonts it
+      exists to compare, never reach a deployed page.
+    */}
+    {IS_DEV && (
+      <div class="font-picker" role="group" aria-label="Preview heading typeface">
+        <span class="font-picker-label">Typeface</span>
+        <button type="button" class="font-picker-btn" data-font="demo" aria-pressed="true">Demo per row</button>
+        {DEMO_FONTS.map((f) => (
+          <button type="button" class="font-picker-btn" data-font={f.id} aria-pressed="false">{f.short}</button>
+        ))}
       </div>
     )}
   </main>
@@ -441,13 +542,32 @@ function extractYoutubeId(url: string) {
     });
   }
 
+  /* TEMPORARY typography picker — remove with DEMO_FONTS. */
+  function initFontPicker() {
+    const root = document.querySelector<HTMLElement>('.featured-directory-page');
+    if (!root || root.dataset.fontPickerInit === '1') return;
+    root.dataset.fontPickerInit = '1';
+
+    const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>('.font-picker-btn'));
+    for (const button of buttons) {
+      button.addEventListener('click', () => {
+        root.dataset.titleFont = button.dataset.font ?? 'demo';
+        for (const other of buttons) {
+          other.setAttribute('aria-pressed', other === button ? 'true' : 'false');
+        }
+      });
+    }
+  }
+
   initAccordionAndDecks();
-  document.addEventListener('astro:page-load', initAccordionAndDecks);
+  initFontPicker();
+  document.addEventListener('astro:page-load', () => {
+    initAccordionAndDecks();
+    initFontPicker();
+  });
 </script>
 
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@700&family=Oswald:wght@700&family=Syncopate:wght@700&display=swap');
-
 
   /* ─── CINEMATIC OVERLAYS ─── */
   .film-grain {
@@ -556,6 +676,65 @@ function extractYoutubeId(url: string) {
     cursor: default;
   }
 
+  .accordion-title-demo-label {
+    font-size: clamp(1rem, 2vw, 2rem);
+    opacity: 0.5;
+    font-family: monospace;
+    letter-spacing: normal;
+    margin-left: 2rem;
+    vertical-align: middle;
+  }
+
+  /* The per-row labels only make sense while all four are on screen. */
+  .featured-directory-page:not([data-title-font='demo']) .accordion-title-demo-label {
+    display: none;
+  }
+
+  .font-picker {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 400;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.55rem;
+    background: rgba(8, 8, 8, 0.82);
+    border: 1px dashed rgba(255, 255, 255, 0.22);
+    backdrop-filter: blur(8px);
+  }
+
+  .font-picker-label {
+    font-family: var(--font-body);
+    font-size: 0.6rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-white-muted);
+    margin-right: 0.25rem;
+  }
+
+  .font-picker-btn {
+    padding: 0.3rem 0.6rem;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: transparent;
+    color: var(--color-white-muted);
+    font-family: var(--font-body);
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+  }
+
+  .font-picker-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.45);
+  }
+
+  .font-picker-btn[aria-pressed='true'] {
+    color: #fff;
+    border-color: var(--color-accent-text);
+    background: rgba(204, 0, 0, 0.2);
+  }
+
   .accordion-title {
     font-family: 'Helvetica Neue', Helvetica, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
     font-size: clamp(3rem, 7vw, 7rem);
@@ -610,15 +789,34 @@ function extractYoutubeId(url: string) {
     z-index: 20;
     display: flex;
     flex-direction: column;
-    /* Inherits the clip that came off .accordion-section. Safe to clip here:
-       this column holds the deck cards and the glow, never the iframe. */
-    overflow: hidden;
+    /*
+      NO `overflow: hidden` HERE.
+
+      The clip that came off .accordion-section (hard rule 3) was parked on
+      this column, and it landed exactly on the 50% seam — a dead straight
+      vertical cut through the deck, which is the hard edge between the two
+      halves. Containment is done with a mask on `.deck-stack` instead: it
+      fades the cards to zero alpha BEFORE the column boundary, so nothing
+      escapes into the right half and nothing is sliced to do it.
+    */
   }
 
   /* AMBIENT GLOW */
   .ambient-glow-container {
     position: absolute;
-    inset: -20%; /* bleed outwards */
+    /*
+      Bleed sideways and up, but NOT down.
+
+      This was `inset: -20%` on all four sides. `.accordion-section` used to
+      clip that overhang away, but that clip had to go (hard rule 3), and the
+      bottom 20% — measured at 83px — then painted a blurred wash straight
+      over the footer whenever the LAST row was the expanded one.
+
+      Sideways and upward bleed stay: both land inside the section, which is
+      where the ambient backlight is supposed to spread. Only the bottom is
+      pinned to the column, because below it is somebody else's content.
+    */
+    inset: -20% -20% 0 -20%;
     z-index: 0;
     pointer-events: none;
     overflow: hidden;
@@ -645,9 +843,34 @@ function extractYoutubeId(url: string) {
     flex: 1;
     min-height: 0; 
     z-index: 2;
-    /* Feather out the cards on the right side into the right column */
-    -webkit-mask-image: linear-gradient(to left, transparent 0%, rgba(0,0,0,0.2) 20%, black 60%);
-    mask-image: linear-gradient(to left, transparent 0%, rgba(0,0,0,0.2) 20%, black 60%);
+    /*
+      Feather the deck out into the right column.
+
+      Multi-stop, not the two-stop linear ramp this used to be. A linear alpha
+      ramp is what the eye reads as a visible band (Mach banding): the
+      derivative is constant, so the ramp's two ENDS are discontinuities and
+      both show up as faint lines. These stops approximate a smoothstep, so
+      the fade has no detectable start or finish.
+
+      `mask-repeat: no-repeat` is load-bearing. mask-repeat defaults to
+      `repeat`, which TILES the gradient outside the element's box — a card
+      translated past the stack edge would pass under a fresh copy of the
+      ramp and pop back into view. With no-repeat, everything past the box is
+      masked out, and because the ramp has already reached zero alpha there,
+      that cutoff is invisible.
+    */
+    -webkit-mask-image: linear-gradient(to left,
+      rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 8%, rgba(0,0,0,0.12) 15%,
+      rgba(0,0,0,0.28) 22%, rgba(0,0,0,0.50) 30%, rgba(0,0,0,0.72) 38%,
+      rgba(0,0,0,0.88) 46%, rgba(0,0,0,0.97) 54%, rgba(0,0,0,1) 62%);
+    mask-image: linear-gradient(to left,
+      rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 8%, rgba(0,0,0,0.12) 15%,
+      rgba(0,0,0,0.28) 22%, rgba(0,0,0,0.50) 30%, rgba(0,0,0,0.72) 38%,
+      rgba(0,0,0,0.88) 46%, rgba(0,0,0,0.97) 54%, rgba(0,0,0,1) 62%);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
   }
 
   .deck-card {
@@ -930,8 +1153,61 @@ function extractYoutubeId(url: string) {
     transform: translate(-50%, -50%);
     pointer-events: none;
     z-index: 1;
-    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 15%, black 100%);
-    mask-image: linear-gradient(to right, transparent 0%, black 15%, black 100%);
+    /*
+      The video's edges — "no hard edges, even from the video".
+
+      HORIZONTAL: this wrapper is 150% wide and centred, so it already spans
+      -25%..125% of the info column: the video bleeds a quarter of a column
+      LEFT, under the deck. The old two-stop ramp hit full opacity at 15% of
+      the wrapper (x = -2.5% of the column), so the whole crossfade happened
+      in a narrow band right at the seam and read as an edge. Full opacity at
+      29% puts it at x = +18% of the column (-25 + 150 * 0.29), so the video
+      dissolves in across a band ~43% of the column wide, straddling the seam
+      instead of stopping at it.
+
+      VERTICAL: the wrapper is also 150% TALL, i.e. it overhangs the panel by
+      25% top and bottom. `.accordion-section` used to clip that off, but that
+      clip had to go (hard rule 3 — it sat on the iframe's ancestor chain and
+      iOS Safari renders a clipped cross-origin iframe as a black box). With
+      the clip gone the overhang leaked the trailer down over the collapsed
+      rows underneath.
+
+      So the containment is a mask too. The wrapper's 150% height maps panel
+      y=0 to 16.7% and y=100% to 83.3%, so the ramps run 17%->27% and
+      73%->83%: zero alpha everywhere outside the panel, fully opaque across
+      the middle 70%, and a soft feather at top and bottom rather than a cut.
+
+      The two gradients are INTERSECTED — a mask layer list composites with
+      `add` by default, which would union them and mask nothing.
+    */
+    -webkit-mask-image:
+      linear-gradient(to right,
+        rgba(0,0,0,0) 0%, rgba(0,0,0,0.03) 6%, rgba(0,0,0,0.10) 11%,
+        rgba(0,0,0,0.24) 15%, rgba(0,0,0,0.45) 19%, rgba(0,0,0,0.68) 22%,
+        rgba(0,0,0,0.86) 25%, rgba(0,0,0,0.96) 27%, rgba(0,0,0,1) 29%,
+        rgba(0,0,0,1) 100%),
+      linear-gradient(to bottom,
+        rgba(0,0,0,0) 0%, rgba(0,0,0,0) 17%, rgba(0,0,0,0.18) 20%,
+        rgba(0,0,0,0.55) 23%, rgba(0,0,0,0.86) 25%, rgba(0,0,0,1) 27%,
+        rgba(0,0,0,1) 73%, rgba(0,0,0,0.86) 75%, rgba(0,0,0,0.55) 77%,
+        rgba(0,0,0,0.18) 80%, rgba(0,0,0,0) 83%, rgba(0,0,0,0) 100%);
+    mask-image:
+      linear-gradient(to right,
+        rgba(0,0,0,0) 0%, rgba(0,0,0,0.03) 6%, rgba(0,0,0,0.10) 11%,
+        rgba(0,0,0,0.24) 15%, rgba(0,0,0,0.45) 19%, rgba(0,0,0,0.68) 22%,
+        rgba(0,0,0,0.86) 25%, rgba(0,0,0,0.96) 27%, rgba(0,0,0,1) 29%,
+        rgba(0,0,0,1) 100%),
+      linear-gradient(to bottom,
+        rgba(0,0,0,0) 0%, rgba(0,0,0,0) 17%, rgba(0,0,0,0.18) 20%,
+        rgba(0,0,0,0.55) 23%, rgba(0,0,0,0.86) 25%, rgba(0,0,0,1) 27%,
+        rgba(0,0,0,1) 73%, rgba(0,0,0,0.86) 75%, rgba(0,0,0,0.55) 77%,
+        rgba(0,0,0,0.18) 80%, rgba(0,0,0,0) 83%, rgba(0,0,0,0) 100%);
+    -webkit-mask-composite: source-in;
+    mask-composite: intersect;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
   }
   
   .trailer-iframe, .trailer-fallback-img {
@@ -951,11 +1227,35 @@ function extractYoutubeId(url: string) {
 
   .trailer-dark-overlay {
     position: absolute;
-    inset: 0;
-    background: linear-gradient(to right, #050505 0%, transparent 15%);
+    /*
+      Spans -25%..125% of the panel, i.e. the SAME box as .trailer-bg-wrapper.
+
+      Pinned to the panel (inset: 0) its full-opacity end landed exactly on
+      the column boundary, so however soft the gradient was to the right of
+      that line, the line itself was a step: pixel-scanning a horizontal
+      slice across the seam showed a jump of 21-27 at x=756 on a 1440 render.
+      A gradient cannot hide its own start — the fix is to move the start off
+      the seam entirely.
+
+      Sharing the video's box means the wash is already ~0.6 alpha and still
+      falling by the time it crosses the boundary, and it keeps going into
+      the deck column, where .deck-column's higher z-index paints it UNDER
+      the cards — so it deepens the background the deck fades into rather
+      than dimming the deck itself.
+    */
+    top: 0;
+    bottom: 0;
+    left: -25%;
+    width: 150%;
+    background: linear-gradient(to right,
+      rgba(5,5,5,1) 0%, rgba(5,5,5,0.98) 5%, rgba(5,5,5,0.93) 9%,
+      rgba(5,5,5,0.84) 13%, rgba(5,5,5,0.70) 17%, rgba(5,5,5,0.53) 21%,
+      rgba(5,5,5,0.36) 25%, rgba(5,5,5,0.22) 29%, rgba(5,5,5,0.11) 33%,
+      rgba(5,5,5,0.04) 37%, rgba(5,5,5,0) 42%);
     z-index: 2;
     pointer-events: none;
   }
+
   .trailer-gradient-bottom {
     position: absolute;
     bottom: 0;
@@ -964,6 +1264,25 @@ function extractYoutubeId(url: string) {
     height: 60%;
     background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 40%, transparent 100%);
     z-index: 3;
+    /*
+      This scrim is a VERTICAL gradient across the panel's full width, so its
+      left edge was a flat vertical cut sitting on the seam — the second
+      contributor to the step at x=756, and the one that showed up lower in
+      the panel where the scrim is densest. Feathering its left edge lets it
+      arrive with the video instead of announcing the panel.
+    */
+    -webkit-mask-image: linear-gradient(to right,
+      rgba(0,0,0,0) 0%, rgba(0,0,0,0.10) 6%, rgba(0,0,0,0.32) 11%,
+      rgba(0,0,0,0.60) 16%, rgba(0,0,0,0.84) 21%, rgba(0,0,0,0.96) 25%,
+      rgba(0,0,0,1) 29%);
+    mask-image: linear-gradient(to right,
+      rgba(0,0,0,0) 0%, rgba(0,0,0,0.10) 6%, rgba(0,0,0,0.32) 11%,
+      rgba(0,0,0,0.60) 16%, rgba(0,0,0,0.84) 21%, rgba(0,0,0,0.96) 25%,
+      rgba(0,0,0,1) 29%);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
   }
 
 
@@ -1098,7 +1417,96 @@ function extractYoutubeId(url: string) {
       padding: 0.75rem 1.25rem 0.5rem;
     }
 
-    .accordion-title {
+    /* ─── TEMPORARY typography demo + picker ─────────────────────────────
+     Each face is declared once and reached two ways: by `data-demo-font` on
+     the title (demo mode, a different face per row) and by `data-title-font`
+     on <main> (picker mode, one face on every row). Same declarations, so
+     the two modes can never drift apart. */
+  .accordion-title[data-demo-font='syncopate'],
+  [data-title-font='syncopate'] .accordion-title {
+    font-family: 'Syncopate', sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .accordion-title[data-demo-font='bebas'],
+  [data-title-font='bebas'] .accordion-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-weight: 400;
+    text-transform: uppercase;
+  }
+  .accordion-title[data-demo-font='cinzel'],
+  [data-title-font='cinzel'] .accordion-title {
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .accordion-title[data-demo-font='oswald'],
+  [data-title-font='oswald'] .accordion-title {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .accordion-title-demo-label {
+    font-size: clamp(1rem, 2vw, 2rem);
+    opacity: 0.5;
+    font-family: monospace;
+    letter-spacing: normal;
+    margin-left: 2rem;
+    vertical-align: middle;
+  }
+
+  /* The per-row labels only make sense while all four are on screen. */
+  .featured-directory-page:not([data-title-font='demo']) .accordion-title-demo-label {
+    display: none;
+  }
+
+  .font-picker {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 400;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.55rem;
+    background: rgba(8, 8, 8, 0.82);
+    border: 1px dashed rgba(255, 255, 255, 0.22);
+    backdrop-filter: blur(8px);
+  }
+
+  .font-picker-label {
+    font-family: var(--font-body);
+    font-size: 0.6rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-white-muted);
+    margin-right: 0.25rem;
+  }
+
+  .font-picker-btn {
+    padding: 0.3rem 0.6rem;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: transparent;
+    color: var(--color-white-muted);
+    font-family: var(--font-body);
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+  }
+
+  .font-picker-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.45);
+  }
+
+  .font-picker-btn[aria-pressed='true'] {
+    color: #fff;
+    border-color: var(--color-accent-text);
+    background: rgba(204, 0, 0, 0.2);
+  }
+
+  .accordion-title {
       font-size: clamp(1.35rem, 6.5vw, 2.5rem);
       letter-spacing: -0.02em;
     }
