@@ -38,6 +38,11 @@ import { spawn } from 'node:child_process';
 /** Extra node flags a script needs, and the script itself. */
 const SYNCS = [
   {
+    name: 'articles',
+    nodeArgs: [],
+    script: 'scripts/sync-articles.mjs',
+  },
+  {
     name: 'youtube',
     nodeArgs: [],
     script: 'scripts/sync-youtube.mjs',
