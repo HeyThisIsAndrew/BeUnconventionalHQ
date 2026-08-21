@@ -524,6 +524,49 @@ function extractYoutubeId(url: string) {
         }
       });
 
+      /*
+        POINTER DRIFT.
+
+        Reports where the pointer sits inside the open row as two numbers
+        from -1 to 1, and lets CSS decide what moves and how far. Keeping the
+        distances in the stylesheet means the feel can be tuned without
+        touching this handler.
+
+        Gated on the EVENT's pointer type rather than a `(hover: hover)`
+        media query. The media query is the usual way to do this and it is
+        the wrong one here: plenty of real desktop environments report
+        `hover: none` (this project's own headless test browser does), which
+        silently costs those visitors the effect. The event knows what it
+        actually was. It also handles a touchscreen laptop properly — drift
+        with the mouse, none from a finger — which one global media query
+        cannot express.
+      */
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (!reducedMotion && !section.dataset.hasDriftListener) {
+        section.dataset.hasDriftListener = 'true';
+
+        const resetDrift = () => {
+          section.style.setProperty('--drift-x', '0');
+          section.style.setProperty('--drift-y', '0');
+        };
+
+        section.addEventListener('pointermove', (e: PointerEvent) => {
+          // A tap fires one synthetic move; acting on it would shove the
+          // artwork sideways and leave it parked there.
+          if (e.pointerType === 'touch') return;
+          if (!section.classList.contains('expanded')) return;
+          const rect = section.getBoundingClientRect();
+          if (!rect.width || !rect.height) return;
+          const x = (e.clientX - rect.left) / rect.width - 0.5;
+          const y = (e.clientY - rect.top) / rect.height - 0.5;
+          section.style.setProperty('--drift-x', String(x * 2));
+          section.style.setProperty('--drift-y', String(y * 2));
+        });
+
+        section.addEventListener('pointerleave', resetDrift);
+      }
+
       // Quick Nav Thumb Clicks
       navThumbs.forEach((thumb, i) => {
         if (!thumb.dataset.hasClickListener) {
@@ -752,10 +795,19 @@ function extractYoutubeId(url: string) {
     transform: scale(1.02) translateX(10px);
   }
 
+  /*
+    STAGING NOTE — the open row's title steps back.
+
+    Closed, this title IS the headline and should shout. Open, it is just a
+    label telling you where you are, and at full white it was competing with
+    the brand logo and the deck for the same attention. Smaller, dimmer and
+    widely spaced turns it into a caption, which leaves one clear subject:
+    the artwork.
+  */
   .accordion-section.expanded .accordion-title {
-    font-size: clamp(1.5rem, 3vw, 2.5rem);
-    color: #fff;
-    letter-spacing: -0.02em;
+    font-size: clamp(0.95rem, 1.6vw, 1.35rem);
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 0.22em;
     transform: none;
   }
 
@@ -1371,6 +1423,123 @@ function extractYoutubeId(url: string) {
      rather than flattening to a carousel, so the interaction a phone user
      gets is the same one the desktop design established.
      ══════════════════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════════════════
+     STAGING — how an open row arrives, and how it keeps moving.
+
+     Everything below is about TIMING and MOTION rather than decoration.
+     Opening a row used to reveal every part of it at the same instant, which
+     is what made the page feel like a screenshot appearing rather than a
+     scene starting. Now the pieces land on a beat: artwork, then the
+     thumbnail strip, then the brand mark, then the words. It reads as
+     something being presented to you.
+
+     Each piece starts slightly low and faded and settles into place. The
+     delays are the whole point — they are what a title sequence does.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  .deck-stack,
+  .deck-nav-track,
+  .trailer-logo-wrap,
+  .trailer-text-title,
+  .trailer-text-btn-row {
+    opacity: 0;
+    transition:
+      opacity 0.7s ease,
+      transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* The artwork leads, and only fades — its transform belongs to the drift
+     below, and two rules fighting over one transform is how motion bugs
+     start. */
+  .accordion-section.expanded .deck-stack {
+    opacity: 1;
+    transition-delay: 0.34s;
+  }
+
+  .deck-nav-track,
+  .trailer-logo-wrap,
+  .trailer-text-title,
+  .trailer-text-btn-row {
+    transform: translateY(16px);
+  }
+
+  .accordion-section.expanded .deck-nav-track {
+    opacity: 1;
+    transform: translateY(0);
+    transition-delay: 0.52s;
+  }
+
+  .accordion-section.expanded .trailer-logo-wrap,
+  .accordion-section.expanded .trailer-text-title {
+    opacity: 1;
+    transform: translateY(0);
+    transition-delay: 0.62s;
+  }
+
+  .accordion-section.expanded .trailer-text-btn-row {
+    opacity: 1;
+    transform: translateY(0);
+    transition-delay: 0.74s;
+  }
+
+  /*
+     THE TRAILER BREATHES.
+
+     A still frame with gradients over it reads as a hero image, not a scene.
+     A very slow, very small push-in is the difference — it is the same trick
+     a documentary uses on a photograph. 32 seconds and 6% is deliberately
+     below the threshold where you notice it happening; you only notice that
+     the panel feels alive.
+
+     The move is carried on the wrapper, not the video element itself,
+     because transforming a cross-origin video frame directly is exactly the
+     kind of thing WebKit renders badly.
+  */
+  @keyframes trailerPush {
+    from {
+      transform: translate(-50%, -50%) scale(1);
+    }
+    to {
+      transform: translate(-50%, -50%) scale(1.06);
+    }
+  }
+
+  .accordion-section.expanded .brand-info-panel.active .trailer-bg-wrapper {
+    animation: trailerPush 32s ease-in-out infinite alternate;
+  }
+
+  /*
+     THE DECK DRIFTS AGAINST IT.
+
+     As the pointer moves across an open row, the artwork slides a few pixels
+     one way and the backlight a little further. Because the trailer is
+     pushing in on its own clock and the deck answers the pointer, the two
+     halves are never moving together — which is what sells depth. The
+     numbers are small on purpose: this should feel like the scene has weight,
+     not like the page is wobbling.
+  */
+  .deck-stack {
+    transform: translate3d(
+      calc(var(--drift-x, 0) * 12px),
+      calc(var(--drift-y, 0) * 7px),
+      0
+    );
+    /* Shorter than the entrance easing above: the drift has to feel attached
+       to the pointer, while still trailing it enough to have weight. */
+    transition:
+      opacity 0.7s ease,
+      transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .ambient-glow-container {
+    transform: translate3d(
+      calc(var(--drift-x, 0) * -22px),
+      calc(var(--drift-y, 0) * -14px),
+      0
+    );
+    transition: transform 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
   @media (max-width: 768px) {
     .featured-directory-page {
       /* 750px of min-height forces a scroll on nearly every phone and pushes
@@ -1664,12 +1833,31 @@ function extractYoutubeId(url: string) {
     .brand-info-panel,
     .accordion-title,
     .ambient-glow-layer,
+    .ambient-glow-container,
+    .deck-stack,
+    .deck-nav-track,
+    .trailer-logo-wrap,
+    .trailer-text-title,
+    .trailer-text-btn-row,
     .deck-card-image {
       transition: none;
     }
 
-    .trailer-fallback-img {
+    .trailer-fallback-img,
+    .accordion-section.expanded .brand-info-panel.active .trailer-bg-wrapper {
       animation: none;
+    }
+
+    /* The staged entrance is a nice-to-have; being able to read the row is
+       not. With the transitions off, everything must simply BE there. */
+    .accordion-section.expanded .deck-stack,
+    .accordion-section.expanded .deck-nav-track,
+    .accordion-section.expanded .trailer-logo-wrap,
+    .accordion-section.expanded .trailer-text-title,
+    .accordion-section.expanded .trailer-text-btn-row {
+      opacity: 1;
+      transform: none;
+      transition-delay: 0s;
     }
   }
 </style>
