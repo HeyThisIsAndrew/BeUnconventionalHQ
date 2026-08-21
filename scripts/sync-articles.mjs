@@ -254,12 +254,11 @@ async function fetchAllPosts() {
       const html = await htmlRes.text();
       
       // Safely extract window._preloads without vulnerable regex
-      const preloadsPrefix = 'window._preloads = JSON.parse("';
-      const prefixIdx = html.indexOf(preloadsPrefix);
+      const preloadsMatch = html.match(/window\._preloads\s*=\s*JSON\.parse\("/);
       let match = null;
       
-      if (prefixIdx !== -1) {
-        const startIdx = prefixIdx + preloadsPrefix.length;
+      if (preloadsMatch) {
+        const startIdx = preloadsMatch.index + preloadsMatch[0].length;
         let endIdx = -1;
         for (let i = startIdx; i < html.length; i++) {
           // Look for an unescaped closing quote followed by parenthesis
@@ -269,7 +268,7 @@ async function fetchAllPosts() {
           }
         }
         if (endIdx !== -1) {
-          match = [null, html.substring(startIdx, endIdx + 1)];
+          match = [null, '"' + html.substring(startIdx, endIdx) + '"'];
         }
       }
       
