@@ -86,6 +86,17 @@ function extractYoutubeId(url: string) {
                 <div class="deck-view-container">
                   
                   <div class="deck-column">
+                    
+                    {/* AMBIENT GLOW BACKLIGHT */}
+                    <div class="ambient-glow-container">
+                       {categoryBrands.map((brand, bIndex) => {
+                         const glowUrl = brand.heroImage ? urlFor(brand.heroImage).width(100).url() : null;
+                         return (
+                            <div class={`ambient-glow-layer ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex} style={glowUrl ? `background-image: url(${glowUrl})` : ''}></div>
+                         );
+                       })}
+                    </div>
+
                     <div class="deck-stack">
                       {categoryBrands.map((brand, bIndex) => {
                         const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).height(1600).url() : null;
@@ -111,12 +122,15 @@ function extractYoutubeId(url: string) {
                       })}
                     </div>
 
-                    {/* NEW QUICK SELECTION NAV TRACK */}
                     <div class="deck-nav-track">
                       {categoryBrands.map((brand, bIndex) => {
                          const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(400).height(200).url() : null;
                          return (
-                           <div class={`deck-nav-thumb ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex} title={brand.title}>
+                           <div class={`deck-nav-thumb ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex}>
+                             
+                             {/* TOOLTIP */}
+                             <div class="custom-tooltip">{brand.title}</div>
+
                              {heroUrl ? (
                                 <img src={heroUrl} alt={brand.title} loading="lazy" class="nav-thumb-img" />
                              ) : (
@@ -188,6 +202,33 @@ function extractYoutubeId(url: string) {
 </Layout>
 
 <script>
+  let audioCtx = null;
+  function playCinematicThud() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      
+      osc.type = 'sine';
+      // Deep frequency drop
+      osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.3);
+      
+      // Volume envelope
+      gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+      
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.3);
+    } catch(e) {
+      // Ignore if AudioContext is not supported or locked
+    }
+  }
+
   function initAccordionAndDecks() {
     const sections = document.querySelectorAll('.accordion-section');
     sections.forEach(section => {
@@ -198,6 +239,7 @@ function extractYoutubeId(url: string) {
         header.dataset.hasClickListener = 'true';
         header.addEventListener('click', () => {
           if (section.classList.contains('expanded')) return;
+          playCinematicThud();
           
           sections.forEach(s => {
             s.classList.remove('expanded');
@@ -226,6 +268,7 @@ function extractYoutubeId(url: string) {
       const cards = Array.from(section.querySelectorAll('.deck-card'));
       const navThumbs = Array.from(section.querySelectorAll('.deck-nav-thumb'));
       const infoPanels = Array.from(section.querySelectorAll('.brand-info-panel'));
+      const glowLayers = Array.from(section.querySelectorAll('.ambient-glow-layer'));
       
       let activeIndex = 0;
       cards.forEach((c, idx) => {
@@ -241,13 +284,14 @@ function extractYoutubeId(url: string) {
 
       function renderDeck() {
         cards.forEach((card, i) => {
+          // Clear any inline styles from parallax before applying classes
+          card.style.transform = ''; 
+          
           card.className = 'deck-card'; 
           infoPanels[i].className = 'brand-info-panel';
           
-          // Thumb logic
-          if (navThumbs[i]) {
-            navThumbs[i].className = 'deck-nav-thumb';
-          }
+          if (navThumbs[i]) navThumbs[i].className = 'deck-nav-thumb';
+          if (glowLayers[i]) glowLayers[i].className = 'ambient-glow-layer';
 
           const iframe = infoPanels[i].querySelector('.trailer-iframe');
 
@@ -255,6 +299,7 @@ function extractYoutubeId(url: string) {
             card.classList.add('active');
             infoPanels[i].classList.add('active');
             if (navThumbs[i]) navThumbs[i].classList.add('active');
+            if (glowLayers[i]) glowLayers[i].classList.add('active');
 
             if (iframe && !iframe.src && iframe.dataset.src) {
               iframe.src = iframe.dataset.src;
@@ -272,7 +317,7 @@ function extractYoutubeId(url: string) {
         });
       }
 
-      // Deck Stack Clicks
+      // Deck Stack Clicks & Parallax
       cards.forEach((card, i) => {
         if (!card.dataset.hasClickListener) {
           card.dataset.hasClickListener = 'true';
@@ -281,7 +326,28 @@ function extractYoutubeId(url: string) {
               e.preventDefault();
               e.stopPropagation();
               activeIndex = i;
+              playCinematicThud();
               renderDeck();
+            }
+          });
+
+          // Parallax hover depth on active card
+          card.addEventListener('mousemove', (e) => {
+            if (i !== activeIndex) return;
+            const rect = card.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            // Max rotation of 3 degrees
+            const rotateX = ((y - centerY) / centerY) * -3; 
+            const rotateY = ((x - centerX) / centerX) * 3;
+            card.style.transform = `perspective(1000px) scale(1) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+          });
+          card.addEventListener('mouseleave', () => {
+            if (i === activeIndex) {
+              // Smoothly reset
+              card.style.transform = `translateX(0) scale(1)`;
             }
           });
         }
@@ -296,6 +362,7 @@ function extractYoutubeId(url: string) {
               e.preventDefault();
               e.stopPropagation();
               activeIndex = i;
+              playCinematicThud();
               renderDeck();
             }
           });
@@ -436,12 +503,33 @@ function extractYoutubeId(url: string) {
     flex-direction: column;
   }
 
-  /* Reduce stack height to leave room for the navigation track below */
+  /* AMBIENT GLOW */
+  .ambient-glow-container {
+    position: absolute;
+    inset: -20%; /* bleed outwards */
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .ambient-glow-layer {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    filter: blur(100px) saturate(2);
+    opacity: 0;
+    transition: opacity 1.5s ease;
+  }
+  .ambient-glow-layer.active {
+    opacity: 0.25; 
+  }
+
   .deck-stack {
     position: relative;
     width: 100%;
     flex: 1;
     min-height: 0; 
+    z-index: 2; /* above glow */
   }
 
   .deck-card {
@@ -453,8 +541,8 @@ function extractYoutubeId(url: string) {
     border-radius: 0; 
     overflow: hidden;
     box-shadow: 0 30px 60px rgba(0,0,0,0.9);
-    transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), 
-                opacity 0.8s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), 
+                opacity 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
                 z-index 0s;
     background: #111;
     cursor: pointer;
@@ -574,17 +662,17 @@ function extractYoutubeId(url: string) {
 
   /* QUICK NAV TRACK */
   .deck-nav-track {
-    width: 80%; /* aligns with active card width */
+    width: 80%;
     height: 80px;
     margin-top: 1rem;
     display: flex;
     gap: 12px;
     align-items: center;
     overflow-x: auto;
-    padding-bottom: 5px; /* for scrollbar */
+    padding-bottom: 5px; 
+    z-index: 2; /* above glow */
   }
   
-  /* Hide scrollbar for clean look */
   .deck-nav-track::-webkit-scrollbar {
     height: 4px;
   }
@@ -605,7 +693,7 @@ function extractYoutubeId(url: string) {
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
     position: relative;
-    overflow: hidden;
+    overflow: visible; /* so tooltip can escape */
   }
   
   .deck-nav-thumb:hover {
@@ -640,6 +728,31 @@ function extractYoutubeId(url: string) {
     text-align: center;
   }
 
+  /* TOOLTIP */
+  .custom-tooltip {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: rgba(0,0,0,0.9);
+    border: 1px solid rgba(255,255,255,0.15);
+    padding: 0.4rem 0.8rem;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s ease;
+    z-index: 100;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.8);
+  }
+  .deck-nav-thumb:hover .custom-tooltip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 
   /* RIGHT COLUMN */
   .info-column {
