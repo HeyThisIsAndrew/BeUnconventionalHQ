@@ -313,7 +313,7 @@ function extractYoutubeId(url: string) {
                         const meta = metaFor(brand);
 
                         return (
-                          <div class={`brand-info-panel ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex} style={`--brand-color: ${meta.color};`}>
+                          <div class={`brand-info-panel ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex} style={`--brand-color: ${meta.color}; --brand-rgb: ${meta.rgb};`}>
                             <div class="large-trailer-card">
                               
                               <div class="trailer-bg-wrapper">
@@ -1410,13 +1410,43 @@ function extractYoutubeId(url: string) {
   }
 
 
-  /* Dynamic button override to use --brand-color */
+  /*
+    THE BRAND COLOUR IS A HIGHLIGHT, NOT THE RESTING STATE.
+
+    This used to paint the button's outline in the hub's colour at all times,
+    which on DC meant a bright blue rectangle sitting on black — the visual
+    signature of a web link, not of a title card. The colour now stays out of
+    the way until you reach for the control, and arrives as a glow.
+
+    It also fixes a genuine bug. The old hover set `background-color` to the
+    brand colour AND `color: #fff`, so the four hubs whose colour is pure
+    white — Apple TV+, A24, Universal, Sony Pictures — rendered white text on
+    a white fill and the label vanished.
+
+    A TRANSLUCENT TINT rather than a solid fill is what removes that whole
+    class of problem: the dark panel still shows through, so the label stays
+    legible whatever colour a hub is set to, including white. That matters
+    now that the colour is editable in the CMS — anyone can pick any hex, and
+    the button has to survive all of them without someone re-checking
+    contrast by hand.
+  */
   .dynamic-brand-btn {
-    border-color: var(--brand-color, var(--color-accent)) !important;
+    border-color: rgba(255, 255, 255, 0.22) !important;
+    color: rgba(255, 255, 255, 0.92) !important;
+    transition:
+      border-color 0.35s cubic-bezier(0.25, 0.8, 0.2, 1),
+      background-color 0.35s cubic-bezier(0.25, 0.8, 0.2, 1),
+      box-shadow 0.35s cubic-bezier(0.25, 0.8, 0.2, 1),
+      color 0.35s cubic-bezier(0.25, 0.8, 0.2, 1);
   }
-  .dynamic-brand-btn:hover {
-    background-color: var(--brand-color, var(--color-accent)) !important;
-    box-shadow: 0 0 30px var(--brand-color, var(--color-accent)) !important;
+
+  .dynamic-brand-btn:hover,
+  .dynamic-brand-btn:focus-visible {
+    border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.85) !important;
+    background-color: rgba(var(--brand-rgb, 204, 0, 0), 0.16) !important;
+    box-shadow:
+      0 0 34px rgba(var(--brand-rgb, 204, 0, 0), 0.32),
+      inset 0 0 22px rgba(var(--brand-rgb, 204, 0, 0), 0.12) !important;
     color: #fff !important;
   }
   
