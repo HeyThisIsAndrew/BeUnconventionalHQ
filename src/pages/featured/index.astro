@@ -1,9 +1,18 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import SubscribeCTA from '../../components/SubscribeCTA.astro';
 import { getFeaturedBrandsLocal, urlFor } from '../../lib/local-content';
 
-const brands = await getFeaturedBrandsLocal();
+/*
+  `featuredBrand` docs are read out of src/data/videos.json, which is a frozen
+  Sanity export with no generated types — every consumer of it in this repo
+  (see /featured/[slug].astro) annotates the doc as `any` for exactly that
+  reason. Naming the shape once here is what lets the map/sort callbacks below
+  be typed instead of each one tripping ts(7006) "implicitly has an any type".
+*/
+type Brand = any;
+
+// getFeaturedBrandsLocal() is synchronous — it filters an imported JSON array.
+const brands: Brand[] = getFeaturedBrandsLocal();
 
 const categoryMap: Record<string, string> = {
   'marvel-comics': 'universes',
@@ -30,12 +39,12 @@ const categoryLabels: Record<string, string> = {
   'gaming': 'Gaming'
 };
 
-const groupedBrands = brands.reduce((acc, brand) => {
+const groupedBrands = brands.reduce((acc: Record<string, Brand[]>, brand: Brand) => {
   const category = categoryMap[brand.slug?.current || ''] || 'other';
   if (!acc[category]) acc[category] = [];
   acc[category].push(brand);
   return acc;
-}, {} as Record<string, typeof brands>);
+}, {} as Record<string, Brand[]>);
 
 const desiredOrder = ['universes', 'streaming', 'studios', 'gaming'];
 const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
@@ -49,7 +58,13 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
 
 
 
-const brandMeta = {
+interface BrandMeta {
+  color: string;
+  rgb: string;
+  desc: string;
+}
+
+const brandMeta: Record<string, BrandMeta> = {
   'marvel-comics': { color: '#E23636', rgb: '226, 54, 54', desc: 'Presenting Marvel, the MCU, and Marvel Games.' },
   'dc-comics': { color: '#0476F2', rgb: '4, 118, 242', desc: 'Presenting DC, the DCU, and DC Games.' },
   'netflix': { color: '#E50914', rgb: '229, 9, 20', desc: 'The definitive source for Netflix Originals, series, and films.' },
@@ -67,6 +82,113 @@ const brandMeta = {
   'xbox': { color: '#107C10', rgb: '16, 124, 16', desc: 'Presenting Xbox Game Studios, Game Pass, and Series X|S.' }
 };
 
+/* ─────────────────────────────────────────────────────────────────────────
+   CINEMATIC TYPOGRAPHY — candidates, and the one that ships.
+
+   Two modes, and which one you get depends on the build:
+
+     • `npm run dev` — the picker renders and every candidate is loaded, so
+       faces can be compared live. Default is "Demo all", which puts a
+       DIFFERENT candidate on each category with its name beside it.
+     • production build — the picker is not emitted at all, only PROD_FONT is
+       downloaded, and every title renders in it. No review chrome, and no
+       paying for seven unused webfonts on a page that is in the Lighthouse
+       gate.
+
+   `family` is the Google Fonts css2 query fragment; `stack` is the CSS
+   font-family. To change what ships, change PROD_FONT — nothing else.
+   ───────────────────────────────────────────────────────────────────────── */
+interface DemoFont {
+  id: string;
+  short: string;
+  label: string;
+  family: string;
+  stack: string;
+  weight: number;
+  /** Extra tracking for faces that set too tight at banner sizes. */
+  tracking: string;
+}
+
+const DEMO_FONTS: DemoFont[] = [
+  // ── The four original candidates (issue #138) ──
+  { id: 'syncopate', short: 'Syncopate', label: 'SYNCOPATE (Epic Ultra-Wide)',
+    family: 'Syncopate:wght@700', stack: "'Syncopate', sans-serif", weight: 700, tracking: '-0.01em' },
+  { id: 'bebas', short: 'Bebas Neue', label: 'BEBAS NEUE (Tall/Condensed)',
+    family: 'Bebas+Neue', stack: "'Bebas Neue', sans-serif", weight: 400, tracking: '0.01em' },
+  { id: 'cinzel', short: 'Cinzel', label: 'CINZEL (Prestige Serif)',
+    family: 'Cinzel:wght@700..900', stack: "'Cinzel', serif", weight: 800, tracking: '0.01em' },
+  { id: 'oswald', short: 'Oswald', label: 'OSWALD (Modern Tech/Heavy)',
+    family: 'Oswald:wght@700', stack: "'Oswald', sans-serif", weight: 700, tracking: '-0.01em' },
+
+  // ── Added candidates, all chosen for behaviour at banner size ──
+  // Anton: the blockbuster one-sheet face. Very heavy, tightly condensed, so
+  // "THE MULTIVERSE" holds one line where a wide face wraps.
+  { id: 'anton', short: 'Anton', label: 'ANTON (Blockbuster Poster)',
+    family: 'Anton', stack: "'Anton', sans-serif", weight: 400, tracking: '-0.01em' },
+  // Big Shoulders: editorial-cinematic, tall and narrow — title-card energy
+  // without Anton's bluntness.
+  { id: 'bigshoulders', short: 'Big Shoulders', label: 'BIG SHOULDERS (Tall Editorial)',
+    family: 'Big+Shoulders+Display:wght@800', stack: "'Big Shoulders Display', sans-serif", weight: 800, tracking: '0.01em' },
+  // Archivo Black: neutral heavy grotesque, closest to the site's own Syne.
+  { id: 'archivo', short: 'Archivo Black', label: 'ARCHIVO BLACK (Heavy Neutral)',
+    family: 'Archivo+Black', stack: "'Archivo Black', sans-serif", weight: 400, tracking: '-0.02em' },
+  // Unbounded: contemporary streaming-brand display, wide and geometric.
+  { id: 'unbounded', short: 'Unbounded', label: 'UNBOUNDED (Modern Streamer)',
+    family: 'Unbounded:wght@800', stack: "'Unbounded', sans-serif", weight: 800, tracking: '-0.02em' },
+
+  /*
+    GOTHAM STAND-INS.
+
+    Gotham is a licensed Hoefler & Co typeface — it is not on Google Fonts
+    and cannot be self-hosted without buying a webfont licence, so it cannot
+    simply be dropped in. Montserrat is the long-standing open substitute:
+    the same geometric-sans skeleton and near-identical proportions.
+
+    Both weights are here because "Medium" behaves very differently at these
+    two jobs. At 90px across a full-bleed bar, Medium is genuinely light —
+    elegant and modern, but it does not hold against a bright still. The
+    ExtraBold cut is what film marketing actually uses at poster size.
+  */
+  { id: 'gotham', short: 'Montserrat Md', label: 'MONTSERRAT MEDIUM (Gotham-like)',
+    family: 'Montserrat:wght@500', stack: "'Montserrat', sans-serif", weight: 500, tracking: '0.02em' },
+  { id: 'gotham-heavy', short: 'Montserrat XB', label: 'MONTSERRAT EXTRABOLD (Gotham Black-like)',
+    family: 'Montserrat:wght@800', stack: "'Montserrat', sans-serif", weight: 800, tracking: '-0.01em' },
+];
+
+/*
+  THE FACE THAT SHIPS.
+
+  Montserrat Medium, as the Gotham-like direction asked for. Toggle in dev to
+  compare — `gotham-heavy` is the same face at ExtraBold and is the one to
+  reach for if the Medium cut reads too light over bright hero art, which is
+  the usual outcome at banner size.
+*/
+const PROD_FONT = 'gotham';
+
+const IS_DEV = import.meta.env.DEV;
+const activeFonts = IS_DEV ? DEMO_FONTS : DEMO_FONTS.filter((f) => f.id === PROD_FONT);
+const fontImportUrl =
+  `https://fonts.googleapis.com/css2?${activeFonts.map((f) => `family=${f.family}`).join('&')}&display=swap`;
+
+/*
+  Emitted as one inline <style> rather than written out in the scoped block,
+  so the face list stays a single source of truth: adding a candidate to
+  DEMO_FONTS is all it takes, and production automatically ships exactly one
+  @import instead of eight.
+*/
+const fontCss = `@import url('${fontImportUrl}');
+${activeFonts
+  .map(
+    (f) => `[data-title-font='${f.id}'] .accordion-title,
+.accordion-title[data-demo-font='${f.id}'] {
+  font-family: ${f.stack};
+  font-weight: ${f.weight};
+  letter-spacing: ${f.tracking};
+  text-transform: uppercase;
+}`,
+  )
+  .join('\n')}`;
+
 function extractYoutubeId(url: string) {
   if (!url) return null;
   const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:.*v=|.*\/))([^"&?\s]{11})/);
@@ -75,14 +197,15 @@ function extractYoutubeId(url: string) {
 ---
 
 <Layout title="Featured Hubs">
-  <main class="featured-directory-page">
+  <style is:inline set:html={fontCss}></style>
+  <main class="featured-directory-page" data-title-font={IS_DEV ? 'demo' : PROD_FONT}>
     {sortedCategories.length > 0 ? (
       <div class="accordion-container animate-on-scroll">
         {sortedCategories.map((category, index) => {
           let categoryBrands = groupedBrands[category];
           if (category === 'gaming') {
             const gamingOrder = ['playstation', 'nintendo', 'xbox'];
-            categoryBrands = categoryBrands.sort((a, b) => {
+            categoryBrands = categoryBrands.sort((a: Brand, b: Brand) => {
               const aIdx = gamingOrder.indexOf(a.slug?.current || '');
               const bIdx = gamingOrder.indexOf(b.slug?.current || '');
               if (aIdx === -1 && bIdx === -1) return 0;
@@ -100,22 +223,14 @@ function extractYoutubeId(url: string) {
               <div class="accordion-header">
                 <div class="accordion-header-bg"></div>
                 
-                                            <h2 class="accordion-title" style={
-                        index === 0 ? "font-family: 'Syncopate', sans-serif; font-weight: 700; text-transform: uppercase;" :
-                        index === 1 ? "font-family: 'Bebas Neue', sans-serif; text-transform: uppercase;" :
-                        index === 2 ? "font-family: 'Cinzel', serif; font-weight: 700; text-transform: uppercase;" :
-                        "font-family: 'Oswald', sans-serif; font-weight: 700; text-transform: uppercase;"
-                      }>
-                        {categoryLabels[category] || category}
-                        <span style="font-size: clamp(1rem, 2vw, 2rem); opacity: 0.5; font-family: monospace; letter-spacing: normal; margin-left: 2rem; vertical-align: middle;">
-                          — {
-                            index === 0 ? "SYNCOPATE (Epic Ultra-Wide)" :
-                            index === 1 ? "BEBAS NEUE (Tall/Condensed)" :
-                            index === 2 ? "CINZEL (Prestige Serif)" :
-                            "OSWALD (Modern Tech/Heavy)"
-                          }
-                        </span>
-                      </h2>
+                <h2 class="accordion-title" data-demo-font={DEMO_FONTS[index % DEMO_FONTS.length].id}>
+                  {categoryLabels[category] || category}
+                  {IS_DEV && (
+                    <span class="accordion-title-demo-label">
+                      — {DEMO_FONTS[index % DEMO_FONTS.length].label}
+                    </span>
+                  )}
+                </h2>
 
               </div>
 
@@ -126,7 +241,7 @@ function extractYoutubeId(url: string) {
                     
                     {/* AMBIENT GLOW BACKLIGHT */}
                     <div class="ambient-glow-container">
-                       {categoryBrands.map((brand, bIndex) => {
+                       {categoryBrands.map((brand: Brand, bIndex: number) => {
                          const glowUrl = brand.heroImage ? urlFor(brand.heroImage).width(100).url() : null;
                          return (
                             <div class={`ambient-glow-layer ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex} style={glowUrl ? `background-image: url(${glowUrl})` : ''}></div>
@@ -135,11 +250,16 @@ function extractYoutubeId(url: string) {
                     </div>
 
                     <div class="deck-stack">
-                      {categoryBrands.map((brand, bIndex) => {
+                      {categoryBrands.map((brand: Brand, bIndex: number) => {
                         const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).url() : null;
                         const metaCard = brandMeta[brand.slug?.current] || { rgb: "204, 0, 0" };
                         return (
-                          <div class={`deck-card ${bIndex === 0 ? "active" : bIndex === 1 ? "next-1" : bIndex === 2 ? "next-2" : "hidden"}`} data-index={bIndex} data-brand-rgb={metaCard.rgb}>
+                          <div
+                            class={`deck-card ${bIndex === 0 ? "active" : bIndex === 1 ? "next-1" : bIndex === 2 ? "next-2" : "hidden"}`}
+                            data-index={bIndex}
+                            data-brand-rgb={metaCard.rgb}
+                            data-href={`/featured/${brand.slug?.current}`}
+                          >
 
                             <div class="peeking-spine">
                                <span class="spine-text">{brand.title}</span>
@@ -158,7 +278,7 @@ function extractYoutubeId(url: string) {
                     </div>
 
                     <div class="deck-nav-track">
-                      {categoryBrands.map((brand, bIndex) => {
+                      {categoryBrands.map((brand: Brand, bIndex: number) => {
                          const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(400).height(200).url() : null;
                          return (
                            <div class={`deck-nav-thumb ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex}>
@@ -179,7 +299,7 @@ function extractYoutubeId(url: string) {
 
                   <div class="info-column">
                     <div class="info-panels-wrapper">
-                      {categoryBrands.map((brand, bIndex) => {
+                      {categoryBrands.map((brand: Brand, bIndex: number) => {
                         const ytId = extractYoutubeId(brand.trailerUrl || '');
                         const ytSrc = ytId ? `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&controls=0&modestbranding=1&showinfo=0&rel=0` : null;
                         const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).height(800).url() : null;
@@ -191,7 +311,7 @@ function extractYoutubeId(url: string) {
                               
                               <div class="trailer-bg-wrapper">
                                 {ytSrc ? (
-                                  <iframe class="trailer-iframe" data-data-src={ytSrc} allow="autoplay; encrypted-media" tabindex="-1"></iframe>
+                                  <iframe class="trailer-iframe" data-src={ytSrc} allow="autoplay; encrypted-media" tabindex="-1"></iframe>
                                 ) : heroUrl ? (
                                   <img src={heroUrl} class="trailer-fallback-img" alt={brand.title} />
                                 ) : (
@@ -204,13 +324,24 @@ function extractYoutubeId(url: string) {
 
                               <div class="trailer-bottom-content">
                                 {brand.logo ? (
-                                  <img src={urlFor(brand.logo).height(120).url()} alt={`${brand.title} logo`} class="trailer-logo" />
+                                  <span class="trailer-logo-wrap">
+                                    <img src={urlFor(brand.logo).height(120).url()} alt={`${brand.title} logo`} class="trailer-logo" />
+                                  </span>
                                 ) : (
                                   <h3 class="trailer-text-title">{brand.title}</h3>
                                 )}
                                 <div class="trailer-text-btn-row">
-                                  <a href={`/featured/${brand.slug?.current}`} class="cta-button-primary dynamic-brand-btn">ENTER {brand.title}</a>
                                   <p class="brand-desc">{meta.desc}</p>
+                                  <a
+                                    href={`/featured/${brand.slug?.current}`}
+                                    class="cta-button-primary dynamic-brand-btn"
+                                    aria-label={`Enter the ${brand.title} hub`}
+                                  >
+                                    <span>Enter</span>
+                                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                      <path d="M5 12h13M13 6l6 6-6 6" />
+                                    </svg>
+                                  </a>
                                 </div>
                               </div>
                             </div>
@@ -231,14 +362,34 @@ function extractYoutubeId(url: string) {
         <p class="featured-empty">Dedicated coverage hubs are coming soon.</p>
       </div>
     )}
+  
+    {/*
+      Typeface picker — DEV ONLY. `import.meta.env.DEV` is false for
+      `astro build`, so this markup, and the seven non-shipping webfonts it
+      exists to compare, never reach a deployed page.
+    */}
+    {IS_DEV && (
+      <div class="font-picker" role="group" aria-label="Preview heading typeface">
+        <span class="font-picker-label">Typeface</span>
+        <button type="button" class="font-picker-btn" data-font="demo" aria-pressed="true">Demo per row</button>
+        {DEMO_FONTS.map((f) => (
+          <button type="button" class="font-picker-btn" data-font={f.id} aria-pressed="false">{f.short}</button>
+        ))}
+      </div>
+    )}
   </main>
 </Layout>
 
 <script>
-  let audioCtx = null;
+  let audioCtx: AudioContext | null = null;
   function playCinematicThud() {
     try {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      // Safari still only exposes the prefixed constructor.
+      const Ctor =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctor) return;
+      if (!audioCtx) audioCtx = new Ctor();
       if (audioCtx.state === 'suspended') audioCtx.resume();
       
       const osc = audioCtx.createOscillator();
@@ -263,9 +414,9 @@ function extractYoutubeId(url: string) {
   }
 
   function initAccordionAndDecks() {
-    const sections = document.querySelectorAll('.accordion-section');
+    const sections = document.querySelectorAll<HTMLElement>('.accordion-section');
     sections.forEach(section => {
-      const header = section.querySelector('.accordion-header');
+      const header = section.querySelector<HTMLElement>('.accordion-header');
       if (!header) return;
       
       if (!header.dataset.hasClickListener) {
@@ -277,19 +428,22 @@ function extractYoutubeId(url: string) {
           sections.forEach(s => {
             s.classList.remove('expanded');
             s.classList.add('collapsed');
-            const iframes = s.querySelectorAll('.trailer-iframe');
-            iframes.forEach(iframe => { iframe.src = ''; });
+            const iframes = s.querySelectorAll<HTMLIFrameElement>('.trailer-iframe');
+            // NEVER `iframe.src = ''` (hard rule 4): the empty string resolves
+            // against the document URL, so it reloads this whole page inside
+            // the iframe. removeAttribute is the real unload.
+            iframes.forEach((iframe) => { iframe.removeAttribute('src'); });
           });
           
           section.classList.remove('collapsed');
           section.classList.add('expanded');
 
-          const activeCard = section.querySelector('.deck-card.active');
+          const activeCard = section.querySelector<HTMLElement>('.deck-card.active');
           if (activeCard) {
              const activeIdx = activeCard.getAttribute('data-index');
-             const activePanel = section.querySelector(`.brand-info-panel[data-index="${activeIdx}"]`);
+             const activePanel = section.querySelector<HTMLElement>(`.brand-info-panel[data-index="${activeIdx}"]`);
              if (activePanel) {
-               const iframe = activePanel.querySelector('.trailer-iframe');
+               const iframe = activePanel.querySelector<HTMLIFrameElement>('.trailer-iframe');
                if (iframe && !iframe.src && iframe.dataset.src) {
                  iframe.src = iframe.dataset.src;
                }
@@ -298,10 +452,10 @@ function extractYoutubeId(url: string) {
         });
       }
 
-      const cards = Array.from(section.querySelectorAll('.deck-card'));
-      const navThumbs = Array.from(section.querySelectorAll('.deck-nav-thumb'));
-      const infoPanels = Array.from(section.querySelectorAll('.brand-info-panel'));
-      const glowLayers = Array.from(section.querySelectorAll('.ambient-glow-layer'));
+      const cards = Array.from(section.querySelectorAll<HTMLElement>('.deck-card'));
+      const navThumbs = Array.from(section.querySelectorAll<HTMLElement>('.deck-nav-thumb'));
+      const infoPanels = Array.from(section.querySelectorAll<HTMLElement>('.brand-info-panel'));
+      const glowLayers = Array.from(section.querySelectorAll<HTMLElement>('.ambient-glow-layer'));
       
       let activeIndex = 0;
       cards.forEach((c, idx) => {
@@ -309,7 +463,7 @@ function extractYoutubeId(url: string) {
       });
 
       if (section.classList.contains('expanded')) {
-        const firstIframe = infoPanels[activeIndex]?.querySelector('.trailer-iframe');
+        const firstIframe = infoPanels[activeIndex]?.querySelector<HTMLIFrameElement>('.trailer-iframe');
         if (firstIframe && firstIframe.dataset.src && !firstIframe.src) {
           firstIframe.src = firstIframe.dataset.src;
         }
@@ -323,7 +477,7 @@ function extractYoutubeId(url: string) {
           if (navThumbs[i]) navThumbs[i].className = 'deck-nav-thumb';
           if (glowLayers[i]) glowLayers[i].className = 'ambient-glow-layer';
 
-          const iframe = infoPanels[i].querySelector('.trailer-iframe');
+          const iframe = infoPanels[i].querySelector<HTMLIFrameElement>('.trailer-iframe');
 
           if (i === activeIndex) {
             card.classList.add('active');
@@ -331,9 +485,13 @@ function extractYoutubeId(url: string) {
             if (navThumbs[i]) navThumbs[i].classList.add('active');
             if (glowLayers[i]) glowLayers[i].classList.add('active');
             
-            // Lazy load active iframe
-            if (iframe && !iframe.src) {
-              iframe.src = iframe.getAttribute('data-src') || '';
+            // Lazy load active iframe. Guarded on the data attribute rather
+            // than falling back to '' — a brand with no trailerUrl renders no
+            // data-src, and assigning '' there would load the site into the
+            // iframe (hard rule 4).
+            const lazySrc = iframe?.dataset.src;
+            if (iframe && lazySrc && !iframe.src) {
+              iframe.src = lazySrc;
             }
             
             // Set dynamic left row color
@@ -364,16 +522,32 @@ function extractYoutubeId(url: string) {
           card.dataset.hasClickListener = 'true';
           card.addEventListener('click', (e) => {
             if (i !== activeIndex) {
+              // A card behind the front one means "bring me forward".
               e.preventDefault();
               e.stopPropagation();
               activeIndex = i;
               playCinematicThud();
               renderDeck();
+              return;
             }
+            /*
+              The FRONT card means "go in".
+
+              Previously clicking it did nothing, which left a large piece of
+              artwork that looks clickable and is not — and pushed the whole
+              job onto a button in the corner. This is the tile-is-the-target
+              behaviour every TV app uses.
+
+              It is an enhancement layered on top, not the only route: the
+              real <a> in the corner is what keyboards and screen readers
+              use, so nothing depends on this handler existing.
+            */
+            const href = card.getAttribute('data-href');
+            if (href) window.location.href = href;
           });
 
           // Parallax hover depth on active card
-          card.addEventListener('mousemove', (e) => {
+          card.addEventListener('mousemove', (e: MouseEvent) => {
             if (i !== activeIndex) return;
             const rect = card.getBoundingClientRect();
             const x = e.clientX - rect.left;
@@ -394,6 +568,49 @@ function extractYoutubeId(url: string) {
         }
       });
 
+      /*
+        POINTER DRIFT.
+
+        Reports where the pointer sits inside the open row as two numbers
+        from -1 to 1, and lets CSS decide what moves and how far. Keeping the
+        distances in the stylesheet means the feel can be tuned without
+        touching this handler.
+
+        Gated on the EVENT's pointer type rather than a `(hover: hover)`
+        media query. The media query is the usual way to do this and it is
+        the wrong one here: plenty of real desktop environments report
+        `hover: none` (this project's own headless test browser does), which
+        silently costs those visitors the effect. The event knows what it
+        actually was. It also handles a touchscreen laptop properly — drift
+        with the mouse, none from a finger — which one global media query
+        cannot express.
+      */
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (!reducedMotion && !section.dataset.hasDriftListener) {
+        section.dataset.hasDriftListener = 'true';
+
+        const resetDrift = () => {
+          section.style.setProperty('--drift-x', '0');
+          section.style.setProperty('--drift-y', '0');
+        };
+
+        section.addEventListener('pointermove', (e: PointerEvent) => {
+          // A tap fires one synthetic move; acting on it would shove the
+          // artwork sideways and leave it parked there.
+          if (e.pointerType === 'touch') return;
+          if (!section.classList.contains('expanded')) return;
+          const rect = section.getBoundingClientRect();
+          if (!rect.width || !rect.height) return;
+          const x = (e.clientX - rect.left) / rect.width - 0.5;
+          const y = (e.clientY - rect.top) / rect.height - 0.5;
+          section.style.setProperty('--drift-x', String(x * 2));
+          section.style.setProperty('--drift-y', String(y * 2));
+        });
+
+        section.addEventListener('pointerleave', resetDrift);
+      }
+
       // Quick Nav Thumb Clicks
       navThumbs.forEach((thumb, i) => {
         if (!thumb.dataset.hasClickListener) {
@@ -412,13 +629,32 @@ function extractYoutubeId(url: string) {
     });
   }
 
+  /* TEMPORARY typography picker — remove with DEMO_FONTS. */
+  function initFontPicker() {
+    const root = document.querySelector<HTMLElement>('.featured-directory-page');
+    if (!root || root.dataset.fontPickerInit === '1') return;
+    root.dataset.fontPickerInit = '1';
+
+    const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>('.font-picker-btn'));
+    for (const button of buttons) {
+      button.addEventListener('click', () => {
+        root.dataset.titleFont = button.dataset.font ?? 'demo';
+        for (const other of buttons) {
+          other.setAttribute('aria-pressed', other === button ? 'true' : 'false');
+        }
+      });
+    }
+  }
+
   initAccordionAndDecks();
-  document.addEventListener('astro:page-load', initAccordionAndDecks);
+  initFontPicker();
+  document.addEventListener('astro:page-load', () => {
+    initAccordionAndDecks();
+    initFontPicker();
+  });
 </script>
 
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@700&family=Oswald:wght@700&family=Syncopate:wght@700&display=swap');
-
 
   /* ─── CINEMATIC OVERLAYS ─── */
   .film-grain {
@@ -440,13 +676,26 @@ function extractYoutubeId(url: string) {
 
   
 
+  /*
+    HARD RULE 3: no `overflow: hidden` on any ancestor of a YouTube iframe —
+    iOS Safari composites the cross-origin iframe as a black box. The right
+    column's trailer iframe sits inside this element and inside
+    `.accordion-section`, so BOTH lost their clip. The clipping they were
+    doing is real, but it belongs to the deck side, so it moved down onto
+    `.deck-column` (below), which contains no iframe. Same isolate-the-clip
+    pattern as `.event-hero-bg-wrapper` on the [slug] pages.
+
+    HEIGHT: `lvh`, not `vh`. On iOS `100vh` is the LARGEST viewport but is
+    also what the page uses before the URL bar retracts, and mixing it with a
+    fixed-height flex accordion leaves the last row cut off behind the bar.
+    `lvh` is the unit scripts/viewport-units.test.mjs pins for exactly this.
+  */
   .featured-directory-page {
     width: 100%;
     padding-top: var(--header-height, 80px);
-    height: 100vh;
+    height: 100lvh;
     min-height: 750px;
     background: #000;
-    overflow: hidden;
   }
 
   .accordion-container {
@@ -460,7 +709,9 @@ function extractYoutubeId(url: string) {
   .accordion-section {
     flex: 1;
     position: relative;
-    overflow: hidden;
+    /* No overflow clip here — hard rule 3, see .featured-directory-page.
+       The collapse still hides its body: .accordion-body toggles both
+       opacity and visibility, which is what actually removes it. */
     transition: flex 0.7s cubic-bezier(0.25, 1, 0.5, 1);
     display: flex;
     flex-direction: column;
@@ -512,13 +763,90 @@ function extractYoutubeId(url: string) {
     cursor: default;
   }
 
+  /* Sized in `em` so it follows the label instead of dwarfing it — at the
+     old fixed clamp it was now larger than the title it annotates. */
+  .accordion-title-demo-label {
+    font-size: 0.7em;
+    opacity: 0.45;
+    font-family: monospace;
+    letter-spacing: normal;
+    margin-left: 1.2rem;
+    vertical-align: middle;
+  }
+
+  /* The per-row labels only make sense while all four are on screen. */
+  .featured-directory-page:not([data-title-font='demo']) .accordion-title-demo-label {
+    display: none;
+  }
+
+  .font-picker {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 400;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.55rem;
+    background: rgba(8, 8, 8, 0.82);
+    border: 1px dashed rgba(255, 255, 255, 0.22);
+    backdrop-filter: blur(8px);
+  }
+
+  .font-picker-label {
+    font-family: var(--font-body);
+    font-size: 0.6rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-white-muted);
+    margin-right: 0.25rem;
+  }
+
+  .font-picker-btn {
+    padding: 0.3rem 0.6rem;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: transparent;
+    color: var(--color-white-muted);
+    font-family: var(--font-body);
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+  }
+
+  .font-picker-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.45);
+  }
+
+  .font-picker-btn[aria-pressed='true'] {
+    color: #fff;
+    border-color: var(--color-accent-text);
+    background: rgba(204, 0, 0, 0.2);
+  }
+
+  /*
+    SECTION LABEL, not a headline.
+
+    This was clamp(3rem, 7vw, 7rem) — around 90px, a word so large it filled
+    the bar and made every closed row shout at the same volume as the open
+    one. Dropped to roughly a fifth of that so it sits as a small plate in
+    the middle of its row.
+
+    The horizontal start is unchanged: `.accordion-header` still centres its
+    contents vertically and pads 5vw from the left, so the label keeps its
+    original left edge and simply shrinks in place.
+
+    Wide tracking is doing the work that size used to. At this scale a
+    tightly-set word reads as small; spaced out it reads as deliberate,
+    which is how a title plate or a chapter marker is set.
+  */
   .accordion-title {
     font-family: 'Helvetica Neue', Helvetica, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-    font-size: clamp(3rem, 7vw, 7rem);
+    font-size: clamp(0.95rem, 1.55vw, 1.5rem);
     text-transform: uppercase;
-    font-weight: 900; 
-    letter-spacing: -0.04em; 
-    color: rgba(255, 255, 255, 0.7); 
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    color: rgba(255, 255, 255, 0.72);
     margin: 0;
     z-index: 2;
     transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
@@ -526,13 +854,25 @@ function extractYoutubeId(url: string) {
   
   .accordion-section.collapsed:hover .accordion-title {
     color: #fff;
-    transform: scale(1.02) translateX(10px);
+    /* 10px was a small nudge beside 90px type and is a lurch beside 19px. */
+    transform: translateX(5px);
+    letter-spacing: 0.34em;
   }
 
+  /*
+    STAGING NOTE — the open row's title steps back.
+
+    Closed, this title IS the headline and should shout. Open, it is just a
+    label telling you where you are, and at full white it was competing with
+    the brand logo and the deck for the same attention. Smaller, dimmer and
+    widely spaced turns it into a caption, which leaves one clear subject:
+    the artwork.
+  */
   .accordion-section.expanded .accordion-title {
-    font-size: clamp(1.5rem, 3vw, 2.5rem);
-    color: #fff;
-    letter-spacing: -0.02em;
+    font-size: clamp(0.8rem, 1.25vw, 1.1rem);
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.38);
+    letter-spacing: 0.3em;
     transform: none;
   }
 
@@ -566,12 +906,34 @@ function extractYoutubeId(url: string) {
     z-index: 20;
     display: flex;
     flex-direction: column;
+    /*
+      NO `overflow: hidden` HERE.
+
+      The clip that came off .accordion-section (hard rule 3) was parked on
+      this column, and it landed exactly on the 50% seam — a dead straight
+      vertical cut through the deck, which is the hard edge between the two
+      halves. Containment is done with a mask on `.deck-stack` instead: it
+      fades the cards to zero alpha BEFORE the column boundary, so nothing
+      escapes into the right half and nothing is sliced to do it.
+    */
   }
 
   /* AMBIENT GLOW */
   .ambient-glow-container {
     position: absolute;
-    inset: -20%; /* bleed outwards */
+    /*
+      Bleed sideways and up, but NOT down.
+
+      This was `inset: -20%` on all four sides. `.accordion-section` used to
+      clip that overhang away, but that clip had to go (hard rule 3), and the
+      bottom 20% — measured at 83px — then painted a blurred wash straight
+      over the footer whenever the LAST row was the expanded one.
+
+      Sideways and upward bleed stay: both land inside the section, which is
+      where the ambient backlight is supposed to spread. Only the bottom is
+      pinned to the column, because below it is somebody else's content.
+    */
+    inset: -20% -20% 0 -20%;
     z-index: 0;
     pointer-events: none;
     overflow: hidden;
@@ -598,9 +960,34 @@ function extractYoutubeId(url: string) {
     flex: 1;
     min-height: 0; 
     z-index: 2;
-    /* Feather out the cards on the right side into the right column */
-    -webkit-mask-image: linear-gradient(to left, transparent 0%, rgba(0,0,0,0.2) 20%, black 60%);
-    mask-image: linear-gradient(to left, transparent 0%, rgba(0,0,0,0.2) 20%, black 60%);
+    /*
+      Feather the deck out into the right column.
+
+      Multi-stop, not the two-stop linear ramp this used to be. A linear alpha
+      ramp is what the eye reads as a visible band (Mach banding): the
+      derivative is constant, so the ramp's two ENDS are discontinuities and
+      both show up as faint lines. These stops approximate a smoothstep, so
+      the fade has no detectable start or finish.
+
+      `mask-repeat: no-repeat` is load-bearing. mask-repeat defaults to
+      `repeat`, which TILES the gradient outside the element's box — a card
+      translated past the stack edge would pass under a fresh copy of the
+      ramp and pop back into view. With no-repeat, everything past the box is
+      masked out, and because the ramp has already reached zero alpha there,
+      that cutoff is invisible.
+    */
+    -webkit-mask-image: linear-gradient(to left,
+      rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 8%, rgba(0,0,0,0.12) 15%,
+      rgba(0,0,0,0.28) 22%, rgba(0,0,0,0.50) 30%, rgba(0,0,0,0.72) 38%,
+      rgba(0,0,0,0.88) 46%, rgba(0,0,0,0.97) 54%, rgba(0,0,0,1) 62%);
+    mask-image: linear-gradient(to left,
+      rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 8%, rgba(0,0,0,0.12) 15%,
+      rgba(0,0,0,0.28) 22%, rgba(0,0,0,0.50) 30%, rgba(0,0,0,0.72) 38%,
+      rgba(0,0,0,0.88) 46%, rgba(0,0,0,0.97) 54%, rgba(0,0,0,1) 62%);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
   }
 
   .deck-card {
@@ -883,8 +1270,61 @@ function extractYoutubeId(url: string) {
     transform: translate(-50%, -50%);
     pointer-events: none;
     z-index: 1;
-    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 15%, black 100%);
-    mask-image: linear-gradient(to right, transparent 0%, black 15%, black 100%);
+    /*
+      The video's edges — "no hard edges, even from the video".
+
+      HORIZONTAL: this wrapper is 150% wide and centred, so it already spans
+      -25%..125% of the info column: the video bleeds a quarter of a column
+      LEFT, under the deck. The old two-stop ramp hit full opacity at 15% of
+      the wrapper (x = -2.5% of the column), so the whole crossfade happened
+      in a narrow band right at the seam and read as an edge. Full opacity at
+      29% puts it at x = +18% of the column (-25 + 150 * 0.29), so the video
+      dissolves in across a band ~43% of the column wide, straddling the seam
+      instead of stopping at it.
+
+      VERTICAL: the wrapper is also 150% TALL, i.e. it overhangs the panel by
+      25% top and bottom. `.accordion-section` used to clip that off, but that
+      clip had to go (hard rule 3 — it sat on the iframe's ancestor chain and
+      iOS Safari renders a clipped cross-origin iframe as a black box). With
+      the clip gone the overhang leaked the trailer down over the collapsed
+      rows underneath.
+
+      So the containment is a mask too. The wrapper's 150% height maps panel
+      y=0 to 16.7% and y=100% to 83.3%, so the ramps run 17%->27% and
+      73%->83%: zero alpha everywhere outside the panel, fully opaque across
+      the middle 70%, and a soft feather at top and bottom rather than a cut.
+
+      The two gradients are INTERSECTED — a mask layer list composites with
+      `add` by default, which would union them and mask nothing.
+    */
+    -webkit-mask-image:
+      linear-gradient(to right,
+        rgba(0,0,0,0) 0%, rgba(0,0,0,0.03) 6%, rgba(0,0,0,0.10) 11%,
+        rgba(0,0,0,0.24) 15%, rgba(0,0,0,0.45) 19%, rgba(0,0,0,0.68) 22%,
+        rgba(0,0,0,0.86) 25%, rgba(0,0,0,0.96) 27%, rgba(0,0,0,1) 29%,
+        rgba(0,0,0,1) 100%),
+      linear-gradient(to bottom,
+        rgba(0,0,0,0) 0%, rgba(0,0,0,0) 17%, rgba(0,0,0,0.18) 20%,
+        rgba(0,0,0,0.55) 23%, rgba(0,0,0,0.86) 25%, rgba(0,0,0,1) 27%,
+        rgba(0,0,0,1) 73%, rgba(0,0,0,0.86) 75%, rgba(0,0,0,0.55) 77%,
+        rgba(0,0,0,0.18) 80%, rgba(0,0,0,0) 83%, rgba(0,0,0,0) 100%);
+    mask-image:
+      linear-gradient(to right,
+        rgba(0,0,0,0) 0%, rgba(0,0,0,0.03) 6%, rgba(0,0,0,0.10) 11%,
+        rgba(0,0,0,0.24) 15%, rgba(0,0,0,0.45) 19%, rgba(0,0,0,0.68) 22%,
+        rgba(0,0,0,0.86) 25%, rgba(0,0,0,0.96) 27%, rgba(0,0,0,1) 29%,
+        rgba(0,0,0,1) 100%),
+      linear-gradient(to bottom,
+        rgba(0,0,0,0) 0%, rgba(0,0,0,0) 17%, rgba(0,0,0,0.18) 20%,
+        rgba(0,0,0,0.55) 23%, rgba(0,0,0,0.86) 25%, rgba(0,0,0,1) 27%,
+        rgba(0,0,0,1) 73%, rgba(0,0,0,0.86) 75%, rgba(0,0,0,0.55) 77%,
+        rgba(0,0,0,0.18) 80%, rgba(0,0,0,0) 83%, rgba(0,0,0,0) 100%);
+    -webkit-mask-composite: source-in;
+    mask-composite: intersect;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
   }
   
   .trailer-iframe, .trailer-fallback-img {
@@ -904,11 +1344,35 @@ function extractYoutubeId(url: string) {
 
   .trailer-dark-overlay {
     position: absolute;
-    inset: 0;
-    background: linear-gradient(to right, #050505 0%, transparent 15%);
+    /*
+      Spans -25%..125% of the panel, i.e. the SAME box as .trailer-bg-wrapper.
+
+      Pinned to the panel (inset: 0) its full-opacity end landed exactly on
+      the column boundary, so however soft the gradient was to the right of
+      that line, the line itself was a step: pixel-scanning a horizontal
+      slice across the seam showed a jump of 21-27 at x=756 on a 1440 render.
+      A gradient cannot hide its own start — the fix is to move the start off
+      the seam entirely.
+
+      Sharing the video's box means the wash is already ~0.6 alpha and still
+      falling by the time it crosses the boundary, and it keeps going into
+      the deck column, where .deck-column's higher z-index paints it UNDER
+      the cards — so it deepens the background the deck fades into rather
+      than dimming the deck itself.
+    */
+    top: 0;
+    bottom: 0;
+    left: -25%;
+    width: 150%;
+    background: linear-gradient(to right,
+      rgba(5,5,5,1) 0%, rgba(5,5,5,0.98) 5%, rgba(5,5,5,0.93) 9%,
+      rgba(5,5,5,0.84) 13%, rgba(5,5,5,0.70) 17%, rgba(5,5,5,0.53) 21%,
+      rgba(5,5,5,0.36) 25%, rgba(5,5,5,0.22) 29%, rgba(5,5,5,0.11) 33%,
+      rgba(5,5,5,0.04) 37%, rgba(5,5,5,0) 42%);
     z-index: 2;
     pointer-events: none;
   }
+
   .trailer-gradient-bottom {
     position: absolute;
     bottom: 0;
@@ -917,6 +1381,25 @@ function extractYoutubeId(url: string) {
     height: 60%;
     background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 40%, transparent 100%);
     z-index: 3;
+    /*
+      This scrim is a VERTICAL gradient across the panel's full width, so its
+      left edge was a flat vertical cut sitting on the seam — the second
+      contributor to the step at x=756, and the one that showed up lower in
+      the panel where the scrim is densest. Feathering its left edge lets it
+      arrive with the video instead of announcing the panel.
+    */
+    -webkit-mask-image: linear-gradient(to right,
+      rgba(0,0,0,0) 0%, rgba(0,0,0,0.10) 6%, rgba(0,0,0,0.32) 11%,
+      rgba(0,0,0,0.60) 16%, rgba(0,0,0,0.84) 21%, rgba(0,0,0,0.96) 25%,
+      rgba(0,0,0,1) 29%);
+    mask-image: linear-gradient(to right,
+      rgba(0,0,0,0) 0%, rgba(0,0,0,0.10) 6%, rgba(0,0,0,0.32) 11%,
+      rgba(0,0,0,0.60) 16%, rgba(0,0,0,0.84) 21%, rgba(0,0,0,0.96) 25%,
+      rgba(0,0,0,1) 29%);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
   }
 
 
@@ -942,19 +1425,38 @@ function extractYoutubeId(url: string) {
     flex-direction: column;
     align-items: flex-start;
   }
+  /*
+    KEY-ART STACK, not a form row.
+
+    This was a horizontal row: button on the left, a sentence of grey body
+    copy beside it. That arrangement is why the corner read as a web form —
+    a control with a label next to it. Film key art stacks the same three
+    parts vertically instead: mark, then a tracked-out line, then the way in.
+
+    Reading order matches the visual order now (what this is, then what to
+    do about it), which is also the right order for a screen reader.
+  */
   .trailer-text-btn-row {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
     justify-content: flex-start;
     width: 100%;
-    gap: 3rem;
+    gap: 1.4rem;
+  }
+  /* HARD RULE 6: drop-shadow lives on the WRAPPER, never the <img> — a
+     filtered <img> renders broken on iOS Safari. Identical look: the filter
+     still follows the logo's transparent-PNG alpha. */
+  .trailer-logo-wrap {
+    display: block;
+    max-width: 70%;
+    margin-bottom: 1.5rem;
+    filter: drop-shadow(0 10px 20px rgba(0,0,0,0.9));
   }
   .trailer-logo {
     max-height: 130px;
-    max-width: 70%;
+    max-width: 100%;
     object-fit: contain;
-    margin-bottom: 1.5rem;
-    filter: drop-shadow(0 10px 20px rgba(0,0,0,0.9));
     animation: none; /* explicitly ensure no floating */
   }
   .trailer-text-title {
@@ -965,21 +1467,525 @@ function extractYoutubeId(url: string) {
     text-shadow: 0 10px 30px rgba(0,0,0,0.8);
     margin-bottom: 1.5rem;
   }
+  /*
+    Set as a subtitle, not a paragraph.
+
+    At 1.35rem in sentence case this was the largest text in the corner and
+    read as body copy on a marketing page. Small, uppercase and widely
+    tracked is how a title card carries the same words: it becomes texture
+    supporting the logo rather than a block competing with it.
+  */
   .brand-desc {
-    font-size: 1.35rem;
+    font-size: 0.95rem;
     font-weight: 500;
-    letter-spacing: 0.05em;
-    color: rgba(255,255,255,0.8);
-    margin-bottom: 0;
-    max-width: 55%;
-    line-height: 1.5;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+    margin: 0;
+    max-width: 52ch;
+    line-height: 1.7;
     text-shadow: 0 4px 10px rgba(0,0,0,0.9);
   }
+  /*
+    "ENTER DC" next to a DC logo said DC twice, and repeated the same
+    sentence fifteen times down the page. The logo directly above already
+    names the brand, so the control only has to name the ACTION. Screen
+    readers still get the full "Enter the DC hub" through aria-label — the
+    shortening is visual only.
+
+    It is also deliberately quieter now. The front card is the primary way
+    in (see the click handler); this is the explicit, keyboard-reachable
+    path to the same place, and it should not out-shout the artwork.
+  */
   .dynamic-brand-btn {
     flex-shrink: 0;
-    font-size: 0.95rem;
-    padding: 1.25rem 3.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.88rem;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    padding: 1rem 2.25rem;
+  }
+
+  .dynamic-brand-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .dynamic-brand-btn:hover svg {
+    transform: translateX(4px);
+  }
+
+  /*
+    The front card is a link in behaviour, so it should say so on hover.
+    The cards behind it still mean "bring me forward".
+  */
+  .deck-card.active {
+    cursor: pointer;
   }
 
 
+  /* ══════════════════════════════════════════════════════════════════════
+     MOBILE  (issue #138, handoff item 1)
+
+     The desktop layout is two hard 50% flex columns side by side. Below
+     768px that is unusable — each column gets ~190px, the deck cards become
+     illegible slivers and the trailer's bottom content has nowhere to go.
+
+     Per the ticket this is re-fitted with real media queries, NOT reverted to
+     a grid: the columns stay flex and simply stack, video on top (40%) and
+     deck below (60%). DOM order is deck-then-info, so `order` does the
+     reordering — CSS, not JS and not duplicated markup (hard rule 7).
+
+     The 3D deck keeps its stacked metaphor and just compresses its spread,
+     rather than flattening to a carousel, so the interaction a phone user
+     gets is the same one the desktop design established.
+     ══════════════════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════════════════
+     STAGING — how an open row arrives, and how it keeps moving.
+
+     Everything below is about TIMING and MOTION rather than decoration.
+     Opening a row used to reveal every part of it at the same instant, which
+     is what made the page feel like a screenshot appearing rather than a
+     scene starting. Now the pieces land on a beat: artwork, then the
+     thumbnail strip, then the brand mark, then the words. It reads as
+     something being presented to you.
+
+     Each piece starts slightly low and faded and settles into place. The
+     delays are the whole point — they are what a title sequence does.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  .deck-stack,
+  .deck-nav-track,
+  .trailer-logo-wrap,
+  .trailer-text-title,
+  .trailer-text-btn-row {
+    opacity: 0;
+    transition:
+      opacity 0.7s ease,
+      transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* The artwork leads, and only fades — its transform belongs to the drift
+     below, and two rules fighting over one transform is how motion bugs
+     start. */
+  .accordion-section.expanded .deck-stack {
+    opacity: 1;
+    transition-delay: 0.34s;
+  }
+
+  .deck-nav-track,
+  .trailer-logo-wrap,
+  .trailer-text-title,
+  .trailer-text-btn-row {
+    transform: translateY(16px);
+  }
+
+  .accordion-section.expanded .deck-nav-track {
+    opacity: 1;
+    transform: translateY(0);
+    transition-delay: 0.52s;
+  }
+
+  .accordion-section.expanded .trailer-logo-wrap,
+  .accordion-section.expanded .trailer-text-title {
+    opacity: 1;
+    transform: translateY(0);
+    transition-delay: 0.62s;
+  }
+
+  .accordion-section.expanded .trailer-text-btn-row {
+    opacity: 1;
+    transform: translateY(0);
+    transition-delay: 0.74s;
+  }
+
+  /*
+     THE TRAILER BREATHES.
+
+     A still frame with gradients over it reads as a hero image, not a scene.
+     A very slow, very small push-in is the difference — it is the same trick
+     a documentary uses on a photograph. 32 seconds and 6% is deliberately
+     below the threshold where you notice it happening; you only notice that
+     the panel feels alive.
+
+     The move is carried on the wrapper, not the video element itself,
+     because transforming a cross-origin video frame directly is exactly the
+     kind of thing WebKit renders badly.
+  */
+  @keyframes trailerPush {
+    from {
+      transform: translate(-50%, -50%) scale(1);
+    }
+    to {
+      transform: translate(-50%, -50%) scale(1.06);
+    }
+  }
+
+  .accordion-section.expanded .brand-info-panel.active .trailer-bg-wrapper {
+    animation: trailerPush 32s ease-in-out infinite alternate;
+  }
+
+  /*
+     THE DECK DRIFTS AGAINST IT.
+
+     As the pointer moves across an open row, the artwork slides a few pixels
+     one way and the backlight a little further. Because the trailer is
+     pushing in on its own clock and the deck answers the pointer, the two
+     halves are never moving together — which is what sells depth. The
+     numbers are small on purpose: this should feel like the scene has weight,
+     not like the page is wobbling.
+  */
+  .deck-stack {
+    transform: translate3d(
+      calc(var(--drift-x, 0) * 12px),
+      calc(var(--drift-y, 0) * 7px),
+      0
+    );
+    /* Shorter than the entrance easing above: the drift has to feel attached
+       to the pointer, while still trailing it enough to have weight. */
+    transition:
+      opacity 0.7s ease,
+      transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .ambient-glow-container {
+    transform: translate3d(
+      calc(var(--drift-x, 0) * -22px),
+      calc(var(--drift-y, 0) * -14px),
+      0
+    );
+    transition: transform 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @media (max-width: 768px) {
+    .featured-directory-page {
+      /* 750px of min-height forces a scroll on nearly every phone and pushes
+         the last collapsed row under the URL bar. The accordion sizes itself
+         from the viewport instead. */
+      min-height: 0;
+      padding-top: var(--header-height, 64px);
+    }
+
+    .deck-view-container {
+      flex-direction: column;
+      padding: 0;
+    }
+
+    /* Video first, deck under it. */
+    .info-column {
+      order: 1;
+      flex: 0 0 40%;
+      max-width: 100%;
+      width: 100%;
+      height: auto;
+      min-height: 0;
+    }
+
+    .deck-column {
+      order: 2;
+      flex: 1 1 60%;
+      max-width: 100%;
+      width: 100%;
+      height: auto;
+      min-height: 0;
+    }
+
+    /* ── Collapsed rows ──────────────────────────────────────────────────
+       `clamp(3rem, 7vw, 7rem)` never drops below 48px because the 3rem floor
+       outruns 7vw on a phone, and a 48px title does not fit a collapsed row
+       roughly 60px tall once the typeface-demo label is beside it. */
+    .accordion-header {
+      padding-left: 1.25rem;
+      padding-right: 1.25rem;
+    }
+
+    .accordion-section.expanded .accordion-header {
+      padding: 0.75rem 1.25rem 0.5rem;
+    }
+
+    /* ─── TEMPORARY typography demo + picker ─────────────────────────────
+     Each face is declared once and reached two ways: by `data-demo-font` on
+     the title (demo mode, a different face per row) and by `data-title-font`
+     on <main> (picker mode, one face on every row). Same declarations, so
+     the two modes can never drift apart. */
+  .accordion-title[data-demo-font='syncopate'],
+  [data-title-font='syncopate'] .accordion-title {
+    font-family: 'Syncopate', sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .accordion-title[data-demo-font='bebas'],
+  [data-title-font='bebas'] .accordion-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-weight: 400;
+    text-transform: uppercase;
+  }
+  .accordion-title[data-demo-font='cinzel'],
+  [data-title-font='cinzel'] .accordion-title {
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .accordion-title[data-demo-font='oswald'],
+  [data-title-font='oswald'] .accordion-title {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  /* Sized in `em` so it follows the label instead of dwarfing it — at the
+     old fixed clamp it was now larger than the title it annotates. */
+  .accordion-title-demo-label {
+    font-size: 0.7em;
+    opacity: 0.45;
+    font-family: monospace;
+    letter-spacing: normal;
+    margin-left: 1.2rem;
+    vertical-align: middle;
+  }
+
+  /* The per-row labels only make sense while all four are on screen. */
+  .featured-directory-page:not([data-title-font='demo']) .accordion-title-demo-label {
+    display: none;
+  }
+
+  .font-picker {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 400;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.55rem;
+    background: rgba(8, 8, 8, 0.82);
+    border: 1px dashed rgba(255, 255, 255, 0.22);
+    backdrop-filter: blur(8px);
+  }
+
+  .font-picker-label {
+    font-family: var(--font-body);
+    font-size: 0.6rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-white-muted);
+    margin-right: 0.25rem;
+  }
+
+  .font-picker-btn {
+    padding: 0.3rem 0.6rem;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: transparent;
+    color: var(--color-white-muted);
+    font-family: var(--font-body);
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+  }
+
+  .font-picker-btn:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.45);
+  }
+
+  .font-picker-btn[aria-pressed='true'] {
+    color: #fff;
+    border-color: var(--color-accent-text);
+    background: rgba(204, 0, 0, 0.2);
+  }
+
+  .accordion-title {
+      font-size: clamp(1.35rem, 6.5vw, 2.5rem);
+      letter-spacing: -0.02em;
+    }
+
+    .accordion-section.expanded .accordion-title {
+      font-size: clamp(1rem, 4.5vw, 1.5rem);
+    }
+
+    /* The typeface demo label is a temporary review aid and must stay visible
+       (issue #138 item 2), but inline beside the title it overflows a phone.
+       Its own line keeps all four readable without touching the demo itself. */
+    .accordion-title span {
+      display: block;
+      margin-left: 0 !important;
+      font-size: 0.65rem !important;
+      margin-top: 0.15rem;
+    }
+
+    /* ── Deck ────────────────────────────────────────────────────────────
+       Cards are absolutely positioned and vertically centred by a negative
+       margin equal to half their height: width 85% of a 16/9 box is 47.8%
+       tall, hence -24%. Widening to 92% changes that height, so the offset
+       has to be recomputed or the deck sits off-centre: 92 / (16/9) / 2
+       = 25.9%. Keep these two numbers in step. */
+    .deck-stack {
+      /* Feather toward the bottom, not the right — the info column is above
+         now, so a right-edge fade points at nothing. */
+      -webkit-mask-image: none;
+      mask-image: none;
+    }
+
+    .deck-card {
+      width: 92%;
+      margin-top: -25.9%;
+    }
+
+    /* Compressed spread: the desktop 25% / 45% offsets push the second and
+       third cards off a 390px screen entirely. */
+    .deck-card.next-1 {
+      transform: translateX(14%) scale(0.92);
+    }
+
+    .deck-card.next-2 {
+      transform: translateX(25%) scale(0.85);
+    }
+
+    .deck-card.hidden {
+      transform: translateX(36%) scale(0.78);
+    }
+
+    .peeking-spine {
+      width: 34px;
+    }
+
+    .spine-text {
+      font-size: 1rem;
+      letter-spacing: 0.05em;
+    }
+
+    .deck-nav-track {
+      height: 66px;
+      margin-top: 0.5rem;
+      padding: 6px 4%;
+      gap: 8px;
+    }
+
+    .deck-nav-thumb {
+      width: 84px;
+      height: 46px;
+    }
+
+    /* Hover tooltips are meaningless on touch and stick after a tap. */
+    .custom-tooltip {
+      display: none;
+    }
+
+    /* ── Trailer panel ───────────────────────────────────────────────────
+       Every feather in this panel was authored left-to-right for a video
+       sitting to the RIGHT of the deck. Stacked, the seam is along the
+       BOTTOM edge instead, so each gradient and mask is re-aimed downward. */
+    .trailer-bg-wrapper {
+      width: 100%;
+      height: 100%;
+      -webkit-mask-image: linear-gradient(to bottom, black 0%, black 82%, transparent 100%);
+      mask-image: linear-gradient(to bottom, black 0%, black 82%, transparent 100%);
+    }
+
+    .trailer-dark-overlay {
+      background: linear-gradient(to bottom, transparent 60%, #050505 100%);
+    }
+
+    .trailer-gradient-bottom {
+      height: 75%;
+    }
+
+    .trailer-bottom-content {
+      padding: 1rem 1.25rem 1.25rem;
+    }
+
+    .trailer-logo-wrap {
+      max-width: 55%;
+      margin-bottom: 0.6rem;
+    }
+
+    .trailer-logo {
+      max-height: 52px;
+    }
+
+    .trailer-text-title {
+      font-size: 1.5rem;
+      margin-bottom: 0.6rem;
+    }
+
+    /* Button beside a 55%-wide paragraph does not fit; stack them. */
+    .trailer-text-btn-row {
+      gap: 0.75rem;
+    }
+
+    /* Keep the subtitle subordinate here too — it was set larger than the
+       desktop size, which inverted the hierarchy on the smaller screen. */
+    .brand-desc {
+      max-width: 100%;
+      font-size: 0.78rem;
+      letter-spacing: 0.2em;
+      line-height: 1.6;
+    }
+
+    .dynamic-brand-btn {
+      font-size: 0.75rem;
+      padding: 0.7rem 1.5rem;
+    }
+
+    /* The blur radius is a fixed 120px, which on a 390px-wide column washes
+       the whole deck out instead of backlighting the active card. */
+    .ambient-glow-layer {
+      -webkit-filter: blur(60px) saturate(1.5);
+      filter: blur(60px) saturate(1.5);
+    }
+  }
+
+  /*
+    Touch devices: the parallax handler writes an inline `transform` on
+    mousemove, and a touch browser fires one synthetic mousemove on tap that
+    then never gets a mouseleave — leaving the active card frozen at a tilt.
+    The handler is desktop-only by intent, so neutralise its result here.
+  */
+  @media (hover: none) {
+    .deck-card.active {
+      transform: translateX(0) scale(1) !important;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .accordion-section,
+    .deck-card,
+    .brand-info-panel,
+    .accordion-title,
+    .ambient-glow-layer,
+    .ambient-glow-container,
+    .deck-stack,
+    .deck-nav-track,
+    .trailer-logo-wrap,
+    .trailer-text-title,
+    .trailer-text-btn-row,
+    .deck-card-image {
+      transition: none;
+    }
+
+    .trailer-fallback-img,
+    .accordion-section.expanded .brand-info-panel.active .trailer-bg-wrapper {
+      animation: none;
+    }
+
+    /* The staged entrance is a nice-to-have; being able to read the row is
+       not. With the transitions off, everything must simply BE there. */
+    .accordion-section.expanded .deck-stack,
+    .accordion-section.expanded .deck-nav-track,
+    .accordion-section.expanded .trailer-logo-wrap,
+    .accordion-section.expanded .trailer-text-title,
+    .accordion-section.expanded .trailer-text-btn-row {
+      opacity: 1;
+      transform: none;
+      transition-delay: 0s;
+    }
+  }
 </style>
