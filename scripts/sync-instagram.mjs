@@ -118,6 +118,7 @@ async function downloadMedia(url, id, existingByIchId, forceRefresh = false) {
   }
   try {
     const res = await fetch(url, {
+      signal: AbortSignal.timeout(15000),
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -308,7 +309,7 @@ async function fetchInstagramMedia() {
   }
 
   // 1. Get the Facebook Page linked to this account
-  const pageRes = await fetch(`https://graph.facebook.com/v19.0/me/accounts?access_token=${token}`);
+  const pageRes = await fetch(`https://graph.facebook.com/v19.0/me/accounts?access_token=${token}`, { signal: AbortSignal.timeout(15000) });
   if (!pageRes.ok) throw new Error(`Failed to fetch pages: ${pageRes.statusText}`);
   const pageData = await pageRes.json();
   
@@ -321,7 +322,7 @@ async function fetchInstagramMedia() {
   console.log(`[instagram] Found Page: ${page.name}`);
 
   // 2. Get the linked Instagram Business Account
-  const igRes = await fetch(`https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account&access_token=${pageToken}`);
+  const igRes = await fetch(`https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account&access_token=${pageToken}`, { signal: AbortSignal.timeout(15000) });
   if (!igRes.ok) throw new Error(`Failed to fetch Instagram account: ${igRes.statusText}`);
   const igData = await igRes.json();
   
@@ -367,14 +368,14 @@ async function fetchInstagramMedia() {
   const mediaUrl = (fields) =>
     `https://graph.facebook.com/v19.0/${igId}/media?fields=${fields}&limit=50&access_token=${pageToken}`;
 
-  let mediaRes = await fetch(mediaUrl(`${BASE_FIELDS},${OPTIONAL_FIELDS}`));
+  let mediaRes = await fetch(mediaUrl(`${BASE_FIELDS},${OPTIONAL_FIELDS}`), { signal: AbortSignal.timeout(15000) });
   if (!mediaRes.ok) {
     console.warn(
       `[instagram] ! media request with feed-visibility fields returned ` +
-        `${mediaRes.status} ${mediaRes.statusText}. Retrying without them — ` +
+        `${mediaRes.status} ${mediaRes.statusText}. Your access token might lack permissions; ` +
         `posts will not be filtered by feed visibility this run.`
     );
-    mediaRes = await fetch(mediaUrl(BASE_FIELDS));
+    mediaRes = await fetch(mediaUrl(BASE_FIELDS), { signal: AbortSignal.timeout(15000) });
   }
   if (!mediaRes.ok) throw new Error(`Failed to fetch media: ${mediaRes.statusText}`);
   const mediaData = await mediaRes.json();

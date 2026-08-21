@@ -55,10 +55,10 @@ export function demoteHeadings(html: string): string {
 export function extractSubstackGalleries(html: string): string {
   if (!html) return '';
   return html.replace(
-    /<div\b([^>]+)>[\s\S]*?<\/div>/gi,
+    /<div\b([^>]*image-gallery-embed[^>]+)>([\s\S]*?)<\/div>/gi,
     (match, attrs) => {
-      // Must have both the class and the data attributes
-      if (!attrs.includes('image-gallery-embed') || !attrs.includes('data-attrs=')) {
+      // Must have the data attributes
+      if (!attrs.includes('data-attrs=')) {
         return match;
       }
       

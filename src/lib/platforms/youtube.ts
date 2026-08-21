@@ -212,7 +212,7 @@ export function createYouTubeClient(opts: YouTubeClientOptions) {
   async function apiGet(resource: string, params: Record<string, string>): Promise<any> {
     const url = new URL(`${API_BASE}/${resource}`);
     url.search = new URLSearchParams({ ...params, key: apiKey }).toString();
-    const res = await doFetch(url.toString());
+    const res = await doFetch(url.toString(), { signal: AbortSignal.timeout(15000) });
     if (!res.ok) {
       let reason = res.statusText;
       try {

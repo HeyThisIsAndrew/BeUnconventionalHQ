@@ -91,19 +91,23 @@ function mapTags(post) {
  *   cover_image    enclosureUrl
  */
 export function parsePostsResponse(json) {
+  const safeStr = (val) => (typeof val === 'string' || typeof val === 'number') ? String(val).trim() : '';
+
   return asArray(json).map((post) => {
-    const slug = String(post?.slug ?? '').trim();
-    const link = String(post?.canonical_url ?? post?.link ?? '').trim() || (slug ? `${PUBLICATION_URL}/p/${slug}` : '');
+    if (!post || typeof post !== 'object') return {};
+    
+    const slug = safeStr(post.slug);
+    const link = safeStr(post.canonical_url ?? post.link) || (slug ? `${PUBLICATION_URL}/p/${slug}` : '');
 
     return {
-      title: String(post?.title ?? '').trim(),
+      title: safeStr(post.title),
       link,
-      guid: String(post?.id ?? post?.guid ?? link ?? '').trim(),
-      pubDate: String(post?.post_date ?? post?.pubDate ?? '').trim(),
-      description: String(post?.subtitle ?? post?.description ?? '').trim(),
-      contentEncoded: String(post?.body_html ?? post?.contentEncoded ?? post?.content ?? '').trim(),
-      categories: mapTags(post).length ? mapTags(post) : (post?.categories || []),
-      enclosureUrl: String(post?.cover_image ?? post?.enclosureUrl ?? '').trim(),
+      guid: safeStr(post.id ?? post.guid) || link,
+      pubDate: safeStr(post.post_date ?? post.pubDate),
+      description: safeStr(post.subtitle ?? post.description),
+      contentEncoded: safeStr(post.body_html ?? post.contentEncoded ?? post.content),
+      categories: mapTags(post).length ? mapTags(post) : (Array.isArray(post.categories) ? post.categories.filter(c => typeof c === 'string') : []),
+      enclosureUrl: safeStr(post.cover_image ?? post.enclosureUrl),
     };
   });
 }
@@ -177,6 +181,7 @@ async function fetchAllPosts() {
   let xml = '';
   try {
     const response = await fetch(SUBSTACK_FEED, {
+      signal: AbortSignal.timeout(15000),
       headers: {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/rss+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -188,11 +193,17 @@ async function fetchAllPosts() {
     xml = await response.text();
   } catch (err) {
     console.warn(`[articles] ⚠ Direct RSS fetch failed (${err.message}), falling back to proxy...`);
-    // Substack blocks bots, so use a proxy to fetch the posts API which includes tags and full body HTML.
     const apiUrl = `${PUBLICATION_URL}/api/v1/posts?limit=50`;
     const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`;
-    const proxyRes = await fetch(proxyUrl);
+    const proxyRes = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
     if (!proxyRes.ok) throw new Error(`HTTP ${proxyRes.status} from proxy`);
+    
+    // Check if proxy actually returned JSON
+    const contentType = proxyRes.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(`Proxy did not return JSON. Content-Type: ${contentType}`);
+    }
+    
     const proxyJson = await proxyRes.json();
     
     // allorigins returns the response body as a string in the "contents" field
@@ -209,13 +220,15 @@ async function fetchAllPosts() {
     return { posts: collected, pages: 1 };
   }
 
-  const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
-  const result = parser.parse(xml);
-  const rawItems = result?.rss?.channel?.item ?? [];
-  const items = Array.isArray(rawItems) ? rawItems : [rawItems];
-
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: '@_',
+    textNodeName: '#text',
+  });
+  const doc = parser.parse(xml);
+  const items = doc.rss?.channel?.item ? asArray(doc.rss.channel.item) : [];
+  
   if (items.length === 0) throw new Error('No items in RSS feed');
-
   // 2. Fetch HTML for each item
   for (const item of items) {
     const link = item.link;
@@ -226,8 +239,9 @@ async function fetchAllPosts() {
     // updated *everything*. We'll fetch the HTML for all RSS items since it's only ~20 max.
     try {
       const htmlRes = await fetch(link, {
+        signal: AbortSignal.timeout(15000),
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/122.0.0.0',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.9',
           'Cache-Control': 'no-cache',
@@ -239,8 +253,21 @@ async function fetchAllPosts() {
       }
       const html = await htmlRes.text();
       
-      // Extract window._preloads
-      const match = html.match(/window\._preloads\s*=\s*JSON\.parse\((".*?")\)/);
+      // Safely extract window._preloads without vulnerable regex
+      const preloadsPrefix = 'window._preloads = JSON.parse("';
+      const prefixIdx = html.indexOf(preloadsPrefix);
+      let match = null;
+      
+      if (prefixIdx !== -1) {
+        const startIdx = prefixIdx + 'window._preloads = JSON.parse('.length;
+        // Find the closing ")
+        // Substack escapes quotes inside the string, so we just look for ")
+        const endIdx = html.indexOf('")', startIdx);
+        if (endIdx !== -1) {
+          match = [null, html.substring(startIdx, endIdx + 1)];
+        }
+      }
+      
       if (match) {
         const parsed = JSON.parse(JSON.parse(match[1]));
         if (parsed.post) {
