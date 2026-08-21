@@ -1,8 +1,8 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
-import { getFeaturedBrands } from '../../lib/local-cms';
 import { getFeaturedBrandsLocal, urlFor } from '../../lib/local-content';
+import sampleVideos from '../../data/cache/videos.json';
 
 const brands = await getFeaturedBrandsLocal();
 
@@ -52,7 +52,6 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
   return indexA - indexB;
 });
 
-// Helper for youtube ID
 function extractYoutubeId(url: string) {
   if (!url) return null;
   const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:.*v=|.*\/))([^"&?\s]{11})/);
@@ -99,16 +98,25 @@ function extractYoutubeId(url: string) {
                       {categoryBrands.map((brand, bIndex) => {
                         const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).height(1600).url() : null;
                         return (
-                          <a href={`/featured/${brand.slug?.current}`} class={`deck-card ${bIndex === 0 ? 'active' : bIndex === 1 ? 'next-1' : bIndex === 2 ? 'next-2' : 'hidden'}`} data-index={bIndex}>
+                          <div class={`deck-card ${bIndex === 0 ? 'active' : bIndex === 1 ? 'next-1' : bIndex === 2 ? 'next-2' : 'hidden'}`} data-index={bIndex}>
+                            
+                            {/* The peeking text for the spine of the card */}
+                            <div class="peeking-spine">
+                               <span class="spine-text">{brand.title}</span>
+                            </div>
+
                             {heroUrl ? (
                               <img src={heroUrl} alt={brand.title} loading="lazy" class="deck-card-image" />
                             ) : (
                               <div class="article-thumb-fallback"></div>
                             )}
+                            
                             <div class="deck-card-overlay">
-                               <span class="click-to-enter-text">Click to View Hub</span>
+                               <a href={`/featured/${brand.slug?.current}`} class="click-to-enter-pill">
+                                 ENTER HUB
+                               </a>
                             </div>
-                          </a>
+                          </div>
                         );
                       })}
                     </div>
@@ -118,12 +126,12 @@ function extractYoutubeId(url: string) {
                   <div class="info-column">
                     <div class="info-panels-wrapper">
                       {categoryBrands.map((brand, bIndex) => {
-                        const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(600).height(338).url() : null;
-                        const ytId = extractYoutubeId(brand.trailerUrl || '');
-                        const thumbUrl = ytId ? `https://i.ytimg.com/vi/${ytId}/maxresdefault.jpg` : heroUrl;
+                        // Offset sample videos per brand so they look varied
+                        const brandVideos = sampleVideos.slice(bIndex * 2, (bIndex * 2) + 2);
 
                         return (
                           <div class={`brand-info-panel ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex}>
+                            
                             <div class="brand-logo-area">
                               {brand.logo ? (
                                 <img src={urlFor(brand.logo).height(120).url()} alt={`${brand.title} logo`} class="panel-logo" />
@@ -136,24 +144,19 @@ function extractYoutubeId(url: string) {
                               Explore the cinematic universe of {brand.title}. Dive into our curated hub featuring the latest trailers, exclusive news, breaking updates, and deep-dive intel.
                             </p>
 
-                            <a href={`/featured/${brand.slug?.current}`} class="featured-preview-card">
-                              <div class="preview-thumb">
-                                {thumbUrl ? (
-                                  <img src={thumbUrl} alt="Trailer preview" />
-                                ) : (
-                                  <div class="article-thumb-fallback"></div>
-                                )}
-                                <div class="play-btn">
-                                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                                </div>
-                              </div>
-                              <div class="preview-meta">
-                                <span class="preview-tag">FEATURED CONTENT</span>
-                                <h4 class="preview-title">{brand.trailerUrl ? 'Watch the Latest Trailer' : `Explore ${brand.title}`}</h4>
-                              </div>
-                            </a>
+                            <div class="sample-content-grid">
+                              {brandVideos.map((vid: any) => (
+                                <a href={vid.link} target="_blank" class="sample-video-card">
+                                  <div class="sample-thumb">
+                                    <img src={vid.thumbnail} alt={vid.title} />
+                                    <div class="play-indicator">►</div>
+                                  </div>
+                                  <h4 class="sample-title">{vid.title}</h4>
+                                </a>
+                              ))}
+                            </div>
                             
-                            <a href={`/featured/${brand.slug?.current}`} class="brand-enter-btn">ENTER HUB</a>
+                            <a href={`/featured/${brand.slug?.current}`} class="brand-enter-btn">ENTER HUB <span class="arrow">→</span></a>
                           </div>
                         );
                       })}
@@ -201,8 +204,8 @@ function extractYoutubeId(url: string) {
 
       function renderDeck() {
         cards.forEach((card, i) => {
-          card.className = 'deck-card'; // reset
-          infoPanels[i].classList.remove('active');
+          card.className = 'deck-card'; 
+          infoPanels[i].className = 'brand-info-panel';
 
           if (i === activeIndex) {
             card.classList.add('active');
@@ -220,7 +223,7 @@ function extractYoutubeId(url: string) {
       cards.forEach((card, i) => {
         card.addEventListener('click', (e) => {
           if (i !== activeIndex) {
-            e.preventDefault(); // Don't follow link, shuffle instead
+            // Re-render to bring clicked card to front
             activeIndex = i;
             renderDeck();
           }
@@ -269,12 +272,25 @@ function extractYoutubeId(url: string) {
     flex: 8; /* Expanded takes up massive height */
   }
 
-  /* THEMES / VISUAL CLARITY */
-  /* Giving each row a clear distinct cinematic gradient */
-  .accordion-section:nth-child(1) .accordion-header-bg { background: linear-gradient(90deg, rgba(160, 0, 0, 0.8) 0%, #000 70%); }
-  .accordion-section:nth-child(2) .accordion-header-bg { background: linear-gradient(90deg, rgba(0, 80, 160, 0.8) 0%, #000 70%); }
-  .accordion-section:nth-child(3) .accordion-header-bg { background: linear-gradient(90deg, rgba(80, 80, 80, 0.8) 0%, #000 70%); }
-  .accordion-section:nth-child(4) .accordion-header-bg { background: linear-gradient(90deg, rgba(0, 120, 50, 0.8) 0%, #000 70%); }
+  /* UNIFIED RED BRANDING */
+  .accordion-header-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    opacity: 0.5;
+    background: linear-gradient(90deg, rgba(204, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.95) 70%);
+    transition: opacity 0.4s ease, background 0.4s ease;
+  }
+  
+  .accordion-section.collapsed:hover .accordion-header-bg {
+    opacity: 0.9;
+    background: linear-gradient(90deg, rgba(204, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.9) 70%);
+  }
+  
+  .accordion-section.expanded .accordion-header-bg {
+    opacity: 0;
+    pointer-events: none;
+  }
 
   /* HEADER (Collapsed state) */
   .accordion-header {
@@ -323,21 +339,6 @@ function extractYoutubeId(url: string) {
     transform: none;
   }
 
-  .accordion-header-bg {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    opacity: 0.5;
-    transition: opacity 0.4s ease;
-  }
-  .accordion-section.collapsed:hover .accordion-header-bg {
-    opacity: 0.9;
-  }
-  .accordion-section.expanded .accordion-header-bg {
-    opacity: 0;
-    pointer-events: none;
-  }
-
   /* EXPANDED VIEW LAYOUT */
   .accordion-body {
     opacity: 0;
@@ -382,7 +383,8 @@ function extractYoutubeId(url: string) {
     left: 0;
     width: 80%;
     height: 90%;
-    border-radius: 12px;
+    /* NO ROUNDED EDGES */
+    border-radius: 0; 
     overflow: hidden;
     box-shadow: 0 30px 60px rgba(0,0,0,0.8);
     transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), 
@@ -403,13 +405,13 @@ function extractYoutubeId(url: string) {
   .deck-card.next-1 {
     z-index: 9;
     transform: translateX(20%) translateZ(-100px) scale(0.9);
-    opacity: 0.7;
+    opacity: 0.8;
   }
   
   .deck-card.next-2 {
     z-index: 8;
     transform: translateX(35%) translateZ(-200px) scale(0.8);
-    opacity: 0.4;
+    opacity: 0.5;
   }
   
   .deck-card.hidden {
@@ -417,6 +419,38 @@ function extractYoutubeId(url: string) {
     transform: translateX(50%) translateZ(-300px) scale(0.7);
     opacity: 0;
     pointer-events: none;
+  }
+
+  /* PEEKING SPINE FOR VISIBILITY ON STACKED CARDS */
+  .peeking-spine {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 60px; /* Right edge bleed */
+    background: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.8) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 1;
+    transition: opacity 0.5s ease;
+    z-index: 5;
+  }
+  .deck-card.active .peeking-spine {
+    opacity: 0; /* Disappears when front and active */
+    pointer-events: none;
+  }
+  .spine-text {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-family: 'Helvetica Neue', Helvetica, sans-serif;
+    font-weight: 800;
+    color: #fff;
+    font-size: 1.5rem;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    text-transform: uppercase;
+    opacity: 0.7;
   }
 
   .deck-card-image {
@@ -440,27 +474,37 @@ function extractYoutubeId(url: string) {
     display: flex;
     align-items: center;
     justify-content: center;
+    pointer-events: none; /* Let the card body catch clicks */
   }
   .deck-card.active .deck-card-overlay {
     background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 40%);
     opacity: 0;
+    pointer-events: auto; /* Active card overlay can be interacted with (the enter button) */
   }
   .deck-card.active:hover .deck-card-overlay {
     opacity: 1;
   }
 
-  .click-to-enter-text {
+  .click-to-enter-pill {
+    display: inline-block;
     background: var(--color-accent);
     color: #fff;
-    padding: 0.8rem 1.5rem;
-    font-weight: bold;
-    border-radius: 40px;
-    letter-spacing: 0.05em;
+    padding: 1rem 2.5rem;
+    font-weight: 900;
+    /* SHARP EDGES */
+    border-radius: 0;
+    letter-spacing: 0.1em;
     transform: translateY(20px);
     opacity: 0;
     transition: all 0.3s ease;
+    text-transform: uppercase;
+    text-decoration: none;
   }
-  .deck-card.active:hover .click-to-enter-text {
+  .click-to-enter-pill:hover {
+    background: #fff;
+    color: #000;
+  }
+  .deck-card.active:hover .click-to-enter-pill {
     transform: translateY(0);
     opacity: 1;
   }
@@ -470,7 +514,7 @@ function extractYoutubeId(url: string) {
     flex: 0 0 45%;
     position: relative;
     height: 100%;
-    padding-left: 3rem;
+    padding-left: 4rem;
     display: flex;
     align-items: center;
   }
@@ -515,82 +559,94 @@ function extractYoutubeId(url: string) {
     font-size: 3rem;
     margin: 0;
     color: #fff;
+    text-transform: uppercase;
   }
 
   .brand-desc {
     font-size: 1.1rem;
     line-height: 1.6;
     color: #aaa;
-    margin-bottom: 2.5rem;
+    margin-bottom: 2rem;
     max-width: 90%;
   }
 
-  /* PREVIEW CARD */
-  .featured-preview-card {
-    display: flex;
-    align-items: center;
+  /* SAMPLE CONTENT GRID (MINI FEED) */
+  .sample-content-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 1.5rem;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.08);
-    padding: 1rem;
-    border-radius: 8px;
-    margin-bottom: 2.5rem;
-    transition: background 0.3s ease, border-color 0.3s ease;
+    margin-bottom: 3rem;
     max-width: 90%;
   }
-  .featured-preview-card:hover {
-    background: rgba(255,255,255,0.08);
-    border-color: rgba(255,255,255,0.2);
+
+  .sample-video-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    group: hover;
+    text-decoration: none;
   }
 
-  .preview-thumb {
-    width: 120px;
+  .sample-thumb {
+    width: 100%;
     aspect-ratio: 16 / 9;
     position: relative;
-    border-radius: 4px;
+    /* SHARP EDGES */
+    border-radius: 0;
     overflow: hidden;
-    flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: border-color 0.3s ease;
   }
-  .preview-thumb img {
+  .sample-video-card:hover .sample-thumb {
+    border-color: var(--color-accent);
+  }
+  
+  .sample-thumb img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: transform 0.5s ease;
   }
-  .play-btn {
+  .sample-video-card:hover .sample-thumb img {
+    transform: scale(1.05);
+  }
+
+  .play-indicator {
     position: absolute;
     inset: 0;
     margin: auto;
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     background: rgba(204,0,0,0.9);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     color: #fff;
+    font-size: 0.8rem;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: all 0.3s ease;
   }
-  .play-btn svg {
-    width: 16px;
-    height: 16px;
-    margin-left: 2px;
+  .sample-video-card:hover .play-indicator {
+    opacity: 1;
+    transform: scale(1);
   }
 
-  .preview-meta {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-  }
-  .preview-tag {
-    font-family: monospace;
-    font-size: 0.75rem;
-    color: var(--color-accent);
-    letter-spacing: 0.1em;
-  }
-  .preview-title {
+  .sample-title {
     margin: 0;
-    font-size: 1.1rem;
+    font-size: 0.95rem;
     color: #fff;
-    font-weight: 600;
+    font-weight: 500;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    transition: color 0.3s ease;
+  }
+  .sample-video-card:hover .sample-title {
+    color: var(--color-accent);
   }
 
   /* ENTER BUTTON */
@@ -598,20 +654,29 @@ function extractYoutubeId(url: string) {
     display: inline-block;
     background: #fff;
     color: #000;
-    font-weight: 800;
-    padding: 1rem 3rem;
+    font-weight: 900;
+    padding: 1.2rem 3rem;
     font-size: 1.1rem;
-    border-radius: 4px;
+    /* SHARP EDGES */
+    border-radius: 0;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     width: fit-content;
     transition: all 0.3s ease;
+    text-decoration: none;
   }
   .brand-enter-btn:hover {
     background: var(--color-accent);
     color: #fff;
-    transform: scale(1.05);
+    transform: translateY(-2px);
     box-shadow: 0 10px 30px rgba(204,0,0,0.4);
+  }
+  .arrow {
+    margin-left: 0.5rem;
+    transition: margin-left 0.3s ease;
+  }
+  .brand-enter-btn:hover .arrow {
+    margin-left: 1rem;
   }
 
 </style>
