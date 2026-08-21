@@ -2,11 +2,10 @@
 import Layout from '../../layouts/Layout.astro';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
 import { getFeaturedBrandsLocal, urlFor } from '../../lib/local-content';
-import sampleVideos from '../../data/cache/videos.json';
 
 const brands = await getFeaturedBrandsLocal();
 
-// Temporary category map to bridge Sanity's "Brand" taxonomy into the UI.
+// Temporary category map
 const categoryMap: Record<string, string> = {
   'marvel-comics': 'universes',
   'dc-comics': 'universes',
@@ -126,37 +125,47 @@ function extractYoutubeId(url: string) {
                   <div class="info-column">
                     <div class="info-panels-wrapper">
                       {categoryBrands.map((brand, bIndex) => {
-                        // Offset sample videos per brand so they look varied
-                        const brandVideos = sampleVideos.slice(bIndex * 2, (bIndex * 2) + 2);
+                        const ytId = extractYoutubeId(brand.trailerUrl || '');
+                        // Muted, Autoplay, Loop, hide controls
+                        const ytSrc = ytId ? `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&controls=0&modestbranding=1&showinfo=0&rel=0` : null;
+                        const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).height(800).url() : null;
 
                         return (
                           <div class={`brand-info-panel ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex}>
-                            
-                            <div class="brand-logo-area">
-                              {brand.logo ? (
-                                <img src={urlFor(brand.logo).height(120).url()} alt={`${brand.title} logo`} class="panel-logo" />
-                              ) : (
-                                <h3 class="panel-text-title">{brand.title}</h3>
-                              )}
-                            </div>
-                            
-                            <p class="brand-desc">
-                              Explore the cinematic universe of {brand.title}. Dive into our curated hub featuring the latest trailers, exclusive news, breaking updates, and deep-dive intel.
-                            </p>
+                            <div class="large-trailer-card">
+                              
+                              {/* BACKGROUND VIDEO OR IMAGE */}
+                              <div class="trailer-bg-wrapper">
+                                {ytSrc ? (
+                                  <iframe class="trailer-iframe" data-src={ytSrc} allow="autoplay; encrypted-media" tabindex="-1"></iframe>
+                                ) : heroUrl ? (
+                                  <img src={heroUrl} class="trailer-fallback-img" alt={brand.title} />
+                                ) : (
+                                  <div class="article-thumb-fallback"></div>
+                                )}
+                              </div>
 
-                            <div class="sample-content-grid">
-                              {brandVideos.map((vid: any) => (
-                                <a href={vid.link} target="_blank" class="sample-video-card">
-                                  <div class="sample-thumb">
-                                    <img src={vid.thumbnail} alt={vid.title} />
-                                    <div class="play-indicator">►</div>
-                                  </div>
-                                  <h4 class="sample-title">{vid.title}</h4>
-                                </a>
-                              ))}
+                              {/* OVERLAYS */}
+                              <div class="trailer-dark-overlay"></div>
+                              <div class="trailer-gradient-bottom"></div>
+
+                              {/* LOGO DEAD CENTER OR TOP */}
+                              <div class="trailer-logo-container">
+                                {brand.logo ? (
+                                  <img src={urlFor(brand.logo).height(200).url()} alt={`${brand.title} logo`} class="trailer-logo" />
+                                ) : (
+                                  <h3 class="trailer-text-title">{brand.title}</h3>
+                                )}
+                              </div>
+
+                              {/* BOTTOM CONTENT */}
+                              <div class="trailer-bottom-content">
+                                <p class="brand-desc">
+                                  Explore the cinematic universe of {brand.title}. Dive into our curated hub featuring the latest trailers, exclusive news, breaking updates, and deep-dive intel.
+                                </p>
+                                <a href={`/featured/${brand.slug?.current}`} class="brand-enter-btn">ENTER HUB <span class="arrow">→</span></a>
+                              </div>
                             </div>
-                            
-                            <a href={`/featured/${brand.slug?.current}`} class="brand-enter-btn">ENTER HUB <span class="arrow">→</span></a>
                           </div>
                         );
                       })}
@@ -191,31 +200,70 @@ function extractYoutubeId(url: string) {
         sections.forEach(s => {
           s.classList.remove('expanded');
           s.classList.add('collapsed');
+          // Pause all videos in collapsed sections
+          const iframes = s.querySelectorAll('.trailer-iframe');
+          iframes.forEach(iframe => { iframe.src = ''; });
         });
         
         section.classList.remove('collapsed');
         section.classList.add('expanded');
+
+        // Restart video for active card in newly expanded section
+        const activeCard = section.querySelector('.deck-card.active');
+        if (activeCard) {
+           const activeIdx = activeCard.getAttribute('data-index');
+           const activePanel = section.querySelector(`.brand-info-panel[data-index="${activeIdx}"]`);
+           if (activePanel) {
+             const iframe = activePanel.querySelector('.trailer-iframe');
+             if (iframe && !iframe.src && iframe.dataset.src) {
+               iframe.src = iframe.dataset.src;
+             }
+           }
+        }
       });
 
       // 2. Deck Shuffle Logic
       const cards = Array.from(section.querySelectorAll('.deck-card'));
       const infoPanels = Array.from(section.querySelectorAll('.brand-info-panel'));
+      
+      // Initialize state from DOM
       let activeIndex = 0;
+      cards.forEach((c, idx) => {
+        if (c.classList.contains('active')) activeIndex = idx;
+      });
+
+      // Initialize the first video if this section is expanded on load
+      if (section.classList.contains('expanded')) {
+        const firstIframe = infoPanels[activeIndex]?.querySelector('.trailer-iframe');
+        if (firstIframe && firstIframe.dataset.src) {
+          firstIframe.src = firstIframe.dataset.src;
+        }
+      }
 
       function renderDeck() {
         cards.forEach((card, i) => {
           card.className = 'deck-card'; 
           infoPanels[i].className = 'brand-info-panel';
 
+          const iframe = infoPanels[i].querySelector('.trailer-iframe');
+
           if (i === activeIndex) {
             card.classList.add('active');
             infoPanels[i].classList.add('active');
+            
+            // Autoplay the iframe only when it becomes active
+            if (iframe && !iframe.src && iframe.dataset.src) {
+              iframe.src = iframe.dataset.src;
+            }
           } else if (i === (activeIndex + 1) % cards.length) {
             card.classList.add('next-1');
+            if (iframe && iframe.src) iframe.src = ''; // Stop hidden videos
           } else if (i === (activeIndex + 2) % cards.length) {
             card.classList.add('next-2');
+            if (iframe && iframe.src) iframe.src = '';
           } else {
             card.classList.add('hidden');
+            if (iframe && iframe.src) iframe.src = '';
           }
         });
       }
@@ -223,7 +271,8 @@ function extractYoutubeId(url: string) {
       cards.forEach((card, i) => {
         card.addEventListener('click', (e) => {
           if (i !== activeIndex) {
-            // Re-render to bring clicked card to front
+            e.preventDefault();
+            e.stopPropagation();
             activeIndex = i;
             renderDeck();
           }
@@ -240,7 +289,7 @@ function extractYoutubeId(url: string) {
   /* FULL PAGE TAKEOVER */
   .featured-directory-page {
     width: 100%;
-    /* Navbar fix: Push down to not hide behind header */
+    /* Navbar fix */
     padding-top: var(--header-height, 80px);
     height: 100vh;
     min-height: 700px;
@@ -263,28 +312,27 @@ function extractYoutubeId(url: string) {
     transition: flex 0.7s cubic-bezier(0.25, 1, 0.5, 1);
     display: flex;
     flex-direction: column;
-    /* Clear borders so tallness is obvious */
     border-bottom: 2px solid rgba(255, 255, 255, 0.15);
     background: #050505;
   }
 
   .accordion-section.expanded {
-    flex: 8; /* Expanded takes up massive height */
+    flex: 8; 
   }
 
-  /* UNIFIED RED BRANDING */
+  /* RED BRANDING - RIGHT TO LEFT BLEED */
   .accordion-header-bg {
     position: absolute;
     inset: 0;
     z-index: 1;
-    opacity: 0.5;
-    background: linear-gradient(90deg, rgba(204, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.95) 70%);
+    opacity: 0.6;
+    background: linear-gradient(to left, rgba(204, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.95) 60%);
     transition: opacity 0.4s ease, background 0.4s ease;
   }
   
   .accordion-section.collapsed:hover .accordion-header-bg {
-    opacity: 0.9;
-    background: linear-gradient(90deg, rgba(204, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.9) 70%);
+    opacity: 1;
+    background: linear-gradient(to left, rgba(204, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.9) 60%);
   }
   
   .accordion-section.expanded .accordion-header-bg {
@@ -298,7 +346,7 @@ function extractYoutubeId(url: string) {
     width: 100%;
     display: flex;
     align-items: center;
-    justify-content: flex-start; /* LEFT ALIGNED */
+    justify-content: flex-start;
     padding-left: 5vw;
     cursor: pointer;
     position: absolute;
@@ -314,14 +362,13 @@ function extractYoutubeId(url: string) {
     cursor: default;
   }
 
-  /* CINEMATIC FONT REPLACEMENT */
   .accordion-title {
     font-family: 'Helvetica Neue', Helvetica, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
     font-size: clamp(3rem, 7vw, 7rem);
     text-transform: uppercase;
-    font-weight: 900; /* Ultra bold */
-    letter-spacing: -0.04em; /* Tight cinematic kerning */
-    color: rgba(255, 255, 255, 0.7); /* Slightly dimmed */
+    font-weight: 900; 
+    letter-spacing: -0.04em; 
+    color: rgba(255, 255, 255, 0.7); 
     margin: 0;
     z-index: 2;
     transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
@@ -364,9 +411,10 @@ function extractYoutubeId(url: string) {
 
   /* LEFT: 3D DECK */
   .deck-column {
-    flex: 0 0 55%;
+    flex: 0 0 50%;
     position: relative;
     height: 100%;
+    z-index: 20; /* Keep Deck ALWAYS above Info Column to guarantee clicks */
   }
 
   .deck-stack {
@@ -383,10 +431,9 @@ function extractYoutubeId(url: string) {
     left: 0;
     width: 80%;
     height: 90%;
-    /* NO ROUNDED EDGES */
     border-radius: 0; 
     overflow: hidden;
-    box-shadow: 0 30px 60px rgba(0,0,0,0.8);
+    box-shadow: 0 30px 60px rgba(0,0,0,0.9);
     transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), 
                 opacity 0.8s cubic-bezier(0.2, 0.8, 0.2, 1),
                 z-index 0s;
@@ -404,41 +451,41 @@ function extractYoutubeId(url: string) {
   
   .deck-card.next-1 {
     z-index: 9;
-    transform: translateX(20%) translateZ(-100px) scale(0.9);
+    transform: translateX(25%) translateZ(-100px) scale(0.9);
     opacity: 0.8;
   }
   
   .deck-card.next-2 {
     z-index: 8;
-    transform: translateX(35%) translateZ(-200px) scale(0.8);
+    transform: translateX(45%) translateZ(-200px) scale(0.8);
     opacity: 0.5;
   }
   
   .deck-card.hidden {
     z-index: 1;
-    transform: translateX(50%) translateZ(-300px) scale(0.7);
+    transform: translateX(65%) translateZ(-300px) scale(0.7);
     opacity: 0;
     pointer-events: none;
   }
 
-  /* PEEKING SPINE FOR VISIBILITY ON STACKED CARDS */
+  /* PEEKING SPINE */
   .peeking-spine {
     position: absolute;
     right: 0;
     top: 0;
     bottom: 0;
-    width: 60px; /* Right edge bleed */
-    background: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.8) 100%);
+    width: 60px;
+    background: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.9) 100%);
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 1;
     transition: opacity 0.5s ease;
     z-index: 5;
+    pointer-events: none;
   }
   .deck-card.active .peeking-spine {
-    opacity: 0; /* Disappears when front and active */
-    pointer-events: none;
+    opacity: 0; 
   }
   .spine-text {
     writing-mode: vertical-rl;
@@ -463,7 +510,7 @@ function extractYoutubeId(url: string) {
     transform: scale(1.05);
   }
   .deck-card.active:hover .deck-card-image {
-    transform: scale(1.02); /* Less zoom for the active one since it's clickable to enter */
+    transform: scale(1.02); 
   }
 
   .deck-card-overlay {
@@ -474,12 +521,12 @@ function extractYoutubeId(url: string) {
     display: flex;
     align-items: center;
     justify-content: center;
-    pointer-events: none; /* Let the card body catch clicks */
+    pointer-events: none; 
   }
   .deck-card.active .deck-card-overlay {
     background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 40%);
     opacity: 0;
-    pointer-events: auto; /* Active card overlay can be interacted with (the enter button) */
+    pointer-events: auto; 
   }
   .deck-card.active:hover .deck-card-overlay {
     opacity: 1;
@@ -491,7 +538,6 @@ function extractYoutubeId(url: string) {
     color: #fff;
     padding: 1rem 2.5rem;
     font-weight: 900;
-    /* SHARP EDGES */
     border-radius: 0;
     letter-spacing: 0.1em;
     transform: translateY(20px);
@@ -511,18 +557,19 @@ function extractYoutubeId(url: string) {
 
   /* RIGHT: INFO PANEL */
   .info-column {
-    flex: 0 0 45%;
+    flex: 0 0 50%;
     position: relative;
     height: 100%;
-    padding-left: 4rem;
+    z-index: 10;
     display: flex;
     align-items: center;
+    justify-content: flex-end; /* push right */
   }
 
   .info-panels-wrapper {
     position: relative;
     width: 100%;
-    height: 80%; /* Match relative height */
+    height: 90%; 
   }
 
   .brand-info-panel {
@@ -532,9 +579,6 @@ function extractYoutubeId(url: string) {
     visibility: hidden;
     transform: translateX(40px);
     transition: all 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
   }
   .brand-info-panel.active {
     opacity: 1;
@@ -542,111 +586,115 @@ function extractYoutubeId(url: string) {
     transform: translateX(0);
   }
 
-  .brand-logo-area {
-    margin-bottom: 2rem;
-    height: 100px; /* fixed space for logo so text doesn't jump */
-    display: flex;
-    align-items: flex-end;
-  }
-  .panel-logo {
-    max-height: 100%;
-    max-width: 100%;
-    object-fit: contain;
-    filter: drop-shadow(0 4px 20px rgba(0,0,0,0.8));
-  }
-  .panel-text-title {
-    font-family: var(--font-display);
-    font-size: 3rem;
-    margin: 0;
-    color: #fff;
-    text-transform: uppercase;
-  }
-
-  .brand-desc {
-    font-size: 1.1rem;
-    line-height: 1.6;
-    color: #aaa;
-    margin-bottom: 2rem;
-    max-width: 90%;
-  }
-
-  /* SAMPLE CONTENT GRID (MINI FEED) */
-  .sample-content-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.5rem;
-    margin-bottom: 3rem;
-    max-width: 90%;
-  }
-
-  .sample-video-card {
-    display: flex;
-    flex-direction: column;
-    gap: 0.8rem;
-    group: hover;
-    text-decoration: none;
-  }
-
-  .sample-thumb {
-    width: 100%;
-    aspect-ratio: 16 / 9;
+  /* LARGE TRAILER CARD */
+  .large-trailer-card {
     position: relative;
-    /* SHARP EDGES */
-    border-radius: 0;
-    overflow: hidden;
-    border: 1px solid rgba(255,255,255,0.1);
-    transition: border-color 0.3s ease;
-  }
-  .sample-video-card:hover .sample-thumb {
-    border-color: var(--color-accent);
-  }
-  
-  .sample-thumb img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
-    transition: transform 0.5s ease;
-  }
-  .sample-video-card:hover .sample-thumb img {
-    transform: scale(1.05);
+    background: #000;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.1);
   }
 
-  .play-indicator {
+  .trailer-bg-wrapper {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 150%;
+    height: 150%;
+    transform: translate(-50%, -50%);
+    pointer-events: none; /* Disable iframe clicks */
+    z-index: 1;
+  }
+  
+  .trailer-iframe, .trailer-fallback-img {
+    width: 100%;
+    height: 100%;
+    border: none;
+    object-fit: cover;
+  }
+
+  /* Slow zoom on fallback img */
+  .trailer-fallback-img {
+    animation: slowPan 20s linear infinite alternate;
+  }
+  @keyframes slowPan {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.1); }
+  }
+
+  /* OVERLAYS FOR THE TRAILER CARD */
+  .trailer-dark-overlay {
     position: absolute;
     inset: 0;
-    margin: auto;
-    width: 40px;
-    height: 40px;
-    background: rgba(204,0,0,0.9);
-    border-radius: 50%;
+    background: rgba(0,0,0,0.3);
+    z-index: 2;
+  }
+  .trailer-gradient-bottom {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60%;
+    background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 40%, transparent 100%);
+    z-index: 3;
+  }
+
+  /* LOGO OVERLAY */
+  .trailer-logo-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
-    font-size: 0.8rem;
-    opacity: 0;
-    transform: scale(0.8);
-    transition: all 0.3s ease;
+    z-index: 4;
+    padding-bottom: 5rem; /* slight offset upward */
   }
-  .sample-video-card:hover .play-indicator {
-    opacity: 1;
-    transform: scale(1);
+  
+  .trailer-logo {
+    max-height: 160px;
+    max-width: 70%;
+    object-fit: contain;
+    filter: drop-shadow(0 10px 30px rgba(0,0,0,0.8));
+    animation: floatLogo 6s ease-in-out infinite;
+  }
+  @keyframes floatLogo {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0); }
   }
 
-  .sample-title {
-    margin: 0;
-    font-size: 0.95rem;
+  .trailer-text-title {
+    font-family: var(--font-display);
+    font-size: 4rem;
     color: #fff;
-    font-weight: 500;
-    line-height: 1.4;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    transition: color 0.3s ease;
+    text-transform: uppercase;
+    text-shadow: 0 10px 30px rgba(0,0,0,0.8);
   }
-  .sample-video-card:hover .sample-title {
-    color: var(--color-accent);
+
+  /* BOTTOM CONTENT INSIDE TRAILER CARD */
+  .trailer-bottom-content {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 3rem;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .brand-desc {
+    font-size: 1.15rem;
+    line-height: 1.6;
+    color: #ccc;
+    margin-bottom: 2rem;
+    max-width: 85%;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
   }
 
   /* ENTER BUTTON */
@@ -657,19 +705,19 @@ function extractYoutubeId(url: string) {
     font-weight: 900;
     padding: 1.2rem 3rem;
     font-size: 1.1rem;
-    /* SHARP EDGES */
     border-radius: 0;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     width: fit-content;
     transition: all 0.3s ease;
     text-decoration: none;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.5);
   }
   .brand-enter-btn:hover {
     background: var(--color-accent);
     color: #fff;
     transform: translateY(-2px);
-    box-shadow: 0 10px 30px rgba(204,0,0,0.4);
+    box-shadow: 0 10px 30px rgba(204,0,0,0.7);
   }
   .arrow {
     margin-left: 0.5rem;
