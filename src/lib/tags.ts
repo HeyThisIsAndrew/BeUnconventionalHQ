@@ -97,19 +97,10 @@ export function getDisplayTags(item: any): string[] {
     }
   }
 
-  let unusedTokens = cleanTokens.filter(t => {
-    return t !== matchedToken1 && t !== matchedToken2 && t !== matchedToken3;
-  });
-
   let finalTags: string[] = [];
   if (tag1) finalTags.push(tag1);
-  else if (unusedTokens.length > 0) finalTags.push(unusedTokens.shift() as string);
-
   if (tag2) finalTags.push(tag2);
-  else if (unusedTokens.length > 0) finalTags.push(unusedTokens.shift() as string);
-
   if (tag3) finalTags.push(tag3);
-  else if (unusedTokens.length > 0) finalTags.push(unusedTokens.shift() as string);
 
   return finalTags.filter(Boolean).slice(0, 3);
 }
