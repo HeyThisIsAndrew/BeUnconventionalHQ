@@ -97,7 +97,8 @@ export function buildTaxonomyDictionary({ topics = [], hubs = [] }) {
 export function matchVideoTags(youtubeTags, dict) {
   const topicIds = [];
   const hubIds = [];
-  for (const raw of youtubeTags ?? []) {
+  const tags = Array.isArray(youtubeTags) ? youtubeTags : [];
+  for (const raw of tags) {
     const key = normalizeTag(raw);
     const topicId = dict.tier1.get(key);
     if (topicId && !topicIds.includes(topicId)) topicIds.push(topicId);
@@ -232,7 +233,7 @@ async function run() {
   const videos = await yt.getVideoDetails(ids);
 
   const now = new Date();
-  const syncedDocs = videos.map((v) => {
+  const syncedDocs = videos.filter(v => v && v.id).map((v) => {
     const match = matchVideoTags(v.tags, dict);
     const existingDoc = existingDocsMap.get(videoDocId(v.id));
     return planVideoSync(v, match, existingDoc, now);
