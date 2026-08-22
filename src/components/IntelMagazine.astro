@@ -106,14 +106,32 @@ const FEATURE_SIZES = '(max-width: 900px) 92vw, 720px';
   are the full, stable set and the centre simply reflects whichever one is
   selected, with that tile marked active.
 
-  Split by alternating sides (0→left, 1→right, 2→left …) rather than
-  "first half left, second half right", so the two rails stay the same length
-  when the count is odd and DOM order matches visual order for keyboard and
-  screen-reader users.
+  Split SEQUENTIALLY — newest half down the left rail, older half down the
+  right — not alternating sides.
+
+  Alternating (0→left, 1→right, 2→left …) was chosen to keep the rails equal
+  when the count is odd, but it broke reading order. With six articles the
+  left rail ran Aug 21 → Aug 19 → May 5 and the right ran Aug 20 → Aug 4 →
+  May 2: each rail descends on its own, but the second-newest article sits at
+  the top of the OTHER column, so there is no single chronological list to
+  follow. Reported from production as "the articles are not in order".
+
+  Reading order only worked if you scanned row by row ACROSS the spread, and
+  a full-height feature image sits between the two rails, so nobody does.
+  Column by column is how flanking rails actually read.
+
+  This also fixes the accessibility claim the old note made rather than
+  breaking it: the DOM emits the left rail then the right, so sequential
+  halves mean DOM order now genuinely equals reading order. Alternating did
+  not — it emitted 0, 2, 4, 1, 3, 5.
+
+  Odd counts put the extra tile on the left, which is the half holding the
+  newer articles.
 */
 const railArticles = articles;
-const leftRail = railArticles.filter((_, index) => index % 2 === 0);
-const rightRail = railArticles.filter((_, index) => index % 2 === 1);
+const splitAt = Math.ceil(railArticles.length / 2);
+const leftRail = railArticles.slice(0, splitAt);
+const rightRail = railArticles.slice(splitAt);
 
 /*
   The slug of the article currently in the centre, so its rail tile can render

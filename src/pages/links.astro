@@ -130,7 +130,10 @@ const socialLinks = [
                 aria-label={`Play video: ${video.title}`}
               >
                 <div class="links-bento-image">
-                  <img src={video.thumbnail} alt={video.title} />
+                  {/* Matches the article tiles directly below, which were
+                      already lazy — these sit in the same grid, at the same
+                      scroll depth, and were the only ones still eager. */}
+                  <img src={video.thumbnail} alt={video.title} loading="lazy" decoding="async" />
                   <span class="links-bento-badge">VIDEO</span>
                 </div>
                 <div class="links-bento-content">
@@ -225,7 +228,17 @@ const socialLinks = [
       >
       <div class="qr-container">
         <div class="qr-image-wrapper">
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=https://beunconventionalhq.com/collaborations" alt="Collaborations QR Code" class="qr-code-img" />
+          {/* This lives inside a CLOSED modal, so it was fetching a
+              cross-origin image from api.qrserver.com on every page load for
+              a picture nobody had asked to see yet. Lazy defers it until the
+              modal is actually opened. */}
+          <img
+            src="https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=https://beunconventionalhq.com/collaborations"
+            alt="Collaborations QR Code"
+            class="qr-code-img"
+            loading="lazy"
+            decoding="async"
+          />
         </div>
         <div class="qr-brand-stack">
           <a href="/collaborations" class="qr-collabs-link">COLLABS</a>
