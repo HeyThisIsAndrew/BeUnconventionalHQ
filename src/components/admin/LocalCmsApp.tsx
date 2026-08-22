@@ -341,10 +341,12 @@ function BackdropsField({ value, onChange }: { value?: any[]; onChange: (v: any[
   };
 
   return (
-    <Field label={`Backdrop Stills (${items.length})`}>
+    <Field label={`Backdrop Image Override (${items.length})`}>
       <p className="text-xs text-gray-600 mb-3">
-        Cross-fade behind this hub on /featured, about 7 seconds each. Leave empty to
-        use the thumbnails of videos tagged to this hub. Four to six works best.
+        Optional. Only the FIRST image is used — it sits behind this hub on /featured
+        and on its own page, heavily blurred with a slow drift. Leave empty and the
+        hub's Hero Image is used instead; set one here only when the hero art does not
+        work blurred.
       </p>
       <div className="space-y-3">
         {items.map((ref, i) => (

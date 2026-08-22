@@ -192,153 +192,48 @@ export function getFeaturedBrandsLocal(): any[] {
 }
 
 /*
-  A backdrop is BLURRED, ALWAYS. That is a design decision and a budget
-  decision at the same time, and the second one is why it is worth stating
-  plainly: nothing behind the artwork is ever the thing being looked at, so
-  detail there is weight with no payoff. Everything gets the small source —
-  YouTube's 320x180 `mqdefault` at roughly 10kB rather than the 1280x720
-  `maxresdefault` at roughly 150kB — and the blur hides the upscale. Six stills
-  cost about 60kB in total instead of nearly a megabyte.
+  ONE IMAGE, THE HUB'S OWN.
 
-  How hard it is blurred depends on how honestly it belongs to the hub, which
-  is what `tier` carries:
+  This used to gather up to six stills and cross-fade them, pulling from the
+  thumbnails of videos tagged to the hub and then from its category. It was a
+  neat trick and it was the wrong call: those thumbnails are the channel's own
+  video covers, which means they are frequently a photograph of the presenter.
+  A hub is somebody else's brand — Marvel's backdrop cannot be a picture of the
+  site owner, and "the top of my head behind the Marvel logo" is how it was
+  actually spotted.
 
-    chosen   someone picked this image for this hub. Lightest touch.
-    hub      a video tagged to this hub. Its own coverage.
-    related  matches the hub's own sync keywords, but is not tagged to it.
-    mood     right CATEGORY, not this hub — a gaming still behind PlayStation.
-             Blurred past legibility on purpose. It is set dressing, and it
-             must never read as a claim that this is the hub's coverage.
+  So a hub's backdrop is a hub's own art and nothing else: whatever image has
+  been chosen for it, blurred, with a slow drift. Borrowing footage from a
+  neighbouring category was solving a content gap with someone else's face, and
+  a hub with no art yet is better served by the brand-tinted ground it already
+  falls back to.
+
+  It is also far less machinery — no cycling timer, no staged hydration, no
+  tiers, and one image per hub instead of six.
 */
-export type BackdropTier = 'chosen' | 'hub' | 'related' | 'mood';
-
-export type HubBackdrop = { tier: BackdropTier } & (
-  | { kind: 'sanity'; ref: any }
-  | { kind: 'url'; url: string }
-);
-
-/*
-  Which topics stand in for a category when a hub has nothing of its own. Every
-  one of these has real thumbnails in the store, which is the only reason this
-  is worth doing rather than falling back to flat black.
-*/
-const CATEGORY_TOPIC_FALLBACK: Record<string, string[]> = {
-  universes: ['film', 'tv'],
-  streaming: ['tv', 'film'],
-  studios: ['film'],
-  gaming: ['gaming'],
-};
-
-/** YouTube's small 16:9 still. `hqdefault` and `sddefault` are 4:3 and arrive
- *  pillarboxed with baked-in black bars, so they are never used here. */
-function smallThumb(url: string): string {
-  return url.replace(/\/(maxresdefault|hq720|sddefault|hqdefault)(_live)?\.jpg/, '/mqdefault.jpg');
-}
-
-function normalizeTag(value: string): string {
-  return value.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
-}
+export type HubBackdrop = { kind: 'sanity'; ref: any };
 
 /**
- * The still images a hub uses as its backdrop, best source first.
+ * The single image behind a hub, or null if it has none yet.
  *
- * The /featured deck used to put a live YouTube embed behind the artwork on
- * every screen. Two problems, and neither is fixable by configuring the embed:
- * YouTube's chrome is not reliably suppressible — `modestbranding` no longer
- * removes the logo and `rel=0` no longer removes related videos — and the
- * player is roughly 900kB of JavaScript, which is most of why the page felt
- * slow on a phone.
+ *   1. `backdrops[0]` — an explicit override, for when the key art does not
+ *      work blurred (a logo on flat white goes to nothing).
+ *   2. `heroImage` — the hub's own key art, which is the normal case.
  *
- * So the backdrop is stills, and the video is an enhancement layered over them
- * where there is the bandwidth for it.
- *
- * Sources, in order — each one only runs if the ones above it came up short,
- * so a hub with real coverage never shows borrowed footage:
- *
- *   1. `backdrops` on the hub. Someone picked these; they win outright.
- *   2. Thumbnails of videos TAGGED to this hub, newest first. Free, already in
- *      the store, and current on their own as the sync tags new videos.
- *   3. Videos matching the hub's own `youtubeSyncKeywords` — the same heuristic
- *      the hub page already falls back to for its coverage grid.
- *   4. Videos in the hub's CATEGORY. Thirteen of the fifteen hubs have no
- *      coverage and no artwork at all, and a gaming still behind PlayStation is
- *      a better ground than an empty box — as long as it is blurred past the
- *      point of looking like a claim. See BackdropTier.
- *   5. The hub's `heroImage`, so one image still beats flat black.
+ * Nothing else. A hub with neither falls through to the brand-tinted gradient
+ * the page already draws, which reads as a deliberate title card rather than a
+ * gap.
  */
-export function getHubBackdrops(slug: string, limit = 6): HubBackdrop[] {
-  const out: HubBackdrop[] = [];
-  const seen = new Set<string>();
-
+export function getHubBackdrop(slug: string): HubBackdrop | null {
   const brand = (localVideos as any[]).find(
     (d) => d._type === 'featuredBrand' && d.slug?.current === slug,
   );
-  if (!brand) return out;
+  if (!brand) return null;
 
-  const pushSanity = (ref: any, tier: BackdropTier) => {
-    if (!ref) return;
-    const key = JSON.stringify(ref?.asset?._ref ?? ref);
-    if (seen.has(key)) return;
-    seen.add(key);
-    out.push({ kind: 'sanity', ref, tier });
-  };
-
-  const pushDoc = (doc: any, tier: BackdropTier) => {
-    const url = smallThumb(String(doc.thumbnailUrl));
-    if (seen.has(url)) return;
-    seen.add(url);
-    out.push({ kind: 'url', url, tier });
-  };
-
-  for (const ref of (brand.backdrops ?? []) as any[]) pushSanity(ref, 'chosen');
-  if (out.length >= limit) return out.slice(0, limit);
-
-  /* Newest first. A backdrop that leads with two-year-old coverage reads as a
-     dormant hub even when the hub is active. */
-  const pool = (localVideos as any[])
-    .filter(
-      (d) =>
-        (d._type === 'video' || d._type === 'short' || d._type === 'live') &&
-        d.thumbnailUrl,
-    )
-    .sort((a, b) => String(b.publishedAt ?? '').localeCompare(String(a.publishedAt ?? '')));
-
-  for (const doc of pool) {
-    if (out.length >= limit) return out.slice(0, limit);
-    if (Array.isArray(doc.hubs) && doc.hubs.includes(slug)) pushDoc(doc, 'hub');
-  }
-
-  const keywords = ((brand.youtubeSyncKeywords ?? []) as any[])
-    .filter((k): k is string => typeof k === 'string')
-    .map(normalizeTag)
-    .filter(Boolean);
-
-  if (keywords.length > 0) {
-    for (const doc of pool) {
-      if (out.length >= limit) return out.slice(0, limit);
-      const tags = [...(doc.youtubeTags ?? []), ...(doc.topics ?? [])]
-        .filter((t: unknown): t is string => typeof t === 'string')
-        .map(normalizeTag);
-      // Exact match on normalised strings, never substring: "max" must not
-      // pull in every video whose tags mention "max verstappen".
-      if (tags.some((t) => keywords.includes(t))) pushDoc(doc, 'related');
-    }
-  }
-
-  const topics = CATEGORY_TOPIC_FALLBACK[brand.hubCategory ?? ''] ?? [];
-  if (topics.length > 0) {
-    for (const doc of pool) {
-      if (out.length >= limit) return out.slice(0, limit);
-      const docTopics: string[] = (doc.topics ?? []).filter(
-        (t: unknown): t is string => typeof t === 'string',
-      );
-      if (docTopics.some((t: string) => topics.includes(t))) pushDoc(doc, 'mood');
-    }
-  }
-
-  if (out.length === 0) pushSanity(brand.heroImage, 'chosen');
-
-  return out.slice(0, limit);
+  const override = (brand.backdrops ?? []).find(Boolean);
+  if (override) return { kind: 'sanity', ref: override };
+  if (brand.heroImage) return { kind: 'sanity', ref: brand.heroImage };
+  return null;
 }
 
 /**

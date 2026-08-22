@@ -1,6 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { getFeaturedBrandsLocal, getHubBackdrops, urlFor, HUB_CATEGORY_LABELS } from '../../lib/local-content';
+import { getFeaturedBrandsLocal, getHubBackdrop, urlFor, HUB_CATEGORY_LABELS } from '../../lib/local-content';
 
 /*
   `featuredBrand` docs are read out of src/data/videos.json, which is a frozen
@@ -488,7 +488,7 @@ ${activeFonts
                     <div class="info-panels-wrapper">
                       {categoryBrands.map((brand: Brand, bIndex: number) => {
                         const meta = metaFor(brand);
-                        const backdrops = getHubBackdrops(brand.slug?.current ?? '');
+                        const backdrop = getHubBackdrop(brand.slug?.current ?? '');
 
                         return (
                           <div class={`brand-info-panel ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex} style={`--brand-color: ${meta.color}; --brand-rgb: ${meta.rgb};`}>
@@ -496,71 +496,29 @@ ${activeFonts
                               
                               <div class="trailer-bg-wrapper">
                                 {/*
-                                  THE BACKDROP IS STILLS. THERE IS NO VIDEO.
+                                  ONE IMAGE, THE HUB'S OWN, BLURRED.
 
-                                  A YouTube embed used to play over these on
-                                  desktop. It is gone — see the note on
-                                  .trailer-bg-wrapper. The stills are the whole
-                                  backdrop at every size now.
+                                  There is no video here (see the note on
+                                  .trailer-bg-wrapper) and no longer a gallery
+                                  either — a cross-fade of six stills pulled
+                                  from tagged video thumbnails put the site
+                                  owner's face behind other people's brands.
+                                  See getHubBackdrop().
 
-                                  Only the first frame carries a real
-                                  background-image; the rest are painted when
-                                  their panel becomes the active one. Fifteen
-                                  hubs at six stills each is ninety images, and
-                                  `loading="lazy"` is not a reliable guard when
-                                  the container is hidden with `visibility`
-                                  rather than moved off-screen.
+                                  Deliberately small: it is blurred past any
+                                  detail, so a 640px source fills a 1000px
+                                  panel with nothing lost and a tenth of the
+                                  weight.
                                 */}
-                                {backdrops.length > 0 && (
-                                  <div class="backdrop-gallery" data-tier={backdrops[0].tier} aria-hidden="true">
-                                    {backdrops.map((b, i) => {
-                                      /*
-                                        640 for an editor's own image, and the
-                                        YouTube stills arrive at 320 already.
-                                        Both are far below the box they fill —
-                                        deliberately. See BackdropTier: nothing
-                                        here is ever unblurred, so resolution
-                                        buys nothing and costs everything.
-                                      */
-                                      const url = b.kind === 'sanity'
-                                        ? urlFor(b.ref).width(640).auto('format').quality(70).url()
-                                        : b.url;
-                                      const first = i === 0;
-                                      /*
-                                        Only the hub that is actually showing
-                                        gets a frame in the HTML. Marking every
-                                        panel's first frame eager-in-markup
-                                        loads one still per hub on open — two
-                                        today, fifteen once the rest have
-                                        artwork, for fourteen panels nobody is
-                                        looking at. The others are hydrated by
-                                        startBackdrop() when they are selected.
-                                      */
-                                      const painted = first && bIndex === 0;
-                                      /*
-                                        A background-image div rather than an
-                                        <img>: these layers are blurred, and
-                                        this project has been bitten before by
-                                        putting a `filter` on an <img> in iOS
-                                        Safari (hard rule 6). It also matches
-                                        how the hub page paints the same
-                                        gallery, and nothing is lost — the
-                                        loading order is driven by the script
-                                        below, not by the element.
-                                      */
-                                      return (
-                                        <div
-                                          class={`backdrop-layer ${first ? 'active' : ''}`}
-                                          data-tier={b.tier}
-                                          data-bg={painted ? undefined : url}
-                                          style={painted ? `background-image: url('${url}');` : undefined}
-                                        ></div>
-                                      );
-                                    })}
-                                  </div>
+                                {backdrop && (
+                                  <div
+                                    class="backdrop-plate"
+                                    aria-hidden="true"
+                                    style={`background-image: url('${urlFor(backdrop.ref).width(640).auto('format').quality(70).url()}');`}
+                                  ></div>
                                 )}
 
-                                {backdrops.length === 0 && (
+                                {!backdrop && (
                                   <div class="article-thumb-fallback"></div>
                                 )}
                               </div>
@@ -637,88 +595,6 @@ ${activeFonts
     }
   }
 
-  /*
-    THE BACKDROP CYCLES ONLY WHERE IT IS BEING LOOKED AT.
-
-    One timer per section rather than one per panel: fifteen hubs across four
-    rows is fifteen intervals and ninety images if every gallery runs itself,
-    and at most one of them is ever on screen. The section owns the timer, the
-    active panel owns the frames.
-  */
-  const reduceMotionQuery = () => window.matchMedia('(prefers-reduced-motion: reduce)');
-  const BACKDROP_HOLD_MS = 7000;
-
-  function stopBackdrop(section: HTMLElement) {
-    const id = Number(section.dataset.backdropTimer || 0);
-    if (id) window.clearInterval(id);
-    delete section.dataset.backdropTimer;
-  }
-
-  function startBackdrop(section: HTMLElement) {
-    stopBackdrop(section);
-    if (!section.classList.contains('expanded')) return;
-
-    const panel = section.querySelector<HTMLElement>('.brand-info-panel.active');
-    if (!panel) return;
-
-    const frames = Array.from(panel.querySelectorAll<HTMLElement>('.backdrop-layer'));
-    if (frames.length === 0) return;
-
-    /*
-      ONE FRAME AHEAD, NOT ALL OF THEM.
-
-      Hydrating the whole set when the panel opens costs six images for a
-      visitor who looks at the row for seven seconds and moves on. Fetching the
-      next one during the current one's hold means the cross-fade always has
-      its image ready and nobody pays for stills they never see.
-    */
-    const hydrate = (i: number) => {
-      const frame = frames[i % frames.length];
-      if (!frame) return;
-      const url = frame.dataset.bg;
-      if (!url) return;
-      frame.style.backgroundImage = `url('${url}')`;
-      delete frame.dataset.bg;
-    };
-
-    // A cross-fade IS the motion someone asked not to see. One frame, held —
-    // but it still has to be fetched, since it may not be in the HTML.
-    if (frames.length < 2 || reduceMotionQuery().matches) {
-      const only = frames.findIndex((f) => f.classList.contains('active'));
-      const gallery0 = panel.querySelector<HTMLElement>('.backdrop-gallery');
-      const tier0 = frames[only < 0 ? 0 : only]?.dataset.tier;
-      if (gallery0 && tier0) gallery0.dataset.tier = tier0;
-      hydrate(only < 0 ? 0 : only);
-      return;
-    }
-
-    /* The blur belongs to the gallery now (one surface instead of six), so the
-       gallery has to be told which still is showing. */
-    const gallery = panel.querySelector<HTMLElement>('.backdrop-gallery');
-    const syncTier = (i: number) => {
-      const tier = frames[i % frames.length]?.dataset.tier;
-      if (gallery && tier) gallery.dataset.tier = tier;
-    };
-
-    let index = frames.findIndex((f) => f.classList.contains('active'));
-    if (index < 0) index = 0;
-    syncTier(index);
-    // The current frame first — on any panel but the one the page opened on,
-    // this is the frame that was left out of the HTML.
-    hydrate(index);
-    hydrate(index + 1);
-
-    const timer = window.setInterval(() => {
-      frames[index].classList.remove('active');
-      index = (index + 1) % frames.length;
-      frames[index].classList.add('active');
-      syncTier(index);
-      hydrate(index + 1);
-    }, BACKDROP_HOLD_MS);
-
-    section.dataset.backdropTimer = String(timer);
-  }
-
   function initAccordionAndDecks() {
     const sections = document.querySelectorAll<HTMLElement>('.accordion-section');
     sections.forEach(section => {
@@ -734,7 +610,6 @@ ${activeFonts
           sections.forEach(s => {
             s.classList.remove('expanded');
             s.classList.add('collapsed');
-            stopBackdrop(s);
           });
           
           section.classList.remove('collapsed');
@@ -743,7 +618,6 @@ ${activeFonts
             s.querySelector('.accordion-header')
               ?.setAttribute('aria-expanded', s === section ? 'true' : 'false');
           }
-          startBackdrop(section);
 
         });
       }
@@ -757,10 +631,6 @@ ${activeFonts
       cards.forEach((c, idx) => {
         if (c.classList.contains('active')) activeIndex = idx;
       });
-
-      if (section.classList.contains('expanded')) {
-        startBackdrop(section);
-      }
 
       function renderDeck() {
         cards.forEach((card, i) => {
@@ -797,11 +667,6 @@ ${activeFonts
             
           }
         });
-
-        // The gallery follows the selection: a new hub means a new backdrop
-        // set, so the cycle restarts on its first frame rather than resuming
-        // mid-way through the previous hub's.
-        startBackdrop(section);
       }
 
       // Deck Stack Clicks & Parallax
@@ -1777,6 +1642,9 @@ ${activeFonts
     left: 50%;
     width: 150%;
     height: 100%;
+    /* Legal now, and load-bearing — see .backdrop-plate. There is no iframe
+       left anywhere on this page, so hard rule 3 no longer applies here. */
+    overflow: hidden;
     /* Held in a custom property because the push-in keyframes below have to
        restate the whole transform, and the compact layout needs to zero the
        shift without having to redeclare the animation too. */
@@ -1835,96 +1703,51 @@ ${activeFonts
   }
 
   /* ══════════════════════════════════════════════════════════════════════
-     THE BACKDROP GALLERY
+     THE BACKDROP PLATE
 
-     Stills, cross-fading, sharing the trailer's box so they get the same seam
-     mask and the same slow push-in. This is the backdrop everywhere; the video
-     is a layer over it on screens big enough to be worth the 900kB.
+     One image, blurred, drifting. Two things about it are load-bearing.
+
+     THE WRAPPER CLIPS. A CSS blur goes WEAK at its own element's edges — it
+     samples transparent pixels from outside and mixes them in, so the outermost
+     band of a blurred element is the least blurred part of it. The plate is
+     also scaled up, which pushed it past its own box and out behind the row's
+     heading. Together those put a strip of near-sharp artwork directly behind
+     the category title: reported as "not blurred all the way to the top", and
+     reproduced with a striped test image where the band is unmistakable.
+
+     So the wrapper clips (`overflow: hidden`, which is only safe here because
+     there is no longer an iframe anywhere in this subtree — see hard rule 3)
+     and the plate overscans well past it. The blur's weak edge now falls
+     outside the clip and is never seen; what shows is the middle of the blur,
+     which is uniform.
+
+     THE DRIFT IS A TRANSFORM ON A STATIC BLUR. The filter never changes, so the
+     browser rasterises the blurred surface once and the animation is the
+     compositor moving that texture. Animating the blur itself would re-raster
+     every frame, which is what made this page judder before.
      ══════════════════════════════════════════════════════════════════════ */
-  /*
-    THE BLUR LIVES HERE, ON ONE SURFACE — NOT ON EACH OF SIX LAYERS.
-
-    A `filter` forces its element onto its own surface to be rasterised. Six
-    stills per hub meant six full-bleed blurred surfaces, and only ever one and
-    a bit of them visible. Profiled on a 4x-throttled phone, opening a row was
-    p95 50ms with frames as long as 87ms — visibly not smooth, and this was a
-    large part of it.
-
-    The gallery carries the blur and the scale for whichever still is showing;
-    the layers underneath are now plain images that only cross-fade. The tier
-    comes from the active layer (set by startBackdrop), and the filter
-    transitions with it, so moving between a hub's own coverage and borrowed
-    footage eases rather than snaps.
-  */
-  .backdrop-gallery {
+  .backdrop-plate {
     position: absolute;
-    inset: 0;
-    z-index: 1;
-    transform: scale(1.10);
-    filter: blur(9px) saturate(1.05);
-    -webkit-filter: blur(9px) saturate(1.05);
-    transition: filter 2.2s ease, transform 2.2s ease;
-  }
-
-  /* Its own coverage, or an image someone chose for it. Softened, still
-     readable as a scene. */
-  /*
-    LIGHTER THAN IT WAS, BECAUSE IT IS THE WHOLE BACKDROP NOW.
-
-    These numbers were set when a video played over the top and the stills were
-    only what showed before it arrived — so they could afford to be pure
-    atmosphere. With the video gone the stills ARE the scene, and a review
-    reported them reading as "coloured light blobs" rather than as footage.
-
-    Halved, roughly. Still soft enough that the deck card in front stays the
-    only sharp thing on screen, which was always the point.
-  */
-  .backdrop-gallery[data-tier='chosen'],
-  .backdrop-gallery[data-tier='hub'] {
-    filter: blur(6px) saturate(1.08);
-    -webkit-filter: blur(6px) saturate(1.08);
-  }
-
-  .backdrop-gallery[data-tier='related'] {
-    filter: blur(13px) saturate(0.95) brightness(0.88);
-    -webkit-filter: blur(13px) saturate(0.95) brightness(0.88);
-  }
-
-  /*
-    RIGHT CATEGORY, WRONG HUB.
-
-    A gaming still behind PlayStation is a better ground than an empty box, and
-    thirteen of the fifteen hubs have nothing else. But it is not that hub's
-    coverage and must never look like a claim that it is, so it goes past the
-    point of recognition and sits back further in the frame.
-  */
-  .backdrop-gallery[data-tier='mood'] {
-    transform: scale(1.16);
-    filter: blur(24px) saturate(0.85) brightness(0.76);
-    -webkit-filter: blur(24px) saturate(0.85) brightness(0.76);
-  }
-
-  .backdrop-layer {
-    position: absolute;
-    inset: 0;
+    /* Overscan: the blurred edges sit outside the wrapper's clip. */
+    inset: -14%;
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    opacity: 0;
-    pointer-events: none;
-    /*
-      Long, and asymmetric on purpose. A quick cross-fade reads as a slideshow
-      changing slides; a slow one where the outgoing frame lingers reads as a
-      dissolve, which is the cut a title sequence would use.
-
-      No filter here — see .backdrop-gallery. These are plain images, so a
-      cross-fade is a compositor job rather than six blurred re-rasterisations.
-    */
-    transition: opacity 2.2s cubic-bezier(0.4, 0, 0.2, 1);
+    filter: blur(10px) saturate(1.08);
+    -webkit-filter: blur(10px) saturate(1.08);
+    will-change: transform;
+    animation: backdropDrift 38s ease-in-out infinite alternate;
   }
 
-  .backdrop-layer.active {
-    opacity: 1;
+  @keyframes backdropDrift {
+    from { transform: scale(1); }
+    to { transform: scale(1.07); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .backdrop-plate {
+      animation: none;
+    }
   }
 
   .trailer-fallback-img {

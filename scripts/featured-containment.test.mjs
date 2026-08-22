@@ -156,7 +156,7 @@ test('there is no video on this page, and it does not come back', () => {
   */
   assert.doesNotMatch(src, /<iframe/, 'no iframe on /featured');
   assert.doesNotMatch(src, /youtube-nocookie/, 'no YouTube embed on /featured');
-  assert.match(src, /backdrop-gallery/, 'the still gallery is the backdrop');
+  assert.match(src, /backdrop-plate/, 'the blurred plate is the backdrop');
 });
 
 test('the rows snap; nothing animates a layout property', () => {
@@ -181,63 +181,54 @@ test('the rows snap; nothing animates a layout property', () => {
   assert.match(src, /transition-delay: 0\.\d+s/, 'the staged reveal must still be there');
 });
 
-test('backdrops are always the small source, because they are always blurred', () => {
+test("a hub's backdrop is its OWN art, never borrowed footage", () => {
   /*
-    A blurred layer cannot show detail, so a 1280x720 still behind it is weight
-    with no payoff — about 150kB each against 10kB for YouTube's 320x180
-    `mqdefault`. Six stills go from nearly a megabyte to about 60kB, which is
-    most of what made the phone layout slow.
+    The backdrop used to be a cross-fade of up to six stills gathered from the
+    thumbnails of videos tagged to the hub, then from its category. Those
+    thumbnails are the channel's own video covers, which are frequently a
+    photograph of the presenter — so Marvel's backdrop could be, and was, the
+    top of the site owner's head. A hub is somebody else's brand and cannot be
+    backed by that.
+
+    One image per hub, its own, or none. A hub with no art falls through to the
+    brand-tinted ground the page already draws.
   */
   const lib = readFileSync(join(here, '..', 'src', 'lib', 'local-content.ts'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '');
 
-  assert.match(lib, /function smallThumb/, 'thumbnails must be downgraded to the small variant');
-  assert.match(lib, /mqdefault/, 'mqdefault is the only small 16:9 YouTube still');
-  assert.doesNotMatch(
-    lib,
-    /'\/(hqdefault|sddefault)\.jpg'/,
-    'hqdefault and sddefault are 4:3 and arrive pillarboxed',
-  );
+  assert.match(lib, /export function getHubBackdrop\b/, 'one backdrop per hub');
+  assert.doesNotMatch(lib, /getHubBackdrops\b/, 'the multi-still gatherer must be gone');
+  assert.doesNotMatch(lib, /thumbnailUrl/, "a hub must not borrow a video's thumbnail");
+  assert.doesNotMatch(lib, /CATEGORY_TOPIC_FALLBACK/, 'a hub must not borrow from its category');
 
-  // Every layer carries its tier, and every tier is blurred.
-  assert.match(src, /data-tier=\{b\.tier\}/, 'each layer must declare its tier');
-  for (const tier of ['chosen', 'hub', 'related', 'mood']) {
-    assert.ok(
-      src.includes(`data-tier='${tier}'`) || tier === 'chosen' || tier === 'hub',
-      `${tier} needs its own blur`,
-    );
-  }
-  assert.match(src, /filter: blur\(/, 'the backdrop must be blurred');
+  // Blurred past detail, so the source stays small.
+  assert.match(src, /width\(640\)/, 'the deck plate is requested small because it is blurred');
 });
 
-test('borrowed footage is blurred harder than the hub\'s own', () => {
-  // A gaming still behind PlayStation is a better ground than an empty box, but
-  // it is not that hub's coverage and must never read as a claim that it is.
-  const blurOf = (selector) => {
-    const i = src.indexOf(selector);
-    assert.ok(i > -1, `${selector} rule is missing`);
-    const decl = src.slice(i, src.indexOf('}', i));
-    const m = /filter: blur\((\d+)px\)/.exec(decl);
-    assert.ok(m, `${selector} must set a blur radius`);
-    return Number(m[1]);
-  };
+test('the blur is clipped, so its weak edge never shows', () => {
   /*
-    The blur is on the GALLERY, not on each layer: a `filter` forces its element
-    onto its own surface, and six stills per hub meant six full-bleed blurred
-    surfaces where one will do. The layers are plain cross-fading images and the
-    gallery carries the tier.
-  */
-  const own = blurOf(".backdrop-gallery[data-tier='hub']");
-  const mood = blurOf(".backdrop-gallery[data-tier='mood']");
-  assert.ok(mood > own * 2, `mood (${mood}px) must be far softer than hub (${own}px)`);
+    A CSS blur goes WEAK at its own element's edges — it mixes in the
+    transparent pixels outside — so the outermost band of a blurred element is
+    the least blurred part of it. The plate is also scaled, which pushed it past
+    its box and out behind the row heading. Together those put a strip of
+    near-sharp artwork behind the category title, reported as "not blurred all
+    the way to the top".
 
-  const layer = src.slice(src.indexOf('.backdrop-layer {'));
-  assert.doesNotMatch(
-    layer.slice(0, layer.indexOf('}')),
-    /filter:/,
-    'a per-layer filter is one blurred surface per still — keep it on the gallery',
-  );
+    The wrapper clips and the plate overscans past it, so what shows is the
+    middle of the blur. Only safe because no iframe remains in this subtree —
+    see hard rule 3.
+  */
+  const wrapper = src.slice(src.indexOf('.trailer-bg-wrapper {'));
+  assert.match(wrapper.slice(0, wrapper.indexOf('}')), /overflow: hidden/, 'the wrapper must clip');
+
+  const plate = src.slice(src.indexOf('.backdrop-plate {'));
+  const decl = plate.slice(0, plate.indexOf('}'));
+  assert.match(decl, /inset: -\d+%/, 'the plate must overscan past the clip');
+  assert.match(decl, /filter: blur\(/, 'the plate must be blurred');
+
+  // The drift is a transform on a static blur; animating the filter re-rasters.
+  assert.doesNotMatch(src, /transition: filter/, 'do not animate the blur itself');
 });
 
 test('a row is sized by its own share, not by what its siblings leave over', () => {
