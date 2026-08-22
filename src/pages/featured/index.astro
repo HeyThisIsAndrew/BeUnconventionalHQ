@@ -264,11 +264,13 @@ function extractYoutubeId(url: string) {
                         const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).auto('format').quality(78).url() : null;
                         const metaCard = metaFor(brand);
                         return (
-                          <div
+                          <a
                             class={`deck-card ${bIndex === 0 ? "active" : bIndex === 1 ? "next-1" : bIndex === 2 ? "next-2" : "hidden"}`}
+                            href={`/featured/${brand.slug?.current}`}
+                            aria-label={`Enter the ${brand.title} hub`}
                             data-index={bIndex}
                             data-brand-rgb={metaCard.rgb}
-                            data-href={`/featured/${brand.slug?.current}`}
+                            style={`--brand-rgb: ${metaCard.rgb};`}
                           >
 
                             <div class="peeking-spine">
@@ -295,9 +297,52 @@ function extractYoutubeId(url: string) {
                             ) : (
                               <div class="article-thumb-fallback"></div>
                             )}
-                            
-                            
-                          </div>
+
+                            {/*
+                              THE KEY ART CARRIES THE BRANDING AND THE WAY IN.
+
+                              The mark used to sit in the corner of the trailer
+                              on the other side of the row, which meant a hub's
+                              identity and a hub's artwork were two separate
+                              objects competing to be looked at — and on a phone
+                              they landed on top of each other and of the video's
+                              own title overlay.
+
+                              One surface instead: the poster IS the button, and
+                              the logo sits on it bottom-left the way it does on
+                              the video cards elsewhere on this site
+                              (`.video-watermark` in ContentCard.astro). The
+                              trailer becomes what it should always have been —
+                              the plate behind the scene, with nothing to read on
+                              it.
+                            */}
+                            <span class="deck-card-scrim" aria-hidden="true"></span>
+
+                            <span class="deck-card-plate" aria-hidden="true">
+                              {brand.logo ? (
+                                /* HARD RULE 6: the shadow is on the WRAPPER,
+                                   never on the <img>. */
+                                <span class="deck-card-logo-wrap">
+                                  <img
+                                    src={urlFor(brand.logo).height(120).auto('format').url()}
+                                    alt=""
+                                    class="deck-card-logo"
+                                    loading={bIndex === 0 ? 'eager' : 'lazy'}
+                                  />
+                                </span>
+                              ) : (
+                                <span class="deck-card-wordmark">{brand.title}</span>
+                              )}
+                              <span class="deck-card-desc">{metaCard.desc}</span>
+                            </span>
+
+                            <span class="deck-card-enter" aria-hidden="true">
+                              <span>Enter</span>
+                              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <path d="M5 12h13M13 6l6 6-6 6" />
+                              </svg>
+                            </span>
+                          </a>
                         );
                       })}
                     </div>
@@ -345,30 +390,8 @@ function extractYoutubeId(url: string) {
                               </div>
 
                               <div class="trailer-dark-overlay"></div>
+                              <div class="trailer-gradient-top"></div>
                               <div class="trailer-gradient-bottom"></div>
-
-                              <div class="trailer-bottom-content">
-                                {brand.logo ? (
-                                  <span class="trailer-logo-wrap">
-                                    <img src={urlFor(brand.logo).height(120).auto('format').url()} alt={`${brand.title} logo`} class="trailer-logo" />
-                                  </span>
-                                ) : (
-                                  <h3 class="trailer-text-title">{brand.title}</h3>
-                                )}
-                                <div class="trailer-text-btn-row">
-                                  <p class="brand-desc">{meta.desc}</p>
-                                  <a
-                                    href={`/featured/${brand.slug?.current}`}
-                                    class="cta-button-primary dynamic-brand-btn"
-                                    aria-label={`Enter the ${brand.title} hub`}
-                                  >
-                                    <span>Enter</span>
-                                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                      <path d="M5 12h13M13 6l6 6-6 6" />
-                                    </svg>
-                                  </a>
-                                </div>
-                              </div>
                             </div>
                           </div>
                         );
@@ -588,19 +611,15 @@ function extractYoutubeId(url: string) {
               return;
             }
             /*
-              The FRONT card means "go in".
+              The FRONT card means "go in" — and it is now a real <a>, so
+              that needs no code at all. Falling through to the browser's own
+              navigation is what makes the tile work for keyboards, screen
+              readers, middle-click and open-in-new-tab, none of which a
+              `window.location` assignment supports.
 
-              Previously clicking it did nothing, which left a large piece of
-              artwork that looks clickable and is not — and pushed the whole
-              job onto a button in the corner. This is the tile-is-the-target
-              behaviour every TV app uses.
-
-              It is an enhancement layered on top, not the only route: the
-              real <a> in the corner is what keyboards and screen readers
-              use, so nothing depends on this handler existing.
+              The separate "Enter" button in the trailer corner is gone with
+              it: there is one target per hub now, and it is the artwork.
             */
-            const href = card.getAttribute('data-href');
-            if (href) window.location.href = href;
           });
 
           /*
@@ -664,6 +683,41 @@ function extractYoutubeId(url: string) {
         });
 
         section.addEventListener('pointerleave', resetDrift);
+      }
+
+      /*
+        THE RAIL ONLY FADES WHERE IT CONTINUES.
+
+        Reports which sides actually have thumbnails scrolled out of view;
+        the stylesheet turns that into the edge feather. Without it the fade
+        is unconditional and the first and last hub in every row look dimmed
+        even when the whole rail fits.
+
+        `scrollWidth - clientWidth` can be a fraction of a pixel off on a
+        fractional-DPI display, so the ends are tested with a small tolerance
+        rather than an exact comparison — otherwise the rail never quite
+        admits it has reached its end and keeps a feather on a crisp edge.
+      */
+      const navTrack = section.querySelector<HTMLElement>('.deck-nav-track');
+      if (navTrack && !navTrack.dataset.hasOverflowListener) {
+        navTrack.dataset.hasOverflowListener = 'true';
+
+        const syncNavFade = () => {
+          const max = navTrack.scrollWidth - navTrack.clientWidth;
+          const atStart = navTrack.scrollLeft <= 1;
+          const atEnd = navTrack.scrollLeft >= max - 1;
+          navTrack.dataset.overflowStart = max > 1 && !atStart ? '1' : '0';
+          navTrack.dataset.overflowEnd = max > 1 && !atEnd ? '1' : '0';
+        };
+
+        syncNavFade();
+        navTrack.addEventListener('scroll', syncNavFade, { passive: true });
+
+        // The rail's width changes when the row opens or closes, which is a
+        // layout change with no scroll and no resize behind it.
+        const RO = (window as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver;
+        if (RO) new RO(syncNavFade).observe(navTrack);
+        else window.addEventListener('resize', syncNavFade);
       }
 
       // Quick Nav Thumb Clicks
@@ -1193,10 +1247,48 @@ function extractYoutubeId(url: string) {
     overflow-x: auto;
     padding: 10px 5%; 
     z-index: 2; /* above glow */
-    
-    /* Feathered edges */
-    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
-    mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
+
+    /* The scrollbar is browser chrome sitting across the bottom of a piece of
+       set dressing. The rail says what it is by the way it fades. */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    /*
+      FEATHERED EDGES, BUT ONLY WHERE THERE IS SOMETHING TO FEATHER.
+
+      This was a fixed `transparent 0%, black 10%, black 90%, transparent`.
+      The ramp is a share of the RAIL, not of what has scrolled out of it, so
+      it dimmed the first and last thumbnail permanently — including when the
+      rail was not scrolled at all and there was nothing beyond either edge to
+      suggest. Five hubs in a row and two of them looked disabled.
+
+      The ramps are variables at zero by default, and the script raises the
+      one on whichever side actually has content off-screen. Scrolled to the
+      start, the left edge is crisp and the right one fades; in the middle,
+      both; with everything visible, neither.
+    */
+    --nav-fade-start: 0%;
+    --nav-fade-end: 0%;
+    -webkit-mask-image: linear-gradient(to right,
+      transparent 0%, black var(--nav-fade-start),
+      black calc(100% - var(--nav-fade-end)), transparent 100%);
+    mask-image: linear-gradient(to right,
+      transparent 0%, black var(--nav-fade-start),
+      black calc(100% - var(--nav-fade-end)), transparent 100%);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+  }
+
+  .deck-nav-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .deck-nav-track[data-overflow-start='1'] {
+    --nav-fade-start: 9%;
+  }
+
+  .deck-nav-track[data-overflow-end='1'] {
+    --nav-fade-end: 9%;
   }
   
   .deck-nav-track::-webkit-scrollbar {
@@ -1323,11 +1415,15 @@ function extractYoutubeId(url: string) {
 
   .trailer-bg-wrapper {
     position: absolute;
-    top: 50%;
+    top: 0;
     left: 50%;
     width: 150%;
-    height: 150%;
-    transform: translate(-50%, -50%);
+    height: 100%;
+    /* Held in a custom property because the push-in keyframes below have to
+       restate the whole transform, and the compact layout needs to zero the
+       shift without having to redeclare the animation too. */
+    --trailer-shift: -50%;
+    transform: translateX(var(--trailer-shift));
     pointer-events: none;
     z-index: 1;
     /*
@@ -1342,51 +1438,44 @@ function extractYoutubeId(url: string) {
       dissolves in across a band ~43% of the column wide, straddling the seam
       instead of stopping at it.
 
-      VERTICAL: the wrapper is also 150% TALL, i.e. it overhangs the panel by
-      25% top and bottom. `.accordion-section` used to clip that off, but that
-      clip had to go (hard rule 3 — it sat on the iframe's ancestor chain and
-      iOS Safari renders a clipped cross-origin iframe as a black box). With
-      the clip gone the overhang leaked the trailer down over the collapsed
-      rows underneath.
+      VERTICAL: nothing. The wrapper used to be 150% TALL as well, and relied
+      on a SECOND mask layer intersected with this one to claw the overhang
+      back. That is what put the video 111px below the row on desktop and
+      74px below it on a landscape phone — straight over the footer — because
+      `mask-composite: intersect` is the one part of this construct WebKit
+      does not honour reliably. With the composite gone the two layers union
+      instead, and a union of "opaque from 29% rightward" with anything is
+      opaque: no vertical containment at all.
 
-      So the containment is a mask too. The wrapper's 150% height maps panel
-      y=0 to 16.7% and y=100% to 83.3%, so the ramps run 17%->27% and
-      73%->83%: zero alpha everywhere outside the panel, fully opaque across
-      the middle 70%, and a soft feather at top and bottom rather than a cut.
+      So containment is geometric now. The wrapper is exactly as tall as its
+      panel, and `mask-repeat: no-repeat` on a single layer already clears
+      everything outside the wrapper's own box — including the 6% the
+      push-in animation scales past it. One mask layer, no compositing, and
+      the containment holds even where masks are ignored entirely.
 
-      The two gradients are INTERSECTED — a mask layer list composites with
-      `add` by default, which would union them and mask nothing.
+      The soft top and bottom edges that the second layer used to provide are
+      painted instead, by .trailer-gradient-top / -bottom below. A scrim over
+      the video is the same result as a mask under it on a black page, and it
+      cannot silently stop working.
     */
     -webkit-mask-image:
       linear-gradient(to right,
         rgba(0,0,0,0) 0%, rgba(0,0,0,0.03) 6%, rgba(0,0,0,0.10) 11%,
         rgba(0,0,0,0.24) 15%, rgba(0,0,0,0.45) 19%, rgba(0,0,0,0.68) 22%,
         rgba(0,0,0,0.86) 25%, rgba(0,0,0,0.96) 27%, rgba(0,0,0,1) 29%,
-        rgba(0,0,0,1) 100%),
-      linear-gradient(to bottom,
-        rgba(0,0,0,0) 0%, rgba(0,0,0,0) 17%, rgba(0,0,0,0.18) 20%,
-        rgba(0,0,0,0.55) 23%, rgba(0,0,0,0.86) 25%, rgba(0,0,0,1) 27%,
-        rgba(0,0,0,1) 73%, rgba(0,0,0,0.86) 75%, rgba(0,0,0,0.55) 77%,
-        rgba(0,0,0,0.18) 80%, rgba(0,0,0,0) 83%, rgba(0,0,0,0) 100%);
+        rgba(0,0,0,1) 100%);
     mask-image:
       linear-gradient(to right,
         rgba(0,0,0,0) 0%, rgba(0,0,0,0.03) 6%, rgba(0,0,0,0.10) 11%,
         rgba(0,0,0,0.24) 15%, rgba(0,0,0,0.45) 19%, rgba(0,0,0,0.68) 22%,
         rgba(0,0,0,0.86) 25%, rgba(0,0,0,0.96) 27%, rgba(0,0,0,1) 29%,
-        rgba(0,0,0,1) 100%),
-      linear-gradient(to bottom,
-        rgba(0,0,0,0) 0%, rgba(0,0,0,0) 17%, rgba(0,0,0,0.18) 20%,
-        rgba(0,0,0,0.55) 23%, rgba(0,0,0,0.86) 25%, rgba(0,0,0,1) 27%,
-        rgba(0,0,0,1) 73%, rgba(0,0,0,0.86) 75%, rgba(0,0,0,0.55) 77%,
-        rgba(0,0,0,0.18) 80%, rgba(0,0,0,0) 83%, rgba(0,0,0,0) 100%);
-    -webkit-mask-composite: source-in;
-    mask-composite: intersect;
+        rgba(0,0,0,1) 100%);
     -webkit-mask-repeat: no-repeat;
     mask-repeat: no-repeat;
     -webkit-mask-size: 100% 100%;
     mask-size: 100% 100%;
   }
-  
+
   .trailer-iframe, .trailer-fallback-img {
     width: 100%;
     height: 100%;
@@ -1433,6 +1522,23 @@ function extractYoutubeId(url: string) {
     pointer-events: none;
   }
 
+  /*
+    Softens the wrapper's top cut. The mask contains the video to its own box
+    now (see .trailer-bg-wrapper), which is a clean edge rather than a fade,
+    and a clean edge at the top of the row reads as a letterbox bar. This
+    puts the fade back as paint.
+  */
+  .trailer-gradient-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 22%;
+    background: linear-gradient(to bottom, rgba(5,5,5,0.95) 0%, rgba(5,5,5,0.55) 45%, transparent 100%);
+    z-index: 3;
+    pointer-events: none;
+  }
+
   .trailer-gradient-bottom {
     position: absolute;
     bottom: 0;
@@ -1463,29 +1569,140 @@ function extractYoutubeId(url: string) {
   }
 
 
+  /* ══════════════════════════════════════════════════════════════════════
+     THE BRAND PLATE — logo, line, and way in, all ON THE ARTWORK.
+
+     This replaces a block of trailer-corner styles (`.trailer-bottom-content`,
+     `.trailer-logo-wrap`, `.trailer-text-title`, `.brand-desc`,
+     `.dynamic-brand-btn`) that positioned the same three things over the
+     video in the other column.
+
+     Two reasons they moved. The first is structural: at phone widths the
+     trailer panel is about 200px tall and that stack is about 165px, so it
+     filled the video and collided with YouTube's own title overlay and
+     control bar — the "crammed" portrait layout, and it was a collision, not
+     a spacing problem. The second is compositional: a hub had its identity on
+     one surface and its artwork on another, and neither could win.
+
+     The site already solves this for video cards — `.video-watermark` in
+     ContentCard.astro sits the mark bottom-left over the frame — so hubs use
+     the same idea at poster scale.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  .deck-card-scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+    /*
+      Multi-stop rather than a two-stop ramp, for the same reason the seam
+      feather is: a linear alpha ramp shows its own endpoints as faint bands
+      across the artwork.
+    */
+    background: linear-gradient(to top,
+      rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.86) 12%, rgba(0,0,0,0.72) 24%,
+      rgba(0,0,0,0.52) 36%, rgba(0,0,0,0.31) 48%, rgba(0,0,0,0.15) 60%,
+      rgba(0,0,0,0.05) 72%, transparent 84%);
+  }
+
+  .deck-card.active .deck-card-scrim {
+    opacity: 1;
+  }
+
+  .deck-card-plate {
+    position: absolute;
+    left: 2rem;
+    bottom: 1.9rem;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.7rem;
+    /* Leaves room for the Enter chip on the opposite corner. */
+    max-width: calc(100% - 2rem - 11rem);
+    pointer-events: none;
+  }
+
+  /* HARD RULE 6: drop-shadow lives on the WRAPPER, never the <img>. */
+  .deck-card-logo-wrap {
+    display: block;
+    filter: drop-shadow(0 6px 16px rgba(0,0,0,0.95));
+  }
+
+  .deck-card-logo {
+    display: block;
+    height: 40px;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+  }
+
+  /* Stand-in for a hub with no logo asset. Same weight on the page as a
+     wordmark would be, so the layout does not shift when artwork arrives. */
+  .deck-card-wordmark {
+    font-family: var(--font-display);
+    font-size: 1.9rem;
+    line-height: 1;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    text-shadow: 0 6px 18px rgba(0,0,0,0.95);
+  }
+
   /*
-    THE BRAND COLOUR IS A HIGHLIGHT, NOT THE RESTING STATE.
-
-    This used to paint the button's outline in the hub's colour at all times,
-    which on DC meant a bright blue rectangle sitting on black — the visual
-    signature of a web link, not of a title card. The colour now stays out of
-    the way until you reach for the control, and arrives as a glow.
-
-    It also fixes a genuine bug. The old hover set `background-color` to the
-    brand colour AND `color: #fff`, so the four hubs whose colour is pure
-    white — Apple TV+, A24, Universal, Sony Pictures — rendered white text on
-    a white fill and the label vanished.
-
-    A TRANSLUCENT TINT rather than a solid fill is what removes that whole
-    class of problem: the dark panel still shows through, so the label stays
-    legible whatever colour a hub is set to, including white. That matters
-    now that the colour is editable in the CMS — anyone can pick any hex, and
-    the button has to survive all of them without someone re-checking
-    contrast by hand.
+    The billing block. Small, tracked out and dim on purpose — on a poster
+    this is the line nobody reads first, and that is exactly its job here.
   */
-  .dynamic-brand-btn {
-    border-color: rgba(255, 255, 255, 0.22) !important;
-    color: rgba(255, 255, 255, 0.92) !important;
+  .deck-card-desc {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.62);
+    line-height: 1.6;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.95);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /*
+    THE CHIP IS A SIGNPOST, NOT A CONTROL.
+
+    The whole card is the link now, so this must not look like a second,
+    separate target sitting on it. It is unfilled, hairline and quiet at
+    rest, and it answers the card's own hover and focus rather than its own —
+    which is what tells you the artwork is the thing you are pressing.
+
+    The brand colour arrives only on that hover. Held as a TRANSLUCENT tint
+    over the dark card rather than a solid fill, so the label stays legible
+    whatever hex a hub is given in the CMS, white included (Apple TV+, A24,
+    Universal and Sony Pictures are all set to white, and a solid fill made
+    the label vanish on every one of them).
+  */
+  .deck-card-enter {
+    position: absolute;
+    right: 2rem;
+    bottom: 1.9rem;
+    z-index: 4;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.7rem 1.35rem;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+    pointer-events: none;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
     transition:
       border-color 0.35s cubic-bezier(0.25, 0.8, 0.2, 1),
       background-color 0.35s cubic-bezier(0.25, 0.8, 0.2, 1),
@@ -1493,125 +1710,50 @@ function extractYoutubeId(url: string) {
       color 0.35s cubic-bezier(0.25, 0.8, 0.2, 1);
   }
 
-  .dynamic-brand-btn:hover,
-  .dynamic-brand-btn:focus-visible {
-    border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.85) !important;
-    background-color: rgba(var(--brand-rgb, 204, 0, 0), 0.16) !important;
-    box-shadow:
-      0 0 34px rgba(var(--brand-rgb, 204, 0, 0), 0.32),
-      inset 0 0 22px rgba(var(--brand-rgb, 204, 0, 0), 0.12) !important;
-    color: #fff !important;
-  }
-  
-  /* Update trailer bottom layout */
-  .trailer-bottom-content {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 3rem;
-    z-index: 5;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  /*
-    KEY-ART STACK, not a form row.
-
-    This was a horizontal row: button on the left, a sentence of grey body
-    copy beside it. That arrangement is why the corner read as a web form —
-    a control with a label next to it. Film key art stacks the same three
-    parts vertically instead: mark, then a tracked-out line, then the way in.
-
-    Reading order matches the visual order now (what this is, then what to
-    do about it), which is also the right order for a screen reader.
-  */
-  .trailer-text-btn-row {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: flex-start;
-    width: 100%;
-    gap: 1.4rem;
-  }
-  /* HARD RULE 6: drop-shadow lives on the WRAPPER, never the <img> — a
-     filtered <img> renders broken on iOS Safari. Identical look: the filter
-     still follows the logo's transparent-PNG alpha. */
-  .trailer-logo-wrap {
-    display: block;
-    max-width: 70%;
-    margin-bottom: 1.5rem;
-    filter: drop-shadow(0 10px 20px rgba(0,0,0,0.9));
-  }
-  .trailer-logo {
-    max-height: 130px;
-    max-width: 100%;
-    object-fit: contain;
-    animation: none; /* explicitly ensure no floating */
-  }
-  .trailer-text-title {
-    font-family: var(--font-display);
-    font-size: 3rem;
-    color: #fff;
-    text-transform: uppercase;
-    text-shadow: 0 10px 30px rgba(0,0,0,0.8);
-    margin-bottom: 1.5rem;
-  }
-  /*
-    Set as a subtitle, not a paragraph.
-
-    At 1.35rem in sentence case this was the largest text in the corner and
-    read as body copy on a marketing page. Small, uppercase and widely
-    tracked is how a title card carries the same words: it becomes texture
-    supporting the logo rather than a block competing with it.
-  */
-  .brand-desc {
-    font-size: 0.95rem;
-    font-weight: 500;
-    letter-spacing: 0.24em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.58);
-    margin: 0;
-    max-width: 52ch;
-    line-height: 1.7;
-    text-shadow: 0 4px 10px rgba(0,0,0,0.9);
-  }
-  /*
-    "ENTER DC" next to a DC logo said DC twice, and repeated the same
-    sentence fifteen times down the page. The logo directly above already
-    names the brand, so the control only has to name the ACTION. Screen
-    readers still get the full "Enter the DC hub" through aria-label — the
-    shortening is visual only.
-
-    It is also deliberately quieter now. The front card is the primary way
-    in (see the click handler); this is the explicit, keyboard-reachable
-    path to the same place, and it should not out-shout the artwork.
-  */
-  .dynamic-brand-btn {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.6rem;
-    font-size: 0.88rem;
-    letter-spacing: 0.26em;
-    text-transform: uppercase;
-    padding: 1rem 2.25rem;
-  }
-
-  .dynamic-brand-btn svg {
-    width: 16px;
-    height: 16px;
+  .deck-card-enter svg {
+    width: 15px;
+    height: 15px;
     fill: none;
     stroke: currentColor;
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
-    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.2, 1);
   }
 
-  .dynamic-brand-btn:hover svg {
+  .deck-card.active:hover .deck-card-enter,
+  .deck-card.active:focus-visible .deck-card-enter {
+    border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.85);
+    background-color: rgba(var(--brand-rgb, 204, 0, 0), 0.18);
+    box-shadow:
+      0 0 34px rgba(var(--brand-rgb, 204, 0, 0), 0.32),
+      inset 0 0 22px rgba(var(--brand-rgb, 204, 0, 0), 0.12);
+    color: #fff;
+  }
+
+  .deck-card.active:hover .deck-card-enter svg,
+  .deck-card.active:focus-visible .deck-card-enter svg {
     transform: translateX(4px);
   }
+
+  /* Only the front card is branded. The ones behind it are silhouettes. */
+  .deck-card:not(.active) .deck-card-plate,
+  .deck-card:not(.active) .deck-card-enter {
+    opacity: 0;
+  }
+
+  /* The card is an <a>; it must not inherit link chrome. */
+  .deck-card {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .deck-card.active:focus-visible {
+    outline: 2px solid rgba(var(--brand-rgb, 204, 0, 0), 0.9);
+    outline-offset: 3px;
+  }
+
 
   /*
     The front card is a link in behaviour, so it should say so on hover.
@@ -1654,9 +1796,8 @@ function extractYoutubeId(url: string) {
 
   .deck-stack,
   .deck-nav-track,
-  .trailer-logo-wrap,
-  .trailer-text-title,
-  .trailer-text-btn-row {
+  .deck-card-plate,
+  .deck-card-enter {
     opacity: 0;
     transition:
       opacity 0.7s ease,
@@ -1672,9 +1813,8 @@ function extractYoutubeId(url: string) {
   }
 
   .deck-nav-track,
-  .trailer-logo-wrap,
-  .trailer-text-title,
-  .trailer-text-btn-row {
+  .deck-card-plate,
+  .deck-card-enter {
     transform: translateY(16px);
   }
 
@@ -1684,14 +1824,16 @@ function extractYoutubeId(url: string) {
     transition-delay: 0.52s;
   }
 
-  .accordion-section.expanded .trailer-logo-wrap,
-  .accordion-section.expanded .trailer-text-title {
+  /* The mark and its line ride the artwork in, a beat behind it. Scoped to
+     the ACTIVE card so the silhouettes behind stay unbranded — this rule and
+     the `:not(.active)` one above are the same statement from both sides. */
+  .accordion-section.expanded .deck-card.active .deck-card-plate {
     opacity: 1;
     transform: translateY(0);
     transition-delay: 0.62s;
   }
 
-  .accordion-section.expanded .trailer-text-btn-row {
+  .accordion-section.expanded .deck-card.active .deck-card-enter {
     opacity: 1;
     transform: translateY(0);
     transition-delay: 0.74s;
@@ -1712,10 +1854,10 @@ function extractYoutubeId(url: string) {
   */
   @keyframes trailerPush {
     from {
-      transform: translate(-50%, -50%) scale(1);
+      transform: translateX(var(--trailer-shift, -50%)) scale(1);
     }
     to {
-      transform: translate(-50%, -50%) scale(1.06);
+      transform: translateX(var(--trailer-shift, -50%)) scale(1.06);
     }
   }
 
@@ -1756,57 +1898,19 @@ function extractYoutubeId(url: string) {
     transition: transform 1.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  @media (max-width: 768px) {
-    .featured-directory-page {
-      /* 750px of min-height forces a scroll on nearly every phone and pushes
-         the last collapsed row under the URL bar. The accordion sizes itself
-         from the viewport instead. */
-      min-height: 0;
-      padding-top: var(--header-height, 64px);
-    }
-
-    .deck-view-container {
-      flex-direction: column;
-      padding: 0;
-    }
-
-    /* Video first, deck under it. */
-    .info-column {
-      order: 1;
-      flex: 0 0 40%;
-      max-width: 100%;
-      width: 100%;
-      height: auto;
-      min-height: 0;
-    }
-
-    .deck-column {
-      order: 2;
-      flex: 1 1 60%;
-      max-width: 100%;
-      width: 100%;
-      height: auto;
-      min-height: 0;
-    }
-
-    /* ── Collapsed rows ──────────────────────────────────────────────────
-       `clamp(3rem, 7vw, 7rem)` never drops below 48px because the 3rem floor
-       outruns 7vw on a phone, and a 48px title does not fit a collapsed row
-       roughly 60px tall once the typeface-demo label is beside it. */
-    .accordion-header {
-      padding-left: 1.25rem;
-      padding-right: 1.25rem;
-    }
-
-    .accordion-section.expanded .accordion-header {
-      padding: 0.75rem 1.25rem 0.5rem;
-    }
-
-    /* ─── TEMPORARY typography demo + picker ─────────────────────────────
+  /* ─── TEMPORARY typography demo + picker ───────────────────────────────
      Each face is declared once and reached two ways: by `data-demo-font` on
      the title (demo mode, a different face per row) and by `data-title-font`
      on <main> (picker mode, one face on every row). Same declarations, so
-     the two modes can never drift apart. */
+     the two modes can never drift apart.
+
+     THESE WERE NESTED INSIDE `@media (max-width: 768px)`. Every face here,
+     and the picker's own styling, therefore applied on a phone and nowhere
+     else: on a desktop the picker rendered as unstyled buttons and every row
+     stayed in the body face no matter which button was pressed. Which is to
+     say the typeface picker — the entire point of which is to choose the
+     face for the DESKTOP design — has never worked on a desktop. Lifted out
+     to the top level. */
   .accordion-title[data-demo-font='syncopate'],
   [data-title-font='syncopate'] .accordion-title {
     font-family: 'Syncopate', sans-serif;
@@ -1832,34 +1936,9 @@ function extractYoutubeId(url: string) {
     text-transform: uppercase;
   }
 
-  /* Sized in `em` so it follows the label instead of dwarfing it — at the
-     old fixed clamp it was now larger than the title it annotates. */
-  .accordion-title-demo-label {
-    font-size: 0.7em;
-    opacity: 0.45;
-    font-family: monospace;
-    letter-spacing: normal;
-    margin-left: 1.2rem;
-    vertical-align: middle;
-  }
-
   /* The per-row labels only make sense while all four are on screen. */
   .featured-directory-page:not([data-title-font='demo']) .accordion-title-demo-label {
     display: none;
-  }
-
-  .font-picker {
-    position: fixed;
-    right: 1rem;
-    bottom: 1rem;
-    z-index: 400;
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.4rem 0.55rem;
-    background: rgba(8, 8, 8, 0.82);
-    border: 1px dashed rgba(255, 255, 255, 0.22);
-    backdrop-filter: blur(8px);
   }
 
   .font-picker-label {
@@ -1893,41 +1972,113 @@ function extractYoutubeId(url: string) {
     background: rgba(204, 0, 0, 0.2);
   }
 
-  .accordion-title {
-      font-size: clamp(1.35rem, 6.5vw, 2.5rem);
-      letter-spacing: -0.02em;
+
+  /* ══════════════════════════════════════════════════════════════════════
+     COMPACT  — phones in portrait, and anything too SHORT for two columns.
+
+     The desktop layout is two 50% columns side by side. That needs both
+     width and height: a landscape phone clears the width test at 926px and
+     fails the height one at 428px, which is why it was getting the desktop
+     rules and overflowing them. The query asks about both.
+
+     Stacking the columns was the old answer and it is what made portrait
+     feel crammed: video 40% / deck 60% left roughly 200px for each, and the
+     trailer's overlaid text (~165px of it) filled its share completely and
+     spilled onto the video and onto YouTube's own title and control bars.
+
+     So the columns do not stack any more — the trailer leaves the layout
+     entirely and becomes the plate BEHIND the row, with the artwork on top
+     of it. Same square footage, one thing in it instead of two, and the
+     branding is on the artwork where it now lives at every size.
+     ══════════════════════════════════════════════════════════════════════ */
+  @media (max-width: 768px), (max-height: 560px) {
+    .deck-view-container {
+      flex-direction: column;
+      padding: 0;
+      position: relative;
     }
 
-    .accordion-section.expanded .accordion-title {
-      font-size: clamp(1rem, 4.5vw, 1.5rem);
-    }
-
-    /* The typeface demo label is a temporary review aid and must stay visible
-       (issue #138 item 2), but inline beside the title it overflows a phone.
-       Its own line keeps all four readable without touching the demo itself. */
-    .accordion-title span {
+    /* Out of the flow, behind everything. */
+    .info-column {
+      position: absolute;
+      inset: 0;
+      flex: none;
+      max-width: none;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
       display: block;
-      margin-left: 0 !important;
-      font-size: 0.65rem !important;
-      margin-top: 0.15rem;
+    }
+
+    .deck-column {
+      position: relative;
+      z-index: 2;
+      flex: 1 1 auto;
+      max-width: 100%;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      /*
+        Poster and rail read as ONE object, centred in the row.
+
+        With the stack taking all the leftover height the card was centred in
+        a 389px box while the rail stayed pinned 120px below it, so the two
+        halves of the same control floated apart with the row's slack sitting
+        between them. Centring the pair puts the slack around the group
+        instead, where it is the space the backing plate shows through.
+      */
+      justify-content: center;
     }
 
     /* ── Deck ────────────────────────────────────────────────────────────
-       Cards are absolutely positioned and vertically centred by a negative
-       margin equal to half their height: width 85% of a 16/9 box is 47.8%
-       tall, hence -24%. Widening to 92% changes that height, so the offset
-       has to be recomputed or the deck sits off-centre: 92 / (16/9) / 2
-       = 25.9%. Keep these two numbers in step. */
+       The card can no longer be sized from width alone. On a 926px landscape
+       phone the row is only ~355px tall, so a card at 94% of the width would
+       be 490px tall and simply not fit — the same "sized by one axis on a
+       screen constrained by the other" mistake that put the video over the
+       footer.
+
+       So the stack becomes a size container and the card takes whichever of
+       the two limits binds first: 94% of the stack's width, or the width
+       that makes it 94% of the stack's HEIGHT (94 x 16/9 = 167). One
+       declaration, correct in both orientations, no second breakpoint.
+
+       Grid replaces the absolute + negative-margin centring it used to need:
+       every card occupies the same cell and `place-items: center` holds them
+       there, which leaves `transform` free for the deck offsets instead of
+       having it fight a `margin-top` that had to be recomputed by hand
+       whenever the width changed. */
     .deck-stack {
-      /* Feather toward the bottom, not the right — the info column is above
-         now, so a right-edge fade points at nothing. */
+      /*
+        NO `aspect-ratio` HERE, however tempting.
+
+        Giving the stack an intrinsic 16/9 height closes the gap between the
+        poster and the rail, and it also gives every COLLAPSED row a ~220px
+        min-content height — their bodies are hidden but still laid out. The
+        four rows then stop fitting the viewport and the page grows to 1290px
+        with the last row's content running past the footer. The accordion
+        only fits the screen because nothing inside it has an intrinsic
+        height, and that has to stay true.
+
+        So the stack still takes the leftover space, and the slack around the
+        poster is filled by the backing plate showing through rather than by
+        making the box smaller.
+      */
+      container-type: size;
+      display: grid;
+      grid-template: 1fr / 1fr;
+      place-items: center;
+      /* The right-edge feather aimed at a column that is no longer there. */
       -webkit-mask-image: none;
       mask-image: none;
     }
 
     .deck-card {
-      width: 92%;
-      margin-top: -25.9%;
+      position: relative;
+      grid-area: 1 / 1;
+      top: auto;
+      left: auto;
+      margin-top: 0;
+      width: min(94cqw, 167cqh);
     }
 
     /* Compressed spread: the desktop 25% / 45% offsets push the second and
@@ -1958,6 +2109,7 @@ function extractYoutubeId(url: string) {
       margin-top: 0.5rem;
       padding: 6px 4%;
       gap: 8px;
+      flex: 0 0 auto;
     }
 
     .deck-nav-thumb {
@@ -1970,60 +2122,65 @@ function extractYoutubeId(url: string) {
       display: none;
     }
 
-    /* ── Trailer panel ───────────────────────────────────────────────────
-       Every feather in this panel was authored left-to-right for a video
-       sitting to the RIGHT of the deck. Stacked, the seam is along the
-       BOTTOM edge instead, so each gradient and mask is re-aimed downward. */
+    /* ── Trailer, now the backing plate ──────────────────────────────────
+       Full width, no seam to feather, and pushed a long way down: it is
+       behind the artwork, so anything it does with contrast is competing
+       with the thing you are meant to be looking at. */
     .trailer-bg-wrapper {
+      --trailer-shift: 0%;
+      left: 0;
       width: 100%;
-      height: 100%;
-      -webkit-mask-image: linear-gradient(to bottom, black 0%, black 82%, transparent 100%);
-      mask-image: linear-gradient(to bottom, black 0%, black 82%, transparent 100%);
+      -webkit-mask-image: none;
+      mask-image: none;
     }
 
     .trailer-dark-overlay {
-      background: linear-gradient(to bottom, transparent 60%, #050505 100%);
+      left: 0;
+      width: 100%;
+      /* Dark enough that the poster stays the brightest thing in the row,
+         light enough that the space around it reads as a scene rather than
+         as an empty box. */
+      background:
+        linear-gradient(to bottom, rgba(5,5,5,0.78) 0%, rgba(5,5,5,0.46) 45%, rgba(5,5,5,0.86) 100%);
+    }
+
+    .trailer-gradient-top {
+      height: 30%;
     }
 
     .trailer-gradient-bottom {
-      height: 75%;
+      height: 40%;
     }
 
-    .trailer-bottom-content {
-      padding: 1rem 1.25rem 1.25rem;
+    /* ── Brand plate on the card ─────────────────────────────────────────
+       Corners pull in and the type comes down a step, but the arrangement is
+       the desktop one. */
+    .deck-card-plate {
+      left: 1rem;
+      bottom: 1rem;
+      gap: 0.45rem;
+      max-width: calc(100% - 1rem - 7.5rem);
     }
 
-    .trailer-logo-wrap {
-      max-width: 55%;
-      margin-bottom: 0.6rem;
+    .deck-card-logo {
+      height: 26px;
     }
 
-    .trailer-logo {
-      max-height: 52px;
+    .deck-card-wordmark {
+      font-size: 1.15rem;
     }
 
-    .trailer-text-title {
-      font-size: 1.5rem;
-      margin-bottom: 0.6rem;
-    }
-
-    /* Button beside a 55%-wide paragraph does not fit; stack them. */
-    .trailer-text-btn-row {
-      gap: 0.75rem;
-    }
-
-    /* Keep the subtitle subordinate here too — it was set larger than the
-       desktop size, which inverted the hierarchy on the smaller screen. */
-    .brand-desc {
-      max-width: 100%;
-      font-size: 0.78rem;
+    .deck-card-enter {
+      right: 1rem;
+      bottom: 1rem;
+      padding: 0.5rem 0.9rem;
+      font-size: 0.62rem;
       letter-spacing: 0.2em;
-      line-height: 1.6;
     }
 
-    .dynamic-brand-btn {
-      font-size: 0.75rem;
-      padding: 0.7rem 1.5rem;
+    .deck-card-enter svg {
+      width: 12px;
+      height: 12px;
     }
 
     /* The blur radius is a fixed 120px, which on a 390px-wide column washes
@@ -2031,6 +2188,54 @@ function extractYoutubeId(url: string) {
     .ambient-glow-layer {
       -webkit-filter: blur(60px) saturate(1.5);
       filter: blur(60px) saturate(1.5);
+    }
+  }
+
+  /* ── Phone-width only ──────────────────────────────────────────────────
+     Sizes that depend on a NARROW screen rather than a short one. A landscape
+     phone gets the compact layout above but keeps the full-size titles and
+     the billing line, because it has the width for them. */
+  @media (max-width: 768px) {
+    .featured-directory-page {
+      /* 750px of min-height forces a scroll on nearly every phone and pushes
+         the last collapsed row under the URL bar. The accordion sizes itself
+         from the viewport instead. */
+      min-height: 0;
+      padding-top: var(--header-height, 64px);
+    }
+
+    .accordion-header {
+      padding-left: 1.25rem;
+      padding-right: 1.25rem;
+    }
+
+    .accordion-section.expanded .accordion-header {
+      padding: 0.75rem 1.25rem 0.5rem;
+    }
+
+    .accordion-title {
+      font-size: clamp(1.35rem, 6.5vw, 2.5rem);
+      letter-spacing: -0.02em;
+    }
+
+    .accordion-section.expanded .accordion-title {
+      font-size: clamp(1rem, 4.5vw, 1.5rem);
+    }
+
+    /* The typeface demo label is a temporary review aid and must stay visible
+       (issue #138 item 2), but inline beside the title it overflows a phone.
+       Its own line keeps all four readable without touching the demo itself. */
+    .accordion-title span {
+      display: block;
+      margin-left: 0 !important;
+      font-size: 0.65rem !important;
+      margin-top: 0.15rem;
+    }
+
+    /* Two clamped lines of tracked-out caps is 40px of the ~200px of card
+       that is not artwork. The logo already says which hub this is. */
+    .deck-card-desc {
+      display: none;
     }
   }
 
@@ -2043,9 +2248,9 @@ function extractYoutubeId(url: string) {
     .ambient-glow-container,
     .deck-stack,
     .deck-nav-track,
-    .trailer-logo-wrap,
-    .trailer-text-title,
-    .trailer-text-btn-row,
+    .deck-card-plate,
+    .deck-card-enter,
+    .deck-card-scrim,
     .deck-card-image {
       transition: none;
     }
@@ -2064,9 +2269,8 @@ function extractYoutubeId(url: string) {
        not. With the transitions off, everything must simply BE there. */
     .accordion-section.expanded .deck-stack,
     .accordion-section.expanded .deck-nav-track,
-    .accordion-section.expanded .trailer-logo-wrap,
-    .accordion-section.expanded .trailer-text-title,
-    .accordion-section.expanded .trailer-text-btn-row {
+    .accordion-section.expanded .deck-card.active .deck-card-plate,
+    .accordion-section.expanded .deck-card.active .deck-card-enter {
       opacity: 1;
       transform: none;
       transition-delay: 0s;
