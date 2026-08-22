@@ -525,6 +525,10 @@ function extractYoutubeId(url: string) {
       function renderDeck() {
         cards.forEach((card, i) => {
           card.className = 'deck-card';
+          /* Class transforms only. An inline one would win over them and
+             strand the card off-position — see the note on the click
+             handlers below. */
+          card.style.transform = '';
           infoPanels[i].className = 'brand-info-panel';
           
           if (navThumbs[i]) navThumbs[i].className = 'deck-nav-thumb';
@@ -599,25 +603,23 @@ function extractYoutubeId(url: string) {
             if (href) window.location.href = href;
           });
 
-          // Parallax hover depth on active card
-          card.addEventListener('mousemove', (e: MouseEvent) => {
-            if (i !== activeIndex) return;
-            const rect = card.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            const centerX = rect.width / 2;
-            const centerY = rect.height / 2;
-            // Max rotation of 3 degrees
-            const rotateX = ((y - centerY) / centerY) * -3; 
-            const rotateY = ((x - centerX) / centerX) * 3;
-            card.style.transform = `perspective(1000px) scale(1) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
-          });
-          card.addEventListener('mouseleave', () => {
-            if (i === activeIndex) {
-              // Smoothly reset
-              card.style.transform = `translateX(0) scale(1)`;
-            }
-          });
+          /*
+            NO PARALLAX TILT ON THE FRONT CARD.
+
+            This used to write an INLINE transform on every mousemove, which
+            caused three separate complaints about the big artwork not sitting
+            still — and one of them was a genuine bug rather than a taste
+            issue. `renderDeck()` re-assigns `card.className` but cannot clear
+            an inline style, and inline beats any stylesheet rule. So a tilt
+            left behind by the pointer survived the next selection and
+            overrode the deck's own positioning: the card that should have
+            settled at translateX(0) stayed wherever the last mousemove had
+            put it. That is why selecting a brand appeared to move the image
+            at random.
+
+            The front card is the largest thing on the page and the thing the
+            eye fixes on. It holds still.
+          */
         }
       });
 
@@ -1125,11 +1127,16 @@ function extractYoutubeId(url: string) {
     object-fit: cover;
     transition: transform 0.6s ease;
   }
+  /* Cards BEHIND the front one still lift slightly on hover — that is the
+     affordance saying "click me to bring this forward". */
   .deck-card:hover .deck-card-image {
     transform: scale(1.05);
   }
+
+  /* The front card does not. It is the subject of the composition, and a
+     1.02 nudge on a 720px image is a visible drift for no information. */
   .deck-card.active:hover .deck-card-image {
-    transform: scale(1.02); 
+    transform: none;
   }
 
   .deck-card-overlay {
@@ -1726,17 +1733,18 @@ function extractYoutubeId(url: string) {
      numbers are small on purpose: this should feel like the scene has weight,
      not like the page is wobbling.
   */
+  /*
+    THE ARTWORK DOES NOT DRIFT.
+
+    The deck stack used to translate with the pointer, which meant the big
+    image wandered a few pixels whenever the mouse moved anywhere in the row
+    — reported as "it randomly moves without doing anything". Depth now comes
+    entirely from the backlight behind it (below) and the trailer's slow push
+    on the other side, both of which move while the subject stays put. That is
+    the more filmic arrangement anyway: the camera moves, the subject holds.
+  */
   .deck-stack {
-    transform: translate3d(
-      calc(var(--drift-x, 0) * 12px),
-      calc(var(--drift-y, 0) * 7px),
-      0
-    );
-    /* Shorter than the entrance easing above: the drift has to feel attached
-       to the pointer, while still trailing it enough to have weight. */
-    transition:
-      opacity 0.7s ease,
-      transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity 0.7s ease;
   }
 
   .ambient-glow-container {
@@ -2026,18 +2034,6 @@ function extractYoutubeId(url: string) {
     }
   }
 
-  /*
-    Touch devices: the parallax handler writes an inline `transform` on
-    mousemove, and a touch browser fires one synthetic mousemove on tap that
-    then never gets a mouseleave — leaving the active card frozen at a tilt.
-    The handler is desktop-only by intent, so neutralise its result here.
-  */
-  @media (hover: none) {
-    .deck-card.active {
-      transform: translateX(0) scale(1) !important;
-    }
-  }
-
   @media (prefers-reduced-motion: reduce) {
     .accordion-section,
     .deck-card,
@@ -2057,6 +2053,11 @@ function extractYoutubeId(url: string) {
     .trailer-fallback-img,
     .accordion-section.expanded .brand-info-panel.active .trailer-bg-wrapper {
       animation: none;
+    }
+
+    /* The backlight is the only thing still tracking the pointer. */
+    .ambient-glow-container {
+      transform: none;
     }
 
     /* The staged entrance is a nice-to-have; being able to read the row is
