@@ -138,49 +138,47 @@ test('the typeface demo is not trapped in a phone media query', () => {
   }
 });
 
-test('the backdrop is stills, and the video never loads on the compact layout', () => {
+test('there is no video on this page, and it does not come back', () => {
   /*
-    YouTube's branding cannot be configured away from an embed — the wordmark,
-    the title overlay and the end-of-video state surface whatever is passed on
-    the URL. So the backdrop is a cross-fading gallery of stills, and the
-    player is a desktop-only layer over it: ~900kB of script that on a phone
-    sat behind the artwork where none of it was legible.
+    A YouTube embed used to play over the stills on desktop. Its chrome could
+    not be suppressed: `modestbranding` no longer removes the wordmark, and the
+    play/pause overlay and the auto-generated captions render in the CENTRE of
+    the frame, where no crop can reach them. Cropping to 132% and stopping the
+    player before it looped both failed — a review caught the pause overlay and
+    a "[suspenseful music]" caption sitting across the artwork.
+
+    It also cost the most of anything here: ~900kB of player script, and a
+    video surface being composited behind the thing you are meant to look at.
+
+    The stills are the whole backdrop now. If a video ever comes back, it needs
+    to answer the chrome problem first, so this fails until someone deletes it
+    deliberately.
   */
-  assert.match(src, /backdrop-gallery/, 'the still gallery must exist');
-  assert.match(src, /compactQuery/, 'the trailer must be gated on the compact layout');
-
-  // The ONLY place an iframe src is ever assigned has to be the guarded one.
-  const assignments = src.match(/\biframe\.src\s*=/g) || [];
-  assert.equal(
-    assignments.length,
-    1,
-    'exactly one place may assign a trailer src, and it must be loadTrailer()',
-  );
-
-  const fn = src.slice(src.indexOf('function loadTrailer'));
-  const body = fn.slice(0, fn.indexOf('\n  }'));
-  assert.match(body, /compactQuery\(\)\.matches/, 'loadTrailer must bail out on the compact layout');
-  // Hard rule 4: an empty src resolves against the document URL and loads the
-  // whole page inside the frame. A hub with no trailerUrl renders no data-src,
-  // so the assignment has to be guarded on it being present — however that
-  // guard is phrased.
-  assert.match(body, /lazySrc/, 'the src must come from the data attribute');
-  assert.match(
-    body,
-    /if \s*\(\s*!lazySrc[\s\S]{0,40}return|if \(lazySrc &&/,
-    'assigning the src must be guarded on the data attribute being present',
-  );
+  assert.doesNotMatch(src, /<iframe/, 'no iframe on /featured');
+  assert.doesNotMatch(src, /youtube-nocookie/, 'no YouTube embed on /featured');
+  assert.match(src, /backdrop-gallery/, 'the still gallery is the backdrop');
 });
 
-test("the player is cropped past its own chrome, without transforming the iframe", () => {
-  // Every piece of YouTube's chrome is anchored to the player's own edges, so
-  // overscanning the frame and masking the overflow is what removes it. The
-  // offset is margin rather than transform because this is a cross-origin
-  // iframe and WebKit renders those badly when transformed.
-  const block = src.slice(src.indexOf('.trailer-iframe {'));
+test('the rows snap; nothing animates a layout property', () => {
+  /*
+    `transition: flex-basis 0.7s` forced a full layout and repaint of the
+    accordion on every frame for 700ms, underneath a full-bleed blur. Measured
+    at 412x823 with a 4x CPU throttle it ran p95 50ms with frames up to 87ms
+    against a 16.7ms budget; snapping the geometry and letting the staged
+    reveal carry the motion took it to p95 28ms with one janky frame.
+
+    Anything that transitions a layout property here — flex, flex-basis, width,
+    height, top, margin — puts it straight back.
+  */
+  const block = src.slice(src.indexOf('.accordion-section {'));
   const decl = block.slice(0, block.indexOf('}'));
-  assert.match(decl, /width:\s*1[0-9][0-9]%/, 'the iframe must be overscanned past its box');
-  assert.doesNotMatch(decl, /transform:/, 'do not transform a cross-origin iframe');
+  assert.doesNotMatch(
+    decl,
+    /transition:[^;]*(flex|width|height|margin|top|bottom|left|right)/,
+    'a row must not transition a layout property',
+  );
+  // The motion lives in the staged reveal, which is opacity and transform only.
+  assert.match(src, /transition-delay: 0\.\d+s/, 'the staged reveal must still be there');
 });
 
 test('backdrops are always the small source, because they are always blurred', () => {
@@ -307,22 +305,6 @@ test('every category row is reachable and operable from the keyboard', () => {
   assert.match(src, /id=\{`hub-row-\$\{category\}`\}/, 'the panel needs the id aria-controls points at');
   assert.match(src, /setAttribute\('aria-expanded'/, 'the state must be kept in step on click');
   assert.match(src, /\.accordion-header:focus-visible/, 'a focusable control needs a visible focus ring');
-});
-
-test('the trailer is an opening, not a loop', () => {
-  /*
-    The 132% crop puts YouTube's corners and control strip outside the frame,
-    but it cannot reach the LOOP BOUNDARY — the player re-shows its title bar
-    and play overlay across the middle of the frame every time it restarts, and
-    no embed parameter turns that off. So the video is stopped before it gets
-    there and dissolves back to the stills.
-  */
-  assert.match(src, /TRAILER_RUN_MS/, 'the opening needs a defined length');
-  assert.doesNotMatch(src, /loop=1/, 'looping is what surfaces the chrome');
-  assert.doesNotMatch(src, /playlist=\$\{ytId\}/, 'the playlist parameter only exists to loop');
-  assert.match(src, /function unloadTrailer/, 'unloading must be one path, so its timer is always cleared');
-  // Hard rule 4 — an empty src resolves against the document URL.
-  assert.doesNotMatch(src, /iframe\.src\s*=\s*''/, "never assign '' to an iframe src");
 });
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
