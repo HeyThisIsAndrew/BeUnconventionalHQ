@@ -224,9 +224,22 @@ test('borrowed footage is blurred harder than the hub\'s own', () => {
     assert.ok(m, `${selector} must set a blur radius`);
     return Number(m[1]);
   };
-  const own = blurOf(".backdrop-layer[data-tier='hub']");
-  const mood = blurOf(".backdrop-layer[data-tier='mood']");
+  /*
+    The blur is on the GALLERY, not on each layer: a `filter` forces its element
+    onto its own surface, and six stills per hub meant six full-bleed blurred
+    surfaces where one will do. The layers are plain cross-fading images and the
+    gallery carries the tier.
+  */
+  const own = blurOf(".backdrop-gallery[data-tier='hub']");
+  const mood = blurOf(".backdrop-gallery[data-tier='mood']");
   assert.ok(mood > own * 2, `mood (${mood}px) must be far softer than hub (${own}px)`);
+
+  const layer = src.slice(src.indexOf('.backdrop-layer {'));
+  assert.doesNotMatch(
+    layer.slice(0, layer.indexOf('}')),
+    /filter:/,
+    'a per-layer filter is one blurred surface per still — keep it on the gallery',
+  );
 });
 
 test('a row is sized by its own share, not by what its siblings leave over', () => {

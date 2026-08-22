@@ -524,7 +524,7 @@ function extractYoutubeId(url: string) {
                                   off-screen.
                                 */}
                                 {backdrops.length > 0 && (
-                                  <div class="backdrop-gallery" aria-hidden="true">
+                                  <div class="backdrop-gallery" data-tier={backdrops[0].tier} aria-hidden="true">
                                     {backdrops.map((b, i) => {
                                       /*
                                         640 for an editor's own image, and the
@@ -770,12 +770,24 @@ function extractYoutubeId(url: string) {
     // but it still has to be fetched, since it may not be in the HTML.
     if (frames.length < 2 || reduceMotionQuery().matches) {
       const only = frames.findIndex((f) => f.classList.contains('active'));
+      const gallery0 = panel.querySelector<HTMLElement>('.backdrop-gallery');
+      const tier0 = frames[only < 0 ? 0 : only]?.dataset.tier;
+      if (gallery0 && tier0) gallery0.dataset.tier = tier0;
       hydrate(only < 0 ? 0 : only);
       return;
     }
 
+    /* The blur belongs to the gallery now (one surface instead of six), so the
+       gallery has to be told which still is showing. */
+    const gallery = panel.querySelector<HTMLElement>('.backdrop-gallery');
+    const syncTier = (i: number) => {
+      const tier = frames[i % frames.length]?.dataset.tier;
+      if (gallery && tier) gallery.dataset.tier = tier;
+    };
+
     let index = frames.findIndex((f) => f.classList.contains('active'));
     if (index < 0) index = 0;
+    syncTier(index);
     // The current frame first — on any panel but the one the page opened on,
     // this is the frame that was left out of the HTML.
     hydrate(index);
@@ -785,6 +797,7 @@ function extractYoutubeId(url: string) {
       frames[index].classList.remove('active');
       index = (index + 1) % frames.length;
       frames[index].classList.add('active');
+      syncTier(index);
       hydrate(index + 1);
     }, BACKDROP_HOLD_MS);
 
@@ -1425,6 +1438,23 @@ function extractYoutubeId(url: string) {
     color: rgba(255, 255, 255, 0.9);
   }
 
+  /*
+    A CLOSED ROW IS NOT DRAWN AT ALL.
+
+    `visibility: hidden` hides a subtree but still lays it out and keeps it in
+    the paint order — so three closed rows were each carrying a full deck, a
+    backlight and a six-still gallery through every layout the open row caused.
+    `content-visibility: hidden` skips their contents outright, and because the
+    rows are sized by flex-basis rather than by their contents, skipping them
+    cannot change any geometry.
+
+    Applied to the BODY, not the section: the header stays rendered, so the
+    closed rows are still visible, still hoverable and still focusable.
+  */
+  .accordion-section.collapsed .accordion-body {
+    content-visibility: hidden;
+  }
+
   .accordion-body {
     opacity: 0;
     visibility: hidden;
@@ -1923,10 +1953,57 @@ function extractYoutubeId(url: string) {
      mask and the same slow push-in. This is the backdrop everywhere; the video
      is a layer over it on screens big enough to be worth the 900kB.
      ══════════════════════════════════════════════════════════════════════ */
+  /*
+    THE BLUR LIVES HERE, ON ONE SURFACE — NOT ON EACH OF SIX LAYERS.
+
+    A `filter` forces its element onto its own surface to be rasterised. Six
+    stills per hub meant six full-bleed blurred surfaces, and only ever one and
+    a bit of them visible. Profiled on a 4x-throttled phone, opening a row was
+    p95 50ms with frames as long as 87ms — visibly not smooth, and this was a
+    large part of it.
+
+    The gallery carries the blur and the scale for whichever still is showing;
+    the layers underneath are now plain images that only cross-fade. The tier
+    comes from the active layer (set by startBackdrop), and the filter
+    transitions with it, so moving between a hub's own coverage and borrowed
+    footage eases rather than snaps.
+  */
   .backdrop-gallery {
     position: absolute;
     inset: 0;
     z-index: 1;
+    transform: scale(1.14);
+    filter: blur(14px) saturate(1.05);
+    -webkit-filter: blur(14px) saturate(1.05);
+    transition: filter 2.2s ease, transform 2.2s ease;
+    will-change: filter;
+  }
+
+  /* Its own coverage, or an image someone chose for it. Softened, still
+     readable as a scene. */
+  .backdrop-gallery[data-tier='chosen'],
+  .backdrop-gallery[data-tier='hub'] {
+    filter: blur(10px) saturate(1.08);
+    -webkit-filter: blur(10px) saturate(1.08);
+  }
+
+  .backdrop-gallery[data-tier='related'] {
+    filter: blur(20px) saturate(0.95) brightness(0.86);
+    -webkit-filter: blur(20px) saturate(0.95) brightness(0.86);
+  }
+
+  /*
+    RIGHT CATEGORY, WRONG HUB.
+
+    A gaming still behind PlayStation is a better ground than an empty box, and
+    thirteen of the fifteen hubs have nothing else. But it is not that hub's
+    coverage and must never look like a claim that it is, so it goes past the
+    point of recognition and sits back further in the frame.
+  */
+  .backdrop-gallery[data-tier='mood'] {
+    transform: scale(1.22);
+    filter: blur(34px) saturate(0.85) brightness(0.72);
+    -webkit-filter: blur(34px) saturate(0.85) brightness(0.72);
   }
 
   .backdrop-layer {
@@ -1941,50 +2018,11 @@ function extractYoutubeId(url: string) {
       Long, and asymmetric on purpose. A quick cross-fade reads as a slideshow
       changing slides; a slow one where the outgoing frame lingers reads as a
       dissolve, which is the cut a title sequence would use.
+
+      No filter here — see .backdrop-gallery. These are plain images, so a
+      cross-fade is a compositor job rather than six blurred re-rasterisations.
     */
     transition: opacity 2.2s cubic-bezier(0.4, 0, 0.2, 1);
-    /*
-      BLURRED, ALWAYS — and scaled past the box so the blur's own soft edge
-      never shows as a bright rim.
-
-      This is what makes a 320px still legitimate behind a 1000px panel: the
-      upscale is softer than the blur, so nothing about it is visible. It is
-      also the right picture. The deck card in front is the thing being looked
-      at, and an equally sharp image behind it was two focal points arguing.
-
-      How hard, by how honestly the still belongs to this hub — see
-      BackdropTier in local-content.ts.
-    */
-    transform: scale(1.14);
-    filter: blur(14px) saturate(1.05);
-    -webkit-filter: blur(14px) saturate(1.05);
-  }
-
-  /* Its own coverage, or an image someone chose for it. Softened, still
-     readable as a scene. */
-  .backdrop-layer[data-tier='chosen'],
-  .backdrop-layer[data-tier='hub'] {
-    filter: blur(10px) saturate(1.08);
-    -webkit-filter: blur(10px) saturate(1.08);
-  }
-
-  /*
-    RIGHT CATEGORY, WRONG HUB.
-
-    A gaming still behind PlayStation is a better ground than an empty box, and
-    thirteen of the fifteen hubs have nothing else. But it is not that hub's
-    coverage and must never look like a claim that it is, so it goes past the
-    point of recognition and sits back further in the frame.
-  */
-  .backdrop-layer[data-tier='mood'] {
-    transform: scale(1.22);
-    filter: blur(34px) saturate(0.85) brightness(0.72);
-    -webkit-filter: blur(34px) saturate(0.85) brightness(0.72);
-  }
-
-  .backdrop-layer[data-tier='related'] {
-    filter: blur(20px) saturate(0.95) brightness(0.86);
-    -webkit-filter: blur(20px) saturate(0.95) brightness(0.86);
   }
 
   .backdrop-layer.active {
@@ -2018,6 +2056,14 @@ function extractYoutubeId(url: string) {
     position: absolute;
     top: 0;
     left: 0;
+    /*
+      An iframe whose document never loads paints the UA's default canvas —
+      white — and this one is full-bleed over a dark scene. Anyone with YouTube
+      blocked (an ad blocker, a corporate network, a bad connection) would get a
+      white slab across half the row instead of the stills. Caught in a render
+      where the embed was deliberately unreachable.
+    */
+    background: #050505;
     width: 132%;
     height: 132%;
     margin-top: -16%;
