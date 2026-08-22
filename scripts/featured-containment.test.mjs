@@ -1,0 +1,381 @@
+/*
+  /featured — layout invariants that have each already shipped as a bug.
+
+  Static assertions over the page source, in the style of the other guards in
+  this directory: no browser, no network, no build step. They cannot prove the
+  page LOOKS right — they exist to stop four specific regressions that were
+  each found only after they reached a device.
+*/
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import assert from 'node:assert/strict';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const raw = readFileSync(join(here, '..', 'src', 'pages', 'featured', 'index.astro'), 'utf8');
+
+/*
+  Assertions run against the source with comments removed. Every rule below is
+  about what the page DOES, and this file explains at length why — which means
+  an un-stripped search finds its own reasoning and reports the bug it exists
+  to prevent. `{/* … *\/}` (Astro), `/* … *\/` and `// …` all go.
+*/
+const src = raw
+  .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '');
+
+let passed = 0;
+let failed = 0;
+function test(name, fn) {
+  try {
+    fn();
+    console.log(`  ✓ ${name}`);
+    passed += 1;
+  } catch (error) {
+    console.log(`  ✗ ${name}\n    ${error.message}`);
+    failed += 1;
+  }
+}
+
+console.log('\nfeatured/index.astro layout invariants');
+
+test('the trailer wrapper is no TALLER than the panel it sits in', () => {
+  /*
+    It used to be 150% tall and clawed back with a second, intersected mask
+    layer. WebKit does not honour `mask-composite` there, so the overhang
+    painted 111px below the row on desktop and 74px on a landscape phone —
+    over the footer, on the last row. Containment is the wrapper's own box
+    now; nothing else is load-bearing.
+  */
+  const block = src.slice(src.indexOf('.trailer-bg-wrapper {'));
+  const decl = block.slice(0, block.indexOf('}'));
+  assert.match(decl, /height:\s*100%/, '.trailer-bg-wrapper must be height: 100%');
+  assert.doesNotMatch(decl, /height:\s*150%/, '.trailer-bg-wrapper must not overhang vertically');
+});
+
+test('no mask-composite anywhere on this page', () => {
+  assert.doesNotMatch(
+    src,
+    /mask-composite/,
+    'a composited mask layer list is not reliable in WebKit — contain by box size and soften with a scrim instead',
+  );
+});
+
+test('the hero card is a real link, not a div with a click handler', () => {
+  // The keyboard, screen-reader, middle-click and open-in-new-tab paths all
+  // depend on this being an anchor. A `data-href` + window.location pair
+  // supports none of them.
+  assert.match(src, /<a\s+[^>]*class=\{`deck-card /, 'the deck card must be an <a>');
+  assert.doesNotMatch(src, /data-href/, 'no data-href indirection — use a real href');
+  assert.doesNotMatch(src, /window\.location\.href\s*=/, 'no scripted navigation for the card');
+});
+
+test('the brand mark and the way in live ON the artwork', () => {
+  for (const cls of ['deck-card-scrim', 'deck-card-plate', 'deck-card-enter']) {
+    assert.ok(src.includes(cls), `${cls} is missing`);
+  }
+  // The old trailer-corner stack is what collided with the video on a phone.
+  for (const gone of ['trailer-bottom-content', 'trailer-text-btn-row', 'dynamic-brand-btn']) {
+    assert.ok(!src.includes(gone), `${gone} should be gone — the plate replaced it`);
+  }
+});
+
+test('the hub rail only feathers a side that actually continues', () => {
+  // A fixed 10%/90% ramp dimmed the first and last hub permanently, so two of
+  // five looked disabled with nothing scrolled.
+  assert.match(src, /--nav-fade-start:\s*0%/, 'the start ramp must default to zero');
+  assert.match(src, /--nav-fade-end:\s*0%/, 'the end ramp must default to zero');
+  assert.match(src, /data-overflow-start/, 'the script must report which side overflows');
+  assert.match(src, /data-overflow-end/, 'the script must report which side overflows');
+});
+
+test('nothing inside the accordion has an intrinsic height', () => {
+  /*
+    The four rows fit the viewport only because their content contributes no
+    min-content height. Giving `.deck-stack` an aspect-ratio closed a gap in
+    portrait and, in the same stroke, gave every COLLAPSED row ~220px it could
+    not shrink out of: the page grew to 1290px and the last row ran past the
+    footer.
+  */
+  const stacks = src.split('.deck-stack {').slice(1);
+  for (const block of stacks) {
+    const decl = block.slice(0, block.indexOf('}'));
+    assert.doesNotMatch(decl, /aspect-ratio/, '.deck-stack must not have an intrinsic aspect-ratio');
+  }
+});
+
+test('the typeface demo is not trapped in a phone media query', () => {
+  /*
+    Every demo face and the picker's own styling sat inside
+    `@media (max-width: 768px)`, so the picker did nothing on the screen it
+    exists to choose a face for.
+  */
+  const queries = [];
+  const re = /@media\s*\([^)]*max-width:\s*768px[^)]*\)[^{]*\{/g;
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    let depth = 0;
+    let end = m.index;
+    for (let j = m.index; j < src.length; j += 1) {
+      if (src[j] === '{') depth += 1;
+      else if (src[j] === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          end = j;
+          break;
+        }
+      }
+    }
+    queries.push(src.slice(m.index, end));
+  }
+  assert.ok(queries.length > 0, 'expected at least one phone media query');
+  for (const body of queries) {
+    for (const face of ['Syncopate', 'Bebas Neue', 'Cinzel', 'Oswald']) {
+      assert.ok(!body.includes(`'${face}'`), `${face} must be declared outside the phone query`);
+    }
+    assert.ok(!body.includes('.font-picker-btn {'), 'the picker must be styled outside the phone query');
+  }
+});
+
+test('the trailer is back, and every reason it was a problem is guarded', () => {
+  /*
+    A YouTube embed used to play FULL-BLEED behind the deck. Its chrome could
+    not be suppressed: `modestbranding` no longer removes the wordmark, and the
+    play overlay and auto-generated captions render in the CENTRE of the frame,
+    where no crop reaches them. I removed the video outright, which was an
+    overcorrection — the ask was to stop the chrome showing, not to lose the
+    trailer, and losing it is what made the right-hand side read as unfinished.
+
+    It is back, INSET on a lit stage rather than full-bleed, so its chrome lands
+    inside a smaller framed plate instead of across the artwork. These are the
+    conditions it came back under.
+  */
+  assert.match(src, /brand-stage-iframe/, 'the trailer exists again');
+
+  // HARD RULE 4. An empty src resolves to the current page and loads the whole
+  // site inside the frame — a bug this page has actually shipped once.
+  assert.doesNotMatch(src, /\.src\s*=\s*['"]{2}/, "never assign an iframe src = ''");
+  assert.match(src, /src="about:blank"/, 'the idle src is about:blank');
+  assert.match(src, /frame\.src = 'about:blank'/, 'teardown restores about:blank');
+
+  // HARD RULE 3: no clipping ancestor. The stage is a SIBLING of the clipping
+  // backdrop wrapper, never inside it — iOS Safari paints a clipped iframe as
+  // a black box.
+  const stageIdx = src.indexOf('class="brand-stage"');
+  const wrapCloseIdx = src.indexOf('</div>', src.indexOf('trailer-bg-wrapper'));
+  assert.ok(stageIdx > wrapCloseIdx, 'the stage must not be inside the clipping wrapper');
+  const stageCss = src.slice(src.indexOf('.brand-stage {'));
+  assert.doesNotMatch(
+    stageCss.slice(0, stageCss.indexOf('}')),
+    /overflow: hidden/,
+    'nothing between the iframe and the page may clip',
+  );
+  const videoCss = src.slice(src.indexOf('.brand-stage-video {'));
+  assert.doesNotMatch(
+    videoCss.slice(0, videoCss.indexOf('}')),
+    /overflow: hidden/,
+    'the video frame must not clip either',
+  );
+
+  // It must not loop. Looping is what flashed YouTube's title bar back on
+  // screen at every restart.
+  assert.doesNotMatch(src, /[?&]loop=1/, 'the trailer must not loop');
+  assert.match(src, /TRAILER_RUN_MS/, 'the trailer stops on a timer');
+
+  // A frame whose document never loads paints white by default.
+  assert.match(videoCss + src.slice(src.indexOf('.brand-stage-iframe {')), /background: #050505/,
+    'an unloaded frame must not paint white');
+
+  // Phones never load it — the info column is the plate behind the deck there,
+  // so the player would cost ~900kB to render where it cannot be seen.
+  assert.match(src, /min-width: 1024px/, 'the trailer is desktop-only in JS');
+  const mq = src.slice(src.indexOf('@media (max-width: 1023px), (max-height: 620px)'));
+  assert.match(mq.slice(0, 400), /\.brand-stage-video[\s\S]{0,60}display: none/,
+    'the trailer is desktop-only in CSS too');
+});
+
+test('the same image is not painted three times in one row', () => {
+  /*
+    Reported as "way too much repetition of the same damn image", and it was
+    literal: `heroImage` was the deck card, the nav rail thumbnail, AND — via
+    getHubBackdrop()'s fallback — the blurred plate behind all of it. A hub
+    with one asset was that one asset, three times, at three sizes.
+
+    The panel is built from the hub's OTHER asset now: the logo, blown up and
+    blurred as a haze, with the same file crisp in front of it. A supplied
+    `backdrops[0]` override still wins, because that is an image chosen for
+    this job rather than reused into it.
+  */
+  assert.match(src, /backdrop-plate--mark/, 'the ghost layer is the mark');
+  assert.match(src, /const ghostUrl = brand\.logo/, 'the ghost comes from the logo');
+  assert.match(src, /const markUrl = brand\.logo/, 'the stage subject comes from the logo');
+
+  // The order matters: an explicit override beats the mark, and the mark beats
+  // nothing. heroImage must not be reachable as this panel's backdrop.
+  const panel = src.slice(src.indexOf('const backdrop = getHubBackdrop'), src.indexOf('class="stage-wash"'));
+  assert.match(panel, /backdrop \?[\s\S]*ghostUrl \?/, 'override wins, then the mark');
+  assert.doesNotMatch(panel, /heroImage/, 'the panel must not reuse the key art');
+});
+
+test('the panel edges are solid black, so nothing leaks past them', () => {
+  /*
+    Reported as "visible light leaks above and below the main image… the leak
+    grows as I leave the page idle". Both halves are one bug: the top and
+    bottom scrims topped out at alpha 0.95, so five per cent of the plate
+    showed at the extreme edge as a hard bright line — and it CHANGED, because
+    the plate drifts and different artwork slid through that few-pixel strip.
+    Nothing was expanding; the strip was sampling a moving image.
+
+    A gradient that starts at 0.95 has nothing to fade from. Both must reach 1.
+  */
+  for (const cls of ['.trailer-gradient-top', '.trailer-gradient-bottom']) {
+    const block = src.slice(src.indexOf(cls + ' {'));
+    const decl = block.slice(0, block.indexOf('}'));
+    const first = decl.match(/linear-gradient\(to (?:bottom|top),\s*rgba\([\d,\s]*?([\d.]+)\)/);
+    assert.ok(first, `${cls} must have a vertical gradient`);
+    assert.strictEqual(first[1], '1', `${cls} must start fully opaque, not ${first[1]}`);
+  }
+});
+
+test('the rows snap; nothing animates a layout property', () => {
+  /*
+    `transition: flex-basis 0.7s` forced a full layout and repaint of the
+    accordion on every frame for 700ms, underneath a full-bleed blur. Measured
+    at 412x823 with a 4x CPU throttle it ran p95 50ms with frames up to 87ms
+    against a 16.7ms budget; snapping the geometry and letting the staged
+    reveal carry the motion took it to p95 28ms with one janky frame.
+
+    Anything that transitions a layout property here — flex, flex-basis, width,
+    height, top, margin — puts it straight back.
+  */
+  const block = src.slice(src.indexOf('.accordion-section {'));
+  const decl = block.slice(0, block.indexOf('}'));
+  assert.doesNotMatch(
+    decl,
+    /transition:[^;]*(flex|width|height|margin|top|bottom|left|right)/,
+    'a row must not transition a layout property',
+  );
+  // The motion lives in the staged reveal, which is opacity and transform only.
+  assert.match(src, /transition-delay: 0\.\d+s/, 'the staged reveal must still be there');
+});
+
+test("a hub's backdrop is its OWN art, never borrowed footage", () => {
+  /*
+    The backdrop used to be a cross-fade of up to six stills gathered from the
+    thumbnails of videos tagged to the hub, then from its category. Those
+    thumbnails are the channel's own video covers, which are frequently a
+    photograph of the presenter — so Marvel's backdrop could be, and was, the
+    top of the site owner's head. A hub is somebody else's brand and cannot be
+    backed by that.
+
+    One image per hub, its own, or none. A hub with no art falls through to the
+    brand-tinted ground the page already draws.
+  */
+  const lib = readFileSync(join(here, '..', 'src', 'lib', 'local-content.ts'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+
+  assert.match(lib, /export function getHubBackdrop\b/, 'one backdrop per hub');
+  assert.doesNotMatch(lib, /getHubBackdrops\b/, 'the multi-still gatherer must be gone');
+  assert.doesNotMatch(lib, /thumbnailUrl/, "a hub must not borrow a video's thumbnail");
+  assert.doesNotMatch(lib, /CATEGORY_TOPIC_FALLBACK/, 'a hub must not borrow from its category');
+
+  // Blurred past detail, so the source stays small.
+  assert.match(src, /width\(640\)/, 'the deck plate is requested small because it is blurred');
+});
+
+test('the blur is clipped, so its weak edge never shows', () => {
+  /*
+    A CSS blur goes WEAK at its own element's edges — it mixes in the
+    transparent pixels outside — so the outermost band of a blurred element is
+    the least blurred part of it. The plate is also scaled, which pushed it past
+    its box and out behind the row heading. Together those put a strip of
+    near-sharp artwork behind the category title, reported as "not blurred all
+    the way to the top".
+
+    The wrapper clips and the plate overscans past it, so what shows is the
+    middle of the blur. Only safe because no iframe remains in this subtree —
+    see hard rule 3.
+  */
+  const wrapper = src.slice(src.indexOf('.trailer-bg-wrapper {'));
+  assert.match(wrapper.slice(0, wrapper.indexOf('}')), /overflow: hidden/, 'the wrapper must clip');
+
+  const plate = src.slice(src.indexOf('.backdrop-plate {'));
+  const decl = plate.slice(0, plate.indexOf('}'));
+  assert.match(decl, /inset: -\d+%/, 'the plate must overscan past the clip');
+  assert.match(decl, /filter: blur\(/, 'the plate must be blurred');
+
+  // The drift is a transform on a static blur; animating the filter re-rasters.
+  assert.doesNotMatch(src, /transition: filter/, 'do not animate the blur itself');
+});
+
+test('a row is sized by its own share, not by what its siblings leave over', () => {
+  /*
+    THIS IS THE ONE THAT COST A DAY.
+
+    /featured is 42kB of HTML. On a throttled connection the parser lays out the
+    first accordion row before the rest of the document arrives — sampled every
+    frame, the container held ONE row at 742px at 200ms and four at
+    536/69/69/69 by 338ms. With `flex: 1` / `flex: 8` a row's height depends on
+    how many siblings it is sharing with, so every row that arrived resized
+    every row already painted. That was a 0.276 cumulative layout shift, the
+    worst metric on the site, and it failed the Lighthouse gate at 80%.
+
+    Sizing by flex-BASIS against the container makes a row the same height
+    whether it is alone in the DOM or the last of four. Any change back to a
+    grow ratio brings the shift back, and it will only show up under throttling
+    — which is why this is a test and not a comment.
+  */
+  const block = src.slice(src.indexOf('.accordion-section {'));
+  const decl = block.slice(0, block.indexOf('}'));
+  assert.match(decl, /flex: 0 0 calc\(100% \/ \(var\(--rows/, 'a collapsed row needs a fixed basis');
+  assert.doesNotMatch(decl, /flex:\s*1;/, 'a grow ratio makes a row depend on its siblings');
+
+  const exp = src.slice(src.indexOf('.accordion-section.expanded {'));
+  const expDecl = exp.slice(0, exp.indexOf('}'));
+  assert.match(expDecl, /flex: 0 0 calc\(800% \/ \(var\(--rows/, 'the open row needs a fixed basis too');
+
+  // The basis is a share of the container, so the container's own height has to
+  // be definite from the first layout — a percentage of a parent is not.
+  const cont = src.slice(src.indexOf('.accordion-container {'));
+  const contDecl = cont.slice(0, cont.indexOf('}'));
+  assert.match(contDecl, /height: calc\(100lvh/, 'the container must be sized from the viewport');
+
+  // --rows comes from the template, because a category with no hubs does not render.
+  assert.match(src, /--rows: \$\{sortedCategories\.length\}/, '--rows must come from the data');
+});
+
+test('the shipping typeface is self-hosted, not a third-party stylesheet', () => {
+  // A render-blocking stylesheet on another origin sits in the critical path of
+  // a page whose whole layout is viewport-derived. Inter and Syne are already
+  // self-hosted here; the display face is now too. The picker's other seven
+  // faces stay remote because none of them ships.
+  assert.match(src, /montserrat-500-latin\.woff2/, 'the shipping face must be local');
+  assert.match(src, /font-display: optional/, 'optional, so a late font never swaps under the reader');
+  assert.match(src, /const REMOTE_FONTS/, 'the remote faces must be separated from the shipping one');
+  assert.doesNotMatch(src, /@import url/, '@import is the slowest way to load CSS');
+});
+
+test('every category row is reachable and operable from the keyboard', () => {
+  /*
+    The headers were <div>s with a click handler. Focus went from the open row's
+    cards straight to the footer, so the three CLOSED hubs could not be reached
+    at all without a mouse — a design review found it by trying to Tab to them
+    and failing.
+
+    A heading wrapping a button is the ARIA accordion pattern: the <h2> keeps
+    the document outline, the <button> takes focus and handles Enter and Space
+    for free, and aria-expanded announces the state.
+  */
+  assert.match(src, /<h2 class="accordion-heading">/, 'the row label must stay a heading');
+  assert.match(src, /<button\s+[\s\S]{0,200}?class="accordion-header"/, 'the header must be a button');
+  assert.match(src, /aria-expanded=\{isExpanded/, 'the button must announce its state');
+  assert.match(src, /aria-controls=\{`hub-row-\$\{category\}`\}/, 'the button must name the panel it controls');
+  assert.match(src, /id=\{`hub-row-\$\{category\}`\}/, 'the panel needs the id aria-controls points at');
+  assert.match(src, /setAttribute\('aria-expanded'/, 'the state must be kept in step on click');
+  assert.match(src, /\.accordion-header:focus-visible/, 'a focusable control needs a visible focus ring');
+});
+
+console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
+process.exit(failed === 0 ? 0 : 1);

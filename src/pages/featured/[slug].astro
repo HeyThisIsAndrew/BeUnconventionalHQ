@@ -2,7 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import { getArticleItems } from '../../lib/feed-items';
 import { getVideosUnified } from '../../lib/videos-source';
-import { getFeaturedBrandsLocal, urlFor } from '../../lib/local-content';
+import { getFeaturedBrandsLocal, getHubBackdrop, urlFor, HUB_CATEGORY_LABELS } from '../../lib/local-content';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
 import HeroTrailer from '../../components/HeroTrailer.astro';
 import ContentCard from '../../components/ContentCard.astro';
@@ -85,13 +85,49 @@ const unifiedContent = [
 
 // YouTube IDs are extracted via the shared parseVideoId (src/lib/platforms/youtube).
 
-const brandColor = event.brandColor || 'var(--color-accent, #cc0000)';
-// Cap the hero at 2400px wide (retina-safe for a full-bleed banner) instead of
-// serving the raw upload, and let Sanity pick the best format.
-const heroUrl = event.heroImage
-  ? urlFor(event.heroImage).width(2400).auto('format').url()
-  : '';
-const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
+/*
+  `brandColor` on a featuredBrand doc is an OBJECT — {hex: '#E23636'} — not a
+  string. Interpolated straight into a style attribute it stringified to
+  "[object Object]", which meant two things silently did nothing: the
+  --brand-color custom property was invalid (nothing read it, so nobody
+  noticed), and the fallbackGradient below it was an invalid gradient. That
+  fallback is the entire background for a hub with no hero image, which is
+  thirteen of the fifteen — they rendered as a flat empty box.
+
+  The RGB triple is derived here rather than stored, same as on /featured:
+  one editable value in the CMS, no second field to keep in step with it.
+*/
+const brandHex: string =
+  (typeof event.brandColor === 'string' ? event.brandColor : event.brandColor?.hex) || '#CC0000';
+
+function hexToRgbTriple(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return '204, 0, 0';
+  const int = parseInt(m[1], 16);
+  return `${(int >> 16) & 255}, ${(int >> 8) & 255}, ${int & 255}`;
+}
+
+const brandColor = brandHex;
+const brandRgb = hexToRgbTriple(brandHex);
+/*
+  THE HUB PAGE OPENS ON THE SAME SCENE THE DECK CLOSED ON.
+
+  Landing here used to be a hard cut: /featured had a moving backdrop with the
+  mark set into the artwork, and this page answered with a flat image and a
+  paragraph of grey body copy. Same backdrop source as the deck now
+  (getHubBackdrop), so a hub looks like itself in both places.
+
+  Requested at 900px because it is blurred past any detail — a bigger source
+  would be weight with nothing to show for it.
+*/
+const heroBackdrop = getHubBackdrop(event.slug?.current ?? '');
+const categoryLabel = HUB_CATEGORY_LABELS[event.hubCategory ?? ''] ?? '';
+
+/*
+  Held back to a tint rather than the brand colour at full strength: this is the
+  ground a logo and a line of type sit on, and four hubs are set to pure white.
+*/
+const fallbackGradient = `linear-gradient(135deg, rgba(${brandRgb}, 0.28) 0%, #0a0a0a 62%, #111 100%)`;
 
 // The trailer (poster, players, sound) is fully encapsulated in <HeroTrailer/>.
 const trailerUrl = event.trailerUrl;
@@ -99,7 +135,7 @@ const trailerId = parseVideoId(trailerUrl);
 ---
 
 <Layout title={`${event.title}`} description={`Complete coverage of ${event.title}`}>
-  <main class="event-dashboard" style={`--brand-color: ${brandColor};`}>
+  <main class="event-dashboard" style={`--brand-color: ${brandColor}; --brand-rgb: ${brandRgb};`}>
     
     {/* TODO: Refactor this hero section into a reusable component to share with
         the event detail page. Follow up with: "Can you walk me through creating
@@ -110,7 +146,23 @@ const trailerId = parseVideoId(trailerUrl);
           static; the inner layer owns the background image and the slow Ken
           Burns transform. Animating a single element caused edge slivers. */}
       <div class="event-hero-bg-wrapper">
-        <div class="event-hero-bg-animated" style={heroUrl ? `background-image: url('${heroUrl}');` : `background-image: ${fallbackGradient};`}></div>
+        {heroBackdrop ? (
+          /*
+            The hub's own art, blurred, with the slow push this hero has always
+            had. It used to be a cross-fade of up to six stills gathered from
+            the thumbnails of videos tagged to the hub — which meant a hub could
+            end up backed by a photograph of the site owner. See
+            getHubBackdrop().
+          */
+          <div
+            class="event-hero-bg-animated hero-backdrop-plate"
+            style={`background-image: url('${
+              urlFor(heroBackdrop.ref).width(900).auto('format').quality(70).url()
+            }');`}
+          ></div>
+        ) : (
+          <div class="event-hero-bg-animated" style={`background-image: ${fallbackGradient};`}></div>
+        )}
       </div>
       <div class="event-hero-overlay flex flex-col justify-center">
         <div
@@ -131,6 +183,14 @@ const trailerId = parseVideoId(trailerUrl);
                 exists the visible title is an image, so without this the page
                 ships with no <h1> at all. sr-only keeps the visual design
                 identical while restoring the outline and SEO. */}
+            {/*
+              Names the row on /featured that this hub sits in. It is the one
+              piece of continuity a logo alone cannot give you — you clicked
+              "The Multiverse", so the page you land on says so, in the same
+              plate the row header uses.
+            */}
+            {categoryLabel && <span class="hero-eyebrow">{categoryLabel}</span>}
+
             {event.logo && <h1 class="sr-only">{event.title}</h1>}
             {event.logo ? (
               <img
@@ -266,6 +326,64 @@ const trailerId = parseVideoId(trailerUrl);
       animation: none;
     }
   }
+
+  /*
+    THE HERO PLATE.
+
+    Blurred, and OVERSCANNED past its clipping wrapper. A CSS blur goes weak at
+    its own element's edges — it mixes in the transparent pixels outside — so
+    the outermost band of a blurred element is the least blurred part of it.
+    Left flush with the box, that band is what shows behind the logo and the
+    copy. `.event-hero-bg-wrapper` already clips, so pushing the plate past it
+    puts the weak edge outside the clip where it is never seen.
+
+    Blurred less than the deck's, and brightened rather than dimmed: on
+    /featured this sits behind a poster and must not compete with it, whereas
+    here it IS the scene with only a logo and a line of type in front. Trailer
+    stills are dark to begin with, and blurring a dark image and then dimming it
+    is how this hero was once a black rectangle.
+  */
+  .hero-backdrop-plate {
+    inset: -12%;
+    top: -12%;
+    left: -12%;
+    right: -12%;
+    bottom: -12%;
+    filter: blur(9px) saturate(1.15) brightness(1.16);
+    -webkit-filter: blur(9px) saturate(1.15) brightness(1.16);
+  }
+
+  /*
+    Shapes the plate the copy sits on. A single flat image behind white text is
+    what made this hero read as a stock header — the copy had no ground of its
+    own, so it floated. Darkest at the bottom left, where the mark and the line
+    are, and clearing toward the trailer on the right.
+  */
+  .event-hero-bg-wrapper::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    /*
+      TWO SCRIMS MULTIPLY. THESE ONES MULTIPLIED TO BLACK.
+
+      A design review called this hero "mostly empty dark space next to the
+      logo", and the backdrop gallery WAS behind it the whole time — it was
+      just unreadable. Stacked alpha compounds: at the bottom-left corner these
+      two came to 1 - (1-0.92)(1-0.88) = 0.99, and at the logo's own position
+      about 0.85. A gallery under a 99% black wash is an expensive way to draw
+      a black rectangle.
+
+      The vertical one now only does what it has to — seat the bottom edge
+      against the section below — and the horizontal one carries legibility for
+      the copy, ending sooner and softer. At the logo the pair now comes to
+      about 0.55, which is a lit scene with type on it rather than a void.
+    */
+    background:
+      linear-gradient(to top, rgba(5,5,5,0.82) 0%, rgba(5,5,5,0.42) 18%, rgba(5,5,5,0.12) 38%, transparent 62%),
+      linear-gradient(to right, rgba(5,5,5,0.62) 0%, rgba(5,5,5,0.34) 24%, rgba(5,5,5,0.10) 46%, transparent 68%);
+  }
   /* In normal flow (not absolute) so the banner GROWS with its content instead
      of overflowing upward under the fixed navbar. padding-top clears the navbar
      so the logo is never clipped. */
@@ -357,6 +475,24 @@ const trailerId = parseVideoId(trailerUrl);
     z-index: 10;
   }
   
+  /*
+    The row plate, restated. Same size, same tracking and same quiet grey the
+    accordion headers use, because it is the same object — the label of the row
+    you came in through.
+  */
+  .hero-eyebrow {
+    display: inline-block;
+    margin-bottom: 1.4rem;
+    padding: 0.45rem 0.9rem;
+    border-left: 2px solid rgba(var(--brand-rgb, 204, 0, 0), 0.9);
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
   .hero-logo {
     /* Responsive + width-capped so wide logos (e.g. Comic-Con) never overflow
        the column or force the banner taller than the viewport on mobile. */
@@ -390,19 +526,33 @@ const trailerId = parseVideoId(trailerUrl);
     display: inline-block;
   }
 
+  /*
+    THE BILLING BLOCK, NOT A PARAGRAPH.
+
+    "Presenting Marvel, the MCU, and Marvel Games." was set as sentence-case
+    body copy at 1rem — the largest text in the column after the logo, and the
+    single thing that most made this page read as a marketing page rather than
+    a title card. It is the same sentence /featured sets small, tracked out and
+    dim under the mark, and it does the same job here.
+
+    Font size stays identical in every state so toggling never resizes the
+    text. The collapsed height is still exactly two lines — 3.4em now rather
+    than 3em, because the line-height came up with the tracking; the read-more
+    script measures the full height itself and animates between the two, so
+    this number only has to agree with line-height.
+  */
   .hero-description-text {
-    /* Font size is identical in every state so toggling never resizes the text.
-       Collapsed height is 3em (2 lines at line-height 1.5); JS animates the
-       inline max-height between this and the measured full height, so there's no
-       arbitrary 800px value and no invisible portion of the transition. */
-    font-size: 1rem;
-    color: rgba(255, 255, 255, 0.85);
-    line-height: 1.5;
-    max-width: 600px;
-    margin-top: 1.5rem;
-    font-weight: 400;
+    font-size: 0.82rem;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+    line-height: 1.7;
+    max-width: 46ch;
+    margin-top: 1.6rem;
     overflow: hidden;
-    max-height: 3em;
+    max-height: 3.4em;
+    text-shadow: 0 4px 12px rgba(0, 0, 0, 0.9);
   }
   .hero-read-more {
     background: none;
@@ -471,14 +621,21 @@ const trailerId = parseVideoId(trailerUrl);
     max-width: 600px;
     margin: 0 auto 3rem auto;
   }
+  /*
+    Two heavy filled slabs at 1.1rem bold were the loudest thing between the
+    hero and the coverage, and they are a filter — furniture, not a headline.
+    Quieted to match the row plates: hairline, tracked out, small.
+  */
   .filter-btn {
-    padding: 1.25rem 1rem;
-    background: rgba(10, 10, 10, 0.6);
+    padding: 0.85rem 1rem;
+    background: rgba(10, 10, 10, 0.45);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    color: var(--color-white, #fff);
-    font-size: 1.1rem;
-    font-weight: 700;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
     font-family: var(--font-display, 'Inter', sans-serif);
     cursor: pointer;
     transition: all 0.3s ease;

@@ -190,3 +190,63 @@ export function getFeaturedBrandsLocal(): any[] {
     .map(withImageDimensions)
     .sort((a, b) => String(a.title ?? '').localeCompare(String(b.title ?? '')));
 }
+
+/*
+  ONE IMAGE, THE HUB'S OWN.
+
+  This used to gather up to six stills and cross-fade them, pulling from the
+  thumbnails of videos tagged to the hub and then from its category. It was a
+  neat trick and it was the wrong call: those thumbnails are the channel's own
+  video covers, which means they are frequently a photograph of the presenter.
+  A hub is somebody else's brand — Marvel's backdrop cannot be a picture of the
+  site owner, and "the top of my head behind the Marvel logo" is how it was
+  actually spotted.
+
+  So a hub's backdrop is a hub's own art and nothing else: whatever image has
+  been chosen for it, blurred, with a slow drift. Borrowing footage from a
+  neighbouring category was solving a content gap with someone else's face, and
+  a hub with no art yet is better served by the brand-tinted ground it already
+  falls back to.
+
+  It is also far less machinery — no cycling timer, no staged hydration, no
+  tiers, and one image per hub instead of six.
+*/
+export type HubBackdrop = { kind: 'sanity'; ref: any };
+
+/**
+ * The single image behind a hub, or null if it has none yet.
+ *
+ *   1. `backdrops[0]` — an explicit override, for when the key art does not
+ *      work blurred (a logo on flat white goes to nothing).
+ *   2. `heroImage` — the hub's own key art, which is the normal case.
+ *
+ * Nothing else. A hub with neither falls through to the brand-tinted gradient
+ * the page already draws, which reads as a deliberate title card rather than a
+ * gap.
+ */
+export function getHubBackdrop(slug: string): HubBackdrop | null {
+  const brand = (localVideos as any[]).find(
+    (d) => d._type === 'featuredBrand' && d.slug?.current === slug,
+  );
+  if (!brand) return null;
+
+  const override = (brand.backdrops ?? []).find(Boolean);
+  if (override) return { kind: 'sanity', ref: override };
+  if (brand.heroImage) return { kind: 'sanity', ref: brand.heroImage };
+  return null;
+}
+
+/**
+ * The four rows on /featured, and what each is called.
+ *
+ * Shared rather than declared twice, because a hub page now shows the row it
+ * was reached from — and a label that disagrees with the row you just clicked
+ * is worse than no label. Adding a hub is a data change; adding a CATEGORY is
+ * a design decision, which is why this stays in code.
+ */
+export const HUB_CATEGORY_LABELS: Record<string, string> = {
+  universes: 'The Multiverse',
+  streaming: 'Streamers',
+  studios: 'Studios',
+  gaming: 'Gaming',
+};

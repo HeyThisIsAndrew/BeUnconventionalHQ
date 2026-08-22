@@ -89,9 +89,46 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   `video.hubs` (slugs) against `event.slug.current` / `brand.slug.current` — hubs
   are slugs in the local sync, not Sanity `_id` references, so this replaces the
   old `references($hubId)` GROQ query, it isn't a shortcut around it.
-  **Known gap:** there's no local flow to create a *new* event/featuredBrand doc
-  — `src/data/videos.json`'s `event`/`featuredBrand` entries are a frozen export
-  from Sanity. LocalCmsApp only edits existing docs of any type.
+  LocalCmsApp creates *and* edits `event`/`featuredBrand` docs (the "New
+  Featured" / "New event" buttons) — the old "no local flow to create one"
+  gap is closed. Hubs still carry Sanity asset refs for `logo`/`heroImage`
+  from the original export; new ones upload through the CMS instead.
+  A `featuredBrand` owns everything /featured renders about it:
+  `hubCategory` (which accordion row it sits in), `brandColor.hex` (its glow,
+  row tint and button — the RGB triple is derived from this, never stored),
+  `description` (the line under the logo), `backdrops` (optional stills for
+  the cross-fading backdrop) and `youtubeSyncKeywords`. None of
+  these are hardcoded in `src/pages/featured/index.astro` any more; adding a
+  hub is a data edit. Adding a *category* is still a code change, by design —
+  the four rows are a design decision, not editor content.
+- **Hub backdrops:** `getHubBackdrop()` (`src/lib/local-content.ts`) returns the
+  ONE image behind a hub — its `backdrops[0]` override if set, else its
+  `heroImage`, else nothing. It is blurred past any detail and drifts slowly, so
+  it is always requested SMALL (640px on /featured, 900px on a hub page).
+  **Never source it from video thumbnails.** An earlier version cross-faded up
+  to six stills gathered from videos tagged to the hub and then from its
+  category; those thumbnails are the channel's own covers, which are frequently
+  a photo of the presenter, so hubs ended up backed by the site owner's face. A
+  hub is somebody else's brand.
+  The wrapper clips and the plate overscans past it — a CSS blur goes weak at
+  its own edges, and left flush that near-sharp band shows behind the row
+  heading. For the same reason the top/bottom scrims must reach **alpha 1** and
+  hold it: at 0.95 a strip of the drifting plate showed at the panel edge, and
+  because the plate moves, it read as a leak that grew over time.
+- **The /featured stage (right half of an open row):** built from the hub's
+  **logo**, not its key art — `heroImage` is already the deck card AND the nav
+  thumbnail, so reusing it a third time made a row one image at three sizes.
+  The mark sits crisp and large over a blown-up, blurred copy of itself
+  (`.backdrop-plate--mark`), on a brand-tinted `.stage-wash` that needs no asset
+  at all. Where a hub has a `trailerUrl`, the trailer fades in over the mark,
+  **plays once**, and dissolves back to it — never loops (looping is what
+  flashed YouTube's title bar back), and never full-bleed (its play overlay and
+  captions render dead centre, where no crop reaches them; inset, they land
+  inside a smaller framed plate). At most one player exists on the page: a
+  collapsed row's frame is *unloaded* to `about:blank`, not hidden. Desktop
+  only, gated identically in JS and CSS. The stage is a **sibling** of the
+  clipping backdrop wrapper — hard rule 3 forbids any clipping ancestor.
+  `scripts/featured-containment.test.mjs` guards all of this.
 - **Local CMS:** `/local-cms` (dev-only route, `src/components/admin/LocalCmsApp.tsx`)
   — master/detail editor over `src/data/videos.json`, backed by a dev-server-only
   Vite middleware (`localCmsMiddleware` in `astro.config.mjs`) at
