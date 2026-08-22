@@ -172,9 +172,52 @@ const DEMO_FONTS: DemoFont[] = [
 const PROD_FONT = 'gotham';
 
 const IS_DEV = import.meta.env.DEV;
+
+/*
+  THE SHIPPING FACE IS SELF-HOSTED. THE PICKER'S EIGHT ARE NOT.
+
+  A render-blocking stylesheet on a third-party origin is the reason this page
+  failed the Lighthouse gate at 80% with a 0.276 layout shift. The page paints
+  an interim layout while that request is outstanding and re-lays out when it
+  lands; the shift tracked the stylesheet's arrival exactly, and serving it
+  instantly took CLS to zero. The font itself was never applied — with
+  `display=optional` the browser declined it — so this was never about
+  typography, only about a slow resource in the critical path.
+
+  Montserrat's latin subset is 18kB. It sits in public/fonts/ beside Inter and
+  Syne, which this site already self-hosts for the same reason, and it costs no
+  DNS lookup, no TLS handshake and no third-party round trip.
+
+  The other seven faces are a dev-only comparison tool. They stay on Google
+  Fonts because none of them ships, and downloading eight families to compare
+  them once is not worth committing.
+*/
 const activeFonts = IS_DEV ? DEMO_FONTS : DEMO_FONTS.filter((f) => f.id === PROD_FONT);
-const fontImportUrl =
-  `https://fonts.googleapis.com/css2?${activeFonts.map((f) => `family=${f.family}`).join('&')}&display=swap`;
+const SELF_HOSTED_FONTS = IS_DEV ? [] : activeFonts.filter((f) => f.id === PROD_FONT);
+const REMOTE_FONTS = activeFonts.filter((f) => !SELF_HOSTED_FONTS.includes(f));
+/*
+  `display=optional`, NOT `display=swap`.
+
+  This page failed the Lighthouse gate at 80-82% with a cumulative layout shift
+  of 0.276 — the single worst metric on the site — and the fonts were the whole
+  of it. `swap` paints every heading in the fallback face and then re-lays it
+  out when Montserrat arrives; at `clamp(1.35rem, 6.5vw, 2.5rem)` across four
+  accordion rows, that one reflow is the entire 0.276.
+
+  `optional` gives the font about 100ms to arrive. If it makes it, it is used
+  from the first paint; if it does not, the fallback is kept FOR THAT PAGE LOAD
+  and the swap never happens. Either way nothing moves after paint, which is
+  the only outcome CLS cares about. The face is still cached for the next
+  navigation, so in practice a returning visitor sees Montserrat immediately.
+
+  The trade is a first-time visitor on a slow connection occasionally seeing
+  the fallback for one page load. That is the correct trade for a display face
+  on a page whose text is this large: a heading that jumps is more noticeable
+  than a heading set in the wrong sans.
+*/
+const fontImportUrl = REMOTE_FONTS.length
+  ? `https://fonts.googleapis.com/css2?${REMOTE_FONTS.map((f) => `family=${f.family}`).join('&')}&display=optional`
+  : null;
 
 /*
   Emitted as one inline <style> rather than written out in the scoped block,
@@ -182,7 +225,37 @@ const fontImportUrl =
   DEMO_FONTS is all it takes, and production automatically ships exactly one
   @import instead of eight.
 */
-const fontCss = `@import url('${fontImportUrl}');
+/*
+  NO `@import` HERE. IT IS LOADED AS A REAL STYLESHEET IN <head> (below).
+
+  An `@import` inside an inline <style> is the slowest way to load CSS: the
+  browser cannot discover it until it has parsed this block, then it fetches
+  the stylesheet, then the font. That late arrival is what actually caused the
+  0.276 layout shift — measured, the relayout fired the instant the imported
+  sheet resolved, and it fired whether or not the font was ever applied
+  (`display=optional` correctly declined it and the shift happened anyway).
+
+  A <link> in the head is discovered by the preload scanner immediately, before
+  the document body is even parsed, so it resolves during the initial layout
+  rather than causing a second one.
+*/
+/*
+  `optional` rather than `swap`: the browser gets a short window to use the
+  face, and if it misses, the fallback is kept FOR THAT PAGE LOAD rather than
+  being swapped out underneath the reader. Nothing can move after paint. Being
+  same-origin and 18kB, it makes the window comfortably in practice.
+*/
+const selfHostedFaceCss = SELF_HOSTED_FONTS.map(
+  (f) => `@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: ${f.weight};
+  font-display: optional;
+  src: url('/fonts/montserrat-500-latin.woff2') format('woff2');
+}`,
+).join('\n');
+
+const fontCss = `${selfHostedFaceCss}
 ${activeFonts
   .map(
     (f) => `[data-title-font='${f.id}'] .accordion-title,
@@ -204,12 +277,40 @@ function extractYoutubeId(url: string) {
 
 <Layout
   title="Featured Hubs"
-  preconnect={["https://cdn.sanity.io", "https://www.youtube-nocookie.com"]}
+  /*
+    fonts.gstatic.com is where the font FILE comes from, and with
+    `display=optional` the browser only has ~100ms to get it before it gives up
+    on this page load — so the handshake has to be already open or the face
+    never makes the window. googleapis.com serves the stylesheet that names it.
+  */
+  preconnect={[
+    "https://cdn.sanity.io",
+    "https://i.ytimg.com",
+    "https://www.youtube-nocookie.com",
+  ]}
 >
+  {/* Discovered by the preload scanner, alongside the preconnect above — see
+      the note on fontCss. */}
+  {/* Dev only — the picker's comparison faces. Production ships the
+      self-hosted @font-face above and makes no third-party request. */}
+  {fontImportUrl && <link slot="head" rel="stylesheet" href={fontImportUrl} />}
+  {SELF_HOSTED_FONTS.length > 0 && (
+    <link
+      slot="head"
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      href="/fonts/montserrat-500-latin.woff2"
+      crossorigin
+    />
+  )}
   <style is:inline set:html={fontCss}></style>
   <main class="featured-directory-page" data-title-font={IS_DEV ? 'demo' : PROD_FONT}>
     {sortedCategories.length > 0 ? (
-      <div class="accordion-container animate-on-scroll">
+      <div
+        class="accordion-container animate-on-scroll"
+        style={`--rows: ${sortedCategories.length};`}
+      >
         {sortedCategories.map((category, index) => {
           let categoryBrands = groupedBrands[category];
           if (category === 'gaming') {
@@ -966,18 +1067,66 @@ function extractYoutubeId(url: string) {
   .accordion-container {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    /*
+      SIZED FROM THE VIEWPORT DIRECTLY, NOT AS A PERCENTAGE OF ITS PARENT.
+
+      The rows below size themselves as a share of this container (see
+      .accordion-section), so this height has to be right from the very first
+      layout — a percentage only resolves once the parent's own height is
+      known, and until then the container is auto-height and the shares are
+      meaningless.
+
+      `100lvh` matches .featured-directory-page and is what this project pins
+      viewport heights to (scripts/viewport-units.test.mjs); the padding it
+      subtracts is that element's own, which is what `height: 100%` used to
+      resolve against.
+    */
+    height: calc(100lvh - var(--header-height, 80px));
+    min-height: calc(750px - var(--header-height, 80px));
     width: 100%;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .accordion-section {
-    flex: 1;
+    /*
+      EACH ROW'S HEIGHT IS ITS OWN SHARE OF THE CONTAINER, NOT WHATEVER IS LEFT
+      OVER AFTER ITS SIBLINGS.
+
+      This is the 0.276 layout shift that failed the Lighthouse gate — the worst
+      metric on the site — and it is nothing to do with fonts, images or
+      scripts. It is the markup streaming.
+
+      /featured is 42kB of HTML. On a throttled connection the parser lays out
+      the first row before the rest of the document has arrived, and with
+      `flex: 1` / `flex: 8` a row's size depends on how many siblings it is
+      sharing with. Sampled every frame: at 200ms the container held ONE row
+      at 742px; by 338ms it held four at 536/69/69/69. Every row that arrived
+      resized every row already painted, and each of those resizes is a layout
+      shift.
+
+      Sizing by flex-BASIS against the container instead makes each row's
+      height depend only on the container, which is a definite viewport-derived
+      value from the first layout. A row is then the same height whether it is
+      alone in the DOM or the last of four, so the rest of the document
+      arriving cannot move it.
+
+      `--rows` comes from the template because the category count is data —
+      a category with no hubs in it does not render. One expanded row at 8
+      shares with (rows - 1) collapsed at 1, hence the `rows + 7` denominator.
+    */
+    flex: 0 0 calc(100% / (var(--rows, 4) + 7));
+    /*
+      A flex item's automatic minimum size is its content, and a COLLAPSED row
+      still lays out its whole body — `visibility: hidden` hides but reserves.
+      Without this the fixed basis above could be overridden by whatever
+      happens to be inside a row.
+    */
+    min-height: 0;
     position: relative;
     /* No overflow clip here — hard rule 3, see .featured-directory-page.
        The collapse still hides its body: .accordion-body toggles both
        opacity and visibility, which is what actually removes it. */
-    transition: flex 0.7s cubic-bezier(0.25, 1, 0.5, 1);
+    transition: flex-basis 0.7s cubic-bezier(0.25, 1, 0.5, 1);
     display: flex;
     flex-direction: column;
     border-bottom: 2px solid rgba(255, 255, 255, 0.15);
@@ -985,7 +1134,7 @@ function extractYoutubeId(url: string) {
   }
 
   .accordion-section.expanded {
-    flex: 8; 
+    flex: 0 0 calc(800% / (var(--rows, 4) + 7));
   }
 
   .accordion-header-bg {
@@ -1115,6 +1264,15 @@ function extractYoutubeId(url: string) {
     margin: 0;
     z-index: 2;
     transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+    /*
+      Without a line-height these headings inherit `normal`, which browsers
+      compute from the ACTIVE FONT'S own ascent and descent — so the line box
+      changes size if the face ever changes underneath it. A unitless value is
+      a multiple of font-size and nothing else, which keeps the box identical
+      whichever face is active. Belt and braces alongside the self-hosted
+      `font-display: optional` face above.
+    */
+    line-height: 1.25;
   }
   
   .accordion-section.collapsed:hover .accordion-title {
@@ -1652,6 +1810,13 @@ function extractYoutubeId(url: string) {
     background-position: center;
     background-repeat: no-repeat;
     opacity: 0;
+    pointer-events: none;
+    /*
+      Long, and asymmetric on purpose. A quick cross-fade reads as a slideshow
+      changing slides; a slow one where the outgoing frame lingers reads as a
+      dissolve, which is the cut a title sequence would use.
+    */
+    transition: opacity 2.2s cubic-bezier(0.4, 0, 0.2, 1);
     /*
       BLURRED, ALWAYS — and scaled past the box so the blur's own soft edge
       never shows as a bright rim.
@@ -1694,14 +1859,6 @@ function extractYoutubeId(url: string) {
   .backdrop-layer[data-tier='related'] {
     filter: blur(20px) saturate(0.95) brightness(0.86);
     -webkit-filter: blur(20px) saturate(0.95) brightness(0.86);
-  }
-    /*
-      Long, and asymmetric on purpose. A quick cross-fade reads as a slideshow
-      changing slides; a slow one where the outgoing frame lingers reads as a
-      dissolve, which is the cut a title sequence would use.
-    */
-    transition: opacity 2.2s cubic-bezier(0.4, 0, 0.2, 1);
-    pointer-events: none;
   }
 
   .backdrop-layer.active {

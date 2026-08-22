@@ -220,5 +220,52 @@ test('borrowed footage is blurred harder than the hub\'s own', () => {
   assert.ok(mood > own * 2, `mood (${mood}px) must be far softer than hub (${own}px)`);
 });
 
+test('a row is sized by its own share, not by what its siblings leave over', () => {
+  /*
+    THIS IS THE ONE THAT COST A DAY.
+
+    /featured is 42kB of HTML. On a throttled connection the parser lays out the
+    first accordion row before the rest of the document arrives — sampled every
+    frame, the container held ONE row at 742px at 200ms and four at
+    536/69/69/69 by 338ms. With `flex: 1` / `flex: 8` a row's height depends on
+    how many siblings it is sharing with, so every row that arrived resized
+    every row already painted. That was a 0.276 cumulative layout shift, the
+    worst metric on the site, and it failed the Lighthouse gate at 80%.
+
+    Sizing by flex-BASIS against the container makes a row the same height
+    whether it is alone in the DOM or the last of four. Any change back to a
+    grow ratio brings the shift back, and it will only show up under throttling
+    — which is why this is a test and not a comment.
+  */
+  const block = src.slice(src.indexOf('.accordion-section {'));
+  const decl = block.slice(0, block.indexOf('}'));
+  assert.match(decl, /flex: 0 0 calc\(100% \/ \(var\(--rows/, 'a collapsed row needs a fixed basis');
+  assert.doesNotMatch(decl, /flex:\s*1;/, 'a grow ratio makes a row depend on its siblings');
+
+  const exp = src.slice(src.indexOf('.accordion-section.expanded {'));
+  const expDecl = exp.slice(0, exp.indexOf('}'));
+  assert.match(expDecl, /flex: 0 0 calc\(800% \/ \(var\(--rows/, 'the open row needs a fixed basis too');
+
+  // The basis is a share of the container, so the container's own height has to
+  // be definite from the first layout — a percentage of a parent is not.
+  const cont = src.slice(src.indexOf('.accordion-container {'));
+  const contDecl = cont.slice(0, cont.indexOf('}'));
+  assert.match(contDecl, /height: calc\(100lvh/, 'the container must be sized from the viewport');
+
+  // --rows comes from the template, because a category with no hubs does not render.
+  assert.match(src, /--rows: \$\{sortedCategories\.length\}/, '--rows must come from the data');
+});
+
+test('the shipping typeface is self-hosted, not a third-party stylesheet', () => {
+  // A render-blocking stylesheet on another origin sits in the critical path of
+  // a page whose whole layout is viewport-derived. Inter and Syne are already
+  // self-hosted here; the display face is now too. The picker's other seven
+  // faces stay remote because none of them ships.
+  assert.match(src, /montserrat-500-latin\.woff2/, 'the shipping face must be local');
+  assert.match(src, /font-display: optional/, 'optional, so a late font never swaps under the reader');
+  assert.match(src, /const REMOTE_FONTS/, 'the remote faces must be separated from the shipping one');
+  assert.doesNotMatch(src, /@import url/, '@import is the slowest way to load CSS');
+});
+
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
 process.exit(failed === 0 ? 0 : 1);
