@@ -138,5 +138,41 @@ test('the typeface demo is not trapped in a phone media query', () => {
   }
 });
 
+test('the backdrop is stills, and the video never loads on the compact layout', () => {
+  /*
+    YouTube's branding cannot be configured away from an embed — the wordmark,
+    the title overlay and the end-of-video state surface whatever is passed on
+    the URL. So the backdrop is a cross-fading gallery of stills, and the
+    player is a desktop-only layer over it: ~900kB of script that on a phone
+    sat behind the artwork where none of it was legible.
+  */
+  assert.match(src, /backdrop-gallery/, 'the still gallery must exist');
+  assert.match(src, /compactQuery/, 'the trailer must be gated on the compact layout');
+
+  // The ONLY place an iframe src is ever assigned has to be the guarded one.
+  const assignments = src.match(/\biframe\.src\s*=/g) || [];
+  assert.equal(
+    assignments.length,
+    1,
+    'exactly one place may assign a trailer src, and it must be loadTrailer()',
+  );
+
+  const fn = src.slice(src.indexOf('function loadTrailer'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /compactQuery\(\)\.matches/, 'loadTrailer must bail out on the compact layout');
+  assert.match(body, /if \(lazySrc && !iframe\.src\)/, "never assign '' (hard rule 4)");
+});
+
+test("the player is cropped past its own chrome, without transforming the iframe", () => {
+  // Every piece of YouTube's chrome is anchored to the player's own edges, so
+  // overscanning the frame and masking the overflow is what removes it. The
+  // offset is margin rather than transform because this is a cross-origin
+  // iframe and WebKit renders those badly when transformed.
+  const block = src.slice(src.indexOf('.trailer-iframe {'));
+  const decl = block.slice(0, block.indexOf('}'));
+  assert.match(decl, /width:\s*1[0-9][0-9]%/, 'the iframe must be overscanned past its box');
+  assert.doesNotMatch(decl, /transform:/, 'do not transform a cross-origin iframe');
+});
+
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
 process.exit(failed === 0 ? 0 : 1);

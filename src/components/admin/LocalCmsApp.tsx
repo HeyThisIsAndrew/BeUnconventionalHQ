@@ -50,6 +50,7 @@ type Doc = {
   trailerUrl?: string;
   logo?: any;
   heroImage?: any;
+  backdrops?: any[];
   youtubeSyncKeywords?: string[];
   brandColor?: { hex?: string };
   /** Which accordion row this hub appears in on /featured. */
@@ -305,6 +306,78 @@ function ImageUploadField({ label, value, onChange }: { label: string; value: st
           <img src={urlFor(value).width(400).url()} alt="Preview" className="h-20 object-contain rounded-md bg-black/50 border border-white/10 p-1" />
         </div>
       )}
+    </Field>
+  );
+}
+
+/*
+  The still images that cross-fade behind a hub on /featured.
+
+  A hub with videos tagged to it already gets a backdrop for free — their
+  thumbnails, newest first (getHubBackdrops in src/lib/local-content.ts). This
+  field is the override: anything set here wins outright, because a person
+  chose it. It is also the ONLY source for a hub that has no coverage yet,
+  which today is thirteen of the fifteen.
+
+  Four to six reads best. Fewer and the loop is obvious; more and the later
+  frames are never reached before someone moves on.
+*/
+function BackdropsField({ value, onChange }: { value?: any[]; onChange: (v: any[]) => void }) {
+  const items = (value || []).filter((v) => typeof v === 'string') as string[];
+
+  const setAt = (i: number, v: string) => {
+    const next = [...items];
+    if (v) next[i] = v;
+    else next.splice(i, 1);
+    onChange(next);
+  };
+
+  const move = (i: number, delta: number) => {
+    const j = i + delta;
+    if (j < 0 || j >= items.length) return;
+    const next = [...items];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+
+  return (
+    <Field label={`Backdrop Stills (${items.length})`}>
+      <p className="text-xs text-gray-600 mb-3">
+        Cross-fade behind this hub on /featured, about 7 seconds each. Leave empty to
+        use the thumbnails of videos tagged to this hub. Four to six works best.
+      </p>
+      <div className="space-y-3">
+        {items.map((ref, i) => (
+          <div key={`${ref}-${i}`} className="flex items-start gap-2">
+            <img
+              src={urlFor(ref).width(200).url()}
+              alt=""
+              className="h-14 w-24 flex-none rounded-md border border-white/10 bg-black/50 object-cover"
+            />
+            <input
+              type="text"
+              value={ref}
+              onChange={(e) => setAt(i, e.target.value)}
+              className={`${inputClass} flex-1 font-mono text-xs`}
+            />
+            <div className="flex flex-none gap-1">
+              <button type="button" onClick={() => move(i, -1)} disabled={i === 0}
+                className="rounded border border-white/10 px-2 py-1 text-xs text-gray-400 hover:text-white disabled:opacity-30">↑</button>
+              <button type="button" onClick={() => move(i, 1)} disabled={i === items.length - 1}
+                className="rounded border border-white/10 px-2 py-1 text-xs text-gray-400 hover:text-white disabled:opacity-30">↓</button>
+              <button type="button" onClick={() => setAt(i, '')}
+                className="rounded border border-white/10 px-2 py-1 text-xs text-gray-400 hover:text-red-400">✕</button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3">
+        <ImageUploadField
+          label="Add a still"
+          value=""
+          onChange={(v) => { if (v) onChange([...items, v]); }}
+        />
+      </div>
     </Field>
   );
 }
@@ -1454,6 +1527,10 @@ function BrandForm({
             placeholder="One line, shown under the logo on /featured. Set in caps, so keep it short."
           />
         </Field>
+      </div>
+
+      <div className="mt-5">
+        <BackdropsField value={doc.backdrops} onChange={(v) => update('backdrops', v)} />
       </div>
 
       <div className="mt-5">
