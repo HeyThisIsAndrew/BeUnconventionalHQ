@@ -138,25 +138,104 @@ test('the typeface demo is not trapped in a phone media query', () => {
   }
 });
 
-test('there is no video on this page, and it does not come back', () => {
+test('the trailer is back, and every reason it was a problem is guarded', () => {
   /*
-    A YouTube embed used to play over the stills on desktop. Its chrome could
+    A YouTube embed used to play FULL-BLEED behind the deck. Its chrome could
     not be suppressed: `modestbranding` no longer removes the wordmark, and the
-    play/pause overlay and the auto-generated captions render in the CENTRE of
-    the frame, where no crop can reach them. Cropping to 132% and stopping the
-    player before it looped both failed — a review caught the pause overlay and
-    a "[suspenseful music]" caption sitting across the artwork.
+    play overlay and auto-generated captions render in the CENTRE of the frame,
+    where no crop reaches them. I removed the video outright, which was an
+    overcorrection — the ask was to stop the chrome showing, not to lose the
+    trailer, and losing it is what made the right-hand side read as unfinished.
 
-    It also cost the most of anything here: ~900kB of player script, and a
-    video surface being composited behind the thing you are meant to look at.
-
-    The stills are the whole backdrop now. If a video ever comes back, it needs
-    to answer the chrome problem first, so this fails until someone deletes it
-    deliberately.
+    It is back, INSET on a lit stage rather than full-bleed, so its chrome lands
+    inside a smaller framed plate instead of across the artwork. These are the
+    conditions it came back under.
   */
-  assert.doesNotMatch(src, /<iframe/, 'no iframe on /featured');
-  assert.doesNotMatch(src, /youtube-nocookie/, 'no YouTube embed on /featured');
-  assert.match(src, /backdrop-plate/, 'the blurred plate is the backdrop');
+  assert.match(src, /brand-stage-iframe/, 'the trailer exists again');
+
+  // HARD RULE 4. An empty src resolves to the current page and loads the whole
+  // site inside the frame — a bug this page has actually shipped once.
+  assert.doesNotMatch(src, /\.src\s*=\s*['"]{2}/, "never assign an iframe src = ''");
+  assert.match(src, /src="about:blank"/, 'the idle src is about:blank');
+  assert.match(src, /frame\.src = 'about:blank'/, 'teardown restores about:blank');
+
+  // HARD RULE 3: no clipping ancestor. The stage is a SIBLING of the clipping
+  // backdrop wrapper, never inside it — iOS Safari paints a clipped iframe as
+  // a black box.
+  const stageIdx = src.indexOf('class="brand-stage"');
+  const wrapCloseIdx = src.indexOf('</div>', src.indexOf('trailer-bg-wrapper'));
+  assert.ok(stageIdx > wrapCloseIdx, 'the stage must not be inside the clipping wrapper');
+  const stageCss = src.slice(src.indexOf('.brand-stage {'));
+  assert.doesNotMatch(
+    stageCss.slice(0, stageCss.indexOf('}')),
+    /overflow: hidden/,
+    'nothing between the iframe and the page may clip',
+  );
+  const videoCss = src.slice(src.indexOf('.brand-stage-video {'));
+  assert.doesNotMatch(
+    videoCss.slice(0, videoCss.indexOf('}')),
+    /overflow: hidden/,
+    'the video frame must not clip either',
+  );
+
+  // It must not loop. Looping is what flashed YouTube's title bar back on
+  // screen at every restart.
+  assert.doesNotMatch(src, /[?&]loop=1/, 'the trailer must not loop');
+  assert.match(src, /TRAILER_RUN_MS/, 'the trailer stops on a timer');
+
+  // A frame whose document never loads paints white by default.
+  assert.match(videoCss + src.slice(src.indexOf('.brand-stage-iframe {')), /background: #050505/,
+    'an unloaded frame must not paint white');
+
+  // Phones never load it — the info column is the plate behind the deck there,
+  // so the player would cost ~900kB to render where it cannot be seen.
+  assert.match(src, /min-width: 1024px/, 'the trailer is desktop-only in JS');
+  const mq = src.slice(src.indexOf('@media (max-width: 1023px), (max-height: 620px)'));
+  assert.match(mq.slice(0, 400), /\.brand-stage-video[\s\S]{0,60}display: none/,
+    'the trailer is desktop-only in CSS too');
+});
+
+test('the same image is not painted three times in one row', () => {
+  /*
+    Reported as "way too much repetition of the same damn image", and it was
+    literal: `heroImage` was the deck card, the nav rail thumbnail, AND — via
+    getHubBackdrop()'s fallback — the blurred plate behind all of it. A hub
+    with one asset was that one asset, three times, at three sizes.
+
+    The panel is built from the hub's OTHER asset now: the logo, blown up and
+    blurred as a haze, with the same file crisp in front of it. A supplied
+    `backdrops[0]` override still wins, because that is an image chosen for
+    this job rather than reused into it.
+  */
+  assert.match(src, /backdrop-plate--mark/, 'the ghost layer is the mark');
+  assert.match(src, /const ghostUrl = brand\.logo/, 'the ghost comes from the logo');
+  assert.match(src, /const markUrl = brand\.logo/, 'the stage subject comes from the logo');
+
+  // The order matters: an explicit override beats the mark, and the mark beats
+  // nothing. heroImage must not be reachable as this panel's backdrop.
+  const panel = src.slice(src.indexOf('const backdrop = getHubBackdrop'), src.indexOf('class="stage-wash"'));
+  assert.match(panel, /backdrop \?[\s\S]*ghostUrl \?/, 'override wins, then the mark');
+  assert.doesNotMatch(panel, /heroImage/, 'the panel must not reuse the key art');
+});
+
+test('the panel edges are solid black, so nothing leaks past them', () => {
+  /*
+    Reported as "visible light leaks above and below the main image… the leak
+    grows as I leave the page idle". Both halves are one bug: the top and
+    bottom scrims topped out at alpha 0.95, so five per cent of the plate
+    showed at the extreme edge as a hard bright line — and it CHANGED, because
+    the plate drifts and different artwork slid through that few-pixel strip.
+    Nothing was expanding; the strip was sampling a moving image.
+
+    A gradient that starts at 0.95 has nothing to fade from. Both must reach 1.
+  */
+  for (const cls of ['.trailer-gradient-top', '.trailer-gradient-bottom']) {
+    const block = src.slice(src.indexOf(cls + ' {'));
+    const decl = block.slice(0, block.indexOf('}'));
+    const first = decl.match(/linear-gradient\(to (?:bottom|top),\s*rgba\([\d,\s]*?([\d.]+)\)/);
+    assert.ok(first, `${cls} must have a vertical gradient`);
+    assert.strictEqual(first[1], '1', `${cls} must start fully opaque, not ${first[1]}`);
+  }
 });
 
 test('the rows snap; nothing animates a layout property', () => {
