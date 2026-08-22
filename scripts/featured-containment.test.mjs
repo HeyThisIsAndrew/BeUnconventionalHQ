@@ -160,7 +160,16 @@ test('the backdrop is stills, and the video never loads on the compact layout', 
   const fn = src.slice(src.indexOf('function loadTrailer'));
   const body = fn.slice(0, fn.indexOf('\n  }'));
   assert.match(body, /compactQuery\(\)\.matches/, 'loadTrailer must bail out on the compact layout');
-  assert.match(body, /if \(lazySrc && !iframe\.src\)/, "never assign '' (hard rule 4)");
+  // Hard rule 4: an empty src resolves against the document URL and loads the
+  // whole page inside the frame. A hub with no trailerUrl renders no data-src,
+  // so the assignment has to be guarded on it being present — however that
+  // guard is phrased.
+  assert.match(body, /lazySrc/, 'the src must come from the data attribute');
+  assert.match(
+    body,
+    /if \s*\(\s*!lazySrc[\s\S]{0,40}return|if \(lazySrc &&/,
+    'assigning the src must be guarded on the data attribute being present',
+  );
 });
 
 test("the player is cropped past its own chrome, without transforming the iframe", () => {
@@ -265,6 +274,42 @@ test('the shipping typeface is self-hosted, not a third-party stylesheet', () =>
   assert.match(src, /font-display: optional/, 'optional, so a late font never swaps under the reader');
   assert.match(src, /const REMOTE_FONTS/, 'the remote faces must be separated from the shipping one');
   assert.doesNotMatch(src, /@import url/, '@import is the slowest way to load CSS');
+});
+
+test('every category row is reachable and operable from the keyboard', () => {
+  /*
+    The headers were <div>s with a click handler. Focus went from the open row's
+    cards straight to the footer, so the three CLOSED hubs could not be reached
+    at all without a mouse — a design review found it by trying to Tab to them
+    and failing.
+
+    A heading wrapping a button is the ARIA accordion pattern: the <h2> keeps
+    the document outline, the <button> takes focus and handles Enter and Space
+    for free, and aria-expanded announces the state.
+  */
+  assert.match(src, /<h2 class="accordion-heading">/, 'the row label must stay a heading');
+  assert.match(src, /<button\s+[\s\S]{0,200}?class="accordion-header"/, 'the header must be a button');
+  assert.match(src, /aria-expanded=\{isExpanded/, 'the button must announce its state');
+  assert.match(src, /aria-controls=\{`hub-row-\$\{category\}`\}/, 'the button must name the panel it controls');
+  assert.match(src, /id=\{`hub-row-\$\{category\}`\}/, 'the panel needs the id aria-controls points at');
+  assert.match(src, /setAttribute\('aria-expanded'/, 'the state must be kept in step on click');
+  assert.match(src, /\.accordion-header:focus-visible/, 'a focusable control needs a visible focus ring');
+});
+
+test('the trailer is an opening, not a loop', () => {
+  /*
+    The 132% crop puts YouTube's corners and control strip outside the frame,
+    but it cannot reach the LOOP BOUNDARY — the player re-shows its title bar
+    and play overlay across the middle of the frame every time it restarts, and
+    no embed parameter turns that off. So the video is stopped before it gets
+    there and dissolves back to the stills.
+  */
+  assert.match(src, /TRAILER_RUN_MS/, 'the opening needs a defined length');
+  assert.doesNotMatch(src, /loop=1/, 'looping is what surfaces the chrome');
+  assert.doesNotMatch(src, /playlist=\$\{ytId\}/, 'the playlist parameter only exists to loop');
+  assert.match(src, /function unloadTrailer/, 'unloading must be one path, so its timer is always cleared');
+  // Hard rule 4 — an empty src resolves against the document URL.
+  assert.doesNotMatch(src, /iframe\.src\s*=\s*''/, "never assign '' to an iframe src");
 });
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);

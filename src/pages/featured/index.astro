@@ -330,21 +330,44 @@ function extractYoutubeId(url: string) {
           return (
             <div class={`accordion-section ${isExpanded ? 'expanded' : 'collapsed'}`} data-category={category}>
               
-              <div class="accordion-header">
-                <div class="accordion-header-bg"></div>
-                
-                <h2 class="accordion-title" data-demo-font={DEMO_FONTS[index % DEMO_FONTS.length].id}>
-                  {categoryLabels[category] || category}
-                  {IS_DEV && (
-                    <span class="accordion-title-demo-label">
-                      — {DEMO_FONTS[index % DEMO_FONTS.length].label}
-                    </span>
-                  )}
-                </h2>
+              {/*
+                A HEADING WRAPPING A BUTTON — the ARIA accordion pattern.
 
-              </div>
+                This was a <div> with a click handler, which meant the three
+                collapsed rows could not be reached by keyboard AT ALL: focus
+                went from the open row's cards straight to the footer, and the
+                closed hubs were simply unreachable without a mouse. A design
+                review caught it by trying and failing to Tab to them.
 
-              <div class="accordion-body">
+                The <h2> keeps the document outline (the rows are the page's
+                sections); the <button> inside it is what takes focus, fires on
+                Enter and Space for free, and announces its state through
+                aria-expanded. The heading owns the layout box so the button can
+                fill it — `display: contents` would be tidier markup but has a
+                history of dropping the heading from the accessibility tree in
+                exactly the assistive tech this is for.
+              */}
+              <h2 class="accordion-heading">
+                <button
+                  type="button"
+                  class="accordion-header"
+                  aria-expanded={isExpanded ? 'true' : 'false'}
+                  aria-controls={`hub-row-${category}`}
+                >
+                  <span class="accordion-header-bg" aria-hidden="true"></span>
+
+                  <span class="accordion-title" data-demo-font={DEMO_FONTS[index % DEMO_FONTS.length].id}>
+                    {categoryLabels[category] || category}
+                    {IS_DEV && (
+                      <span class="accordion-title-demo-label">
+                        — {DEMO_FONTS[index % DEMO_FONTS.length].label}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              </h2>
+
+              <div class="accordion-body" id={`hub-row-${category}`}>
                 <div class="deck-view-container">
                   
                   <div class="deck-column">
@@ -471,7 +494,9 @@ function extractYoutubeId(url: string) {
                     <div class="info-panels-wrapper">
                       {categoryBrands.map((brand: Brand, bIndex: number) => {
                         const ytId = extractYoutubeId(brand.trailerUrl || '');
-                        const ytSrc = ytId ? `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&controls=0&modestbranding=1&showinfo=0&rel=0` : null;
+                        /* No `loop`/`playlist`: the player is stopped before it would reach the end
+                           (see TRAILER_RUN_MS), so looping only risks the chrome it exists to avoid. */
+                        const ytSrc = ytId ? `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&controls=0&disablekb=1&playsinline=1&fs=0&iv_load_policy=3&modestbranding=1&showinfo=0&rel=0` : null;
                         const meta = metaFor(brand);
                         const backdrops = getHubBackdrops(brand.slug?.current ?? '');
 
@@ -643,6 +668,38 @@ function extractYoutubeId(url: string) {
   const compactQuery = () =>
     window.matchMedia('(max-width: 768px), (max-height: 560px)');
 
+  /*
+    THE TRAILER IS AN OPENING, NOT A LOOP.
+
+    Cropping the player to 132% of its box puts YouTube's corners and control
+    strip outside the frame, and for the body of the video that works. What it
+    cannot reach is the LOOP BOUNDARY: when the player restarts it re-shows its
+    title bar and play overlay across the middle of the frame for a second or
+    two, every cycle, forever. A design review caught it on video. There is no
+    embed parameter that turns that off.
+
+    So the video plays once and leaves. It fades in over the stills, runs for
+    TRAILER_RUN_MS, then dissolves back to them and unloads — before it ever
+    reaches the boundary that would show the chrome. Nothing restarts it while
+    the row stays open.
+
+    That is the better scene anyway: motion to open on, then the room settles.
+    And it ends the ongoing cost of a video element playing behind artwork
+    nobody is looking through any more.
+  */
+  const TRAILER_RUN_MS = 42000;
+
+  function unloadTrailer(iframe: HTMLIFrameElement | null | undefined) {
+    if (!iframe) return;
+    const timer = Number(iframe.dataset.stopTimer || 0);
+    if (timer) window.clearTimeout(timer);
+    delete iframe.dataset.stopTimer;
+    // NEVER `iframe.src = ''` (hard rule 4): the empty string resolves against
+    // the document URL and loads this whole page inside the frame.
+    if (iframe.src) iframe.removeAttribute('src');
+    iframe.classList.remove('is-playing');
+  }
+
   function loadTrailer(iframe: HTMLIFrameElement | null | undefined) {
     if (!iframe) return;
     if (compactQuery().matches) return;
@@ -650,7 +707,19 @@ function extractYoutubeId(url: string) {
     // Guarded on the data attribute, never falling back to '': a hub with no
     // trailerUrl renders no data-src, and assigning '' would load this page
     // into the iframe (hard rule 4).
-    if (lazySrc && !iframe.src) iframe.src = lazySrc;
+    if (!lazySrc || iframe.src) return;
+    iframe.src = lazySrc;
+    iframe.classList.add('is-playing');
+
+    const stop = window.setTimeout(() => {
+      iframe.classList.remove('is-playing');
+      // Let the dissolve finish before the frame goes, so the hand-off back to
+      // the stills is a fade rather than a cut to black.
+      window.setTimeout(() => {
+        if (iframe.src) iframe.removeAttribute('src');
+      }, 1800);
+    }, TRAILER_RUN_MS);
+    iframe.dataset.stopTimer = String(stop);
   }
 
   /*
@@ -741,12 +810,16 @@ function extractYoutubeId(url: string) {
             // NEVER `iframe.src = ''` (hard rule 4): the empty string resolves
             // against the document URL, so it reloads this whole page inside
             // the iframe. removeAttribute is the real unload.
-            iframes.forEach((iframe) => { iframe.removeAttribute('src'); });
+            iframes.forEach(unloadTrailer);
             stopBackdrop(s);
           });
           
           section.classList.remove('collapsed');
           section.classList.add('expanded');
+          for (const s of sections) {
+            s.querySelector('.accordion-header')
+              ?.setAttribute('aria-expanded', s === section ? 'true' : 'false');
+          }
           startBackdrop(section);
 
           const activeCard = section.querySelector<HTMLElement>('.deck-card.active');
@@ -841,9 +914,7 @@ function extractYoutubeId(url: string) {
             }
             
             // Unload inactive iframes to save memory and CPU
-            if (iframe && iframe.src) {
-              iframe.removeAttribute('src');
-            }
+            unloadTrailer(iframe);
           }
         });
 
@@ -1156,22 +1227,48 @@ function extractYoutubeId(url: string) {
     pointer-events: none;
   }
 
+
+  .accordion-heading {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    margin: 0;
+    font: inherit;
+  }
+
+  .accordion-section.expanded .accordion-heading {
+    position: relative;
+    inset: auto;
+  }
+
+  /* Reset first: a <button> brings its own font, colour, border and background,
+     and none of them belong on a full-bleed row. */
   .accordion-header {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
     height: 100%;
     width: 100%;
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    padding-left: 5vw;
+    padding: 0 5vw;
     cursor: pointer;
-    position: absolute;
-    inset: 0;
-    z-index: 10;
   }
-  
+
+  /* The focus ring the old <div> could never show. Inset so it reads as the
+     row being selected rather than a box drawn around it. */
+  .accordion-header:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: -6px;
+  }
+
   .accordion-section.expanded .accordion-header {
     height: auto;
-    position: relative;
     padding: 1.5rem 5vw 1rem 5vw;
     background: transparent;
     cursor: default;
@@ -1255,12 +1352,27 @@ function extractYoutubeId(url: string) {
     which is how a title plate or a chapter marker is set.
   */
   .accordion-title {
+    display: block;
     font-family: 'Helvetica Neue', Helvetica, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-    font-size: clamp(0.95rem, 1.55vw, 1.5rem);
+    /*
+      THE OPEN ROW IS THE LOUDEST, NOT THE QUIETEST.
+
+      This was one size for every row, which put the tiny tracked-out label of
+      the row you are IN next to three large ones for rows you are not — the
+      active state read as a subtitle and the inactive ones as headlines. A
+      design review named it as the single thing that most made the page look
+      like a mistake rather than a decision.
+
+      Both ends stay restrained (the labels were deliberately brought down from
+      banner size and are not going back). The hierarchy is restored by taking
+      the closed rows DOWN and their contrast with them, so "you are here" is
+      established without anything shouting.
+    */
+    font-size: clamp(0.8rem, 1.15vw, 1.05rem);
     text-transform: uppercase;
     font-weight: 700;
-    letter-spacing: 0.3em;
-    color: rgba(255, 255, 255, 0.72);
+    letter-spacing: 0.34em;
+    color: rgba(255, 255, 255, 0.5);
     margin: 0;
     z-index: 2;
     transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
@@ -1283,20 +1395,34 @@ function extractYoutubeId(url: string) {
   }
 
   /*
-    STAGING NOTE — the open row's title steps back.
+    THE OPEN ROW IS THE LOUDEST, NOT THE QUIETEST.
 
-    Closed, this title IS the headline and should shout. Open, it is just a
-    label telling you where you are, and at full white it was competing with
-    the brand logo and the deck for the same attention. Smaller, dimmer and
-    widely spaced turns it into a caption, which leaves one clear subject:
-    the artwork.
+    This rule used to step the open row's title DOWN — smaller, dimmer and
+    lighter than the closed rows above and below it. The reasoning was sound in
+    isolation (the artwork should be the subject, not the label) but it made
+    the page read as broken: the row you are IN was set as a caption while
+    three rows you are not in were headlines. A design review named the
+    inversion as the single thing that most made the page look like a mistake
+    rather than a decision.
+
+    The fix is not to go back to banner-sized labels — those were deliberately
+    brought down and are staying down. It is that the CLOSED rows come down
+    further (see .accordion-title), so the open one leads without shouting. It
+    also takes the category's own colour as a rule down its left edge, which is
+    the same plate the hub pages now open with.
   */
   .accordion-section.expanded .accordion-title {
-    font-size: clamp(0.8rem, 1.25vw, 1.1rem);
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.38);
+    font-size: clamp(0.95rem, 1.5vw, 1.35rem);
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.94);
     letter-spacing: 0.3em;
     transform: none;
+    padding-left: 0.9rem;
+    border-left: 2px solid rgba(var(--category-accent-rgb, 204, 0, 0), 0.9);
+  }
+
+  .accordion-header:focus-visible .accordion-title {
+    color: rgba(255, 255, 255, 0.9);
   }
 
   .accordion-body {
@@ -1907,9 +2033,9 @@ function extractYoutubeId(url: string) {
     transition: opacity 1.6s ease;
   }
 
-  /* `src` is only ever set by loadTrailer(), so this is true exactly when a
-     real player has been asked for. */
-  .trailer-iframe[src] {
+  /* Set by loadTrailer() while the opening is running, and removed before the
+     frame is unloaded so the hand-off back to the stills is a dissolve. */
+  .trailer-iframe.is-playing {
     opacity: 1;
   }
 
