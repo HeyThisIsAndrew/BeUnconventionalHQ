@@ -11,41 +11,20 @@ import { getFeaturedBrandsLocal, getHubBackdrops, urlFor, HUB_CATEGORY_LABELS } 
 */
 type Brand = any;
 
-/*
-  A backdrop is a full-bleed image behind everything else, so the temptation is
-  to ship one big file and let `object-fit` deal with it. That is how removing
-  900kB of YouTube player from the phone layout would have bought nothing: six
-  1280x720 stills is about the same weight, just in a different column of the
-  waterfall.
-
-  YouTube's still endpoints include two 16:9 sizes — `mqdefault` at 320x180 and
-  `maxresdefault` at 1280x720. (`hqdefault` and `sddefault` are 4:3 and arrive
-  pillarboxed with baked-in black bars, which is why they are not offered here.)
-  Sanity resizes on request, so it just gets asked for the same two widths.
-
-  `sizes` mirrors the layout: the backdrop spans the viewport on the compact
-  layout and about three quarters of it beside the deck, because the wrapper
-  is 150% of a half-width column.
-*/
-const BACKDROP_SIZES =
-  '(max-width: 768px) 100vw, (max-height: 560px) 100vw, 75vw';
-
-function backdropSrcSet(url: string): string | undefined {
-  const yt = /^(https?:\/\/i\.ytimg\.com\/vi\/[^/]+\/)maxresdefault\.jpg/.exec(url);
-  if (yt) return `${yt[1]}mqdefault.jpg 320w, ${url} 1280w`;
-  return undefined;
-}
-
 // getFeaturedBrandsLocal() is synchronous — it filters an imported JSON array.
 const brands: Brand[] = getFeaturedBrandsLocal();
 
 /*
-  Which category a hub sits in is now a FIELD ON THE HUB (`hubCategory`),
-  edited in the Local CMS, not a lookup table in this file. The table that
-  used to live here meant a newly created hub landed in a nameless "other"
-  row until someone edited page code, which is not something an editor can
-  do. The label and ordering below stay here on purpose: adding a hub is a
-  data change, adding a CATEGORY is a design decision.
+  Which category a hub sits in is a FIELD ON THE HUB (`hubCategory`), edited in
+  the Local CMS, not a lookup table in this file. The table that used to live
+  here meant a newly created hub landed in a nameless "other" row until someone
+  edited page code, which is not something an editor can do.
+
+  The labels are shared with the hub pages (HUB_CATEGORY_LABELS), which show the
+  row a visitor came in through — two copies of that list could disagree with
+  each other, and the one on the hub page would be the one that looked wrong.
+  Adding a hub is a data change; adding a CATEGORY is a design decision, which
+  is why the ordering below stays in code.
 */
 const categoryLabels = HUB_CATEGORY_LABELS;
 
@@ -421,13 +400,17 @@ function extractYoutubeId(url: string) {
                                 {backdrops.length > 0 && (
                                   <div class="backdrop-gallery" aria-hidden="true">
                                     {backdrops.map((b, i) => {
-                                      const sanity = b.kind === 'sanity';
-                                      const url = sanity
-                                        ? urlFor(b.ref).width(1280).auto('format').quality(72).url()
+                                      /*
+                                        640 for an editor's own image, and the
+                                        YouTube stills arrive at 320 already.
+                                        Both are far below the box they fill —
+                                        deliberately. See BackdropTier: nothing
+                                        here is ever unblurred, so resolution
+                                        buys nothing and costs everything.
+                                      */
+                                      const url = b.kind === 'sanity'
+                                        ? urlFor(b.ref).width(640).auto('format').quality(70).url()
                                         : b.url;
-                                      const srcset = sanity
-                                        ? `${urlFor(b.ref).width(320).auto('format').quality(72).url()} 320w, ${url} 1280w`
-                                        : backdropSrcSet(url);
                                       const first = i === 0;
                                       /*
                                         Only the hub that is actually showing
@@ -440,18 +423,24 @@ function extractYoutubeId(url: string) {
                                         startBackdrop() when they are selected.
                                       */
                                       const painted = first && bIndex === 0;
+                                      /*
+                                        A background-image div rather than an
+                                        <img>: these layers are blurred, and
+                                        this project has been bitten before by
+                                        putting a `filter` on an <img> in iOS
+                                        Safari (hard rule 6). It also matches
+                                        how the hub page paints the same
+                                        gallery, and nothing is lost — the
+                                        loading order is driven by the script
+                                        below, not by the element.
+                                      */
                                       return (
-                                        <img
+                                        <div
                                           class={`backdrop-layer ${first ? 'active' : ''}`}
-                                          src={painted ? url : undefined}
-                                          srcset={painted ? srcset : undefined}
-                                          data-src={painted ? undefined : url}
-                                          data-srcset={painted ? undefined : srcset}
-                                          sizes={BACKDROP_SIZES}
-                                          alt=""
-                                          decoding="async"
-                                          loading={bIndex === 0 && first ? 'eager' : 'lazy'}
-                                        />
+                                          data-tier={b.tier}
+                                          data-bg={painted ? undefined : url}
+                                          style={painted ? `background-image: url('${url}');` : undefined}
+                                        ></div>
                                       );
                                     })}
                                   </div>
@@ -587,7 +576,7 @@ function extractYoutubeId(url: string) {
     const panel = section.querySelector<HTMLElement>('.brand-info-panel.active');
     if (!panel) return;
 
-    const frames = Array.from(panel.querySelectorAll<HTMLImageElement>('.backdrop-layer'));
+    const frames = Array.from(panel.querySelectorAll<HTMLElement>('.backdrop-layer'));
     if (frames.length === 0) return;
 
     /*
@@ -601,13 +590,10 @@ function extractYoutubeId(url: string) {
     const hydrate = (i: number) => {
       const frame = frames[i % frames.length];
       if (!frame) return;
-      const lazySrc = frame.dataset.src;
-      if (!lazySrc || frame.src) return;
-      const lazySet = frame.dataset.srcset;
-      if (lazySet) frame.srcset = lazySet;
-      frame.src = lazySrc;
-      delete frame.dataset.src;
-      delete frame.dataset.srcset;
+      const url = frame.dataset.bg;
+      if (!url) return;
+      frame.style.backgroundImage = `url('${url}')`;
+      delete frame.dataset.bg;
     };
 
     // A cross-fade IS the motion someone asked not to see. One frame, held —
@@ -1662,10 +1648,53 @@ function extractYoutubeId(url: string) {
   .backdrop-layer {
     position: absolute;
     inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
     opacity: 0;
+    /*
+      BLURRED, ALWAYS — and scaled past the box so the blur's own soft edge
+      never shows as a bright rim.
+
+      This is what makes a 320px still legitimate behind a 1000px panel: the
+      upscale is softer than the blur, so nothing about it is visible. It is
+      also the right picture. The deck card in front is the thing being looked
+      at, and an equally sharp image behind it was two focal points arguing.
+
+      How hard, by how honestly the still belongs to this hub — see
+      BackdropTier in local-content.ts.
+    */
+    transform: scale(1.14);
+    filter: blur(14px) saturate(1.05);
+    -webkit-filter: blur(14px) saturate(1.05);
+  }
+
+  /* Its own coverage, or an image someone chose for it. Softened, still
+     readable as a scene. */
+  .backdrop-layer[data-tier='chosen'],
+  .backdrop-layer[data-tier='hub'] {
+    filter: blur(10px) saturate(1.08);
+    -webkit-filter: blur(10px) saturate(1.08);
+  }
+
+  /*
+    RIGHT CATEGORY, WRONG HUB.
+
+    A gaming still behind PlayStation is a better ground than an empty box, and
+    thirteen of the fifteen hubs have nothing else. But it is not that hub's
+    coverage and must never look like a claim that it is, so it goes past the
+    point of recognition and sits back further in the frame.
+  */
+  .backdrop-layer[data-tier='mood'] {
+    transform: scale(1.22);
+    filter: blur(34px) saturate(0.85) brightness(0.72);
+    -webkit-filter: blur(34px) saturate(0.85) brightness(0.72);
+  }
+
+  .backdrop-layer[data-tier='related'] {
+    filter: blur(20px) saturate(0.95) brightness(0.86);
+    -webkit-filter: blur(20px) saturate(0.95) brightness(0.86);
+  }
     /*
       Long, and asymmetric on purpose. A quick cross-fade reads as a slideshow
       changing slides; a slow one where the outgoing frame lingers reads as a

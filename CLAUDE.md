@@ -96,10 +96,25 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   A `featuredBrand` owns everything /featured renders about it:
   `hubCategory` (which accordion row it sits in), `brandColor.hex` (its glow,
   row tint and button — the RGB triple is derived from this, never stored),
-  `description` (the line under the logo) and `youtubeSyncKeywords`. None of
+  `description` (the line under the logo), `backdrops` (optional stills for
+  the cross-fading backdrop) and `youtubeSyncKeywords`. None of
   these are hardcoded in `src/pages/featured/index.astro` any more; adding a
   hub is a data edit. Adding a *category* is still a code change, by design —
   the four rows are a design decision, not editor content.
+- **Hub backdrops:** `getHubBackdrops()` (`src/lib/local-content.ts`) feeds the
+  cross-fading plate behind /featured and behind each hub hero. It falls
+  through four sources — the hub's own `backdrops`, thumbnails of videos tagged
+  to it, videos matching its `youtubeSyncKeywords`, then videos in its category
+  — and tags each result with a `tier` saying how honestly it belongs to that
+  hub. **Every backdrop is blurred**, harder the further down that list it came
+  from, so borrowed footage can never read as a claim of coverage. That is also
+  why they are always the SMALL image (`mqdefault`, ~10kB, not
+  `maxresdefault`, ~150kB): behind a blur, resolution buys nothing. Never raise
+  the source size without removing the blur, and vice versa —
+  `scripts/featured-containment.test.mjs` guards the pair. The YouTube trailer
+  is a desktop-only layer over this plate; it is never loaded on the compact
+  layout (~900kB of player JS) and its own chrome is cropped out rather than
+  configured away, because it cannot be configured away.
 - **Local CMS:** `/local-cms` (dev-only route, `src/components/admin/LocalCmsApp.tsx`)
   — master/detail editor over `src/data/videos.json`, backed by a dev-server-only
   Vite middleware (`localCmsMiddleware` in `astro.config.mjs`) at

@@ -158,12 +158,15 @@ const trailerId = parseVideoId(trailerUrl);
             per-frame, so a cross-fade never interrupts it mid-travel.
           */
           heroBackdrops.map((b, i) => {
+            /* Small on purpose — every layer here is blurred, so resolution
+               buys nothing. See BackdropTier in local-content.ts. */
             const url = b.kind === 'sanity'
-              ? urlFor(b.ref).width(2000).auto('format').quality(74).url()
+              ? urlFor(b.ref).width(640).auto('format').quality(70).url()
               : b.url;
             return (
               <div
                 class={`event-hero-bg-animated hero-backdrop-layer ${i === 0 ? 'active' : ''}`}
+                data-tier={b.tier}
                 data-bg={i === 0 ? undefined : url}
                 style={i === 0 ? `background-image: url('${url}');` : undefined}
               ></div>
@@ -347,6 +350,31 @@ const trailerId = parseVideoId(trailerUrl);
   .hero-backdrop-layer {
     opacity: 0;
     transition: opacity 2.2s cubic-bezier(0.4, 0, 0.2, 1);
+    /*
+      Blurred like the deck's, and for the same two reasons: the logo and the
+      copy in front need a quiet ground, and a blurred layer can be served at a
+      fraction of the size with nothing lost. The existing Ken Burns scale
+      already covers the blur's soft edge.
+    */
+    filter: blur(16px) saturate(1.05);
+    -webkit-filter: blur(16px) saturate(1.05);
+  }
+
+  .hero-backdrop-layer[data-tier='chosen'],
+  .hero-backdrop-layer[data-tier='hub'] {
+    filter: blur(11px) saturate(1.08);
+    -webkit-filter: blur(11px) saturate(1.08);
+  }
+
+  .hero-backdrop-layer[data-tier='related'] {
+    filter: blur(22px) saturate(0.95) brightness(0.85);
+    -webkit-filter: blur(22px) saturate(0.95) brightness(0.85);
+  }
+
+  /* Right category, wrong hub — past recognition, and set back. */
+  .hero-backdrop-layer[data-tier='mood'] {
+    filter: blur(38px) saturate(0.85) brightness(0.68);
+    -webkit-filter: blur(38px) saturate(0.85) brightness(0.68);
   }
 
   .hero-backdrop-layer.active {
