@@ -215,20 +215,59 @@ test('the same image is not painted three times in one row', () => {
   // nothing. heroImage must not be reachable as this panel's backdrop.
   const panel = src.slice(src.indexOf('const backdrop = getHubBackdrop'), src.indexOf('class="stage-wash"'));
   assert.match(panel, /backdrop \?[\s\S]*ghostUrl \?/, 'override wins, then the mark');
-  assert.doesNotMatch(panel, /heroImage/, 'the panel must not reuse the key art');
+
+  /*
+    This assertion used to stop at the markup, and passed while the bug was
+    still live: getHubBackdrop() falls back to `heroImage` INSIDE
+    local-content.ts, so the panel never mentioned heroImage and DC went on
+    painting the same still three times. The panel must call the override-only
+    reader, and that reader must not reach for the key art.
+  */
+  assert.match(panel, /getHubBackdropOverride\(/, '/featured asks for the override only');
+  const lib2 = readFileSync(join(here, '..', 'src', 'lib', 'local-content.ts'), 'utf8');
+  const fn = lib2.slice(lib2.indexOf('export function getHubBackdropOverride'));
+  assert.doesNotMatch(fn.slice(0, fn.indexOf('\n}')), /heroImage/,
+    'the override reader must not fall back to the key art');
 });
 
-test('the panel edges are solid black, so nothing leaks past them', () => {
+test('NOTHING on the right side of a row moves', () => {
   /*
-    Reported as "visible light leaks above and below the main image… the leak
-    grows as I leave the page idle". Both halves are one bug: the top and
-    bottom scrims topped out at alpha 0.95, so five per cent of the plate
-    showed at the extreme edge as a hard bright line — and it CHANGED, because
-    the plate drifts and different artwork slid through that few-pixel strip.
-    Nothing was expanding; the strip was sampling a moving image.
+    THE LIGHT LEAK. Reported three times; I twice fixed something else and
+    twice claimed it was done.
 
-    A gradient that starts at 0.95 has nothing to fade from. Both must reach 1.
+    The cause was a 32s `scale(1) -> scale(1.06)` push-in on
+    .trailer-bg-wrapper — the element that CLIPS. Scaling a clipping box scales
+    the clip with it, so the wrapper's edge crept ~3% above and below the panel
+    and carried the plate's near-sharp, under-blurred border out past the top
+    and bottom scrims. Those scrims are SIBLINGS of the wrapper, laid out
+    against .large-trailer-card, so they can never cover anything that leaves
+    the wrapper's own box. The 32s ease-in-out is precisely why it read as a
+    leak that GREW while the page sat idle.
+
+    Raising the scrims to alpha 1 did not fix it and could not have. The fix is
+    that this side of the row is static. If motion comes back here it must move
+    something that is neither the clip nor its contents — and it has to get
+    past this test first.
   */
+  const rightSide = [
+    '.trailer-bg-wrapper',
+    '.backdrop-plate',
+    '.trailer-fallback-img',
+    '.large-trailer-card',
+    '.brand-stage-mark',
+  ];
+  for (const cls of rightSide) {
+    const i = src.indexOf(cls + ' {');
+    if (i === -1) continue;
+    const decl = src.slice(i, src.indexOf('}', i));
+    assert.doesNotMatch(decl, /animation:/, `${cls} must not animate`);
+  }
+  // No rule anywhere may animate the clipping wrapper or the plate.
+  assert.doesNotMatch(src, /trailerPush/, 'the push-in must stay gone');
+  assert.doesNotMatch(src, /backdropDrift/, 'the plate drift must stay gone');
+  assert.doesNotMatch(src, /slowPan/, 'the fallback pan must stay gone');
+
+  // The scrims still reach alpha 1 — necessary, just never sufficient.
   for (const cls of ['.trailer-gradient-top', '.trailer-gradient-bottom']) {
     const block = src.slice(src.indexOf(cls + ' {'));
     const decl = block.slice(0, block.indexOf('}'));
@@ -236,6 +275,28 @@ test('the panel edges are solid black, so nothing leaks past them', () => {
     assert.ok(first, `${cls} must have a vertical gradient`);
     assert.strictEqual(first[1], '1', `${cls} must start fully opaque, not ${first[1]}`);
   }
+});
+
+test("YouTube's own UI is covered by paint, not by a player parameter", () => {
+  /*
+    `modestbranding` no longer removes the wordmark, and captions come from the
+    VIEWER's account preference — a screenshot caught "Beautiful face" burnt
+    across the bottom of the frame with every suppression parameter already
+    set. cc_load_policy is a request, not a guarantee.
+
+    So the top and bottom bands of the frame are FULLY OPAQUE over the strips
+    where YouTube's UI lives. Paint cannot silently stop working.
+  */
+  const i = src.indexOf('.brand-stage-frame {');
+  assert.ok(i > -1, 'the frame must exist');
+  const decl = src.slice(i, src.indexOf('  }', i));
+  const opaqueRuns = [...decl.matchAll(/rgba\(5,5,5,1\) 0%, rgba\(5,5,5,1\) (\d+)%/g)];
+  assert.ok(opaqueRuns.length >= 2, 'top and bottom must both hold full opacity');
+  for (const m of opaqueRuns) {
+    assert.ok(Number(m[1]) >= 15, `an opaque band of ${m[1]}% is too thin to cover the UI`);
+  }
+  // And it must sit ABOVE the iframe.
+  assert.match(decl, /z-index: 2/, 'the frame paints over the video');
 });
 
 test('the rows snap; nothing animates a layout property', () => {

@@ -214,6 +214,28 @@ export function getFeaturedBrandsLocal(): any[] {
 export type HubBackdrop = { kind: 'sanity'; ref: any };
 
 /**
+ * The backdrop a hub was given ON PURPOSE — its `backdrops[0]`, and nothing
+ * else.
+ *
+ * getHubBackdrop() below falls back to `heroImage`, which is right for a hub
+ * PAGE (one image, used once). It is wrong for /featured, where `heroImage` is
+ * already the deck card AND the nav rail thumbnail: falling back there painted
+ * the same picture three times in one row at three sizes, reported as "way too
+ * much repetition of the same damn image".
+ *
+ * So /featured asks for the override only, and falls through to the hub's mark
+ * when there isn't one. Two callers, two different questions, rather than one
+ * function quietly answering the wrong one.
+ */
+export function getHubBackdropOverride(slug: string): HubBackdrop | null {
+  const brand = (localVideos as any[]).find(
+    (d) => d._type === 'featuredBrand' && d.slug?.current === slug,
+  );
+  const override = (brand?.backdrops ?? []).find(Boolean);
+  return override ? { kind: 'sanity', ref: override } : null;
+}
+
+/**
  * The single image behind a hub, or null if it has none yet.
  *
  *   1. `backdrops[0]` — an explicit override, for when the key art does not

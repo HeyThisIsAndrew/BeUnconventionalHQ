@@ -1,6 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { getFeaturedBrandsLocal, getHubBackdrop, urlFor, HUB_CATEGORY_LABELS } from '../../lib/local-content';
+import { getFeaturedBrandsLocal, getHubBackdropOverride, urlFor, HUB_CATEGORY_LABELS } from '../../lib/local-content';
 import { parseVideoId } from '../../lib/platforms/youtube';
 
 /*
@@ -525,7 +525,7 @@ ${activeFonts
                     <div class="info-panels-wrapper">
                       {categoryBrands.map((brand: Brand, bIndex: number) => {
                         const meta = metaFor(brand);
-                        const backdrop = getHubBackdrop(brand.slug?.current ?? '');
+                        const backdrop = getHubBackdropOverride(brand.slug?.current ?? '');
                         /*
                           THE MARK IS THE ART ON THIS SIDE.
 
@@ -622,13 +622,14 @@ ${activeFonts
                                     <iframe
                                       class="brand-stage-iframe"
                                       src="about:blank"
-                                      data-src={`https://www.youtube-nocookie.com/embed/${trailerId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&disablekb=1&iv_load_policy=3&enablejsapi=0`}
+                                      data-src={`https://www.youtube-nocookie.com/embed/${trailerId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&disablekb=1&iv_load_policy=3&cc_load_policy=0&enablejsapi=0`}
                                       title=""
                                       aria-hidden="true"
                                       tabindex="-1"
                                       loading="lazy"
                                       allow="autoplay; encrypted-media"
                                     ></iframe>
+                                    <span class="brand-stage-frame" aria-hidden="true"></span>
                                   </div>
                                 )}
                               </div>
@@ -1532,7 +1533,13 @@ ${activeFonts
                 z-index 0s;
     background: #111;
     cursor: pointer;
-    border: 1px solid rgba(255,255,255,0.1);
+    /*
+      No hairline border. "All large elements should feather and blend" — a
+      1px light rule is the single most literal way to draw a box's outline,
+      and it was doing that against a panel with no hard edges left on it. The
+      soft ambient shadow below carries the separation instead.
+    */
+    border: none;
   }
 
   .deck-card.active {
@@ -1928,18 +1935,8 @@ ${activeFonts
     background-repeat: no-repeat;
     filter: blur(10px) saturate(1.08);
     -webkit-filter: blur(10px) saturate(1.08);
-    will-change: transform;
-    animation: backdropDrift 38s ease-in-out infinite alternate;
   }
 
-  /*
-    Amplitude cut from 1.07 to 1.035. The drift is meant to keep the panel from
-    reading as a flat colour field, not to be a move you can watch; the wider
-    travel was also what pumped bright artwork through the edge strips fast
-    enough to be read as a growing leak.
-  */
-  @keyframes backdropDrift {
-    from { transform: scale(1); }
     to { transform: scale(1.035); }
   }
 
@@ -1993,11 +1990,22 @@ ${activeFonts
 
      Nothing in here clips (HARD RULE 3) — see the note in the markup.
      ══════════════════════════════════════════════════════════════════════ */
+  /*
+    ALIGNED WITH THE POSTER, NOT WITH THE ROW.
+
+    Reported as "not in-line", and it was: the deck column is a flex column
+    holding the stack AND the 90px nav rail (plus its 1rem margin), so the
+    poster centres in the space ABOVE the rail while this side centred in the
+    whole row. The two large objects sat ~50px apart vertically.
+
+    Reserving the same strip here puts both in the same band. One number, in
+    one place, so they cannot drift apart again.
+  */
   .brand-stage {
     position: absolute;
     top: 0;
     right: 0;
-    bottom: 0;
+    bottom: calc(90px + 1rem);
     left: 8%;
     z-index: 4;
     display: flex;
@@ -2052,16 +2060,66 @@ ${activeFonts
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 84%;
+    /* Was 84% and read small beside the poster. */
+    width: 100%;
     aspect-ratio: 16 / 9;
     transform: translate(-50%, -50%) scale(1.02);
     opacity: 0;
     transition: opacity 1.1s ease, transform 1.1s cubic-bezier(0.2, 0.8, 0.2, 1);
-    box-shadow: 0 30px 80px rgba(0,0,0,0.85);
     /*
-      NO `overflow: hidden`, and no border-radius that would need one.
-      HARD RULE 3.
+      NO box-shadow. A drop shadow draws the box's outline, which is the
+      opposite of blending it in — and NO `overflow: hidden` or border-radius
+      that would need one. HARD RULE 3.
     */
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     THE FEATHERED FRAME — and the reason YouTube's UI can never show.
+
+     Two jobs, one element, and they want the same shape.
+
+     BLENDING. The trailer was a hard-edged rectangle sitting on a soft panel,
+     which is what made it read as pasted on. The sides and corners fade to the
+     page's own black over a wide band, so the picture emerges rather than
+     starting.
+
+     THE CHROME. `modestbranding` does not remove the wordmark any more, and
+     captions come from the VIEWER's account preference — no player parameter
+     can be relied on to suppress them (the screenshot that prompted this
+     showed "Beautiful face" burnt across the bottom of the frame). Chasing
+     them with `cc_load_policy` is a request, not a guarantee.
+
+     So the top and bottom bands are FULLY OPAQUE for the first ~17%, which is
+     where every piece of YouTube's UI lives: the title bar and gradient at the
+     top, the caption track and the watch-on-YouTube button at the bottom. It is
+     paint over the frame, not a setting we hope the player honours, so it
+     cannot silently stop working. A 16:9 source loses a little top and bottom
+     to it and reads as a 'scope crop, which is the right look here anyway.
+
+     Pointer events are off across the whole stage, so hover chrome never
+     arrives in the first place — this covers what autoplay puts up by itself.
+     ══════════════════════════════════════════════════════════════════════ */
+  .brand-stage-frame {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background:
+      /* top: opaque over the title bar, then a long fade */
+      linear-gradient(to bottom,
+        rgba(5,5,5,1) 0%, rgba(5,5,5,1) 17%, rgba(5,5,5,0.86) 23%,
+        rgba(5,5,5,0.55) 30%, rgba(5,5,5,0.24) 37%, rgba(5,5,5,0) 45%),
+      /* bottom: opaque over the caption track */
+      linear-gradient(to top,
+        rgba(5,5,5,1) 0%, rgba(5,5,5,1) 18%, rgba(5,5,5,0.88) 24%,
+        rgba(5,5,5,0.58) 31%, rgba(5,5,5,0.26) 38%, rgba(5,5,5,0) 46%),
+      /* sides: pure blend, no UI to hide */
+      linear-gradient(to right,
+        rgba(5,5,5,1) 0%, rgba(5,5,5,0.82) 4%, rgba(5,5,5,0.45) 9%,
+        rgba(5,5,5,0.16) 14%, rgba(5,5,5,0) 20%),
+      linear-gradient(to left,
+        rgba(5,5,5,1) 0%, rgba(5,5,5,0.82) 4%, rgba(5,5,5,0.45) 9%,
+        rgba(5,5,5,0.16) 14%, rgba(5,5,5,0) 20%);
   }
 
   .brand-stage-iframe {
@@ -2104,6 +2162,9 @@ ${activeFonts
     card it is the brand's own colour and shape, which is the point of it.
   */
   @media (max-width: 1023px), (max-height: 620px) {
+    .brand-stage {
+      bottom: 0; /* no deck rail to align to — the column is the plate here */
+    }
     .brand-stage-video {
       display: none;
     }
@@ -2114,22 +2175,12 @@ ${activeFonts
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .backdrop-plate {
-      animation: none;
-    }
-  }
 
   .trailer-fallback-img {
     width: 100%;
     height: 100%;
     border: none;
     object-fit: cover;
-    animation: slowPan 20s linear infinite alternate;
-  }
-  @keyframes slowPan {
-    0% { transform: scale(1); }
-    100% { transform: scale(1.1); }
   }
 
   .trailer-dark-overlay {
@@ -2505,31 +2556,27 @@ ${activeFonts
     transition-delay: 0.74s;
   }
 
-  /*
-     THE TRAILER BREATHES.
+  /* ══════════════════════════════════════════════════════════════════════
+     NO MOTION ON THIS SIDE OF THE ROW. NONE.
 
-     A still frame with gradients over it reads as a hero image, not a scene.
-     A very slow, very small push-in is the difference — it is the same trick
-     a documentary uses on a photograph. 32 seconds and 6% is deliberately
-     below the threshold where you notice it happening; you only notice that
-     the panel feels alive.
+     There used to be a 32s `scale(1) -> scale(1.06)` push-in on
+     .trailer-bg-wrapper, sold as a documentary-style move on a still. It was
+     the light leak — reported three times, and I twice "fixed" something else.
 
-     The move is carried on the wrapper, not the video element itself,
-     because transforming a cross-origin video frame directly is exactly the
-     kind of thing WebKit renders badly.
-  */
-  @keyframes trailerPush {
-    from {
-      transform: translateX(var(--trailer-shift, -50%)) scale(1);
-    }
-    to {
-      transform: translateX(var(--trailer-shift, -50%)) scale(1.06);
-    }
-  }
+     .trailer-bg-wrapper is the element that CLIPS. Scaling a clipping box
+     scales the clip along with it, so the wrapper's own edge crept 3% above
+     and below the panel and carried the plate's near-sharp, under-blurred
+     border out with it. The top and bottom scrims are SIBLINGS of that
+     wrapper, laid out against .large-trailer-card, so they cannot cover
+     anything that leaves the wrapper's box — and a 32s ease-in-out is exactly
+     why it "grows as I leave the page idle".
 
-  .accordion-section.expanded .brand-info-panel.active .trailer-bg-wrapper {
-    animation: trailerPush 32s ease-in-out infinite alternate;
-  }
+     A blurred plate that moves inside a clip it is also moving is not worth
+     the two bugs it caused. Everything here is static now: the drift on the
+     plate is gone, the push-in is gone, and the pan on the fallback image is
+     gone. If motion ever comes back on this side, it moves something that is
+     NOT the clip and NOT its contents.
+     ══════════════════════════════════════════════════════════════════════ */
 
   /*
      THE DECK DRIFTS AGAINST IT.
