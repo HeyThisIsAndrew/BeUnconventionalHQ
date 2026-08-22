@@ -356,25 +356,36 @@ const trailerId = parseVideoId(trailerUrl);
       fraction of the size with nothing lost. The existing Ken Burns scale
       already covers the blur's soft edge.
     */
-    filter: blur(16px) saturate(1.05);
-    -webkit-filter: blur(16px) saturate(1.05);
+    /*
+      Softer than the deck's, and LIFTED.
+
+      On /featured the backdrop sits behind a poster and must not compete with
+      it. Here it is the scene itself — there is nothing in front of it but a
+      logo and a line of type — so it is blurred less and brightened rather
+      than dimmed. Trailer stills are dark to begin with; blurring a dark image
+      and then dimming it is how this hero became a black rectangle.
+    */
+    filter: blur(12px) saturate(1.1) brightness(1.08);
+    -webkit-filter: blur(12px) saturate(1.1) brightness(1.08);
   }
 
   .hero-backdrop-layer[data-tier='chosen'],
   .hero-backdrop-layer[data-tier='hub'] {
-    filter: blur(11px) saturate(1.08);
-    -webkit-filter: blur(11px) saturate(1.08);
+    filter: blur(7px) saturate(1.15) brightness(1.16);
+    -webkit-filter: blur(7px) saturate(1.15) brightness(1.16);
   }
 
   .hero-backdrop-layer[data-tier='related'] {
-    filter: blur(22px) saturate(0.95) brightness(0.85);
-    -webkit-filter: blur(22px) saturate(0.95) brightness(0.85);
+    filter: blur(16px) saturate(1) brightness(1);
+    -webkit-filter: blur(16px) saturate(1) brightness(1);
   }
 
-  /* Right category, wrong hub — past recognition, and set back. */
+  /* Right category, wrong hub. Still past recognition — it must not read as a
+     claim of coverage — but no longer pushed so far down that it takes the
+     whole hero with it. */
   .hero-backdrop-layer[data-tier='mood'] {
-    filter: blur(38px) saturate(0.85) brightness(0.68);
-    -webkit-filter: blur(38px) saturate(0.85) brightness(0.68);
+    filter: blur(30px) saturate(0.9) brightness(0.86);
+    -webkit-filter: blur(30px) saturate(0.9) brightness(0.86);
   }
 
   .hero-backdrop-layer.active {
@@ -393,9 +404,24 @@ const trailerId = parseVideoId(trailerUrl);
     inset: 0;
     z-index: 1;
     pointer-events: none;
+    /*
+      TWO SCRIMS MULTIPLY. THESE ONES MULTIPLIED TO BLACK.
+
+      A design review called this hero "mostly empty dark space next to the
+      logo", and the backdrop gallery WAS behind it the whole time — it was
+      just unreadable. Stacked alpha compounds: at the bottom-left corner these
+      two came to 1 - (1-0.92)(1-0.88) = 0.99, and at the logo's own position
+      about 0.85. A gallery under a 99% black wash is an expensive way to draw
+      a black rectangle.
+
+      The vertical one now only does what it has to — seat the bottom edge
+      against the section below — and the horizontal one carries legibility for
+      the copy, ending sooner and softer. At the logo the pair now comes to
+      about 0.55, which is a lit scene with type on it rather than a void.
+    */
     background:
-      linear-gradient(to top, rgba(5,5,5,0.92) 0%, rgba(5,5,5,0.72) 22%, rgba(5,5,5,0.34) 48%, rgba(5,5,5,0.12) 70%, transparent 100%),
-      linear-gradient(to right, rgba(5,5,5,0.88) 0%, rgba(5,5,5,0.55) 26%, rgba(5,5,5,0.18) 52%, transparent 76%);
+      linear-gradient(to top, rgba(5,5,5,0.82) 0%, rgba(5,5,5,0.42) 18%, rgba(5,5,5,0.12) 38%, transparent 62%),
+      linear-gradient(to right, rgba(5,5,5,0.62) 0%, rgba(5,5,5,0.34) 24%, rgba(5,5,5,0.10) 46%, transparent 68%);
   }
   /* In normal flow (not absolute) so the banner GROWS with its content instead
      of overflowing upward under the fixed navbar. padding-top clears the navbar
