@@ -267,3 +267,18 @@ export function getHubBackdrops(slug: string, limit = 6): HubBackdrop[] {
 
   return out.slice(0, limit);
 }
+
+/**
+ * The four rows on /featured, and what each is called.
+ *
+ * Shared rather than declared twice, because a hub page now shows the row it
+ * was reached from — and a label that disagrees with the row you just clicked
+ * is worse than no label. Adding a hub is a data change; adding a CATEGORY is
+ * a design decision, which is why this stays in code.
+ */
+export const HUB_CATEGORY_LABELS: Record<string, string> = {
+  universes: 'The Multiverse',
+  streaming: 'Streamers',
+  studios: 'Studios',
+  gaming: 'Gaming',
+};

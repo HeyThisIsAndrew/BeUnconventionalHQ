@@ -1,6 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { getFeaturedBrandsLocal, getHubBackdrops, urlFor } from '../../lib/local-content';
+import { getFeaturedBrandsLocal, getHubBackdrops, urlFor, HUB_CATEGORY_LABELS } from '../../lib/local-content';
 
 /*
   `featuredBrand` docs are read out of src/data/videos.json, which is a frozen
@@ -47,12 +47,7 @@ const brands: Brand[] = getFeaturedBrandsLocal();
   do. The label and ordering below stay here on purpose: adding a hub is a
   data change, adding a CATEGORY is a design decision.
 */
-const categoryLabels: Record<string, string> = {
-  'universes': 'The Multiverse',
-  'streaming': 'Streamers',
-  'studios': 'Studios',
-  'gaming': 'Gaming'
-};
+const categoryLabels = HUB_CATEGORY_LABELS;
 
 const groupedBrands = brands.reduce((acc: Record<string, Brand[]>, brand: Brand) => {
   const category = brand.hubCategory || 'other';
