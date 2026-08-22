@@ -174,5 +174,51 @@ test("the player is cropped past its own chrome, without transforming the iframe
   assert.doesNotMatch(decl, /transform:/, 'do not transform a cross-origin iframe');
 });
 
+test('backdrops are always the small source, because they are always blurred', () => {
+  /*
+    A blurred layer cannot show detail, so a 1280x720 still behind it is weight
+    with no payoff — about 150kB each against 10kB for YouTube's 320x180
+    `mqdefault`. Six stills go from nearly a megabyte to about 60kB, which is
+    most of what made the phone layout slow.
+  */
+  const lib = readFileSync(join(here, '..', 'src', 'lib', 'local-content.ts'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+
+  assert.match(lib, /function smallThumb/, 'thumbnails must be downgraded to the small variant');
+  assert.match(lib, /mqdefault/, 'mqdefault is the only small 16:9 YouTube still');
+  assert.doesNotMatch(
+    lib,
+    /'\/(hqdefault|sddefault)\.jpg'/,
+    'hqdefault and sddefault are 4:3 and arrive pillarboxed',
+  );
+
+  // Every layer carries its tier, and every tier is blurred.
+  assert.match(src, /data-tier=\{b\.tier\}/, 'each layer must declare its tier');
+  for (const tier of ['chosen', 'hub', 'related', 'mood']) {
+    assert.ok(
+      src.includes(`data-tier='${tier}'`) || tier === 'chosen' || tier === 'hub',
+      `${tier} needs its own blur`,
+    );
+  }
+  assert.match(src, /filter: blur\(/, 'the backdrop must be blurred');
+});
+
+test('borrowed footage is blurred harder than the hub\'s own', () => {
+  // A gaming still behind PlayStation is a better ground than an empty box, but
+  // it is not that hub's coverage and must never read as a claim that it is.
+  const blurOf = (selector) => {
+    const i = src.indexOf(selector);
+    assert.ok(i > -1, `${selector} rule is missing`);
+    const decl = src.slice(i, src.indexOf('}', i));
+    const m = /filter: blur\((\d+)px\)/.exec(decl);
+    assert.ok(m, `${selector} must set a blur radius`);
+    return Number(m[1]);
+  };
+  const own = blurOf(".backdrop-layer[data-tier='hub']");
+  const mood = blurOf(".backdrop-layer[data-tier='mood']");
+  assert.ok(mood > own * 2, `mood (${mood}px) must be far softer than hub (${own}px)`);
+});
+
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
 process.exit(failed === 0 ? 0 : 1);
