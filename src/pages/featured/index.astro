@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { getFeaturedBrandsLocal, getHubBackdrop, urlFor, HUB_CATEGORY_LABELS } from '../../lib/local-content';
+import { parseVideoId } from '../../lib/platforms/youtube';
 
 /*
   `featuredBrand` docs are read out of src/data/videos.json, which is a frozen
@@ -141,6 +142,42 @@ const DEMO_FONTS: DemoFont[] = [
   // Unbounded: contemporary streaming-brand display, wide and geometric.
   { id: 'unbounded', short: 'Unbounded', label: 'UNBOUNDED (Modern Streamer)',
     family: 'Unbounded:wght@800', stack: "'Unbounded', sans-serif", weight: 800, tracking: '-0.02em' },
+
+  // ── Second batch, added because picking one from eight was still a
+  //    coin-toss. These widen the RANGE rather than the count: each is a
+  //    different answer to "what kind of brand is this", not another
+  //    heavy grotesque.
+  // Teko: very tall, very condensed, near-zero sidebearings. Sports-broadcast
+  // and trailer-title energy; fits the longest category name on one line at a
+  // size no other face here survives.
+  { id: 'teko', short: 'Teko', label: 'TEKO (Broadcast Condensed)',
+    family: 'Teko:wght@600', stack: "'Teko', sans-serif", weight: 600, tracking: '0.03em' },
+  // Michroma: wide, square, monospaced feel. The streaming-service wordmark
+  // look — closest thing on Google Fonts to a modern platform logotype.
+  { id: 'michroma', short: 'Michroma', label: 'MICHROMA (Platform Wordmark)',
+    family: 'Michroma', stack: "'Michroma', sans-serif", weight: 400, tracking: '0.02em' },
+  // Orbitron: overt sci-fi geometry. Right for gaming and franchise rows,
+  // conspicuously wrong for a prestige-studio row — which is useful to see.
+  { id: 'orbitron', short: 'Orbitron', label: 'ORBITRON (Sci-Fi Geometric)',
+    family: 'Orbitron:wght@700', stack: "'Orbitron', sans-serif", weight: 700, tracking: '0.02em' },
+  // Saira Condensed: condensed without Teko's extreme height. The safe pick
+  // if Anton reads too blunt and Bebas too thin.
+  { id: 'saira', short: 'Saira Cond', label: 'SAIRA CONDENSED (Neutral Condensed)',
+    family: 'Saira+Condensed:wght@700', stack: "'Saira Condensed', sans-serif", weight: 700, tracking: '0.02em' },
+  // Playfair Display: high-contrast serif. A second prestige option beside
+  // Cinzel, and a much less costumed one — Cinzel reads Roman, this reads
+  // editorial.
+  { id: 'playfair', short: 'Playfair', label: 'PLAYFAIR DISPLAY (Editorial Serif)',
+    family: 'Playfair+Display:wght@800', stack: "'Playfair Display', serif", weight: 800, tracking: '0.01em' },
+  // Sora: contemporary geometric sans, quieter than all of the above. The
+  // control condition — if the page looks better with this, the headings
+  // should not be a display face at all.
+  { id: 'sora', short: 'Sora', label: 'SORA (Modern Neutral)',
+    family: 'Sora:wght@700', stack: "'Sora', sans-serif", weight: 700, tracking: '0.04em' },
+  // Russo One: heavy squared-off, motorsport/action-poster. Loud, and the
+  // only face here with genuinely square counters.
+  { id: 'russo', short: 'Russo One', label: 'RUSSO ONE (Squared Heavy)',
+    family: 'Russo+One', stack: "'Russo One', sans-serif", weight: 400, tracking: '0.03em' },
 
   /*
     GOTHAM STAND-INS.
@@ -489,43 +526,112 @@ ${activeFonts
                       {categoryBrands.map((brand: Brand, bIndex: number) => {
                         const meta = metaFor(brand);
                         const backdrop = getHubBackdrop(brand.slug?.current ?? '');
+                        /*
+                          THE MARK IS THE ART ON THIS SIDE.
+
+                          Reported: "way too much repetition of the same damn
+                          image". It was literal — `heroImage` was painted
+                          three times in one row: full size on the deck card,
+                          again in the nav rail thumbnail, and a third time
+                          blown up and blurred as this panel's backdrop. On a
+                          hub with one asset the whole row was that one still.
+
+                          So the right-hand side is built from the hub's OTHER
+                          asset, its logo. Blown up past the panel and blurred
+                          into a coloured haze it is a texture, not a second
+                          reading of the same photo; the same file sits crisp
+                          and large in front of it as the panel's actual
+                          subject. A supplied `backdrops[0]` override still
+                          wins, because that is an image chosen for this job.
+                        */
+                        const markUrl = brand.logo
+                          ? urlFor(brand.logo).height(540).auto('format').url()
+                          : null;
+                        const ghostUrl = brand.logo
+                          ? urlFor(brand.logo).height(300).auto('format').url()
+                          : null;
+                        /* HARD RULE: ids come from parseVideoId(), never inline regex. */
+                        const trailerId = parseVideoId(brand.trailerUrl);
 
                         return (
                           <div class={`brand-info-panel ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex} style={`--brand-color: ${meta.color}; --brand-rgb: ${meta.rgb};`}>
                             <div class="large-trailer-card">
-                              
+
                               <div class="trailer-bg-wrapper">
-                                {/*
-                                  ONE IMAGE, THE HUB'S OWN, BLURRED.
-
-                                  There is no video here (see the note on
-                                  .trailer-bg-wrapper) and no longer a gallery
-                                  either — a cross-fade of six stills pulled
-                                  from tagged video thumbnails put the site
-                                  owner's face behind other people's brands.
-                                  See getHubBackdrop().
-
-                                  Deliberately small: it is blurred past any
-                                  detail, so a 640px source fills a 1000px
-                                  panel with nothing lost and a tenth of the
-                                  weight.
-                                */}
-                                {backdrop && (
+                                {backdrop ? (
+                                  /* Deliberately small: blurred past any detail,
+                                     so 640px fills a 1000px panel losing nothing
+                                     and weighing a tenth as much. */
                                   <div
                                     class="backdrop-plate"
                                     aria-hidden="true"
                                     style={`background-image: url('${urlFor(backdrop.ref).width(640).auto('format').quality(70).url()}');`}
                                   ></div>
-                                )}
-
-                                {!backdrop && (
-                                  <div class="article-thumb-fallback"></div>
-                                )}
+                                ) : ghostUrl ? (
+                                  <div
+                                    class="backdrop-plate backdrop-plate--mark"
+                                    aria-hidden="true"
+                                    style={`background-image: url('${ghostUrl}');`}
+                                  ></div>
+                                ) : null}
                               </div>
 
-                              <div class="trailer-dark-overlay"></div>
+                              {/*
+                                Brand-coloured wash. Independent of any asset,
+                                so the thirteen hubs that have neither a logo
+                                nor key art still get a lit panel rather than a
+                                black rectangle.
+                              */}
+                              <div class="stage-wash" aria-hidden="true"></div>
+
+                            <div class="trailer-dark-overlay"></div>
                               <div class="trailer-gradient-top"></div>
                               <div class="trailer-gradient-bottom"></div>
+
+                              {/*
+                                THE STAGE.
+
+                                A SIBLING of .trailer-bg-wrapper, never a child
+                                of it. That wrapper clips (it has to — the blur
+                                would otherwise show its own weak edge behind
+                                the row heading), and HARD RULE 3 forbids
+                                `overflow: hidden` on ANY ancestor of a YouTube
+                                iframe: iOS Safari renders a clipped iframe as a
+                                black box. Nothing between here and
+                                .featured-directory-page clips.
+                              */}
+                              <div class="brand-stage" data-trailer={trailerId ?? undefined}>
+                                <div class="brand-stage-mark" aria-hidden="true">
+                                  {markUrl ? (
+                                    /* HARD RULE 6: no filter on the <img>. The
+                                       glow is on the wrapper. */
+                                    <img src={markUrl} alt="" class="brand-stage-mark-img" loading="lazy" />
+                                  ) : (
+                                    <span class="brand-stage-wordmark">{brand.title}</span>
+                                  )}
+                                </div>
+
+                                {trailerId && (
+                                  /*
+                                    HARD RULE 4: the idle src is 'about:blank',
+                                    NEVER ''. An empty src resolves to the
+                                    current page and silently loads the whole
+                                    site inside the frame.
+                                  */
+                                  <div class="brand-stage-video">
+                                    <iframe
+                                      class="brand-stage-iframe"
+                                      src="about:blank"
+                                      data-src={`https://www.youtube-nocookie.com/embed/${trailerId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&disablekb=1&iv_load_policy=3&enablejsapi=0`}
+                                      title=""
+                                      aria-hidden="true"
+                                      tabindex="-1"
+                                      loading="lazy"
+                                      allow="autoplay; encrypted-media"
+                                    ></iframe>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
@@ -585,7 +691,9 @@ ${activeFonts
       osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.3);
       
       // Volume envelope
-      gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+      /* Was 0.5, which is very loud for an unprompted sound on a page nobody
+         asked to make noise. Kept, quieter — asked for explicitly. */
+      gain.gain.setValueAtTime(0.14, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
       
       osc.start();
@@ -593,6 +701,88 @@ ${activeFonts
     } catch(e) {
       // Ignore if AudioContext is not supported or locked
     }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     THE TRAILER PLAYS ONCE, IN THE OPEN ROW ONLY.
+
+     Removing the video outright was an overcorrection on my part — the ask was
+     to stop YouTube's own branding showing, not to lose the trailer. It is
+     back, with the three things that made it a problem handled in the markup
+     and the CSS above (inset rather than full-bleed, a lit mark behind it, and
+     no clipping ancestor), and the two that are timing handled here.
+
+     ONE ROW AT A TIME. Every stage that is not the active panel of the
+     expanded row is torn down, so at most one player exists on the page. A
+     collapsed row's iframe is not merely hidden, it is unloaded — an iframe
+     that is only display:none still holds its document, its script and its
+     network connections.
+
+     IT DOES NOT LOOP. Looping is what made YouTube's title bar flash back on
+     screen at every restart. It plays for its span and dissolves to the mark,
+     which is a deliberate end state rather than an absence.
+
+     Teardown is `about:blank` — HARD RULE 4 — never ''.
+     ══════════════════════════════════════════════════════════════════════ */
+  const TRAILER_LEAD_IN_MS = 1400;
+  const TRAILER_RUN_MS = 42000;
+  const stageTimers = new WeakMap<HTMLElement, number[]>();
+
+  function trailersAllowed(): boolean {
+    if (typeof window === 'undefined' || !window.matchMedia) return false;
+    /* Same cut as the CSS that hides .brand-stage-video. Kept in sync
+       deliberately: loading a player the stylesheet has hidden is the
+       expensive half of the mistake. */
+    if (!window.matchMedia('(min-width: 1024px)').matches) return false;
+    if (window.matchMedia('(max-height: 620px)').matches) return false;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+    const conn = (navigator as unknown as { connection?: { saveData?: boolean } }).connection;
+    if (conn && conn.saveData) return false;
+    return true;
+  }
+
+  function clearStageTimers(stage: HTMLElement) {
+    const timers = stageTimers.get(stage);
+    if (timers) timers.forEach((t) => window.clearTimeout(t));
+    stageTimers.set(stage, []);
+  }
+
+  function teardownStage(stage: HTMLElement) {
+    clearStageTimers(stage);
+    stage.classList.remove('is-playing');
+    const frame = stage.querySelector<HTMLIFrameElement>('.brand-stage-iframe');
+    /* HARD RULE 4: 'about:blank', never ''. */
+    if (frame && frame.src !== 'about:blank') frame.src = 'about:blank';
+  }
+
+  function armStage(stage: HTMLElement) {
+    const frame = stage.querySelector<HTMLIFrameElement>('.brand-stage-iframe');
+    const src = frame?.dataset.src;
+    if (!frame || !src) return;
+    if (frame.src === src) return; // already running
+    clearStageTimers(stage);
+    const timers: number[] = [];
+    timers.push(window.setTimeout(() => {
+      frame.src = src;
+      stage.classList.add('is-playing');
+      timers.push(window.setTimeout(() => teardownStage(stage), TRAILER_RUN_MS));
+    }, TRAILER_LEAD_IN_MS));
+    stageTimers.set(stage, timers);
+  }
+
+  function syncTrailers() {
+    const allowed = trailersAllowed();
+    document.querySelectorAll<HTMLElement>('.brand-stage').forEach((stage) => {
+      const panel = stage.closest<HTMLElement>('.brand-info-panel');
+      const section = stage.closest<HTMLElement>('.accordion-section');
+      const live =
+        allowed &&
+        !!stage.dataset.trailer &&
+        !!panel?.classList.contains('active') &&
+        !!section?.classList.contains('expanded');
+      if (live) armStage(stage);
+      else teardownStage(stage);
+    });
   }
 
   function initAccordionAndDecks() {
@@ -618,6 +808,8 @@ ${activeFonts
             s.querySelector('.accordion-header')
               ?.setAttribute('aria-expanded', s === section ? 'true' : 'false');
           }
+
+          syncTrailers();
 
         });
       }
@@ -667,6 +859,7 @@ ${activeFonts
             
           }
         });
+        syncTrailers();
       }
 
       // Deck Stack Clicks & Parallax
@@ -1739,9 +1932,186 @@ ${activeFonts
     animation: backdropDrift 38s ease-in-out infinite alternate;
   }
 
+  /*
+    Amplitude cut from 1.07 to 1.035. The drift is meant to keep the panel from
+    reading as a flat colour field, not to be a move you can watch; the wider
+    travel was also what pumped bright artwork through the edge strips fast
+    enough to be read as a growing leak.
+  */
   @keyframes backdropDrift {
     from { transform: scale(1); }
-    to { transform: scale(1.07); }
+    to { transform: scale(1.035); }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     THE GHOST MARK
+
+     The same logo that sits crisp on the stage, blown up past the panel and
+     blurred into a coloured haze. `contain`, not `cover`: a logo is a shape on
+     transparency and cover would crop it to an unreadable corner. Brightened
+     because a 26px blur over black loses most of its luminance, and tinted by
+     the brand's own colour so a monochrome wordmark still lights the panel.
+     ══════════════════════════════════════════════════════════════════════ */
+  .backdrop-plate--mark {
+    inset: -30%;
+    background-size: contain;
+    background-position: 58% 50%;
+    filter: blur(26px) saturate(1.4) brightness(1.45);
+    -webkit-filter: blur(26px) saturate(1.4) brightness(1.45);
+    opacity: 0.55;
+  }
+
+  /*
+    Lit without needing a single asset. The thirteen hubs that have no logo and
+    no key art get this and the wordmark, which is a designed empty state
+    rather than a black rectangle.
+  */
+  .stage-wash {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background:
+      radial-gradient(115% 85% at 72% 42%,
+        rgba(var(--brand-rgb, 204,0,0), 0.20) 0%,
+        rgba(var(--brand-rgb, 204,0,0), 0.10) 34%,
+        rgba(var(--brand-rgb, 204,0,0), 0.03) 58%,
+        transparent 78%);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     THE STAGE
+
+     What the right-hand half of an open row is FOR. It was a blurred photo and
+     nothing else, which read — accurately — as unfinished.
+
+     Two layers. The mark is always there, large, and is the whole subject on a
+     hub with no trailer. Where a hub has one, the trailer fades in over the
+     mark, plays ONCE, and dissolves back to it; the mark is what the panel
+     rests on before the video arrives and after it finishes, so the surface is
+     never empty and never loops YouTube's chrome back on screen.
+
+     Nothing in here clips (HARD RULE 3) — see the note in the markup.
+     ══════════════════════════════════════════════════════════════════════ */
+  .brand-stage {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 8%;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .brand-stage-mark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 74%;
+    max-width: 620px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* HARD RULE 6: the glow lives on the wrapper, never on the <img>. */
+    filter: drop-shadow(0 0 42px rgba(var(--brand-rgb, 204,0,0), 0.42))
+            drop-shadow(0 18px 44px rgba(0,0,0,0.8));
+    transition: opacity 0.9s ease, transform 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+    opacity: 0.96;
+  }
+
+  .brand-stage-mark-img {
+    width: 100%;
+    height: auto;
+    max-height: 46vh;
+    object-fit: contain;
+  }
+
+  .brand-stage-wordmark {
+    font-family: var(--font-display, 'Montserrat', sans-serif);
+    font-size: clamp(1.6rem, 3.4vw, 3.2rem);
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-align: center;
+    color: rgba(255,255,255,0.9);
+    line-height: 1.15;
+  }
+
+  /*
+    The trailer sits INSET, not full-bleed. Full-bleed is what put YouTube's
+    centred play overlay and its auto-captions in the middle of the panel with
+    no crop able to reach them; held to 84% with the mark still lit behind it,
+    the frame reads as a plate on the stage and its own chrome lands inside a
+    smaller, darker box.
+  */
+  .brand-stage-video {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 84%;
+    aspect-ratio: 16 / 9;
+    transform: translate(-50%, -50%) scale(1.02);
+    opacity: 0;
+    transition: opacity 1.1s ease, transform 1.1s cubic-bezier(0.2, 0.8, 0.2, 1);
+    box-shadow: 0 30px 80px rgba(0,0,0,0.85);
+    /*
+      NO `overflow: hidden`, and no border-radius that would need one.
+      HARD RULE 3.
+    */
+  }
+
+  .brand-stage-iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    /*
+      A frame whose document never loads — ad blocker, corporate DNS, a
+      blocked region — paints white by default, which is a white rectangle in
+      the middle of a black page. Give it the page's own black.
+    */
+    background: #050505;
+  }
+
+  /* Playing: video up, mark down but not out — it is the glow behind it. */
+  .brand-stage.is-playing .brand-stage-video {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  .brand-stage.is-playing .brand-stage-mark {
+    opacity: 0.3;
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .brand-stage-mark,
+    .brand-stage-video {
+      transition: none;
+    }
+  }
+
+  /*
+    PHONES AND SHORT VIEWPORTS GET NO TRAILER.
+
+    The whole info column is the full-bleed plate behind the deck at these
+    sizes (see the compact layout below), so a video here would play under the
+    poster where it cannot be seen, having cost ~900kB of player script on the
+    connection least able to afford it. The mark stays: blurred behind the
+    card it is the brand's own colour and shape, which is the point of it.
+  */
+  @media (max-width: 1023px), (max-height: 620px) {
+    .brand-stage-video {
+      display: none;
+    }
+    .brand-stage-mark {
+      width: 88%;
+      opacity: 0.5;
+      filter: blur(2px) drop-shadow(0 0 40px rgba(var(--brand-rgb, 204,0,0), 0.34));
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1799,13 +2169,35 @@ ${activeFonts
     and a clean edge at the top of the row reads as a letterbox bar. This
     puts the fade back as paint.
   */
+  /* ══════════════════════════════════════════════════════════════════════
+     THE EDGE SCRIMS REACH ALPHA 1, AND HOLD IT.
+
+     Reported as "visible light leaks above and below the main image… the leak
+     grows as I leave the page idle". Both halves of that are one bug.
+
+     These two scrims used to top out at rgba(5,5,5,0.95), so five per cent of
+     the plate was showing at the panel's extreme top and bottom edge — a
+     hard-edged bright line, because a gradient that starts at 0.95 has nothing
+     to fade FROM. And it appeared to grow, because it does change: the plate
+     drifts, so different parts of the artwork slide through that few-pixel
+     strip and a bokeh highlight passing through it is much brighter than the
+     shadow that was there before. Nothing was expanding — the strip was
+     sampling a moving image.
+
+     Alpha 1 held for the first few per cent gives the fade something to start
+     from, and guarantees the extreme edge is the page's own black no matter
+     what the plate does underneath it.
+     ══════════════════════════════════════════════════════════════════════ */
   .trailer-gradient-top {
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
-    height: 22%;
-    background: linear-gradient(to bottom, rgba(5,5,5,0.95) 0%, rgba(5,5,5,0.55) 45%, transparent 100%);
+    height: 26%;
+    background: linear-gradient(to bottom,
+      rgba(5,5,5,1) 0%, rgba(5,5,5,1) 8%, rgba(5,5,5,0.92) 20%,
+      rgba(5,5,5,0.70) 38%, rgba(5,5,5,0.40) 58%, rgba(5,5,5,0.16) 78%,
+      rgba(5,5,5,0) 100%);
     z-index: 3;
     pointer-events: none;
   }
@@ -1816,7 +2208,10 @@ ${activeFonts
     left: 0;
     right: 0;
     height: 60%;
-    background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 40%, transparent 100%);
+    background: linear-gradient(to top,
+      rgba(5,5,5,1) 0%, rgba(5,5,5,1) 4%, rgba(5,5,5,0.92) 14%,
+      rgba(5,5,5,0.74) 30%, rgba(5,5,5,0.50) 50%, rgba(5,5,5,0.26) 70%,
+      rgba(5,5,5,0.08) 87%, rgba(5,5,5,0) 100%);
     z-index: 3;
     /*
       This scrim is a VERTICAL gradient across the panel's full width, so its
