@@ -21,6 +21,23 @@
   row by row across the spread — and a full-height feature image sits between
   the rails, so nobody does that.
 
+  IT ALSO BROKE THE STACKED VIEWS, WHICH IS THE STRONGER ARGUMENT
+
+  Below 1100px the three-column spread collapses: the feature moves to the
+  top and the two rails stack, left rail then right rail, one above the
+  other. There is no "read across" interpretation available there at all —
+  it is a single vertical list.
+
+  Alternating therefore rendered phones and tablets as 1st, 3rd, 5th, then
+  2nd, 4th, 6th: unambiguously wrong, not a matter of reading model.
+  Sequential halves make the stacked list simply 1..6.
+
+  Measured on the built page: at 1440px the left column descends, the right
+  column descends, and the bottom of the left hands over to the top of the
+  right still going downward — one continuous sequence read column by column,
+  which is how flanking rails read when a 720px feature image sits between
+  them. At 900px and 390px the stacked list reads 1..6 straight through.
+
   WHY THIS IS A STATIC CHECK
 
   The ordering is correct in the data, correct in `getAllArticles()`, and
