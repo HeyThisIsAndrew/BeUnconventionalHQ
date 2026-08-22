@@ -190,3 +190,95 @@ export function getFeaturedBrandsLocal(): any[] {
     .map(withImageDimensions)
     .sort((a, b) => String(a.title ?? '').localeCompare(String(b.title ?? '')));
 }
+
+/**
+ * The still images a hub can use as its backdrop, best source first.
+ *
+ * The /featured deck used to put a live YouTube embed behind the artwork on
+ * every screen. Two problems with that, and neither is fixable by configuring
+ * the embed: YouTube's own chrome (the wordmark, the title overlay, the
+ * paused and end-of-video states) is not reliably suppressible — `modestbranding`
+ * no longer removes the logo and `rel=0` no longer removes related videos —
+ * and the player is roughly 900kB of JavaScript, which is most of why the page
+ * felt slow on a phone.
+ *
+ * So the backdrop is stills, and the video is an enhancement layered over them
+ * where there is the bandwidth for it.
+ *
+ * Sources, in order:
+ *
+ *   1. `backdrops` on the hub — an explicit, editor-chosen set. Anything here
+ *      wins outright, because someone picked it.
+ *   2. Thumbnails of the videos tagged to this hub, newest first. Free, already
+ *      in the store, and they stay current on their own as the YouTube sync
+ *      tags new videos — which is the same "coverage" relationship the hub page
+ *      already renders.
+ *   3. The hub's `heroImage`, so a hub with one image still gets a backdrop
+ *      rather than falling back to flat black.
+ *
+ * Returns a mix of Sanity image refs (pass through `urlFor`) and absolute URLs
+ * (use directly); each entry says which it is.
+ */
+export type HubBackdrop = { kind: 'sanity'; ref: any } | { kind: 'url'; url: string };
+
+export function getHubBackdrops(slug: string, limit = 6): HubBackdrop[] {
+  const out: HubBackdrop[] = [];
+  const seen = new Set<string>();
+
+  const brand = (localVideos as any[]).find(
+    (d) => d._type === 'featuredBrand' && d.slug?.current === slug,
+  );
+
+  const pushSanity = (ref: any) => {
+    if (!ref) return;
+    const key = JSON.stringify(ref?.asset?._ref ?? ref);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ kind: 'sanity', ref });
+  };
+
+  for (const ref of (brand?.backdrops ?? []) as any[]) pushSanity(ref);
+
+  if (out.length < limit) {
+    const tagged = (localVideos as any[])
+      .filter(
+        (d) =>
+          (d._type === 'video' || d._type === 'short' || d._type === 'live') &&
+          Array.isArray(d.hubs) &&
+          d.hubs.includes(slug) &&
+          d.thumbnailUrl,
+      )
+      /*
+        Newest first. A backdrop that leads with two-year-old coverage reads as
+        a dormant hub even when the hub is active.
+      */
+      .sort((a, b) => String(b.publishedAt ?? '').localeCompare(String(a.publishedAt ?? '')));
+
+    for (const doc of tagged) {
+      if (out.length >= limit) break;
+      const url = String(doc.thumbnailUrl);
+      if (seen.has(url)) continue;
+      seen.add(url);
+      out.push({ kind: 'url', url });
+    }
+  }
+
+  if (out.length === 0) pushSanity(brand?.heroImage);
+
+  return out.slice(0, limit);
+}
+
+/**
+ * The four rows on /featured, and what each is called.
+ *
+ * Shared rather than declared twice, because a hub page now shows the row it
+ * was reached from — and a label that disagrees with the row you just clicked
+ * is worse than no label. Adding a hub is a data change; adding a CATEGORY is
+ * a design decision, which is why this stays in code.
+ */
+export const HUB_CATEGORY_LABELS: Record<string, string> = {
+  universes: 'The Multiverse',
+  streaming: 'Streamers',
+  studios: 'Studios',
+  gaming: 'Gaming',
+};
