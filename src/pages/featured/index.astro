@@ -268,11 +268,6 @@ ${activeFonts
   )
   .join('\n')}`;
 
-function extractYoutubeId(url: string) {
-  if (!url) return null;
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:.*v=|.*\/))([^"&?\s]{11})/);
-  return match ? match[1] : null;
-}
 ---
 
 <Layout
@@ -286,7 +281,6 @@ function extractYoutubeId(url: string) {
   preconnect={[
     "https://cdn.sanity.io",
     "https://i.ytimg.com",
-    "https://www.youtube-nocookie.com",
   ]}
 >
   {/* Discovered by the preload scanner, alongside the preconnect above — see
@@ -493,10 +487,6 @@ function extractYoutubeId(url: string) {
                   <div class="info-column">
                     <div class="info-panels-wrapper">
                       {categoryBrands.map((brand: Brand, bIndex: number) => {
-                        const ytId = extractYoutubeId(brand.trailerUrl || '');
-                        /* No `loop`/`playlist`: the player is stopped before it would reach the end
-                           (see TRAILER_RUN_MS), so looping only risks the chrome it exists to avoid. */
-                        const ytSrc = ytId ? `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&controls=0&disablekb=1&playsinline=1&fs=0&iv_load_policy=3&modestbranding=1&showinfo=0&rel=0` : null;
                         const meta = metaFor(brand);
                         const backdrops = getHubBackdrops(brand.slug?.current ?? '');
 
@@ -506,22 +496,20 @@ function extractYoutubeId(url: string) {
                               
                               <div class="trailer-bg-wrapper">
                                 {/*
-                                  THE BACKDROP IS STILLS. THE VIDEO IS AN EXTRA.
+                                  THE BACKDROP IS STILLS. THERE IS NO VIDEO.
 
-                                  Both live in this one box so they share its
-                                  mask, its size and its slow push-in — the
-                                  video fades in ON TOP of the gallery rather
-                                  than replacing it, and on a phone it simply
-                                  never loads (see the compact guard in the
-                                  script) and the gallery is the whole backdrop.
+                                  A YouTube embed used to play over these on
+                                  desktop. It is gone — see the note on
+                                  .trailer-bg-wrapper. The stills are the whole
+                                  backdrop at every size now.
 
-                                  Only the first frame carries a real `src`;
-                                  the rest are hydrated when their panel becomes
-                                  the active one. Fifteen hubs at six stills
-                                  each is ninety images, and `loading="lazy"` is
-                                  not a reliable guard when the container is
-                                  hidden with `visibility` rather than moved
-                                  off-screen.
+                                  Only the first frame carries a real
+                                  background-image; the rest are painted when
+                                  their panel becomes the active one. Fifteen
+                                  hubs at six stills each is ninety images, and
+                                  `loading="lazy"` is not a reliable guard when
+                                  the container is hidden with `visibility`
+                                  rather than moved off-screen.
                                 */}
                                 {backdrops.length > 0 && (
                                   <div class="backdrop-gallery" data-tier={backdrops[0].tier} aria-hidden="true">
@@ -572,11 +560,7 @@ function extractYoutubeId(url: string) {
                                   </div>
                                 )}
 
-                                {ytSrc && (
-                                  <iframe class="trailer-iframe" data-src={ytSrc} allow="autoplay; encrypted-media" tabindex="-1"></iframe>
-                                )}
-
-                                {backdrops.length === 0 && !ytSrc && (
+                                {backdrops.length === 0 && (
                                   <div class="article-thumb-fallback"></div>
                                 )}
                               </div>
@@ -651,75 +635,6 @@ function extractYoutubeId(url: string) {
     } catch(e) {
       // Ignore if AudioContext is not supported or locked
     }
-  }
-
-  /*
-    THE TRAILER IS A DESKTOP ENHANCEMENT.
-
-    The YouTube embed is ~900kB of player JavaScript, and on the compact
-    layout it sits BEHIND the artwork where almost none of it is legible
-    anyway — it was most of why the page felt slow on a phone. Same markup
-    either way (hard rule 7): the iframe is simply never given its src, so it
-    never makes a request, and the still gallery underneath is the backdrop.
-
-    Matched against the same query the stylesheet uses for the compact layout.
-    Keep the two in step.
-  */
-  const compactQuery = () =>
-    window.matchMedia('(max-width: 768px), (max-height: 560px)');
-
-  /*
-    THE TRAILER IS AN OPENING, NOT A LOOP.
-
-    Cropping the player to 132% of its box puts YouTube's corners and control
-    strip outside the frame, and for the body of the video that works. What it
-    cannot reach is the LOOP BOUNDARY: when the player restarts it re-shows its
-    title bar and play overlay across the middle of the frame for a second or
-    two, every cycle, forever. A design review caught it on video. There is no
-    embed parameter that turns that off.
-
-    So the video plays once and leaves. It fades in over the stills, runs for
-    TRAILER_RUN_MS, then dissolves back to them and unloads — before it ever
-    reaches the boundary that would show the chrome. Nothing restarts it while
-    the row stays open.
-
-    That is the better scene anyway: motion to open on, then the room settles.
-    And it ends the ongoing cost of a video element playing behind artwork
-    nobody is looking through any more.
-  */
-  const TRAILER_RUN_MS = 42000;
-
-  function unloadTrailer(iframe: HTMLIFrameElement | null | undefined) {
-    if (!iframe) return;
-    const timer = Number(iframe.dataset.stopTimer || 0);
-    if (timer) window.clearTimeout(timer);
-    delete iframe.dataset.stopTimer;
-    // NEVER `iframe.src = ''` (hard rule 4): the empty string resolves against
-    // the document URL and loads this whole page inside the frame.
-    if (iframe.src) iframe.removeAttribute('src');
-    iframe.classList.remove('is-playing');
-  }
-
-  function loadTrailer(iframe: HTMLIFrameElement | null | undefined) {
-    if (!iframe) return;
-    if (compactQuery().matches) return;
-    const lazySrc = iframe.dataset.src;
-    // Guarded on the data attribute, never falling back to '': a hub with no
-    // trailerUrl renders no data-src, and assigning '' would load this page
-    // into the iframe (hard rule 4).
-    if (!lazySrc || iframe.src) return;
-    iframe.src = lazySrc;
-    iframe.classList.add('is-playing');
-
-    const stop = window.setTimeout(() => {
-      iframe.classList.remove('is-playing');
-      // Let the dissolve finish before the frame goes, so the hand-off back to
-      // the stills is a fade rather than a cut to black.
-      window.setTimeout(() => {
-        if (iframe.src) iframe.removeAttribute('src');
-      }, 1800);
-    }, TRAILER_RUN_MS);
-    iframe.dataset.stopTimer = String(stop);
   }
 
   /*
@@ -819,11 +734,6 @@ function extractYoutubeId(url: string) {
           sections.forEach(s => {
             s.classList.remove('expanded');
             s.classList.add('collapsed');
-            const iframes = s.querySelectorAll<HTMLIFrameElement>('.trailer-iframe');
-            // NEVER `iframe.src = ''` (hard rule 4): the empty string resolves
-            // against the document URL, so it reloads this whole page inside
-            // the iframe. removeAttribute is the real unload.
-            iframes.forEach(unloadTrailer);
             stopBackdrop(s);
           });
           
@@ -835,14 +745,6 @@ function extractYoutubeId(url: string) {
           }
           startBackdrop(section);
 
-          const activeCard = section.querySelector<HTMLElement>('.deck-card.active');
-          if (activeCard) {
-             const activeIdx = activeCard.getAttribute('data-index');
-             const activePanel = section.querySelector<HTMLElement>(`.brand-info-panel[data-index="${activeIdx}"]`);
-             if (activePanel) {
-               loadTrailer(activePanel.querySelector<HTMLIFrameElement>('.trailer-iframe'));
-             }
-          }
         });
       }
 
@@ -857,37 +759,7 @@ function extractYoutubeId(url: string) {
       });
 
       if (section.classList.contains('expanded')) {
-        /*
-          THE OPENING TRAILER WAITS FOR THE PAGE TO FINISH PAINTING.
-
-          This used to assign the iframe's src during init, which pulled about
-          900kB of YouTube player JS onto the critical path and left the
-          largest image above the fold fighting it for bandwidth. The
-          Lighthouse gate caught it: /featured scored 75% with a 13.6s LCP,
-          against a 90% threshold and 95% before this page was rebuilt.
-
-          Deferring to idle (with a load-event fallback, since
-          requestIdleCallback may never fire on a busy page and is missing on
-          older Safari) takes the player off that path entirely. The trailer
-          still autoplays on its own — it just starts a beat after the artwork
-          is on screen, which is the right order anyway.
-        */
-        const startTrailer = () => {
-          loadTrailer(infoPanels[activeIndex]?.querySelector<HTMLIFrameElement>('.trailer-iframe'));
-        };
-
         startBackdrop(section);
-
-        const deferTrailer = () => {
-          if ('requestIdleCallback' in window) {
-            (window as any).requestIdleCallback(startTrailer, { timeout: 2500 });
-          } else {
-            setTimeout(startTrailer, 1200);
-          }
-        };
-
-        if (document.readyState === 'complete') deferTrailer();
-        else window.addEventListener('load', deferTrailer, { once: true });
       }
 
       function renderDeck() {
@@ -902,16 +774,13 @@ function extractYoutubeId(url: string) {
           if (navThumbs[i]) navThumbs[i].className = 'deck-nav-thumb';
           if (glowLayers[i]) glowLayers[i].className = 'ambient-glow-layer';
 
-          const iframe = infoPanels[i].querySelector<HTMLIFrameElement>('.trailer-iframe');
-
           if (i === activeIndex) {
             card.classList.add('active');
             infoPanels[i].classList.add('active');
             if (navThumbs[i]) navThumbs[i].classList.add('active');
             if (glowLayers[i]) glowLayers[i].classList.add('active');
             
-            loadTrailer(iframe);
-            
+
             // Set dynamic left row color
             const brandRgb = card.getAttribute('data-brand-rgb');
             if (brandRgb) {
@@ -926,8 +795,6 @@ function extractYoutubeId(url: string) {
               card.classList.add('hidden');
             }
             
-            // Unload inactive iframes to save memory and CPU
-            unloadTrailer(iframe);
           }
         });
 
@@ -1210,7 +1077,28 @@ function extractYoutubeId(url: string) {
     /* No overflow clip here — hard rule 3, see .featured-directory-page.
        The collapse still hides its body: .accordion-body toggles both
        opacity and visibility, which is what actually removes it. */
-    transition: flex-basis 0.7s cubic-bezier(0.25, 1, 0.5, 1);
+    /*
+      THE ROWS SNAP. THEY DO NOT ANIMATE.
+
+      This was `transition: flex-basis 0.7s`, and flex-basis is a LAYOUT
+      property — every frame of those 700ms forced a full layout and repaint of
+      the accordion, underneath a full-bleed blur, which is a repaint of an
+      expensive surface on geometry that will not hold still. Profiled at
+      412x823 with a 4x CPU throttle, opening a row ran p95 50ms with frames as
+      long as 87ms against a 16.7ms budget. Two independent review passes named
+      this animation as the bottleneck.
+
+      There is no cheap way to animate it. A height or flex animation is layout
+      by definition, and faking it with `transform: scaleY` would squash the
+      artwork rather than reveal it.
+
+      So the geometry is instant and the CHOREOGRAPHY carries the motion — the
+      artwork, the rail, the mark and the chip still arrive on their staged
+      delays (see the staging block below), and those are opacity and transform
+      only, which the compositor handles without touching layout. The row
+      changing size in one frame is not something the eye tracks; the content
+      arriving on a beat afterwards is.
+    */
     display: flex;
     flex-direction: column;
     border-bottom: 2px solid rgba(255, 255, 255, 0.15);
@@ -1972,24 +1860,34 @@ function extractYoutubeId(url: string) {
     position: absolute;
     inset: 0;
     z-index: 1;
-    transform: scale(1.14);
-    filter: blur(14px) saturate(1.05);
-    -webkit-filter: blur(14px) saturate(1.05);
+    transform: scale(1.10);
+    filter: blur(9px) saturate(1.05);
+    -webkit-filter: blur(9px) saturate(1.05);
     transition: filter 2.2s ease, transform 2.2s ease;
-    will-change: filter;
   }
 
   /* Its own coverage, or an image someone chose for it. Softened, still
      readable as a scene. */
+  /*
+    LIGHTER THAN IT WAS, BECAUSE IT IS THE WHOLE BACKDROP NOW.
+
+    These numbers were set when a video played over the top and the stills were
+    only what showed before it arrived — so they could afford to be pure
+    atmosphere. With the video gone the stills ARE the scene, and a review
+    reported them reading as "coloured light blobs" rather than as footage.
+
+    Halved, roughly. Still soft enough that the deck card in front stays the
+    only sharp thing on screen, which was always the point.
+  */
   .backdrop-gallery[data-tier='chosen'],
   .backdrop-gallery[data-tier='hub'] {
-    filter: blur(10px) saturate(1.08);
-    -webkit-filter: blur(10px) saturate(1.08);
+    filter: blur(6px) saturate(1.08);
+    -webkit-filter: blur(6px) saturate(1.08);
   }
 
   .backdrop-gallery[data-tier='related'] {
-    filter: blur(20px) saturate(0.95) brightness(0.86);
-    -webkit-filter: blur(20px) saturate(0.95) brightness(0.86);
+    filter: blur(13px) saturate(0.95) brightness(0.88);
+    -webkit-filter: blur(13px) saturate(0.95) brightness(0.88);
   }
 
   /*
@@ -2001,9 +1899,9 @@ function extractYoutubeId(url: string) {
     point of recognition and sits back further in the frame.
   */
   .backdrop-gallery[data-tier='mood'] {
-    transform: scale(1.22);
-    filter: blur(34px) saturate(0.85) brightness(0.72);
-    -webkit-filter: blur(34px) saturate(0.85) brightness(0.72);
+    transform: scale(1.16);
+    filter: blur(24px) saturate(0.85) brightness(0.76);
+    -webkit-filter: blur(24px) saturate(0.85) brightness(0.76);
   }
 
   .backdrop-layer {
@@ -2026,62 +1924,6 @@ function extractYoutubeId(url: string) {
   }
 
   .backdrop-layer.active {
-    opacity: 1;
-  }
-
-  /* ══════════════════════════════════════════════════════════════════════
-     THE VIDEO, CROPPED PAST ITS OWN CHROME
-
-     YouTube's branding cannot be turned off from an embed. `modestbranding`
-     no longer removes the wordmark and `rel=0` no longer removes related
-     videos, so the logo, the title overlay and the end-of-video state will
-     surface however the player is configured — which on a dark cinematic
-     backdrop looks exactly like what it is, an embedded YouTube player.
-
-     What CAN be done is put that chrome outside the frame. Every piece of it
-     is anchored to the PLAYER's own edges and corners, so an iframe sized
-     132% of its box with the overflow masked away shows only the middle ~76%
-     of the player: no corners, no control strip, no title bar.
-
-     132 rather than more, because the crop is toward the centre and that is
-     where a trailer's own burnt-in titling tends to sit. This is enough to
-     clear the chrome and no more.
-
-     The offset is margin, not transform: this is a cross-origin iframe and
-     the push-in is deliberately carried on the wrapper for the same reason
-     (see the trailerPush note) — WebKit renders transformed cross-origin
-     frames badly.
-  */
-  .trailer-iframe {
-    position: absolute;
-    top: 0;
-    left: 0;
-    /*
-      An iframe whose document never loads paints the UA's default canvas —
-      white — and this one is full-bleed over a dark scene. Anyone with YouTube
-      blocked (an ad blocker, a corporate network, a bad connection) would get a
-      white slab across half the row instead of the stills. Caught in a render
-      where the embed was deliberately unreachable.
-    */
-    background: #050505;
-    width: 132%;
-    height: 132%;
-    margin-top: -16%;
-    margin-left: -16%;
-    border: none;
-    z-index: 2;
-    /*
-      Arrives over the stills rather than replacing them, so the moment the
-      player becomes ready is a dissolve rather than a cut — and a blocked or
-      slow embed simply never arrives, leaving the gallery in place.
-    */
-    opacity: 0;
-    transition: opacity 1.6s ease;
-  }
-
-  /* Set by loadTrailer() while the opening is running, and removed before the
-     frame is unloaded so the hand-off back to the stills is a dissolve. */
-  .trailer-iframe.is-playing {
     opacity: 1;
   }
 
@@ -2740,11 +2582,6 @@ function extractYoutubeId(url: string) {
       mask-image: none;
     }
 
-    /* Belt and braces with the script's compact guard: even if a trailer were
-       somehow given a src here, it would not paint over the stills. */
-    .trailer-iframe {
-      display: none;
-    }
 
     .trailer-dark-overlay {
       left: 0;
