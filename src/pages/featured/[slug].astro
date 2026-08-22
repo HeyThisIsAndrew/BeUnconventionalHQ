@@ -2,7 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import { getArticleItems } from '../../lib/feed-items';
 import { getVideosUnified } from '../../lib/videos-source';
-import { getFeaturedBrandsLocal, getHubBackdrops, urlFor, HUB_CATEGORY_LABELS } from '../../lib/local-content';
+import { getFeaturedBrandsLocal, getHubBackdrop, urlFor, HUB_CATEGORY_LABELS } from '../../lib/local-content';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
 import HeroTrailer from '../../components/HeroTrailer.astro';
 import ContentCard from '../../components/ContentCard.astro';
@@ -109,25 +109,20 @@ function hexToRgbTriple(hex: string): string {
 
 const brandColor = brandHex;
 const brandRgb = hexToRgbTriple(brandHex);
-// Cap the hero at 2400px wide (retina-safe for a full-bleed banner) instead of
-// serving the raw upload, and let Sanity pick the best format.
 /*
   THE HUB PAGE OPENS ON THE SAME SCENE THE DECK CLOSED ON.
 
-  Landing here used to be a hard cut: /featured is a cross-fading backdrop with
-  the mark set into the artwork, and this page answered with one static image
-  and a paragraph of grey body copy. Same backdrop source (getHubBackdrops), so
-  a hub looks like itself in both places and the stills it gathers from its own
-  coverage serve both pages.
+  Landing here used to be a hard cut: /featured had a moving backdrop with the
+  mark set into the artwork, and this page answered with a flat image and a
+  paragraph of grey body copy. Same backdrop source as the deck now
+  (getHubBackdrop), so a hub looks like itself in both places.
 
-  The single heroUrl below stays as the first frame and as the no-JS fallback.
+  Requested at 900px because it is blurred past any detail — a bigger source
+  would be weight with nothing to show for it.
 */
-const heroBackdrops = getHubBackdrops(event.slug?.current ?? '');
+const heroBackdrop = getHubBackdrop(event.slug?.current ?? '');
 const categoryLabel = HUB_CATEGORY_LABELS[event.hubCategory ?? ''] ?? '';
 
-const heroUrl = event.heroImage
-  ? urlFor(event.heroImage).width(2400).auto('format').url()
-  : '';
 /*
   Held back to a tint rather than the brand colour at full strength: this is the
   ground a logo and a line of type sit on, and four hubs are set to pure white.
@@ -151,29 +146,22 @@ const trailerId = parseVideoId(trailerUrl);
           static; the inner layer owns the background image and the slow Ken
           Burns transform. Animating a single element caused edge slivers. */}
       <div class="event-hero-bg-wrapper">
-        {heroBackdrops.length > 1 ? (
+        {heroBackdrop ? (
           /*
-            More than one still, so it can dissolve. Each layer keeps the same
-            slow push that the single painted layer had — the motion is
-            per-frame, so a cross-fade never interrupts it mid-travel.
+            The hub's own art, blurred, with the slow push this hero has always
+            had. It used to be a cross-fade of up to six stills gathered from
+            the thumbnails of videos tagged to the hub — which meant a hub could
+            end up backed by a photograph of the site owner. See
+            getHubBackdrop().
           */
-          heroBackdrops.map((b, i) => {
-            /* Small on purpose — every layer here is blurred, so resolution
-               buys nothing. See BackdropTier in local-content.ts. */
-            const url = b.kind === 'sanity'
-              ? urlFor(b.ref).width(640).auto('format').quality(70).url()
-              : b.url;
-            return (
-              <div
-                class={`event-hero-bg-animated hero-backdrop-layer ${i === 0 ? 'active' : ''}`}
-                data-tier={b.tier}
-                data-bg={i === 0 ? undefined : url}
-                style={i === 0 ? `background-image: url('${url}');` : undefined}
-              ></div>
-            );
-          })
+          <div
+            class="event-hero-bg-animated hero-backdrop-plate"
+            style={`background-image: url('${
+              urlFor(heroBackdrop.ref).width(900).auto('format').quality(70).url()
+            }');`}
+          ></div>
         ) : (
-          <div class="event-hero-bg-animated" style={heroUrl ? `background-image: url('${heroUrl}');` : `background-image: ${fallbackGradient};`}></div>
+          <div class="event-hero-bg-animated" style={`background-image: ${fallbackGradient};`}></div>
         )}
       </div>
       <div class="event-hero-overlay flex flex-col justify-center">
@@ -340,56 +328,29 @@ const trailerId = parseVideoId(trailerUrl);
   }
 
   /*
-    STACKED STILLS, ONE VISIBLE AT A TIME.
+    THE HERO PLATE.
 
-    Same dissolve as the deck's backdrop — long and soft, so it reads as a
-    scene changing rather than a slideshow advancing. Only the layers past the
-    first carry `data-bg`; the script paints each one shortly before its cut,
-    so a visitor who reads the page and leaves has paid for one image.
+    Blurred, and OVERSCANNED past its clipping wrapper. A CSS blur goes weak at
+    its own element's edges — it mixes in the transparent pixels outside — so
+    the outermost band of a blurred element is the least blurred part of it.
+    Left flush with the box, that band is what shows behind the logo and the
+    copy. `.event-hero-bg-wrapper` already clips, so pushing the plate past it
+    puts the weak edge outside the clip where it is never seen.
+
+    Blurred less than the deck's, and brightened rather than dimmed: on
+    /featured this sits behind a poster and must not compete with it, whereas
+    here it IS the scene with only a logo and a line of type in front. Trailer
+    stills are dark to begin with, and blurring a dark image and then dimming it
+    is how this hero was once a black rectangle.
   */
-  .hero-backdrop-layer {
-    opacity: 0;
-    transition: opacity 2.2s cubic-bezier(0.4, 0, 0.2, 1);
-    /*
-      Blurred like the deck's, and for the same two reasons: the logo and the
-      copy in front need a quiet ground, and a blurred layer can be served at a
-      fraction of the size with nothing lost. The existing Ken Burns scale
-      already covers the blur's soft edge.
-    */
-    /*
-      Softer than the deck's, and LIFTED.
-
-      On /featured the backdrop sits behind a poster and must not compete with
-      it. Here it is the scene itself — there is nothing in front of it but a
-      logo and a line of type — so it is blurred less and brightened rather
-      than dimmed. Trailer stills are dark to begin with; blurring a dark image
-      and then dimming it is how this hero became a black rectangle.
-    */
-    filter: blur(12px) saturate(1.1) brightness(1.08);
-    -webkit-filter: blur(12px) saturate(1.1) brightness(1.08);
-  }
-
-  .hero-backdrop-layer[data-tier='chosen'],
-  .hero-backdrop-layer[data-tier='hub'] {
-    filter: blur(7px) saturate(1.15) brightness(1.16);
-    -webkit-filter: blur(7px) saturate(1.15) brightness(1.16);
-  }
-
-  .hero-backdrop-layer[data-tier='related'] {
-    filter: blur(16px) saturate(1) brightness(1);
-    -webkit-filter: blur(16px) saturate(1) brightness(1);
-  }
-
-  /* Right category, wrong hub. Still past recognition — it must not read as a
-     claim of coverage — but no longer pushed so far down that it takes the
-     whole hero with it. */
-  .hero-backdrop-layer[data-tier='mood'] {
-    filter: blur(30px) saturate(0.9) brightness(0.86);
-    -webkit-filter: blur(30px) saturate(0.9) brightness(0.86);
-  }
-
-  .hero-backdrop-layer.active {
-    opacity: 1;
+  .hero-backdrop-plate {
+    inset: -12%;
+    top: -12%;
+    left: -12%;
+    right: -12%;
+    bottom: -12%;
+    filter: blur(9px) saturate(1.15) brightness(1.16);
+    -webkit-filter: blur(9px) saturate(1.15) brightness(1.16);
   }
 
   /*
@@ -783,50 +744,6 @@ const trailerId = parseVideoId(trailerUrl);
     });
   }
 
-  /*
-    THE HERO BACKDROP DISSOLVES.
-
-    Same treatment as the deck on /featured, and the same restraint about
-    fetching: only the first still is painted server-side, and each later one
-    is given its background-image a full hold before its own cut. Someone who
-    reads the page and leaves has downloaded one image.
-
-    Element-level guard rather than a module flag, because ClientRouter reuses
-    this module across navigations — without it a second visit to any hub page
-    would leave two intervals racing over the same layers.
-  */
-  const HERO_HOLD_MS = 7000;
-
-  function initHeroBackdrop() {
-    const wrapper = document.querySelector<HTMLElement>('.event-hero-bg-wrapper');
-    if (!wrapper || wrapper.dataset.backdropBound === 'true') return;
-
-    const layers = Array.from(wrapper.querySelectorAll<HTMLElement>('.hero-backdrop-layer'));
-    if (layers.length < 2) return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-    wrapper.dataset.backdropBound = 'true';
-
-    const paint = (i: number) => {
-      const layer = layers[i % layers.length];
-      const url = layer?.dataset.bg;
-      if (!url) return;
-      layer.style.backgroundImage = `url('${url}')`;
-      delete layer.dataset.bg;
-    };
-
-    let index = 0;
-    paint(1);
-
-    window.setInterval(() => {
-      layers[index].classList.remove('active');
-      index = (index + 1) % layers.length;
-      layers[index].classList.add('active');
-      paint(index + 1);
-    }, HERO_HOLD_MS);
-  }
-
-  document.addEventListener('astro:page-load', initHeroBackdrop);
   document.addEventListener('astro:page-load', initEventInteractions);
 </script>
 
