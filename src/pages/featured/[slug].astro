@@ -1143,6 +1143,23 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
   .hub-stage.is-item .hub-stage-mark { opacity: 0; }
   .hub-stage.is-item .hub-stage-video { opacity: 0; }
 
+  /*
+    PLAYING BEATS EVERYTHING ELSE ON THE STAGE.
+
+    Without this the selected item's pane — its still, its title, its Play
+    button — stayed at full opacity ON TOP of the frame it had just started.
+    The video was loading and playing the whole time, behind an opaque image,
+    which from the outside is indistinguishable from the button doing nothing.
+
+    Reported as "I click it and it's not doing anything now", and my own check
+    missed it because I pressed Play without first picking a rail card, so no
+    pane was active to do the covering.
+  */
+  .hub-stage.is-playing .hub-stage-item {
+    opacity: 0;
+    visibility: hidden;
+  }
+
   .hero-trailer {
     width: 100%;
     max-width: 600px;
