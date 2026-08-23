@@ -719,39 +719,15 @@ ${activeFonts
 </Layout>
 
 <script>
-  let audioCtx: AudioContext | null = null;
-  function playCinematicThud() {
-    try {
-      // Safari still only exposes the prefixed constructor.
-      const Ctor =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!Ctor) return;
-      if (!audioCtx) audioCtx = new Ctor();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      
-      osc.type = 'sine';
-      // Deep frequency drop
-      osc.frequency.setValueAtTime(100, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.3);
-      
-      // Volume envelope
-      /* Was 0.5, which is very loud for an unprompted sound on a page nobody
-         asked to make noise. Kept, quieter — asked for explicitly. */
-      gain.gain.setValueAtTime(0.14, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-      
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.3);
-    } catch(e) {
-      // Ignore if AudioContext is not supported or locked
-    }
-  }
+  /*
+    NO SOUND ON NAVIGATION.
+
+    Opening a row, bringing a card forward and picking a nav thumbnail each
+    fired a synthesised bass thud. A design review flagged it as abrasive on a
+    control people click repeatedly, and the owner has since cut it outright.
+    The AudioContext went with it: keeping one alive to play nothing is a
+    resource the page has no use for.
+  */
 
   /* ══════════════════════════════════════════════════════════════════════
      THE TRAILER PLAYS ONCE, IN THE OPEN ROW ONLY.
@@ -969,7 +945,6 @@ ${activeFonts
         header.dataset.hasClickListener = 'true';
         header.addEventListener('click', () => {
           if (section.classList.contains('expanded')) return;
-          playCinematicThud();
           
           sections.forEach(s => {
             s.classList.remove('expanded');
@@ -1046,7 +1021,6 @@ ${activeFonts
               e.preventDefault();
               e.stopPropagation();
               activeIndex = i;
-              playCinematicThud();
               renderDeck();
               return;
             }
@@ -1169,7 +1143,6 @@ ${activeFonts
               e.preventDefault();
               e.stopPropagation();
               activeIndex = i;
-              playCinematicThud();
               renderDeck();
             }
           });
