@@ -55,6 +55,7 @@ type Doc = {
   brandColor?: { hex?: string };
   /** Which accordion row this hub appears in on /featured. */
   hubCategory?: string;
+  hidden?: boolean;
   socialLinks?: { platform: string; url: string }[];
   metrics?: {
     snapshots: { date: string; viewCount: number }[];
@@ -1498,7 +1499,21 @@ function BrandForm({
             ))}
           </select>
           <p className="text-xs text-gray-600 mt-1.5">Which row this hub appears in on /featured.</p>
+        
         </Field>
+
+        <Field label="Visibility">
+          <Toggle
+            label="Hide from the live site"
+            checked={doc.hidden || false}
+            onChange={(v) => update('hidden', v)}
+          />
+          <p className="text-xs text-gray-600 mt-1.5">
+            Hidden hubs are removed from /featured and stop generating their own
+            page in a production build. They still appear in <code>npm run dev</code>,
+            so an unfinished hub stays in front of you while you finish it. Use
+            this for hubs that have no artwork yet.
+          </p></Field>
 
         <Field label="Brand Colour">
           <div className="flex items-center gap-3">

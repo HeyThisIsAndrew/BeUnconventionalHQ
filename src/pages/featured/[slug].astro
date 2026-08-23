@@ -1523,6 +1523,13 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       Same construct as the deck rail on /featured.
     */
     function syncRailFade() {
+      /*
+        Re-checked inside, not just at the top of initHubRail. A `function`
+        declaration is hoisted, so TypeScript cannot carry the outer null guard
+        into it — the narrowing the arrow form used to get is lost the moment
+        this becomes hoistable.
+      */
+      if (!rail) return;
       const max = rail.scrollWidth - rail.clientWidth;
       const atStart = rail.scrollLeft <= 1;
       const atEnd = rail.scrollLeft >= max - 1;

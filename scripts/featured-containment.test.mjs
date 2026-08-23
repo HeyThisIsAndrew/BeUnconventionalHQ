@@ -539,6 +539,38 @@ test('the hub hero rail never cuts a card at any edge', () => {
   assert.doesNotMatch(js, /behavior: 'smooth'/, 'a smooth scroll leaves the fade computing against a stale position');
 });
 
+test('a hidden hub leaves the live site but stays visible in dev', () => {
+  /*
+    An unfinished hub should not be on the live site, but it must stay in front
+    of the person finishing it — otherwise the only way to work on one is to
+    keep toggling it back on.
+
+    EXPLICIT, not inferred from whether a hub "has content". That was the other
+    option and it is the wrong one: "no content" is ambiguous (no logo? no key
+    art? no tagged videos?) and today almost every hub has artwork pending but
+    zero tagged coverage, so an automatic rule would hide hubs that are ready.
+
+    Verified against real builds: with `hidden: true` on PlayStation, the hub
+    left /featured AND /featured/playstation stopped generating, while the
+    Gaming row survived with Nintendo and Xbox. Unsetting it restored both.
+  */
+  const lib = readFileSync(join(here, '..', 'src', 'lib', 'local-content.ts'), 'utf8');
+  const fn = lib.slice(lib.indexOf('export function getFeaturedBrandsLocal'));
+  const body = fn.slice(0, fn.indexOf('\n}'));
+  assert.match(body, /import\.meta\.env\.DEV/, 'dev must show every hub regardless of the flag');
+  assert.match(body, /d\.hidden !== true/, 'a production build must drop hidden hubs');
+
+  /*
+    An empty CATEGORY is structurally impossible, which is what makes this safe:
+    /featured derives its rows FROM the hubs (group by hubCategory, take the
+    keys), so a category whose hubs are all hidden has no key and never renders.
+  */
+  assert.match(src, /brands\.reduce/, 'rows are derived from the hubs, never a fixed list');
+  assert.match(src, /Object\.keys\(groupedBrands\)/, 'a category with no hubs has no key');
+  assert.match(src, /--rows: \$\{sortedCategories\.length\}/,
+    'the accordion must size from the rows that survive, not a constant');
+});
+
 test('the hub rail centres, and cannot strand its first thumbnail', () => {
   /*
     The rail defaulted to flex-start, so a category with two or three hubs left

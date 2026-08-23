@@ -184,9 +184,35 @@ export function getEventsLocal(): any[] {
  * Equivalent to
  * `*[_type == "featuredBrand" && defined(slug.current)] | order(title asc)`.
  */
+/*
+  HIDDEN HUBS ARE HIDDEN IN A BUILD, AND VISIBLE IN DEV.
+
+  An unfinished hub should not be on the live site, but it must stay in front of
+  the person finishing it — otherwise the only way to work on one is to keep
+  toggling it back on. So `hidden` is honoured in a production build and ignored
+  by `npm run dev`, where everything renders.
+
+  The flag is EXPLICIT rather than inferred from whether a hub "has content".
+  That was the other option and it is the wrong one: "no content" is ambiguous
+  (no logo? no key art? no tagged videos?) and today almost every hub has
+  artwork pending but zero tagged coverage, so an automatic rule would hide hubs
+  that are perfectly ready. A checkbox says exactly what it does and cannot
+  surprise anyone.
+
+  An empty CATEGORY cannot result from this. /featured derives its rows from the
+  hubs themselves — group by `hubCategory`, take the keys — so a category with
+  every hub hidden has no key and never renders, and the accordion sizes itself
+  from the row count that survives.
+
+  This also removes the hub's PAGE: [slug].astro builds its routes from this
+  same function, so a hidden hub stops generating one rather than shipping an
+  unlinked empty page.
+*/
 export function getFeaturedBrandsLocal(): any[] {
+  const showHidden = import.meta.env.DEV;
   return (localVideos as any[])
     .filter((d) => d._type === 'featuredBrand' && d.slug?.current)
+    .filter((d) => showHidden || d.hidden !== true)
     .map(withImageDimensions)
     .sort((a, b) => String(a.title ?? '').localeCompare(String(b.title ?? '')));
 }
