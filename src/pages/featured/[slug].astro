@@ -157,6 +157,16 @@ function pickHeroItems(items: any[]): any[] {
 }
 const heroItems = pickHeroItems(unifiedContent);
 
+/*
+  The stage's frame has to exist if ANYTHING can play in it, not just when the
+  hub has its own trailer. A hub with no trailerUrl but a video in its rail
+  still needs somewhere for that video to play — without this, its Play button
+  had no frame to load into and fell back to the modal.
+*/
+const hasPlayableVideo =
+  !!trailerId ||
+  heroItems.some((it: any) => it.contentType === 'video' && parseVideoId(it.link || ''));
+
 const stageMarkUrl = event.logo ? urlFor(event.logo).height(520).auto('format').url() : null;
 const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format').url() : null;
 ---
@@ -312,7 +322,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
               )}
             </div>
 
-            {trailerId && (
+            {hasPlayableVideo && (
               /*
                 HARD RULE 4: the idle src is 'about:blank', NEVER ''. An empty
                 src resolves to the current page and loads the whole site inside
@@ -330,9 +340,6 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
                   loading="lazy"
                   allow="autoplay; encrypted-media"
                 ></iframe>
-                {/* Sits on the letterbox the player already draws, so it costs
-                    no picture — see the note on .hub-stage-guard. */}
-                <span class="hub-stage-guard" aria-hidden="true"></span>
               </div>
             )}
 
@@ -359,12 +366,15 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
                     <span class="hub-stage-item-kind">{isVideo ? 'Video' : 'Article'}</span>
                     <p class="hub-stage-item-title">{item.title}</p>
                     {isVideo && vid ? (
-                      <button
-                        type="button"
-                        class="hub-stage-item-action"
-                        data-action="open-video"
-                        data-video-id={vid}
-                      >
+                      /*
+                        `data-hub-play`, NOT `data-action="open-video"`. The
+                        latter is the site's global handler and it opens the
+                        full-screen modal — which is right for a card in a feed
+                        and wrong here: this panel IS the player, so a video
+                        launching a popup out of it reads as the page losing
+                        its place. Plays in the stage instead.
+                      */
+                      <button type="button" class="hub-stage-item-action" data-hub-play={vid}>
                         Play
                       </button>
                     ) : (
@@ -852,24 +862,6 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     /* A frame whose document never loads paints WHITE by default, which is a
        white rectangle in the middle of a black page. */
     background: #050505;
-  }
-
-  /*
-    THE CAPTION GUARD. Captions follow the VIEWER's own preference and no player
-    parameter reliably suppresses them — "Beautiful face" was burnt across the
-    frame with every suppression flag already set. This is a flat bar over the
-    bottom 17%, and that band is ALREADY BLACK: these trailers are 2.39:1 inside
-    a 16:9 player, so the player letterboxes them and the caption renders in the
-    black below the picture. It covers the letterbox, not the film.
-  */
-  .hub-stage-guard {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 17%;
-    background: #050505;
-    pointer-events: none;
   }
 
   /* Playing: video up, mark down but not out — it is the glow behind it. */
@@ -1584,6 +1576,34 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
         show(i);
         bringIntoView(card);
         syncRailFade();
+      });
+    });
+
+    /*
+      PLAY IN THE STAGE, NOT IN A MODAL.
+
+      The panel is the player. Sending a click to the site's global
+      open-video handler put the video in a full-screen overlay instead,
+      which reads as the page losing its place — and it is not what the deck
+      page did either.
+
+      The hub's own trailer is torn down first: it autoplays muted as the
+      resting state, and leaving it running behind a video the visitor chose
+      would be two players at once.
+
+      `controls=1` and unmuted, unlike the resting trailer. This playback was
+      ASKED for, so the player is allowed to look like a player.
+    */
+    const frame = stage.querySelector<HTMLIFrameElement>('.hub-stage-iframe');
+    stage.querySelectorAll<HTMLElement>('[data-hub-play]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.hubPlay;
+        if (!id || !frame) return;
+        stage.classList.remove('is-item');
+        stage.classList.add('is-playing');
+        frame.src =
+          `https://www.youtube-nocookie.com/embed/${id}` +
+          '?autoplay=1&rel=0&modestbranding=1&playsinline=1';
       });
     });
   }

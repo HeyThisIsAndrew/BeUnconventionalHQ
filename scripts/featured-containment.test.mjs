@@ -539,6 +539,46 @@ test('the hub hero rail never cuts a card at any edge', () => {
   assert.doesNotMatch(js, /behavior: 'smooth'/, 'a smooth scroll leaves the fade computing against a stale position');
 });
 
+test('the hub hero plays in its own panel, never in the modal', () => {
+  /*
+    The rail's Play button used the site's global [data-action="open-video"]
+    handler, which opens the full-screen modal. Right for a card in a feed;
+    wrong here, because this panel IS the player — a video launching a popup
+    out of it reads as the page losing its place.
+
+    The coverage feed BELOW the hero still uses the modal, which is correct.
+    Only the hero's own action changed.
+
+    Verified in a browser on iPhone and desktop, across three hubs: pressing
+    Play leaves the modal closed, sets is-playing, and loads the embed into the
+    stage's own frame.
+  */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
+  const hero = hub.slice(hub.indexOf('hub-stage-item-copy'), hub.indexOf('</section>'));
+  assert.doesNotMatch(hero, /data-action="open-video"/,
+    'the hero must not hand its video to the full-screen modal');
+  assert.match(hub, /data-hub-play=/, 'the hero plays in its own stage');
+  assert.match(hub, /stage\.classList\.add\('is-playing'\)/, 'pressing play must reveal the stage frame');
+
+  /*
+    The frame must exist whenever ANYTHING can play in it, not only when the
+    hub has its own trailer — a hub with no trailerUrl but a video in its rail
+    still needs somewhere to play, and without this its Play button had no
+    frame and fell back to the modal.
+  */
+  assert.match(hub, /hasPlayableVideo/, 'the frame is gated on any playable video, not just the trailer');
+
+  /*
+    NOTHING IS PAINTED OVER THE VIDEO. The caption guard is gone: it was
+    covering picture on trailers whose letterbox it had been sized against, and
+    YouTube's own UI showing is now accepted.
+  */
+  assert.doesNotMatch(hub, /hub-stage-guard/, 'no bar may cover the picture');
+});
+
 test('a hidden hub leaves the live site but stays visible in dev', () => {
   /*
     An unfinished hub should not be on the live site, but it must stay in front
