@@ -694,6 +694,7 @@ ${activeFonts
                                       loading="lazy"
                                       allow="autoplay; encrypted-media"
                                     ></iframe>
+                                    <span class="brand-stage-guard" aria-hidden="true"></span>
                                   </div>
                                 ) : null}
                               </div>
@@ -2226,6 +2227,39 @@ ${activeFonts
      and exactly the "intentional layer" read that was asked for. A shadow
      separates a plane from its ground without touching what is on it.
      ══════════════════════════════════════════════════════════════════════ */
+
+  /* ══════════════════════════════════════════════════════════════════════
+     THE CAPTION GUARD — a bar on black, not a vignette on the picture.
+
+     Captions came back the moment the overlay came off: "Beautiful face" and
+     "Do you realize" burnt across the bottom of the frame. `cc_load_policy=0`
+     did not stop them and cannot be made to — captions follow the VIEWER's
+     own preference and the player decides, not us.
+
+     What went wrong the first time was WHERE the paint went. A gradient across
+     the whole frame dimmed the trailer itself. This is one hard-edged bar over
+     the bottom 17% only.
+
+     That band is already black. These trailers are 2.39:1 inside a 16:9
+     player, so the player letterboxes them: measured on the DC frame, the
+     picture occupies the middle ~70% and the caption sits in the black below
+     it. The bar covers the letterbox, not the film — on a 'scope trailer it is
+     invisible, and the most it can ever cost is the bottom sliver of a 16:9
+     source.
+
+     No gradient, no top bar, nothing over the picture. The title bar at the
+     top is handled by TRAILER_SETTLE_MS instead, which costs no image at all.
+     ══════════════════════════════════════════════════════════════════════ */
+  .brand-stage-guard {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 17%;
+    background: #050505;
+    z-index: 2;
+    pointer-events: none;
+  }
 
   .brand-stage-iframe,
   .brand-stage-media {

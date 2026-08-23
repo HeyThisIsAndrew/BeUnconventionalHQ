@@ -293,7 +293,23 @@ test('nothing is painted over the video, and its chrome is handled another way',
     - A self-hosted file has NO chrome at all and reports `playing`, so where
       one exists it takes priority and the reveal is exact.
   */
-  assert.doesNotMatch(src, /brand-stage-frame/, 'nothing may overlay the picture');
+  assert.doesNotMatch(src, /brand-stage-frame/, 'no gradient may overlay the picture');
+
+  /*
+    The ONE thing painted over the frame is the caption guard, and only because
+    the band it covers is already black: these trailers are 2.39:1 inside a
+    16:9 player, so the player letterboxes them and the caption track renders
+    in that black. Captions follow the viewer's own preference — no player
+    parameter stops them. A bar over the letterbox costs no picture; a gradient
+    across the frame cost all of it.
+  */
+  const guard = src.slice(src.indexOf('.brand-stage-guard {'));
+  const gdecl = guard.slice(0, guard.indexOf('  }'));
+  assert.match(gdecl, /bottom: 0/, 'the guard sits at the bottom, where captions render');
+  assert.doesNotMatch(gdecl, /linear-gradient/, 'the guard is a flat bar, never a fade');
+  const h = gdecl.match(/height: (\d+)%/);
+  assert.ok(h && Number(h[1]) >= 15 && Number(h[1]) <= 20,
+    `the guard must clear the caption track without eating the frame (got ${h && h[1]}%)`);
   const vid = src.slice(src.indexOf('.brand-stage-video {'));
   const decl = vid.slice(0, vid.indexOf('  }'));
   assert.match(decl, /box-shadow:/, 'the layer read comes from a shadow under it');
