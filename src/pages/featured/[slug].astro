@@ -1578,20 +1578,6 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       timers.push(window.setTimeout(teardown, HUB_RUN_MS));
     };
 
-    /*
-      THE TRAILER LETS GO THE MOMENT SOMETHING ELSE TAKES THE STAGE.
-
-      Its run timer ends by removing `is-playing` and blanking the frame. Once
-      the rail can REPLACE the iframe element, that timer was aimed at a node
-      no longer in the page, and the class it removed belonged to a video the
-      visitor had chosen: press play at 30s into the trailer's 42s run and the
-      picture vanished twelve seconds later for no reason anyone could see.
-    */
-    stage.addEventListener('hub:sourcechange', () => {
-      clearAll();
-      window.removeEventListener('message', onMessage);
-    });
-
     function onMessage(event: MessageEvent) {
       if (event.source !== frame!.contentWindow) return;
       let data: unknown = null;
@@ -1756,34 +1742,29 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       ASKED for, so the player is allowed to look like a player.
     */
     /*
-      ONE PRESS. IT PLAYS. IT HAS SOUND.
+      ONE PRESS, NOT TWO, AND IT HAS SOUND WHERE SOUND IS ALLOWED.
 
-      This went through two wrong shapes before this one, and both failed for
-      the same underlying reason.
+      `autoplay=1` on its own is refused by every browser's autoplay policy
+      while the video carries sound, and a refused autoplay is not a dead
+      frame: YouTube swaps to its own poster and its own red play button. So
+      the first press looked like it reloaded the player and did nothing, and
+      the video only started on a SECOND press inside somebody else's UI.
 
-      A browser's autoplay policy asks whether the frame that wants to play has
-      been interacted with. Reassigning `src` on an iframe that has sat in the
-      page since load does NOT give that frame any activation: the visitor's tap
-      happened in OUR document, and activation does not cross an origin boundary
-      on navigation. So the player came up refused, which is not a blank frame,
-      it is YouTube's poster with its own red button. On desktop the muted
-      retry rescued it. On a phone, where the policy is stricter, even the muted
-      retry was refused and the video just sat there paused. Reported from an
-      iPhone as "pressing play is not playing the video".
+      Muted autoplay is never refused. But a video the visitor PRESSED PLAY on
+      is not the resting trailer: they asked for it, and starting it silent is
+      its own bug.
 
-      A NEWLY CREATED browsing context is different: it inherits the parent's
-      sticky activation. So the press does not re-point the old frame, it builds
-      a new one and puts it in the old one's place, synchronously, inside the
-      click handler before any `await`. That is the whole fix, and it is why the
-      element is replaced rather than mutated.
+      So: ask for sound, and check. The press opens the video unmuted; if the
+      player has not reached PLAYING a moment later, the browser refused, and
+      it is reloaded muted so the press is never wasted. That answer is
+      remembered for the tab, so the second video onwards starts muted straight
+      away rather than paying the same wait again.
 
-      The muted retry stays as a floor. If a browser refuses even this, the
-      video still plays, silently, rather than showing a dead poster.
-
-      What it must never do is unmute a frame that is ALREADY running: playback
+      What it must never do is unmute a video that is ALREADY running: playback
       under the muted-autoplay allowance is paused by the browser when script
-      takes the mute away, and YouTube stalls on its spinner. That shipped once.
-      Mute is decided before the frame is built, never after.
+      takes the mute away without activation in that frame, and YouTube stalls
+      on its spinner. That shipped once. The choice is made before the frame
+      loads, never after.
     */
     const SOUND_BLOCKED_KEY = 'hub-sound-blocked';
     const soundBlocked = () => {
@@ -1800,49 +1781,13 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       `?autoplay=1&mute=${muted ? '1' : '0'}&enablejsapi=1&rel=0&modestbranding=1&playsinline=1` +
       /* `origin` is required for the jsapi handshake and is only knowable at
          runtime. Without it the player never answers, and "did it start?"
-         below could never be answered at all. */
+         below could never be answered either. */
       `&origin=${encodeURIComponent(window.location.origin)}`;
 
-    /*
-      BUILD a player, never re-point one. Must be called straight from the
-      click handler: the activation it inherits is the parent's, at that moment.
-    */
-    const mountPlayer = (id: string, muted: boolean) => {
-      const slot = stage.querySelector<HTMLElement>('.hub-stage-video');
-      const old = stage.querySelector<HTMLIFrameElement>('.hub-stage-iframe');
-      if (!slot) return null;
-      const next = document.createElement('iframe');
-      next.className = 'hub-stage-iframe';
-      next.title = '';
-      next.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
-      next.setAttribute('allowfullscreen', '');
-      /* HARD RULE 4: an empty src resolves to the current page. This one is
-         always a real embed, and teardown elsewhere uses 'about:blank'. */
-      next.src = embedUrl(id, muted);
-      if (old) old.replaceWith(next);
-      else slot.appendChild(next);
-      stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted } }));
-      return next;
-    };
-
-    /*
-      Ask the player where it is, and act on the FIRST definite answer rather
-      than waiting out a fixed timer. 1 is playing and 3 is buffering, both
-      mean the browser let it go. -1 unstarted and 2 paused after the player
-      has booted mean it was refused. A phone can take seconds to boot the
-      player, so the timeout is only a backstop for silence.
-    */
-    const startedPlaying = (f: HTMLIFrameElement, within: number) =>
+    /* 1 is PLAYING and 3 is buffering; either means the browser let it go. */
+    const didStart = (f: HTMLIFrameElement, within: number) =>
       new Promise<boolean>((resolve) => {
-        let settled = false;
-        const done = (value: boolean) => {
-          if (settled) return;
-          settled = true;
-          window.clearInterval(ping);
-          window.clearTimeout(backstop);
-          window.removeEventListener('message', onMsg);
-          resolve(value);
-        };
+        let ok = false;
         const onMsg = (ev: MessageEvent) => {
           if (ev.source !== f.contentWindow) return;
           let data: unknown = null;
@@ -1855,40 +1800,45 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
           const state = typeof info === 'object' && info !== null
             ? (info as { playerState?: number }).playerState
             : info;
-          if (state === 1 || state === 3) done(true);
-          else if (state === -1 || state === 2) done(false);
+          if (state === 1 || state === 3) ok = true;
         };
         window.addEventListener('message', onMsg);
         const ping = window.setInterval(() => {
           f.contentWindow?.postMessage('{"event":"listening"}', '*');
         }, 200);
-        const backstop = window.setTimeout(() => done(false), within);
+        window.setTimeout(() => {
+          window.clearInterval(ping);
+          window.removeEventListener('message', onMsg);
+          resolve(ok);
+        }, within);
       });
 
-    /* Presses are serialised: the retry below runs after an await, and a
+    const frame = stage.querySelector<HTMLIFrameElement>('.hub-stage-iframe');
+    /* Presses are serialised: the fallback below runs after an await, and a
        visitor who has moved on to another video must not have this one
-       rebuilt over the top of it. */
+       reloaded over the top of it. */
     let playToken = 0;
 
     stage.querySelectorAll<HTMLElement>('[data-hub-play]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.hubPlay;
-        if (!id) return;
+        if (!id || !frame) return;
         const token = ++playToken;
 
         stage.classList.remove('is-item');
         stage.classList.add('is-playing');
 
         const withSound = !soundBlocked();
-        /* SYNCHRONOUS, before any await. The activation is spent here. */
-        const player = mountPlayer(id, !withSound);
-        if (!player || !withSound) return;
+        frame.src = embedUrl(id, !withSound);
+        stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: !withSound } }));
+        if (!withSound) return;
 
-        if (await startedPlaying(player, HUB_SOUND_GRACE_MS)) return;
+        if (await didStart(frame, HUB_SOUND_GRACE_MS)) return;
         if (token !== playToken) return; // superseded while we waited
 
         rememberSoundBlocked();
-        mountPlayer(id, true);
+        frame.src = embedUrl(id, true);
+        stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: true } }));
       });
     });
   }
@@ -1917,21 +1867,14 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
   function initHubSound() {
     const stage = document.querySelector<HTMLElement>('.hub-stage');
     const button = stage?.querySelector<HTMLButtonElement>('.hub-stage-sound');
-    if (!stage || !button) return;
+    const frame = stage?.querySelector<HTMLIFrameElement>('.hub-stage-iframe');
+    if (!stage || !button || !frame) return;
     if (button.dataset.soundInit === '1') return;
     button.dataset.soundInit = '1';
 
-    /*
-      Looked up EVERY time, never held. Pressing play replaces the iframe
-      element outright (a fresh browsing context is the only one that inherits
-      the tap's activation), so a reference captured here would be talking to a
-      detached node for the rest of the visit.
-    */
-    const liveFrame = () => stage.querySelector<HTMLIFrameElement>('.hub-stage-iframe');
-
     const label = button.querySelector<HTMLElement>('.hub-stage-sound-label');
     const send = (func: string, args: unknown[] = []) => {
-      liveFrame()?.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args }), '*');
+      frame.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args }), '*');
     };
 
     const paint = (on: boolean) => {
@@ -1954,7 +1897,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       new Promise<number | null>((resolve) => {
         let seen: number | null = null;
         const onMsg = (ev: MessageEvent) => {
-          if (ev.source !== liveFrame()?.contentWindow) return;
+          if (ev.source !== frame.contentWindow) return;
           let data: unknown = null;
           try {
             data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
@@ -1969,7 +1912,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
         };
         window.addEventListener('message', onMsg);
         const ping = window.setInterval(() => {
-          liveFrame()?.contentWindow?.postMessage('{"event":"listening"}', '*');
+          frame.contentWindow?.postMessage('{"event":"listening"}', '*');
         }, 200);
         window.setTimeout(() => {
           window.clearInterval(ping);

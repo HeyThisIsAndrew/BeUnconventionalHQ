@@ -771,46 +771,34 @@ test('pressing Play once is enough', () => {
   assert.doesNotMatch(url, /controls=0/, "a chosen video keeps the player's own controls");
 
   /*
-    THE PRESS BUILDS A PLAYER, IT DOES NOT RE-POINT ONE.
-
-    An autoplay policy asks whether the frame that wants to play has been
-    interacted with. Reassigning `src` on an iframe that has sat in the page
-    since load gives that frame no activation: the tap happened in OUR
-    document and activation does not cross an origin on navigation. A NEWLY
-    CREATED browsing context inherits the parent's sticky activation, which is
-    the entire reason this works. It must happen synchronously in the handler,
-    before any await, or the activation is gone.
-
-    Reported from an iPhone as "pressing play is not playing the video": the
-    frame came up on YouTube's poster, refused, and even the muted retry was
-    refused because it too was a navigation of an old frame.
+    A VIDEO THE VISITOR PRESSED PLAY ON ASKS FOR SOUND. The resting trailer is
+    muted because muted is the only state a browser starts on its own, but a
+    press is not the trailer: they asked for it, and starting it silent is its
+    own bug. So mute is decided BEFORE the frame loads, and the press tries
+    mute=0 first.
   */
-  assert.match(hub, /const mountPlayer = \(id: string, muted: boolean\)/, 'the press must build a player');
-  assert.match(hub, /document\.createElement\('iframe'\)/, 'a fresh element, not a new src');
-  assert.match(hub, /old\.replaceWith\(next\)/, 'it takes the old one\'s place');
-  assert.match(handler, /const player = mountPlayer\(id, !withSound\);/, 'built from the press itself');
-  assert.match(handler, /mountPlayer\(id, !withSound\);[\s\S]{0,200}await/,
-    'the player must be built BEFORE any await, while the activation lasts');
-  assert.doesNotMatch(handler, /frame\.src =/, 'never re-point the existing frame on a press');
-
-  /* Sound is asked for first, and the muted retry is the floor under it. */
   assert.match(handler, /const withSound = !soundBlocked\(\)/, 'the press must try for sound');
-  assert.match(hub, /mute=\$\{muted \? '1' : '0'\}/, 'mute is decided per player, not hardcoded');
-  assert.match(handler, /rememberSoundBlocked\(\)[\s\S]{0,80}mountPlayer\(id, true\)/,
+  assert.match(handler, /embedUrl\(id, !withSound\)/, 'and open the video accordingly');
+  assert.match(hub, /mute=\$\{muted \? '1' : '0'\}/, 'mute is decided per load, not hardcoded');
+
+  /*
+    And it CHECKS. A refused autoplay is not a dead frame: YouTube shows its own
+    red button. So if the player has not reached PLAYING a moment later it is
+    reloaded muted, and the answer is remembered for the tab so the next video
+    does not pay the same wait.
+  */
+  assert.match(handler, /await didStart\(frame, HUB_SOUND_GRACE_MS\)/, 'the press must verify it started');
+  assert.match(handler, /rememberSoundBlocked\(\)[\s\S]{0,140}embedUrl\(id, true\)/,
     'a refusal must fall back to muted, or the press is wasted');
   assert.match(handler, /token !== playToken/,
-    'the retry runs after an await and must not stomp a video chosen since');
+    'the fallback runs after an await and must not stomp a video chosen since');
 
-  /* It acts on the first definite answer, not a blind timer: a phone takes
-     seconds to boot the player, and -1/2 mean refused just as surely as 1/3
-     mean playing. */
-  assert.match(hub, /state === -1 \|\| state === 2/, 'a refusal is detectable, not just a timeout');
-
-  /* Replacing the element strands anything holding a reference to it. */
-  assert.match(hub, /const liveFrame = \(\) =>/, 'the sound button must look the frame up each time');
-  assert.match(hub, /stage\.addEventListener\('hub:sourcechange', \(\) => \{\s*clearAll\(\);/,
-    "the trailer's run timer must let go when the visitor chooses something");
-
+  /*
+    What it must NEVER do is unmute a video ALREADY running: playback under the
+    muted-autoplay allowance is paused by the browser when script takes the mute
+    away without activation in that frame, and YouTube stalls on its spinner.
+    Reported as "starts for half a second, then it just infinitely loads".
+  */
   assert.doesNotMatch(handler, /unMute/, 'never unmute a frame that is already playing');
 
   // It plays HERE. The modal was the previous bug and must not come back.
