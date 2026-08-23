@@ -247,8 +247,20 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
               becomes visible here instead. Identity appears exactly once either
               way.
             */}
+            {/*
+              The mark sits HERE, under the row label — asked for directly, and
+              it is the right call: the stage opposite spends most of its life
+              showing coverage rather than the brand, so the hub needs a name
+              that does not disappear the moment somebody picks a video.
+              The <h1> stays sr-only behind it for the outline and for search.
+            */}
             {event.logo ? (
-              <h1 class="sr-only">{event.title}</h1>
+              <>
+                <h1 class="sr-only">{event.title}</h1>
+                <span class="hero-logo-wrap" aria-hidden="true">
+                  <img src={urlFor(event.logo).height(320).auto('format').url()} alt="" class="hero-logo" />
+                </span>
+              </>
             ) : (
               <h1 class="hero-title">{event.title}</h1>
             )}
@@ -460,7 +472,19 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     /* Cover the whole hero (behind the copy AND the trailer). It re-crops when
        the description expands — an accepted trade for full coverage. */
     background-size: cover;
-    background-position: center;
+    /*
+      BIASED TOWARD THE TOP, NOT CENTRED.
+
+      The hero is far wider than it is tall (~2.4:1), and key art is 16:9, so
+      `cover` has to crop roughly a quarter of the image's height. Centred, it
+      took half of that off the top — which is where faces are. Reported as
+      Spider-Man's head being cut off.
+
+      22% keeps the upper third intact and still trims from the bottom, where
+      key art carries its logos and billing block and where this page draws its
+      own scrim anyway.
+    */
+    background-position: center 22%;
     background-repeat: no-repeat;
     /* translateZ(0) promotes this layer to its own compositor layer. Without
        it, the overlay's backdrop-filter blur stops the animated transform from
@@ -552,7 +576,16 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
   .event-hero-overlay {
     position: relative;
     z-index: 1;
-    min-height: 70vh;
+    /*
+      Was 70vh, which read as dominant: the hero took most of the screen with
+      the coverage below it barely announcing itself. 62 is enough to establish
+      the hub without burying what the page is actually for.
+
+      `lvh`, not `vh`. On iOS `vh` is the LARGEST viewport, which the page also
+      uses before the URL bar retracts — the unit this project already pins for
+      exactly this reason (scripts/viewport-units.test.mjs).
+    */
+    min-height: 62lvh;
     background: linear-gradient(
       to top,
       rgba(0, 0, 0, 0.97) 0%,
@@ -601,6 +634,29 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       grid-template-areas: 'copy trailer';
       align-items: center;
     }
+    /*
+      Only the COPY column stretches. Stretching the whole row squeezed the
+      stage instead: it has an aspect-ratio, so constraining its height
+      constrains its width too, and it collapsed from 600px to 290px on an iPad.
+      Stretching one cell gives the copy the row's full height to work with and
+      leaves the stage sizing itself.
+    */
+    .hero-grid-container.has-trailer .hero-copy {
+      align-self: stretch;
+      /* Same reason as the rail's: a grid item defaults to a min-content
+         floor, and this column holds one. */
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    /* The label, mark and description stay centred as a group; the rail is
+       pushed to the floor of the column. */
+    .hero-grid-container.has-trailer .hub-rail {
+      margin-top: auto;
+      margin-bottom: 0;
+    }
+
     .hero-grid-container.has-trailer.has-cta {
       grid-template-areas:
         'copy trailer'
@@ -611,6 +667,15 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     }
     .hero-grid-container.has-trailer .hero-trailer {
       grid-area: trailer;
+    }
+    /*
+      Bigger, but only in the 50/50. A hub with no trailer stacks instead, and a
+      760px stage there is 427px of mostly-empty box that pushed the hero from
+      62% of the viewport to 106% on desktop. It earns the extra width only when
+      it has a column of its own to fill.
+    */
+    .hero-grid-container.has-trailer .hero-trailer.hub-stage {
+      max-width: 760px;
     }
     .hero-grid-container.has-trailer .hero-info-cta {
       grid-area: cta;
@@ -702,10 +767,17 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
   }
 
   /* The stage itself sits in the grid's `trailer` cell. */
-  .hub-stage {
+  /*
+    `.hero-trailer.hub-stage`, not `.hub-stage`. The stage carries BOTH classes
+    and `.hero-trailer { max-width: 600px }` is declared later in this file, so
+    a single-class rule here lost on source order and the stage stayed capped at
+    600 however large the column got. Two classes wins on specificity instead of
+    relying on where the rule happens to sit.
+  */
+  .hero-trailer.hub-stage {
     position: relative;
     width: 100%;
-    max-width: 640px;
+    max-width: 600px;
     margin: 0 auto;
     aspect-ratio: 16 / 9;
     /* NO overflow: hidden — HARD RULE 3, the iframe lives in here. */
@@ -817,10 +889,40 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     }
   }
 
+  /*
+    THE MARK IN THE COPY COLUMN.
+
+    Sizing is left to the .hero-logo rule further down, which already scales
+    with the viewport, caps its width so a wide mark cannot overflow the column,
+    and carries a note about iOS. A second height here just fought it.
+
+    HARD RULE 6: the glow is on the WRAPPER, never on the <img>. The rule below
+    notes that a filter ON the image made it fail to render on iOS entirely.
+  */
+  .hero-logo-wrap {
+    display: block;
+    margin: 0.2rem 0 1.4rem;
+    filter: drop-shadow(0 10px 26px rgba(0, 0, 0, 0.9));
+  }
+
   /* ─── THE RAIL ──────────────────────────────────────────────────────── */
   .hub-rail {
     display: flex;
     gap: 10px;
+    /*
+      `min-width: 0` IS LOAD-BEARING.
+
+      A grid `1fr` track is `minmax(auto, 1fr)`, so it cannot shrink below its
+      content's min-content width. This rail is five 108px cards plus four 10px
+      gaps = exactly 580px of min-content, which is precisely what the copy
+      column measured while the stage next to it collapsed from 600px to 290px
+      on an iPad. The rail was quietly setting the column widths.
+
+      It already scrolls horizontally, so allowing it to shrink costs nothing —
+      the same automatic-minimum trap that made the accordion rows size
+      themselves off their sibling count on /featured.
+    */
+    min-width: 0;
     margin-top: 1.6rem;
     overflow-x: auto;
     padding-bottom: 4px;
