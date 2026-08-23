@@ -515,7 +515,17 @@ test('the hub hero rail never cuts a card at any edge', () => {
     .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
     .replace(/\/\*[\s\S]*?\*\//g, '');
 
-  const rail = hub.slice(hub.indexOf('.hub-rail {'));
+  /*
+    `\n  .hub-rail {` — the BASE rule at two-space indent. A bare
+    `.hub-rail {` also matches the tail of
+    `.hero-grid-container.has-trailer .hub-rail {` inside the media query,
+    which is indented four spaces, so the slice ran past its close and read the
+    wrong declarations entirely. The assertion failed against a rule that was
+    perfectly correct.
+  */
+  const railStart = hub.indexOf('\n  .hub-rail {');
+  assert.ok(railStart > -1, 'the base .hub-rail rule must exist');
+  const rail = hub.slice(railStart + 1);
   const decl = rail.slice(0, rail.indexOf('\n  }'));
   assert.doesNotMatch(decl, /padding-bottom: \d+px;\s*$/m, 'padding must be on all four sides');
   assert.match(decl, /padding: \d+px;/, 'a clipped rail needs room on every side');
