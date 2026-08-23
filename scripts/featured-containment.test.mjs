@@ -767,12 +767,15 @@ test('pressing Play once is enough', () => {
   assert.match(url, /playsinline=1/, 'iOS goes full screen without it');
   assert.doesNotMatch(url, /controls=0/, 'the visitor needs YouTube\'s own control to unmute by hand');
 
-  // And the sound really is turned back on. The helper is declared above the
-  // handler, so these read the file rather than the slice.
-  assert.match(handler, /unmuteOncePlaying\(frame\)/, 'the press must arm the unmute');
-  assert.match(hub, /'unMute'/, 'a confirmed PLAYING must unmute');
-  assert.match(hub, /setVolume/, 'unmuting at volume zero is still silence');
-  assert.match(hub, /if \(state !== 1\) return;/, 'unmute only on a CONFIRMED playing state');
+  /*
+    AND NOTHING MAY UNMUTE IT FROM SCRIPT. This shipped for exactly one commit
+    and was worse than the bug it fixed: a video playing under the muted
+    autoplay allowance is PAUSED by the browser the moment script unmutes it
+    without user activation in that frame, and a click in the parent does not
+    carry across an origin. YouTube stalls on its spinner. Reported as "starts
+    for half a second, then it just infinitely loads".
+  */
+  assert.doesNotMatch(handler, /unMute/, 'sound is the visitor\'s to ask for, never taken automatically');
 
   // It plays HERE. The modal was the previous bug and must not come back.
   assert.doesNotMatch(handler, /data-action="open-video"/, 'this panel is the player, not a modal trigger');
@@ -787,6 +790,76 @@ test('pressing Play once is enough', () => {
     'a playing video must not be covered by the pane that launched it');
   assert.match(hub, /\.hub-stage\.is-playing \.hub-stage-item \{[^}]*visibility: hidden/,
     'opacity alone still leaves it hit-testable on top of the player');
+});
+
+test('a phone held sideways gets the two-column hero', () => {
+  /*
+    The split was gated on `min-width: 900px`, which reads as "desktop" and is
+    wrong for what it decides. An iPhone 16/17 Pro in landscape is 874px and a
+    Max is 932px, so the same gesture on two phones in the same hand produced
+    two different layouts and the smaller one stacked.
+
+    What decides whether copy and video sit side by side is whether the
+    viewport is wider than it is tall. The 820px floor is measured: the hero
+    bottoms out near 394px on its own content whatever the width, and below
+    820 the devices are shorter than that, so the split ran off the bottom (93px
+    over on an SE). Verified fitting at 844x390, 852x393, 874x402, 896x414,
+    932x430 and 956x440.
+  */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
+  const split = '@media (min-width: 900px), (orientation: landscape) and (min-width: 820px) {';
+  assert.ok(hub.includes(split), 'the split must key off orientation, not width alone');
+
+  /*
+    The backdrop query must be the EXACT INVERSE. A flat `max-width: 1023px`
+    overlapped the old split by a whole band, so a 900-1023px portrait viewport
+    got two columns AND the full-bleed plate built for a stacked page.
+  */
+  const stacked = '@media (max-width: 899px) and (orientation: portrait), (max-width: 819px) {';
+  assert.ok(hub.includes(stacked), 'the stacked backdrop must invert the split exactly');
+  assert.ok(!hub.includes('@media (max-width: 1023px) {'),
+    'the old flat breakpoint overlapped the split');
+
+  // Desktop's header clearance is a vw clamp, so it GROWS with width — a third
+  // of the screen on a 390px-tall phone. Short landscape has to opt out.
+  assert.match(hub, /@media \(orientation: landscape\) and \(max-height: 450px\) \{[\s\S]{0,220}padding-top: 5\.25rem/,
+    'a short landscape viewport cannot afford the full clearance');
+});
+
+test('the visitor can turn the sound on', () => {
+  /*
+    Everything on this stage starts muted, because muted is the only state a
+    browser will start on its own. The trailer runs with controls=0, so without
+    a control of ours there was no way to hear it at all: "the initial trailer
+    doesn't have an unmute button, so you can never unmute it".
+
+    And the button checks its own work. If the browser refuses the unmute it
+    pauses the video, so the mute goes back on and playback resumes rather than
+    leaving a spinner where the trailer was.
+  */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
+  assert.match(hub, /class="hub-stage-sound"/, 'the stage needs a sound control');
+  assert.match(hub, /<button type="button" class="hub-stage-sound"/, 'it must be a real button');
+  assert.match(hub, /\.hub-stage\.is-playing \.hub-stage-sound \{[^}]*display: inline-flex/,
+    'it only means anything while something is playing');
+
+  // HARD RULE 3: it is a SIBLING of the video, never a clipping wrapper.
+  assert.ok(hub.indexOf('class="hub-stage-sound"') > hub.indexOf('</div>\n            )}'),
+    'the control sits outside the video wrapper');
+
+  const ctl = hub.slice(hub.indexOf('function initHubSound'));
+  assert.match(ctl, /send\('unMute'\)/, 'pressing it must ask for sound');
+  assert.match(ctl, /send\('setVolume', \[100\]\)/, 'unmuting at volume zero is still silence');
+  assert.match(ctl, /send\('mute'\);\n      send\('playVideo'\);/,
+    'a refused unmute must be undone AND playback resumed, or the frame spins');
+  assert.match(ctl, /state === 1 \|\| state === 3/, '3 is buffering, which is normal for a moment');
+  assert.match(ctl, /aria-pressed/, 'a toggle must announce its state');
 });
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
