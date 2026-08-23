@@ -458,6 +458,35 @@ test('the row that is already open arms its own trailer', () => {
     'syncTrailers() must run once at init, not only from the click handlers');
 });
 
+test("the hub's mark scales with its artwork, not in fixed pixels", () => {
+  /*
+    A flat pixel height cannot be right at more than one screen size, and this
+    was 26px everywhere: 11% of the card's height on a phone, which reads
+    correctly, but 4.8% on an iPad and 4% on a 2000px display — which is what
+    "way too small" was describing. The phone looked fine because the card is
+    small there; the logo had not grown, the card had.
+
+    It got that way from unwrapping the phone-only media query into the base
+    layout: `height: 26px` was written for a 414px card and inherited by a
+    1145px one.
+
+    .deck-stack is a size container and .deck-card already measures against it,
+    so the mark does too. Measured after: 10.5-11.2% of card height at 440,
+    1024, 1366, 1512 and 2000 wide, with the phone unchanged.
+  */
+  const block = src.slice(src.indexOf('.deck-card-logo {'));
+  const decl = block.slice(0, block.indexOf('\n  }'));
+  assert.doesNotMatch(decl, /height: \d+px;/, 'a fixed pixel height is wrong at every size but one');
+  assert.match(decl, /cqh|cqw/, 'the mark must measure against the card it sits on');
+  assert.match(decl, /clamp\(/, 'it needs a floor for the phone and a ceiling for a huge display');
+
+  // The override that was actually winning must stay gone.
+  assert.ok(
+    !/\.deck-card-logo \{\s*height: 26px;/.test(src),
+    'the flat 26px override applied at EVERY width once the query was unwrapped',
+  );
+});
+
 test('the hub rail centres, and cannot strand its first thumbnail', () => {
   /*
     The rail defaulted to flex-start, so a category with two or three hubs left

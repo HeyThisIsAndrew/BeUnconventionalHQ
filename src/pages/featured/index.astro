@@ -2582,9 +2582,25 @@ ${activeFonts
     filter: drop-shadow(0 6px 16px rgba(0,0,0,0.95));
   }
 
+  /*
+    SIZED AGAINST THE CARD, NOT IN FIXED PIXELS.
+
+    A flat pixel height cannot be right at more than one screen size, and this
+    one was 26px everywhere: 11% of the card's height on a phone, which reads
+    correctly, but 4.8% on an iPad and 4% on a wide desktop, which is what
+    "way too small" was describing. The phone was fine because the card is
+    small there — the logo had not grown, the card had.
+
+    .deck-stack is a size container and .deck-card already measures itself
+    against it as `min(94cqw, 167cqh)`, so the card's height is
+    `min(52.9cqw, 93.9cqh)`. Taking ~10.5% of that keeps the mark the same
+    proportion of the artwork at every width. The floor holds the phone at
+    what it already was; the ceiling stops it going silly on a very large
+    display.
+  */
   .deck-card-logo {
     display: block;
-    height: 40px;
+    height: clamp(26px, min(5.6cqw, 9.9cqh), 88px);
     width: auto;
     max-width: 100%;
     object-fit: contain;
@@ -3969,9 +3985,25 @@ ${activeFonts
     filter: drop-shadow(0 6px 16px rgba(0,0,0,0.95));
   }
 
+  /*
+    SIZED AGAINST THE CARD, NOT IN FIXED PIXELS.
+
+    A flat pixel height cannot be right at more than one screen size, and this
+    one was 26px everywhere: 11% of the card's height on a phone, which reads
+    correctly, but 4.8% on an iPad and 4% on a wide desktop, which is what
+    "way too small" was describing. The phone was fine because the card is
+    small there — the logo had not grown, the card had.
+
+    .deck-stack is a size container and .deck-card already measures itself
+    against it as `min(94cqw, 167cqh)`, so the card's height is
+    `min(52.9cqw, 93.9cqh)`. Taking ~10.5% of that keeps the mark the same
+    proportion of the artwork at every width. The floor holds the phone at
+    what it already was; the ceiling stops it going silly on a very large
+    display.
+  */
   .deck-card-logo {
     display: block;
-    height: 40px;
+    height: clamp(26px, min(5.6cqw, 9.9cqh), 88px);
     width: auto;
     max-width: 100%;
     object-fit: contain;
@@ -4517,9 +4549,10 @@ ${activeFonts
       max-width: calc(100% - 1rem - 7.5rem);
     }
 
-    .deck-card-logo {
-      height: 26px;
-    }
+    /* Was a flat 26px, and after the media query was unwrapped it applied at
+       EVERY width — the reason the mark read as tiny on a tablet. The rule
+       above already scales with the card, so this override has nothing left
+       to say. */
 
     .deck-card-wordmark {
       font-size: 1.15rem;
