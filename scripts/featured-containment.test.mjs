@@ -184,7 +184,8 @@ test('the trailer is back, and every reason it was a problem is guarded', () => 
   assert.match(src, /TRAILER_RUN_MS/, 'the trailer stops on a timer');
 
   // A frame whose document never loads paints white by default.
-  assert.match(videoCss + src.slice(src.indexOf('.brand-stage-iframe {')), /background: #050505/,
+  const mediaCss = src.slice(src.indexOf('.brand-stage-iframe,'));
+  assert.match(mediaCss.slice(0, mediaCss.indexOf('\n  }')), /background: #050505/,
     'an unloaded frame must not paint white');
 
   // Phones never load it — the info column is the plate behind the deck there,
@@ -277,26 +278,68 @@ test('NOTHING on the right side of a row moves', () => {
   }
 });
 
-test("YouTube's own UI is covered by paint, not by a player parameter", () => {
+test('nothing is painted over the video, and its chrome is handled another way', () => {
   /*
-    `modestbranding` no longer removes the wordmark, and captions come from the
-    VIEWER's account preference — a screenshot caught "Beautiful face" burnt
-    across the bottom of the frame with every suppression parameter already
-    set. cc_load_policy is a request, not a guarantee.
+    I had this backwards once: "feather the edges" meant the FRAME's edges,
+    and I painted a vignette over the picture instead — which dimmed the
+    trailer itself. Nothing may be drawn on top of the video. It reads as a
+    layer because of the shadow under it, the way the poster does on a phone.
 
-    So the top and bottom bands of the frame are FULLY OPAQUE over the strips
-    where YouTube's UI lives. Paint cannot silently stop working.
+    Which leaves the chrome to be handled by timing and by source:
+
+    - The frame loads while it is still at opacity 0 and is revealed only
+      after the player has settled, so the title bar and spinner happen
+      unseen. An embed cannot report its own state, hence a fixed settle.
+    - A self-hosted file has NO chrome at all and reports `playing`, so where
+      one exists it takes priority and the reveal is exact.
   */
-  const i = src.indexOf('.brand-stage-frame {');
-  assert.ok(i > -1, 'the frame must exist');
-  const decl = src.slice(i, src.indexOf('  }', i));
-  const opaqueRuns = [...decl.matchAll(/rgba\(5,5,5,1\) 0%, rgba\(5,5,5,1\) (\d+)%/g)];
-  assert.ok(opaqueRuns.length >= 2, 'top and bottom must both hold full opacity');
-  for (const m of opaqueRuns) {
-    assert.ok(Number(m[1]) >= 15, `an opaque band of ${m[1]}% is too thin to cover the UI`);
-  }
-  // And it must sit ABOVE the iframe.
-  assert.match(decl, /z-index: 2/, 'the frame paints over the video');
+  assert.doesNotMatch(src, /brand-stage-frame/, 'nothing may overlay the picture');
+  const vid = src.slice(src.indexOf('.brand-stage-video {'));
+  const decl = vid.slice(0, vid.indexOf('  }'));
+  assert.match(decl, /box-shadow:/, 'the layer read comes from a shadow under it');
+
+  // Reveal is separated from load.
+  assert.match(src, /TRAILER_SETTLE_MS/, 'the embed reveal waits for the player to settle');
+  const arm = src.slice(src.indexOf('function armStage'), src.indexOf('function syncTrailers'));
+  assert.ok(
+    arm.indexOf('frame!.src = src') < arm.indexOf('setTimeout(reveal'),
+    'the embed src must be assigned before the reveal is scheduled, never with it',
+  );
+  assert.doesNotMatch(
+    arm,
+    /frame!\.src = src;\s*stage\.classList\.add/,
+    'the reveal must never fire in the same tick as the load',
+  );
+
+  // The self-hosted path exists and wins.
+  assert.match(src, /brand-stage-media/, 'a self-hosted file is supported');
+  assert.match(src, /trailerFile \? \(/, 'a supplied file takes priority over the embed');
+  assert.match(arm, /addEventListener\('playing'/, 'a file reveals on its first painted frame');
+  // A <video> may be cleared by attribute; an IFRAME may never be (hard rule 4).
+  assert.doesNotMatch(src, /frame\.removeAttribute\('src'\)/, "never clear an iframe's src");
+});
+
+test("the deck's feather does not reach the card's own controls", () => {
+  /*
+    The stack is masked so cards translated past its right edge dissolve
+    instead of being cut. That ramp used to reach full opacity only at 62%
+    from the right — but the front card is 85% wide, so its right third sat
+    inside the fade and the "Enter" chip, which lands ~20-41% from that edge,
+    was drawn at roughly a fifth of its opacity. Reported as the vignette
+    obscuring it.
+
+    The ramp has to be fully opaque before the chip starts.
+  */
+  const stack = src.slice(src.indexOf('.deck-stack {'));
+  const decl = stack.slice(0, stack.indexOf('\n  }'));
+  const full = decl.match(/rgba\(0,0,0,1\) (\d+)%\)/);
+  assert.ok(full, 'the stack mask must reach full opacity somewhere');
+  assert.ok(
+    Number(full[1]) <= 19,
+    `the feather reaches the card: full opacity at ${full[1]}% leaves the Enter chip faded`,
+  );
+  // And it must still land on zero at the box edge, or no-repeat cuts visibly.
+  assert.match(decl, /rgba\(0,0,0,0\) 0%/, 'the ramp must reach zero at the edge');
 });
 
 test('the rows snap; nothing animates a layout property', () => {

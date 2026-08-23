@@ -552,6 +552,9 @@ ${activeFonts
                           : null;
                         /* HARD RULE: ids come from parseVideoId(), never inline regex. */
                         const trailerId = parseVideoId(brand.trailerUrl);
+                        /* A self-hosted MP4, if one has been supplied. Wins
+                           over the embed — see the note at its markup. */
+                        const trailerFile: string | null = brand.trailerFile || null;
 
                         return (
                           <div class={`brand-info-panel ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex} style={`--brand-color: ${meta.color}; --brand-rgb: ${meta.rgb};`}>
@@ -600,7 +603,7 @@ ${activeFonts
                                 black box. Nothing between here and
                                 .featured-directory-page clips.
                               */}
-                              <div class="brand-stage" data-trailer={trailerId ?? undefined}>
+                              <div class="brand-stage" data-trailer={(trailerFile || trailerId) ?? undefined}>
                                 <div class="brand-stage-mark" aria-hidden="true">
                                   {markUrl ? (
                                     /* HARD RULE 6: no filter on the <img>. The
@@ -611,7 +614,38 @@ ${activeFonts
                                   )}
                                 </div>
 
-                                {trailerId && (
+                                {trailerFile ? (
+                                  /*
+                                    A SELF-HOSTED FILE IS THE ONLY GUARANTEE.
+
+                                    An embed cannot be made to never show
+                                    YouTube's UI: that document is theirs, the
+                                    title bar and the caption track are drawn
+                                    inside it, and captions follow the VIEWER's
+                                    account preference — `cc_load_policy` is a
+                                    request the player may ignore. Everything
+                                    below is mitigation, not a guarantee.
+
+                                    An MP4 in a <video> has no UI at all with
+                                    `controls` omitted, is roughly 900kB of
+                                    player script lighter, and is not bound by
+                                    hard rule 3 (that is an iframe problem), so
+                                    it can be cropped freely. Drop a file on a
+                                    hub's `trailerFile` and it takes this path.
+                                  */
+                                  <div class="brand-stage-video">
+                                    <video
+                                      class="brand-stage-media"
+                                      data-src={trailerFile}
+                                      muted
+                                      playsinline
+                                      preload="none"
+                                      disablepictureinpicture
+                                      aria-hidden="true"
+                                      tabindex="-1"
+                                    ></video>
+                                  </div>
+                                ) : trailerId ? (
                                   /*
                                     HARD RULE 4: the idle src is 'about:blank',
                                     NEVER ''. An empty src resolves to the
@@ -629,9 +663,8 @@ ${activeFonts
                                       loading="lazy"
                                       allow="autoplay; encrypted-media"
                                     ></iframe>
-                                    <span class="brand-stage-frame" aria-hidden="true"></span>
                                   </div>
-                                )}
+                                ) : null}
                               </div>
                             </div>
                           </div>
@@ -725,7 +758,25 @@ ${activeFonts
 
      Teardown is `about:blank` — HARD RULE 4 — never ''.
      ══════════════════════════════════════════════════════════════════════ */
-  const TRAILER_LEAD_IN_MS = 1400;
+  const TRAILER_LEAD_IN_MS = 900;
+  /*
+    THE FRAME LOADS WHILE IT IS STILL INVISIBLE.
+
+    Reported: "ensure the youtube ui layer never appears on the video when it
+    loads in". The chrome that was showing is the START of playback — the
+    title bar, the spinner, the momentary poster — and it used to be revealed
+    because the fade-in fired the instant src was assigned.
+
+    So src is set first and the reveal waits. By the time the frame becomes
+    visible the video is running and YouTube's title bar has auto-hidden
+    (it retracts a couple of seconds in when nothing is hovering it, and
+    nothing can be: pointer-events are off across the whole stage).
+
+    This is mitigation, not a guarantee — see the note at the markup. A
+    self-hosted file is the only way to be certain, and it takes priority
+    whenever one exists.
+  */
+  const TRAILER_SETTLE_MS = 2400;
   const TRAILER_RUN_MS = 42000;
   const stageTimers = new WeakMap<HTMLElement, number[]>();
 
@@ -751,23 +802,56 @@ ${activeFonts
   function teardownStage(stage: HTMLElement) {
     clearStageTimers(stage);
     stage.classList.remove('is-playing');
+
+    const media = stage.querySelector<HTMLVideoElement>('.brand-stage-media');
+    if (media) {
+      media.pause();
+      /* Safe on a <video>, unlike an iframe: removeAttribute leaves no
+         resolvable URL behind. Reloading releases the buffer. */
+      if (media.hasAttribute('src')) {
+        media.removeAttribute('src');
+        media.load();
+      }
+      return;
+    }
+
     const frame = stage.querySelector<HTMLIFrameElement>('.brand-stage-iframe');
     /* HARD RULE 4: 'about:blank', never ''. */
     if (frame && frame.src !== 'about:blank') frame.src = 'about:blank';
   }
 
   function armStage(stage: HTMLElement) {
+    const media = stage.querySelector<HTMLVideoElement>('.brand-stage-media');
     const frame = stage.querySelector<HTMLIFrameElement>('.brand-stage-iframe');
-    const src = frame?.dataset.src;
-    if (!frame || !src) return;
-    if (frame.src === src) return; // already running
+    const el = media ?? frame;
+    const src = el?.dataset.src;
+    if (!el || !src) return;
+    if (!media && frame && frame.src === src) return; // embed already running
+    if (media && media.getAttribute('src') === src) return; // file already running
     clearStageTimers(stage);
+
     const timers: number[] = [];
-    timers.push(window.setTimeout(() => {
-      frame.src = src;
+    const reveal = () => {
       stage.classList.add('is-playing');
       timers.push(window.setTimeout(() => teardownStage(stage), TRAILER_RUN_MS));
+    };
+
+    timers.push(window.setTimeout(() => {
+      if (media) {
+        /* A file tells us exactly when it has pictures to show, so there is
+           nothing to guess at: reveal on the first painted frame. */
+        media.setAttribute('src', src);
+        media.addEventListener('playing', reveal, { once: true });
+        media.play().catch(() => {
+          /* Autoplay refused (rare when muted). Leave the mark up. */
+        });
+        return;
+      }
+      /* An embed cannot tell us, so the settle time is a fixed guess. */
+      frame!.src = src;
+      timers.push(window.setTimeout(reveal, TRAILER_SETTLE_MS));
     }, TRAILER_LEAD_IN_MS));
+
     stageTimers.set(stage, timers);
   }
 
@@ -1501,15 +1585,27 @@ ${activeFonts
       ramp and pop back into view. With no-repeat, everything past the box is
       masked out, and because the ramp has already reached zero alpha there,
       that cutoff is invisible.
+
+      THE RAMP STOPS BEFORE THE CARD. It used to reach full opacity only at
+      62% from the right edge — but the front card is 85% wide, so its right
+      third sat inside the fade, and the "Enter" chip (which lands ~20-41%
+      from that edge) was being drawn at roughly a fifth of its opacity.
+      Reported as the vignette obscuring it, and it was: the feather was
+      eating the card's own call to action.
+
+      Full opacity by 18% now, which clears the chip, and the ramp still
+      reaches zero exactly at the box edge so the no-repeat cutoff stays
+      invisible. The cards stacked behind translate past that edge and
+      dissolve into it, which is all this was ever for.
     */
     -webkit-mask-image: linear-gradient(to left,
-      rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 8%, rgba(0,0,0,0.12) 15%,
-      rgba(0,0,0,0.28) 22%, rgba(0,0,0,0.50) 30%, rgba(0,0,0,0.72) 38%,
-      rgba(0,0,0,0.88) 46%, rgba(0,0,0,0.97) 54%, rgba(0,0,0,1) 62%);
+      rgba(0,0,0,0) 0%, rgba(0,0,0,0.06) 3%, rgba(0,0,0,0.22) 6%,
+      rgba(0,0,0,0.48) 9%, rgba(0,0,0,0.74) 12%, rgba(0,0,0,0.92) 15%,
+      rgba(0,0,0,1) 18%);
     mask-image: linear-gradient(to left,
-      rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 8%, rgba(0,0,0,0.12) 15%,
-      rgba(0,0,0,0.28) 22%, rgba(0,0,0,0.50) 30%, rgba(0,0,0,0.72) 38%,
-      rgba(0,0,0,0.88) 46%, rgba(0,0,0,0.97) 54%, rgba(0,0,0,1) 62%);
+      rgba(0,0,0,0) 0%, rgba(0,0,0,0.06) 3%, rgba(0,0,0,0.22) 6%,
+      rgba(0,0,0,0.48) 9%, rgba(0,0,0,0.74) 12%, rgba(0,0,0,0.92) 15%,
+      rgba(0,0,0,1) 18%);
     -webkit-mask-repeat: no-repeat;
     mask-repeat: no-repeat;
     -webkit-mask-size: 100% 100%;
@@ -2004,7 +2100,8 @@ ${activeFonts
   .brand-stage {
     position: absolute;
     top: 0;
-    right: 0;
+    /* Was flush to the viewport edge — "too close to the edge". */
+    right: 4%;
     bottom: calc(90px + 1rem);
     left: 8%;
     z-index: 4;
@@ -2060,73 +2157,36 @@ ${activeFonts
     position: absolute;
     top: 50%;
     left: 50%;
-    /* Was 84% and read small beside the poster. */
     width: 100%;
     aspect-ratio: 16 / 9;
     transform: translate(-50%, -50%) scale(1.02);
     opacity: 0;
     transition: opacity 1.1s ease, transform 1.1s cubic-bezier(0.2, 0.8, 0.2, 1);
-    /*
-      NO box-shadow. A drop shadow draws the box's outline, which is the
-      opposite of blending it in — and NO `overflow: hidden` or border-radius
-      that would need one. HARD RULE 3.
-    */
+    /* The layer read. Same shadow the poster carries. */
+    box-shadow: 0 30px 70px rgba(0,0,0,0.85);
+    /* NO `overflow: hidden` and no border-radius needing one. HARD RULE 3. */
   }
 
   /* ══════════════════════════════════════════════════════════════════════
-     THE FEATHERED FRAME — and the reason YouTube's UI can never show.
+     THE VIDEO IS A LAYER, NOT A HOLE IN THE PAGE.
 
-     Two jobs, one element, and they want the same shape.
+     I got the last note backwards. "Feather the edges" meant the FRAME's
+     edges — blend the box into the panel — and I painted a vignette over the
+     picture instead, which dimmed the trailer itself. Wrong surface.
 
-     BLENDING. The trailer was a hard-edged rectangle sitting on a soft panel,
-     which is what made it read as pasted on. The sides and corners fade to the
-     page's own black over a wide band, so the picture emerges rather than
-     starting.
-
-     THE CHROME. `modestbranding` does not remove the wordmark any more, and
-     captions come from the VIEWER's account preference — no player parameter
-     can be relied on to suppress them (the screenshot that prompted this
-     showed "Beautiful face" burnt across the bottom of the frame). Chasing
-     them with `cc_load_policy` is a request, not a guarantee.
-
-     So the top and bottom bands are FULLY OPAQUE for the first ~17%, which is
-     where every piece of YouTube's UI lives: the title bar and gradient at the
-     top, the caption track and the watch-on-YouTube button at the bottom. It is
-     paint over the frame, not a setting we hope the player honours, so it
-     cannot silently stop working. A 16:9 source loses a little top and bottom
-     to it and reads as a 'scope crop, which is the right look here anyway.
-
-     Pointer events are off across the whole stage, so hover chrome never
-     arrives in the first place — this covers what autoplay puts up by itself.
+     So: nothing is drawn over the video. It is a clean rectangle with a deep
+     soft shadow under it, which is exactly what the deck card does on a phone
+     and exactly the "intentional layer" read that was asked for. A shadow
+     separates a plane from its ground without touching what is on it.
      ══════════════════════════════════════════════════════════════════════ */
-  .brand-stage-frame {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    pointer-events: none;
-    background:
-      /* top: opaque over the title bar, then a long fade */
-      linear-gradient(to bottom,
-        rgba(5,5,5,1) 0%, rgba(5,5,5,1) 17%, rgba(5,5,5,0.86) 23%,
-        rgba(5,5,5,0.55) 30%, rgba(5,5,5,0.24) 37%, rgba(5,5,5,0) 45%),
-      /* bottom: opaque over the caption track */
-      linear-gradient(to top,
-        rgba(5,5,5,1) 0%, rgba(5,5,5,1) 18%, rgba(5,5,5,0.88) 24%,
-        rgba(5,5,5,0.58) 31%, rgba(5,5,5,0.26) 38%, rgba(5,5,5,0) 46%),
-      /* sides: pure blend, no UI to hide */
-      linear-gradient(to right,
-        rgba(5,5,5,1) 0%, rgba(5,5,5,0.82) 4%, rgba(5,5,5,0.45) 9%,
-        rgba(5,5,5,0.16) 14%, rgba(5,5,5,0) 20%),
-      linear-gradient(to left,
-        rgba(5,5,5,1) 0%, rgba(5,5,5,0.82) 4%, rgba(5,5,5,0.45) 9%,
-        rgba(5,5,5,0.16) 14%, rgba(5,5,5,0) 20%);
-  }
 
-  .brand-stage-iframe {
+  .brand-stage-iframe,
+  .brand-stage-media {
     width: 100%;
     height: 100%;
     border: 0;
     display: block;
+    object-fit: cover;
     /*
       A frame whose document never loads — ad blocker, corporate DNS, a
       blocked region — paints white by default, which is a white rectangle in
@@ -2205,11 +2265,14 @@ ${activeFonts
     bottom: 0;
     left: -25%;
     width: 150%;
+    /* Lightened: peak 1 -> 0.88 and the tail pulled in from 42% to 34%.
+       "The vignette is too much overall" — with the motion gone, none of
+       these washes are holding anything together any more. */
     background: linear-gradient(to right,
-      rgba(5,5,5,1) 0%, rgba(5,5,5,0.98) 5%, rgba(5,5,5,0.93) 9%,
-      rgba(5,5,5,0.84) 13%, rgba(5,5,5,0.70) 17%, rgba(5,5,5,0.53) 21%,
-      rgba(5,5,5,0.36) 25%, rgba(5,5,5,0.22) 29%, rgba(5,5,5,0.11) 33%,
-      rgba(5,5,5,0.04) 37%, rgba(5,5,5,0) 42%);
+      rgba(5,5,5,0.88) 0%, rgba(5,5,5,0.84) 5%, rgba(5,5,5,0.76) 9%,
+      rgba(5,5,5,0.65) 13%, rgba(5,5,5,0.50) 17%, rgba(5,5,5,0.36) 21%,
+      rgba(5,5,5,0.23) 25%, rgba(5,5,5,0.12) 29%, rgba(5,5,5,0.05) 33%,
+      rgba(5,5,5,0) 38%);
     z-index: 2;
     pointer-events: none;
   }
@@ -2244,10 +2307,10 @@ ${activeFonts
     top: 0;
     left: 0;
     right: 0;
-    height: 26%;
+    height: 18%;
     background: linear-gradient(to bottom,
-      rgba(5,5,5,1) 0%, rgba(5,5,5,1) 8%, rgba(5,5,5,0.92) 20%,
-      rgba(5,5,5,0.70) 38%, rgba(5,5,5,0.40) 58%, rgba(5,5,5,0.16) 78%,
+      rgba(5,5,5,1) 0%, rgba(5,5,5,1) 9%, rgba(5,5,5,0.84) 24%,
+      rgba(5,5,5,0.56) 44%, rgba(5,5,5,0.28) 66%, rgba(5,5,5,0.09) 84%,
       rgba(5,5,5,0) 100%);
     z-index: 3;
     pointer-events: none;
@@ -2258,11 +2321,11 @@ ${activeFonts
     bottom: 0;
     left: 0;
     right: 0;
-    height: 60%;
+    height: 38%;
     background: linear-gradient(to top,
-      rgba(5,5,5,1) 0%, rgba(5,5,5,1) 4%, rgba(5,5,5,0.92) 14%,
-      rgba(5,5,5,0.74) 30%, rgba(5,5,5,0.50) 50%, rgba(5,5,5,0.26) 70%,
-      rgba(5,5,5,0.08) 87%, rgba(5,5,5,0) 100%);
+      rgba(5,5,5,1) 0%, rgba(5,5,5,1) 6%, rgba(5,5,5,0.86) 18%,
+      rgba(5,5,5,0.60) 36%, rgba(5,5,5,0.34) 56%, rgba(5,5,5,0.14) 76%,
+      rgba(5,5,5,0.03) 90%, rgba(5,5,5,0) 100%);
     z-index: 3;
     /*
       This scrim is a VERTICAL gradient across the panel's full width, so its
@@ -2319,9 +2382,9 @@ ${activeFonts
       across the artwork.
     */
     background: linear-gradient(to top,
-      rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.86) 12%, rgba(0,0,0,0.72) 24%,
-      rgba(0,0,0,0.52) 36%, rgba(0,0,0,0.31) 48%, rgba(0,0,0,0.15) 60%,
-      rgba(0,0,0,0.05) 72%, transparent 84%);
+      rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.72) 12%, rgba(0,0,0,0.56) 24%,
+      rgba(0,0,0,0.37) 36%, rgba(0,0,0,0.20) 48%, rgba(0,0,0,0.09) 60%,
+      rgba(0,0,0,0.02) 72%, transparent 82%);
   }
 
   .deck-card.active .deck-card-scrim {
