@@ -138,6 +138,25 @@ const trailerId = parseVideoId(trailerUrl);
   that is already the backdrop behind this whole hero, and using it twice is the
   repetition problem that got fixed on /featured.
 */
+/*
+  WHAT THE HERO FEATURES LIVES IN ONE FUNCTION.
+
+  It ships as "most recent", which is the only thing that works today: five of
+  twenty-three videos are tagged to any hub, so ranking has almost nothing to
+  rank. Every video doc already carries `viewCount` and `publishedAt`, so
+  switching to "most viewed in the last N days" is a change HERE and nowhere
+  else — note that viewCount is LIFETIME, so the recency cutoff is what makes
+  it mean anything, and views-per-day is the fairer ranking inside a window
+  (a 29-day-old item has had ten times as long to accumulate as a 3-day-old one).
+
+  Articles count. A hub's best recent thing is often written, not filmed.
+*/
+const HERO_ITEM_LIMIT = 5;
+function pickHeroItems(items: any[]): any[] {
+  return items.slice(0, HERO_ITEM_LIMIT);
+}
+const heroItems = pickHeroItems(unifiedContent);
+
 const stageMarkUrl = event.logo ? urlFor(event.logo).height(520).auto('format').url() : null;
 const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format').url() : null;
 ---
@@ -220,17 +239,16 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
             */}
             {categoryLabel && <span class="hero-eyebrow">{categoryLabel}</span>}
 
-            {event.logo && <h1 class="sr-only">{event.title}</h1>}
+            {/*
+              THE MARK IS ON THE STAGE NOW, so the copy does not repeat it. A
+              hub with a logo names itself once, large, on the right; this side
+              keeps the <h1> for the outline and for search, sr-only. A hub with
+              NO logo has nothing on the stage to carry its name, so the title
+              becomes visible here instead. Identity appears exactly once either
+              way.
+            */}
             {event.logo ? (
-              <img
-                src={urlFor(event.logo).height(240).url()}
-                alt={`${event.title} logo`}
-                class="hero-logo"
-                height="240"
-                width={event.logo?.dimensions?.aspectRatio
-                  ? Math.round(240 * event.logo.dimensions.aspectRatio)
-                  : undefined}
-              />
+              <h1 class="sr-only">{event.title}</h1>
             ) : (
               <h1 class="hero-title">{event.title}</h1>
             )}
@@ -241,6 +259,35 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
                 <button class="hero-read-more" id="event-about-toggle" aria-expanded="false" hidden>
                   Read more
                 </button>
+              </div>
+            )}
+
+            {heroItems.length > 0 && (
+              /*
+                THE RAIL. The hub's most recent coverage, videos and articles
+                together — picking one swaps the stage to it. Real <button>s, so
+                the rail is reachable and operable from a keyboard; the deck on
+                /featured shipped as divs once and closed rows were unreachable.
+              */
+              <div class="hub-rail" role="group" aria-label={`Recent ${event.title} coverage`}>
+                {heroItems.map((item: any, i: number) => (
+                  <button
+                    type="button"
+                    class={`hub-rail-card ${i === 0 ? 'active' : ''}`}
+                    data-index={i}
+                    aria-pressed={i === 0 ? 'true' : 'false'}
+                  >
+                    {(item.image ?? item.thumbnail) ? (
+                      <img src={item.image ?? item.thumbnail} alt="" class="hub-rail-thumb" loading="lazy" />
+                    ) : (
+                      <span class="hub-rail-thumb hub-rail-thumb--empty"></span>
+                    )}
+                    <span class="hub-rail-label">
+                      {item.contentType === 'video' ? 'Watch' : 'Read'}
+                    </span>
+                    <span class="sr-only">{item.title}</span>
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -296,6 +343,45 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
                 <span class="hub-stage-guard" aria-hidden="true"></span>
               </div>
             )}
+
+            {/*
+              ONE PANE PER FEATURED ITEM, hidden until its rail card is picked.
+
+              A still and a title — never an autoplaying embed. Playback follows
+              a CLICK here, which is the whole reason this page can carry video
+              at all: a player the visitor asked for is allowed to show its own
+              controls, so none of the chrome problems that plagued the deck
+              page apply. Videos open in the site's existing modal via the
+              global [data-action="open-video"] handler; articles are ordinary
+              links.
+            */}
+            {heroItems.map((item: any, i: number) => {
+              const isVideo = item.contentType === 'video';
+              const vid = isVideo ? parseVideoId(item.link || '') : null;
+              const still = item.image ?? item.thumbnail ?? null;
+              return (
+                <div class="hub-stage-item" data-index={i} aria-hidden="true">
+                  {still && <img src={still} alt="" class="hub-stage-item-still" loading="lazy" />}
+                  <span class="hub-stage-item-scrim"></span>
+                  <div class="hub-stage-item-copy">
+                    <span class="hub-stage-item-kind">{isVideo ? 'Video' : 'Article'}</span>
+                    <p class="hub-stage-item-title">{item.title}</p>
+                    {isVideo && vid ? (
+                      <button
+                        type="button"
+                        class="hub-stage-item-action"
+                        data-action="open-video"
+                        data-video-id={vid}
+                      >
+                        Play
+                      </button>
+                    ) : (
+                      <a href={item.link || '#'} class="hub-stage-item-action">Read</a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* Placed after the trailer in the DOM so mobile stacks copy →
@@ -731,6 +817,143 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     }
   }
 
+  /* ─── THE RAIL ──────────────────────────────────────────────────────── */
+  .hub-rail {
+    display: flex;
+    gap: 10px;
+    margin-top: 1.6rem;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .hub-rail::-webkit-scrollbar { display: none; }
+
+  .hub-rail-card {
+    position: relative;
+    flex: 0 0 auto;
+    width: 108px;
+    aspect-ratio: 16 / 9;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: #111;
+    cursor: pointer;
+    opacity: 0.55;
+    transition: opacity 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
+  }
+  .hub-rail-card:hover,
+  .hub-rail-card:focus-visible { opacity: 0.85; }
+  .hub-rail-card.active {
+    opacity: 1;
+    border-color: rgba(var(--brand-rgb, 204,0,0), 0.9);
+    transform: translateY(-2px);
+  }
+  .hub-rail-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .hub-rail-thumb--empty {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(150deg, rgba(var(--brand-rgb, 204,0,0), 0.30) 0%, #0b0b0d 70%);
+  }
+  .hub-rail-label {
+    position: absolute;
+    left: 5px;
+    bottom: 4px;
+    font-size: 0.52rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.9);
+    text-shadow: 0 1px 4px rgba(0,0,0,0.95);
+  }
+
+  /* ─── THE PANES THE RAIL SWITCHES TO ────────────────────────────────── */
+  .hub-stage-item {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.7s ease;
+    /* NO overflow: hidden — HARD RULE 3, the iframe is a sibling in here. */
+  }
+  .hub-stage-item.active {
+    opacity: 1;
+    visibility: visible;
+  }
+  .hub-stage-item-still {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .hub-stage-item-scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top,
+      rgba(5,5,5,0.94) 0%, rgba(5,5,5,0.86) 14%, rgba(5,5,5,0.66) 30%,
+      rgba(5,5,5,0.40) 46%, rgba(5,5,5,0.18) 62%, rgba(5,5,5,0.05) 78%,
+      transparent 92%);
+  }
+  .hub-stage-item-copy {
+    position: absolute;
+    left: 1.4rem;
+    right: 1.4rem;
+    bottom: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.55rem;
+  }
+  .hub-stage-item-kind {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(var(--brand-rgb, 204,0,0), 1);
+  }
+  .hub-stage-item-title {
+    font-family: var(--font-display, sans-serif);
+    font-size: clamp(0.95rem, 1.5vw, 1.25rem);
+    font-weight: 700;
+    line-height: 1.3;
+    color: #fff;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.95);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .hub-stage-item-action {
+    display: inline-block;
+    padding: 0.5rem 1.1rem;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: transparent;
+    color: rgba(255,255,255,0.94);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+    transition: border-color 0.3s ease, background-color 0.3s ease;
+  }
+  .hub-stage-item-action:hover,
+  .hub-stage-item-action:focus-visible {
+    border-color: rgba(var(--brand-rgb, 204,0,0), 0.95);
+    background: rgba(var(--brand-rgb, 204,0,0), 0.16);
+  }
+
+  /* An item is showing: the mark and the trailer both stand down. */
+  .hub-stage.is-item .hub-stage-mark { opacity: 0; }
+  .hub-stage.is-item .hub-stage-video { opacity: 0; }
+
   .hero-trailer {
     width: 100%;
     max-width: 600px;
@@ -1051,8 +1274,56 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     }, HUB_LEAD_IN_MS));
   }
 
+  /*
+    THE RAIL DRIVES THE STAGE.
+
+    Picking an item tears the trailer down first — an iframe that is merely
+    hidden still holds its document, its script and its network connections,
+    and there is no reason to keep somebody else's player alive behind a still
+    the visitor asked for.
+
+    Nothing here autoplays. The pane is a still and a title; playback happens
+    only if the visitor presses Play, which routes through the site's existing
+    global [data-action="open-video"] handler and its modal.
+  */
+  function initHubRail() {
+    const rail = document.querySelector<HTMLElement>('.hub-rail');
+    const stage = document.querySelector<HTMLElement>('.hub-stage');
+    if (!rail || !stage || rail.dataset.railInit === '1') return;
+    rail.dataset.railInit = '1';
+
+    const cards = Array.from(rail.querySelectorAll<HTMLButtonElement>('.hub-rail-card'));
+    const panes = Array.from(stage.querySelectorAll<HTMLElement>('.hub-stage-item'));
+
+    const show = (index: number) => {
+      cards.forEach((c, i) => {
+        c.classList.toggle('active', i === index);
+        c.setAttribute('aria-pressed', i === index ? 'true' : 'false');
+      });
+      panes.forEach((pane, i) => {
+        const on = i === index;
+        pane.classList.toggle('active', on);
+        pane.setAttribute('aria-hidden', on ? 'false' : 'true');
+      });
+      stage.classList.add('is-item');
+
+      /* Unload the trailer rather than hiding it. HARD RULE 4: about:blank. */
+      const frame = stage.querySelector<HTMLIFrameElement>('.hub-stage-iframe');
+      if (frame && frame.src !== 'about:blank') frame.src = 'about:blank';
+      stage.classList.remove('is-playing');
+    };
+
+    cards.forEach((card, i) => {
+      card.addEventListener('click', () => show(i));
+    });
+  }
+
   initHubStage();
-  document.addEventListener('astro:page-load', initHubStage);
+  initHubRail();
+  document.addEventListener('astro:page-load', () => {
+    initHubStage();
+    initHubRail();
+  });
 </script>
 
 <script>

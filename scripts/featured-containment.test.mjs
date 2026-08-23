@@ -525,6 +525,37 @@ test('the hub hero is the deck page\'s stage, and keeps its own height', () => {
   const pdecl = plate.slice(0, plate.indexOf('\n  }'));
   assert.match(pdecl, /inset: -\d+%/, 'the plate must overscan its clip');
   assert.doesNotMatch(pdecl, /animation:/, 'scaling a clipping box was the light leak — nothing here moves');
+
+  /*
+    THE RAIL DRIVES THE STAGE, AND NOTHING IT SHOWS AUTOPLAYS.
+
+    Picking an item swaps the stage to a still and a title. Playback happens
+    only if the visitor presses Play, routed through the site's existing global
+    [data-action="open-video"] handler — which is the whole reason this page can
+    carry video at all. A player the visitor asked for is allowed to show its
+    own controls, so none of the chrome problems that plagued the deck page
+    apply here.
+
+    Verified in a browser: 5 cards and 5 panes on Marvel, clicking card 1
+    activates pane 1, sets is-item, and unloads the trailer to about:blank.
+  */
+  assert.match(hub, /hub-rail-card/, 'the hero features recent coverage');
+  assert.match(hub, /<button\s+type="button"\s+class=\{`hub-rail-card/,
+    'rail items must be real buttons — the deck shipped as divs once and was unreachable');
+  assert.match(hub, /data-action="open-video"/, 'video panes reuse the site\'s modal handler');
+  assert.match(hub, /pickHeroItems/, 'what the hero features must live in ONE function');
+
+  // Articles are first-class here, not an afterthought.
+  assert.match(hub, /contentType === 'video' \? 'Watch' : 'Read'/, 'articles feature too');
+
+  // Choosing an item must UNLOAD the trailer, not merely hide it.
+  const rail = hub.slice(hub.indexOf('function initHubRail'));
+  assert.match(rail, /frame\.src = 'about:blank'/,
+    'a hidden iframe still holds its document, its script and its connections');
+
+  // Identity appears exactly once: the mark carries it, or the copy does.
+  assert.match(hub, /event\.logo \?[\s\S]{0,120}sr-only/,
+    'with a logo the h1 is sr-only — the mark on the stage is the visible name');
 });
 
 test('every category row is reachable and operable from the keyboard', () => {
