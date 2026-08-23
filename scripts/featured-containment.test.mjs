@@ -513,6 +513,34 @@ test('the hub hero pins and the coverage scrolls over it', () => {
   assert.match(pdecl, /position: relative/, 'the panel must be positioned to paint over the hero');
   assert.match(pdecl, /z-index: 1/, 'the panel must paint ABOVE the hero');
   assert.match(pdecl, /background:/, 'a transparent panel shows the pinned hero through it');
+
+  /*
+    ITS LEADING EDGE FEATHERS. The first version drew a 1px brand-coloured rule
+    with the opaque background starting under it — a hard edge with a highlight
+    on it, which is the exact thing the sticky hero exists to remove. Removing
+    the seam between two sections is pointless if the panel then draws its own.
+
+    Measured max row-to-row luminance step within 30px of the boundary: 1.31,
+    1.14 and 0.91 out of 255, across two hubs and two viewports. It was 5.18
+    until the fade's end colour was matched to the panel's own.
+  */
+  const feather = hub.slice(hub.indexOf('.content-container::before {'));
+  const fdecl = feather.slice(0, feather.indexOf('\n  }'));
+  assert.match(fdecl, /top: -\d{2,}px/, 'the fade must begin ABOVE the panel box');
+  assert.doesNotMatch(fdecl, /height: 1px/, 'no hairline rule — that is the edge being removed');
+
+  // The fade must land on the panel's own colour or it steps at the boundary.
+  const panelHex = (pdecl.match(/background: var\(--color-black, (#[0-9a-f]{6})\)/) || [])[1];
+  assert.ok(panelHex, 'the panel colour must be readable');
+  const endStop = fdecl.match(/rgba\((\d+), (\d+), (\d+), 1\) 100%/);
+  assert.ok(endStop, 'the fade must reach full opacity at its end');
+  const asHex = '#' + endStop.slice(1, 4).map((n) => Number(n).toString(16).padStart(2, '0')).join('');
+  assert.strictEqual(asHex, '#0a0a0a',
+    `the fade ends ${asHex} but the panel is #0a0a0a — that difference IS a hard edge`);
+
+  // Multi-stop, or the ramp's own endpoints read as bands (Mach banding).
+  assert.ok((fdecl.match(/rgba\(10, 10, 10,/g) || []).length >= 8,
+    'a two-stop ramp shows its own endpoints as faint horizontal bands');
 });
 
 test('every category row is reachable and operable from the keyboard', () => {

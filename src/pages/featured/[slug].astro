@@ -334,34 +334,68 @@ const trailerId = parseVideoId(trailerUrl);
     THE PANEL THAT RIDES OVER IT.
 
     Opaque, or the pinned hero shows through and the whole effect reads as a
-    rendering fault rather than a layer. The shadow above it is what sells the
-    depth: it is the only cue that one plane is passing in front of another.
+    rendering fault rather than a layer.
   */
   .content-container {
     position: relative;
     z-index: 1;
     background: var(--color-black, #050505);
-    box-shadow: 0 -60px 90px rgba(0, 0, 0, 0.9);
   }
 
-  /*
-    A hairline of the brand's colour along the panel's leading edge. Without it
-    the panel arrives as a flat black rectangle; with it, the hub's own colour
-    is the last thing you see of the hero and the first thing you see of the
-    coverage.
-  */
+  /* ══════════════════════════════════════════════════════════════════════
+     ITS LEADING EDGE FEATHERS. IT DOES NOT CUT.
+
+     The first version put a 1px brand-coloured rule along the panel's top with
+     the opaque background starting immediately under it. That is a hard edge
+     with a highlight on it — the exact thing the sticky hero exists to get rid
+     of. Removing the seam between the two sections is pointless if the panel
+     then draws its own.
+
+     So the panel's background begins ABOVE its box and fades in over 200px:
+     transparent where the hero is still fully visible, solid by the time the
+     content starts. The hero dissolves into the coverage instead of being
+     chopped by it.
+
+     Multi-stop, not a two-stop ramp. A linear alpha ramp has a constant
+     derivative, so its two ENDS are discontinuities and the eye reads both as
+     faint horizontal bands (Mach banding) — which would put back a softer
+     version of the edge being removed. These stops approximate a smoothstep,
+     so the fade has no detectable start or finish. Same reasoning as the deck
+     feather and the seam wash on /featured.
+
+     The brand colour survives as a wide, very low-alpha wash inside the fade
+     rather than as a line: present, but with no edge to it.
+
+     THE END COLOUR MUST MATCH THE PANEL EXACTLY. The fade first ended at
+     #050505 while the panel is --color-black (#0a0a0a), which left a 5/255
+     step measured precisely at the boundary — small, but a hard edge is a hard
+     edge, and it is the one thing this whole construct exists to remove. The
+     stops are rgba(10,10,10,...) to land on the panel's own colour.
+     ══════════════════════════════════════════════════════════════════════ */
   .content-container::before {
     content: '';
     position: absolute;
-    top: 0;
     left: 0;
     right: 0;
-    height: 1px;
-    background: linear-gradient(to right,
-      transparent 0%,
-      rgba(var(--brand-rgb, 204, 0, 0), 0.55) 22%,
-      rgba(var(--brand-rgb, 204, 0, 0), 0.55) 78%,
-      transparent 100%);
+    top: -200px;
+    height: 200px;
+    background:
+      linear-gradient(to bottom,
+        rgba(var(--brand-rgb, 204, 0, 0), 0) 0%,
+        rgba(var(--brand-rgb, 204, 0, 0), 0.05) 40%,
+        rgba(var(--brand-rgb, 204, 0, 0), 0.07) 62%,
+        rgba(var(--brand-rgb, 204, 0, 0), 0) 100%),
+      linear-gradient(to bottom,
+        rgba(10, 10, 10, 0) 0%,
+        rgba(10, 10, 10, 0.04) 12%,
+        rgba(10, 10, 10, 0.13) 24%,
+        rgba(10, 10, 10, 0.28) 36%,
+        rgba(10, 10, 10, 0.47) 48%,
+        rgba(10, 10, 10, 0.66) 60%,
+        rgba(10, 10, 10, 0.82) 72%,
+        rgba(10, 10, 10, 0.93) 84%,
+        rgba(10, 10, 10, 0.98) 93%,
+        rgba(10, 10, 10, 1) 100%);
     pointer-events: none;
   }
   /* Clipping/coverage layer: static, fills the hero, hides the sliver the
