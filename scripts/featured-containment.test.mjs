@@ -314,17 +314,30 @@ test('nothing is painted over the video, and its chrome is handled another way',
   const decl = vid.slice(0, vid.indexOf('  }'));
   assert.match(decl, /box-shadow:/, 'the layer read comes from a shadow under it');
 
-  // Reveal is separated from load.
-  assert.match(src, /TRAILER_SETTLE_MS/, 'the embed reveal waits for the player to settle');
+  /*
+    THE PLAYER HAS TO PROVE IT IS PLAYING BEFORE IT IS SHOWN.
+
+    A fixed settle used to sit here, and it was solving the wrong problem. The
+    chrome in the report was not the title bar during load — it was the player
+    PAUSED, showing its title, its "More videos" strip and the YouTube logo,
+    because autoplay had been blocked (Brave by default, some extensions, iOS
+    Low Power Mode). No delay fixes that: nothing was ever going to start.
+
+    So the reveal is driven by the player's own state (info === 1, PLAYING) over
+    the enablejsapi postMessage channel, and a stage that never reports playing
+    is torn down with the mark left up. Never show a paused player.
+  */
   const arm = src.slice(src.indexOf('function armStage'), src.indexOf('function syncTrailers'));
+  assert.match(src, /enablejsapi=1/, 'the state channel must be open');
+  assert.match(arm, /state === 1/, 'reveal only on a confirmed PLAYING state');
+  assert.match(arm, /TRAILER_PLAY_TIMEOUT_MS/, 'a player that never starts must time out');
+  assert.match(arm, /is-playing[\s\S]{0,80}teardownStage/,
+    'the timeout must tear the stage down, not reveal it anyway');
+  assert.doesNotMatch(arm, /setTimeout\(reveal/,
+    'the reveal must never be scheduled on a timer — that is what showed a paused player');
   assert.ok(
-    arm.indexOf('frame!.src = src') < arm.indexOf('setTimeout(reveal'),
-    'the embed src must be assigned before the reveal is scheduled, never with it',
-  );
-  assert.doesNotMatch(
-    arm,
-    /frame!\.src = src;\s*stage\.classList\.add/,
-    'the reveal must never fire in the same tick as the load',
+    arm.indexOf('frameEl.src =') < arm.indexOf('reveal()'),
+    'src must be assigned before anything can reveal',
   );
 
   // The self-hosted path exists and wins.
@@ -511,6 +524,24 @@ test('every candidate face is actually served, and none are hardcoded', () => {
     new RegExp(`\\b${prod[1]}: \\{`).test(map),
     `PROD_FONT is '${prod[1]}' but no self-hosted file is registered for it`,
   );
+});
+
+test("a hub's empty state carries no mark of ours", () => {
+  /*
+    The deck card used `.article-thumb-fallback`, and home-cards.css paints
+    `--brand-fallback-mark` — this site's own logo — as a background on that
+    class. Correct on our content cards; wrong on a hub tile, where it put BE
+    UNCONVENTIONAL across PlayStation's artwork slot as though it were
+    PlayStation's. Exactly the mistake that backing a hub with a video
+    thumbnail made, in a different place.
+  */
+  assert.doesNotMatch(src, /article-thumb-fallback/,
+    "a hub tile must not borrow the site's own fallback mark");
+  assert.match(src, /deck-card-empty/, 'the empty state is the hub tile\'s own');
+  const block = src.slice(src.indexOf('.deck-card-empty {'));
+  const decl = block.slice(0, block.indexOf('\n  }'));
+  assert.match(decl, /--brand-rgb/, "the empty state is tinted by the HUB's colour");
+  assert.doesNotMatch(decl, /brand-fallback-mark|logo/, 'no mark of ours on it');
 });
 
 test('the row that is already open arms its own trailer', () => {

@@ -480,7 +480,19 @@ ${activeFonts
                                 class="deck-card-image"
                               />
                             ) : (
-                              <div class="article-thumb-fallback"></div>
+                              /*
+                                NOT `.article-thumb-fallback`. That shared
+                                class paints `--brand-fallback-mark` — this
+                                site's own logo — as a watermark, which is
+                                correct on our content cards and wrong here:
+                                it put BE UNCONVENTIONAL across PlayStation's
+                                tile as if it were PlayStation's artwork. Same
+                                mistake as backing a hub with a thumbnail of
+                                the presenter's face. A hub is somebody else's
+                                brand, so its empty state is its own colour and
+                                nothing more.
+                              */
+                              <div class="deck-card-empty" aria-hidden="true"></div>
                             )}
 
                             {/*
@@ -687,7 +699,7 @@ ${activeFonts
                                     <iframe
                                       class="brand-stage-iframe"
                                       src="about:blank"
-                                      data-src={`https://www.youtube-nocookie.com/embed/${trailerId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&disablekb=1&iv_load_policy=3&cc_load_policy=0&enablejsapi=0`}
+                                      data-src={`https://www.youtube-nocookie.com/embed/${trailerId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&disablekb=1&iv_load_policy=3&cc_load_policy=0&enablejsapi=1`}
                                       title=""
                                       aria-hidden="true"
                                       tabindex="-1"
@@ -808,9 +820,25 @@ ${activeFonts
     self-hosted file is the only way to be certain, and it takes priority
     whenever one exists.
   */
-  const TRAILER_SETTLE_MS = 2400;
+  /*
+    HOW LONG TO WAIT FOR THE PLAYER TO SAY IT IS PLAYING BEFORE GIVING UP.
+
+    Replaces a fixed 2400ms settle, which was solving the wrong problem. The
+    chrome in the report was not the title bar flashing during load — it was
+    the player PAUSED, showing its title, its "More videos" strip and the
+    YouTube logo, because autoplay had been blocked (Brave does this by
+    default, and so do several extensions and Low Power Mode on iOS).
+
+    There is no delay that fixes that: nothing was ever going to start. So the
+    frame is not revealed on a timer at all any more. It is revealed only when
+    the player reports PLAYING, and if it never does the video is torn down and
+    the brand mark simply stays up. A hub that cannot autoplay now looks
+    deliberate instead of looking like a paused YouTube page.
+  */
+  const TRAILER_PLAY_TIMEOUT_MS = 7000;
   const TRAILER_RUN_MS = 42000;
   const stageTimers = new WeakMap<HTMLElement, number[]>();
+  const stageListeners = new WeakMap<HTMLElement, (e: MessageEvent) => void>();
 
   function trailersAllowed(): boolean {
     if (typeof window === 'undefined' || !window.matchMedia) return false;
@@ -827,8 +855,20 @@ ${activeFonts
 
   function clearStageTimers(stage: HTMLElement) {
     const timers = stageTimers.get(stage);
-    if (timers) timers.forEach((t) => window.clearTimeout(t));
+    if (timers) {
+      timers.forEach((t) => {
+        /* The list holds both timeouts and the state-poll interval. Ids come
+           from the same pool, so clearing both is correct and cheap. */
+        window.clearTimeout(t);
+        window.clearInterval(t);
+      });
+    }
     stageTimers.set(stage, []);
+    const listener = stageListeners.get(stage);
+    if (listener) {
+      window.removeEventListener('message', listener);
+      stageListeners.delete(stage);
+    }
   }
 
   function teardownStage(stage: HTMLElement) {
@@ -864,6 +904,8 @@ ${activeFonts
 
     const timers: number[] = [];
     const reveal = () => {
+      /* Stop pestering the player the moment it has answered. */
+      timers.forEach((t) => window.clearInterval(t));
       stage.classList.add('is-playing');
       timers.push(window.setTimeout(() => teardownStage(stage), TRAILER_RUN_MS));
     };
@@ -879,9 +921,52 @@ ${activeFonts
         });
         return;
       }
-      /* An embed cannot tell us, so the settle time is a fixed guess. */
-      frame!.src = src;
-      timers.push(window.setTimeout(reveal, TRAILER_SETTLE_MS));
+      /*
+        THE EMBED HAS TO PROVE IT IS PLAYING.
+
+        With `enablejsapi=1` the player answers a `listening` postMessage with
+        its state, so we can wait for PLAYING (info === 1) rather than guess.
+        No API script needed — this is the same channel the script would use.
+        `origin` is required for the handshake and can only be known at
+        runtime, so it is appended here rather than baked into the markup.
+      */
+      const frameEl = frame!;
+      frameEl.src = `${src}&origin=${encodeURIComponent(window.location.origin)}`;
+
+      const onMessage = (event: MessageEvent) => {
+        if (event.source !== frameEl.contentWindow) return;
+        let data: { event?: string; info?: unknown } | null = null;
+        try {
+          data = typeof event.data === 'string' ? JSON.parse(event.data) : (event.data as never);
+        } catch {
+          return; // not ours
+        }
+        const info = data && (data as { info?: unknown }).info;
+        const state = typeof info === 'object' && info !== null
+          ? (info as { playerState?: number }).playerState
+          : info;
+        if (state === 1) {
+          window.removeEventListener('message', onMessage);
+          reveal();
+        }
+      };
+      window.addEventListener('message', onMessage);
+      stageListeners.set(stage, onMessage);
+
+      /* The player only answers once it has booted, so keep asking. */
+      const poll = window.setInterval(() => {
+        frameEl.contentWindow?.postMessage('{"event":"listening"}', '*');
+      }, 250);
+      timers.push(poll);
+
+      /*
+        Never started. Blocked autoplay, a blocked domain, an embed the owner
+        disabled. Take it down and leave the mark up — never show a paused
+        player.
+      */
+      timers.push(window.setTimeout(() => {
+        if (!stage.classList.contains('is-playing')) teardownStage(stage);
+      }, TRAILER_PLAY_TIMEOUT_MS));
     }, TRAILER_LEAD_IN_MS));
 
     stageTimers.set(stage, timers);
@@ -2449,6 +2534,21 @@ ${activeFonts
      ContentCard.astro sits the mark bottom-left over the frame — so hubs use
      the same idea at poster scale.
      ══════════════════════════════════════════════════════════════════════ */
+
+  /*
+    A hub with no key art yet. Brand-tinted, quiet, and carrying no mark of
+    ours — the wordmark in .deck-card-plate is the only thing named on it.
+  */
+  .deck-card-empty {
+    width: 100%;
+    height: 100%;
+    background:
+      radial-gradient(120% 90% at 50% 32%,
+        rgba(var(--brand-rgb, 204,0,0), 0.22) 0%,
+        rgba(var(--brand-rgb, 204,0,0), 0.08) 42%,
+        transparent 72%),
+      linear-gradient(150deg, #16161a 0%, #0b0b0d 62%, #050505 100%);
+  }
 
   .deck-card-scrim {
     position: absolute;
