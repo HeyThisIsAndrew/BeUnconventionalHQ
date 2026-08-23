@@ -4,7 +4,6 @@ import { getArticleItems } from '../../lib/feed-items';
 import { getVideosUnified } from '../../lib/videos-source';
 import { getFeaturedBrandsLocal, getHubBackdrop, urlFor, HUB_CATEGORY_LABELS } from '../../lib/local-content';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
-import HeroTrailer from '../../components/HeroTrailer.astro';
 import ContentCard from '../../components/ContentCard.astro';
 import InstagramFeed from '../../components/InstagramFeed.astro';
 import { getHubTopicKeywords } from '../../lib/instagram-topic';
@@ -132,6 +131,15 @@ const fallbackGradient = `linear-gradient(135deg, rgba(${brandRgb}, 0.28) 0%, #0
 // The trailer (poster, players, sound) is fully encapsulated in <HeroTrailer/>.
 const trailerUrl = event.trailerUrl;
 const trailerId = parseVideoId(trailerUrl);
+
+/*
+  THE STAGE IS BUILT FROM THE HUB'S MARK, exactly as the deck page's is: the
+  logo crisp and large, over a blown-up blurred copy of itself. Not heroImage —
+  that is already the backdrop behind this whole hero, and using it twice is the
+  repetition problem that got fixed on /featured.
+*/
+const stageMarkUrl = event.logo ? urlFor(event.logo).height(520).auto('format').url() : null;
+const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format').url() : null;
 ---
 
 <Layout title={`${event.title}`} description={`Complete coverage of ${event.title}`}>
@@ -164,6 +172,27 @@ const trailerId = parseVideoId(trailerUrl);
           <div class="event-hero-bg-animated" style={`background-image: ${fallbackGradient};`}></div>
         )}
       </div>
+
+      {/*
+        THE FEATHERED MIDDLE.
+
+        A plate over the hero's right half carrying the hub's mark blown up and
+        blurred, masked so it dissolves toward the copy instead of meeting it at
+        a line. This is the seam that made the deck page read as one scene
+        rather than two columns.
+
+        It CLIPS (overflow: hidden) because a CSS blur goes weak at its own
+        edges — the outermost band is the least blurred part — so the plate
+        overscans and the weak edge falls outside the clip. Safe here only
+        because it contains no iframe: the stage is a sibling (hard rule 3).
+      */}
+      {stageGhostUrl && (
+        <div class="hub-stage-bg" aria-hidden="true">
+          <div class="hub-stage-plate" style={`background-image: url('${stageGhostUrl}');`}></div>
+        </div>
+      )}
+      <div class="hub-stage-wash" aria-hidden="true"></div>
+
       <div class="event-hero-overlay flex flex-col justify-center">
         <div
           class:list={[
@@ -216,11 +245,58 @@ const trailerId = parseVideoId(trailerUrl);
             )}
           </div>
           
-          {trailerId && (
-            <div class="hero-trailer animate-on-scroll aspect-video w-full h-auto 2xl:!max-w-4xl 3xl:!max-w-6xl 2xl:scale-110 2xl:origin-right" style="animation-delay: 0.2s;">
-              <HeroTrailer trailerId={trailerId} title={event.title} />
+          {/*
+            THE STAGE — the deck page's right-hand half, brought here.
+
+            The mark sits crisp and large, and where the hub has a trailer the
+            video fades in over it once the player CONFIRMS it is playing, then
+            dissolves back. The mark is what the panel rests on before the video
+            arrives and after it ends, so this side is never empty and a blocked
+            autoplay degrades to a lit brand mark rather than a paused YouTube
+            page.
+
+            Not <HeroTrailer/> any more: that component is a poster you click,
+            which cannot do the logo-to-video dissolve. It stays untouched for
+            events/[slug].astro (hard rule 2).
+          */}
+          <div
+            class="hero-trailer hub-stage animate-on-scroll"
+            style="animation-delay: 0.2s;"
+            data-trailer={trailerId ?? undefined}
+          >
+            <div class="hub-stage-mark" aria-hidden="true">
+              {stageMarkUrl ? (
+                /* HARD RULE 6: no filter on the <img>. The glow is on the wrapper. */
+                <img src={stageMarkUrl} alt="" class="hub-stage-mark-img" />
+              ) : (
+                <span class="hub-stage-wordmark">{event.title}</span>
+              )}
             </div>
-          )}
+
+            {trailerId && (
+              /*
+                HARD RULE 4: the idle src is 'about:blank', NEVER ''. An empty
+                src resolves to the current page and loads the whole site inside
+                the frame. HARD RULE 3: nothing above this clips — .hub-stage-bg
+                does the clipping and is a SIBLING, not an ancestor.
+              */
+              <div class="hub-stage-video">
+                <iframe
+                  class="hub-stage-iframe"
+                  src="about:blank"
+                  data-src={`https://www.youtube-nocookie.com/embed/${trailerId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&disablekb=1&iv_load_policy=3&cc_load_policy=0&enablejsapi=1`}
+                  title=""
+                  aria-hidden="true"
+                  tabindex="-1"
+                  loading="lazy"
+                  allow="autoplay; encrypted-media"
+                ></iframe>
+                {/* Sits on the letterbox the player already draws, so it costs
+                    no picture — see the note on .hub-stage-guard. */}
+                <span class="hub-stage-guard" aria-hidden="true"></span>
+              </div>
+            )}
+          </div>
 
           {/* Placed after the trailer in the DOM so mobile stacks copy →
               trailer → button; grid-areas restore the desktop layout. */}
@@ -467,6 +543,194 @@ const trailerId = parseVideoId(trailerUrl);
   }
   
   /* Placement only — the trailer's internals live in <HeroTrailer/>. */
+  /* ══════════════════════════════════════════════════════════════════════
+     THE HUB HERO'S RIGHT HALF — the deck page's stage, brought here.
+
+     Lifted rather than rewritten: every value below already survived several
+     rounds of review on /featured, and rebuilding it from memory is how the
+     two pages drift apart again.
+
+     The hero KEEPS ITS OWN HEIGHT. An earlier attempt made it 100lvh, which is
+     ~1286px on an iPad Pro portrait with maybe 400px of content centred in it —
+     a wall of nothing. Nothing here sets a viewport height.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /*
+    The plate behind the right half. Overscans its clip, because a CSS blur goes
+    WEAK at its own element's edges: it samples the transparent pixels outside
+    and mixes them in, so the outermost band is the least blurred part of it.
+    Pushed past the clip, what shows is the middle of the blur, which is even.
+
+    The mask is the feathered middle — a smoothstep rather than a two-stop ramp,
+    because a linear alpha ramp's two ENDS are discontinuities the eye reads as
+    faint vertical bands.
+  */
+  .hub-stage-bg {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    left: 28%;
+    z-index: 1;
+    overflow: hidden;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(to right,
+      rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 8%, rgba(0,0,0,0.14) 16%,
+      rgba(0,0,0,0.32) 24%, rgba(0,0,0,0.55) 32%, rgba(0,0,0,0.76) 40%,
+      rgba(0,0,0,0.90) 48%, rgba(0,0,0,0.98) 56%, rgba(0,0,0,1) 64%);
+    mask-image: linear-gradient(to right,
+      rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 8%, rgba(0,0,0,0.14) 16%,
+      rgba(0,0,0,0.32) 24%, rgba(0,0,0,0.55) 32%, rgba(0,0,0,0.76) 40%,
+      rgba(0,0,0,0.90) 48%, rgba(0,0,0,0.98) 56%, rgba(0,0,0,1) 64%);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+  }
+
+  .hub-stage-plate {
+    position: absolute;
+    inset: -30%;
+    background-size: contain;
+    background-position: 58% 50%;
+    background-repeat: no-repeat;
+    filter: blur(26px) saturate(1.4) brightness(1.45);
+    -webkit-filter: blur(26px) saturate(1.4) brightness(1.45);
+    opacity: 0.5;
+    /* STATIC. A 32s scale() on the CLIPPING wrapper was the light leak on the
+       deck page: scaling a clipping box scales the clip, dragging the blur's
+       weak edge out past the scrims. Nothing here moves. */
+  }
+
+  /* Lit without needing a single asset, so a hub with no logo still reads. */
+  .hub-stage-wash {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: radial-gradient(90% 80% at 76% 46%,
+      rgba(var(--brand-rgb, 204,0,0), 0.20) 0%,
+      rgba(var(--brand-rgb, 204,0,0), 0.09) 36%,
+      rgba(var(--brand-rgb, 204,0,0), 0.02) 60%,
+      transparent 78%);
+  }
+
+  /* The stage itself sits in the grid's `trailer` cell. */
+  .hub-stage {
+    position: relative;
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+    aspect-ratio: 16 / 9;
+    /* NO overflow: hidden — HARD RULE 3, the iframe lives in here. */
+  }
+
+  .hub-stage-mark {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* HARD RULE 6: the glow is on the WRAPPER, never on the <img>. */
+    filter: drop-shadow(0 0 38px rgba(var(--brand-rgb, 204,0,0), 0.40))
+            drop-shadow(0 16px 40px rgba(0,0,0,0.8));
+    transition: opacity 0.9s ease, transform 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+    opacity: 0.97;
+  }
+
+  .hub-stage-mark-img {
+    width: 62%;
+    max-height: 78%;
+    height: auto;
+    object-fit: contain;
+  }
+
+  .hub-stage-wordmark {
+    font-family: var(--font-display, sans-serif);
+    font-size: clamp(1.5rem, 3.6vw, 3rem);
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-align: center;
+    color: rgba(255,255,255,0.92);
+    line-height: 1.15;
+  }
+
+  .hub-stage-video {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transform: scale(1.02);
+    transition: opacity 1.1s ease, transform 1.1s cubic-bezier(0.2, 0.8, 0.2, 1);
+    box-shadow: 0 30px 70px rgba(0,0,0,0.85);
+    /* NO overflow: hidden and no radius needing one. HARD RULE 3. */
+  }
+
+  .hub-stage-iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    /* A frame whose document never loads paints WHITE by default, which is a
+       white rectangle in the middle of a black page. */
+    background: #050505;
+  }
+
+  /*
+    THE CAPTION GUARD. Captions follow the VIEWER's own preference and no player
+    parameter reliably suppresses them — "Beautiful face" was burnt across the
+    frame with every suppression flag already set. This is a flat bar over the
+    bottom 17%, and that band is ALREADY BLACK: these trailers are 2.39:1 inside
+    a 16:9 player, so the player letterboxes them and the caption renders in the
+    black below the picture. It covers the letterbox, not the film.
+  */
+  .hub-stage-guard {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 17%;
+    background: #050505;
+    pointer-events: none;
+  }
+
+  /* Playing: video up, mark down but not out — it is the glow behind it. */
+  .hub-stage.is-playing .hub-stage-video {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .hub-stage.is-playing .hub-stage-mark {
+    opacity: 0.28;
+    transform: scale(1.06);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hub-stage-mark,
+    .hub-stage-video {
+      transition: none;
+    }
+  }
+
+  /*
+    Below the 50/50 breakpoint the grid stacks, so the feathered plate has no
+    right half to sit in. It becomes the full-bleed ground behind the stacked
+    copy instead, which is what the deck page does at these sizes.
+  */
+  @media (max-width: 1023px) {
+    .hub-stage-bg {
+      left: 0;
+      -webkit-mask-image: none;
+      mask-image: none;
+      opacity: 0.55;
+    }
+    .hub-stage-wash {
+      background: radial-gradient(120% 70% at 50% 38%,
+        rgba(var(--brand-rgb, 204,0,0), 0.16) 0%,
+        rgba(var(--brand-rgb, 204,0,0), 0.05) 46%,
+        transparent 74%);
+    }
+  }
+
   .hero-trailer {
     width: 100%;
     max-width: 600px;
@@ -699,6 +963,97 @@ const trailerId = parseVideoId(trailerUrl);
     border: 0;
   }
 </style>
+
+<script>
+  /* ══════════════════════════════════════════════════════════════════════
+     THE MARK DISSOLVES TO THE TRAILER — AND ONLY IF IT REALLY PLAYS.
+
+     Lifted from the deck page, where this was arrived at the hard way. The
+     YouTube chrome that kept appearing was never a loading flash: it was the
+     player PAUSED, showing its title, its "More videos" strip and the YouTube
+     logo, because autoplay had been blocked (Brave by default, several
+     extensions, iOS Low Power Mode). No delay fixes that — nothing was ever
+     going to start.
+
+     So the frame is never revealed on a timer. With `enablejsapi=1` the player
+     answers a `listening` postMessage with its state, and the video is shown
+     only on a confirmed PLAYING (info === 1). If that never arrives the video
+     is torn down and the brand mark simply stays up: a hub that cannot
+     autoplay looks deliberate instead of looking like a paused YouTube tab.
+
+     Teardown is `about:blank` — HARD RULE 4 — never ''.
+     ══════════════════════════════════════════════════════════════════════ */
+  const HUB_LEAD_IN_MS = 900;
+  const HUB_PLAY_TIMEOUT_MS = 7000;
+  const HUB_RUN_MS = 42000;
+
+  function initHubStage() {
+    const stage = document.querySelector<HTMLElement>('.hub-stage');
+    if (!stage || !stage.dataset.trailer) return;
+    if (stage.dataset.stageInit === '1') return;
+    stage.dataset.stageInit = '1';
+
+    const frame = stage.querySelector<HTMLIFrameElement>('.hub-stage-iframe');
+    const src = frame?.dataset.src;
+    if (!frame || !src) return;
+
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const conn = (navigator as unknown as { connection?: { saveData?: boolean } }).connection;
+    if (conn?.saveData) return;
+
+    const timers: number[] = [];
+    const clearAll = () => {
+      timers.forEach((t) => { window.clearTimeout(t); window.clearInterval(t); });
+      timers.length = 0;
+    };
+    const teardown = () => {
+      clearAll();
+      window.removeEventListener('message', onMessage);
+      stage.classList.remove('is-playing');
+      /* HARD RULE 4: 'about:blank', never ''. */
+      if (frame.src !== 'about:blank') frame.src = 'about:blank';
+    };
+    const reveal = () => {
+      clearAll();
+      window.removeEventListener('message', onMessage);
+      stage.classList.add('is-playing');
+      timers.push(window.setTimeout(teardown, HUB_RUN_MS));
+    };
+
+    function onMessage(event: MessageEvent) {
+      if (event.source !== frame!.contentWindow) return;
+      let data: unknown = null;
+      try {
+        data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      } catch {
+        return; // not ours
+      }
+      const info = (data as { info?: unknown } | null)?.info;
+      const state = typeof info === 'object' && info !== null
+        ? (info as { playerState?: number }).playerState
+        : info;
+      if (state === 1) reveal();
+    }
+
+    timers.push(window.setTimeout(() => {
+      /* `origin` is required for the handshake and is only knowable at runtime. */
+      frame.src = `${src}&origin=${encodeURIComponent(window.location.origin)}`;
+      window.addEventListener('message', onMessage);
+      /* The player only answers once it has booted, so keep asking. */
+      timers.push(window.setInterval(() => {
+        frame.contentWindow?.postMessage('{"event":"listening"}', '*');
+      }, 250));
+      /* Never started: blocked autoplay, blocked domain, embedding disabled.
+         Take it down and leave the mark up. */
+      timers.push(window.setTimeout(() => {
+        if (!stage.classList.contains('is-playing')) teardown();
+      }, HUB_PLAY_TIMEOUT_MS));
+    }, HUB_LEAD_IN_MS));
+  }
+
+  initHubStage();
+  document.addEventListener('astro:page-load', initHubStage);
+</script>
 
 <script>
   // astro:page-load fires on the initial load AND after every View Transition

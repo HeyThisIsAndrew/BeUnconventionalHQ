@@ -479,6 +479,54 @@ test('the hub rail centres, and cannot strand its first thumbnail', () => {
   assert.match(decl, /overflow-x: auto/, 'the rail still scrolls when it overflows');
 });
 
+test('the hub hero is the deck page\'s stage, and keeps its own height', () => {
+  /*
+    The hub hero is now the 50/50 that /featured used to carry: copy on the
+    left, the hub's mark on the right dissolving to its trailer, with a
+    feathered middle instead of a column boundary.
+
+    THE HERO MUST NOT BE VIEWPORT-HEIGHT. An earlier attempt set it to
+    `calc(100lvh - header)`, which is ~1286px on an iPad Pro portrait holding
+    maybe 400px of content — reported as completely broken on both a tablet and
+    a phone, and it was. Measured after this rebuild: 70% of the viewport on
+    iPad portrait, iPad landscape, iPhone 17 Pro Max and desktop.
+  */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
+  const hero = hub.slice(hub.indexOf('.event-hero {'));
+  const hdecl = hero.slice(0, hero.indexOf('\n  }'));
+  assert.doesNotMatch(hdecl, /height:\s*calc\(100lvh/, 'a viewport-height hero is a wall of nothing on a tablet');
+  assert.doesNotMatch(hdecl, /position: sticky/, 'the pinned hero was reverted — it needs a different construction');
+
+  // The stage, and the reasons it can exist here at all.
+  assert.match(hub, /hub-stage-mark/, 'the mark is the resting state');
+  assert.match(hub, /hub-stage-iframe/, 'the trailer exists');
+  assert.match(hub, /src="about:blank"/, "HARD RULE 4: never src=''");
+  assert.doesNotMatch(hub, /\.src\s*=\s*['"]{2}/, "HARD RULE 4: never assign src = ''");
+  assert.match(hub, /enablejsapi=1/, 'the state channel must be open');
+  assert.match(hub, /state === 1/, 'reveal only on a CONFIRMED playing state');
+  assert.doesNotMatch(hub, /setTimeout\(reveal/, 'a timed reveal is what showed a paused player');
+
+  // HARD RULE 3: the clipping plate is a SIBLING of the iframe, never above it.
+  const stage = hub.slice(hub.indexOf('.hub-stage {'));
+  assert.doesNotMatch(stage.slice(0, stage.indexOf('\n  }')), /overflow: hidden/,
+    'nothing between the iframe and the page may clip');
+
+  // The feathered middle, and the blur's weak edge kept outside the clip.
+  const bg = hub.slice(hub.indexOf('.hub-stage-bg {'));
+  const bdecl = bg.slice(0, bg.indexOf('\n  }'));
+  assert.match(bdecl, /overflow: hidden/, 'the plate must clip so the blur\'s weak edge never shows');
+  assert.match(bdecl, /mask-image: linear-gradient\(to right/, 'the middle must feather, not meet at a line');
+  assert.ok((bdecl.match(/rgba\(0,0,0,/g) || []).length >= 8, 'multi-stop, or the ramp bands');
+
+  const plate = hub.slice(hub.indexOf('.hub-stage-plate {'));
+  const pdecl = plate.slice(0, plate.indexOf('\n  }'));
+  assert.match(pdecl, /inset: -\d+%/, 'the plate must overscan its clip');
+  assert.doesNotMatch(pdecl, /animation:/, 'scaling a clipping box was the light leak — nothing here moves');
+});
+
 test('every category row is reachable and operable from the keyboard', () => {
   /*
     The headers were <div>s with a click handler. Focus went from the open row's

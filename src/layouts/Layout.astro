@@ -439,18 +439,17 @@ const fallbackMark = await getImage({
     >
       <div class="modal-content">
         <button class="modal-close" aria-label="Close modal">&times;</button>
+        {/*
+          HARD RULE 4: the iframe's src is `about:blank`, never "". An empty src
+          resolves to the CURRENT PAGE, so this modal was loading the whole site
+          inside itself on every page load — invisibly, because the modal stays
+          hidden until opened. The teardown in the script already got this
+          right; the initial markup never did.
+        */}
         <div class="video-container">
           <iframe
             id="modal-iframe"
-            {/*
-              HARD RULE 4: `about:blank`, never "". An empty src resolves to
-              the CURRENT PAGE, so this modal was loading the whole site inside
-              itself on every page load — invisibly, because the modal is
-              hidden until opened. The teardown below already got this right;
-              the initial markup never did.
-            */}
             src="about:blank"
-            
             allow="autoplay; encrypted-media"
             allowfullscreen
             title="YouTube video player"></iframe>
