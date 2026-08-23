@@ -926,26 +926,27 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
   }
 
   /*
-    MARK AND LINE, SIDE BY SIDE.
+    MARK ABOVE THE LINE, TIGHT TOGETHER.
 
-    `align-items: center` so the description reads against the middle of the
-    mark rather than its baseline, and `flex-wrap` so a very wide lockup on a
-    narrow phone drops the line beneath instead of squeezing it to two words a
-    row. The mark keeps its own size; only the copy gives way.
+    Side by side was tried and rejected: it squeezed the description into a
+    narrow column, which made it wrap enough to trip the "Read more" clamp on
+    hubs with longer copy — an expand control nobody wants in a hero. Full
+    width beneath the mark, the line always fits and the clamp never fires.
+
+    The gap is deliberately small. The two belong to each other; the air
+    between them was reading as two separate things.
   */
   .hero-identity {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 1.1rem 1.6rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.55rem;
     margin-bottom: 1.2rem;
   }
   .hero-identity .hero-logo-wrap {
     margin: 0;
-    flex: 0 0 auto;
   }
   .hero-identity .hero-description-wrapper {
-    flex: 1 1 260px;
     min-width: 0;
     margin: 0;
   }
@@ -971,13 +972,36 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     margin-top: 1.6rem;
     overflow-x: auto;
     /*
-      VERTICAL PADDING IS NOT DECORATION. `overflow-x: auto` computes
-      `overflow-y` to `auto` as well, so the box clips vertically too — and the
-      active card lifts and scales. Without room above it, the top of the
-      selected tile was sliced off, which is exactly what was reported on both
-      desktop and mobile.
+      PADDING ON ALL FOUR SIDES, AND EVERY SIDE IS LOAD-BEARING.
+
+      `overflow-x: auto` computes `overflow-y` to `auto` as well, so this box
+      clips vertically too — and the active card lifts AND scales 1.06. Without
+      room, the selected tile was sliced: off the top always, and off the left
+      or right when the selected card was the first or last one.
+
+      The horizontal padding is what stops the end cards being cut. 1.06 on a
+      108px card grows it ~3px each side, so 10px is comfortable margin.
     */
-    padding: 10px 2px 8px;
+    padding: 10px;
+
+    /*
+      THE EDGE FEATHER ONLY EXISTS WHERE THERE IS MORE TO SCROLL TO.
+
+      Both ramps default to 0%, so a rail that fits is not faded at all, and a
+      rail scrolled hard left has no fade on its left. This is the same
+      construct as the hub rail on /featured, and for the same reason: a fixed
+      10%/90% ramp there dimmed the first and last item permanently, so two of
+      five hubs looked disabled with nothing scrolled. Selecting an end card
+      must never dim it.
+    */
+    -webkit-mask-image: linear-gradient(to right,
+      transparent 0%, #000 var(--rail-fade-start, 0%),
+      #000 calc(100% - var(--rail-fade-end, 0%)), transparent 100%);
+    mask-image: linear-gradient(to right,
+      transparent 0%, #000 var(--rail-fade-start, 0%),
+      #000 calc(100% - var(--rail-fade-end, 0%)), transparent 100%);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
@@ -1486,8 +1510,74 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       stage.classList.remove('is-playing');
     };
 
+    /*
+      FADE ONLY THE SIDE THAT ACTUALLY CONTINUES.
+
+      Reported: the leftmost card cut off on DC, the rightmost on Marvel, and
+      worse once selected (the active card scales, so it reaches further into
+      the edge). A static fade cannot tell "there is more over there" from
+      "this is the end", so it dims a card that is simply the last one.
+
+      This reports which sides overflow and lets CSS decide how far to ramp, so
+      an end card at rest is never faded and a selected end card is never cut.
+      Same construct as the deck rail on /featured.
+    */
+    function syncRailFade() {
+      const max = rail.scrollWidth - rail.clientWidth;
+      const atStart = rail.scrollLeft <= 1;
+      const atEnd = rail.scrollLeft >= max - 1;
+      rail.style.setProperty('--rail-fade-start', max > 1 && !atStart ? '9%' : '0%');
+      rail.style.setProperty('--rail-fade-end', max > 1 && !atEnd ? '9%' : '0%');
+    }
+    syncRailFade();
+    rail.addEventListener('scroll', syncRailFade, { passive: true });
+    const RO = (window as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver;
+    if (RO) new RO(syncRailFade).observe(rail);
+    else window.addEventListener('resize', syncRailFade);
+
+    /*
+      ONE handler per card: select, then bring it fully inside the rail.
+
+      The scroll is computed rather than delegated to scrollIntoView, and it
+      accounts for the rail's own padding. `inline: 'nearest'` parks a card
+      flush against the padding edge, where the active card's 1.06 scale then
+      pushes its outer edge past the clip — which is precisely the "gets worse
+      on selection" that was reported. Landing it inside the padding leaves
+      room for the scale.
+
+      Instant, not smooth: the fade below is recalculated straight after, and a
+      smooth scroll would leave it computing against a position the rail has
+      not reached yet.
+    */
+    const bringIntoView = (card: HTMLElement) => {
+      /*
+        Measured from bounding rects, NOT offsetLeft. The rail is not a
+        positioned element, so a card's offsetParent is somewhere further up
+        the tree and offsetLeft is not a rail-relative coordinate — which is
+        why scrolling back to the FIRST card silently did nothing while
+        scrolling to the last one worked.
+
+        The padding is included on both sides so the card lands INSIDE it,
+        leaving room for the active card's 1.06 scale. Parked flush, that scale
+        pushes its outer edge past the clip: the "gets worse on selection" that
+        was reported.
+      */
+      const pad = parseFloat(getComputedStyle(rail).paddingLeft) || 0;
+      const rr = rail.getBoundingClientRect();
+      const cr = card.getBoundingClientRect();
+      if (cr.left < rr.left + pad) {
+        rail.scrollLeft -= rr.left + pad - cr.left;
+      } else if (cr.right > rr.right - pad) {
+        rail.scrollLeft += cr.right - (rr.right - pad);
+      }
+    };
+
     cards.forEach((card, i) => {
-      card.addEventListener('click', () => show(i));
+      card.addEventListener('click', () => {
+        show(i);
+        bringIntoView(card);
+        syncRailFade();
+      });
     });
   }
 

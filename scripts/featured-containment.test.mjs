@@ -487,6 +487,48 @@ test("the hub's mark scales with its artwork, not in fixed pixels", () => {
   );
 });
 
+test('the hub hero rail never cuts a card at any edge', () => {
+  /*
+    Reported twice: the leftmost card cut off on DC, the rightmost on Marvel,
+    and worse once selected — the active card scales 1.06, so parked flush it
+    reaches further into the clip than it did at rest.
+
+    Three things, each of which was individually broken:
+
+    1. `overflow-x: auto` computes `overflow-y` to `auto` too, so the rail
+       clips on all four sides. It needs padding on all four, not just the
+       bottom.
+    2. The fade must ramp ONLY where there is more to scroll to. A fixed ramp
+       cannot tell "more over there" from "this is the end", so it dims a card
+       that is simply the last one. Both ramps default to 0%. This is the same
+       construct as the deck rail on /featured, where a fixed 10%/90% ramp made
+       two of five hubs look permanently disabled.
+    3. Bringing a card into view must be measured from bounding rects. The rail
+       is not positioned, so a card's offsetParent is elsewhere and offsetLeft
+       is not rail-relative — scrolling back to the FIRST card silently did
+       nothing while scrolling to the last worked.
+
+    Verified in a browser: every card selected in turn, on four viewports, on a
+    hub with one item and one with five. None clipped.
+  */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
+  const rail = hub.slice(hub.indexOf('.hub-rail {'));
+  const decl = rail.slice(0, rail.indexOf('\n  }'));
+  assert.doesNotMatch(decl, /padding-bottom: \d+px;\s*$/m, 'padding must be on all four sides');
+  assert.match(decl, /padding: \d+px;/, 'a clipped rail needs room on every side');
+  assert.match(decl, /--rail-fade-start, 0%/, 'the start ramp must default to zero');
+  assert.match(decl, /--rail-fade-end, 0%/, 'the end ramp must default to zero');
+
+  const js = hub.slice(hub.indexOf('function initHubRail'));
+  assert.match(js, /scrollWidth - rail\.clientWidth/, 'the fade must know whether the rail overflows');
+  assert.match(js, /getBoundingClientRect/, 'bring-into-view must not rely on offsetLeft');
+  assert.doesNotMatch(js, /offsetLeft/, 'offsetLeft is not rail-relative here — it broke scrolling to the first card');
+  assert.doesNotMatch(js, /behavior: 'smooth'/, 'a smooth scroll leaves the fade computing against a stale position');
+});
+
 test('the hub rail centres, and cannot strand its first thumbnail', () => {
   /*
     The rail defaulted to flex-start, so a category with two or three hubs left
