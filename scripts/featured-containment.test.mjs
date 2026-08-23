@@ -461,6 +461,57 @@ test('the shipping typeface is self-hosted, not a third-party stylesheet', () =>
   assert.doesNotMatch(src, /@import url/, '@import is the slowest way to load CSS');
 });
 
+test('every candidate face is actually served, and none are hardcoded', () => {
+  /*
+    Two bugs, one symptom: every face from the fifth (Anton) rightward rendered
+    in the body font while the first four worked.
+
+    `display=optional` gives the browser ~100ms and PERMANENTLY declines a face
+    that misses. Correct for one shipping face on a real page; wrong for a
+    stylesheet naming seventeen families, where the first few land inside the
+    window and the rest are silently dropped — in list order, which is why the
+    failure looked like a cutoff partway along the picker.
+
+    And the per-face CSS was written out twice: generated from DEMO_FONTS, and
+    ALSO hardcoded for the original four. The duplicate covered a subset,
+    omitted their tracking, and read as if it were the whole set.
+  */
+  const url = src.slice(src.indexOf('const fontImportUrl'), src.indexOf('const fontCss'));
+  assert.doesNotMatch(url, /display=optional/,
+    "the picker's stylesheet must not use display=optional — it drops faces past the first few");
+  assert.match(url, /display=swap/, 'the comparison faces must be allowed to arrive late');
+
+  // Exactly one place declares a face's rule, and it is generated.
+  assert.match(src, /\[data-title-font='\$\{f\.id\}'\]/, 'per-face rules are generated from DEMO_FONTS');
+  const scoped = src.slice(src.indexOf('TEMPORARY typography demo'));
+  assert.doesNotMatch(scoped, /data-demo-font='[a-z-]+'\]/,
+    'no hardcoded per-face rules — they go stale the moment a face is added');
+
+  // The self-hosted file must belong to the face that ships.
+  const map = src.slice(src.indexOf('const SELF_HOSTED_FILES'), src.indexOf('const selfHostedFile'));
+  const prod = src.match(/const PROD_FONT = '([a-z-]+)'/);
+  assert.ok(prod, 'PROD_FONT must be declared');
+  assert.ok(
+    new RegExp(`\\b${prod[1]}: \\{`).test(map),
+    `PROD_FONT is '${prod[1]}' but no self-hosted file is registered for it`,
+  );
+});
+
+test('the row that is already open arms its own trailer', () => {
+  /*
+    syncTrailers() ran only from renderDeck() and the header click, and neither
+    fires on load. The first row is expanded in the markup, so its trailer was
+    never armed until something was clicked: reported as the video failing to
+    start on DC until you switched to Marvel and back. Nothing was broken about
+    playback — nothing had asked it to play.
+  */
+  const init = src.slice(src.indexOf('function initAccordionAndDecks'), src.indexOf('function initFontPicker'));
+  const lastBrace = init.lastIndexOf('\n  }');
+  const afterLoop = init.slice(init.lastIndexOf('});', lastBrace), lastBrace);
+  assert.match(afterLoop, /syncTrailers\(\)/,
+    'syncTrailers() must run once at init, not only from the click handlers');
+});
+
 test('every category row is reachable and operable from the keyboard', () => {
   /*
     The headers were <div>s with a click handler. Focus went from the open row's

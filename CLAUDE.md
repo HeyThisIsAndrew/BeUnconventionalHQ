@@ -160,6 +160,9 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   that genuinely fails is `--color-accent` (#cc0000) at 3.21:1: it is a border
   and glow colour only, never a text or icon colour. Use `--color-accent-text`
   when red needs to be legible.
+- **No em dashes in user-facing copy.** House style: split into two sentences,
+  or use a comma/colon. Applies to anything a visitor reads — headings, body,
+  empty states, alt text, meta descriptions. Code comments are exempt.
 - `.sr-only` is global (`src/styles/global-base.css`). Card grids under an h1
   get a structural sr-only `<h2>`.
 - Secrets: never committed; see `.env.example`. The sync script requires
