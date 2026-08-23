@@ -1489,8 +1489,9 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     the visitor asked for.
 
     Nothing here autoplays. The pane is a still and a title; playback happens
-    only if the visitor presses Play, which routes through the site's existing
-    global [data-action="open-video"] handler and its modal.
+    only if the visitor presses Play, and it plays in this panel. (It used to
+    route through the site's global [data-action="open-video"] handler and its
+    modal. That was wrong here: this panel IS the player.)
   */
   function initHubRail() {
     const rail = document.querySelector<HTMLElement>('.hub-rail');
@@ -1611,6 +1612,62 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       `controls=1` and unmuted, unlike the resting trailer. This playback was
       ASKED for, so the player is allowed to look like a player.
     */
+    /*
+      ONE PRESS, NOT TWO.
+
+      `autoplay=1` on its own is REFUSED by every browser's autoplay policy
+      while the video carries sound, and a refused autoplay is not a dead
+      frame: YouTube swaps to its own poster and its own red play button. So
+      the first press appeared to reload the player and do nothing, and the
+      video only started on a SECOND press inside somebody else's UI.
+
+      Muted autoplay is never refused. The video therefore starts muted and
+      the sound is turned back on over the JS API the moment the player
+      reports PLAYING. If a browser refuses that too (iOS is the strict one,
+      and by then the press is a stale gesture) the video is still running
+      with YouTube's own controls up, one tap from sound. What it can never
+      be again is a button that looks like it did nothing.
+    */
+    const post = (f: HTMLIFrameElement, func: string, args: unknown[] = []) => {
+      f.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args }), '*');
+    };
+
+    const unmuteOncePlaying = (f: HTMLIFrameElement) => {
+      let giveUp = 0;
+      let stopped = false;
+      const ping = window.setInterval(() => {
+        /* The player only answers once it has booted, so keep asking. */
+        f.contentWindow?.postMessage('{"event":"listening"}', '*');
+      }, 250);
+      const stop = () => {
+        if (stopped) return;
+        stopped = true;
+        window.clearInterval(ping);
+        window.clearTimeout(giveUp);
+        window.removeEventListener('message', onMsg);
+      };
+      function onMsg(ev: MessageEvent) {
+        if (ev.source !== f.contentWindow) return;
+        let data: unknown = null;
+        try {
+          data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
+        } catch {
+          return; // not ours
+        }
+        const info = (data as { info?: unknown } | null)?.info;
+        const state = typeof info === 'object' && info !== null
+          ? (info as { playerState?: number }).playerState
+          : info;
+        if (state !== 1) return;
+        post(f, 'unMute');
+        post(f, 'setVolume', [100]);
+        stop();
+      }
+      window.addEventListener('message', onMsg);
+      /* Never started at all: stop pinging rather than ping for ever. */
+      giveUp = window.setTimeout(stop, HUB_PLAY_TIMEOUT_MS);
+    };
+
     const frame = stage.querySelector<HTMLIFrameElement>('.hub-stage-iframe');
     stage.querySelectorAll<HTMLElement>('[data-hub-play]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -1618,9 +1675,14 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
         if (!id || !frame) return;
         stage.classList.remove('is-item');
         stage.classList.add('is-playing');
+        /* `origin` is required for the jsapi handshake and is only knowable
+           at runtime. Without it the player never answers `listening`, and
+           the video would stay silent for ever. */
         frame.src =
           `https://www.youtube-nocookie.com/embed/${id}` +
-          '?autoplay=1&rel=0&modestbranding=1&playsinline=1';
+          '?autoplay=1&mute=1&enablejsapi=1&rel=0&modestbranding=1&playsinline=1' +
+          `&origin=${encodeURIComponent(window.location.origin)}`;
+        unmuteOncePlaying(frame);
       });
     });
   }

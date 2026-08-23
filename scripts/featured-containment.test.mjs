@@ -731,5 +731,63 @@ test('every category row is reachable and operable from the keyboard', () => {
   assert.match(src, /\.accordion-header:focus-visible/, 'a focusable control needs a visible focus ring');
 });
 
+test('pressing Play once is enough', () => {
+  /*
+    Reported: "it's requiring me to press the play icon and then the YouTube
+    player refreshes, and then I have to hit a red play button".
+
+    `autoplay=1` is REFUSED by every browser's autoplay policy while the video
+    carries sound, and a refused autoplay is not an inert frame: YouTube swaps
+    to its own poster and its own red button. So the first press looked like it
+    reloaded the player and did nothing, and the video only started on a SECOND
+    press inside somebody else's UI.
+
+    Muted autoplay is never refused. The video starts muted and the sound is
+    turned back on over the JS API on a confirmed PLAYING. If a browser refuses
+    the unmute too (iOS is the strict one), the video is still running with
+    YouTube's own controls up, one tap from sound.
+  */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
+  // The URL the Play button writes, isolated from the resting trailer's.
+  const at = hub.indexOf('data-hub-play');
+  assert.ok(at > -1, 'the Play button must carry data-hub-play');
+  /* Bounded to the press handler itself: the feed BELOW the hero legitimately
+     binds [data-action="open-video"], and an unbounded slice swept it in. */
+  const from = hub.indexOf('[data-hub-play]', at);
+  const handler = hub.slice(from, from + 900);
+  const url = handler.slice(handler.indexOf('frame.src ='), handler.indexOf('frame.src =') + 400);
+
+  assert.match(url, /autoplay=1/, 'one press must start it');
+  assert.match(url, /mute=1/, 'unmuted autoplay is refused, and a refusal looks like a dead button');
+  assert.match(url, /enablejsapi=1/, 'without the API the sound can never be turned back on');
+  assert.match(url, /origin=\$\{encodeURIComponent/, 'the player will not answer without an origin');
+  assert.match(url, /playsinline=1/, 'iOS goes full screen without it');
+  assert.doesNotMatch(url, /controls=0/, 'the visitor needs YouTube\'s own control to unmute by hand');
+
+  // And the sound really is turned back on. The helper is declared above the
+  // handler, so these read the file rather than the slice.
+  assert.match(handler, /unmuteOncePlaying\(frame\)/, 'the press must arm the unmute');
+  assert.match(hub, /'unMute'/, 'a confirmed PLAYING must unmute');
+  assert.match(hub, /setVolume/, 'unmuting at volume zero is still silence');
+  assert.match(hub, /if \(state !== 1\) return;/, 'unmute only on a CONFIRMED playing state');
+
+  // It plays HERE. The modal was the previous bug and must not come back.
+  assert.doesNotMatch(handler, /data-action="open-video"/, 'this panel is the player, not a modal trigger');
+
+  /*
+    And nothing may sit on top of the frame it just started. The picked rail
+    card's pane is at full opacity until this rule zeroes it; without it the
+    video plays behind an opaque still, which from the outside is exactly what
+    a dead button looks like.
+  */
+  assert.match(hub, /\.hub-stage\.is-playing \.hub-stage-item \{[^}]*opacity: 0/,
+    'a playing video must not be covered by the pane that launched it');
+  assert.match(hub, /\.hub-stage\.is-playing \.hub-stage-item \{[^}]*visibility: hidden/,
+    'opacity alone still leaves it hit-testable on top of the player');
+});
+
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
 process.exit(failed === 0 ? 0 : 1);
