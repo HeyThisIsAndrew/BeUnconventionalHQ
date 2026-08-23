@@ -254,54 +254,34 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
               that does not disappear the moment somebody picks a video.
               The <h1> stays sr-only behind it for the outline and for search.
             */}
-            {event.logo ? (
-              <>
-                <h1 class="sr-only">{event.title}</h1>
-                <span class="hero-logo-wrap" aria-hidden="true">
-                  <img src={urlFor(event.logo).height(320).auto('format').url()} alt="" class="hero-logo" />
-                </span>
-              </>
-            ) : (
-              <h1 class="hero-title">{event.title}</h1>
-            )}
+            {/*
+              MARK AND LINE SIT SIDE BY SIDE, not stacked. On a phone the
+              stacked version spent most of the hero on two short elements with
+              a lot of air between them; beside each other they read as one
+              lockup and give the trailer below room to matter.
+            */}
+            <div class="hero-identity">
+              {event.logo ? (
+                <>
+                  <h1 class="sr-only">{event.title}</h1>
+                  <span class="hero-logo-wrap" aria-hidden="true">
+                    <img src={urlFor(event.logo).height(320).auto('format').url()} alt="" class="hero-logo" />
+                  </span>
+                </>
+              ) : (
+                <h1 class="hero-title">{event.title}</h1>
+              )}
 
-            {event.description && (
-              <div class="hero-description-wrapper">
-                <p class="hero-description-text" id="event-about-text">{event.description}</p>
-                <button class="hero-read-more" id="event-about-toggle" aria-expanded="false" hidden>
-                  Read more
-                </button>
-              </div>
-            )}
-
-            {heroItems.length > 0 && (
-              /*
-                THE RAIL. The hub's most recent coverage, videos and articles
-                together — picking one swaps the stage to it. Real <button>s, so
-                the rail is reachable and operable from a keyboard; the deck on
-                /featured shipped as divs once and closed rows were unreachable.
-              */
-              <div class="hub-rail" role="group" aria-label={`Recent ${event.title} coverage`}>
-                {heroItems.map((item: any, i: number) => (
-                  <button
-                    type="button"
-                    class={`hub-rail-card ${i === 0 ? 'active' : ''}`}
-                    data-index={i}
-                    aria-pressed={i === 0 ? 'true' : 'false'}
-                  >
-                    {(item.image ?? item.thumbnail) ? (
-                      <img src={item.image ?? item.thumbnail} alt="" class="hub-rail-thumb" loading="lazy" />
-                    ) : (
-                      <span class="hub-rail-thumb hub-rail-thumb--empty"></span>
-                    )}
-                    <span class="hub-rail-label">
-                      {item.contentType === 'video' ? 'Watch' : 'Read'}
-                    </span>
-                    <span class="sr-only">{item.title}</span>
+              {event.description && (
+                <div class="hero-description-wrapper">
+                  <p class="hero-description-text" id="event-about-text">{event.description}</p>
+                  <button class="hero-read-more" id="event-about-toggle" aria-expanded="false" hidden>
+                    Read more
                   </button>
-                ))}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
+
           </div>
           
           {/*
@@ -395,6 +375,35 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
               );
             })}
           </div>
+
+            {heroItems.length > 0 && (
+              /*
+                THE RAIL. The hub's most recent coverage, videos and articles
+                together — picking one swaps the stage to it. Real <button>s, so
+                the rail is reachable and operable from a keyboard; the deck on
+                /featured shipped as divs once and closed rows were unreachable.
+              */
+              <div class="hub-rail" role="group" aria-label={`Recent ${event.title} coverage`}>
+                {heroItems.map((item: any, i: number) => (
+                  <button
+                    type="button"
+                    class={`hub-rail-card ${i === 0 ? 'active' : ''}`}
+                    data-index={i}
+                    aria-pressed={i === 0 ? 'true' : 'false'}
+                  >
+                    {(item.image ?? item.thumbnail) ? (
+                      <img src={item.image ?? item.thumbnail} alt="" class="hub-rail-thumb" loading="lazy" />
+                    ) : (
+                      <span class="hub-rail-thumb hub-rail-thumb--empty"></span>
+                    )}
+                    <span class="hub-rail-label">
+                      {item.contentType === 'video' ? 'Watch' : 'Read'}
+                    </span>
+                    <span class="sr-only">{item.title}</span>
+                  </button>
+                ))}
+              </div>
+            )}
 
           {/* Placed after the trailer in the DOM so mobile stacks copy →
               trailer → button; grid-areas restore the desktop layout. */}
@@ -631,7 +640,17 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
        copy isn't squeezed by an empty grid row. */
     .hero-grid-container.has-trailer {
       grid-template-columns: 1fr 1fr;
-      grid-template-areas: 'copy trailer';
+      /*
+        The rail is its own row now rather than the tail of the copy column.
+        That is what lets mobile order the page copy -> trailer -> rail (the
+        rail follows the stage in the DOM) while desktop still shows it in the
+        left column: grid-areas put it back. The stage spans both rows, so the
+        rail lands level with its bottom without any margin arithmetic.
+      */
+      grid-template-areas:
+        'copy trailer'
+        'rail trailer';
+      grid-template-rows: 1fr auto;
       align-items: center;
     }
     /*
@@ -642,7 +661,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       leaves the stage sizing itself.
     */
     .hero-grid-container.has-trailer .hero-copy {
-      align-self: stretch;
+      align-self: end;
       /* Same reason as the rail's: a grid item defaults to a min-content
          floor, and this column holds one. */
       min-width: 0;
@@ -650,17 +669,18 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       flex-direction: column;
       justify-content: center;
     }
-    /* The label, mark and description stay centred as a group; the rail is
-       pushed to the floor of the column. */
     .hero-grid-container.has-trailer .hub-rail {
-      margin-top: auto;
-      margin-bottom: 0;
+      grid-area: rail;
+      align-self: end;
+      margin-top: 0;
     }
 
     .hero-grid-container.has-trailer.has-cta {
       grid-template-areas:
         'copy trailer'
-        'cta trailer';
+        'cta trailer'
+        'rail trailer';
+      grid-template-rows: 1fr auto auto;
     }
     .hero-grid-container.has-trailer .hero-copy {
       grid-area: copy;
@@ -905,6 +925,31 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     filter: drop-shadow(0 10px 26px rgba(0, 0, 0, 0.9));
   }
 
+  /*
+    MARK AND LINE, SIDE BY SIDE.
+
+    `align-items: center` so the description reads against the middle of the
+    mark rather than its baseline, and `flex-wrap` so a very wide lockup on a
+    narrow phone drops the line beneath instead of squeezing it to two words a
+    row. The mark keeps its own size; only the copy gives way.
+  */
+  .hero-identity {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1.1rem 1.6rem;
+    margin-bottom: 1.2rem;
+  }
+  .hero-identity .hero-logo-wrap {
+    margin: 0;
+    flex: 0 0 auto;
+  }
+  .hero-identity .hero-description-wrapper {
+    flex: 1 1 260px;
+    min-width: 0;
+    margin: 0;
+  }
+
   /* ─── THE RAIL ──────────────────────────────────────────────────────── */
   .hub-rail {
     display: flex;
@@ -925,7 +970,14 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     min-width: 0;
     margin-top: 1.6rem;
     overflow-x: auto;
-    padding-bottom: 4px;
+    /*
+      VERTICAL PADDING IS NOT DECORATION. `overflow-x: auto` computes
+      `overflow-y` to `auto` as well, so the box clips vertically too — and the
+      active card lifts and scales. Without room above it, the top of the
+      selected tile was sliced off, which is exactly what was reported on both
+      desktop and mobile.
+    */
+    padding: 10px 2px 8px;
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
@@ -945,10 +997,29 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
   }
   .hub-rail-card:hover,
   .hub-rail-card:focus-visible { opacity: 0.85; }
+  /*
+    Matches the deck rail on /featured: lift, brand border, brand glow — plus a
+    caret above the selected tile so the link between the rail and the stage is
+    stated rather than implied.
+  */
   .hub-rail-card.active {
     opacity: 1;
-    border-color: rgba(var(--brand-rgb, 204,0,0), 0.9);
-    transform: translateY(-2px);
+    border-color: rgba(var(--brand-rgb, 204,0,0), 0.95);
+    transform: scale(1.06);
+    box-shadow: 0 5px 15px rgba(var(--brand-rgb, 204,0,0), 0.42);
+  }
+  .hub-rail-card.active::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: -9px;
+    width: 0;
+    height: 0;
+    transform: translateX(-50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid rgba(var(--brand-rgb, 204,0,0), 0.95);
+    pointer-events: none;
   }
   .hub-rail-thumb {
     width: 100%;
