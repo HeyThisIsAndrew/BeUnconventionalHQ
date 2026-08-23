@@ -274,129 +274,13 @@ const trailerId = parseVideoId(trailerUrl);
   /* Page width wrapper now shared: `.container-page` in modules/layout.css */
   
   /* Hero */
-  /* ══════════════════════════════════════════════════════════════════════
-     THE HERO IS PINNED. THE COVERAGE SCROLLS UP OVER IT.
-
-     Landing here used to be a hard cut: a half-height hero that ended at an
-     edge, with a grey content grid starting underneath it — and you could see
-     both at once, which is what killed the cinematic read the moment the page
-     loaded.
-
-     Sticky fixes the seam by removing it. The hero does not end, it gets
-     COVERED: it holds the viewport while the coverage panel rises over it like
-     a curtain, and only leaves once the panel has fully passed. There is no
-     boundary left to blend because there is no boundary.
-
-     Pure CSS. No scroll listener, no rAF, no per-frame work — the compositor
-     owns it, so this cannot regress the smoothness the deck page was tuned for.
-
-     THREE THINGS ARE LOAD-BEARING:
-
-     1. `100lvh`, never `100vh`. On iOS `100vh` is the LARGEST viewport, which
-        the page also uses before the URL bar retracts, so a `vh` hero leaves a
-        gap under itself. scripts/viewport-units.test.mjs pins this unit for
-        exactly this reason.
-     2. `top` must clear the fixed header, or the hero pins underneath it.
-     3. Sticky fails SILENTLY if any ancestor has `overflow: hidden` — the same
-        family of trap as hard rule 3, and it produces no error, just a hero
-        that scrolls away. Nothing between here and <body> clips; the only
-        `overflow: hidden` in this file is on .event-hero-bg-wrapper, which is
-        a CHILD.
-
-     NO `overflow: hidden` HERE either — on iOS Safari an overflow:hidden
-     ancestor makes a descendant cross-origin (YouTube) iframe render as a black
-     box, and the trailer lives in this subtree. The background layer is inset:0
-     and clips to its own box, so the clip was never needed.
-     ══════════════════════════════════════════════════════════════════════ */
   .event-hero {
-    position: sticky;
-    top: var(--header-height, 80px);
-    height: calc(100lvh - var(--header-height, 80px));
-    min-height: 560px;
-    display: flex;
-    align-items: center;
-    /* Below the coverage panel, which paints over it. */
-    z-index: 0;
-    background-color: #111;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    /*
-      Sticky is not an animation, but the effect it produces is motion the
-      viewer did not ask for. Falling back to a normal hero costs nothing.
-    */
-    .event-hero {
-      position: relative;
-    }
-  }
-
-  /*
-    THE PANEL THAT RIDES OVER IT.
-
-    Opaque, or the pinned hero shows through and the whole effect reads as a
-    rendering fault rather than a layer.
-  */
-  .content-container {
     position: relative;
-    z-index: 1;
-    background: var(--color-black, #050505);
-  }
-
-  /* ══════════════════════════════════════════════════════════════════════
-     ITS LEADING EDGE FEATHERS. IT DOES NOT CUT.
-
-     The first version put a 1px brand-coloured rule along the panel's top with
-     the opaque background starting immediately under it. That is a hard edge
-     with a highlight on it — the exact thing the sticky hero exists to get rid
-     of. Removing the seam between the two sections is pointless if the panel
-     then draws its own.
-
-     So the panel's background begins ABOVE its box and fades in over 200px:
-     transparent where the hero is still fully visible, solid by the time the
-     content starts. The hero dissolves into the coverage instead of being
-     chopped by it.
-
-     Multi-stop, not a two-stop ramp. A linear alpha ramp has a constant
-     derivative, so its two ENDS are discontinuities and the eye reads both as
-     faint horizontal bands (Mach banding) — which would put back a softer
-     version of the edge being removed. These stops approximate a smoothstep,
-     so the fade has no detectable start or finish. Same reasoning as the deck
-     feather and the seam wash on /featured.
-
-     The brand colour survives as a wide, very low-alpha wash inside the fade
-     rather than as a line: present, but with no edge to it.
-
-     THE END COLOUR MUST MATCH THE PANEL EXACTLY. The fade first ended at
-     #050505 while the panel is --color-black (#0a0a0a), which left a 5/255
-     step measured precisely at the boundary — small, but a hard edge is a hard
-     edge, and it is the one thing this whole construct exists to remove. The
-     stops are rgba(10,10,10,...) to land on the panel's own colour.
-     ══════════════════════════════════════════════════════════════════════ */
-  .content-container::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: -200px;
-    height: 200px;
-    background:
-      linear-gradient(to bottom,
-        rgba(var(--brand-rgb, 204, 0, 0), 0) 0%,
-        rgba(var(--brand-rgb, 204, 0, 0), 0.05) 40%,
-        rgba(var(--brand-rgb, 204, 0, 0), 0.07) 62%,
-        rgba(var(--brand-rgb, 204, 0, 0), 0) 100%),
-      linear-gradient(to bottom,
-        rgba(10, 10, 10, 0) 0%,
-        rgba(10, 10, 10, 0.04) 12%,
-        rgba(10, 10, 10, 0.13) 24%,
-        rgba(10, 10, 10, 0.28) 36%,
-        rgba(10, 10, 10, 0.47) 48%,
-        rgba(10, 10, 10, 0.66) 60%,
-        rgba(10, 10, 10, 0.82) 72%,
-        rgba(10, 10, 10, 0.93) 84%,
-        rgba(10, 10, 10, 0.98) 93%,
-        rgba(10, 10, 10, 1) 100%);
-    pointer-events: none;
+    background-color: #111;
+    /* NO overflow:hidden here. On iOS Safari an overflow:hidden ancestor makes
+       a descendant cross-origin (YouTube) iframe render as a black box. The bg
+       below is inset:0 and its image clips to its own box, so it can't spill —
+       the clip was never needed. */
   }
   /* Clipping/coverage layer: static, fills the hero, hides the sliver the
      animated child exposes at its edges while scaled. overflow:hidden is safe
@@ -724,10 +608,6 @@ const trailerId = parseVideoId(trailerUrl);
   /* Content */
   .content-container {
     padding: 4rem 2rem;
-    /* Enough that the panel can actually cover the pinned hero on a short
-       page. A hub with one card would otherwise stop scrolling before the
-       hero was covered, leaving the effect half-finished. */
-    min-height: calc(100lvh - var(--header-height, 80px));
   }
   .content-section {
     margin-bottom: 5rem;
