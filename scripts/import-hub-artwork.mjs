@@ -31,7 +31,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { config } from 'dotenv';
 import { createClient } from '@sanity/client';
+
+/*
+  Plain `node` does not read .env. The Local CMS's uploader gets
+  SANITY_WRITE_TOKEN for free because Vite loads it for the dev server, which
+  is exactly why this script failed with "not set" against a .env that had it.
+  Same call scripts/sync-youtube.mjs makes, and not `--env-file`: that is a
+  hard error when the file is absent, which CI is (scripts/sync-wiring.test.mjs
+  guards it).
+*/
+config();
 
 const SANITY_PROJECT_ID = 'nqnrjfqu';
 const SANITY_DATASET = 'production';
@@ -311,7 +322,9 @@ if (!execute) {
 
 const token = process.env.SANITY_WRITE_TOKEN;
 if (!token) {
-  console.error('\nSANITY_WRITE_TOKEN is not set. Put it in .env (see .env.example) and re-run.');
+  console.error('\nSANITY_WRITE_TOKEN is not set.');
+  console.error('It is read from .env in the repo root, or from the environment.');
+  console.error('See .env.example for the name. Nothing was uploaded.');
   process.exit(1);
 }
 const client = createClient({
