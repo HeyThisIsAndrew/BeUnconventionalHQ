@@ -758,24 +758,48 @@ test('pressing Play once is enough', () => {
      binds [data-action="open-video"], and an unbounded slice swept it in. */
   const from = hub.indexOf('[data-hub-play]', at);
   const handler = hub.slice(from, from + 900);
-  const url = handler.slice(handler.indexOf('frame.src ='), handler.indexOf('frame.src =') + 400);
+  /* The embed URL lives in a helper now, because the press builds it twice:
+     once asking for sound and once falling back. Assert on the helper. */
+  const at2 = hub.indexOf('const embedUrl =');
+  assert.ok(at2 > -1, 'the press must build its embed URL in one place');
+  const url = hub.slice(at2, at2 + 600);
 
   assert.match(url, /autoplay=1/, 'one press must start it');
-  assert.match(url, /mute=1/, 'unmuted autoplay is refused, and a refusal looks like a dead button');
-  assert.match(url, /enablejsapi=1/, 'without the API the sound can never be turned back on');
+  assert.match(url, /enablejsapi=1/, 'without the API nothing can be asked of the player');
   assert.match(url, /origin=\$\{encodeURIComponent/, 'the player will not answer without an origin');
   assert.match(url, /playsinline=1/, 'iOS goes full screen without it');
-  assert.doesNotMatch(url, /controls=0/, 'the visitor needs YouTube\'s own control to unmute by hand');
+  assert.doesNotMatch(url, /controls=0/, "a chosen video keeps the player's own controls");
 
   /*
-    AND NOTHING MAY UNMUTE IT FROM SCRIPT. This shipped for exactly one commit
-    and was worse than the bug it fixed: a video playing under the muted
-    autoplay allowance is PAUSED by the browser the moment script unmutes it
-    without user activation in that frame, and a click in the parent does not
-    carry across an origin. YouTube stalls on its spinner. Reported as "starts
-    for half a second, then it just infinitely loads".
+    A VIDEO THE VISITOR PRESSED PLAY ON ASKS FOR SOUND. The resting trailer is
+    muted because muted is the only state a browser starts on its own, but a
+    press is not the trailer: they asked for it, and starting it silent is its
+    own bug. So mute is decided BEFORE the frame loads, and the press tries
+    mute=0 first.
   */
-  assert.doesNotMatch(handler, /unMute/, 'sound is the visitor\'s to ask for, never taken automatically');
+  assert.match(handler, /const withSound = !soundBlocked\(\)/, 'the press must try for sound');
+  assert.match(handler, /embedUrl\(id, !withSound\)/, 'and open the video accordingly');
+  assert.match(hub, /mute=\$\{muted \? '1' : '0'\}/, 'mute is decided per load, not hardcoded');
+
+  /*
+    And it CHECKS. A refused autoplay is not a dead frame: YouTube shows its own
+    red button. So if the player has not reached PLAYING a moment later it is
+    reloaded muted, and the answer is remembered for the tab so the next video
+    does not pay the same wait.
+  */
+  assert.match(handler, /await didStart\(frame, HUB_SOUND_GRACE_MS\)/, 'the press must verify it started');
+  assert.match(handler, /rememberSoundBlocked\(\)[\s\S]{0,140}embedUrl\(id, true\)/,
+    'a refusal must fall back to muted, or the press is wasted');
+  assert.match(handler, /token !== playToken/,
+    'the fallback runs after an await and must not stomp a video chosen since');
+
+  /*
+    What it must NEVER do is unmute a video ALREADY running: playback under the
+    muted-autoplay allowance is paused by the browser when script takes the mute
+    away without activation in that frame, and YouTube stalls on its spinner.
+    Reported as "starts for half a second, then it just infinitely loads".
+  */
+  assert.doesNotMatch(handler, /unMute/, 'never unmute a frame that is already playing');
 
   // It plays HERE. The modal was the previous bug and must not come back.
   assert.doesNotMatch(handler, /data-action="open-video"/, 'this panel is the player, not a modal trigger');

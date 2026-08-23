@@ -2,21 +2,31 @@
 /*
   IMPORT A FOLDER OF HUB ARTWORK IN ONE GO.
 
-  Point it at a directory of per-brand folders and it uploads every image to
-  Sanity (the asset host every existing hub already uses) and writes the refs
-  into src/data/videos.json. It is the Local CMS's per-hub, per-image flow done
-  in a single pass, and unlike that flow it can be re-run.
+  Point it at a folder of CATEGORY / BRAND directories and it uploads every
+  image to Sanity (the asset host every existing hub already uses) and writes
+  the refs into src/data/videos.json. It is the Local CMS's per-hub, per-image
+  flow done in one pass, and unlike that flow it can be re-run.
 
     node scripts/import-hub-artwork.mjs "~/Downloads/Featured Brands"
     node scripts/import-hub-artwork.mjs "~/Downloads/Featured Brands" --execute
 
-  Dry-run by default, like scripts/sync-youtube.mjs: it prints the folder to
-  hub match and the role it would give each file, and touches nothing until
-  --execute. Needs SANITY_WRITE_TOKEN in .env, same as the CMS's own uploader.
+  Dry-run by default, like scripts/sync-youtube.mjs. It prints the brand to hub
+  match, the role it gives each file and everything it is unsure about, and
+  touches nothing until --execute. Needs SANITY_WRITE_TOKEN in .env, same as
+  the CMS's own uploader.
 
-  It only ever FILLS the three artwork fields. It never deletes a hub, never
-  edits copy, colour or keywords, and by default never overwrites artwork a
-  hub already has (pass --replace for that).
+  It only FILLS the artwork fields. It never deletes a hub, never edits copy,
+  colour or keywords, and never overwrites artwork a hub already has unless
+  you pass --replace.
+
+  WHICH FILE PLAYS WHICH PART is decided by scripts/hub-artwork-map.json where
+  that names a brand, and by shape where it does not. The map exists because a
+  real folder of brand assets is mostly LOGOS: variants, lockups, symbols, in
+  every aspect ratio there is. Guessing "wide means key art" puts a 7:1
+  wordmark in a 16:9 hero. So the choices are written down where they can be
+  read and corrected, instead of being re-derived from filenames every run.
+
+  MISC folders are ignored anywhere in the tree.
 */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,10 +36,15 @@ import { createClient } from '@sanity/client';
 const SANITY_PROJECT_ID = 'nqnrjfqu';
 const SANITY_DATASET = 'production';
 const DATA = path.resolve(process.cwd(), 'src/data/videos.json');
-const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+const MAP_FILE = path.resolve(process.cwd(), 'scripts/hub-artwork-map.json');
 
-/* Recommended minimums. Under these the art shows its own pixels on a 3x
-   phone, which is the whole reason the hubs looked unfinished. */
+/* Sanity takes these. The rest of what lands in a brand folder — .eps, .psd,
+   .pdf, .rtf, .mp4 — is source material, not something the site can serve. */
+const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg']);
+const IGNORE_DIR = /^(misc|__macosx)$/i;
+
+/* Under these the art shows its own pixels on a 3x phone, which is the whole
+   reason the hubs looked unfinished. Vectors are exempt: they have no pixels. */
 const MIN_LOGO = 512;
 const MIN_HERO_W = 1920;
 
@@ -48,22 +63,11 @@ if (!fs.existsSync(dir)) {
   process.exit(1);
 }
 
-/* ── Reading a size without an image library ───────────────────────────────
-   Enough of each header to get width and height. Used for the dry run and to
-   decide which file is the mark and which is the key art; after upload the
-   ref itself carries the real dimensions. */
-function imageSize(file) {
-  const fd = fs.openSync(file, 'r');
-  const buf = Buffer.alloc(65536);
-  const read = fs.readSync(fd, buf, 0, 65536, 0);
-  fs.closeSync(fd);
-  const b = buf.subarray(0, read);
-
-  // PNG: IHDR is always first.
+/* ── Reading a size without an image library ─────────────────────────────── */
+function rasterSize(b) {
   if (b.length > 24 && b.readUInt32BE(0) === 0x89504e47) {
     return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) };
   }
-  // WebP (VP8X / VP8 / VP8L).
   if (b.length > 30 && b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP') {
     const chunk = b.toString('ascii', 12, 16);
     if (chunk === 'VP8X') return { w: (b.readUIntLE(24, 3) & 0xffffff) + 1, h: (b.readUIntLE(27, 3) & 0xffffff) + 1 };
@@ -73,7 +77,6 @@ function imageSize(file) {
       return { w: (bits & 0x3fff) + 1, h: ((bits >> 14) & 0x3fff) + 1 };
     }
   }
-  // JPEG: walk the segments to the first frame header.
   if (b.length > 4 && b[0] === 0xff && b[1] === 0xd8) {
     let i = 2;
     while (i < b.length - 9) {
@@ -88,124 +91,211 @@ function imageSize(file) {
   return null;
 }
 
-/* ── Matching a folder name to a hub ──────────────────────────────────────
-   Loose on purpose: "HBO Max", "hbo-max" and "hbomax" are the same folder to
-   a person. Anything that does NOT match is reported, never guessed at. */
+/* SVG carries its size as text: width/height attributes, or the viewBox. */
+function svgSize(text) {
+  const attr = (name) => {
+    const m = text.match(new RegExp(`\\b${name}\\s*=\\s*["']([\\d.]+)`, 'i'));
+    return m ? Math.round(parseFloat(m[1])) : null;
+  };
+  const w = attr('width');
+  const h = attr('height');
+  if (w && h) return { w, h, vector: true };
+  const box = text.match(/viewBox\s*=\s*["']\s*[-\d.]+[,\s]+[-\d.]+[,\s]+([\d.]+)[,\s]+([\d.]+)/i);
+  if (box) return { w: Math.round(parseFloat(box[1])), h: Math.round(parseFloat(box[2])), vector: true };
+  return { w: null, h: null, vector: true };
+}
+
+function imageSize(file) {
+  const fd = fs.openSync(file, 'r');
+  const buf = Buffer.alloc(65536);
+  const read = fs.readSync(fd, buf, 0, 65536, 0);
+  fs.closeSync(fd);
+  const b = buf.subarray(0, read);
+  if (path.extname(file).toLowerCase() === '.svg') return svgSize(b.toString('utf-8'));
+  return rasterSize(b);
+}
+
+/* ── Walking the tree ─────────────────────────────────────────────────────
+   Files are gathered from a brand folder AND its subfolders, because assets
+   arrive that way (Apple TV/Apple_TV_Logo/…, A24/A24/…). MISC is skipped at
+   any depth. Paths come back relative to the brand folder, so the map can
+   name a nested file the same way a person would read it out. */
+function collect(base, rel = '') {
+  const here = path.join(base, rel);
+  const out = [];
+  for (const e of fs.readdirSync(here, { withFileTypes: true })) {
+    if (e.name.startsWith('.')) continue;
+    const childRel = rel ? path.join(rel, e.name) : e.name;
+    if (e.isDirectory()) {
+      if (IGNORE_DIR.test(e.name)) continue;
+      out.push(...collect(base, childRel));
+    } else if (IMAGE_EXT.has(path.extname(e.name).toLowerCase())) {
+      out.push(childRel);
+    }
+  }
+  return out;
+}
+
+/* ── Matching a brand folder to a hub ─────────────────────────────────────
+   CATEGORY-AWARE, and it has to be. "Disney+" under Streamer and "Disney"
+   under Studios are two different hubs, and a name-only match sends both to
+   whichever one it finds first. The folder's category is the tie-break. */
+const CATEGORY_DIRS = {
+  gaming: 'gaming',
+  streamer: 'streaming',
+  streamers: 'streaming',
+  streaming: 'streaming',
+  studios: 'studios',
+  studio: 'studios',
+  'the multiverse': 'universes',
+  multiverse: 'universes',
+  universes: 'universes',
+};
+
+/* Folder names a person would plausibly use that no rule below would catch. */
+const ALIASES = {
+  wbdiscovery: 'warner-bros',
+  warnerbrosdiscovery: 'warner-bros',
+  wb: 'warner-bros',
+  max: 'hbo-max',
+  hbo: 'hbo-max',
+  ps: 'playstation',
+};
+
 const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
 
 const docs = JSON.parse(fs.readFileSync(DATA, 'utf-8'));
 const hubs = docs.filter((d) => d._type === 'featuredBrand' && d.slug?.current);
 
-/* Folder names a person would plausibly use that no rule below would catch. */
-const ALIASES = { max: 'hbo-max', hbo: 'hbo-max', wb: 'warner-bros', ps: 'playstation' };
-
-function findHub(folder) {
-  const n = norm(folder);
-  const bySlug = (slug) => hubs.find((h) => h.slug.current === slug);
-
-  if (ALIASES[n]) return bySlug(ALIASES[n]) ?? null;
-
-  const exact =
-    hubs.find((h) => norm(h.slug.current) === n) || hubs.find((h) => norm(h.title) === n);
-  if (exact) return exact;
-
-  /*
-    A prefix match only counts when it is UNAMBIGUOUS. "Disney+" -> disney-plus
-    is obvious and useful; a two-letter folder that fits three hubs is a coin
-    flip, and putting the wrong brand's art on a hub is worse than reporting it
-    and letting a person say which.
-  */
-  if (n.length < 3) return null;
-  const near = hubs.filter(
-    (h) => norm(h.slug.current).startsWith(n) || n.startsWith(norm(h.slug.current)),
-  );
-  return near.length === 1 ? near[0] : null;
+let MAP = {};
+try {
+  MAP = JSON.parse(fs.readFileSync(MAP_FILE, 'utf-8'));
+} catch {
+  /* Optional. Without it every brand falls back to shape. */
 }
 
-/* ── Which file is which ──────────────────────────────────────────────────
-   The filename wins when it says so. Otherwise shape decides: a mark is
-   roughly square or taller than wide, key art is wide. */
-function roleOf(file, size) {
-  const n = path.basename(file).toLowerCase();
+function findHub(brandFolder, category) {
+  const n = norm(brandFolder);
+  const bySlug = (slug) => hubs.find((h) => h.slug.current === slug) ?? null;
+  if (ALIASES[n]) return bySlug(ALIASES[n]);
+
+  /* Inside the folder's own category first, so Disney+ and Disney separate. */
+  const pools = category ? [hubs.filter((h) => h.hubCategory === category), hubs] : [hubs];
+  for (const pool of pools) {
+    const exact =
+      pool.find((h) => norm(h.slug.current) === n) || pool.find((h) => norm(h.title) === n);
+    if (exact) return exact;
+  }
+  for (const pool of pools) {
+    if (n.length < 3) break;
+    const near = pool.filter(
+      (h) => norm(h.slug.current).startsWith(n) || n.startsWith(norm(h.slug.current)),
+    );
+    /* A prefix only counts when it is unambiguous. Putting the wrong brand's
+       art on a hub is worse than reporting it and letting a person say which. */
+    if (near.length === 1) return near[0];
+  }
+  return null;
+}
+
+/* Fallback when the map is silent: shape, with the filename overriding it. */
+function roleOf(rel, size) {
+  const n = path.basename(rel).toLowerCase();
   if (/backdrop|plate/.test(n)) return 'backdrop';
-  if (/logo|mark|wordmark|icon/.test(n)) return 'logo';
-  if (/hero|key ?art|keyart|banner|cover|still/.test(n)) return 'heroImage';
-  if (!size) return null;
-  return size.w / size.h >= 1.4 ? 'heroImage' : 'logo';
+  if (/logo|mark|wordmark|icon|symbol/.test(n)) return 'logo';
+  if (/hero|key ?art|keyart|banner|cover|still|background/.test(n)) return 'heroImage';
+  if (!size?.w) return 'logo';
+  return size.w / size.h >= 1.4 && size.w >= MIN_HERO_W ? 'heroImage' : 'logo';
 }
 
-const folders = fs
-  .readdirSync(dir, { withFileTypes: true })
-  .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
-  .map((e) => e.name)
-  .sort();
-
-if (!folders.length) {
-  console.error(`No brand folders inside ${dir}`);
-  process.exit(1);
-}
-
-console.log(`\n${execute ? 'IMPORTING' : 'DRY RUN'} from ${dir}`);
-console.log(`${folders.length} folder(s), ${hubs.length} hubs in videos.json\n`);
-
+/* ── Build the plan ───────────────────────────────────────────────────────── */
 const plan = [];
 const unmatched = [];
 const warnings = [];
+const notes = [];
 
-for (const folder of folders) {
-  const hub = findHub(folder);
-  if (!hub) { unmatched.push(folder); continue; }
+const topLevel = fs
+  .readdirSync(dir, { withFileTypes: true })
+  .filter((e) => e.isDirectory() && !e.name.startsWith('.') && !IGNORE_DIR.test(e.name))
+  .map((e) => e.name)
+  .sort();
 
-  const files = fs
-    .readdirSync(path.join(dir, folder), { withFileTypes: true })
-    .filter((e) => e.isFile() && IMAGE_EXT.has(path.extname(e.name).toLowerCase()) && !e.name.startsWith('.'))
-    .map((e) => path.join(dir, folder, e.name));
-
-  if (!files.length) { warnings.push(`${folder}: no images`); continue; }
-
-  const picks = {};
-  for (const file of files) {
-    const size = imageSize(file);
-    const role = roleOf(file, size);
-    if (!role) { warnings.push(`${folder}/${path.basename(file)}: unreadable, skipped`); continue; }
-    /* First file wins a role; extras become backdrops rather than being lost. */
-    if (picks[role]) {
-      if (!picks.backdrop) picks.backdrop = { file, size };
-      else warnings.push(`${folder}/${path.basename(file)}: no role left, skipped`);
-      continue;
-    }
-    picks[role] = { file, size };
-  }
-
-  for (const [role, pick] of Object.entries(picks)) {
-    const { w, h } = pick.size ?? {};
-    if (role === 'logo' && w && Math.max(w, h) < MIN_LOGO) {
-      warnings.push(`${folder}: logo is ${w}x${h}, under the ${MIN_LOGO}px minimum`);
-    }
-    if (role !== 'logo' && w && w < MIN_HERO_W) {
-      warnings.push(`${folder}: ${role} is ${w}x${h}, under ${MIN_HERO_W}px wide`);
-    }
-  }
-
-  plan.push({ folder, hub, picks });
+/* Category folders are optional: a flat folder of brands still works. */
+const brandDirs = [];
+for (const top of topLevel) {
+  const category = CATEGORY_DIRS[top.toLowerCase()] ?? null;
+  const children = fs
+    .readdirSync(path.join(dir, top), { withFileTypes: true })
+    .filter((e) => e.isDirectory() && !e.name.startsWith('.') && !IGNORE_DIR.test(e.name));
+  if (category) for (const c of children) brandDirs.push({ rel: `${top}/${c.name}`, brand: c.name, category });
+  else brandDirs.push({ rel: top, brand: top, category: null });
 }
 
-for (const { folder, hub, picks } of plan) {
-  const already = [];
-  if (hub.logo) already.push('logo');
-  if (hub.heroImage) already.push('hero');
-  const held = already.length && !replace ? `  (keeping existing ${already.join(' + ')})` : '';
-  console.log(`  ${folder}  ->  ${hub.slug.current}${held}`);
+for (const { rel, brand, category } of brandDirs) {
+  const hub = findHub(brand, category);
+  if (!hub) { unmatched.push(rel); continue; }
+
+  const files = collect(path.join(dir, rel));
+  if (!files.length) { warnings.push(`${rel}: no usable images`); continue; }
+
+  const sizes = new Map(files.map((f) => [f, imageSize(path.join(dir, rel, f))]));
+  const picks = {};
+  const entry = MAP[rel] ?? MAP[brand];
+
+  if (entry) {
+    if (entry._note) notes.push(`${rel}: ${entry._note}`);
+    for (const role of ['logo', 'heroImage', 'backdrop']) {
+      const named = entry[role];
+      if (!named) continue;
+      const hit = files.find((f) => f === named || path.basename(f) === named);
+      if (!hit) { warnings.push(`${rel}: the map names "${named}" for ${role}, which is not there`); continue; }
+      picks[role] = { rel: hit, size: sizes.get(hit) };
+    }
+  } else {
+    for (const f of files) {
+      const role = roleOf(f, sizes.get(f));
+      if (picks[role]) continue; // first wins; the map is how you say otherwise
+      picks[role] = { rel: f, size: sizes.get(f) };
+    }
+  }
+
   for (const [role, pick] of Object.entries(picks)) {
-    const s = pick.size ? `${pick.size.w}x${pick.size.h}` : '?';
-    console.log(`      ${role.padEnd(10)} ${path.basename(pick.file)}  ${s}`);
+    const s = pick.size ?? {};
+    if (s.vector) {
+      warnings.push(`${rel}: ${role} is an SVG. Sanity serves those unprocessed, and a dark-only mark will vanish on this site. Check it.`);
+    } else if (role === 'logo' && s.w && Math.max(s.w, s.h) < MIN_LOGO) {
+      warnings.push(`${rel}: logo is ${s.w}x${s.h}, under the ${MIN_LOGO}px minimum`);
+    } else if (role !== 'logo' && s.w && s.w < MIN_HERO_W) {
+      warnings.push(`${rel}: ${role} is ${s.w}x${s.h}, under ${MIN_HERO_W}px wide`);
+    }
+  }
+  if (!picks.heroImage && !hub.heroImage) notes.push(`${rel}: no key art. The hub falls back to a tinted wordmark.`);
+
+  plan.push({ rel, hub, picks });
+}
+
+const dim = (s) => (s?.w ? `${s.w}x${s.h}${s.vector ? ' svg' : ''}` : '?');
+
+console.log(`\n${execute ? 'IMPORTING' : 'DRY RUN'} from ${dir}`);
+console.log(`${brandDirs.length} brand folder(s), ${hubs.length} hubs in videos.json\n`);
+
+for (const { rel, hub, picks } of plan) {
+  const already = [hub.logo && 'logo', hub.heroImage && 'hero'].filter(Boolean);
+  const held = already.length && !replace ? `   (has ${already.join(' + ')} already, keeping)` : '';
+  console.log(`  ${rel}  ->  ${hub.slug.current}${held}`);
+  for (const role of ['logo', 'heroImage', 'backdrop']) {
+    if (picks[role]) console.log(`      ${role.padEnd(10)} ${picks[role].rel}  ${dim(picks[role].size)}`);
   }
 }
 
 if (unmatched.length) {
-  console.log(`\n  NOT MATCHED to any hub (nothing done with these):`);
+  console.log('\n  NOT MATCHED to any hub (nothing done with these):');
   for (const f of unmatched) console.log(`      ${f}`);
-  console.log(`  Hub names are: ${hubs.map((h) => h.slug.current).join(', ')}`);
+  console.log(`  Hubs are: ${hubs.map((h) => h.slug.current).join(', ')}`);
+}
+if (notes.length) {
+  console.log('\n  NOTES:');
+  for (const n of notes) console.log(`      ${n}`);
 }
 if (warnings.length) {
   console.log('\n  WARNINGS:');
@@ -213,8 +303,9 @@ if (warnings.length) {
 }
 
 if (!execute) {
-  console.log('\nDry run. Nothing was uploaded and videos.json is untouched.');
-  console.log('Re-run with --execute to import, --replace to overwrite artwork a hub already has.\n');
+  console.log('\nDry run. Nothing uploaded, videos.json untouched.');
+  console.log('--execute to import. --replace to overwrite artwork a hub already has.');
+  console.log('To change a choice, edit scripts/hub-artwork-map.json and run again.\n');
   process.exit(0);
 }
 
@@ -234,13 +325,14 @@ const client = createClient({
 let uploaded = 0;
 let failed = 0;
 
-for (const { folder, hub, picks } of plan) {
+for (const { rel, hub, picks } of plan) {
   for (const [role, pick] of Object.entries(picks)) {
     const has = role === 'backdrop' ? (hub.backdrops ?? []).length > 0 : !!hub[role];
     if (has && !replace) continue;
+    const file = path.join(dir, rel, pick.rel);
     try {
-      const asset = await client.assets.upload('image', fs.createReadStream(pick.file), {
-        filename: path.basename(pick.file),
+      const asset = await client.assets.upload('image', fs.createReadStream(file), {
+        filename: path.basename(pick.rel),
       });
       /* Shapes match the hubs that already work: logo as a full image object,
          heroImage and backdrops as bare refs. urlFor() reads both. */
@@ -251,7 +343,7 @@ for (const { folder, hub, picks } of plan) {
       console.log(`  ok  ${hub.slug.current} ${role}  ${asset._id}`);
     } catch (err) {
       failed += 1;
-      console.error(`  FAILED  ${folder} ${role}: ${err instanceof Error ? err.message : err}`);
+      console.error(`  FAILED  ${rel} ${role}: ${err instanceof Error ? err.message : err}`);
     }
   }
 }

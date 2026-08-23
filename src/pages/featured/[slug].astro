@@ -1742,41 +1742,103 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       ASKED for, so the player is allowed to look like a player.
     */
     /*
-      ONE PRESS, NOT TWO.
+      ONE PRESS, NOT TWO, AND IT HAS SOUND WHERE SOUND IS ALLOWED.
 
-      `autoplay=1` on its own is REFUSED by every browser's autoplay policy
+      `autoplay=1` on its own is refused by every browser's autoplay policy
       while the video carries sound, and a refused autoplay is not a dead
       frame: YouTube swaps to its own poster and its own red play button. So
-      the first press appeared to reload the player and do nothing, and the
-      video only started on a SECOND press inside somebody else's UI.
+      the first press looked like it reloaded the player and did nothing, and
+      the video only started on a SECOND press inside somebody else's UI.
 
-      Muted autoplay is never refused, so that is how it starts.
+      Muted autoplay is never refused. But a video the visitor PRESSED PLAY on
+      is not the resting trailer: they asked for it, and starting it silent is
+      its own bug.
 
-      IT MUST NOT BE UNMUTED FROM SCRIPT. That was tried and it is worse than
-      the bug it fixed: a media element playing under the muted-autoplay
-      allowance is PAUSED by the browser the moment script unmutes it without
-      user activation in that frame, and the parent's click does not carry
-      across an origin. YouTube sees the stall and sits on its spinner, which
-      is what "starts for half a second and then infinitely loads" was.
+      So: ask for sound, and check. The press opens the video unmuted; if the
+      player has not reached PLAYING a moment later, the browser refused, and
+      it is reloaded muted so the press is never wasted. That answer is
+      remembered for the tab, so the second video onwards starts muted straight
+      away rather than paying the same wait again.
 
-      Sound is the visitor's to ask for: `.hub-stage-sound` below, or the
-      player's own speaker, since a chosen video keeps YouTube's controls.
+      What it must never do is unmute a video that is ALREADY running: playback
+      under the muted-autoplay allowance is paused by the browser when script
+      takes the mute away without activation in that frame, and YouTube stalls
+      on its spinner. That shipped once. The choice is made before the frame
+      loads, never after.
     */
+    const SOUND_BLOCKED_KEY = 'hub-sound-blocked';
+    const soundBlocked = () => {
+      /* Storage throws outright in some privacy modes. A missing answer just
+         means "try for sound", which is the better guess anyway. */
+      try { return sessionStorage.getItem(SOUND_BLOCKED_KEY) === '1'; } catch { return false; }
+    };
+    const rememberSoundBlocked = () => {
+      try { sessionStorage.setItem(SOUND_BLOCKED_KEY, '1'); } catch { /* not fatal */ }
+    };
+
+    const embedUrl = (id: string, muted: boolean) =>
+      `https://www.youtube-nocookie.com/embed/${id}` +
+      `?autoplay=1&mute=${muted ? '1' : '0'}&enablejsapi=1&rel=0&modestbranding=1&playsinline=1` +
+      /* `origin` is required for the jsapi handshake and is only knowable at
+         runtime. Without it the player never answers, and "did it start?"
+         below could never be answered either. */
+      `&origin=${encodeURIComponent(window.location.origin)}`;
+
+    /* 1 is PLAYING and 3 is buffering; either means the browser let it go. */
+    const didStart = (f: HTMLIFrameElement, within: number) =>
+      new Promise<boolean>((resolve) => {
+        let ok = false;
+        const onMsg = (ev: MessageEvent) => {
+          if (ev.source !== f.contentWindow) return;
+          let data: unknown = null;
+          try {
+            data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
+          } catch {
+            return; // not ours
+          }
+          const info = (data as { info?: unknown } | null)?.info;
+          const state = typeof info === 'object' && info !== null
+            ? (info as { playerState?: number }).playerState
+            : info;
+          if (state === 1 || state === 3) ok = true;
+        };
+        window.addEventListener('message', onMsg);
+        const ping = window.setInterval(() => {
+          f.contentWindow?.postMessage('{"event":"listening"}', '*');
+        }, 200);
+        window.setTimeout(() => {
+          window.clearInterval(ping);
+          window.removeEventListener('message', onMsg);
+          resolve(ok);
+        }, within);
+      });
+
     const frame = stage.querySelector<HTMLIFrameElement>('.hub-stage-iframe');
+    /* Presses are serialised: the fallback below runs after an await, and a
+       visitor who has moved on to another video must not have this one
+       reloaded over the top of it. */
+    let playToken = 0;
+
     stage.querySelectorAll<HTMLElement>('[data-hub-play]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const id = btn.dataset.hubPlay;
         if (!id || !frame) return;
+        const token = ++playToken;
+
         stage.classList.remove('is-item');
         stage.classList.add('is-playing');
-        /* `origin` is required for the jsapi handshake and is only knowable
-           at runtime. Without it the player never answers, and the sound
-           button would have nothing to talk to. */
-        frame.src =
-          `https://www.youtube-nocookie.com/embed/${id}` +
-          '?autoplay=1&mute=1&enablejsapi=1&rel=0&modestbranding=1&playsinline=1' +
-          `&origin=${encodeURIComponent(window.location.origin)}`;
-        stage.dispatchEvent(new CustomEvent('hub:sourcechange'));
+
+        const withSound = !soundBlocked();
+        frame.src = embedUrl(id, !withSound);
+        stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: !withSound } }));
+        if (!withSound) return;
+
+        if (await didStart(frame, HUB_SOUND_GRACE_MS)) return;
+        if (token !== playToken) return; // superseded while we waited
+
+        rememberSoundBlocked();
+        frame.src = embedUrl(id, true);
+        stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: true } }));
       });
     });
   }
@@ -1823,8 +1885,12 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     };
     paint(false);
 
-    /* A new video is a new player: it arrives muted like everything else. */
-    stage.addEventListener('hub:sourcechange', () => paint(false));
+    /* A new video is a new player. Whether it arrived with sound is the rail
+       controller's business, and it says so on the event. */
+    stage.addEventListener('hub:sourcechange', (ev) => {
+      const muted = (ev as CustomEvent<{ muted?: boolean }>).detail?.muted;
+      paint(muted === false);
+    });
 
     /* Ask the player where it is. It answers `listening` with its state. */
     const readState = (within: number) =>
