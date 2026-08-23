@@ -458,6 +458,27 @@ test('the row that is already open arms its own trailer', () => {
     'syncTrailers() must run once at init, not only from the click handlers');
 });
 
+test('the hub rail centres, and cannot strand its first thumbnail', () => {
+  /*
+    The rail defaulted to flex-start, so a category with two or three hubs left
+    its thumbnails jammed against the far left of a wide screen while the
+    poster sat centred above them. Measured after the fix: rail group centre
+    within 1px of the poster centre at 430, 1512 and 2000 wide.
+
+    `safe center` is load-bearing, not a flourish. Plain `center` on a
+    scrolling flex row is a known trap: once the contents overflow, the
+    overflow is pushed past the container's START edge, and that direction
+    cannot be scrolled to — the first thumbnails become permanently
+    unreachable. `safe` reverts to flex-start exactly when overflow begins.
+  */
+  const i = src.indexOf('.deck-nav-track {');
+  const decl = src.slice(i, src.indexOf('\n  }', i));
+  assert.match(decl, /justify-content: safe center/, 'the rail must centre safely');
+  assert.match(decl, /justify-content: center;[\s\S]*justify-content: safe center/,
+    'plain center must be declared FIRST as the fallback for browsers without `safe`');
+  assert.match(decl, /overflow-x: auto/, 'the rail still scrolls when it overflows');
+});
+
 test('every category row is reachable and operable from the keyboard', () => {
   /*
     The headers were <div>s with a click handler. Focus went from the open row's

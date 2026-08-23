@@ -1869,6 +1869,27 @@ ${activeFonts
     gap: 12px;
     align-items: center;
     overflow-x: auto;
+    /*
+      CENTRED, BUT ONLY WHILE IT FITS.
+
+      The rail defaulted to flex-start, so a category with two or three hubs
+      left its thumbnails jammed against the far left of a wide screen with the
+      poster centred above them — the rail read as belonging to nothing.
+
+      `safe center` is the whole trick. Plain `center` on a scrolling flex row
+      is a known trap: once the contents overflow, the overflowing items are
+      pushed past the container's START edge, and that direction is
+      unscrollable, so the first thumbnails become permanently unreachable.
+      `safe` falls back to flex-start at exactly the moment overflow begins,
+      which is also the moment centring stops mattering.
+
+      Declared twice on purpose. A browser without `safe` support drops the
+      second declaration and keeps plain `center`, which is the right
+      degradation: the rows that overflow are the ones with many hubs, and
+      those are the rows this site does not have yet.
+    */
+    justify-content: center;
+    justify-content: safe center;
     padding: 10px 5%; 
     z-index: 2; /* above glow */
 
@@ -3280,6 +3301,27 @@ ${activeFonts
     gap: 12px;
     align-items: center;
     overflow-x: auto;
+    /*
+      CENTRED, BUT ONLY WHILE IT FITS.
+
+      The rail defaulted to flex-start, so a category with two or three hubs
+      left its thumbnails jammed against the far left of a wide screen with the
+      poster centred above them — the rail read as belonging to nothing.
+
+      `safe center` is the whole trick. Plain `center` on a scrolling flex row
+      is a known trap: once the contents overflow, the overflowing items are
+      pushed past the container's START edge, and that direction is
+      unscrollable, so the first thumbnails become permanently unreachable.
+      `safe` falls back to flex-start at exactly the moment overflow begins,
+      which is also the moment centring stops mattering.
+
+      Declared twice on purpose. A browser without `safe` support drops the
+      second declaration and keeps plain `center`, which is the right
+      degradation: the rows that overflow are the ones with many hubs, and
+      those are the rows this site does not have yet.
+    */
+    justify-content: center;
+    justify-content: safe center;
     padding: 10px 5%; 
     z-index: 2; /* above glow */
 
