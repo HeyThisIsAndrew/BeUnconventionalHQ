@@ -657,58 +657,30 @@ ${activeFonts
                                   )}
                                 </div>
 
-                                {trailerFile ? (
-                                  /*
-                                    A SELF-HOSTED FILE IS THE ONLY GUARANTEE.
+                                {/*
+                                  NO PLAYER ON THIS PAGE.
 
-                                    An embed cannot be made to never show
-                                    YouTube's UI: that document is theirs, the
-                                    title bar and the caption track are drawn
-                                    inside it, and captions follow the VIEWER's
-                                    account preference — `cc_load_policy` is a
-                                    request the player may ignore. Everything
-                                    below is mitigation, not a guarantee.
+                                  It needed the right half of a 50/50 split to
+                                  live in, and that split has moved to the hub
+                                  page where it has real content to drive it.
+                                  What stays is the mark above — blurred large
+                                  behind the poster, which is what gives each
+                                  row its colour and shape.
 
-                                    An MP4 in a <video> has no UI at all with
-                                    `controls` omitted, is roughly 900kB of
-                                    player script lighter, and is not bound by
-                                    hard rule 3 (that is an iframe problem), so
-                                    it can be cropped freely. Drop a file on a
-                                    hub's `trailerFile` and it takes this path.
-                                  */
-                                  <div class="brand-stage-video">
-                                    <video
-                                      class="brand-stage-media"
-                                      data-src={trailerFile}
-                                      muted
-                                      playsinline
-                                      preload="none"
-                                      disablepictureinpicture
-                                      aria-hidden="true"
-                                      tabindex="-1"
-                                    ></video>
-                                  </div>
-                                ) : trailerId ? (
-                                  /*
-                                    HARD RULE 4: the idle src is 'about:blank',
-                                    NEVER ''. An empty src resolves to the
-                                    current page and silently loads the whole
-                                    site inside the frame.
-                                  */
-                                  <div class="brand-stage-video">
-                                    <iframe
-                                      class="brand-stage-iframe"
-                                      src="about:blank"
-                                      data-src={`https://www.youtube-nocookie.com/embed/${trailerId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&disablekb=1&iv_load_policy=3&cc_load_policy=0&enablejsapi=1`}
-                                      title=""
-                                      aria-hidden="true"
-                                      tabindex="-1"
-                                      loading="lazy"
-                                      allow="autoplay; encrypted-media"
-                                    ></iframe>
-                                    <span class="brand-stage-guard" aria-hidden="true"></span>
-                                  </div>
-                                ) : null}
+                                  Every problem this page had came from
+                                  autoplaying somebody else's embed on a screen
+                                  nobody had clicked into: the paused-player
+                                  chrome, the caption track, blocked autoplay.
+                                  On a hub page playback follows a click, so
+                                  none of it applies there.
+
+                                  The player's CSS and its controller are still
+                                  in this file and are now unreferenced. They
+                                  are the thing being lifted onto the hub page
+                                  next, so they are left intact for that move
+                                  rather than deleted and rewritten from
+                                  memory. Nothing loads: no markup, no src.
+                                */}
                               </div>
                             </div>
                           </div>
@@ -2231,12 +2203,9 @@ ${activeFonts
     one place, so they cannot drift apart again.
   */
   .brand-stage {
+    /* The full plate. There is no second column to align against any more. */
     position: absolute;
-    top: 0;
-    /* Was flush to the viewport edge — "too close to the edge". */
-    right: 4%;
-    bottom: calc(90px + 1rem);
-    left: 8%;
+    inset: 0;
     z-index: 4;
     display: flex;
     align-items: center;
@@ -2249,7 +2218,7 @@ ${activeFonts
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 74%;
+    width: 88%;
     max-width: 620px;
     display: flex;
     align-items: center;
@@ -4314,7 +4283,27 @@ ${activeFonts
      of it. Same square footage, one thing in it instead of two, and the
      branding is on the artwork where it now lives at every size.
      ══════════════════════════════════════════════════════════════════════ */
-  @media (max-width: 768px), (max-height: 560px) {
+  /* ══════════════════════════════════════════════════════════════════════
+     ONE LAYOUT, EVERY SIZE.
+
+     These rules were a phone-and-landscape-only override sitting under a 50/50
+     desktop split. The split is gone, and the media query with it: the compact
+     treatment was simply the better design of the two, and maintaining both
+     meant every fix had to be made twice — with the desktop half accumulating
+     problems the compact half never had (the embed's chrome, the seam wash,
+     the deck feather eating the Enter chip).
+
+     One object per row now, at every width: the poster centred over the hub's
+     own blurred mark, its rail beneath, the next card peeking at the edge.
+
+     The 50/50 split is not discarded — it moves to the HUB page, where it has
+     real content to drive it (recent videos and articles) instead of an
+     autoplaying embed nobody asked for.
+
+     The declarations below keep their original indentation deliberately: this
+     is an unwrap, not a rewrite, so the diff shows exactly one line removed at
+     each end and nothing else touched.
+     ══════════════════════════════════════════════════════════════════════ */
     .deck-view-container {
       flex-direction: column;
       padding: 0;
@@ -4513,7 +4502,6 @@ ${activeFonts
       -webkit-filter: blur(60px) saturate(1.5);
       filter: blur(60px) saturate(1.5);
     }
-  }
 
   /* ── Phone-width only ──────────────────────────────────────────────────
      Sizes that depend on a NARROW screen rather than a short one. A landscape

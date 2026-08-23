@@ -138,63 +138,31 @@ test('the typeface demo is not trapped in a phone media query', () => {
   }
 });
 
-test('the trailer is back, and every reason it was a problem is guarded', () => {
+test('there is no player on /featured, and no page-relative iframe anywhere', () => {
   /*
-    A YouTube embed used to play FULL-BLEED behind the deck. Its chrome could
-    not be suppressed: `modestbranding` no longer removes the wordmark, and the
-    play overlay and auto-generated captions render in the CENTRE of the frame,
-    where no crop reaches them. I removed the video outright, which was an
-    overcorrection — the ask was to stop the chrome showing, not to lose the
-    trailer, and losing it is what made the right-hand side read as unfinished.
+    The trailer needed the right half of a 50/50 split, and that split has
+    moved to the hub page where playback follows a CLICK. Every problem this
+    page had came from autoplaying somebody else's embed on a screen nobody had
+    clicked into — the paused-player chrome, the caption track, blocked
+    autoplay. None of it applies once the player is somewhere a visitor chose
+    to be.
 
-    It is back, INSET on a lit stage rather than full-bleed, so its chrome lands
-    inside a smaller framed plate instead of across the artwork. These are the
-    conditions it came back under.
+    The player's CSS and controller are deliberately still in this file: they
+    are what gets lifted onto the hub page, and lifting beats rewriting from
+    memory. What must be true is that nothing RENDERS one here.
   */
-  assert.match(src, /brand-stage-iframe/, 'the trailer exists again');
+  assert.doesNotMatch(src, /<iframe/, 'no iframe element on /featured');
+  assert.doesNotMatch(src, /<video/, 'no video element on /featured');
+  assert.doesNotMatch(src, /youtube-nocookie/, 'no embed URL rendered on /featured');
 
-  // HARD RULE 4. An empty src resolves to the current page and loads the whole
-  // site inside the frame — a bug this page has actually shipped once.
+  // HARD RULE 4 still applies to anything this page ever grows.
   assert.doesNotMatch(src, /\.src\s*=\s*['"]{2}/, "never assign an iframe src = ''");
-  assert.match(src, /src="about:blank"/, 'the idle src is about:blank');
-  assert.match(src, /frame\.src = 'about:blank'/, 'teardown restores about:blank');
+  assert.doesNotMatch(src, /src=""/, "an empty src resolves to the current page");
 
-  // HARD RULE 3: no clipping ancestor. The stage is a SIBLING of the clipping
-  // backdrop wrapper, never inside it — iOS Safari paints a clipped iframe as
-  // a black box.
-  const stageIdx = src.indexOf('class="brand-stage"');
-  const wrapCloseIdx = src.indexOf('</div>', src.indexOf('trailer-bg-wrapper'));
-  assert.ok(stageIdx > wrapCloseIdx, 'the stage must not be inside the clipping wrapper');
-  const stageCss = src.slice(src.indexOf('.brand-stage {'));
-  assert.doesNotMatch(
-    stageCss.slice(0, stageCss.indexOf('}')),
-    /overflow: hidden/,
-    'nothing between the iframe and the page may clip',
-  );
-  const videoCss = src.slice(src.indexOf('.brand-stage-video {'));
-  assert.doesNotMatch(
-    videoCss.slice(0, videoCss.indexOf('}')),
-    /overflow: hidden/,
-    'the video frame must not clip either',
-  );
-
-  // It must not loop. Looping is what flashed YouTube's title bar back on
-  // screen at every restart.
-  assert.doesNotMatch(src, /[?&]loop=1/, 'the trailer must not loop');
-  assert.match(src, /TRAILER_RUN_MS/, 'the trailer stops on a timer');
-
-  // A frame whose document never loads paints white by default.
-  const mediaCss = src.slice(src.indexOf('.brand-stage-iframe,'));
-  assert.match(mediaCss.slice(0, mediaCss.indexOf('\n  }')), /background: #050505/,
-    'an unloaded frame must not paint white');
-
-  // Phones never load it — the info column is the plate behind the deck there,
-  // so the player would cost ~900kB to render where it cannot be seen.
-  assert.match(src, /min-width: 1024px/, 'the trailer is desktop-only in JS');
-  const mq = src.slice(src.indexOf('@media (max-width: 1023px), (max-height: 620px)'));
-  assert.match(mq.slice(0, 400), /\.brand-stage-video[\s\S]{0,60}display: none/,
-    'the trailer is desktop-only in CSS too');
+  // The mark is what carries the row now.
+  assert.match(src, /brand-stage-mark/, "the hub's mark is the backdrop");
 });
+
 
 test('the same image is not painted three times in one row', () => {
   /*
@@ -278,75 +246,6 @@ test('NOTHING on the right side of a row moves', () => {
   }
 });
 
-test('nothing is painted over the video, and its chrome is handled another way', () => {
-  /*
-    I had this backwards once: "feather the edges" meant the FRAME's edges,
-    and I painted a vignette over the picture instead — which dimmed the
-    trailer itself. Nothing may be drawn on top of the video. It reads as a
-    layer because of the shadow under it, the way the poster does on a phone.
-
-    Which leaves the chrome to be handled by timing and by source:
-
-    - The frame loads while it is still at opacity 0 and is revealed only
-      after the player has settled, so the title bar and spinner happen
-      unseen. An embed cannot report its own state, hence a fixed settle.
-    - A self-hosted file has NO chrome at all and reports `playing`, so where
-      one exists it takes priority and the reveal is exact.
-  */
-  assert.doesNotMatch(src, /brand-stage-frame/, 'no gradient may overlay the picture');
-
-  /*
-    The ONE thing painted over the frame is the caption guard, and only because
-    the band it covers is already black: these trailers are 2.39:1 inside a
-    16:9 player, so the player letterboxes them and the caption track renders
-    in that black. Captions follow the viewer's own preference — no player
-    parameter stops them. A bar over the letterbox costs no picture; a gradient
-    across the frame cost all of it.
-  */
-  const guard = src.slice(src.indexOf('.brand-stage-guard {'));
-  const gdecl = guard.slice(0, guard.indexOf('  }'));
-  assert.match(gdecl, /bottom: 0/, 'the guard sits at the bottom, where captions render');
-  assert.doesNotMatch(gdecl, /linear-gradient/, 'the guard is a flat bar, never a fade');
-  const h = gdecl.match(/height: (\d+)%/);
-  assert.ok(h && Number(h[1]) >= 15 && Number(h[1]) <= 20,
-    `the guard must clear the caption track without eating the frame (got ${h && h[1]}%)`);
-  const vid = src.slice(src.indexOf('.brand-stage-video {'));
-  const decl = vid.slice(0, vid.indexOf('  }'));
-  assert.match(decl, /box-shadow:/, 'the layer read comes from a shadow under it');
-
-  /*
-    THE PLAYER HAS TO PROVE IT IS PLAYING BEFORE IT IS SHOWN.
-
-    A fixed settle used to sit here, and it was solving the wrong problem. The
-    chrome in the report was not the title bar during load — it was the player
-    PAUSED, showing its title, its "More videos" strip and the YouTube logo,
-    because autoplay had been blocked (Brave by default, some extensions, iOS
-    Low Power Mode). No delay fixes that: nothing was ever going to start.
-
-    So the reveal is driven by the player's own state (info === 1, PLAYING) over
-    the enablejsapi postMessage channel, and a stage that never reports playing
-    is torn down with the mark left up. Never show a paused player.
-  */
-  const arm = src.slice(src.indexOf('function armStage'), src.indexOf('function syncTrailers'));
-  assert.match(src, /enablejsapi=1/, 'the state channel must be open');
-  assert.match(arm, /state === 1/, 'reveal only on a confirmed PLAYING state');
-  assert.match(arm, /TRAILER_PLAY_TIMEOUT_MS/, 'a player that never starts must time out');
-  assert.match(arm, /is-playing[\s\S]{0,80}teardownStage/,
-    'the timeout must tear the stage down, not reveal it anyway');
-  assert.doesNotMatch(arm, /setTimeout\(reveal/,
-    'the reveal must never be scheduled on a timer — that is what showed a paused player');
-  assert.ok(
-    arm.indexOf('frameEl.src =') < arm.indexOf('reveal()'),
-    'src must be assigned before anything can reveal',
-  );
-
-  // The self-hosted path exists and wins.
-  assert.match(src, /brand-stage-media/, 'a self-hosted file is supported');
-  assert.match(src, /trailerFile \? \(/, 'a supplied file takes priority over the embed');
-  assert.match(arm, /addEventListener\('playing'/, 'a file reveals on its first painted frame');
-  // A <video> may be cleared by attribute; an IFRAME may never be (hard rule 4).
-  assert.doesNotMatch(src, /frame\.removeAttribute\('src'\)/, "never clear an iframe's src");
-});
 
 test("the deck's feather does not reach the card's own controls", () => {
   /*
