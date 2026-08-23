@@ -274,13 +274,95 @@ const trailerId = parseVideoId(trailerUrl);
   /* Page width wrapper now shared: `.container-page` in modules/layout.css */
   
   /* Hero */
+  /* ══════════════════════════════════════════════════════════════════════
+     THE HERO IS PINNED. THE COVERAGE SCROLLS UP OVER IT.
+
+     Landing here used to be a hard cut: a half-height hero that ended at an
+     edge, with a grey content grid starting underneath it — and you could see
+     both at once, which is what killed the cinematic read the moment the page
+     loaded.
+
+     Sticky fixes the seam by removing it. The hero does not end, it gets
+     COVERED: it holds the viewport while the coverage panel rises over it like
+     a curtain, and only leaves once the panel has fully passed. There is no
+     boundary left to blend because there is no boundary.
+
+     Pure CSS. No scroll listener, no rAF, no per-frame work — the compositor
+     owns it, so this cannot regress the smoothness the deck page was tuned for.
+
+     THREE THINGS ARE LOAD-BEARING:
+
+     1. `100lvh`, never `100vh`. On iOS `100vh` is the LARGEST viewport, which
+        the page also uses before the URL bar retracts, so a `vh` hero leaves a
+        gap under itself. scripts/viewport-units.test.mjs pins this unit for
+        exactly this reason.
+     2. `top` must clear the fixed header, or the hero pins underneath it.
+     3. Sticky fails SILENTLY if any ancestor has `overflow: hidden` — the same
+        family of trap as hard rule 3, and it produces no error, just a hero
+        that scrolls away. Nothing between here and <body> clips; the only
+        `overflow: hidden` in this file is on .event-hero-bg-wrapper, which is
+        a CHILD.
+
+     NO `overflow: hidden` HERE either — on iOS Safari an overflow:hidden
+     ancestor makes a descendant cross-origin (YouTube) iframe render as a black
+     box, and the trailer lives in this subtree. The background layer is inset:0
+     and clips to its own box, so the clip was never needed.
+     ══════════════════════════════════════════════════════════════════════ */
   .event-hero {
-    position: relative;
+    position: sticky;
+    top: var(--header-height, 80px);
+    height: calc(100lvh - var(--header-height, 80px));
+    min-height: 560px;
+    display: flex;
+    align-items: center;
+    /* Below the coverage panel, which paints over it. */
+    z-index: 0;
     background-color: #111;
-    /* NO overflow:hidden here. On iOS Safari an overflow:hidden ancestor makes
-       a descendant cross-origin (YouTube) iframe render as a black box. The bg
-       below is inset:0 and its image clips to its own box, so it can't spill —
-       the clip was never needed. */
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /*
+      Sticky is not an animation, but the effect it produces is motion the
+      viewer did not ask for. Falling back to a normal hero costs nothing.
+    */
+    .event-hero {
+      position: relative;
+    }
+  }
+
+  /*
+    THE PANEL THAT RIDES OVER IT.
+
+    Opaque, or the pinned hero shows through and the whole effect reads as a
+    rendering fault rather than a layer. The shadow above it is what sells the
+    depth: it is the only cue that one plane is passing in front of another.
+  */
+  .content-container {
+    position: relative;
+    z-index: 1;
+    background: var(--color-black, #050505);
+    box-shadow: 0 -60px 90px rgba(0, 0, 0, 0.9);
+  }
+
+  /*
+    A hairline of the brand's colour along the panel's leading edge. Without it
+    the panel arrives as a flat black rectangle; with it, the hub's own colour
+    is the last thing you see of the hero and the first thing you see of the
+    coverage.
+  */
+  .content-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(to right,
+      transparent 0%,
+      rgba(var(--brand-rgb, 204, 0, 0), 0.55) 22%,
+      rgba(var(--brand-rgb, 204, 0, 0), 0.55) 78%,
+      transparent 100%);
+    pointer-events: none;
   }
   /* Clipping/coverage layer: static, fills the hero, hides the sliver the
      animated child exposes at its edges while scaled. overflow:hidden is safe
@@ -608,6 +690,10 @@ const trailerId = parseVideoId(trailerUrl);
   /* Content */
   .content-container {
     padding: 4rem 2rem;
+    /* Enough that the panel can actually cover the pinned hero on a short
+       page. A hub with one card would otherwise stop scrolling before the
+       hero was covered, leaving the effect half-finished. */
+    min-height: calc(100lvh - var(--header-height, 80px));
   }
   .content-section {
     margin-bottom: 5rem;

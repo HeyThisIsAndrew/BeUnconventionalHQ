@@ -479,6 +479,42 @@ test('the hub rail centres, and cannot strand its first thumbnail', () => {
   assert.match(decl, /overflow-x: auto/, 'the rail still scrolls when it overflows');
 });
 
+test('the hub hero pins and the coverage scrolls over it', () => {
+  /*
+    Landing on a hub used to be a hard cut — a half-height hero ending at an
+    edge with the content grid visible underneath it at the same time, which
+    killed the cinematic read on load.
+
+    Sticky removes the seam rather than blending it: the hero is COVERED, not
+    ended. Verified in a browser at 1512x830, 430x932 and on a hub with no
+    artwork — hero holds at top:80 through scroll 0, 500 and end-of-page.
+
+    Three things are load-bearing and each fails silently if broken:
+      - `100lvh`, never `100vh` (iOS URL bar leaves a gap under a vh hero)
+      - `top` must clear the fixed header or the hero pins beneath it
+      - NO `overflow: hidden` on any ancestor — sticky just stops working, with
+        no error, exactly like hard rule 3's black box
+    And the panel must be OPAQUE, or the pinned hero shows through it.
+  */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
+  const hero = hub.slice(hub.indexOf('.event-hero {'));
+  const decl = hero.slice(0, hero.indexOf('\n  }'));
+  assert.match(decl, /position: sticky/, 'the hero must pin');
+  assert.match(decl, /top: var\(--header-height/, 'it must pin BELOW the fixed header');
+  assert.match(decl, /100lvh/, 'lvh, not vh — iOS leaves a gap under a vh hero');
+  assert.doesNotMatch(decl, /100vh/, 'vh is the bug this project already pinned lvh for');
+  assert.doesNotMatch(decl, /overflow: hidden/, 'sticky dies silently under a clipping ancestor');
+
+  const panel = hub.slice(hub.indexOf('.content-container {'));
+  const pdecl = panel.slice(0, panel.indexOf('\n  }'));
+  assert.match(pdecl, /position: relative/, 'the panel must be positioned to paint over the hero');
+  assert.match(pdecl, /z-index: 1/, 'the panel must paint ABOVE the hero');
+  assert.match(pdecl, /background:/, 'a transparent panel shows the pinned hero through it');
+});
+
 test('every category row is reachable and operable from the keyboard', () => {
   /*
     The headers were <div>s with a click handler. Focus went from the open row's
