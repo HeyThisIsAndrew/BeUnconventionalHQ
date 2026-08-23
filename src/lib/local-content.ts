@@ -13,8 +13,9 @@
  */
 import { createImageUrlBuilder } from '@sanity/image-url';
 import localVideos from '../data/videos.json';
+import { SANITY_PROJECT } from './sanity-project.ts';
 
-const SANITY_PROJECT = { projectId: '38nhxsib', dataset: 'production' };
+
 const builder = createImageUrlBuilder(SANITY_PROJECT);
 
 /**

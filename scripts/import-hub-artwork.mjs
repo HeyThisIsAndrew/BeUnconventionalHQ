@@ -34,6 +34,13 @@ import os from 'node:os';
 import { config } from 'dotenv';
 import { createClient } from '@sanity/client';
 
+/* The project id comes from the module the site itself reads images through,
+   never a copy. A wrong one is not a visible failure: the token authenticates
+   fine and every upload is refused with "Session does not match project host".
+   Node 22 strips the types; the .ts extension is this repo's convention for
+   src/lib imports from scripts (see scripts/sync-youtube.mjs). */
+import { SANITY_PROJECT } from '../src/lib/sanity-project.ts';
+
 /*
   Plain `node` does not read .env. The Local CMS's uploader gets
   SANITY_WRITE_TOKEN for free because Vite loads it for the dev server, which
@@ -44,8 +51,6 @@ import { createClient } from '@sanity/client';
 */
 config();
 
-const SANITY_PROJECT_ID = 'nqnrjfqu';
-const SANITY_DATASET = 'production';
 const DATA = path.resolve(process.cwd(), 'src/data/videos.json');
 const MAP_FILE = path.resolve(process.cwd(), 'scripts/hub-artwork-map.json');
 
@@ -328,8 +333,8 @@ if (!token) {
   process.exit(1);
 }
 const client = createClient({
-  projectId: SANITY_PROJECT_ID,
-  dataset: SANITY_DATASET,
+  projectId: SANITY_PROJECT.projectId,
+  dataset: SANITY_PROJECT.dataset,
   token,
   apiVersion: '2024-03-01',
   useCdn: false,
