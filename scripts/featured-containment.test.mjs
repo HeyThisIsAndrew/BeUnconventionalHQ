@@ -6,7 +6,7 @@
   page LOOKS right — they exist to stop four specific regressions that were
   each found only after they reached a device.
 */
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import assert from 'node:assert/strict';
@@ -884,6 +884,33 @@ test('the visitor can turn the sound on', () => {
     'a refused unmute must be undone AND playback resumed, or the frame spins');
   assert.match(ctl, /state === 1 \|\| state === 3/, '3 is buffering, which is normal for a moment');
   assert.match(ctl, /aria-pressed/, 'a toggle must announce its state');
+});
+
+test('the shipping typeface actually has a file to ship', () => {
+  /*
+    PROD_FONT names the one face production emits. If SELF_HOSTED_FILES has no
+    entry for it, no @font-face and no preload are written: the build succeeds,
+    the page ships, and every heading renders in the fallback sans-serif. That
+    is invisible until it is live, so the page throws at build time and this
+    catches it offline first.
+  */
+  const m = src.match(/const PROD_FONT = '([^']+)'/);
+  assert.ok(m, 'PROD_FONT must be declared');
+  const font = m[1];
+
+  const files = src.slice(src.indexOf('const SELF_HOSTED_FILES'));
+  const entry = files.slice(0, files.indexOf('};')).match(
+    new RegExp(`${font}:\\s*\\{[^}]*file: '([^']+)'`),
+  );
+  assert.ok(entry, `SELF_HOSTED_FILES has no entry for PROD_FONT '${font}'`);
+
+  const onDisk = join(here, '..', 'public', entry[1].replace(/^\//, ''));
+  assert.ok(existsSync(onDisk), `${entry[1]} is registered but not in public/`);
+  const head = readFileSync(onDisk).subarray(0, 4).toString('latin1');
+  assert.equal(head, 'wOF2', `${entry[1]} is not a woff2 file`);
+
+  assert.match(src, /if \(!SELF_HOSTED_FILES\[PROD_FONT\]\)/,
+    'the page must refuse to build with a face it cannot serve');
 });
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);

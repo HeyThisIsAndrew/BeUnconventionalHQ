@@ -206,7 +206,7 @@ const DEMO_FONTS: DemoFont[] = [
   reach for if the Medium cut reads too light over bright hero art, which is
   the usual outcome at banner size.
 */
-const PROD_FONT = 'cinzel';
+const PROD_FONT = 'syncopate';
 
 const IS_DEV = import.meta.env.DEV;
 
@@ -305,7 +305,24 @@ const fontImportUrl = REMOTE_FONTS.length
 const SELF_HOSTED_FILES: Record<string, { family: string; file: string }> = {
   gotham: { family: 'Montserrat', file: '/fonts/montserrat-500-latin.woff2' },
   cinzel: { family: 'Cinzel', file: '/fonts/cinzel-700-latin.woff2' },
+  syncopate: { family: 'Syncopate', file: '/fonts/syncopate-700-latin.woff2' },
 };
+
+/*
+  A PROD_FONT WITH NO FILE FAILS SILENTLY, SO IT FAILS THE BUILD INSTEAD.
+
+  Without an entry above, no @font-face is emitted and no preload is written:
+  the build succeeds, the page ships, and the headings quietly render in the
+  fallback sans-serif. Nobody finds that until it is live. scripts/
+  featured-containment.test.mjs asserts the same thing offline.
+*/
+if (!SELF_HOSTED_FILES[PROD_FONT]) {
+  throw new Error(
+    `PROD_FONT is '${PROD_FONT}' but SELF_HOSTED_FILES has no entry for it. ` +
+      'Add the woff2 to public/fonts/ and register it above, or the headings ' +
+      'ship in the fallback face with no warning.',
+  );
+}
 
 const selfHostedFile = SELF_HOSTED_FILES[PROD_FONT] ?? null;
 

@@ -229,13 +229,38 @@
   list-style: decimal;
 }
 
+/*
+  A PULL QUOTE IS THE LOUDEST LINE ON THE PAGE, NOT THE QUIETEST.
+
+  This was `font-size: 1.15rem`, and rem is the trap: `html` drops to 80%
+  above 768px, so that resolved to 14.7px on the very screens where body copy
+  is 20px. The one thing meant to stand out was set SMALLER than everything
+  around it, and the author had been reaching for an H4 instead just to get
+  some weight, which then turned each aside into a table-of-contents entry.
+
+  `em` instead of `rem`, so it is measured against `.article-body` rather than
+  the document. The body is already normalised to 20px at every width, so 1.2em
+  is 24px everywhere with no breakpoint of its own.
+*/
 .article-body blockquote {
-  border-left: 2px solid var(--color-accent);
-  padding: 0.25rem 0 0.25rem 1.5rem;
-  font-size: 1.15rem;
-  line-height: 1.6;
+  border-left: 3px solid var(--color-accent);
+  padding: 0.35rem 0 0.35rem 1.75rem;
+  margin: 2.25rem 0;
+  font-size: 1.2em;
+  line-height: 1.45;
+  letter-spacing: -0.005em;
   color: var(--color-white);
   font-style: italic;
+  font-weight: 600;
+}
+
+/* A quote is one thought. Its own paragraphs should not read as separate
+   blocks the way body paragraphs do. */
+.article-body blockquote p {
+  margin: 0;
+}
+.article-body blockquote p + p {
+  margin-top: 0.75em;
 }
 
 .article-body img {
