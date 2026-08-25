@@ -13,8 +13,9 @@
  */
 import { createImageUrlBuilder } from '@sanity/image-url';
 import localVideos from '../data/videos.json';
+import { SANITY_PROJECT } from './sanity-project.ts';
 
-const SANITY_PROJECT = { projectId: '38nhxsib', dataset: 'production' };
+
 const builder = createImageUrlBuilder(SANITY_PROJECT);
 
 /**
@@ -184,9 +185,117 @@ export function getEventsLocal(): any[] {
  * Equivalent to
  * `*[_type == "featuredBrand" && defined(slug.current)] | order(title asc)`.
  */
+/*
+  HIDDEN HUBS ARE HIDDEN IN A BUILD, AND VISIBLE IN DEV.
+
+  An unfinished hub should not be on the live site, but it must stay in front of
+  the person finishing it — otherwise the only way to work on one is to keep
+  toggling it back on. So `hidden` is honoured in a production build and ignored
+  by `npm run dev`, where everything renders.
+
+  The flag is EXPLICIT rather than inferred from whether a hub "has content".
+  That was the other option and it is the wrong one: "no content" is ambiguous
+  (no logo? no key art? no tagged videos?) and today almost every hub has
+  artwork pending but zero tagged coverage, so an automatic rule would hide hubs
+  that are perfectly ready. A checkbox says exactly what it does and cannot
+  surprise anyone.
+
+  An empty CATEGORY cannot result from this. /featured derives its rows from the
+  hubs themselves — group by `hubCategory`, take the keys — so a category with
+  every hub hidden has no key and never renders, and the accordion sizes itself
+  from the row count that survives.
+
+  This also removes the hub's PAGE: [slug].astro builds its routes from this
+  same function, so a hidden hub stops generating one rather than shipping an
+  unlinked empty page.
+*/
 export function getFeaturedBrandsLocal(): any[] {
+  const showHidden = import.meta.env.DEV;
   return (localVideos as any[])
     .filter((d) => d._type === 'featuredBrand' && d.slug?.current)
+    .filter((d) => showHidden || d.hidden !== true)
     .map(withImageDimensions)
     .sort((a, b) => String(a.title ?? '').localeCompare(String(b.title ?? '')));
 }
+
+/*
+  ONE IMAGE, THE HUB'S OWN.
+
+  This used to gather up to six stills and cross-fade them, pulling from the
+  thumbnails of videos tagged to the hub and then from its category. It was a
+  neat trick and it was the wrong call: those thumbnails are the channel's own
+  video covers, which means they are frequently a photograph of the presenter.
+  A hub is somebody else's brand — Marvel's backdrop cannot be a picture of the
+  site owner, and "the top of my head behind the Marvel logo" is how it was
+  actually spotted.
+
+  So a hub's backdrop is a hub's own art and nothing else: whatever image has
+  been chosen for it, blurred, with a slow drift. Borrowing footage from a
+  neighbouring category was solving a content gap with someone else's face, and
+  a hub with no art yet is better served by the brand-tinted ground it already
+  falls back to.
+
+  It is also far less machinery — no cycling timer, no staged hydration, no
+  tiers, and one image per hub instead of six.
+*/
+export type HubBackdrop = { kind: 'sanity'; ref: any };
+
+/**
+ * The backdrop a hub was given ON PURPOSE — its `backdrops[0]`, and nothing
+ * else.
+ *
+ * getHubBackdrop() below falls back to `heroImage`, which is right for a hub
+ * PAGE (one image, used once). It is wrong for /featured, where `heroImage` is
+ * already the deck card AND the nav rail thumbnail: falling back there painted
+ * the same picture three times in one row at three sizes, reported as "way too
+ * much repetition of the same damn image".
+ *
+ * So /featured asks for the override only, and falls through to the hub's mark
+ * when there isn't one. Two callers, two different questions, rather than one
+ * function quietly answering the wrong one.
+ */
+export function getHubBackdropOverride(slug: string): HubBackdrop | null {
+  const brand = (localVideos as any[]).find(
+    (d) => d._type === 'featuredBrand' && d.slug?.current === slug,
+  );
+  const override = (brand?.backdrops ?? []).find(Boolean);
+  return override ? { kind: 'sanity', ref: override } : null;
+}
+
+/**
+ * The single image behind a hub, or null if it has none yet.
+ *
+ *   1. `backdrops[0]` — an explicit override, for when the key art does not
+ *      work blurred (a logo on flat white goes to nothing).
+ *   2. `heroImage` — the hub's own key art, which is the normal case.
+ *
+ * Nothing else. A hub with neither falls through to the brand-tinted gradient
+ * the page already draws, which reads as a deliberate title card rather than a
+ * gap.
+ */
+export function getHubBackdrop(slug: string): HubBackdrop | null {
+  const brand = (localVideos as any[]).find(
+    (d) => d._type === 'featuredBrand' && d.slug?.current === slug,
+  );
+  if (!brand) return null;
+
+  const override = (brand.backdrops ?? []).find(Boolean);
+  if (override) return { kind: 'sanity', ref: override };
+  if (brand.heroImage) return { kind: 'sanity', ref: brand.heroImage };
+  return null;
+}
+
+/**
+ * The four rows on /featured, and what each is called.
+ *
+ * Shared rather than declared twice, because a hub page now shows the row it
+ * was reached from — and a label that disagrees with the row you just clicked
+ * is worse than no label. Adding a hub is a data change; adding a CATEGORY is
+ * a design decision, which is why this stays in code.
+ */
+export const HUB_CATEGORY_LABELS: Record<string, string> = {
+  universes: 'The Multiverse',
+  streaming: 'Streamers',
+  studios: 'Studios',
+  gaming: 'Gaming',
+};

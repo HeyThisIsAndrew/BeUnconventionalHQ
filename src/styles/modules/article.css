@@ -22,11 +22,14 @@
   }
 }
 
-/* Reading column. ~68ch is the comfortable measure for body copy; the site's
-   1536px container is far too wide to read at. */
+/* Reading column. 53rem is 678px against the 80% html scale, which is
+   Substack's reading column to within a few pixels, and about 68ch at the
+   20px body size. It was 44rem (563px) and read as a thin strip beside the
+   same article on Substack. The site's 1536px container is still far too
+   wide to read at. */
 .article-column {
   width: 100%;
-  max-width: 44rem;
+  max-width: 53rem;
   margin-inline: auto;
 }
 
@@ -139,13 +142,32 @@
 
 .article-body {
   font-family: var(--font-body);
-  font-size: 1.25rem; /* Compensate for 80% html scale (1.25 * 12.8 = 16px) */
+  /* 20px on a phone, where html is NOT scaled. The desktop override
+     below brings the scaled size back to the same 20px. */
+  font-size: 1.25rem;
   line-height: 1.8;
   color: rgba(240, 240, 240, 0.92);
   /* Substack embeds (tweets, YouTube links) sometimes leave a raw URL as the
      only visible text once the sanitizer strips the embed itself — one long
-     unbroken token that would otherwise overflow the 44rem reading column. */
+     unbroken token that would otherwise overflow the 53rem reading column. */
   overflow-wrap: break-word;
+}
+
+/*
+  BODY COPY IS 20px EVERYWHERE, NOT 16px ON THE ROOMIEST SCREENS.
+
+  `html` drops to 80% above 768px, so the rule above resolved to 20px on a
+  phone and only 16px on a desktop, which is the screen with the most room for
+  it. Read beside the same article on Substack, set at 20px, ours looked thin.
+  1.5625 * 12.8 = 20px, so both ends now agree.
+
+  Scoped rather than changed in place: below 768px the scale is 100% and the
+  size is already right, and this must not push a phone to 25px.
+*/
+@media (min-width: 768px) {
+  .article-body {
+    font-size: 1.5625rem;
+  }
 }
 
 .article-body > * + * {
@@ -207,13 +229,38 @@
   list-style: decimal;
 }
 
+/*
+  A PULL QUOTE IS THE LOUDEST LINE ON THE PAGE, NOT THE QUIETEST.
+
+  This was `font-size: 1.15rem`, and rem is the trap: `html` drops to 80%
+  above 768px, so that resolved to 14.7px on the very screens where body copy
+  is 20px. The one thing meant to stand out was set SMALLER than everything
+  around it, and the author had been reaching for an H4 instead just to get
+  some weight, which then turned each aside into a table-of-contents entry.
+
+  `em` instead of `rem`, so it is measured against `.article-body` rather than
+  the document. The body is already normalised to 20px at every width, so 1.2em
+  is 24px everywhere with no breakpoint of its own.
+*/
 .article-body blockquote {
-  border-left: 2px solid var(--color-accent);
-  padding: 0.25rem 0 0.25rem 1.5rem;
-  font-size: 1.15rem;
-  line-height: 1.6;
+  border-left: 3px solid var(--color-accent);
+  padding: 0.35rem 0 0.35rem 1.75rem;
+  margin: 2.25rem 0;
+  font-size: 1.2em;
+  line-height: 1.45;
+  letter-spacing: -0.005em;
   color: var(--color-white);
   font-style: italic;
+  font-weight: 600;
+}
+
+/* A quote is one thought. Its own paragraphs should not read as separate
+   blocks the way body paragraphs do. */
+.article-body blockquote p {
+  margin: 0;
+}
+.article-body blockquote p + p {
+  margin-top: 0.75em;
 }
 
 .article-body img {
@@ -288,10 +335,10 @@
 
    ┌───────────┬──────────────────────┬───────────┐
    │ CONTENTS  │  reading column      │ SUPPORT   │
-   │ (sticky)  │  ~44rem              │ (sticky)  │
+   │ (sticky)  │  ~53rem              │ (sticky)  │
    └───────────┴──────────────────────┴───────────┘
 
-   The centre column keeps its 44rem cap — that is the readable measure and it
+   The centre column keeps its 53rem cap — that is the readable measure and it
    does not change just because there is now space either side. The rails take
    the leftover width.
 
@@ -314,10 +361,12 @@
 */
 .article-layout {
   display: grid;
-  /* Symmetrical rails (16rem each) and a 44rem center track. 
-     space-evenly distributes the remaining container width perfectly so 
-     the rails sit exactly halfway between the screen edge and the article. */
-  grid-template-columns: 16rem minmax(0, 44rem) 16rem;
+  /* Symmetrical rails (16rem each) and a 53rem center track.
+     space-evenly distributes the remaining container width perfectly so
+     the rails sit exactly halfway between the screen edge and the article.
+     The three tracks plus their gaps come to ~1114px, so they still fit
+     inside the 1200px breakpoint below, where this collapses to one column. */
+  grid-template-columns: 16rem minmax(0, 53rem) 16rem;
   grid-template-areas: "toc column support";
   justify-content: space-evenly;
   gap: 2rem; /* Fallback gap if screen gets tight right before the 1200px breakpoint */

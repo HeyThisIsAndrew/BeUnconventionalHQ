@@ -220,7 +220,21 @@ export default defineConfig({
       noExternal: ['react', 'react-dom']
     },
     optimizeDeps: {
-      include: ['react', 'react-dom', 'react/jsx-runtime'],
+      /*
+        `@sanity/eventsource` is here because `@sanity/client` is excluded
+        below. Excluding a dependency tells Vite to serve it and everything it
+        imports unbundled, and eventsource ships two browser builds: an ESM
+        `browser.mjs` reached through its `import` condition, and a CommonJS
+        `browser.js` that is the plain `browser` default. Unbundled, the
+        browser gets the CommonJS one and the Studio dies on
+
+          does not provide an export named 'default'
+
+        Naming it here opts that ONE package back into pre-bundling, which
+        resolves through `import` and hands the browser real ESM. The parent
+        stays excluded.
+      */
+      include: ['react', 'react-dom', 'react/jsx-runtime', '@sanity/eventsource'],
       exclude: ['@sanity/client']
     }
   },

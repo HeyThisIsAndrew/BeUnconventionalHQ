@@ -50,8 +50,12 @@ type Doc = {
   trailerUrl?: string;
   logo?: any;
   heroImage?: any;
+  backdrops?: any[];
   youtubeSyncKeywords?: string[];
   brandColor?: { hex?: string };
+  /** Which accordion row this hub appears in on /featured. */
+  hubCategory?: string;
+  hidden?: boolean;
   socialLinks?: { platform: string; url: string }[];
   metrics?: {
     snapshots: { date: string; viewCount: number }[];
@@ -184,6 +188,11 @@ function makeBlankDoc(type: DocType): Doc {
       logo: '',
       heroImage: '',
       youtubeSyncKeywords: [],
+      // Defaults so a brand-new hub renders in a real row with a real glow
+      // instead of dropping into a nameless "other" section.
+      hubCategory: 'streaming',
+      brandColor: { hex: '#CC0000' },
+      description: '',
     };
   }
   if (type === 'topic') {
@@ -298,6 +307,80 @@ function ImageUploadField({ label, value, onChange }: { label: string; value: st
           <img src={urlFor(value).width(400).url()} alt="Preview" className="h-20 object-contain rounded-md bg-black/50 border border-white/10 p-1" />
         </div>
       )}
+    </Field>
+  );
+}
+
+/*
+  The still images that cross-fade behind a hub on /featured.
+
+  A hub with videos tagged to it already gets a backdrop for free — their
+  thumbnails, newest first (getHubBackdrops in src/lib/local-content.ts). This
+  field is the override: anything set here wins outright, because a person
+  chose it. It is also the ONLY source for a hub that has no coverage yet,
+  which today is thirteen of the fifteen.
+
+  Four to six reads best. Fewer and the loop is obvious; more and the later
+  frames are never reached before someone moves on.
+*/
+function BackdropsField({ value, onChange }: { value?: any[]; onChange: (v: any[]) => void }) {
+  const items = (value || []).filter((v) => typeof v === 'string') as string[];
+
+  const setAt = (i: number, v: string) => {
+    const next = [...items];
+    if (v) next[i] = v;
+    else next.splice(i, 1);
+    onChange(next);
+  };
+
+  const move = (i: number, delta: number) => {
+    const j = i + delta;
+    if (j < 0 || j >= items.length) return;
+    const next = [...items];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+
+  return (
+    <Field label={`Backdrop Image Override (${items.length})`}>
+      <p className="text-xs text-gray-600 mb-3">
+        Optional. Only the FIRST image is used — it sits behind this hub on /featured
+        and on its own page, heavily blurred with a slow drift. Leave empty and the
+        hub's Hero Image is used instead; set one here only when the hero art does not
+        work blurred.
+      </p>
+      <div className="space-y-3">
+        {items.map((ref, i) => (
+          <div key={`${ref}-${i}`} className="flex items-start gap-2">
+            <img
+              src={urlFor(ref).width(200).url()}
+              alt=""
+              className="h-14 w-24 flex-none rounded-md border border-white/10 bg-black/50 object-cover"
+            />
+            <input
+              type="text"
+              value={ref}
+              onChange={(e) => setAt(i, e.target.value)}
+              className={`${inputClass} flex-1 font-mono text-xs`}
+            />
+            <div className="flex flex-none gap-1">
+              <button type="button" onClick={() => move(i, -1)} disabled={i === 0}
+                className="rounded border border-white/10 px-2 py-1 text-xs text-gray-400 hover:text-white disabled:opacity-30">↑</button>
+              <button type="button" onClick={() => move(i, 1)} disabled={i === items.length - 1}
+                className="rounded border border-white/10 px-2 py-1 text-xs text-gray-400 hover:text-white disabled:opacity-30">↓</button>
+              <button type="button" onClick={() => setAt(i, '')}
+                className="rounded border border-white/10 px-2 py-1 text-xs text-gray-400 hover:text-red-400">✕</button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3">
+        <ImageUploadField
+          label="Add a still"
+          value=""
+          onChange={(v) => { if (v) onChange([...items, v]); }}
+        />
+      </div>
     </Field>
   );
 }
@@ -1351,6 +1434,19 @@ function EventForm({
   );
 }
 
+/*
+  Mirrors `categoryLabels` in src/pages/featured/index.astro. Kept as a fixed
+  list rather than a free-text box because these four rows are a design
+  decision — a typo here would strand a hub in a row that never renders.
+*/
+const HUB_CATEGORIES = [
+  { value: 'universes', label: 'The Multiverse' },
+  { value: 'streaming', label: 'Streamers' },
+  { value: 'studios', label: 'Studios' },
+  { value: 'gaming', label: 'Gaming' },
+  { value: 'other', label: 'Uncategorised' },
+];
+
 function BrandForm({
   doc,
   updateDoc,
@@ -1391,7 +1487,72 @@ function BrandForm({
         />
       </div>
 
-      <TagsInput label="YouTube Sync Keywords (hub auto-tagging)" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
+      <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5 mt-5">
+        <Field label="Hub Category">
+          <select
+            value={doc.hubCategory || 'other'}
+            onChange={(e) => update('hubCategory', e.target.value)}
+            className={inputClass}
+          >
+            {HUB_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-600 mt-1.5">Which row this hub appears in on /featured.</p>
+        
+        </Field>
+
+        <Field label="Visibility">
+          <Toggle
+            label="Hide from the live site"
+            checked={doc.hidden || false}
+            onChange={(v) => update('hidden', v)}
+          />
+          <p className="text-xs text-gray-600 mt-1.5">
+            Hidden hubs are removed from /featured and stop generating their own
+            page in a production build. They still appear in <code>npm run dev</code>,
+            so an unfinished hub stays in front of you while you finish it. Use
+            this for hubs that have no artwork yet.
+          </p></Field>
+
+        <Field label="Brand Colour">
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              value={doc.brandColor?.hex || '#CC0000'}
+              onChange={(e) => update('brandColor', { hex: e.target.value.toUpperCase() })}
+              className="h-[46px] w-14 shrink-0 cursor-pointer rounded-md border border-white/10 bg-transparent p-1"
+            />
+            <input
+              type="text"
+              value={doc.brandColor?.hex || ''}
+              onChange={(e) => update('brandColor', { hex: e.target.value.toUpperCase() })}
+              placeholder="#CC0000"
+              className={`${inputClass} font-mono`}
+            />
+          </div>
+          <p className="text-xs text-gray-600 mt-1.5">Drives this hub's glow, row tint, and button.</p>
+        </Field>
+      </div>
+
+      <div className="mt-5">
+        <Field label="Description">
+          <textarea
+            value={doc.description || ''}
+            onChange={(e) => update('description', e.target.value)}
+            className={textareaClass}
+            placeholder="One line, shown under the logo on /featured. Set in caps, so keep it short."
+          />
+        </Field>
+      </div>
+
+      <div className="mt-5">
+        <BackdropsField value={doc.backdrops} onChange={(v) => update('backdrops', v)} />
+      </div>
+
+      <div className="mt-5">
+        <TagsInput label="YouTube Sync Keywords (hub auto-tagging)" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
+      </div>
     </div>
   );
 }

@@ -2,9 +2,8 @@
 import Layout from '../../layouts/Layout.astro';
 import { getArticleItems } from '../../lib/feed-items';
 import { getVideosUnified } from '../../lib/videos-source';
-import { getFeaturedBrandsLocal, urlFor } from '../../lib/local-content';
+import { getFeaturedBrandsLocal, getHubBackdrop, urlFor, HUB_CATEGORY_LABELS } from '../../lib/local-content';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
-import HeroTrailer from '../../components/HeroTrailer.astro';
 import ContentCard from '../../components/ContentCard.astro';
 import InstagramFeed from '../../components/InstagramFeed.astro';
 import { getHubTopicKeywords } from '../../lib/instagram-topic';
@@ -85,21 +84,95 @@ const unifiedContent = [
 
 // YouTube IDs are extracted via the shared parseVideoId (src/lib/platforms/youtube).
 
-const brandColor = event.brandColor || 'var(--color-accent, #cc0000)';
-// Cap the hero at 2400px wide (retina-safe for a full-bleed banner) instead of
-// serving the raw upload, and let Sanity pick the best format.
-const heroUrl = event.heroImage
-  ? urlFor(event.heroImage).width(2400).auto('format').url()
-  : '';
-const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
+/*
+  `brandColor` on a featuredBrand doc is an OBJECT — {hex: '#E23636'} — not a
+  string. Interpolated straight into a style attribute it stringified to
+  "[object Object]", which meant two things silently did nothing: the
+  --brand-color custom property was invalid (nothing read it, so nobody
+  noticed), and the fallbackGradient below it was an invalid gradient. That
+  fallback is the entire background for a hub with no hero image, which is
+  thirteen of the fifteen — they rendered as a flat empty box.
+
+  The RGB triple is derived here rather than stored, same as on /featured:
+  one editable value in the CMS, no second field to keep in step with it.
+*/
+const brandHex: string =
+  (typeof event.brandColor === 'string' ? event.brandColor : event.brandColor?.hex) || '#CC0000';
+
+function hexToRgbTriple(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return '204, 0, 0';
+  const int = parseInt(m[1], 16);
+  return `${(int >> 16) & 255}, ${(int >> 8) & 255}, ${int & 255}`;
+}
+
+const brandColor = brandHex;
+const brandRgb = hexToRgbTriple(brandHex);
+/*
+  THE HUB PAGE OPENS ON THE SAME SCENE THE DECK CLOSED ON.
+
+  Landing here used to be a hard cut: /featured had a moving backdrop with the
+  mark set into the artwork, and this page answered with a flat image and a
+  paragraph of grey body copy. Same backdrop source as the deck now
+  (getHubBackdrop), so a hub looks like itself in both places.
+
+  Requested at 900px because it is blurred past any detail — a bigger source
+  would be weight with nothing to show for it.
+*/
+const heroBackdrop = getHubBackdrop(event.slug?.current ?? '');
+const categoryLabel = HUB_CATEGORY_LABELS[event.hubCategory ?? ''] ?? '';
+
+/*
+  Held back to a tint rather than the brand colour at full strength: this is the
+  ground a logo and a line of type sit on, and four hubs are set to pure white.
+*/
+const fallbackGradient = `linear-gradient(135deg, rgba(${brandRgb}, 0.28) 0%, #0a0a0a 62%, #111 100%)`;
 
 // The trailer (poster, players, sound) is fully encapsulated in <HeroTrailer/>.
 const trailerUrl = event.trailerUrl;
 const trailerId = parseVideoId(trailerUrl);
+
+/*
+  THE STAGE IS BUILT FROM THE HUB'S MARK, exactly as the deck page's is: the
+  logo crisp and large, over a blown-up blurred copy of itself. Not heroImage —
+  that is already the backdrop behind this whole hero, and using it twice is the
+  repetition problem that got fixed on /featured.
+*/
+/*
+  WHAT THE HERO FEATURES LIVES IN ONE FUNCTION.
+
+  It ships as "most recent", which is the only thing that works today: five of
+  twenty-three videos are tagged to any hub, so ranking has almost nothing to
+  rank. Every video doc already carries `viewCount` and `publishedAt`, so
+  switching to "most viewed in the last N days" is a change HERE and nowhere
+  else — note that viewCount is LIFETIME, so the recency cutoff is what makes
+  it mean anything, and views-per-day is the fairer ranking inside a window
+  (a 29-day-old item has had ten times as long to accumulate as a 3-day-old one).
+
+  Articles count. A hub's best recent thing is often written, not filmed.
+*/
+const HERO_ITEM_LIMIT = 5;
+function pickHeroItems(items: any[]): any[] {
+  return items.slice(0, HERO_ITEM_LIMIT);
+}
+const heroItems = pickHeroItems(unifiedContent);
+
+/*
+  The stage's frame has to exist if ANYTHING can play in it, not just when the
+  hub has its own trailer. A hub with no trailerUrl but a video in its rail
+  still needs somewhere for that video to play — without this, its Play button
+  had no frame to load into and fell back to the modal.
+*/
+const hasPlayableVideo =
+  !!trailerId ||
+  heroItems.some((it: any) => it.contentType === 'video' && parseVideoId(it.link || ''));
+
+const stageMarkUrl = event.logo ? urlFor(event.logo).height(520).auto('format').url() : null;
+const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format').url() : null;
 ---
 
 <Layout title={`${event.title}`} description={`Complete coverage of ${event.title}`}>
-  <main class="event-dashboard" style={`--brand-color: ${brandColor};`}>
+  <main class="event-dashboard" style={`--brand-color: ${brandColor}; --brand-rgb: ${brandRgb};`}>
     
     {/* TODO: Refactor this hero section into a reusable component to share with
         the event detail page. Follow up with: "Can you walk me through creating
@@ -110,8 +183,45 @@ const trailerId = parseVideoId(trailerUrl);
           static; the inner layer owns the background image and the slow Ken
           Burns transform. Animating a single element caused edge slivers. */}
       <div class="event-hero-bg-wrapper">
-        <div class="event-hero-bg-animated" style={heroUrl ? `background-image: url('${heroUrl}');` : `background-image: ${fallbackGradient};`}></div>
+        {heroBackdrop ? (
+          /*
+            The hub's own art, blurred, with the slow push this hero has always
+            had. It used to be a cross-fade of up to six stills gathered from
+            the thumbnails of videos tagged to the hub — which meant a hub could
+            end up backed by a photograph of the site owner. See
+            getHubBackdrop().
+          */
+          <div
+            class="event-hero-bg-animated hero-backdrop-plate"
+            style={`background-image: url('${
+              urlFor(heroBackdrop.ref).width(900).auto('format').quality(70).url()
+            }');`}
+          ></div>
+        ) : (
+          <div class="event-hero-bg-animated" style={`background-image: ${fallbackGradient};`}></div>
+        )}
       </div>
+
+      {/*
+        THE FEATHERED MIDDLE.
+
+        A plate over the hero's right half carrying the hub's mark blown up and
+        blurred, masked so it dissolves toward the copy instead of meeting it at
+        a line. This is the seam that made the deck page read as one scene
+        rather than two columns.
+
+        It CLIPS (overflow: hidden) because a CSS blur goes weak at its own
+        edges — the outermost band is the least blurred part — so the plate
+        overscans and the weak edge falls outside the clip. Safe here only
+        because it contains no iframe: the stage is a sibling (hard rule 3).
+      */}
+      {stageGhostUrl && (
+        <div class="hub-stage-bg" aria-hidden="true">
+          <div class="hub-stage-plate" style={`background-image: url('${stageGhostUrl}');`}></div>
+        </div>
+      )}
+      <div class="hub-stage-wash" aria-hidden="true"></div>
+
       <div class="event-hero-overlay flex flex-col justify-center">
         <div
           class:list={[
@@ -131,36 +241,208 @@ const trailerId = parseVideoId(trailerUrl);
                 exists the visible title is an image, so without this the page
                 ships with no <h1> at all. sr-only keeps the visual design
                 identical while restoring the outline and SEO. */}
-            {event.logo && <h1 class="sr-only">{event.title}</h1>}
-            {event.logo ? (
-              <img
-                src={urlFor(event.logo).height(240).url()}
-                alt={`${event.title} logo`}
-                class="hero-logo"
-                height="240"
-                width={event.logo?.dimensions?.aspectRatio
-                  ? Math.round(240 * event.logo.dimensions.aspectRatio)
-                  : undefined}
-              />
-            ) : (
-              <h1 class="hero-title">{event.title}</h1>
-            )}
+            {/*
+              Names the row on /featured that this hub sits in. It is the one
+              piece of continuity a logo alone cannot give you — you clicked
+              "The Multiverse", so the page you land on says so, in the same
+              plate the row header uses.
+            */}
+            {categoryLabel && <span class="hero-eyebrow">{categoryLabel}</span>}
 
-            {event.description && (
-              <div class="hero-description-wrapper">
-                <p class="hero-description-text" id="event-about-text">{event.description}</p>
-                <button class="hero-read-more" id="event-about-toggle" aria-expanded="false" hidden>
-                  Read more
-                </button>
-              </div>
-            )}
+            {/*
+              THE MARK IS ON THE STAGE NOW, so the copy does not repeat it. A
+              hub with a logo names itself once, large, on the right; this side
+              keeps the <h1> for the outline and for search, sr-only. A hub with
+              NO logo has nothing on the stage to carry its name, so the title
+              becomes visible here instead. Identity appears exactly once either
+              way.
+            */}
+            {/*
+              The mark sits HERE, under the row label — asked for directly, and
+              it is the right call: the stage opposite spends most of its life
+              showing coverage rather than the brand, so the hub needs a name
+              that does not disappear the moment somebody picks a video.
+              The <h1> stays sr-only behind it for the outline and for search.
+            */}
+            {/*
+              MARK AND LINE SIT SIDE BY SIDE, not stacked. On a phone the
+              stacked version spent most of the hero on two short elements with
+              a lot of air between them; beside each other they read as one
+              lockup and give the trailer below room to matter.
+            */}
+            <div class="hero-identity">
+              {event.logo ? (
+                <>
+                  <h1 class="sr-only">{event.title}</h1>
+                  <span class="hero-logo-wrap" aria-hidden="true">
+                    <img src={urlFor(event.logo).height(320).auto('format').url()} alt="" class="hero-logo" />
+                  </span>
+                </>
+              ) : (
+                <h1 class="hero-title">{event.title}</h1>
+              )}
+
+              {event.description && (
+                <div class="hero-description-wrapper">
+                  <p class="hero-description-text" id="event-about-text">{event.description}</p>
+                  <button class="hero-read-more" id="event-about-toggle" aria-expanded="false" hidden>
+                    Read more
+                  </button>
+                </div>
+              )}
+            </div>
+
           </div>
           
-          {trailerId && (
-            <div class="hero-trailer animate-on-scroll aspect-video w-full h-auto 2xl:!max-w-4xl 3xl:!max-w-6xl 2xl:scale-110 2xl:origin-right" style="animation-delay: 0.2s;">
-              <HeroTrailer trailerId={trailerId} title={event.title} />
+          {/*
+            THE STAGE — the deck page's right-hand half, brought here.
+
+            The mark sits crisp and large, and where the hub has a trailer the
+            video fades in over it once the player CONFIRMS it is playing, then
+            dissolves back. The mark is what the panel rests on before the video
+            arrives and after it ends, so this side is never empty and a blocked
+            autoplay degrades to a lit brand mark rather than a paused YouTube
+            page.
+
+            Not <HeroTrailer/> any more: that component is a poster you click,
+            which cannot do the logo-to-video dissolve. It stays untouched for
+            events/[slug].astro (hard rule 2).
+          */}
+          <div
+            class="hero-trailer hub-stage animate-on-scroll"
+            style="animation-delay: 0.2s;"
+            data-trailer={trailerId ?? undefined}
+          >
+            <div class="hub-stage-mark" aria-hidden="true">
+              {stageMarkUrl ? (
+                /* HARD RULE 6: no filter on the <img>. The glow is on the wrapper. */
+                <img src={stageMarkUrl} alt="" class="hub-stage-mark-img" />
+              ) : (
+                <span class="hub-stage-wordmark">{event.title}</span>
+              )}
             </div>
-          )}
+
+            {hasPlayableVideo && (
+              /*
+                HARD RULE 4: the idle src is 'about:blank', NEVER ''. An empty
+                src resolves to the current page and loads the whole site inside
+                the frame. HARD RULE 3: nothing above this clips — .hub-stage-bg
+                does the clipping and is a SIBLING, not an ancestor.
+              */
+              <div class="hub-stage-video">
+                <iframe
+                  class="hub-stage-iframe"
+                  src="about:blank"
+                  data-src={`https://www.youtube-nocookie.com/embed/${trailerId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&disablekb=1&iv_load_policy=3&cc_load_policy=0&enablejsapi=1`}
+                  title=""
+                  aria-hidden="true"
+                  tabindex="-1"
+                  loading="lazy"
+                  allow="autoplay; encrypted-media"
+                ></iframe>
+              </div>
+            )}
+
+            {hasPlayableVideo && (
+              /*
+                SOUND HAS TO BE ASKED FOR, AND THERE HAS TO BE SOMETHING TO ASK.
+
+                Everything on this stage starts muted, because muted is the only
+                state a browser will let start on its own. The trailer runs with
+                `controls=0`, so without this button there was no way to hear it
+                at all — reported as "the initial trailer doesn't have an unmute
+                button, so you can never unmute it".
+
+                A sibling of the video, never a child: HARD RULE 3 means nothing
+                may wrap the iframe in a clipping box.
+              */
+              <button type="button" class="hub-stage-sound" data-sound="off" aria-pressed="false">
+                <svg class="hub-stage-sound-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
+                  <g class="hub-stage-sound-off" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <line x1="16" y1="9" x2="21" y2="15" />
+                    <line x1="21" y1="9" x2="16" y2="15" />
+                  </g>
+                  <g class="hub-stage-sound-on" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round">
+                    <path d="M16.5 8.8a4.5 4.5 0 0 1 0 6.4" />
+                    <path d="M19 6.5a8 8 0 0 1 0 11" />
+                  </g>
+                </svg>
+                <span class="hub-stage-sound-label">Sound</span>
+              </button>
+            )}
+
+            {/*
+              ONE PANE PER FEATURED ITEM, hidden until its rail card is picked.
+
+              A still and a title — never an autoplaying embed. Playback follows
+              a CLICK here, which is the whole reason this page can carry video
+              at all: a player the visitor asked for is allowed to show its own
+              controls, so none of the chrome problems that plagued the deck
+              page apply. Videos open in the site's existing modal via the
+              global [data-action="open-video"] handler; articles are ordinary
+              links.
+            */}
+            {heroItems.map((item: any, i: number) => {
+              const isVideo = item.contentType === 'video';
+              const vid = isVideo ? parseVideoId(item.link || '') : null;
+              const still = item.image ?? item.thumbnail ?? null;
+              return (
+                <div class="hub-stage-item" data-index={i} aria-hidden="true">
+                  {still && <img src={still} alt="" class="hub-stage-item-still" loading="lazy" />}
+                  <span class="hub-stage-item-scrim"></span>
+                  <div class="hub-stage-item-copy">
+                    <span class="hub-stage-item-kind">{isVideo ? 'Video' : 'Article'}</span>
+                    <p class="hub-stage-item-title">{item.title}</p>
+                    {isVideo && vid ? (
+                      /*
+                        `data-hub-play`, NOT `data-action="open-video"`. The
+                        latter is the site's global handler and it opens the
+                        full-screen modal — which is right for a card in a feed
+                        and wrong here: this panel IS the player, so a video
+                        launching a popup out of it reads as the page losing
+                        its place. Plays in the stage instead.
+                      */
+                      <button type="button" class="hub-stage-item-action" data-hub-play={vid}>
+                        Play
+                      </button>
+                    ) : (
+                      <a href={item.link || '#'} class="hub-stage-item-action">Read</a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+            {heroItems.length > 0 && (
+              /*
+                THE RAIL. The hub's most recent coverage, videos and articles
+                together — picking one swaps the stage to it. Real <button>s, so
+                the rail is reachable and operable from a keyboard; the deck on
+                /featured shipped as divs once and closed rows were unreachable.
+              */
+              <div class="hub-rail" role="group" aria-label={`Recent ${event.title} coverage`}>
+                {heroItems.map((item: any, i: number) => (
+                  <button
+                    type="button"
+                    class={`hub-rail-card ${i === 0 ? 'active' : ''}`}
+                    data-index={i}
+                    aria-pressed={i === 0 ? 'true' : 'false'}
+                  >
+                    {(item.image ?? item.thumbnail) ? (
+                      <img src={item.image ?? item.thumbnail} alt="" class="hub-rail-thumb" loading="lazy" />
+                    ) : (
+                      <span class="hub-rail-thumb hub-rail-thumb--empty"></span>
+                    )}
+                    <span class="hub-rail-label">
+                      {item.contentType === 'video' ? 'Watch' : 'Read'}
+                    </span>
+                    <span class="sr-only">{item.title}</span>
+                  </button>
+                ))}
+              </div>
+            )}
 
           {/* Placed after the trailer in the DOM so mobile stacks copy →
               trailer → button; grid-areas restore the desktop layout. */}
@@ -238,7 +520,19 @@ const trailerId = parseVideoId(trailerUrl);
     /* Cover the whole hero (behind the copy AND the trailer). It re-crops when
        the description expands — an accepted trade for full coverage. */
     background-size: cover;
-    background-position: center;
+    /*
+      BIASED TOWARD THE TOP, NOT CENTRED.
+
+      The hero is far wider than it is tall (~2.4:1), and key art is 16:9, so
+      `cover` has to crop roughly a quarter of the image's height. Centred, it
+      took half of that off the top — which is where faces are. Reported as
+      Spider-Man's head being cut off.
+
+      22% keeps the upper third intact and still trims from the bottom, where
+      key art carries its logos and billing block and where this page draws its
+      own scrim anyway.
+    */
+    background-position: center 22%;
     background-repeat: no-repeat;
     /* translateZ(0) promotes this layer to its own compositor layer. Without
        it, the overlay's backdrop-filter blur stops the animated transform from
@@ -266,13 +560,80 @@ const trailerId = parseVideoId(trailerUrl);
       animation: none;
     }
   }
+
+  /*
+    THE HERO PLATE.
+
+    Blurred, and OVERSCANNED past its clipping wrapper. A CSS blur goes weak at
+    its own element's edges — it mixes in the transparent pixels outside — so
+    the outermost band of a blurred element is the least blurred part of it.
+    Left flush with the box, that band is what shows behind the logo and the
+    copy. `.event-hero-bg-wrapper` already clips, so pushing the plate past it
+    puts the weak edge outside the clip where it is never seen.
+
+    Blurred less than the deck's, and brightened rather than dimmed: on
+    /featured this sits behind a poster and must not compete with it, whereas
+    here it IS the scene with only a logo and a line of type in front. Trailer
+    stills are dark to begin with, and blurring a dark image and then dimming it
+    is how this hero was once a black rectangle.
+  */
+  .hero-backdrop-plate {
+    inset: -12%;
+    top: -12%;
+    left: -12%;
+    right: -12%;
+    bottom: -12%;
+    filter: blur(9px) saturate(1.15) brightness(1.16);
+    -webkit-filter: blur(9px) saturate(1.15) brightness(1.16);
+  }
+
+  /*
+    Shapes the plate the copy sits on. A single flat image behind white text is
+    what made this hero read as a stock header — the copy had no ground of its
+    own, so it floated. Darkest at the bottom left, where the mark and the line
+    are, and clearing toward the trailer on the right.
+  */
+  .event-hero-bg-wrapper::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    /*
+      TWO SCRIMS MULTIPLY. THESE ONES MULTIPLIED TO BLACK.
+
+      A design review called this hero "mostly empty dark space next to the
+      logo", and the backdrop gallery WAS behind it the whole time — it was
+      just unreadable. Stacked alpha compounds: at the bottom-left corner these
+      two came to 1 - (1-0.92)(1-0.88) = 0.99, and at the logo's own position
+      about 0.85. A gallery under a 99% black wash is an expensive way to draw
+      a black rectangle.
+
+      The vertical one now only does what it has to — seat the bottom edge
+      against the section below — and the horizontal one carries legibility for
+      the copy, ending sooner and softer. At the logo the pair now comes to
+      about 0.55, which is a lit scene with type on it rather than a void.
+    */
+    background:
+      linear-gradient(to top, rgba(5,5,5,0.82) 0%, rgba(5,5,5,0.42) 18%, rgba(5,5,5,0.12) 38%, transparent 62%),
+      linear-gradient(to right, rgba(5,5,5,0.62) 0%, rgba(5,5,5,0.34) 24%, rgba(5,5,5,0.10) 46%, transparent 68%);
+  }
   /* In normal flow (not absolute) so the banner GROWS with its content instead
      of overflowing upward under the fixed navbar. padding-top clears the navbar
      so the logo is never clipped. */
   .event-hero-overlay {
     position: relative;
     z-index: 1;
-    min-height: 70vh;
+    /*
+      Was 70vh, which read as dominant: the hero took most of the screen with
+      the coverage below it barely announcing itself. 62 is enough to establish
+      the hub without burying what the page is actually for.
+
+      `lvh`, not `vh`. On iOS `vh` is the LARGEST viewport, which the page also
+      uses before the URL bar retracts — the unit this project already pins for
+      exactly this reason (scripts/viewport-units.test.mjs).
+    */
+    min-height: 62lvh;
     background: linear-gradient(
       to top,
       rgba(0, 0, 0, 0.97) 0%,
@@ -287,6 +648,23 @@ const trailerId = parseVideoId(trailerUrl);
     align-items: center;
     padding-top: clamp(6rem, 4.5rem + 6vw, 8.5rem);
     padding-bottom: clamp(2.5rem, 2rem + 2.5vw, 4rem);
+  }
+
+  /*
+    A PHONE HELD SIDEWAYS HAS NO ROOM FOR DESKTOP'S BREATHING SPACE.
+
+    That padding-top is a `vw` clamp, so it grows with WIDTH: 123px at 844px
+    across. On a page 390px tall that is a third of the screen spent on
+    clearance above the header, and it was pushing the hero past the bottom on
+    every iPhone below the Pro. The header still needs clearing; nothing else
+    about the spacing does.
+  */
+  @media (orientation: landscape) and (max-height: 450px) {
+    .event-hero-overlay {
+      min-height: 0;
+      padding-top: 5.25rem;
+      padding-bottom: 1.25rem;
+    }
   }
 
   /* Mobile: single column. Source order is copy → trailer → button, so the
@@ -310,27 +688,94 @@ const trailerId = parseVideoId(trailerUrl);
     text-align: center;
   }
 
-  /* Desktop: two columns. grid-areas keep copy + button stacked on the left
-     with the trailer spanning both rows on the right. */
-  @media (min-width: 900px) {
+  /*
+    THE SPLIT IS ABOUT SHAPE, NOT WIDTH.
+
+    This was `min-width: 900px`, which reads as "desktop" and is wrong for the
+    thing it decides. A phone held sideways is 874px on an iPhone 16/17 Pro and
+    932px on the Max, so the same gesture on two phones in the same hand got
+    two different layouts, and the smaller one stacked. Reported as landscape
+    "still showing as a stack rather than having the video on the right".
+
+    What actually decides whether copy and video fit side by side is whether
+    the viewport is WIDER THAN IT IS TALL. So: any landscape viewport with room
+    for two columns, plus anything genuinely wide, which keeps portrait tablets
+    on it.
+
+    820px is measured, not picked. The hero bottoms out around 394px on its own
+    content whatever the width, and below 820 the devices are also SHORTER than
+    that, so the split overflowed instead of fitting: an SE in landscape ran
+    93px past the bottom of the screen. 820 clears every current iPhone held
+    sideways (844, 852, 874, 896, 932, 956) and leaves the genuinely small ones
+    (SE 667, 8 Plus 736, mini 780) stacked, which is the right layout for a
+    screen that would otherwise get two 300px columns.
+
+    `.hub-stage-bg` below inverts this EXACTLY. If you change one, change both:
+    a split layout with the stacked backdrop puts a full-bleed plate behind a
+    right-hand column that expects a feathered one.
+  */
+  @media (min-width: 900px), (orientation: landscape) and (min-width: 820px) {
     /* .has-trailer / .has-cta are applied at build time — no reliance on :has()
        (which older Firefox lacks). Single-row areas when there's no CTA so the
        copy isn't squeezed by an empty grid row. */
     .hero-grid-container.has-trailer {
       grid-template-columns: 1fr 1fr;
-      grid-template-areas: 'copy trailer';
+      /*
+        The rail is its own row now rather than the tail of the copy column.
+        That is what lets mobile order the page copy -> trailer -> rail (the
+        rail follows the stage in the DOM) while desktop still shows it in the
+        left column: grid-areas put it back. The stage spans both rows, so the
+        rail lands level with its bottom without any margin arithmetic.
+      */
+      grid-template-areas:
+        'copy trailer'
+        'rail trailer';
+      grid-template-rows: 1fr auto;
       align-items: center;
     }
+    /*
+      Only the COPY column stretches. Stretching the whole row squeezed the
+      stage instead: it has an aspect-ratio, so constraining its height
+      constrains its width too, and it collapsed from 600px to 290px on an iPad.
+      Stretching one cell gives the copy the row's full height to work with and
+      leaves the stage sizing itself.
+    */
+    .hero-grid-container.has-trailer .hero-copy {
+      align-self: end;
+      /* Same reason as the rail's: a grid item defaults to a min-content
+         floor, and this column holds one. */
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .hero-grid-container.has-trailer .hub-rail {
+      grid-area: rail;
+      align-self: end;
+      margin-top: 0;
+    }
+
     .hero-grid-container.has-trailer.has-cta {
       grid-template-areas:
         'copy trailer'
-        'cta trailer';
+        'cta trailer'
+        'rail trailer';
+      grid-template-rows: 1fr auto auto;
     }
     .hero-grid-container.has-trailer .hero-copy {
       grid-area: copy;
     }
     .hero-grid-container.has-trailer .hero-trailer {
       grid-area: trailer;
+    }
+    /*
+      Bigger, but only in the 50/50. A hub with no trailer stacks instead, and a
+      760px stage there is 427px of mostly-empty box that pushed the hero from
+      62% of the viewport to 106% on desktop. It earns the extra width only when
+      it has a column of its own to fill.
+    */
+    .hero-grid-container.has-trailer .hero-trailer.hub-stage {
+      max-width: 760px;
     }
     .hero-grid-container.has-trailer .hero-info-cta {
       grid-area: cta;
@@ -349,6 +794,501 @@ const trailerId = parseVideoId(trailerUrl);
   }
   
   /* Placement only — the trailer's internals live in <HeroTrailer/>. */
+  /* ══════════════════════════════════════════════════════════════════════
+     THE HUB HERO'S RIGHT HALF — the deck page's stage, brought here.
+
+     Lifted rather than rewritten: every value below already survived several
+     rounds of review on /featured, and rebuilding it from memory is how the
+     two pages drift apart again.
+
+     The hero KEEPS ITS OWN HEIGHT. An earlier attempt made it 100lvh, which is
+     ~1286px on an iPad Pro portrait with maybe 400px of content centred in it —
+     a wall of nothing. Nothing here sets a viewport height.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /*
+    The plate behind the right half. Overscans its clip, because a CSS blur goes
+    WEAK at its own element's edges: it samples the transparent pixels outside
+    and mixes them in, so the outermost band is the least blurred part of it.
+    Pushed past the clip, what shows is the middle of the blur, which is even.
+
+    The mask is the feathered middle — a smoothstep rather than a two-stop ramp,
+    because a linear alpha ramp's two ENDS are discontinuities the eye reads as
+    faint vertical bands.
+  */
+  .hub-stage-bg {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    left: 28%;
+    z-index: 1;
+    overflow: hidden;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(to right,
+      rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 8%, rgba(0,0,0,0.14) 16%,
+      rgba(0,0,0,0.32) 24%, rgba(0,0,0,0.55) 32%, rgba(0,0,0,0.76) 40%,
+      rgba(0,0,0,0.90) 48%, rgba(0,0,0,0.98) 56%, rgba(0,0,0,1) 64%);
+    mask-image: linear-gradient(to right,
+      rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 8%, rgba(0,0,0,0.14) 16%,
+      rgba(0,0,0,0.32) 24%, rgba(0,0,0,0.55) 32%, rgba(0,0,0,0.76) 40%,
+      rgba(0,0,0,0.90) 48%, rgba(0,0,0,0.98) 56%, rgba(0,0,0,1) 64%);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+  }
+
+  .hub-stage-plate {
+    position: absolute;
+    inset: -30%;
+    background-size: contain;
+    background-position: 58% 50%;
+    background-repeat: no-repeat;
+    filter: blur(26px) saturate(1.4) brightness(1.45);
+    -webkit-filter: blur(26px) saturate(1.4) brightness(1.45);
+    opacity: 0.5;
+    /* STATIC. A 32s scale() on the CLIPPING wrapper was the light leak on the
+       deck page: scaling a clipping box scales the clip, dragging the blur's
+       weak edge out past the scrims. Nothing here moves. */
+  }
+
+  /* Lit without needing a single asset, so a hub with no logo still reads. */
+  .hub-stage-wash {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: radial-gradient(90% 80% at 76% 46%,
+      rgba(var(--brand-rgb, 204,0,0), 0.20) 0%,
+      rgba(var(--brand-rgb, 204,0,0), 0.09) 36%,
+      rgba(var(--brand-rgb, 204,0,0), 0.02) 60%,
+      transparent 78%);
+  }
+
+  /* The stage itself sits in the grid's `trailer` cell. */
+  /*
+    `.hero-trailer.hub-stage`, not `.hub-stage`. The stage carries BOTH classes
+    and `.hero-trailer { max-width: 600px }` is declared later in this file, so
+    a single-class rule here lost on source order and the stage stayed capped at
+    600 however large the column got. Two classes wins on specificity instead of
+    relying on where the rule happens to sit.
+  */
+  .hero-trailer.hub-stage {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    aspect-ratio: 16 / 9;
+    /* NO overflow: hidden — HARD RULE 3, the iframe lives in here. */
+  }
+
+  .hub-stage-mark {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* HARD RULE 6: the glow is on the WRAPPER, never on the <img>. */
+    filter: drop-shadow(0 0 38px rgba(var(--brand-rgb, 204,0,0), 0.40))
+            drop-shadow(0 16px 40px rgba(0,0,0,0.8));
+    transition: opacity 0.9s ease, transform 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+    opacity: 0.97;
+  }
+
+  .hub-stage-mark-img {
+    width: 62%;
+    max-height: 78%;
+    height: auto;
+    object-fit: contain;
+  }
+
+  .hub-stage-wordmark {
+    font-family: var(--font-display, sans-serif);
+    font-size: clamp(1.5rem, 3.6vw, 3rem);
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-align: center;
+    color: rgba(255,255,255,0.92);
+    line-height: 1.15;
+  }
+
+  .hub-stage-video {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transform: scale(1.02);
+    transition: opacity 1.1s ease, transform 1.1s cubic-bezier(0.2, 0.8, 0.2, 1);
+    box-shadow: 0 30px 70px rgba(0,0,0,0.85);
+    /* NO overflow: hidden and no radius needing one. HARD RULE 3. */
+  }
+
+  .hub-stage-iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    /* A frame whose document never loads paints WHITE by default, which is a
+       white rectangle in the middle of a black page. */
+    background: #050505;
+  }
+
+  /* Playing: video up, mark down but not out — it is the glow behind it. */
+  .hub-stage.is-playing .hub-stage-video {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .hub-stage.is-playing .hub-stage-mark {
+    opacity: 0.28;
+    transform: scale(1.06);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hub-stage-mark,
+    .hub-stage-video {
+      transition: none;
+    }
+  }
+
+  /*
+    Below the 50/50 breakpoint the grid stacks, so the feathered plate has no
+    right half to sit in. It becomes the full-bleed ground behind the stacked
+    copy instead, which is what the deck page does at these sizes.
+
+    This condition is the EXACT INVERSE of the split query above, and has to
+    stay that way. It used to be a flat `max-width: 1023px`, which overlapped
+    the split by a whole band: a 900-1023px portrait viewport got the two
+    column layout AND the full-bleed plate, so the right-hand column sat on a
+    backdrop built for a stacked page.
+  */
+  @media (max-width: 899px) and (orientation: portrait), (max-width: 819px) {
+    .hub-stage-bg {
+      left: 0;
+      -webkit-mask-image: none;
+      mask-image: none;
+      opacity: 0.55;
+    }
+    .hub-stage-wash {
+      background: radial-gradient(120% 70% at 50% 38%,
+        rgba(var(--brand-rgb, 204,0,0), 0.16) 0%,
+        rgba(var(--brand-rgb, 204,0,0), 0.05) 46%,
+        transparent 74%);
+    }
+  }
+
+  /*
+    THE MARK IN THE COPY COLUMN.
+
+    Sizing is left to the .hero-logo rule further down, which already scales
+    with the viewport, caps its width so a wide mark cannot overflow the column,
+    and carries a note about iOS. A second height here just fought it.
+
+    HARD RULE 6: the glow is on the WRAPPER, never on the <img>. The rule below
+    notes that a filter ON the image made it fail to render on iOS entirely.
+  */
+  .hero-logo-wrap {
+    display: block;
+    margin: 0.2rem 0 1.4rem;
+    filter: drop-shadow(0 10px 26px rgba(0, 0, 0, 0.9));
+  }
+
+  /*
+    MARK ABOVE THE LINE, TIGHT TOGETHER.
+
+    Side by side was tried and rejected: it squeezed the description into a
+    narrow column, which made it wrap enough to trip the "Read more" clamp on
+    hubs with longer copy — an expand control nobody wants in a hero. Full
+    width beneath the mark, the line always fits and the clamp never fires.
+
+    The gap is deliberately small. The two belong to each other; the air
+    between them was reading as two separate things.
+  */
+  .hero-identity {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.55rem;
+    margin-bottom: 1.2rem;
+  }
+  .hero-identity .hero-logo-wrap {
+    margin: 0;
+  }
+  .hero-identity .hero-description-wrapper {
+    min-width: 0;
+    margin: 0;
+  }
+
+  /* ─── THE RAIL ──────────────────────────────────────────────────────── */
+  .hub-rail {
+    display: flex;
+    gap: 10px;
+    /*
+      `min-width: 0` IS LOAD-BEARING.
+
+      A grid `1fr` track is `minmax(auto, 1fr)`, so it cannot shrink below its
+      content's min-content width. This rail is five 108px cards plus four 10px
+      gaps = exactly 580px of min-content, which is precisely what the copy
+      column measured while the stage next to it collapsed from 600px to 290px
+      on an iPad. The rail was quietly setting the column widths.
+
+      It already scrolls horizontally, so allowing it to shrink costs nothing —
+      the same automatic-minimum trap that made the accordion rows size
+      themselves off their sibling count on /featured.
+    */
+    min-width: 0;
+    margin-top: 1.6rem;
+    overflow-x: auto;
+    /*
+      PADDING ON ALL FOUR SIDES, AND EVERY SIDE IS LOAD-BEARING.
+
+      `overflow-x: auto` computes `overflow-y` to `auto` as well, so this box
+      clips vertically too — and the active card lifts AND scales 1.06. Without
+      room, the selected tile was sliced: off the top always, and off the left
+      or right when the selected card was the first or last one.
+
+      The horizontal padding is what stops the end cards being cut. 1.06 on a
+      108px card grows it ~3px each side, so 10px is comfortable margin.
+    */
+    padding: 10px;
+
+    /*
+      THE EDGE FEATHER ONLY EXISTS WHERE THERE IS MORE TO SCROLL TO.
+
+      Both ramps default to 0%, so a rail that fits is not faded at all, and a
+      rail scrolled hard left has no fade on its left. This is the same
+      construct as the hub rail on /featured, and for the same reason: a fixed
+      10%/90% ramp there dimmed the first and last item permanently, so two of
+      five hubs looked disabled with nothing scrolled. Selecting an end card
+      must never dim it.
+    */
+    -webkit-mask-image: linear-gradient(to right,
+      transparent 0%, #000 var(--rail-fade-start, 0%),
+      #000 calc(100% - var(--rail-fade-end, 0%)), transparent 100%);
+    mask-image: linear-gradient(to right,
+      transparent 0%, #000 var(--rail-fade-start, 0%),
+      #000 calc(100% - var(--rail-fade-end, 0%)), transparent 100%);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .hub-rail::-webkit-scrollbar { display: none; }
+
+  .hub-rail-card {
+    position: relative;
+    flex: 0 0 auto;
+    width: 108px;
+    aspect-ratio: 16 / 9;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: #111;
+    cursor: pointer;
+    opacity: 0.55;
+    transition: opacity 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
+  }
+  .hub-rail-card:hover,
+  .hub-rail-card:focus-visible { opacity: 0.85; }
+  /*
+    Matches the deck rail on /featured: lift, brand border, brand glow — plus a
+    caret above the selected tile so the link between the rail and the stage is
+    stated rather than implied.
+  */
+  .hub-rail-card.active {
+    opacity: 1;
+    border-color: rgba(var(--brand-rgb, 204,0,0), 0.95);
+    transform: scale(1.06);
+    box-shadow: 0 5px 15px rgba(var(--brand-rgb, 204,0,0), 0.42);
+  }
+  .hub-rail-card.active::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: -9px;
+    width: 0;
+    height: 0;
+    transform: translateX(-50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid rgba(var(--brand-rgb, 204,0,0), 0.95);
+    pointer-events: none;
+  }
+  .hub-rail-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .hub-rail-thumb--empty {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(150deg, rgba(var(--brand-rgb, 204,0,0), 0.30) 0%, #0b0b0d 70%);
+  }
+  .hub-rail-label {
+    position: absolute;
+    left: 5px;
+    bottom: 4px;
+    font-size: 0.52rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.9);
+    text-shadow: 0 1px 4px rgba(0,0,0,0.95);
+  }
+
+  /* ─── THE PANES THE RAIL SWITCHES TO ────────────────────────────────── */
+  .hub-stage-item {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.7s ease;
+    /* NO overflow: hidden — HARD RULE 3, the iframe is a sibling in here. */
+  }
+  .hub-stage-item.active {
+    opacity: 1;
+    visibility: visible;
+  }
+  .hub-stage-item-still {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .hub-stage-item-scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top,
+      rgba(5,5,5,0.94) 0%, rgba(5,5,5,0.86) 14%, rgba(5,5,5,0.66) 30%,
+      rgba(5,5,5,0.40) 46%, rgba(5,5,5,0.18) 62%, rgba(5,5,5,0.05) 78%,
+      transparent 92%);
+  }
+  .hub-stage-item-copy {
+    position: absolute;
+    left: 1.4rem;
+    right: 1.4rem;
+    bottom: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.55rem;
+  }
+  .hub-stage-item-kind {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(var(--brand-rgb, 204,0,0), 1);
+  }
+  .hub-stage-item-title {
+    font-family: var(--font-display, sans-serif);
+    font-size: clamp(0.95rem, 1.5vw, 1.25rem);
+    font-weight: 700;
+    line-height: 1.3;
+    color: #fff;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.95);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .hub-stage-item-action {
+    display: inline-block;
+    padding: 0.5rem 1.1rem;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: transparent;
+    color: rgba(255,255,255,0.94);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+    transition: border-color 0.3s ease, background-color 0.3s ease;
+  }
+  .hub-stage-item-action:hover,
+  .hub-stage-item-action:focus-visible {
+    border-color: rgba(var(--brand-rgb, 204,0,0), 0.95);
+    background: rgba(var(--brand-rgb, 204,0,0), 0.16);
+  }
+
+  /* An item is showing: the mark and the trailer both stand down. */
+  .hub-stage.is-item .hub-stage-mark { opacity: 0; }
+  .hub-stage.is-item .hub-stage-video { opacity: 0; }
+
+  /*
+    PLAYING BEATS EVERYTHING ELSE ON THE STAGE.
+
+    Without this the selected item's pane — its still, its title, its Play
+    button — stayed at full opacity ON TOP of the frame it had just started.
+    The video was loading and playing the whole time, behind an opaque image,
+    which from the outside is indistinguishable from the button doing nothing.
+
+    Reported as "I click it and it's not doing anything now", and my own check
+    missed it because I pressed Play without first picking a rail card, so no
+    pane was active to do the covering.
+  */
+  .hub-stage.is-playing .hub-stage-item {
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  /*
+    Top right, not bottom right: a video the visitor CHOSE runs with YouTube's
+    own controls, and the bottom strip is theirs. The trailer has no controls
+    at all, which is the case this exists for.
+  */
+  .hub-stage-sound {
+    position: absolute;
+    top: 0.7rem;
+    right: 0.7rem;
+    z-index: 12;
+    display: none;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.38rem 0.7rem 0.38rem 0.55rem;
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.55);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    color: #fff;
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.72;
+    transition: opacity 0.25s ease, border-color 0.25s ease;
+  }
+  .hub-stage.is-playing .hub-stage-sound { display: inline-flex; }
+  .hub-stage-sound:hover,
+  .hub-stage-sound:focus-visible {
+    opacity: 1;
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+  .hub-stage-sound-glyph {
+    width: 16px;
+    height: 16px;
+    flex: none;
+  }
+  /* One glyph, two states. The slash shows while muted, the waves while not. */
+  .hub-stage-sound[data-sound='off'] .hub-stage-sound-on,
+  .hub-stage-sound[data-sound='on'] .hub-stage-sound-off {
+    display: none;
+  }
+  .hub-stage-sound[data-sound='on'] { opacity: 1; }
+
+  @media (max-width: 639px) {
+    /* On a small stage the word is what gets cut. The glyph still says it. */
+    .hub-stage-sound-label { display: none; }
+    .hub-stage-sound { padding: 0.4rem; }
+  }
+
   .hero-trailer {
     width: 100%;
     max-width: 600px;
@@ -357,6 +1297,24 @@ const trailerId = parseVideoId(trailerUrl);
     z-index: 10;
   }
   
+  /*
+    The row plate, restated. Same size, same tracking and same quiet grey the
+    accordion headers use, because it is the same object — the label of the row
+    you came in through.
+  */
+  .hero-eyebrow {
+    display: inline-block;
+    margin-bottom: 1.4rem;
+    padding: 0.45rem 0.9rem;
+    border-left: 2px solid rgba(var(--brand-rgb, 204, 0, 0), 0.9);
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.62);
+  }
+
   .hero-logo {
     /* Responsive + width-capped so wide logos (e.g. Comic-Con) never overflow
        the column or force the banner taller than the viewport on mobile. */
@@ -390,19 +1348,33 @@ const trailerId = parseVideoId(trailerUrl);
     display: inline-block;
   }
 
+  /*
+    THE BILLING BLOCK, NOT A PARAGRAPH.
+
+    "Presenting Marvel, the MCU, and Marvel Games." was set as sentence-case
+    body copy at 1rem — the largest text in the column after the logo, and the
+    single thing that most made this page read as a marketing page rather than
+    a title card. It is the same sentence /featured sets small, tracked out and
+    dim under the mark, and it does the same job here.
+
+    Font size stays identical in every state so toggling never resizes the
+    text. The collapsed height is still exactly two lines — 3.4em now rather
+    than 3em, because the line-height came up with the tracking; the read-more
+    script measures the full height itself and animates between the two, so
+    this number only has to agree with line-height.
+  */
   .hero-description-text {
-    /* Font size is identical in every state so toggling never resizes the text.
-       Collapsed height is 3em (2 lines at line-height 1.5); JS animates the
-       inline max-height between this and the measured full height, so there's no
-       arbitrary 800px value and no invisible portion of the transition. */
-    font-size: 1rem;
-    color: rgba(255, 255, 255, 0.85);
-    line-height: 1.5;
-    max-width: 600px;
-    margin-top: 1.5rem;
-    font-weight: 400;
+    font-size: 0.82rem;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+    line-height: 1.7;
+    max-width: 46ch;
+    margin-top: 1.6rem;
     overflow: hidden;
-    max-height: 3em;
+    max-height: 3.4em;
+    text-shadow: 0 4px 12px rgba(0, 0, 0, 0.9);
   }
   .hero-read-more {
     background: none;
@@ -471,14 +1443,21 @@ const trailerId = parseVideoId(trailerUrl);
     max-width: 600px;
     margin: 0 auto 3rem auto;
   }
+  /*
+    Two heavy filled slabs at 1.1rem bold were the loudest thing between the
+    hero and the coverage, and they are a filter — furniture, not a headline.
+    Quieted to match the row plates: hairline, tracked out, small.
+  */
   .filter-btn {
-    padding: 1.25rem 1rem;
-    background: rgba(10, 10, 10, 0.6);
+    padding: 0.85rem 1rem;
+    background: rgba(10, 10, 10, 0.45);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    color: var(--color-white, #fff);
-    font-size: 1.1rem;
-    font-weight: 700;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
     font-family: var(--font-display, 'Inter', sans-serif);
     cursor: pointer;
     transition: all 0.3s ease;
@@ -542,6 +1521,440 @@ const trailerId = parseVideoId(trailerUrl);
     border: 0;
   }
 </style>
+
+<script>
+  /* ══════════════════════════════════════════════════════════════════════
+     THE MARK DISSOLVES TO THE TRAILER — AND ONLY IF IT REALLY PLAYS.
+
+     Lifted from the deck page, where this was arrived at the hard way. The
+     YouTube chrome that kept appearing was never a loading flash: it was the
+     player PAUSED, showing its title, its "More videos" strip and the YouTube
+     logo, because autoplay had been blocked (Brave by default, several
+     extensions, iOS Low Power Mode). No delay fixes that — nothing was ever
+     going to start.
+
+     So the frame is never revealed on a timer. With `enablejsapi=1` the player
+     answers a `listening` postMessage with its state, and the video is shown
+     only on a confirmed PLAYING (info === 1). If that never arrives the video
+     is torn down and the brand mark simply stays up: a hub that cannot
+     autoplay looks deliberate instead of looking like a paused YouTube tab.
+
+     Teardown is `about:blank` — HARD RULE 4 — never ''.
+     ══════════════════════════════════════════════════════════════════════ */
+  const HUB_LEAD_IN_MS = 900;
+  const HUB_PLAY_TIMEOUT_MS = 7000;
+  const HUB_RUN_MS = 42000;
+
+  function initHubStage() {
+    const stage = document.querySelector<HTMLElement>('.hub-stage');
+    if (!stage || !stage.dataset.trailer) return;
+    if (stage.dataset.stageInit === '1') return;
+    stage.dataset.stageInit = '1';
+
+    const frame = stage.querySelector<HTMLIFrameElement>('.hub-stage-iframe');
+    const src = frame?.dataset.src;
+    if (!frame || !src) return;
+
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const conn = (navigator as unknown as { connection?: { saveData?: boolean } }).connection;
+    if (conn?.saveData) return;
+
+    const timers: number[] = [];
+    const clearAll = () => {
+      timers.forEach((t) => { window.clearTimeout(t); window.clearInterval(t); });
+      timers.length = 0;
+    };
+    const teardown = () => {
+      clearAll();
+      window.removeEventListener('message', onMessage);
+      stage.classList.remove('is-playing');
+      /* HARD RULE 4: 'about:blank', never ''. */
+      if (frame.src !== 'about:blank') frame.src = 'about:blank';
+    };
+    const reveal = () => {
+      clearAll();
+      window.removeEventListener('message', onMessage);
+      stage.classList.add('is-playing');
+      timers.push(window.setTimeout(teardown, HUB_RUN_MS));
+    };
+
+    function onMessage(event: MessageEvent) {
+      if (event.source !== frame!.contentWindow) return;
+      let data: unknown = null;
+      try {
+        data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      } catch {
+        return; // not ours
+      }
+      const info = (data as { info?: unknown } | null)?.info;
+      const state = typeof info === 'object' && info !== null
+        ? (info as { playerState?: number }).playerState
+        : info;
+      if (state === 1) reveal();
+    }
+
+    timers.push(window.setTimeout(() => {
+      /* `origin` is required for the handshake and is only knowable at runtime. */
+      frame.src = `${src}&origin=${encodeURIComponent(window.location.origin)}`;
+      window.addEventListener('message', onMessage);
+      /* The player only answers once it has booted, so keep asking. */
+      timers.push(window.setInterval(() => {
+        frame.contentWindow?.postMessage('{"event":"listening"}', '*');
+      }, 250));
+      /* Never started: blocked autoplay, blocked domain, embedding disabled.
+         Take it down and leave the mark up. */
+      timers.push(window.setTimeout(() => {
+        if (!stage.classList.contains('is-playing')) teardown();
+      }, HUB_PLAY_TIMEOUT_MS));
+    }, HUB_LEAD_IN_MS));
+  }
+
+  /*
+    THE RAIL DRIVES THE STAGE.
+
+    Picking an item tears the trailer down first — an iframe that is merely
+    hidden still holds its document, its script and its network connections,
+    and there is no reason to keep somebody else's player alive behind a still
+    the visitor asked for.
+
+    Nothing here autoplays. The pane is a still and a title; playback happens
+    only if the visitor presses Play, and it plays in this panel. (It used to
+    route through the site's global [data-action="open-video"] handler and its
+    modal. That was wrong here: this panel IS the player.)
+  */
+  function initHubRail() {
+    const rail = document.querySelector<HTMLElement>('.hub-rail');
+    const stage = document.querySelector<HTMLElement>('.hub-stage');
+    if (!rail || !stage || rail.dataset.railInit === '1') return;
+    rail.dataset.railInit = '1';
+
+    const cards = Array.from(rail.querySelectorAll<HTMLButtonElement>('.hub-rail-card'));
+    const panes = Array.from(stage.querySelectorAll<HTMLElement>('.hub-stage-item'));
+
+    const show = (index: number) => {
+      cards.forEach((c, i) => {
+        c.classList.toggle('active', i === index);
+        c.setAttribute('aria-pressed', i === index ? 'true' : 'false');
+      });
+      panes.forEach((pane, i) => {
+        const on = i === index;
+        pane.classList.toggle('active', on);
+        pane.setAttribute('aria-hidden', on ? 'false' : 'true');
+      });
+      stage.classList.add('is-item');
+
+      /* Unload the trailer rather than hiding it. HARD RULE 4: about:blank. */
+      const frame = stage.querySelector<HTMLIFrameElement>('.hub-stage-iframe');
+      if (frame && frame.src !== 'about:blank') frame.src = 'about:blank';
+      stage.classList.remove('is-playing');
+    };
+
+    /*
+      FADE ONLY THE SIDE THAT ACTUALLY CONTINUES.
+
+      Reported: the leftmost card cut off on DC, the rightmost on Marvel, and
+      worse once selected (the active card scales, so it reaches further into
+      the edge). A static fade cannot tell "there is more over there" from
+      "this is the end", so it dims a card that is simply the last one.
+
+      This reports which sides overflow and lets CSS decide how far to ramp, so
+      an end card at rest is never faded and a selected end card is never cut.
+      Same construct as the deck rail on /featured.
+    */
+    function syncRailFade() {
+      /*
+        Re-checked inside, not just at the top of initHubRail. A `function`
+        declaration is hoisted, so TypeScript cannot carry the outer null guard
+        into it — the narrowing the arrow form used to get is lost the moment
+        this becomes hoistable.
+      */
+      if (!rail) return;
+      const max = rail.scrollWidth - rail.clientWidth;
+      const atStart = rail.scrollLeft <= 1;
+      const atEnd = rail.scrollLeft >= max - 1;
+      rail.style.setProperty('--rail-fade-start', max > 1 && !atStart ? '9%' : '0%');
+      rail.style.setProperty('--rail-fade-end', max > 1 && !atEnd ? '9%' : '0%');
+    }
+    syncRailFade();
+    rail.addEventListener('scroll', syncRailFade, { passive: true });
+    const RO = (window as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver;
+    if (RO) new RO(syncRailFade).observe(rail);
+    else window.addEventListener('resize', syncRailFade);
+
+    /*
+      ONE handler per card: select, then bring it fully inside the rail.
+
+      The scroll is computed rather than delegated to scrollIntoView, and it
+      accounts for the rail's own padding. `inline: 'nearest'` parks a card
+      flush against the padding edge, where the active card's 1.06 scale then
+      pushes its outer edge past the clip — which is precisely the "gets worse
+      on selection" that was reported. Landing it inside the padding leaves
+      room for the scale.
+
+      Instant, not smooth: the fade below is recalculated straight after, and a
+      smooth scroll would leave it computing against a position the rail has
+      not reached yet.
+    */
+    const bringIntoView = (card: HTMLElement) => {
+      /*
+        Measured from bounding rects, NOT offsetLeft. The rail is not a
+        positioned element, so a card's offsetParent is somewhere further up
+        the tree and offsetLeft is not a rail-relative coordinate — which is
+        why scrolling back to the FIRST card silently did nothing while
+        scrolling to the last one worked.
+
+        The padding is included on both sides so the card lands INSIDE it,
+        leaving room for the active card's 1.06 scale. Parked flush, that scale
+        pushes its outer edge past the clip: the "gets worse on selection" that
+        was reported.
+      */
+      const pad = parseFloat(getComputedStyle(rail).paddingLeft) || 0;
+      const rr = rail.getBoundingClientRect();
+      const cr = card.getBoundingClientRect();
+      if (cr.left < rr.left + pad) {
+        rail.scrollLeft -= rr.left + pad - cr.left;
+      } else if (cr.right > rr.right - pad) {
+        rail.scrollLeft += cr.right - (rr.right - pad);
+      }
+    };
+
+    cards.forEach((card, i) => {
+      card.addEventListener('click', () => {
+        show(i);
+        bringIntoView(card);
+        syncRailFade();
+      });
+    });
+
+    /*
+      PLAY IN THE STAGE, NOT IN A MODAL.
+
+      The panel is the player. Sending a click to the site's global
+      open-video handler put the video in a full-screen overlay instead,
+      which reads as the page losing its place — and it is not what the deck
+      page did either.
+
+      The hub's own trailer is torn down first: it autoplays muted as the
+      resting state, and leaving it running behind a video the visitor chose
+      would be two players at once.
+
+      `controls=1` and unmuted, unlike the resting trailer. This playback was
+      ASKED for, so the player is allowed to look like a player.
+    */
+    /*
+      ONE PRESS, NOT TWO, AND IT HAS SOUND WHERE SOUND IS ALLOWED.
+
+      `autoplay=1` on its own is refused by every browser's autoplay policy
+      while the video carries sound, and a refused autoplay is not a dead
+      frame: YouTube swaps to its own poster and its own red play button. So
+      the first press looked like it reloaded the player and did nothing, and
+      the video only started on a SECOND press inside somebody else's UI.
+
+      Muted autoplay is never refused. But a video the visitor PRESSED PLAY on
+      is not the resting trailer: they asked for it, and starting it silent is
+      its own bug.
+
+      So: ask for sound, and check. The press opens the video unmuted; if the
+      player has not reached PLAYING a moment later, the browser refused, and
+      it is reloaded muted so the press is never wasted. That answer is
+      remembered for the tab, so the second video onwards starts muted straight
+      away rather than paying the same wait again.
+
+      What it must never do is unmute a video that is ALREADY running: playback
+      under the muted-autoplay allowance is paused by the browser when script
+      takes the mute away without activation in that frame, and YouTube stalls
+      on its spinner. That shipped once. The choice is made before the frame
+      loads, never after.
+    */
+    const SOUND_BLOCKED_KEY = 'hub-sound-blocked';
+    const soundBlocked = () => {
+      /* Storage throws outright in some privacy modes. A missing answer just
+         means "try for sound", which is the better guess anyway. */
+      try { return sessionStorage.getItem(SOUND_BLOCKED_KEY) === '1'; } catch { return false; }
+    };
+    const rememberSoundBlocked = () => {
+      try { sessionStorage.setItem(SOUND_BLOCKED_KEY, '1'); } catch { /* not fatal */ }
+    };
+
+    const embedUrl = (id: string, muted: boolean) =>
+      `https://www.youtube-nocookie.com/embed/${id}` +
+      `?autoplay=1&mute=${muted ? '1' : '0'}&enablejsapi=1&rel=0&modestbranding=1&playsinline=1` +
+      /* `origin` is required for the jsapi handshake and is only knowable at
+         runtime. Without it the player never answers, and "did it start?"
+         below could never be answered either. */
+      `&origin=${encodeURIComponent(window.location.origin)}`;
+
+    /* 1 is PLAYING and 3 is buffering; either means the browser let it go. */
+    const didStart = (f: HTMLIFrameElement, within: number) =>
+      new Promise<boolean>((resolve) => {
+        let ok = false;
+        const onMsg = (ev: MessageEvent) => {
+          if (ev.source !== f.contentWindow) return;
+          let data: unknown = null;
+          try {
+            data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
+          } catch {
+            return; // not ours
+          }
+          const info = (data as { info?: unknown } | null)?.info;
+          const state = typeof info === 'object' && info !== null
+            ? (info as { playerState?: number }).playerState
+            : info;
+          if (state === 1 || state === 3) ok = true;
+        };
+        window.addEventListener('message', onMsg);
+        const ping = window.setInterval(() => {
+          f.contentWindow?.postMessage('{"event":"listening"}', '*');
+        }, 200);
+        window.setTimeout(() => {
+          window.clearInterval(ping);
+          window.removeEventListener('message', onMsg);
+          resolve(ok);
+        }, within);
+      });
+
+    const frame = stage.querySelector<HTMLIFrameElement>('.hub-stage-iframe');
+    /* Presses are serialised: the fallback below runs after an await, and a
+       visitor who has moved on to another video must not have this one
+       reloaded over the top of it. */
+    let playToken = 0;
+
+    stage.querySelectorAll<HTMLElement>('[data-hub-play]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.hubPlay;
+        if (!id || !frame) return;
+        const token = ++playToken;
+
+        stage.classList.remove('is-item');
+        stage.classList.add('is-playing');
+
+        const withSound = !soundBlocked();
+        frame.src = embedUrl(id, !withSound);
+        stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: !withSound } }));
+        if (!withSound) return;
+
+        if (await didStart(frame, HUB_SOUND_GRACE_MS)) return;
+        if (token !== playToken) return; // superseded while we waited
+
+        rememberSoundBlocked();
+        frame.src = embedUrl(id, true);
+        stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: true } }));
+      });
+    });
+  }
+
+  /*
+    ══════════════════════════════════════════════════════════════════════
+    THE SOUND BUTTON.
+
+    Everything on this stage starts muted, because muted is the only state a
+    browser will start on its own. This is the way back. It drives whatever is
+    in the frame — the hub's trailer, which runs with no controls of its own,
+    or a video the visitor picked off the rail.
+
+    AND IT CHECKS ITS OWN WORK. Unmuting can be refused: the video is playing
+    under the muted-autoplay allowance, and taking the mute away without user
+    activation INSIDE the frame lets the browser pause it. That is not a
+    hypothetical, it is the spinner this page shipped with for one commit. So
+    after asking for sound the player is polled, and if it is not still playing
+    a moment later the mute goes back on and playback is resumed. The visitor
+    gets a button that either works or quietly does nothing, never one that
+    kills the video it belongs to.
+    ══════════════════════════════════════════════════════════════════════
+  */
+  const HUB_SOUND_GRACE_MS = 1400;
+
+  function initHubSound() {
+    const stage = document.querySelector<HTMLElement>('.hub-stage');
+    const button = stage?.querySelector<HTMLButtonElement>('.hub-stage-sound');
+    const frame = stage?.querySelector<HTMLIFrameElement>('.hub-stage-iframe');
+    if (!stage || !button || !frame) return;
+    if (button.dataset.soundInit === '1') return;
+    button.dataset.soundInit = '1';
+
+    const label = button.querySelector<HTMLElement>('.hub-stage-sound-label');
+    const send = (func: string, args: unknown[] = []) => {
+      frame.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args }), '*');
+    };
+
+    const paint = (on: boolean) => {
+      button.dataset.sound = on ? 'on' : 'off';
+      button.setAttribute('aria-pressed', on ? 'true' : 'false');
+      button.setAttribute('aria-label', on ? 'Turn sound off' : 'Turn sound on');
+      if (label) label.textContent = on ? 'Sound on' : 'Sound';
+    };
+    paint(false);
+
+    /* A new video is a new player. Whether it arrived with sound is the rail
+       controller's business, and it says so on the event. */
+    stage.addEventListener('hub:sourcechange', (ev) => {
+      const muted = (ev as CustomEvent<{ muted?: boolean }>).detail?.muted;
+      paint(muted === false);
+    });
+
+    /* Ask the player where it is. It answers `listening` with its state. */
+    const readState = (within: number) =>
+      new Promise<number | null>((resolve) => {
+        let seen: number | null = null;
+        const onMsg = (ev: MessageEvent) => {
+          if (ev.source !== frame.contentWindow) return;
+          let data: unknown = null;
+          try {
+            data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
+          } catch {
+            return; // not ours
+          }
+          const info = (data as { info?: unknown } | null)?.info;
+          const state = typeof info === 'object' && info !== null
+            ? (info as { playerState?: number }).playerState
+            : info;
+          if (typeof state === 'number') seen = state;
+        };
+        window.addEventListener('message', onMsg);
+        const ping = window.setInterval(() => {
+          frame.contentWindow?.postMessage('{"event":"listening"}', '*');
+        }, 200);
+        window.setTimeout(() => {
+          window.clearInterval(ping);
+          window.removeEventListener('message', onMsg);
+          resolve(seen);
+        }, within);
+      });
+
+    button.addEventListener('click', async () => {
+      const wantSound = button.dataset.sound !== 'on';
+      if (!wantSound) {
+        send('mute');
+        paint(false);
+        return;
+      }
+
+      send('unMute');
+      send('setVolume', [100]);
+      paint(true);
+
+      /* Did the browser let it keep playing? 1 is PLAYING, 3 is buffering,
+         which is normal for a moment while the audio track loads. */
+      const state = await readState(HUB_SOUND_GRACE_MS);
+      if (state === 1 || state === 3 || state === null) return;
+
+      /* It did not. Put the picture back rather than leaving a dead frame. */
+      send('mute');
+      send('playVideo');
+      paint(false);
+      button.title = 'Your browser blocked sound here. Use the player\'s own control.';
+    });
+  }
+
+  initHubStage();
+  initHubRail();
+  initHubSound();
+  document.addEventListener('astro:page-load', () => {
+    initHubStage();
+    initHubRail();
+    initHubSound();
+  });
+</script>
 
 <script>
   // astro:page-load fires on the initial load AND after every View Transition
