@@ -215,17 +215,27 @@ let articleSchema: Record<string, any>;
 if (article.contentType === 'Review') {
   /*
     Review schema. `itemReviewed` is required — without it Google rejects the
-    markup. We only know the subject loosely (the headline names it), so it is
-    declared as a CreativeWork with the article's title.
-
-    reviewRating is only included when the body actually states a score;
-    inventing one would be structured-data spam.
+    markup. Google requires specific types for itemReviewed (e.g., Movie, TVSeries,
+    VideoGame). We infer the type based on the article's category.
   */
+  let itemType = 'Thing';
+  if (article.category === 'Film') {
+    itemType = 'Movie';
+  } else if (article.category === 'TV') {
+    itemType = article.title.toLowerCase().includes('episode') ? 'TVSeries' : 'TVSeries';
+    // Using TVSeries as it's universally accepted, though Episode is also valid.
+    if (article.title.toLowerCase().includes('episode')) {
+        itemType = 'Episode';
+    }
+  } else if (article.category === 'Gaming') {
+    itemType = 'VideoGame';
+  }
+
   articleSchema = {
     '@context': 'https://schema.org',
     '@type': 'Review',
     ...shared,
-    itemReviewed: { '@type': 'CreativeWork', name: article.title },
+    itemReviewed: { '@type': itemType, name: article.title },
     ...(article.score
       ? {
           reviewRating: {
