@@ -16,6 +16,11 @@ on:
         description: 'Write articles.json (uncheck for a dry-run preview only)'
         type: boolean
         default: true
+      index_url:
+        description: 'Optional: also submit this one URL to the Google Indexing API (must be https://beunconventionalhq.com/intel/<slug>)'
+        type: string
+        required: false
+        default: ''
 
 # ── SERIALISED AGAINST THE OTHER CONTENT SYNCS ───────────────────────────────
 # Five workflows commit and push to main. Two of them fired on the same cron
@@ -51,6 +56,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # WHAT EXISTED BEFORE THE SYNC RAN.
+      #
+      # The Indexing API notification at the end of this job submits the
+      # difference between this snapshot and the post-sync state, so it can
+      # only ever fire for an article that genuinely appeared in THIS run.
+      # Taken before the sync for the obvious reason, and written to RUNNER_TEMP
+      # rather than the workspace so it can never be swept into a commit.
+      - name: Snapshot the articles that already had pages
+        run: node scripts/notify-indexing-api.mjs --snapshot "$RUNNER_TEMP/intel-before.json"
+
       - name: Run sync
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.execute }}" = "false" ]; then
@@ -73,11 +88,14 @@ jobs:
         run: npm run sync:article-images -- --execute || echo "article-image sync degraded; originals still render"
 
       - name: Commit and push if anything changed
+        id: commit
         run: |
           if git diff --quiet -- src/data/articles.json src/data/article-images.json public/article-images; then
             echo "No changes — nothing to sync."
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           # The manifest references files in public/article-images/ by path, so
@@ -86,3 +104,47 @@ jobs:
           git add src/data/articles.json src/data/article-images.json public/article-images
           git commit -m "chore: automated Substack articles sync" -m "Synced by the sync-articles.yml workflow (run ${{ github.run_id }})."
           git pull origin HEAD --rebase && git push origin HEAD:${{ github.ref }}
+
+      # ── TELL GOOGLE, WITH BOTH EYES OPEN ──────────────────────────────────
+      #
+      # READ scripts/indexing-api.md BEFORE TRUSTING THIS STEP. Google's
+      # Indexing API is documented to support JobPosting and BroadcastEvent
+      # only. Editorial articles are not a supported type. This is a crawl
+      # hint that costs nothing, not the mechanism by which /intel/ pages get
+      # indexed. A green run here does not mean "indexed".
+      #
+      # Ordering matters and is deliberate:
+      #   - It runs AFTER the push, because the page does not exist until
+      #     Cloudflare rebuilds and deploys the commit above.
+      #   - --require-live then polls each URL until it answers 200, so we
+      #     never hand Google a URL that is still a 404. It gives up quietly
+      #     after 10 minutes rather than submitting anyway.
+      #
+      # The 10-minute ceiling is paid inside the content-sync-push concurrency
+      # group, so on a run that publishes an article the other content syncs
+      # can queue behind it for that long. That is the accepted cost: articles
+      # are published a few times a week, the other syncs are six-hourly, and
+      # the alternative (splitting this into its own job) buys back minutes we
+      # do not need at the price of passing state between jobs.
+      #
+      # continue-on-error, not `|| true`: a failure here must be VISIBLE in
+      # the run's UI while still never turning a successful article sync red.
+      # Same contract as the article-image step above.
+      - name: Notify the Google Indexing API of newly published articles
+        if: >-
+          steps.commit.outputs.pushed == 'true'
+          || (github.event_name == 'workflow_dispatch' && inputs.index_url != '')
+        continue-on-error: true
+        env:
+          GOOGLE_INDEXING_CREDENTIALS: ${{ secrets.GOOGLE_INDEXING_CREDENTIALS }}
+          MANUAL_URL: ${{ inputs.index_url }}
+        run: |
+          if [ -z "$GOOGLE_INDEXING_CREDENTIALS" ]; then
+            echo "GOOGLE_INDEXING_CREDENTIALS not configured — skipping. See scripts/indexing-api.md."
+            exit 0
+          fi
+          ARGS=(--before "$RUNNER_TEMP/intel-before.json" --require-live --live-timeout 600 --execute)
+          if [ -n "$MANUAL_URL" ]; then
+            ARGS+=(--url "$MANUAL_URL")
+          fi
+          node scripts/notify-indexing-api.mjs "${ARGS[@]}"
