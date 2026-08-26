@@ -22,6 +22,8 @@ import {
   mergeSnapshot,
 } from '../src/lib/articles-transform.ts';
 import { imageFingerprint, stripCoverImageFromBody } from '../src/lib/article-media.ts';
+import { parseImageDimensions } from '../src/lib/article-images-transform.ts';
+import { getCardImageSources, isSubstackFetchUrl } from '../src/lib/card-images.ts';
 import {
   ALREADY_OPTIMISED,
   lookupRendition,
@@ -579,11 +581,50 @@ test('no article-page image is routed through a live resizing proxy', () => {
       '      shared proxy with a cold cache, and putting it behind the gallery\n' +
       '      lightbox is what produced "blank while sliding" on a phone.',
   );
-  assert.ok(
-    !/getCardImageSources/.test(articlePage),
-    'the card rendition helper must not be used here: for a Substack S3 upload\n' +
-      '      it returns a wsrv.nl URL, which is exactly the reverted behaviour.',
+  /*
+    The blanket ban on getCardImageSources was replaced by a narrower one, and
+    the reason matters.
+
+    The ban existed because that helper has THREE branches and only one of them
+    is safe here: substackcdn URLs get a transform on Substack's own warm CDN,
+    YouTube URLs get a known rendition, and everything else — including a
+    Substack S3 upload — gets wsrv.nl, the reverted proxy.
+
+    The article hero needs the substackcdn branch. Cover images arrive from a
+    different field of the posts API than body images and carry NO width
+    transform, so without it the hero shipped a full-resolution source as the
+    eager LCP element with no srcset.
+
+    So the helper is allowed, but ONLY behind isSubstackFetchUrl(), which makes
+    the wsrv.nl branch unreachable from this page. That gate is now the thing
+    under guard: delete it and the reverted behaviour returns silently.
+  */
+  const usesCardHelper = /getCardImageSources\s*\(/.test(articlePage);
+  if (usesCardHelper) {
+    assert.ok(
+      /isSubstackFetchUrl\s*\([^)]*\)\s*\?\s*getCardImageSources\s*\(/.test(articlePage),
+      'getCardImageSources() may only be called behind isSubstackFetchUrl(). Ungated,\n' +
+        '      a Substack S3 cover resolves to a wsrv.nl URL on the LCP element, which is\n' +
+        '      exactly the behaviour that was reverted.',
+    );
+  }
+});
+
+test('the isSubstackFetchUrl gate actually excludes the proxy branch', () => {
+  // The guard above reads source text. This one proves the claim it rests on
+  // against the real helper, so the two cannot drift apart.
+  const s3Cover = 'https://substack-post-media.s3.amazonaws.com/public/images/a_3840x2160.png';
+  assert.equal(isSubstackFetchUrl(s3Cover), false, 'an S3 cover must not pass the gate');
+  assert.match(
+    getCardImageSources(s3Cover).src,
+    /wsrv\.nl/,
+    'if this stops being a proxy URL the gate is no longer load-bearing and this whole guard should be revisited',
   );
+
+  const cdnCover =
+    'https://substackcdn.com/image/fetch/$s_!Rj68!,f_auto,q_auto:good/https%3A%2F%2Fh%2Fa_1086x1609.png';
+  assert.equal(isSubstackFetchUrl(cdnCover), true);
+  assert.ok(!/wsrv\.nl/.test(getCardImageSources(cdnCover).src));
 });
 
 test('the hero falls back to the original when there is no local rendition', () => {
@@ -736,3 +777,54 @@ if (failed > 0) {
 } else {
   console.log(`All ${passed} tests passed.`);
 }
+
+/*
+  ─── INTRINSIC DIMENSIONS ───────────────────────────────────────────────────
+
+  The article hero declared width="1456" height="816" for every cover. With
+  `.article-hero { width: 100%; height: auto }` the browser reserves space from
+  those attributes and reflows to the real ratio on load. Every cover was 16:9,
+  so the wrong constant was invisible until a 1086x1609 PORTRAIT cover shipped:
+  in a 720px column the reserved box is 404px and the real box is 1067px, a
+  ~660px shift on the LCP element.
+*/
+console.log('\nparseImageDimensions');
+
+test('reads dimensions off a substackcdn cover with no width transform', () => {
+  const url =
+    'https://substackcdn.com/image/fetch/$s_!Rj68!,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F66b03785-c2cf-4153-96c6-81ed4c41fd05_1086x1609.png';
+  assert.deepEqual(parseImageDimensions(url), { width: 1086, height: 1609 });
+});
+
+test('prefers the filename over anything earlier in the URL', () => {
+  // The transform segment carries its own digits (w_1456). Reading the FIRST
+  // match instead of the last would be a plausible and wrong implementation.
+  const url =
+    'https://substackcdn.com/image/fetch/$s_!x!,w_1456,c_limit/https%3A%2F%2Fhost%2Fa_100x200.png%2Fb_3840x2160.png';
+  assert.deepEqual(parseImageDimensions(url), { width: 3840, height: 2160 });
+});
+
+test('handles every extension Substack emits', () => {
+  for (const ext of ['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif']) {
+    assert.deepEqual(parseImageDimensions(`https://h/x_800x600.${ext}`), { width: 800, height: 600 });
+  }
+});
+
+test('returns null rather than guessing', () => {
+  for (const bad of ['', null, undefined, 42, {}, 'https://h/no-dimensions.jpg', '/article-images/abc-720.webp']) {
+    assert.equal(parseImageDimensions(bad), null, `should decline ${JSON.stringify(bad)}`);
+  }
+});
+
+test('does not match an id that merely contains x between digits', () => {
+  assert.equal(parseImageDimensions('https://h/66b03785-c2cf-4153-96c6-81ed4c41fd05.png'), null);
+});
+
+test('every cover in the real store either parses or falls back safely', () => {
+  const records = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/data/articles.json'), 'utf-8'));
+  for (const record of records) {
+    const dims = parseImageDimensions(record.image);
+    if (dims === null) continue; // falls back to 1456x816, which is the old behaviour
+    assert.ok(dims.width > 0 && dims.height > 0, `${record.slug} produced a nonsense ratio`);
+  }
+});

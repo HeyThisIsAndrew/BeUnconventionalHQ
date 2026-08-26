@@ -52,6 +52,8 @@ import { getDisplayTags } from '../../lib/tags';
 import { buildToc } from '../../lib/article-toc';
 import { stripCoverImageFromBody } from '../../lib/article-media';
 import { localArticleImage, localiseBodyImages } from '../../lib/article-images.ts';
+import { parseImageDimensions } from '../../lib/article-images-transform.ts';
+import { getCardImageSources, isSubstackFetchUrl } from '../../lib/card-images.ts';
 import logoImage from '../../assets/logo.webp';
 
 export async function getStaticPaths() {
@@ -105,9 +107,43 @@ const dedupedBody = stripCoverImageFromBody(article.bodyHtml, article.image);
 */
 const bodyWithLocalImages = localiseBodyImages(dedupedBody);
 
-/* Same treatment for the cover. `null` when the sync has no rendition, and the
-   markup falls back to `article.image`. */
-const heroImageSources = localArticleImage(article.image);
+/*
+  ─── THE COVER, IN THREE FALLBACKS ──────────────────────────────────────────
+
+  1. A committed rendition, when the image sync built one.
+  2. Otherwise, if it is a substackcdn fetch URL, Substack's own CDN transform
+     with a width cap and a srcset — the same rewrite every card on the site
+     already gets from getCardImageSources().
+  3. Otherwise the raw URL, untouched.
+
+  Step 2 is the fix for a real defect. localArticleImage() returns null for
+  every substackcdn URL by design (ALREADY_OPTIMISED in
+  ./article-images-transform.ts skips them because Substack's BODY images
+  arrive carrying `w_1456,c_limit`). Cover images come from a different field
+  of the posts API and carry NO width transform at all:
+
+    $s_!Rj68!,f_auto,q_auto:good,fl_progressive:steep
+
+  So the hero fell through to `article.image` and shipped the source at full
+  resolution, with no srcset and no sizes, as the eager above-the-fold LCP
+  element. Six of the eight covers in the store are in that state.
+
+  isSubstackFetchUrl() gates this deliberately: getCardImageSources() sends
+  anything NON-Substack through wsrv.nl, and a cold third-party transcode on
+  the LCP element is exactly what was reverted before (see the header of
+  ../../lib/article-images.ts). The hero must stay on a warm CDN or on the raw
+  URL, never on a proxy.
+*/
+const heroRendition = localArticleImage(article.image);
+const heroCdnSources =
+  !heroRendition && isSubstackFetchUrl(article.image) ? getCardImageSources(article.image) : null;
+const heroImageSources = heroRendition ?? heroCdnSources;
+
+/* The image's REAL ratio, so the reserved box matches what loads. See
+   parseImageDimensions() for the 660px layout shift this removes. The old
+   hardcoded 1456x816 stays as the fallback for a URL with no dimensions in
+   its filename, which is what every cover used before this. */
+const heroDimensions = parseImageDimensions(article.image) ?? { width: 1456, height: 816 };
 
 // Headings get ids so the contents rail can anchor-scroll to them; `html` is
 // the body with those ids injected.
@@ -275,8 +311,8 @@ if (article.contentType === 'Review') {
                 srcset={heroImageSources?.srcset || undefined}
                 sizes={heroImageSources?.srcset ? '(max-width: 900px) 92vw, 720px' : undefined}
                 alt={`Cover image for ${article.title}`}
-                width="1456"
-                height="816"
+                width={heroDimensions.width}
+                height={heroDimensions.height}
                 loading="eager"
                 decoding="async"
               />

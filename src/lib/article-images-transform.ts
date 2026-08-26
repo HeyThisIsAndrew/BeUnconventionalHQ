@@ -107,3 +107,69 @@ export function rewriteBodyImages(
     return out;
   });
 }
+
+/*
+  ─── INTRINSIC DIMENSIONS, PARSED FROM THE FILENAME ─────────────────────────
+
+  Substack uploads keep their pixel dimensions in the filename:
+
+    .../public/images/66b03785-c2cf-4153-96c6-81ed4c41fd05_1086x1609.png
+
+  which is the same trick src/lib/local-content.ts uses to size Sanity assets
+  from an `image-<hash>-<W>x<H>-<ext>` ref rather than dereferencing metadata.
+
+  THE BUG THIS EXISTS FOR.
+
+  The article hero hardcoded `width="1456" height="816"`. With
+  `.article-hero { width: 100%; height: auto }` the browser reserves space from
+  those attributes and then reflows to the image's REAL ratio once it loads.
+  Every cover was 16:9 (2560x1440, 3840x2160, 2048x1152), so 1456/816 = 1.784
+  was close enough that the reflow was invisible, and the hardcoding survived.
+
+  Then an article shipped a 1086x1609 PORTRAIT cover. In a 720px column the
+  reserved box is 720/1.784 = 404px and the real box is 720/0.675 = 1067px, so
+  the entire article body jumped down by ~660px after the hero loaded. That is
+  a single enormous layout shift on the LCP element.
+
+  Returning the real ratio removes it for every aspect ratio, present and
+  future, without anyone having to remember to update a constant.
+*/
+
+/** Pixel dimensions of an image, as declared by its filename. */
+export interface ImageDimensions {
+  width: number;
+  height: number;
+}
+
+/*
+  Bounded digits and a real image extension, so this cannot match a transform
+  segment or an id that happens to contain digits and an `x`. Global, because
+  the meaningful match is the LAST one: a substackcdn fetch URL carries the
+  encoded original AFTER the transforms, so the filename is always at the end.
+*/
+const DIMENSIONS_IN_FILENAME = /_(\d{2,5})x(\d{2,5})\.(?:png|jpe?g|webp|gif|avif)\b/gi;
+
+/**
+ * Intrinsic dimensions from an image URL's filename, or `null` when unknown.
+ *
+ * `null` is the safe answer and every caller keeps whatever it was doing —
+ * there is no guess here, because a wrong aspect ratio causes exactly the
+ * layout shift this is meant to remove.
+ */
+export function parseImageDimensions(rawUrl: unknown): ImageDimensions | null {
+  const url = String(rawUrl ?? '').trim();
+  if (!url) return null;
+
+  DIMENSIONS_IN_FILENAME.lastIndex = 0;
+  let last: RegExpExecArray | null = null;
+  for (let match = DIMENSIONS_IN_FILENAME.exec(url); match; match = DIMENSIONS_IN_FILENAME.exec(url)) {
+    last = match;
+  }
+  if (!last) return null;
+
+  const width = Number(last[1]);
+  const height = Number(last[2]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1) return null;
+
+  return { width, height };
+}

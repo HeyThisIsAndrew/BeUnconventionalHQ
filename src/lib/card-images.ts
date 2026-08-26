@@ -148,6 +148,21 @@ export function youtubeFallbackSrc(raw: unknown): string {
 */
 const SUBSTACK_FETCH = 'substackcdn.com/image/fetch/';
 
+/**
+ * Is this a Substack CDN fetch URL, i.e. one substackSources() can rewrite?
+ *
+ * Exported for the article hero, which needs the substackcdn branch of
+ * getCardImageSources() and must NOT be allowed to reach the
+ * genericExternalSources() branch below. That branch routes through wsrv.nl,
+ * and a cold third-party transcode on the LCP element is the exact thing that
+ * was reverted once already — see the header of src/lib/article-images.ts.
+ * Calling this first keeps the hero on Substack's own warm CDN or on the raw
+ * URL, never on a proxy.
+ */
+export function isSubstackFetchUrl(raw: unknown): boolean {
+  return String(raw ?? '').includes(SUBSTACK_FETCH);
+}
+
 /*
   A NOTE ON THE COMMAS, because they look like a bug and are not.
 
