@@ -164,7 +164,7 @@ test('the other transforms are preserved in order', () => {
     src.indexOf('image/fetch/') + 'image/fetch/'.length,
     src.indexOf('/https%3A'),
   );
-  for (const part of ['$s_!qfD6!', 'f_auto', 'q_auto:good', 'fl_progressive:steep']) {
+  for (const part of ['$s_!qfD6!', 'f_auto', 'q_auto:eco', 'fl_progressive:steep']) {
     assert.ok(transforms.split(',').includes(part), `${part} missing from ${transforms}`);
   }
 });
