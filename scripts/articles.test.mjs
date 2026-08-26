@@ -20,6 +20,7 @@ import {
   buildArticleRecord,
   buildPreview,
   mergeSnapshot,
+  liftPullQuotes,
 } from '../src/lib/articles-transform.ts';
 import { imageFingerprint, stripCoverImageFromBody } from '../src/lib/article-media.ts';
 import { parseImageDimensions } from '../src/lib/article-images-transform.ts';
@@ -827,4 +828,81 @@ test('every cover in the real store either parses or falls back safely', () => {
     if (dims === null) continue; // falls back to 1456x816, which is the old behaviour
     assert.ok(dims.width > 0 && dims.height > 0, `${record.slug} produced a nonsense ratio`);
   }
+});
+
+/*
+  ─── PULL QUOTES ────────────────────────────────────────────────────────────
+
+  Substack marks one with `<div class="pullquote">`. Neither `div` nor `class`
+  is on the allowlist, so the wrapper was discarded and the quote arrived as an
+  ordinary bold paragraph sitting directly above the sentence it repeats.
+
+  The fixture below is the REAL markup, taken verbatim off
+  /p/why-im-actually-hyped-for-avengers.
+*/
+console.log('\npull quotes');
+
+const REAL_PULLQUOTE =
+  '<div class="pullquote"><p><strong>I was one of the fans who did the 22-movie Marvel Marathon</strong></p></div>';
+
+test('the real Substack pull quote survives sanitization as a blockquote', () => {
+  const out = sanitizeArticleHtml(`${REAL_PULLQUOTE}<p>Body.</p>`);
+  assert.ok(out.includes('<blockquote class="pullquote">'), out);
+  assert.ok(out.includes('22-movie Marvel Marathon'), out);
+  assert.ok(!out.includes('<div'), 'the div wrapper must not survive');
+});
+
+test('inner markup is passed through untouched', () => {
+  assert.equal(
+    liftPullQuotes('<div class="pullquote"><p><strong>a</strong> <em>b</em></p></div>'),
+    '<blockquote class="pullquote"><p><strong>a</strong> <em>b</em></p></blockquote>',
+  );
+});
+
+test('a div that is not a pull quote is returned byte-identical', () => {
+  for (const html of [
+    '<div class="captioned-image-container"><img src="https://h/a.png"></div>',
+    '<div>plain</div>',
+    '<div class="pullquotes-roundup"><p>not it</p></div>',
+    '<div class="notapullquote"><p>nor this</p></div>',
+  ]) {
+    assert.equal(liftPullQuotes(html), html, html);
+  }
+});
+
+test('an empty pull quote is left alone rather than becoming a stray rule', () => {
+  const empty = '<div class="pullquote"><p>   </p></div>';
+  assert.equal(liftPullQuotes(empty), empty);
+});
+
+test('a pull quote containing a nested div is not rewritten', () => {
+  // The non-greedy matcher would end at the inner </div>, so rewriting would
+  // move markup around. Declining is the safe answer.
+  const nested = '<div class="pullquote"><div class="x"><p>q</p></div></div>';
+  assert.equal(liftPullQuotes(nested), nested);
+});
+
+test('multiple pull quotes in one body are all lifted', () => {
+  const out = liftPullQuotes(`${REAL_PULLQUOTE}<p>mid</p>${REAL_PULLQUOTE}`);
+  assert.equal(out.match(/<blockquote class="pullquote">/g).length, 2);
+});
+
+test('a class attribute survives ONLY as pullquote, and only on blockquote', () => {
+  // The allowlist widening is the security-relevant part of this change.
+  assert.ok(!sanitizeArticleHtml('<p class="pullquote">x</p>').includes('class'));
+  assert.ok(!sanitizeArticleHtml('<blockquote class="tracking-pixel">x</blockquote>').includes('class'));
+  assert.ok(!sanitizeArticleHtml('<blockquote class="pullquote evil">x</blockquote>').includes('evil'));
+  assert.ok(sanitizeArticleHtml('<blockquote class="pullquote">x</blockquote>').includes('class="pullquote"'));
+});
+
+test('a real block quotation is still a plain blockquote', () => {
+  const out = sanitizeArticleHtml('<blockquote><p>Someone else said this.</p></blockquote>');
+  assert.ok(out.includes('<blockquote>'), out);
+  assert.ok(!out.includes('pullquote'), out);
+});
+
+test('liftPullQuotes survives junk input', () => {
+  assert.equal(liftPullQuotes(''), '');
+  assert.equal(liftPullQuotes(null), '');
+  assert.equal(liftPullQuotes(undefined), '');
 });

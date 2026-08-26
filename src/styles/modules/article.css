@@ -263,6 +263,47 @@
   margin-top: 0.75em;
 }
 
+/* ── Pull quote ────────────────────────────────────────────────────────────
+
+   A pull quote is not a block quotation. It is a line lifted OUT of this
+   article and set large for emphasis, so the sentence it repeats is always
+   sitting a few lines below it. The blockquote treatment above says "someone
+   else said this", which is the wrong claim and, next to the duplicate
+   sentence, reads as a mistake.
+
+   Hairline rules above and below instead of the accent bar: they bracket the
+   line as a deliberate interruption in the column rather than attributing it.
+   See liftPullQuotes() in src/lib/articles-transform.ts for how the class
+   survives sanitization, which is the only class on the site that does.
+*/
+.article-body blockquote.pullquote {
+  border-left: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 1.5rem 1rem;
+  margin: 2.5rem 0;
+  text-align: center;
+  font-size: 1.28em;
+  line-height: 1.4;
+  font-style: italic;
+  font-weight: 600;
+  color: var(--color-white);
+}
+
+/* Substack wraps the line in <strong>, which is its own way of making a pull
+   quote look heavy. The rules and the size already do that here, and letting
+   `.article-body strong` win would push it to 700 and fight the italic. */
+.article-body blockquote.pullquote strong {
+  font-weight: inherit;
+}
+
+@media (max-width: 640px) {
+  .article-body blockquote.pullquote {
+    padding: 1.15rem 0;
+    font-size: 1.15em;
+  }
+}
+
 .article-body img {
   width: 100%;
   height: auto;
