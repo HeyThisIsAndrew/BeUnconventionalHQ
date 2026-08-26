@@ -32,14 +32,45 @@ function buildArticleLastmod() {
   const map = new Map();
   try {
     const raw = fs.readFileSync(path.resolve(process.cwd(), 'src/data/articles.json'), 'utf-8');
+    
+    let maxGlobal = 0;
+    const maxByCategory = { Film: 0, TV: 0, Gaming: 0, Events: 0 };
+    
     for (const record of JSON.parse(raw)) {
       if (!record || record.editorial?.hidden || !record.hasBody || !record.slug) continue;
       if (record.slug === 'topic' || record.slug === 'page') continue;
       const stamp = record.lastUpdated || record.isoDate;
       const date = stamp ? new Date(stamp) : null;
       if (!date || Number.isNaN(date.getTime())) continue;
+      
+      const time = date.getTime();
       map.set(`/intel/${record.slug}`, date.toISOString());
+      
+      if (time > maxGlobal) maxGlobal = time;
+      if (record.category && maxByCategory[record.category] !== undefined) {
+        if (time > maxByCategory[record.category]) {
+          maxByCategory[record.category] = time;
+        }
+      }
     }
+    
+    if (maxGlobal > 0) {
+      const isoGlobal = new Date(maxGlobal).toISOString();
+      map.set('/intel', isoGlobal);
+      map.set('/feed', isoGlobal);
+      map.set('/feed/articles', isoGlobal);
+      map.set('/', isoGlobal);
+    }
+    
+    for (const [cat, maxTime] of Object.entries(maxByCategory)) {
+      if (maxTime > 0) {
+        const isoCat = new Date(maxTime).toISOString();
+        const slug = cat.toLowerCase();
+        map.set(`/category/${slug}`, isoCat);
+        map.set(`/intel/topic/${slug}`, isoCat);
+      }
+    }
+    
   } catch {
     // A missing or malformed snapshot must not fail the build. The sitemap
     // simply ships without lastmod, which is exactly where it was before.
@@ -397,17 +428,15 @@ export default defineConfig({
       // crawlers through an extra redirect hop before reaching the
       // canonical URL.
       //
-      // Also stamps <lastmod> on article pages. Until this existed the
+      // Also stamps <lastmod> on article pages and hub pages. Until this existed the
       // sitemap carried NO lastmod on any of its 50 entries, which for a
       // news-shaped site is the single most useful signal it could have been
       // sending: it is how a crawler decides an already-known URL is worth
       // re-fetching, and how a newly added one is told it is new.
       //
-      // Only /intel/<slug> gets one, and only from a real date the article
-      // carries. A lastmod invented for a page whose content did not change
-      // is worse than none: it trains the crawler to ignore the field. Hub
-      // and feed pages genuinely have no single modification date, so they
-      // are left alone.
+      // Articles get their own lastmod; hub pages (/intel, /feed, etc.) get the 
+      // max lastmod of their corresponding articles so Google crawls them when 
+      // new content is published.
       serialize: (item) => {
         const url = new URL(item.url);
         if (url.pathname !== '/' && url.pathname.endsWith('/')) {

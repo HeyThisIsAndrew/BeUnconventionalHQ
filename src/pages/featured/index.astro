@@ -46,7 +46,13 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
   return indexA - indexB;
 });
 
-
+let firstHeroUrl = null;
+if (sortedCategories.length > 0) {
+  const firstCategoryBrands = groupedBrands[sortedCategories[0]];
+  if (firstCategoryBrands && firstCategoryBrands.length > 0 && firstCategoryBrands[0].heroImage) {
+    firstHeroUrl = urlFor(firstCategoryBrands[0].heroImage).width(600).auto('format').quality(70).url(); // Preload the mobile-sized one to speed up mobile LCP
+  }
+}
 
 interface BrandMeta {
   color: string;
@@ -357,6 +363,7 @@ ${activeFonts
 
 <Layout
   title="Featured Hubs"
+  preloadImage={firstHeroUrl}
   /*
     fonts.gstatic.com is where the font FILE comes from, and with
     `display=optional` the browser only has ~100ms to get it before it gives up
@@ -464,6 +471,7 @@ ${activeFonts
                     <div class="deck-stack">
                       {categoryBrands.map((brand: Brand, bIndex: number) => {
                         const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).auto('format').quality(78).url() : null;
+                        const heroUrlMobile = brand.heroImage ? urlFor(brand.heroImage).width(600).auto('format').quality(70).url() : null;
                         const metaCard = metaFor(brand);
                         return (
                           <a
@@ -490,6 +498,8 @@ ${activeFonts
                             {heroUrl ? (
                               <img
                                 src={heroUrl}
+                                srcset={`${heroUrlMobile} 600w, ${heroUrl} 1200w`}
+                                sizes="(max-width: 600px) 600px, 1200px"
                                 alt={brand.title}
                                 loading={bIndex === 0 ? 'eager' : 'lazy'}
                                 fetchpriority={bIndex === 0 ? 'high' : 'auto'}
@@ -559,6 +569,12 @@ ${activeFonts
                           </a>
                         );
                       })}
+                      
+                      <div class="deck-indicators">
+                        {categoryBrands.map((brand: Brand, bIndex: number) => (
+                          <div class={`deck-indicator-dot ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex}></div>
+                        ))}
+                      </div>
                     </div>
 
                     <div class="deck-nav-track">
@@ -984,6 +1000,7 @@ ${activeFonts
       const navThumbs = Array.from(section.querySelectorAll<HTMLElement>('.deck-nav-thumb'));
       const infoPanels = Array.from(section.querySelectorAll<HTMLElement>('.brand-info-panel'));
       const glowLayers = Array.from(section.querySelectorAll<HTMLElement>('.ambient-glow-layer'));
+      const indicatorDots = Array.from(section.querySelectorAll<HTMLElement>('.deck-indicator-dot'));
       
       let activeIndex = 0;
       cards.forEach((c, idx) => {
@@ -1001,12 +1018,14 @@ ${activeFonts
           
           if (navThumbs[i]) navThumbs[i].className = 'deck-nav-thumb';
           if (glowLayers[i]) glowLayers[i].className = 'ambient-glow-layer';
+          if (indicatorDots[i]) indicatorDots[i].className = 'deck-indicator-dot';
 
           if (i === activeIndex) {
             card.classList.add('active');
             infoPanels[i].classList.add('active');
             if (navThumbs[i]) navThumbs[i].classList.add('active');
             if (glowLayers[i]) glowLayers[i].classList.add('active');
+            if (indicatorDots[i]) indicatorDots[i].classList.add('active');
             
 
             // Set dynamic left row color
@@ -1026,6 +1045,41 @@ ${activeFonts
           }
         });
         syncTrailers();
+      }
+
+      // Deck Indicators Click
+      indicatorDots.forEach((dot, i) => {
+        dot.addEventListener('click', () => {
+          activeIndex = i;
+          renderDeck();
+        });
+      });
+
+      // Swipe Gestures
+      const deckStack = section.querySelector('.deck-stack') as HTMLElement;
+      if (deckStack) {
+        let touchStartX = 0;
+        let touchEndX = 0;
+        
+        deckStack.addEventListener('touchstart', (e) => {
+          touchStartX = e.changedTouches[0].screenX;
+        }, { passive: true });
+        
+        deckStack.addEventListener('touchend', (e) => {
+          touchEndX = e.changedTouches[0].screenX;
+          const diff = touchStartX - touchEndX;
+          
+          if (Math.abs(diff) > 50) {
+            if (diff > 0) {
+              // Swipe left -> Next card
+              activeIndex = (activeIndex + 1) % cards.length;
+            } else {
+              // Swipe right -> Previous card
+              activeIndex = (activeIndex - 1 + cards.length) % cards.length;
+            }
+            renderDeck();
+          }
+        }, { passive: true });
       }
 
       // Deck Stack Clicks & Parallax
@@ -4651,6 +4705,38 @@ ${activeFonts
       opacity: 1;
       transform: none;
       transition-delay: 0s;
+    }
+  }
+
+  /* DECK INDICATORS */
+  .deck-indicators {
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    z-index: 10;
+    pointer-events: auto;
+  }
+  .deck-indicator-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+  .deck-indicator-dot.active {
+    background: #fff;
+    transform: scale(1.3);
+  }
+  
+  @media (min-width: 900px) {
+    /* Hide on desktop since we have nav thumbs */
+    .deck-indicators {
+      display: none;
     }
   }
 </style>

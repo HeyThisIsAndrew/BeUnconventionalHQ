@@ -41,6 +41,7 @@ import Pagination from '../components/Pagination.astro';
 import EmptyState from '../components/EmptyState.astro';
 import { ARTICLE_SECTION } from '../data/sections.js';
 import { LABELS } from '../data/content.js';
+import { getCardImageSources } from '../lib/card-images.js';
 
 interface Props {
   /** Browser tab / SEO title. */
@@ -61,6 +62,8 @@ interface Props {
   archiveHeading: string;
   /** Shown when there is genuinely nothing on the page. */
   emptyMessage: string;
+  /** Image to preload in the <head> for LCP optimization */
+  preloadImage?: string | null;
 }
 
 const {
@@ -73,11 +76,13 @@ const {
   videos = [],
   archiveHeading,
   emptyMessage,
+  preloadImage = null,
 } = Astro.props;
 
 const hasMagazine = magazineArticles.length > 0;
 const hasArchive = page.data.length > 0;
 const hasVideos = videos.length > 0;
+const defaultPreloadImage = preloadImage || (hasMagazine && magazineArticles[0]?.image ? getCardImageSources(magazineArticles[0].image).src : null);
 
 // Nothing at all to show — not even one article in the spread.
 const isEmpty = !hasMagazine && !hasArchive;
@@ -88,6 +93,7 @@ const isEmpty = !hasMagazine && !hasArchive;
   description={description}
   headingLabel={headingLabel}
   page={page}
+  preloadImage={defaultPreloadImage}
   kicker={ARTICLE_SECTION.kicker}
   titlePrimary={ARTICLE_SECTION.titlePrimary}
   titleSecondary={ARTICLE_SECTION.titleSecondary}
