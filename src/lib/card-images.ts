@@ -218,6 +218,8 @@ function substackSources(url: string): CardImageSources {
         sawWidth = true;
       } else if (part === 'c_limit') {
         // Re-added below in a known position; drop it here to avoid a dupe.
+      } else if (part === 'q_auto:good' || part === 'q_auto') {
+        out.push('q_auto:eco');
       } else {
         out.push(part);
       }
