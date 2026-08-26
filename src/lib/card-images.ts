@@ -224,7 +224,7 @@ function substackSources(url: string): CardImageSources {
     }
 
     if (!sawWidth) out.push(`w_${width}`);
-    out.push('c_fill,ar_16:9,g_auto');
+    out.push('c_limit');
 
     return `${prefix}${out.join(',')}${original}`;
   };
