@@ -263,6 +263,47 @@
   margin-top: 0.75em;
 }
 
+/* ── Pull quote ────────────────────────────────────────────────────────────
+
+   A pull quote is not a block quotation. It is a line lifted OUT of this
+   article and set large for emphasis, so the sentence it repeats is always
+   sitting a few lines below it. The blockquote treatment above says "someone
+   else said this", which is the wrong claim and, next to the duplicate
+   sentence, reads as a mistake.
+
+   Hairline rules above and below instead of the accent bar: they bracket the
+   line as a deliberate interruption in the column rather than attributing it.
+   See liftPullQuotes() in src/lib/articles-transform.ts for how the class
+   survives sanitization, which is the only class on the site that does.
+*/
+.article-body blockquote.pullquote {
+  border-left: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 1.5rem 1rem;
+  margin: 2.5rem 0;
+  text-align: center;
+  font-size: 1.28em;
+  line-height: 1.4;
+  font-style: italic;
+  font-weight: 600;
+  color: var(--color-white);
+}
+
+/* Substack wraps the line in <strong>, which is its own way of making a pull
+   quote look heavy. The rules and the size already do that here, and letting
+   `.article-body strong` win would push it to 700 and fight the italic. */
+.article-body blockquote.pullquote strong {
+  font-weight: inherit;
+}
+
+@media (max-width: 640px) {
+  .article-body blockquote.pullquote {
+    padding: 1.15rem 0;
+    font-size: 1.15em;
+  }
+}
+
 .article-body img {
   width: 100%;
   height: auto;
@@ -534,22 +575,41 @@
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.16em;
-  text-decoration: none;
   line-height: 1.4;
 }
 
-/* Subject (Film / TV / Gaming) — accent, and a link to that topic page. */
+/*
+  ─── THIS IS A LABEL. IT IS NOT, AND NEVER BECAME, A LINK. ─────────────────
+
+  It renders the article's brand and kind — "MARVEL | REVIEW" — from
+  getDisplayTags(), which derives them from the post's tags. They are
+  descriptions, not destinations: there is no /marvel page for the first half
+  to point at, and the SUBJECT does have a link already, in the breadcrumb
+  above (Home / Intel / Film).
+
+  Three link-flavoured rules had been left on it after it stopped being an
+  <a>, and one of them was a reported bug:
+
+    .article-tag-category:hover { color: var(--color-white) }
+
+  A hover state on a non-interactive element is invisible on a mouse — you
+  never rest the pointer there — and unmissable on a phone, because iOS
+  applies :hover on tap and LEAVES IT APPLIED until you tap somewhere else.
+  Reported as "why does it change colour when I tap it", with two
+  screenshots. Measured on the built page: rgb(239,68,68) at rest,
+  rgb(240,240,240) after hover, on a <span> whose closest('a') is null.
+
+  Gone with it: `text-decoration: none`, which has nothing to remove on a
+  span, and `.article-tag-type`, which no markup on this site has ever used.
+  a11y.css also stopped giving `.article-tag` an expanded tap target — that
+  affordance is for things you can tap, and on static text an invisible hit
+  area can only take taps from its neighbours.
+
+  If a tag ever does become a link, it needs all four back, not just the
+  colour.
+*/
 .article-tag-category {
   color: var(--color-accent-text);
-}
-
-.article-tag-category:hover {
-  color: var(--color-white);
-}
-
-/* Kind (Review / Analysis / Dispatch) — quieter, not a link. */
-.article-tag-type {
-  color: var(--color-white-muted);
 }
 
 .article-score {
@@ -636,4 +696,96 @@
 .article-actions .cta-button-primary {
   text-align: center;
   padding-inline: 1.5rem;
+}
+
+/* Breadcrumbs */
+.article-breadcrumbs {
+  margin-bottom: 2.5rem;
+  font-family: var(--font-sans);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.article-breadcrumbs ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.article-breadcrumbs li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--color-white-muted, #888);
+}
+
+.article-breadcrumbs li:not(:last-child)::after {
+  content: "/";
+  color: var(--color-border, #333);
+}
+
+.article-breadcrumbs a {
+  color: var(--color-white-muted, #888);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.article-breadcrumbs a:hover {
+  color: var(--color-white, #fff);
+}
+
+/* ── The byline name is a link, and has to look like it responds ───────────
+
+   Two things were wrong with the first version of this.
+
+   1. IT DID NOTHING. The rules below were correct and simply never took
+      effect, because the anchor wraps `<span class="author">` and
+      `.article-byline .author` (above) sets an explicit `color`. A colour on
+      the CHILD beats a colour inherited from the parent, so hovering changed
+      the anchor's computed colour and the reader saw nothing. The hover state
+      therefore has to name the span, not just the link.
+
+   2. IT USED THE WRONG RED. `--color-accent` (#cc0000) is 3.21:1 on the
+      surface colour — it is the border and glow red, never a text or icon
+      colour, which CLAUDE.md states plainly. `--color-accent-text` (#ef4444)
+      is 5.02:1 and clears AA, and is the red every other legible red on the
+      site already uses.
+
+   NO UNDERLINE, deliberately, and against the house pattern for links. The
+   name sits directly above the "FOUNDER & EDITOR" role line, and an
+   underline lands on top of it. Colour alone is the whole feedback here.
+
+   `:focus-visible` carries the same treatment: a link that only responds to a
+   mouse is unusable by keyboard, and every audited page currently scores 100
+   on accessibility. */
+.article-byline-name .author-link {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.article-byline-name .author-link:hover .author,
+.article-byline-name .author-link:focus-visible .author,
+.article-byline-name .author-link:active .author {
+  color: var(--color-accent-text, #ef4444);
+}
+
+/* The "By" text is outside the span but inside the link, so it moves with it
+   rather than being left behind mid-hover. */
+.article-byline-name .author-link:hover,
+.article-byline-name .author-link:focus-visible,
+.article-byline-name .author-link:active {
+  color: var(--color-accent-text, #ef4444);
+}
+
+.article-byline-name .author-link:focus-visible {
+  outline: 2px solid var(--color-accent-text, #ef4444);
+  outline-offset: 3px;
+  border-radius: 2px;
 }

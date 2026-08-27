@@ -26,6 +26,9 @@ const {
   prevUrl,
   nextUrl,
   preloadImage,
+  preloadImageSrcset,
+  preloadImageSizes,
+
   /*
     Origins to warm before the browser discovers it needs them. Opt-in per
     page rather than global, because a preconnect to an origin a page never
@@ -134,6 +137,24 @@ const fallbackMark = await getImage({
         which put it at byte 1536: ClientRouter alone emits two meta tags plus
         a module script before anything else got a chance to render. */}
     <meta charset="utf-8" />
+    {/*
+      ─── BEFORE ANY SCRIPT THAT MEASURES THE VIEWPORT ───────────────────────
+      This used to sit ~100 lines further down, after the inline script that
+      seeds `--vv-height`. That script reads visualViewport.height, and until
+      this tag is parsed a mobile browser is still laying out at its default
+      desktop-ish viewport — so the measurement was taken against a viewport
+      the page never actually renders at.
+
+      Nothing depended on it while the hero was sized in `lvh`. The moment the
+      hero was sized FROM the measurement, the hero painted at one height and
+      resized to another, and Lighthouse recorded CLS 0.69 on the homepage
+      with `.hero-bg-gradient` (inset 0 inside `.hero-bg`, itself inset -10%
+      off `.hero`) as the single shifting element. Performance 97% to 73%.
+
+      Keep this above the seed script. Everything that measures the viewport
+      before first paint depends on it.
+    */}
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="preload" href="/fonts/syne.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/inter.woff2" as="font" type="font/woff2" crossorigin />
     {/*
@@ -146,6 +167,51 @@ const fallbackMark = await getImage({
     <ClientRouter />
     <script is:inline>
       document.documentElement.classList.add('js');
+
+      /*
+        ─── THE REVEAL WATCHDOG ──────────────────────────────────────────────
+
+        Two systems on this site ship content at `opacity: 0` and reveal it
+        from a bundled module: `.animate-on-scroll` / `.reveal` (initReveal,
+        further down this file) and `.cat-stagger` (Categories.astro). If
+        either module has not executed, its content is not slow — it is
+        invisible, with nothing on screen to say so.
+
+        Reported from an iPhone as the homepage rendering the heading
+        "EXPLORE THE HQ / WHAT WE COVER" over a black section, and the navbar
+        not responding to taps. It cleared on its own after a while and did
+        not come back once the phone was charged. The markup and the CSS were
+        never wrong: the phone was in Low Power Mode on a minutes-old build,
+        so nothing was warm in the CDN or the device cache, and the module
+        had simply not run yet.
+
+        The `.js` class above cannot catch that — it was set, because THIS
+        script is inline in the document and always runs. Only a timer can:
+        each system sets its own flag when it actually runs, and anything
+        that has not signed in by the deadline gets un-gated by the rule in
+        utilities.css.
+
+        Deliberately generous. A healthy load runs both well inside a second
+        (they fire on astro:page-load); a slow one that trips this loses its
+        entrance animation and shows the content, which is the right way
+        round.
+      */
+      window.setTimeout(function () {
+        var root = document.documentElement;
+        /* Only complain about a system this page actually uses. Without the
+           presence check, `stagger-failsafe` was being set on every route
+           that has no category tiles — /feed, /intel, all of them — because
+           the flag for a module that is not on the page is never set. The
+           class was harmless there and meaningless everywhere, which is how
+           a diagnostic stops being one. */
+        if (!window.__hqRevealReady && document.querySelector('.animate-on-scroll, .reveal')) {
+          root.classList.add('reveal-failsafe');
+        }
+        if (!window.__hqStaggerReady && document.querySelector('.cat-stagger')) {
+          root.classList.add('stagger-failsafe');
+        }
+      }, 5000);
+
       if ('scrollRestoration' in history) {
         history.scrollRestoration = 'manual';
       }
@@ -238,16 +304,13 @@ const fallbackMark = await getImage({
       </script>
     )}
 
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1"
-    />
     <meta name="theme-color" content="#000000" />
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex, nofollow" />}
     {prevUrl && <link rel="prev" href={prevUrl} />}
     {nextUrl && <link rel="next" href={nextUrl} />}
-    {preloadImage && <link rel="preload" as="image" href={preloadImage} fetchpriority="high" />}
+    {preloadImage && <link rel="preload" as="image" href={preloadImage} imagesrcset={preloadImageSrcset || undefined} imagesizes={preloadImageSizes || undefined} fetchpriority="high" />}
+
     {/*
       Both hints, deliberately. `preconnect` opens the connection; the
       `dns-prefetch` beside it is the fallback for browsers that ignore or
@@ -264,6 +327,9 @@ const fallbackMark = await getImage({
       </>
     ))}
     <link rel="canonical" href={url} />
+    {/* Feed discovery. Publisher Center takes the URL by hand, but this is how
+        every other reader and crawler finds it, and it costs one tag. */}
+    <link rel="alternate" type="application/rss+xml" title={`${site.name} — articles`} href={new URL('/rss.xml', site.url).toString()} />
     <script type="application/ld+json" is:inline set:html={JSON.stringify(structuredData)} />
     {/* Per-page <head> additions, e.g. an article's Article JSON-LD. Renders
         nothing when unused, so existing pages are unaffected. */}
@@ -642,9 +708,24 @@ const fallbackMark = await getImage({
       })();
     </script>
     <script>
+      /* Read by the reveal watchdog in the inline head script at the top of
+         this file. Declared here because a bundled script is type-checked;
+         the inline one is not. */
+      declare global {
+        interface Window {
+          __hqRevealReady?: boolean;
+          __hqStaggerReady?: boolean;
+        }
+      }
+
       let isInitialLoad = true;
 
       function initReveal() {
+        /* Signs in with the watchdog at the top of this file. Set here rather
+           than at module scope, so it means "the reveal actually ran", not
+           merely "the chunk downloaded" — a page-load event that never fires
+           leaves the content just as invisible. */
+        window.__hqRevealReady = true;
         const els = document.querySelectorAll('.reveal, .animate-on-scroll');
         const reduce = window.matchMedia(
           '(prefers-reduced-motion: reduce)'
@@ -690,6 +771,7 @@ const fallbackMark = await getImage({
       // invisible and then snaps it visible, which reads as a pop-in (most
       // obvious on a large above-the-fold element like the About logo).
       function revealImmediately() {
+        window.__hqRevealReady = true;
         document.querySelectorAll('.reveal, .animate-on-scroll').forEach((elem) => {
           const el = elem as HTMLElement;
           const originalTransition = el.style.transition;

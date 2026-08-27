@@ -46,12 +46,15 @@ import {
   getPublishedArticles,
   getNextArticle,
   getRelatedArticles,
+  topicPath,
   RESERVED_SLUGS,
 } from '../../lib/articles';
 import { getDisplayTags } from '../../lib/tags';
 import { buildToc } from '../../lib/article-toc';
 import { stripCoverImageFromBody } from '../../lib/article-media';
 import { localArticleImage, localiseBodyImages } from '../../lib/article-images.ts';
+import { parseImageDimensions, labelImageLinks } from '../../lib/article-images-transform.ts';
+import { getCardImageSources, isSubstackFetchUrl } from '../../lib/card-images.ts';
 import logoImage from '../../assets/logo.webp';
 
 export async function getStaticPaths() {
@@ -103,11 +106,50 @@ const dedupedBody = stripCoverImageFromBody(article.bodyHtml, article.image);
   22.54 MB, several 3840x2160, rendering into a ~720px column. As committed
   WebP that is 1.63 MB across every width, and a phone downloads one width.
 */
-const bodyWithLocalImages = localiseBodyImages(dedupedBody);
+/* Rewrite images to committed renditions, THEN name the anchors Substack wraps
+   around them. Substack ships those links with an alt-less image inside, which
+   leaves them with no accessible name at all — see labelImageLinks(). Applied
+   here rather than at sync time so every article already in the store is fixed
+   by the next build. */
+const bodyWithLocalImages = labelImageLinks(localiseBodyImages(dedupedBody));
 
-/* Same treatment for the cover. `null` when the sync has no rendition, and the
-   markup falls back to `article.image`. */
-const heroImageSources = localArticleImage(article.image);
+/*
+  ─── THE COVER, IN THREE FALLBACKS ──────────────────────────────────────────
+
+  1. A committed rendition, when the image sync built one.
+  2. Otherwise, if it is a substackcdn fetch URL, Substack's own CDN transform
+     with a width cap and a srcset — the same rewrite every card on the site
+     already gets from getCardImageSources().
+  3. Otherwise the raw URL, untouched.
+
+  Step 2 is the fix for a real defect. localArticleImage() returns null for
+  every substackcdn URL by design (ALREADY_OPTIMISED in
+  ./article-images-transform.ts skips them because Substack's BODY images
+  arrive carrying `w_1456,c_limit`). Cover images come from a different field
+  of the posts API and carry NO width transform at all:
+
+    $s_!Rj68!,f_auto,q_auto:good,fl_progressive:steep
+
+  So the hero fell through to `article.image` and shipped the source at full
+  resolution, with no srcset and no sizes, as the eager above-the-fold LCP
+  element. Six of the eight covers in the store are in that state.
+
+  isSubstackFetchUrl() gates this deliberately: getCardImageSources() sends
+  anything NON-Substack through wsrv.nl, and a cold third-party transcode on
+  the LCP element is exactly what was reverted before (see the header of
+  ../../lib/article-images.ts). The hero must stay on a warm CDN or on the raw
+  URL, never on a proxy.
+*/
+const heroRendition = localArticleImage(article.image);
+const heroCdnSources =
+  !heroRendition && isSubstackFetchUrl(article.image) ? getCardImageSources(article.image) : null;
+const heroImageSources = heroRendition ?? heroCdnSources;
+
+/* The image's REAL ratio, so the reserved box matches what loads. See
+   parseImageDimensions() for the 660px layout shift this removes. The old
+   hardcoded 1456x816 stays as the fallback for a URL with no dimensions in
+   its filename, which is what every cover used before this. */
+const heroDimensions = parseImageDimensions(article.image) ?? { width: 1456, height: 816 };
 
 // Headings get ids so the contents rail can anchor-scroll to them; `html` is
 // the body with those ids injected.
@@ -158,7 +200,7 @@ const author = {
   name: DEFAULT_BYLINE.name,
   jobTitle: DEFAULT_BYLINE.role,
   description: DEFAULT_BYLINE.bio,
-  url: new URL('/about', site.url).toString(),
+  url: new URL('/author/andrew-baxter', site.url).toString(),
 };
 
 const shared = {
@@ -179,17 +221,27 @@ let articleSchema: Record<string, any>;
 if (article.contentType === 'Review') {
   /*
     Review schema. `itemReviewed` is required — without it Google rejects the
-    markup. We only know the subject loosely (the headline names it), so it is
-    declared as a CreativeWork with the article's title.
-
-    reviewRating is only included when the body actually states a score;
-    inventing one would be structured-data spam.
+    markup. Google requires specific types for itemReviewed (e.g., Movie, TVSeries,
+    VideoGame). We infer the type based on the article's category.
   */
+  let itemType = 'Thing';
+  if (article.category === 'Film') {
+    itemType = 'Movie';
+  } else if (article.category === 'TV') {
+    itemType = article.title.toLowerCase().includes('episode') ? 'TVSeries' : 'TVSeries';
+    // Using TVSeries as it's universally accepted, though Episode is also valid.
+    if (article.title.toLowerCase().includes('episode')) {
+        itemType = 'Episode';
+    }
+  } else if (article.category === 'Gaming') {
+    itemType = 'VideoGame';
+  }
+
   articleSchema = {
     '@context': 'https://schema.org',
     '@type': 'Review',
     ...shared,
-    itemReviewed: { '@type': 'CreativeWork', name: article.title },
+    itemReviewed: { '@type': itemType, name: article.title },
     ...(article.score
       ? {
           reviewRating: {
@@ -208,12 +260,53 @@ if (article.contentType === 'Review') {
   // Analysis, Interview and anything unmapped → the general Article type.
   articleSchema = { '@context': 'https://schema.org', '@type': 'Article', ...shared };
 }
+
+/*
+  ─── BREADCRUMBS, THE MACHINE HALF ──────────────────────────────────────────
+
+  The visible trail above the headline was added without this, and visible
+  breadcrumbs alone produce no breadcrumb rich result — Google reads the trail
+  from BreadcrumbList, not from the <nav>. So the markup was doing the
+  navigation half of the job and none of the search half.
+
+  MIRRORS THE VISIBLE TRAIL EXACTLY: Home > Intel > Category, and stops where
+  the <ol> stops. Structured data that claims a crumb the reader cannot see is
+  a mismatch Google's guidelines call out, so the article's own title is
+  deliberately NOT appended as a fourth item — the rendered trail does not
+  carry one either.
+
+  The category crumb is conditional for the same reason the <li> is: an
+  article with no category renders a two-item trail, and the schema has to
+  agree with whatever actually rendered.
+*/
+const breadcrumbTrail: Array<{ name: string; path: string }> = [
+  { name: 'Home', path: '/' },
+  { name: ARTICLE_SECTION.name, path: ARTICLE_SECTION.path },
+  ...(article.category
+    ? [{ name: article.category, path: topicPath(article.category) }]
+    : []),
+];
+
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: breadcrumbTrail.map((crumb, index) => ({
+    '@type': 'ListItem',
+    position: index + 1,
+    name: crumb.name,
+    item: new URL(crumb.path, site.url).toString(),
+  })),
+};
 ---
 
 <Layout
   title={`${article.title} | ${site.name}`}
   description={article.excerpt}
   image={heroImage}
+  preloadImage={heroImageSources?.src || article.image}
+  preloadImageSrcset={heroImageSources?.srcset || undefined}
+  preloadImageSizes={heroImageSources?.srcset ? "(max-width: 900px) 92vw, 720px" : undefined}
+
   type="article"
 >
   <script
@@ -222,6 +315,16 @@ if (article.contentType === 'Review') {
     is:inline
     set:html={JSON.stringify(articleSchema)}
   />
+  <script
+    slot="head"
+    type="application/ld+json"
+    is:inline
+    set:html={JSON.stringify(breadcrumbSchema)}
+  />
+  <meta property="article:published_time" content={article.isoDate} slot="head" />
+  {article.lastUpdated && <meta property="article:modified_time" content={article.lastUpdated} slot="head" />}
+  <meta property="article:author" content={author.url} slot="head" />
+  <meta property="article:section" content={article.category} slot="head" />
 
   <main class="article-page">
     <div class="container">
@@ -231,6 +334,14 @@ if (article.contentType === 'Review') {
         <ArticleToc entries={tocEntries} landmarks={tocLandmarks} />
 
         <article class="article-column">
+          <nav aria-label="Breadcrumb" class="article-breadcrumbs">
+            <ol>
+              <li><a href="/">Home</a></li>
+              <li><a href="/intel">Intel</a></li>
+              {article.category && <li><a href={topicPath(article.category)}>{article.category}</a></li>}
+            </ol>
+          </nav>
+          
           <header class="article-header" id="article-top">
             {/*
               Two tags, not one: the SUBJECT (Film / TV / Gaming) and the
@@ -275,9 +386,9 @@ if (article.contentType === 'Review') {
                 srcset={heroImageSources?.srcset || undefined}
                 sizes={heroImageSources?.srcset ? '(max-width: 900px) 92vw, 720px' : undefined}
                 alt={`Cover image for ${article.title}`}
-                width="1456"
-                height="816"
-                loading="eager"
+                width={heroDimensions.width}
+                height={heroDimensions.height}
+                loading="eager" fetchpriority="high"
                 decoding="async"
               />
             )}

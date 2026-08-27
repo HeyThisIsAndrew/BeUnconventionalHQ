@@ -75,13 +75,76 @@ test('the homepage is audited', () => {
 });
 
 test('the gate still enforces a real threshold', () => {
-  const m = check.match(/const THRESHOLD = ([\d.]+)/);
-  assert.ok(m, 'THRESHOLD not found');
+  /*
+    Was `THRESHOLD >= 0.9`. The single line is now two bands (see below), so
+    this asserts what that check was actually protecting: the bar the gate
+    APPLIES has to stay meaningful. The pass line stays at 90 and the hard
+    failure line may not be dropped below 80 to quiet a red build — which is
+    the only way this guard could be defeated now that failing is the lower
+    of the two numbers.
+  */
+  const pass = check.match(/const PASS_THRESHOLD = ([\d.]+);/);
+  const failAt = check.match(/const FAIL_THRESHOLD = ([\d.]+);/);
+  assert.ok(pass, 'PASS_THRESHOLD not found');
+  assert.ok(failAt, 'FAIL_THRESHOLD not found');
   assert.ok(
-    Number(m[1]) >= 0.9,
-    `THRESHOLD is ${m[1]}; it must stay at 0.9 or higher. Widening coverage is\n` +
-      '      only an improvement if the bar it applies is still meaningful.',
+    Number(pass[1]) >= 0.9,
+    `PASS_THRESHOLD is ${pass[1]}; the bar for "green" must stay at 0.9 or higher.`,
   );
+  assert.ok(
+    Number(failAt[1]) >= 0.8,
+    `FAIL_THRESHOLD is ${failAt[1]}; the build must still fail somewhere at or above 0.8.\n` +
+      '      Lowering this is how a gate quietly stops gating.',
+  );
+  assert.ok(
+    Number(failAt[1]) <= Number(pass[1]),
+    'FAIL_THRESHOLD must not exceed PASS_THRESHOLD, or every warning is also a failure.',
+  );
+});
+
+/*
+  ─── THE TWO BANDS ─────────────────────────────────────────────────────────
+
+  The gate was a single 90% line: below it, red build. That does not scale with
+  the thing the site exists to do — each published article adds a cover image,
+  a card on two hub pages and more DOM, so scores drift down as content
+  accrues, and a hard 90 turns ordinary publishing into a build failure.
+
+  Split at the owner's direction: >=90 pass, 80-90 warn (build stays green),
+  <80 fail. These assertions exist because the failure mode is silent in both
+  directions — wiring the fail branch to PASS_THRESHOLD makes the warn band
+  fail the build, and calling fail() on the warn path does the same thing
+  under a friendlier name. Neither shows up in a green run.
+*/
+test('the gate has two bands at 90 and 80', () => {
+  assert.match(check, /const PASS_THRESHOLD = 0\.9;/);
+  assert.match(check, /const FAIL_THRESHOLD = 0\.8;/);
+});
+
+test('only sub-80 sets the failing flag', () => {
+  assert.match(
+    check,
+    /const failed = score !== null && score < FAIL_THRESHOLD;/,
+    'the failure test must compare against FAIL_THRESHOLD; using PASS_THRESHOLD makes the warn band fail the build',
+  );
+  assert.match(check, /const warned = score !== null && !failed && score < PASS_THRESHOLD;/);
+});
+
+test('the warn band does NOT fail the build', () => {
+  const tail = check.slice(check.indexOf('if (anyFailed) {'));
+  const warnBranch = tail.slice(tail.indexOf('} else if (anyWarned) {'), tail.indexOf('} else {'));
+  assert.ok(warnBranch.length > 0, 'the anyWarned branch is gone');
+  assert.ok(
+    !/\bfail\(/.test(warnBranch),
+    'the warning branch must not call fail() — a warning that fails the build is a failure with a friendlier name',
+  );
+});
+
+test('a page is still re-sampled and explains itself in the warn band', () => {
+  // Confirmation re-runs and the diagnostics dump key off THRESHOLD. If that
+  // were wired to FAIL_THRESHOLD, a page sitting at 85% would warn with no
+  // metrics attached and the warning would be unactionable.
+  assert.match(check, /const THRESHOLD = PASS_THRESHOLD;/);
 });
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);

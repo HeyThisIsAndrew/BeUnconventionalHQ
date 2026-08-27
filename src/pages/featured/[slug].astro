@@ -244,7 +244,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
             {/*
               Names the row on /featured that this hub sits in. It is the one
               piece of continuity a logo alone cannot give you — you clicked
-              "The Multiverse", so the page you land on says so, in the same
+              "Franchises", so the page you land on says so, in the same
               plate the row header uses.
             */}
             {categoryLabel && <span class="hero-eyebrow">{categoryLabel}</span>}
@@ -421,14 +421,46 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
                 together — picking one swaps the stage to it. Real <button>s, so
                 the rail is reachable and operable from a keyboard; the deck on
                 /featured shipped as divs once and closed rows were unreachable.
+
+                ─── NOTHING IS SELECTED UNTIL SOMETHING IS ──────────────────
+
+                The first tile used to ship `i === 0 ? 'active' : ''` and
+                `aria-pressed="true"`. That is one piece of state kept in two
+                places, and the two halves disagreed from the first frame: the
+                rail said tile 0 was chosen, the stage panes below hardcode
+                NOTHING as chosen, and `show()` — the function whose whole job
+                is keeping them in sync — is never called on load, only on
+                click.
+
+                So a fresh hub page highlighted "Marvel's Wolverine" while the
+                stage played PlayStation's own trailer. It pointed at the wrong
+                thing on every device on every load, and `aria-pressed="true"`
+                told a screen reader the same lie.
+
+                Selecting a tile also UNLOADS the trailer (see `show()`), so the
+                two states are genuinely exclusive — there is no reading under
+                which both were true at once.
+
+                The rail now starts with nothing pressed, which is what is
+                actually the case. Issue #150 covers the better version: the
+                trailer hands over to tile 0 when it ENDS (YouTube reports
+                state 0 through the postMessage channel this page already
+                listens on), so the highlight appears only once it is telling
+                the truth.
+
+                This note stays OUT of the map below: a callback has to return
+                a single element, so a comment beside the <button> makes it
+                return two nodes and the file stops type-checking. It also has
+                to be a plain block comment rather than a JSX one, because this
+                is a JS expression, not JSX children. Both were tried.
               */
               <div class="hub-rail" role="group" aria-label={`Recent ${event.title} coverage`}>
                 {heroItems.map((item: any, i: number) => (
                   <button
                     type="button"
-                    class={`hub-rail-card ${i === 0 ? 'active' : ''}`}
+                    class="hub-rail-card"
                     data-index={i}
-                    aria-pressed={i === 0 ? 'true' : 'false'}
+                    aria-pressed="false"
                   >
                     {(item.image ?? item.thumbnail) ? (
                       <img src={item.image ?? item.thumbnail} alt="" class="hub-rail-thumb" loading="lazy" />

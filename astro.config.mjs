@@ -32,14 +32,87 @@ function buildArticleLastmod() {
   const map = new Map();
   try {
     const raw = fs.readFileSync(path.resolve(process.cwd(), 'src/data/articles.json'), 'utf-8');
+    
+    let maxGlobal = 0;
+    /** @type {Record<string, number>} */
+    const maxByCategory = { Film: 0, TV: 0, Gaming: 0, Events: 0 };
+    
     for (const record of JSON.parse(raw)) {
       if (!record || record.editorial?.hidden || !record.hasBody || !record.slug) continue;
       if (record.slug === 'topic' || record.slug === 'page') continue;
       const stamp = record.lastUpdated || record.isoDate;
       const date = stamp ? new Date(stamp) : null;
       if (!date || Number.isNaN(date.getTime())) continue;
+      
+      const time = date.getTime();
       map.set(`/intel/${record.slug}`, date.toISOString());
+      
+      if (time > maxGlobal) maxGlobal = time;
+      if (record.category && maxByCategory[record.category] !== undefined) {
+        if (time > maxByCategory[record.category]) {
+          maxByCategory[record.category] = time;
+        }
+      }
     }
+    
+    /*
+      ─── ARTICLE-ONLY SURFACES ────────────────────────────────────────────
+
+      /intel and /feed/articles list articles and nothing else, so the newest
+      article IS their modification date.
+    */
+    if (maxGlobal > 0) {
+      const isoGlobal = new Date(maxGlobal).toISOString();
+      map.set('/intel', isoGlobal);
+      map.set('/feed/articles', isoGlobal);
+    }
+
+    /*
+      ─── AND THE MIXED ONES ───────────────────────────────────────────────
+
+      / and /feed show videos and shorts alongside articles, so dating them
+      from the newest ARTICLE was a claim neither page can support: a
+      six-hourly YouTube sync changes both, and on that day the sitemap said
+      they had not changed since the last post.
+
+      A lastmod that is wrong in the "nothing happened" direction is the worse
+      of the two errors — it tells a crawler to skip a page that did change,
+      which is the opposite of the reason lastmod was added. So these take the
+      newest of EITHER source. videos.json carries `publishedAt` on video,
+      short and live docs; hub docs (event, featuredBrand, topic) have no date
+      and are skipped rather than guessed at.
+    */
+    let maxMedia = 0;
+    try {
+      const rawMedia = fs.readFileSync(path.resolve(process.cwd(), 'src/data/videos.json'), 'utf-8');
+      for (const doc of JSON.parse(rawMedia)) {
+        if (!doc || !['video', 'short', 'live'].includes(doc._type)) continue;
+        const date = doc.publishedAt ? new Date(doc.publishedAt) : null;
+        if (!date || Number.isNaN(date.getTime())) continue;
+        if (date.getTime() > maxMedia) maxMedia = date.getTime();
+      }
+    } catch {
+      // No media snapshot: fall back to the article date alone, which is
+      // exactly what these pages carried before.
+    }
+
+    const maxMixed = Math.max(maxGlobal, maxMedia);
+    if (maxMixed > 0) {
+      const isoMixed = new Date(maxMixed).toISOString();
+      map.set('/', isoMixed);
+      map.set('/feed', isoMixed);
+      map.set('/feed/videos', isoMixed);
+    }
+    
+    for (const [cat, maxTime] of Object.entries(maxByCategory)) {
+      if (maxTime > 0) {
+        const isoCat = new Date(maxTime).toISOString();
+        const slug = cat.toLowerCase();
+        map.set(`/category/${slug}`, isoCat);
+        map.set(`/intel/topic/${slug}`, isoCat);
+      }
+    }
+    
   } catch {
     // A missing or malformed snapshot must not fail the build. The sitemap
     // simply ships without lastmod, which is exactly where it was before.
@@ -397,17 +470,15 @@ export default defineConfig({
       // crawlers through an extra redirect hop before reaching the
       // canonical URL.
       //
-      // Also stamps <lastmod> on article pages. Until this existed the
+      // Also stamps <lastmod> on article pages and hub pages. Until this existed the
       // sitemap carried NO lastmod on any of its 50 entries, which for a
       // news-shaped site is the single most useful signal it could have been
       // sending: it is how a crawler decides an already-known URL is worth
       // re-fetching, and how a newly added one is told it is new.
       //
-      // Only /intel/<slug> gets one, and only from a real date the article
-      // carries. A lastmod invented for a page whose content did not change
-      // is worse than none: it trains the crawler to ignore the field. Hub
-      // and feed pages genuinely have no single modification date, so they
-      // are left alone.
+      // Articles get their own lastmod; hub pages (/intel, /feed, etc.) get the 
+      // max lastmod of their corresponding articles so Google crawls them when 
+      // new content is published.
       serialize: (item) => {
         const url = new URL(item.url);
         if (url.pathname !== '/' && url.pathname.endsWith('/')) {

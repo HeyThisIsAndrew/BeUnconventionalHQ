@@ -294,7 +294,20 @@ export function getHubBackdrop(slug: string): HubBackdrop | null {
  * a design decision, which is why this stays in code.
  */
 export const HUB_CATEGORY_LABELS: Record<string, string> = {
-  universes: 'The Multiverse',
+  /*
+    THE KEY STAYS `universes`. ONLY THE LABEL CHANGES.
+
+    "The Multiverse" was inaccurate for half of what it labelled: the row is
+    DC, Marvel, Star Wars and Harry Potter, and two of those are not
+    multiverses in any sense. "Franchises" is true of all four and is the
+    term the trade press uses.
+
+    Renaming the KEY would mean rewriting `hubCategory` on every brand in
+    videos.json for nothing a reader can see, so it stays. The keys are
+    internal — they are a field on the document, never a route segment — so
+    nothing about this rename touches a URL.
+  */
+  universes: 'Franchises',
   streaming: 'Streamers',
   studios: 'Studios',
   gaming: 'Gaming',

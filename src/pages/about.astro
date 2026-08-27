@@ -72,10 +72,40 @@ const mobileSocialRows = [
   founderSocials.slice(0, Math.ceil(founderSocials.length / 2)),
   founderSocials.slice(Math.ceil(founderSocials.length / 2)),
 ];
+
+
+const founderSocialsList = [
+  'https://www.youtube.com/@HeyThisIsAndrew',
+  'https://www.tiktok.com/@hey_thisisandrew',
+  'https://www.threads.net/@hey_thisisandrew',
+  'https://www.facebook.com/thisisandrew',
+  'https://twitter.com/_ThisIsAndrew',
+  'https://bsky.app/profile/thisisandrew.bsky.social',
+  'https://www.linkedin.com/in/andrewlwyrbaxter/',
+  'https://thisiscoffeetalk.substack.com/'
+];
+
+const aboutSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'AboutPage',
+  'mainEntity': {
+    '@type': 'Person',
+    'name': 'Andrew Baxter',
+    'description': 'Founder & Editor of Be Unconventional HQ',
+    'jobTitle': 'Founder & Editor',
+    'image': new URL('/_astro/andrew-headshot.webp', site.url).toString(),
+    'url': site.url,
+    'sameAs': founderSocialsList
+  }
+};
+
 ---
 
+
 <Layout title={title} description={description}>
+  <script slot="head" type="application/ld+json" is:inline set:html={JSON.stringify(aboutSchema)} />
   <main class="about-page">
+
     <section class="about-hero">
       <div class="about-image-container animate-on-scroll">
         <Image
@@ -136,7 +166,7 @@ const mobileSocialRows = [
           </div>
         </div>
         <div class="masthead-bio">
-          <h2 class="founder-name">Andrew Baxter</h2>
+          <h2 class="founder-name"><a href="/author/andrew-baxter">Andrew Baxter</a></h2>
           <h3 class="founder-title">Founder & Editor</h3>
           <div class="founder-socials desktop-socials">
             {founderSocials.map((social, index) => (
@@ -368,6 +398,15 @@ const mobileSocialRows = [
     font-weight: 800;
     color: var(--color-white);
     margin-bottom: 0.25rem;
+  }
+  .founder-name a {
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+  .founder-name a:hover,
+  .founder-name a:active {
+    color: var(--color-accent-text, #ef4444);
   }
 
   .founder-title {

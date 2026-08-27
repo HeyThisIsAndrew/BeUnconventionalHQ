@@ -130,14 +130,72 @@ export function extractYouTubeEmbeds(html: string): string {
 }
 
 /** Sanitize imported HTML down to the semantic allowlist. */
+/*
+  ─── PULL QUOTES SURVIVE SANITIZATION ───────────────────────────────────────
+
+  Substack marks a pull quote with a DIV:
+
+    <div class="pullquote"><p><strong>...</strong></p></div>
+
+  `div` is not in ALLOWED_TAGS and `class` is not in ALLOWED_ATTRS, so
+  sanitize-html discarded the wrapper and kept the contents. A pull quote
+  therefore arrived as an ordinary bold paragraph, indistinguishable from body
+  text and sitting directly above the sentence it quotes — which reads as a
+  duplicated line rather than a design element. Reported against
+  /intel/why-im-actually-hyped-for-avengers.
+
+  Promoting it to a <blockquote> BEFORE sanitizing is what preserves it:
+  blockquote is already allowed and already styled, so the meaning survives
+  the allowlist instead of being deleted by it.
+
+  The `pullquote` class rides along so the stylesheet can tell a pull quote
+  (an excerpt lifted from THIS article for emphasis) from a real block
+  quotation (words from somewhere else). sanitizeArticleHtml allows that one
+  literal class name on that one tag, and nothing else.
+
+  DELIBERATELY CONSERVATIVE, like every other transform in this file. Inner
+  markup is passed through untouched, a wrapper containing another div is left
+  alone rather than guessed at, and anything that does not match is returned
+  byte-identical.
+*/
+export function liftPullQuotes(html: string): string {
+  if (!html) return '';
+
+  return html.replace(
+    /* Same attribute-safe div matcher extractSubstackGalleries() uses: skipping
+       over quoted strings means a `>` inside an attribute value cannot end the
+       tag early. Non-greedy body, so the match stops at the FIRST </div>. */
+    /<div\b((?:[^>"']|"[^"]*"|'[^']*')*)>([\s\S]*?)<\/div>/gi,
+    (match: string, attrs: string, inner: string) => {
+      if (!/class\s*=\s*(["'])[^"']*\bpullquote\b[^"']*\1/i.test(attrs)) return match;
+
+      /* A nested div means the non-greedy match above ended at the INNER
+         closing tag, so `inner` is not the whole quote. Rewriting it would
+         move markup around. Leave it exactly as it is. */
+      if (/<div\b/i.test(inner)) return match;
+
+      /* An empty wrapper is not a quote, and emitting <blockquote></blockquote>
+         would render as a stray rule with nothing in it. */
+      if (!inner.replace(/<[^>]*>/g, '').trim()) return match;
+
+      return `<blockquote class="pullquote">${inner}</blockquote>`;
+    },
+  );
+}
+
 export function sanitizeArticleHtml(html: string): string {
   if (!html) return '';
   
-  const processedHtml = extractYouTubeEmbeds(extractSubstackGalleries(demoteHeadings(html)));
+  const processedHtml = extractYouTubeEmbeds(extractSubstackGalleries(liftPullQuotes(demoteHeadings(html))));
   
   return sanitizeHtml(processedHtml, {
     allowedTags: ALLOWED_TAGS,
     allowedAttributes: ALLOWED_ATTRS,
+    /* The ONLY class allowed to survive anywhere in article markup, and only
+       on the element liftPullQuotes() emits. `allowedClasses` restricts by
+       literal name, so this cannot become a general "classes are fine" hole:
+       every other class on every other tag is still stripped. */
+    allowedClasses: { blockquote: ['pullquote'] },
     // Strip Substack's tracking/CDN query junk but keep the URL usable.
     allowedSchemes: ['http', 'https', 'mailto'],
     transformTags: {

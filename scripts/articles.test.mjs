@@ -20,8 +20,11 @@ import {
   buildArticleRecord,
   buildPreview,
   mergeSnapshot,
+  liftPullQuotes,
 } from '../src/lib/articles-transform.ts';
 import { imageFingerprint, stripCoverImageFromBody } from '../src/lib/article-media.ts';
+import { parseImageDimensions, labelImageLinks } from '../src/lib/article-images-transform.ts';
+import { getCardImageSources, isSubstackFetchUrl } from '../src/lib/card-images.ts';
 import {
   ALREADY_OPTIMISED,
   lookupRendition,
@@ -579,11 +582,50 @@ test('no article-page image is routed through a live resizing proxy', () => {
       '      shared proxy with a cold cache, and putting it behind the gallery\n' +
       '      lightbox is what produced "blank while sliding" on a phone.',
   );
-  assert.ok(
-    !/getCardImageSources/.test(articlePage),
-    'the card rendition helper must not be used here: for a Substack S3 upload\n' +
-      '      it returns a wsrv.nl URL, which is exactly the reverted behaviour.',
+  /*
+    The blanket ban on getCardImageSources was replaced by a narrower one, and
+    the reason matters.
+
+    The ban existed because that helper has THREE branches and only one of them
+    is safe here: substackcdn URLs get a transform on Substack's own warm CDN,
+    YouTube URLs get a known rendition, and everything else — including a
+    Substack S3 upload — gets wsrv.nl, the reverted proxy.
+
+    The article hero needs the substackcdn branch. Cover images arrive from a
+    different field of the posts API than body images and carry NO width
+    transform, so without it the hero shipped a full-resolution source as the
+    eager LCP element with no srcset.
+
+    So the helper is allowed, but ONLY behind isSubstackFetchUrl(), which makes
+    the wsrv.nl branch unreachable from this page. That gate is now the thing
+    under guard: delete it and the reverted behaviour returns silently.
+  */
+  const usesCardHelper = /getCardImageSources\s*\(/.test(articlePage);
+  if (usesCardHelper) {
+    assert.ok(
+      /isSubstackFetchUrl\s*\([^)]*\)\s*\?\s*getCardImageSources\s*\(/.test(articlePage),
+      'getCardImageSources() may only be called behind isSubstackFetchUrl(). Ungated,\n' +
+        '      a Substack S3 cover resolves to a wsrv.nl URL on the LCP element, which is\n' +
+        '      exactly the behaviour that was reverted.',
+    );
+  }
+});
+
+test('the isSubstackFetchUrl gate actually excludes the proxy branch', () => {
+  // The guard above reads source text. This one proves the claim it rests on
+  // against the real helper, so the two cannot drift apart.
+  const s3Cover = 'https://substack-post-media.s3.amazonaws.com/public/images/a_3840x2160.png';
+  assert.equal(isSubstackFetchUrl(s3Cover), false, 'an S3 cover must not pass the gate');
+  assert.match(
+    getCardImageSources(s3Cover).src,
+    /wsrv\.nl/,
+    'if this stops being a proxy URL the gate is no longer load-bearing and this whole guard should be revisited',
   );
+
+  const cdnCover =
+    'https://substackcdn.com/image/fetch/$s_!Rj68!,f_auto,q_auto:good/https%3A%2F%2Fh%2Fa_1086x1609.png';
+  assert.equal(isSubstackFetchUrl(cdnCover), true);
+  assert.ok(!/wsrv\.nl/.test(getCardImageSources(cdnCover).src));
 });
 
 test('the hero falls back to the original when there is no local rendition', () => {
@@ -600,9 +642,26 @@ test('the hero falls back to the original when there is no local rendition', () 
 });
 
 test('the body transform is applied to the html that is actually rendered', () => {
+  /*
+    Was an exact match on `localiseBodyImages(dedupedBody)`. The call is now
+    wrapped by labelImageLinks(), so the literal no longer matches — but the
+    invariant it was protecting is unchanged and still worth pinning: images
+    must be localised from the DEDUPED body, never from article.bodyHtml,
+    or the page renders the cover twice.
+  */
   assert.ok(
-    /const bodyWithLocalImages = localiseBodyImages\(dedupedBody\)/.test(articlePage),
-    'body images must be localised from the DEDUPED body',
+    /localiseBodyImages\(dedupedBody\)/.test(articlePage),
+    'body images must be localised from the DEDUPED body, not article.bodyHtml',
+  );
+  assert.ok(
+    /const bodyWithLocalImages = [\s\S]{0,40}localiseBodyImages\(dedupedBody\)/.test(articlePage),
+    'the localised, deduped body must be what lands in bodyWithLocalImages',
+  );
+  assert.ok(
+    /labelImageLinks\(localiseBodyImages\(dedupedBody\)\)/.test(articlePage),
+    'image links must be given an accessible name. Substack wraps body images in\n' +
+      '      a click-to-enlarge anchor around an alt-less image, which leaves the link\n' +
+      '      with no accessible name at all — Lighthouse `link-name`, WCAG 2.4.4/4.1.2.',
   );
   assert.ok(
     /buildToc\(bodyWithLocalImages\)/.test(articlePage),
@@ -629,20 +688,76 @@ test('a known image is rewritten to its committed rendition', () => {
   assert.ok(out.includes('alt="x"'), 'other attributes must survive');
 });
 
-test('a URL with no manifest entry is returned BYTE-IDENTICAL', () => {
-  /* The safety property: this can make things faster, never broken. */
+test('a URL with no manifest entry keeps its SOURCE untouched', () => {
+  /*
+    Was "returned BYTE-IDENTICAL". The safety property is unchanged and still
+    the whole point — this can make things faster, never broken — but the
+    boundary moved deliberately: `src` and `srcset` are still never touched
+    without a rendition, while `loading` and `decoding` are now ALWAYS added.
+
+    They have to be. Every body image on a Substack article is a substackcdn
+    URL and ALREADY_OPTIMISED skips those, so under the old rule the images
+    that needed lazy loading MOST were exactly the ones that never got it:
+    three eager, full-width fetches competing with the hero for the LCP.
+
+    That is invisible in a sandbox with no route to substackcdn, where those
+    images simply fail and the page scores 98. On a runner that can reach it,
+    the same page scored 75.
+  */
   for (const html of [
     '<figure><img src="https://unknown.example/a.jpg" alt="x"></figure>',
     '<img src="/local/a.png">',
     '<img src="data:image/png;base64,AA">',
-    '<img alt="no src">',
   ]) {
-    assert.equal(rewriteBodyImages(html, fixtureLookup), html);
+    const out = rewriteBodyImages(html, fixtureLookup);
+    assert.equal(
+      out.match(/src="([^"]*)"/)?.[1],
+      html.match(/src="([^"]*)"/)?.[1],
+      `the source must not change without a rendition: ${html}`,
+    );
+    assert.ok(!/srcset=/.test(out), `no srcset without a rendition: ${html}`);
+    assert.match(out, /loading="lazy"/);
+    assert.match(out, /decoding="async"/);
   }
+
+  // No `src` at all means there is nothing to do, so it stays byte-identical.
+  assert.equal(rewriteBodyImages('<img alt="no src">', fixtureLookup), '<img alt="no src">');
+
   assert.equal(lookupRendition(FIXTURE_MANIFEST, 'https://unknown.example/a.jpg'), null);
   for (const bad of ['', null, undefined, 42]) {
     assert.equal(lookupRendition(FIXTURE_MANIFEST, bad), null);
   }
+});
+
+test('an existing loading or decoding attribute is still never overwritten', () => {
+  const html = '<img src="https://unknown.example/a.jpg" loading="eager" decoding="sync">';
+  const out = rewriteBodyImages(html, fixtureLookup);
+  assert.match(out, /loading="eager"/);
+  assert.match(out, /decoding="sync"/);
+  assert.ok(!/loading="lazy"/.test(out));
+});
+
+test('the fallback supplies a rendition when the manifest cannot', () => {
+  // This is the substackcdn path: no committed rendition, but the caller can
+  // still reshape the URL. Without it every Substack body image shipped at
+  // w_1456 with no srcset.
+  const html = '<img src="https://cdn.example/x.jpg">';
+  const out = rewriteBodyImages(html, () => null, undefined, () => ({
+    src: '/renditions/x-600.webp',
+    srcset: '/renditions/x-400.webp 400w, /renditions/x-600.webp 600w',
+  }));
+  assert.match(out, /src="\/renditions\/x-600\.webp"/);
+  assert.match(out, /srcset="[^"]*400w/);
+  assert.match(out, /loading="lazy"/);
+});
+
+test('a throwing fallback degrades to the original source', () => {
+  const html = '<img src="https://cdn.example/x.jpg">';
+  const out = rewriteBodyImages(html, () => null, undefined, () => {
+    throw new Error('boom');
+  });
+  assert.match(out, /src="https:\/\/cdn\.example\/x\.jpg"/);
+  assert.ok(!/srcset=/.test(out));
 });
 
 test('an already-optimised substackcdn URL is deliberately left alone', () => {
@@ -669,10 +784,16 @@ test('an existing srcset/loading/decoding is never overwritten', () => {
   assert.ok(!out.includes('480w'), 'and must not be joined by a second one');
 });
 
-test('a throwing lookup leaves the tag verbatim', () => {
+test('a throwing lookup leaves the SOURCE verbatim', () => {
+  // Same narrowing as above: the source is untouched, loading/decoding still
+  // applied. A lookup that explodes must never cost the reader an image.
   const html = '<img src="https://s3.example/big_3840x2160.jpeg">';
-  assert.equal(rewriteBodyImages(html, () => { throw new Error('boom'); }), html);
-  assert.equal(rewriteBodyImages(html, () => ({ src: '', srcset: '' })), html);
+  for (const lookup of [() => { throw new Error('boom'); }, () => ({ src: '', srcset: '' })]) {
+    const out = rewriteBodyImages(html, lookup);
+    assert.match(out, /src="https:\/\/s3\.example\/big_3840x2160\.jpeg"/);
+    assert.ok(!/srcset=/.test(out));
+    assert.match(out, /loading="lazy"/);
+  }
   assert.equal(rewriteBodyImages('', fixtureLookup), '');
   assert.equal(rewriteBodyImages(null, fixtureLookup), '');
 });
@@ -736,3 +857,208 @@ if (failed > 0) {
 } else {
   console.log(`All ${passed} tests passed.`);
 }
+
+/*
+  ─── INTRINSIC DIMENSIONS ───────────────────────────────────────────────────
+
+  The article hero declared width="1456" height="816" for every cover. With
+  `.article-hero { width: 100%; height: auto }` the browser reserves space from
+  those attributes and reflows to the real ratio on load. Every cover was 16:9,
+  so the wrong constant was invisible until a 1086x1609 PORTRAIT cover shipped:
+  in a 720px column the reserved box is 404px and the real box is 1067px, a
+  ~660px shift on the LCP element.
+*/
+console.log('\nparseImageDimensions');
+
+test('reads dimensions off a substackcdn cover with no width transform', () => {
+  const url =
+    'https://substackcdn.com/image/fetch/$s_!Rj68!,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F66b03785-c2cf-4153-96c6-81ed4c41fd05_1086x1609.png';
+  assert.deepEqual(parseImageDimensions(url), { width: 1086, height: 1609 });
+});
+
+test('prefers the filename over anything earlier in the URL', () => {
+  // The transform segment carries its own digits (w_1456). Reading the FIRST
+  // match instead of the last would be a plausible and wrong implementation.
+  const url =
+    'https://substackcdn.com/image/fetch/$s_!x!,w_1456,c_limit/https%3A%2F%2Fhost%2Fa_100x200.png%2Fb_3840x2160.png';
+  assert.deepEqual(parseImageDimensions(url), { width: 3840, height: 2160 });
+});
+
+test('handles every extension Substack emits', () => {
+  for (const ext of ['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif']) {
+    assert.deepEqual(parseImageDimensions(`https://h/x_800x600.${ext}`), { width: 800, height: 600 });
+  }
+});
+
+test('returns null rather than guessing', () => {
+  for (const bad of ['', null, undefined, 42, {}, 'https://h/no-dimensions.jpg', '/article-images/abc-720.webp']) {
+    assert.equal(parseImageDimensions(bad), null, `should decline ${JSON.stringify(bad)}`);
+  }
+});
+
+test('does not match an id that merely contains x between digits', () => {
+  assert.equal(parseImageDimensions('https://h/66b03785-c2cf-4153-96c6-81ed4c41fd05.png'), null);
+});
+
+test('every cover in the real store either parses or falls back safely', () => {
+  const records = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/data/articles.json'), 'utf-8'));
+  for (const record of records) {
+    const dims = parseImageDimensions(record.image);
+    if (dims === null) continue; // falls back to 1456x816, which is the old behaviour
+    assert.ok(dims.width > 0 && dims.height > 0, `${record.slug} produced a nonsense ratio`);
+  }
+});
+
+/*
+  ─── PULL QUOTES ────────────────────────────────────────────────────────────
+
+  Substack marks one with `<div class="pullquote">`. Neither `div` nor `class`
+  is on the allowlist, so the wrapper was discarded and the quote arrived as an
+  ordinary bold paragraph sitting directly above the sentence it repeats.
+
+  The fixture below is the REAL markup, taken verbatim off
+  /p/why-im-actually-hyped-for-avengers.
+*/
+console.log('\npull quotes');
+
+const REAL_PULLQUOTE =
+  '<div class="pullquote"><p><strong>I was one of the fans who did the 22-movie Marvel Marathon</strong></p></div>';
+
+test('the real Substack pull quote survives sanitization as a blockquote', () => {
+  const out = sanitizeArticleHtml(`${REAL_PULLQUOTE}<p>Body.</p>`);
+  assert.ok(out.includes('<blockquote class="pullquote">'), out);
+  assert.ok(out.includes('22-movie Marvel Marathon'), out);
+  assert.ok(!out.includes('<div'), 'the div wrapper must not survive');
+});
+
+test('inner markup is passed through untouched', () => {
+  assert.equal(
+    liftPullQuotes('<div class="pullquote"><p><strong>a</strong> <em>b</em></p></div>'),
+    '<blockquote class="pullquote"><p><strong>a</strong> <em>b</em></p></blockquote>',
+  );
+});
+
+test('a div that is not a pull quote is returned byte-identical', () => {
+  for (const html of [
+    '<div class="captioned-image-container"><img src="https://h/a.png"></div>',
+    '<div>plain</div>',
+    '<div class="pullquotes-roundup"><p>not it</p></div>',
+    '<div class="notapullquote"><p>nor this</p></div>',
+  ]) {
+    assert.equal(liftPullQuotes(html), html, html);
+  }
+});
+
+test('an empty pull quote is left alone rather than becoming a stray rule', () => {
+  const empty = '<div class="pullquote"><p>   </p></div>';
+  assert.equal(liftPullQuotes(empty), empty);
+});
+
+test('a pull quote containing a nested div is not rewritten', () => {
+  // The non-greedy matcher would end at the inner </div>, so rewriting would
+  // move markup around. Declining is the safe answer.
+  const nested = '<div class="pullquote"><div class="x"><p>q</p></div></div>';
+  assert.equal(liftPullQuotes(nested), nested);
+});
+
+test('multiple pull quotes in one body are all lifted', () => {
+  const out = liftPullQuotes(`${REAL_PULLQUOTE}<p>mid</p>${REAL_PULLQUOTE}`);
+  assert.equal(out.match(/<blockquote class="pullquote">/g).length, 2);
+});
+
+test('a class attribute survives ONLY as pullquote, and only on blockquote', () => {
+  // The allowlist widening is the security-relevant part of this change.
+  assert.ok(!sanitizeArticleHtml('<p class="pullquote">x</p>').includes('class'));
+  assert.ok(!sanitizeArticleHtml('<blockquote class="tracking-pixel">x</blockquote>').includes('class'));
+  assert.ok(!sanitizeArticleHtml('<blockquote class="pullquote evil">x</blockquote>').includes('evil'));
+  assert.ok(sanitizeArticleHtml('<blockquote class="pullquote">x</blockquote>').includes('class="pullquote"'));
+});
+
+test('a real block quotation is still a plain blockquote', () => {
+  const out = sanitizeArticleHtml('<blockquote><p>Someone else said this.</p></blockquote>');
+  assert.ok(out.includes('<blockquote>'), out);
+  assert.ok(!out.includes('pullquote'), out);
+});
+
+test('liftPullQuotes survives junk input', () => {
+  assert.equal(liftPullQuotes(''), '');
+  assert.equal(liftPullQuotes(null), '');
+  assert.equal(liftPullQuotes(undefined), '');
+});
+
+/*
+  ─── IMAGE LINKS NEED AN ACCESSIBLE NAME ────────────────────────────────────
+
+  Substack wraps body images in a click-to-enlarge anchor and supplies no alt
+  text, so the link had no accessible name at all — a screen reader announced
+  "link" and nothing else, 29 times across the current store. Lighthouse caught
+  it as `link-name`: 97% accessibility on /intel/<slug> where every other
+  audited page scores 100. WCAG 2.4.4 and 4.1.2.
+
+  The fixture is the real markup, verbatim from articles.json.
+*/
+console.log('\nlabelImageLinks');
+
+const REAL_IMAGE_LINK =
+  '<a target="_blank" href="https://substackcdn.com/image/fetch/x" rel="noopener noreferrer"><img src="a.png" alt="" /></a>';
+
+test('the real Substack image link gets a name', () => {
+  const out = labelImageLinks(REAL_IMAGE_LINK);
+  assert.match(out, /aria-label="Open image in a new tab"/);
+  // Everything else about the anchor survives untouched.
+  assert.match(out, /target="_blank"/);
+  assert.match(out, /rel="noopener noreferrer"/);
+  assert.match(out, /<img src="a\.png" alt="" \/>/);
+});
+
+test('a link that already has a name is left alone', () => {
+  for (const html of [
+    '<a href="/x" aria-label="Already named"><img src="a.png" alt=""></a>',
+    '<a href="/x" aria-labelledby="cap"><img src="a.png" alt=""></a>',
+    '<a href="/x"><img src="a.png" alt="A film poster"></a>',
+    '<a href="/x"><img src="a.png" alt="">Read the review</a>',
+  ]) {
+    assert.equal(labelImageLinks(html), html, html);
+  }
+});
+
+test('a link with no image is never touched', () => {
+  for (const html of ['<a href="/x">Words</a>', '<a href="/x"></a>', '<p>no links here</p>']) {
+    assert.equal(labelImageLinks(html), html, html);
+  }
+});
+
+test('the wording matches whether it really opens a new tab', () => {
+  assert.match(labelImageLinks('<a href="/x"><img src="a.png" alt=""></a>'), /aria-label="Open image"/);
+  assert.match(
+    labelImageLinks('<a href="/x" target="_blank"><img src="a.png" alt=""></a>'),
+    /aria-label="Open image in a new tab"/,
+  );
+});
+
+test('every image link in the real store ends up named', () => {
+  const records = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/data/articles.json'), 'utf-8'));
+  let unnamed = 0;
+  let total = 0;
+  for (const record of records) {
+    const out = labelImageLinks(record.bodyHtml || '');
+    for (const [, attrs, inner] of out.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)) {
+      if (!/<img\b/i.test(inner)) continue;
+      if (inner.replace(/<[^>]*>/g, '').trim()) continue;
+      total += 1;
+      const named =
+        /aria-label\s*=/i.test(attrs) ||
+        /aria-labelledby\s*=/i.test(attrs) ||
+        /\balt\s*=\s*(["'])(?!\1)/i.test(inner);
+      if (!named) unnamed += 1;
+    }
+  }
+  assert.ok(total > 0, 'expected image-wrapping links in the store');
+  assert.equal(unnamed, 0, `${unnamed} of ${total} image links still have no accessible name`);
+});
+
+test('labelImageLinks survives junk input', () => {
+  assert.equal(labelImageLinks(''), '');
+  assert.equal(labelImageLinks(null), '');
+  assert.equal(labelImageLinks(undefined), '');
+});

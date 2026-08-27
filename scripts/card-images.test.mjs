@@ -15,6 +15,7 @@ import {
   getCardImageSources,
   CARD_IMAGE_SIZES,
   youtubeFallbackSrc,
+  isSubstackFetchUrl,
 } from '../src/lib/card-images.ts';
 
 let passed = 0;
@@ -163,7 +164,7 @@ test('the other transforms are preserved in order', () => {
     src.indexOf('image/fetch/') + 'image/fetch/'.length,
     src.indexOf('/https%3A'),
   );
-  for (const part of ['$s_!qfD6!', 'f_auto', 'q_auto:good', 'fl_progressive:steep']) {
+  for (const part of ['$s_!qfD6!', 'f_auto', 'q_auto:eco', 'fl_progressive:steep']) {
     assert.ok(transforms.split(',').includes(part), `${part} missing from ${transforms}`);
   }
 });
@@ -309,6 +310,56 @@ test('applying it twice is a no-op', () => {
   const once = youtubeFallbackSrc(MAXRES);
   assert.equal(youtubeFallbackSrc(once), '');
 });
+
+
+/*
+  ─── THE ARTICLE HERO ───────────────────────────────────────────────────────
+
+  Added after a portrait cover (1086x1609) tanked the article page's Lighthouse
+  score two ways at once, both of which live here now.
+
+  1. The hero fell through to the RAW `article.image`. localArticleImage()
+     returns null for substackcdn URLs by design, because Substack's BODY
+     images arrive carrying `w_1456,c_limit`. Cover images come from a
+     different field and carry NO width transform, so the hero shipped the
+     source at full resolution with no srcset, as the eager LCP element.
+
+  2. It declared `width="1456" height="816"` regardless of the real image.
+
+  isSubstackFetchUrl() is the gate that lets the hero reuse the substackcdn
+  branch of getCardImageSources() WITHOUT ever reaching the wsrv.nl branch,
+  which is the cold third-party transcode that was reverted once already.
+*/
+console.log('article hero sources');
+
+const COVER_NO_WIDTH =
+  'https://substackcdn.com/image/fetch/$s_!Rj68!,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F66b03785_1086x1609.png';
+
+test('isSubstackFetchUrl admits substackcdn fetch URLs and nothing else', () => {
+  assert.equal(isSubstackFetchUrl(COVER_NO_WIDTH), true);
+  assert.equal(isSubstackFetchUrl('https://substack-post-media.s3.amazonaws.com/public/images/a_1x1.png'), false);
+  assert.equal(isSubstackFetchUrl('https://i.ytimg.com/vi/abc/maxresdefault.jpg'), false);
+  assert.equal(isSubstackFetchUrl(''), false);
+  assert.equal(isSubstackFetchUrl(null), false);
+  assert.equal(isSubstackFetchUrl(undefined), false);
+});
+
+test('a cover with NO width transform still gets one, plus a srcset', () => {
+  const { src, srcset } = getCardImageSources(COVER_NO_WIDTH);
+  assert.match(src, /,w_\d+,c_limit\//, 'src must carry an inserted width cap');
+  assert.ok(!/w_\d+.*w_\d+/.test(src.split('/https')[0]), 'exactly one width in the transform list');
+  const widths = [...srcset.matchAll(/ (\d+)w/g)].map((m) => Number(m[1]));
+  assert.deepEqual(widths, [400, 600, 900, 1200]);
+});
+
+test('the hero never routes a non-Substack cover through wsrv.nl', () => {
+  // The guard is isSubstackFetchUrl, not getCardImageSources. This pins the
+  // reason the guard has to exist: without it, an S3 cover would be proxied.
+  const s3 = 'https://substack-post-media.s3.amazonaws.com/public/images/a_3840x2160.png';
+  assert.equal(isSubstackFetchUrl(s3), false);
+  assert.match(getCardImageSources(s3).src, /wsrv\.nl/);
+});
+
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);
 process.exit(failed === 0 ? 0 : 1);

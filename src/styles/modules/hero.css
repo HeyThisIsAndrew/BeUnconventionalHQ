@@ -77,6 +77,14 @@ body.scroll-locked .hero {
      "EXPLORE THE HQ / WHAT WE COVER" — peeks in under it. Reported from an
      iPhone; desktop never shows it because there is no retracting chrome.
 
+     CONFIRMED FIXED on a physical iPhone in portrait with `100lvh`: scrolled
+     down and back to the top, letting the address bar retract mid-scroll, and
+     the next section stays out of sight. Recorded because two later attempts
+     to "improve" this line were made after the original fix and both were
+     worse on the device — see scripts/viewport-units.test.mjs, which pins the
+     unit precisely because no automated test in this project can tell the
+     three apart.
+
      Sizing to `lvh` means the hero is never SHORTER than the visible area.
      When the bar is expanded it is slightly taller instead, which costs
      about half the bar's height of vertical centring drift (~40-55px on an
@@ -84,6 +92,34 @@ body.scroll-locked .hero {
 
      Hero.astro's measureLift() reads `hero.offsetHeight` rather than assuming
      a unit, so the splash lift follows this automatically. */
+  /*
+     ─── AND `--vv-height` IS WRONG HERE. TRIED IT, MEASURED IT ─────────────
+     Sizing this from the measured `visualViewport.height` looked like the
+     obvious next step — no static unit is right in both chrome states, and
+     landscape.css already measures. On a real iPhone it made the reported
+     symptom WORSE, and the reason is a distinction that is easy to miss:
+
+       visualViewport  is the SMALL viewport. With the toolbar shown it
+                       EXCLUDES the toolbar.
+       layout viewport is the LARGE one. iOS paints page content behind and
+                       just below the translucent toolbar.
+
+     So a hero sized to the visual viewport is SHORTER than the layout
+     viewport, and the strip between the two is exactly where the next
+     section shows through — under the toolbar, which is where it was
+     photographed.
+
+     `lvh` IS the layout viewport, so the hero reaches its bottom in every
+     chrome state. That is what the note above means by "never SHORTER than
+     the visible area", and it is why this is a static unit, not a
+     measurement.
+
+     landscape.css can measure because it uses the value as a MIN-bound with
+     an auto-sized box, so a too-small measurement just lets the content
+     decide. This rule is an outright size, where too small is a gap.
+
+     Do not swap this for svh, dvh or a measurement without testing on a real
+     iOS device. All three have been tried. */
   .hero {
     height: 100lvh;
   }

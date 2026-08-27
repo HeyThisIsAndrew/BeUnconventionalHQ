@@ -147,11 +147,21 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   (Node 22 native type-stripping; src/lib imports use explicit `.ts`
   extensions — `allowImportingTsExtensions` is on).
 - WIP/utility routes are gated three ways: `noindex` prop on `<Layout>`,
-  sitemap filter in `astro.config.mjs`, robots.txt. Currently gated:
-  `/events-new` (WIP, promotes to `/events` later), `/links` (bio-only,
-  deliberately NOT robots-blocked so crawlers can read its noindex),
-  `/admin` (Sanity Studio, header-gated via `public/_headers`), `/local-cms`
-  (Local CMS, dev-only — shows a static "Restricted Access" message in prod).
+  sitemap filter in `astro.config.mjs`, robots.txt.
+  **THE SITEMAP FILTER IN `astro.config.mjs` IS THE SOURCE OF TRUTH, not this
+  list.** An earlier version of this note named four routes and omitted two,
+  and a review agent took that as the complete set and reported the two
+  missing ones as indexable pages wrongly carrying `noindex`. They were
+  correctly gated all along. Read the `filter:` array in the sitemap config
+  before concluding anything about what is or is not meant to be indexed.
+  Gated at the time of writing: `/events-new` (WIP, promotes to `/events`
+  later), `/links` (bio-only, deliberately NOT robots-blocked so crawlers can
+  read its noindex), `/admin` (Sanity Studio, header-gated via
+  `public/_headers`), `/local-cms` (Local CMS, dev-only — shows a static
+  "Restricted Access" message in prod), `/media-kit` and
+  `/collaborations/press-kit` (standalone print/sales documents that do not
+  use `<Layout>` at all, which is also why they carry no canonical — a
+  noindexed page does not need one).
 - The muted-grey text palette is a deliberate design trade-off; don't "fix" it
   without the owner. It does NOT, however, fail WCAG the way this note used to
   claim: an automated pass over six routes found zero failures at rest.
