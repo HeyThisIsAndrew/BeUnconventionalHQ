@@ -32,6 +32,7 @@ import {
   type ArticleImageManifest,
   type ArticleImageRendition,
 } from './article-images-transform.ts';
+import { getCardImageSources, isSubstackFetchUrl } from './card-images.ts';
 
 export type { ArticleImageRendition };
 
@@ -45,7 +46,23 @@ export function localArticleImage(rawUrl: unknown): ArticleImageRendition | null
   return lookupRendition(MANIFEST, rawUrl);
 }
 
-/** Rewrite article body `<img>` tags to committed renditions where they exist. */
+/**
+ * Rewrite article body `<img>` tags to committed renditions where they exist.
+ *
+ * The fallback is the same one the hero uses, and gated the same way: a
+ * substackcdn URL gets a width cap and a srcset on Substack's own warm CDN,
+ * and anything else is left alone so it can never reach the wsrv.nl branch of
+ * getCardImageSources() — the cold third-party transcode this module's header
+ * exists to keep out of the article path.
+ *
+ * Without it, every body image on a Substack article shipped at w_1456 with no
+ * srcset, because ALREADY_OPTIMISED skips substackcdn by design.
+ */
 export function localiseBodyImages(bodyHtml: string, sizes?: string): string {
-  return rewriteBodyImages(bodyHtml, (url) => lookupRendition(MANIFEST, url), sizes);
+  return rewriteBodyImages(
+    bodyHtml,
+    (url) => lookupRendition(MANIFEST, url),
+    sizes,
+    (url) => (isSubstackFetchUrl(url) ? getCardImageSources(url) : null),
+  );
 }

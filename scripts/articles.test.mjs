@@ -688,20 +688,76 @@ test('a known image is rewritten to its committed rendition', () => {
   assert.ok(out.includes('alt="x"'), 'other attributes must survive');
 });
 
-test('a URL with no manifest entry is returned BYTE-IDENTICAL', () => {
-  /* The safety property: this can make things faster, never broken. */
+test('a URL with no manifest entry keeps its SOURCE untouched', () => {
+  /*
+    Was "returned BYTE-IDENTICAL". The safety property is unchanged and still
+    the whole point — this can make things faster, never broken — but the
+    boundary moved deliberately: `src` and `srcset` are still never touched
+    without a rendition, while `loading` and `decoding` are now ALWAYS added.
+
+    They have to be. Every body image on a Substack article is a substackcdn
+    URL and ALREADY_OPTIMISED skips those, so under the old rule the images
+    that needed lazy loading MOST were exactly the ones that never got it:
+    three eager, full-width fetches competing with the hero for the LCP.
+
+    That is invisible in a sandbox with no route to substackcdn, where those
+    images simply fail and the page scores 98. On a runner that can reach it,
+    the same page scored 75.
+  */
   for (const html of [
     '<figure><img src="https://unknown.example/a.jpg" alt="x"></figure>',
     '<img src="/local/a.png">',
     '<img src="data:image/png;base64,AA">',
-    '<img alt="no src">',
   ]) {
-    assert.equal(rewriteBodyImages(html, fixtureLookup), html);
+    const out = rewriteBodyImages(html, fixtureLookup);
+    assert.equal(
+      out.match(/src="([^"]*)"/)?.[1],
+      html.match(/src="([^"]*)"/)?.[1],
+      `the source must not change without a rendition: ${html}`,
+    );
+    assert.ok(!/srcset=/.test(out), `no srcset without a rendition: ${html}`);
+    assert.match(out, /loading="lazy"/);
+    assert.match(out, /decoding="async"/);
   }
+
+  // No `src` at all means there is nothing to do, so it stays byte-identical.
+  assert.equal(rewriteBodyImages('<img alt="no src">', fixtureLookup), '<img alt="no src">');
+
   assert.equal(lookupRendition(FIXTURE_MANIFEST, 'https://unknown.example/a.jpg'), null);
   for (const bad of ['', null, undefined, 42]) {
     assert.equal(lookupRendition(FIXTURE_MANIFEST, bad), null);
   }
+});
+
+test('an existing loading or decoding attribute is still never overwritten', () => {
+  const html = '<img src="https://unknown.example/a.jpg" loading="eager" decoding="sync">';
+  const out = rewriteBodyImages(html, fixtureLookup);
+  assert.match(out, /loading="eager"/);
+  assert.match(out, /decoding="sync"/);
+  assert.ok(!/loading="lazy"/.test(out));
+});
+
+test('the fallback supplies a rendition when the manifest cannot', () => {
+  // This is the substackcdn path: no committed rendition, but the caller can
+  // still reshape the URL. Without it every Substack body image shipped at
+  // w_1456 with no srcset.
+  const html = '<img src="https://cdn.example/x.jpg">';
+  const out = rewriteBodyImages(html, () => null, undefined, () => ({
+    src: '/renditions/x-600.webp',
+    srcset: '/renditions/x-400.webp 400w, /renditions/x-600.webp 600w',
+  }));
+  assert.match(out, /src="\/renditions\/x-600\.webp"/);
+  assert.match(out, /srcset="[^"]*400w/);
+  assert.match(out, /loading="lazy"/);
+});
+
+test('a throwing fallback degrades to the original source', () => {
+  const html = '<img src="https://cdn.example/x.jpg">';
+  const out = rewriteBodyImages(html, () => null, undefined, () => {
+    throw new Error('boom');
+  });
+  assert.match(out, /src="https:\/\/cdn\.example\/x\.jpg"/);
+  assert.ok(!/srcset=/.test(out));
 });
 
 test('an already-optimised substackcdn URL is deliberately left alone', () => {
@@ -728,10 +784,16 @@ test('an existing srcset/loading/decoding is never overwritten', () => {
   assert.ok(!out.includes('480w'), 'and must not be joined by a second one');
 });
 
-test('a throwing lookup leaves the tag verbatim', () => {
+test('a throwing lookup leaves the SOURCE verbatim', () => {
+  // Same narrowing as above: the source is untouched, loading/decoding still
+  // applied. A lookup that explodes must never cost the reader an image.
   const html = '<img src="https://s3.example/big_3840x2160.jpeg">';
-  assert.equal(rewriteBodyImages(html, () => { throw new Error('boom'); }), html);
-  assert.equal(rewriteBodyImages(html, () => ({ src: '', srcset: '' })), html);
+  for (const lookup of [() => { throw new Error('boom'); }, () => ({ src: '', srcset: '' })]) {
+    const out = rewriteBodyImages(html, lookup);
+    assert.match(out, /src="https:\/\/s3\.example\/big_3840x2160\.jpeg"/);
+    assert.ok(!/srcset=/.test(out));
+    assert.match(out, /loading="lazy"/);
+  }
   assert.equal(rewriteBodyImages('', fixtureLookup), '');
   assert.equal(rewriteBodyImages(null, fixtureLookup), '');
 });

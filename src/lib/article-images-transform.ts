@@ -79,7 +79,8 @@ export function lookupRendition(
 export function rewriteBodyImages(
   bodyHtml: string,
   lookup: (url: string) => ArticleImageRendition | null,
-  sizes = '(max-width: 900px) 92vw, 720px'
+  sizes = '(max-width: 900px) 92vw, 720px',
+  fallback?: (url: string) => ArticleImageRendition | null
 ): string {
   const body = String(bodyHtml ?? '');
   if (!body) return body;
@@ -88,19 +89,57 @@ export function rewriteBodyImages(
     const src = tag.match(/\ssrc=["']([^"']+)["']/i)?.[1];
     if (!src) return tag;
 
-    let local: ArticleImageRendition | null;
+    let local: ArticleImageRendition | null = null;
     try {
       local = lookup(src);
     } catch {
-      return tag;
+      local = null;
     }
-    if (!local?.src) return tag;
 
-    let out = tag.replace(/(\ssrc=["'])[^"']+(["'])/i, `$1${local.src}$2`);
-
-    if (local.srcset && !/\ssrcset=/i.test(out)) {
-      out = out.replace(/<img\b/i, `<img srcset="${local.srcset}" sizes="${sizes}"`);
+    /*
+      No committed rendition. Before giving up, let the caller offer one — a
+      substackcdn URL can be reshaped into a width-capped srcset on Substack's
+      own CDN, which is what the article hero already does. See
+      localiseBodyImages() in ./article-images.ts for the gate that keeps this
+      off any host we would not want to hand the LCP path to.
+    */
+    if (!local?.src && fallback) {
+      try {
+        local = fallback(src);
+      } catch {
+        local = null;
+      }
     }
+
+    let out = tag;
+
+    if (local?.src) {
+      out = out.replace(/(\ssrc=["'])[^"']+(["'])/i, `$1${local.src}$2`);
+      if (local.srcset && !/\ssrcset=/i.test(out)) {
+        out = out.replace(/<img\b/i, `<img srcset="${local.srcset}" sizes="${sizes}"`);
+      }
+    }
+
+    /*
+      ─── LAZY AND ASYNC UNCONDITIONALLY ────────────────────────────────────
+
+      These used to be applied only when a rendition was found, which meant
+      the images that needed them MOST never got them. Every body image on a
+      Substack-sourced article is a substackcdn URL, ALREADY_OPTIMISED skips
+      those, so every one of them shipped eager with no srcset — three of them
+      on the article that was measured, all fetching at w_1456 and all
+      competing with the hero for the LCP.
+
+      That is invisible in a sandbox with no route to substackcdn, where the
+      images simply fail and the page scores 98. On a CI runner that can reach
+      it, the same page scored 75. The gap between those two numbers is
+      exactly this.
+
+      The article cover is rendered separately as the hero and
+      stripCoverImageFromBody() removes its copy from the body, so everything
+      reaching this function is below the fold by construction. An existing
+      loading or decoding attribute is still never overwritten.
+    */
     if (!/\sloading=/i.test(out)) out = out.replace(/<img\b/i, '<img loading="lazy"');
     if (!/\sdecoding=/i.test(out)) out = out.replace(/<img\b/i, '<img decoding="async"');
 
