@@ -194,7 +194,7 @@ const author = {
   name: DEFAULT_BYLINE.name,
   jobTitle: DEFAULT_BYLINE.role,
   description: DEFAULT_BYLINE.bio,
-  url: new URL('/about', site.url).toString(),
+  url: new URL('/author/andrew-baxter', site.url).toString(),
 };
 
 const shared = {
@@ -268,6 +268,10 @@ if (article.contentType === 'Review') {
     is:inline
     set:html={JSON.stringify(articleSchema)}
   />
+  <meta property="article:published_time" content={article.isoDate} slot="head" />
+  {article.lastUpdated && <meta property="article:modified_time" content={article.lastUpdated} slot="head" />}
+  <meta property="article:author" content={author.url} slot="head" />
+  <meta property="article:section" content={article.category} slot="head" />
 
   <main class="article-page">
     <div class="container">
@@ -277,6 +281,15 @@ if (article.contentType === 'Review') {
         <ArticleToc entries={tocEntries} landmarks={tocLandmarks} />
 
         <article class="article-column">
+          <nav aria-label="Breadcrumb" class="article-breadcrumbs">
+            <ol>
+              <li><a href="/">Home</a></li>
+              <li><a href="/intel">Intel</a></li>
+              {article.category && <li><a href={`/category/${article.category.toLowerCase()}`}>{article.category}</a></li>}
+              <li aria-current="page">{article.title}</li>
+            </ol>
+          </nav>
+          
           <header class="article-header" id="article-top">
             {/*
               Two tags, not one: the SUBJECT (Film / TV / Gaming) and the
