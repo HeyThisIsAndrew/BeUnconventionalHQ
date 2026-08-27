@@ -42,12 +42,31 @@ const mobileSocialRows = [
   founderSocials.slice(Math.ceil(founderSocials.length / 2)),
 ];
 
+
 const title = `${author.name} | BE UNCONVENTIONAL HQ`;
 const description = author.bio;
+
+const profileSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'ProfilePage',
+  'mainEntity': {
+    '@type': 'Person',
+    'name': author.name,
+    'description': author.bio,
+    'jobTitle': author.role,
+    'url': new URL(Astro.url.pathname, site.url).toString(),
+    'image': new URL(author.image, site.url).toString(),
+    'sameAs': founderSocials.map(s => s.url)
+  }
+};
+
 ---
 
+
 <Layout title={title} description={description}>
+  <script slot="head" type="application/ld+json" is:inline set:html={JSON.stringify(profileSchema)} />
   <main class="author-page">
+
     <section class="masthead-section">
       <div class="masthead-container">
         <div class="masthead-image">

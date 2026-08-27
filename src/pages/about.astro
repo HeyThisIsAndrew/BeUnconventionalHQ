@@ -72,10 +72,30 @@ const mobileSocialRows = [
   founderSocials.slice(0, Math.ceil(founderSocials.length / 2)),
   founderSocials.slice(Math.ceil(founderSocials.length / 2)),
 ];
+
+const title = "About | BE UNCONVENTIONAL HQ";
+const description = "Discover the story behind BE UNCONVENTIONAL HQ and our founder, Andrew Baxter.";
+
+const aboutSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'AboutPage',
+  'mainEntity': {
+    '@type': 'Person',
+    'name': founder.name,
+    'description': founder.bio,
+    'jobTitle': founder.role,
+    'image': new URL(founder.image, site.url).toString(),
+    'url': site.url,
+    'sameAs': founderSocials.map(s => s.url)
+  }
+};
 ---
 
+
 <Layout title={title} description={description}>
+  <script slot="head" type="application/ld+json" is:inline set:html={JSON.stringify(aboutSchema)} />
   <main class="about-page">
+
     <section class="about-hero">
       <div class="about-image-container animate-on-scroll">
         <Image
