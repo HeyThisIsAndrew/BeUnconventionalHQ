@@ -9,7 +9,24 @@ on:
     # by 15 for exactly this reason; this is the same fix for the pair that
     # was still colliding. The concurrency group below is the backstop for
     # when a run overruns its slot or someone fires one by hand.
-    - cron: '30 */6 * * *' # Every 6 hours, offset 30m from sync-youtube
+    # ── WHY HOURLY, NOT SIX-HOURLY ──────────────────────────────────────────
+    # At */6 the worst case between publishing on Substack and the post being
+    # live here was six hours PLUS a Cloudflare build. That is not a sync, it
+    # is a delay, and it pushed the owner into triggering this by hand every
+    # time — including for a typo fix on an already-published article.
+    #
+    # Hourly costs nothing: this repository is PUBLIC, and GitHub Actions
+    # minutes are free and unlimited for public repositories. So the only real
+    # budget is Substack's, not GitHub's.
+    #
+    # Which is why this is hourly and not every 15 minutes. Each run fetches
+    # the posts endpoint once and then the HTML of every item in the feed
+    # (~20). At */15 that would be ~1,900 page requests a day at an
+    # undocumented endpoint that CLAUDE.md already says to treat carefully;
+    # hourly is ~480 and still a 6x improvement. If a post needs to be live
+    # sooner than the next hour, use Run workflow — it takes about three
+    # minutes end to end and is the intended "publish now" path.
+    - cron: '30 * * * *' # Hourly at :30, staying clear of the other syncs
   workflow_dispatch:
     inputs:
       execute:

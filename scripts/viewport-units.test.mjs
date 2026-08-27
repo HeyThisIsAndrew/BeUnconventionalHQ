@@ -65,18 +65,39 @@ function mobileHeroHeight() {
 
 console.log('Hero viewport unit:');
 
-test('the mobile hero is sized in lvh', () => {
+test('the mobile hero is MEASURED, with lvh as the no-JS fallback', () => {
+  /*
+    Was `assert.equal(height, '100lvh')`.
+
+    `lvh` fixed the ORIGINAL bug (svh is the smallest viewport, so once Safari
+    retracted its address bar the hero stopped reaching the bottom and the next
+    section peeked in). But it reintroduced the same bug from the other side:
+    `lvh` is the height with the chrome RETRACTED, and a fresh load starts with
+    it EXPANDED, so the hero was again shorter than the screen. Reported on
+    iPhone portrait, fresh load only.
+
+    There is no static unit that is right in both chrome states. landscape.css
+    already concluded this and sizes from the measured `--vv-height`; portrait
+    now does the same. The fallback stays `100lvh` so a no-JS render ships
+    exactly what it shipped before.
+  */
   const height = mobileHeroHeight();
-  assert.equal(
+  assert.match(
     height,
-    '100lvh',
+    /^var\(--vv-height,\s*100lvh\)$/,
     `mobile .hero height is "${height}".\n\n` +
-      '      It must be 100lvh. 100svh leaves a gap at the bottom of an iPhone\n' +
-      '      once Safari retracts its address bar, and the next section shows\n' +
-      '      through. 100dvh removes the gap but re-resolves during scroll,\n' +
-      '      which re-rasterizes the blurred .hero-bg and causes the jitter\n' +
-      '      hero.css documents at length.\n',
+      '      It must be var(--vv-height, 100lvh). A STATIC unit cannot be right\n' +
+      '      in both chrome states: svh is short once the address bar retracts,\n' +
+      '      lvh is short on a fresh load before it has retracted, and dvh\n' +
+      '      re-resolves during scroll, re-rasterizing the blurred .hero-bg and\n' +
+      '      causing the jitter hero.css documents at length.\n',
   );
+});
+
+test('the portrait fallback is still lvh, never svh', () => {
+  // If the fallback regressed to svh, a no-JS render would bring back the
+  // ORIGINAL bug this rule was written for, and nothing else would catch it.
+  assert.match(mobileHeroHeight(), /100lvh\)$/);
 });
 
 test('the mobile hero is NOT sized in svh or dvh', () => {

@@ -31,7 +31,37 @@ const PREVIEW_PORT = 4323;
 const PROXY_PORT = 4324;
 const PREVIEW_URL = `http://localhost:${PREVIEW_PORT}`;
 const BASE_URL = `http://localhost:${PROXY_PORT}`;
-const THRESHOLD = 0.9; // 90%
+/*
+  ─── TWO BANDS, NOT ONE ─────────────────────────────────────────────────────
+
+  This gate used to be a single 90% line: below it, red build. That made sense
+  when the site was small and every score sat at 96-100, but it does not scale
+  with the thing the site exists to do. Each published article adds a cover
+  image, a card on /feed and /intel, and more DOM on the hub pages, so the
+  scores drift down as content accrues. A hard 90 turns ordinary publishing
+  into a build failure and trains everyone to ignore the gate — which is worse
+  than a lower bar, because an ignored gate catches nothing.
+
+  So the line is split, at the owner's direction:
+
+    >= 90%        PASS. Where the site should be, and usually is.
+    80% to 90%    WARN. Printed loudly, does NOT fail the build. This is the
+                  drift band: worth looking at, not worth blocking a post.
+    < 80%         FAIL. Something is actually broken — an unoptimised hero, a
+                  render-blocking third party, a layout shift on the LCP
+                  element. All three of those have happened here.
+
+  The warn band is deliberately wide. A narrow one just moves the ignoring
+  problem down ten points.
+*/
+const PASS_THRESHOLD = 0.9; // >= this is green
+const FAIL_THRESHOLD = 0.8; // < this fails the build
+
+/* The score that triggers the confirmation re-runs and the diagnostics dump.
+   Anything in the warn band or below is worth a second look, so this is the
+   WARN line, not the fail line — a page drifting to 85 should still print its
+   metrics, or the warning tells you nothing actionable. */
+const THRESHOLD = PASS_THRESHOLD;
 const CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo'];
 /*
   Every primary surface of the site. `/intel` was missing for as long as this
@@ -279,22 +309,26 @@ async function run() {
     }
   }
 
-  console.log(`\n[lighthouse-check] Results — ${FORM_FACTOR} (threshold: 90%):\n`);
+  console.log(`\n[lighthouse-check] Results — ${FORM_FACTOR} (pass ${PASS_THRESHOLD * 100}%, fail under ${FAIL_THRESHOLD * 100}%):\n`);
   console.log(
     ['Page', ...CATEGORIES].map((h) => h.padEnd(16)).join(' | ')
   );
   console.log('-'.repeat(16 * (CATEGORIES.length + 1) + 3 * CATEGORIES.length));
 
   let anyFailed = false;
+  let anyWarned = false;
   const retried = [];
   for (const { pagePath, scores, samples } of results) {
     const row = [pagePath.padEnd(16)];
     for (const cat of CATEGORIES) {
       const score = scores[cat];
       const pct = score === null ? 'N/A' : `${Math.round(score * 100)}%`;
-      const failed = score !== null && score < THRESHOLD;
+      const failed = score !== null && score < FAIL_THRESHOLD;
+      const warned = score !== null && !failed && score < PASS_THRESHOLD;
       if (failed) anyFailed = true;
-      row.push((failed ? `❌ ${pct}` : `✅ ${pct}`).padEnd(16));
+      if (warned) anyWarned = true;
+      const mark = failed ? '❌' : warned ? '⚠️ ' : '✅';
+      row.push(`${mark} ${pct}`.padEnd(16));
     }
     console.log(row.join(' | ') + (samples ? '  (median of 3)' : ''));
     if (samples) retried.push({ pagePath, samples });
@@ -341,9 +375,20 @@ async function run() {
   }
 
   if (anyFailed) {
-    fail('One or more pages scored below the 90% threshold.');
+    fail(
+      `One or more pages scored below the ${FAIL_THRESHOLD * 100}% failure threshold. ` +
+        `Scores between ${FAIL_THRESHOLD * 100}% and ${PASS_THRESHOLD * 100}% are warnings; this is below that.`,
+    );
+  } else if (anyWarned) {
+    /* Exit 0. A warning that fails the build is a failure with a friendlier
+       name, and the whole point of the band is that publishing does not stop
+       for it. */
+    console.log(
+      `\n[lighthouse-check] ⚠️  One or more pages are in the ${FAIL_THRESHOLD * 100}-${PASS_THRESHOLD * 100}% warning band.\n` +
+        `    Not a failure, and the build is green. Worth a look before it drifts under ${FAIL_THRESHOLD * 100}%.`,
+    );
   } else {
-    console.log('\n[lighthouse-check] All pages passed at 90%+ across all categories.');
+    console.log(`\n[lighthouse-check] All pages passed at ${PASS_THRESHOLD * 100}%+ across all categories.`);
   }
 }
 
