@@ -1051,10 +1051,10 @@ ${activeFonts
       }
 
       // Swipe & Drag & Scroll Gestures
-      const deckStack = section.querySelector('.deck-stack');
+      const deckStack = section.querySelector('.deck-stack') as HTMLElement;
       if (deckStack) {
         // Shared swipe logic
-        const handleSwipe = (diff) => {
+        const handleSwipe = (diff: number) => {
           if (Math.abs(diff) > 50) {
             if (diff > 0) {
               activeIndex = (activeIndex + 1) % cards.length;
@@ -1067,24 +1067,24 @@ ${activeFonts
 
         // Touch events (mobile/tablet)
         let touchStartX = 0;
-        deckStack.addEventListener('touchstart', (e) => {
+        deckStack.addEventListener('touchstart', (e: TouchEvent) => {
           touchStartX = e.changedTouches[0].screenX;
         }, { passive: true });
-        deckStack.addEventListener('touchend', (e) => {
+        deckStack.addEventListener('touchend', (e: TouchEvent) => {
           handleSwipe(touchStartX - e.changedTouches[0].screenX);
         }, { passive: true });
 
         // Pointer events (click & drag on desktop/tablet)
         let isPointerDown = false;
         let pointerStartX = 0;
-        deckStack.addEventListener('pointerdown', (e) => {
+        deckStack.addEventListener('pointerdown', (e: PointerEvent) => {
           if (e.pointerType === 'mouse' && e.button !== 0) return;
           isPointerDown = true;
           pointerStartX = e.screenX;
           try { deckStack.setPointerCapture(e.pointerId); } catch(err){}
         });
         
-        const endPointer = (e) => {
+        const endPointer = (e: PointerEvent) => {
           if (!isPointerDown) return;
           isPointerDown = false;
           try { deckStack.releasePointerCapture(e.pointerId); } catch(err){}
@@ -1099,11 +1099,11 @@ ${activeFonts
         deckStack.addEventListener('pointercancel', endPointer);
 
         // Wheel events (mouse pad swipe / scroll)
-        let wheelTimeout;
+        let wheelTimeout: ReturnType<typeof setTimeout> | undefined;
         let isWheeling = false;
         let accumulatedDelta = 0;
         
-        deckStack.addEventListener('wheel', (e) => {
+        deckStack.addEventListener('wheel', (e: WheelEvent) => {
           if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
             e.preventDefault();
             
@@ -1128,7 +1128,7 @@ ${activeFonts
         if (!card.dataset.hasClickListener) {
           card.dataset.hasClickListener = 'true';
           card.addEventListener('click', (e) => {
-            const stack = card.closest('.deck-stack');
+            const stack = card.closest('.deck-stack') as HTMLElement;
             if (stack && stack.dataset.preventClick === 'true') {
               e.preventDefault();
               e.stopPropagation();

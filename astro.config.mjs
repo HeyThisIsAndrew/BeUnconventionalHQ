@@ -34,6 +34,7 @@ function buildArticleLastmod() {
     const raw = fs.readFileSync(path.resolve(process.cwd(), 'src/data/articles.json'), 'utf-8');
     
     let maxGlobal = 0;
+    /** @type {Record<string, number>} */
     const maxByCategory = { Film: 0, TV: 0, Gaming: 0, Events: 0 };
     
     for (const record of JSON.parse(raw)) {
