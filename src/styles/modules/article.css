@@ -721,16 +721,52 @@
   color: var(--color-white, #fff);
 }
 
+/* ── The byline name is a link, and has to look like it responds ───────────
+
+   Two things were wrong with the first version of this.
+
+   1. IT DID NOTHING. The rules below were correct and simply never took
+      effect, because the anchor wraps `<span class="author">` and
+      `.article-byline .author` (above) sets an explicit `color`. A colour on
+      the CHILD beats a colour inherited from the parent, so hovering changed
+      the anchor's computed colour and the reader saw nothing. The hover state
+      therefore has to name the span, not just the link.
+
+   2. IT USED THE WRONG RED. `--color-accent` (#cc0000) is 3.21:1 on the
+      surface colour — it is the border and glow red, never a text or icon
+      colour, which CLAUDE.md states plainly. `--color-accent-text` (#ef4444)
+      is 5.02:1 and clears AA, and is the red every other legible red on the
+      site already uses.
+
+   NO UNDERLINE, deliberately, and against the house pattern for links. The
+   name sits directly above the "FOUNDER & EDITOR" role line, and an
+   underline lands on top of it. Colour alone is the whole feedback here.
+
+   `:focus-visible` carries the same treatment: a link that only responds to a
+   mouse is unusable by keyboard, and every audited page currently scores 100
+   on accessibility. */
 .article-byline-name .author-link {
   color: inherit;
   text-decoration: none;
   transition: color 0.2s ease;
 }
 
-.article-byline-name .author-link:hover {
-  color: var(--color-accent, #cc0000);
+.article-byline-name .author-link:hover .author,
+.article-byline-name .author-link:focus-visible .author,
+.article-byline-name .author-link:active .author {
+  color: var(--color-accent-text, #ef4444);
 }
 
+/* The "By" text is outside the span but inside the link, so it moves with it
+   rather than being left behind mid-hover. */
+.article-byline-name .author-link:hover,
+.article-byline-name .author-link:focus-visible,
 .article-byline-name .author-link:active {
   color: var(--color-accent-text, #ef4444);
+}
+
+.article-byline-name .author-link:focus-visible {
+  outline: 2px solid var(--color-accent-text, #ef4444);
+  outline-offset: 3px;
+  border-radius: 2px;
 }
