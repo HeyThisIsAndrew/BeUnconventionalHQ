@@ -1014,28 +1014,68 @@ ${activeFonts
     sections.forEach(section => {
       const header = section.querySelector<HTMLElement>('.accordion-header');
       if (!header) return;
-      
-      if (!header.dataset.hasClickListener) {
-        header.dataset.hasClickListener = 'true';
-        header.addEventListener('click', () => {
-          if (section.classList.contains('expanded')) return;
-          
-          sections.forEach(s => {
-            s.classList.remove('expanded');
-            s.classList.add('collapsed');
-          });
-          
-          section.classList.remove('collapsed');
-          section.classList.add('expanded');
-          for (const s of sections) {
-            s.querySelector('.accordion-header')
-              ?.setAttribute('aria-expanded', s === section ? 'true' : 'false');
-          }
 
-          syncTrailers();
+      /*
+        ─── WIRE EACH ROW EXACTLY ONCE ───────────────────────────────────────
 
+        THIS FUNCTION RUNS TWICE ON EVERY FRESH LOAD. Once when the module
+        executes, and again on `astro:page-load`, which ClientRouter fires on
+        the INITIAL load as well as on client-side navigations (Layout.astro
+        says so where it mounts the router).
+
+        Each run built a fresh closure with its own `activeIndex` and its own
+        `renderDeck`. Whether a listener was attached twice then depended on
+        whether whoever added it remembered a per-element flag, and the five
+        that existed — on the header, each card, each thumb, the section and
+        the nav rail — hid the fact that the gesture block had none. So the
+        deck ended up with TWO touchstart, TWO touchend and TWO wheel
+        listeners, driving two independent indices, while tapping a card or a
+        thumb updated only the first.
+
+        Measured on the built page, on the reporter's exact sequence:
+
+          fresh load                active = 0
+          swipe forward             active = 1   ✓ both closures moved
+          tap thumb 0               active = 0   ✓ only closure #1 moved
+          swipe forward             active = 2   ✗ closure #2 went 1 → 2 last
+
+        which is "swipe, tap, swipe, and you land on the third card". Once the
+        two indices are far enough apart a forward swipe can land BEHIND where
+        it started (measured: 0 → 3 on a four-card row), which is the
+        "sometimes I cannot swipe through at all" half of the same report.
+        Desktop had it identically through the wheel listener: click a thumb,
+        then trackpad-swipe.
+
+        One flag on the row replaces all five. It lives on the element, so a
+        ClientRouter navigation that swaps in a fresh <section> wires it
+        normally, and re-entering this function for a row already wired does
+        nothing. Anything added inside this block from now on is covered
+        without having to remember.
+
+        `syncTrailers()` at the end of the function is deliberately OUTSIDE
+        this guard: it is idempotent and does have to run on every call.
+      */
+      if (section.dataset.deckWired === '1') return;
+      section.dataset.deckWired = '1';
+
+      header.addEventListener('click', () => {
+        if (section.classList.contains('expanded')) return;
+        
+        sections.forEach(s => {
+          s.classList.remove('expanded');
+          s.classList.add('collapsed');
         });
-      }
+        
+        section.classList.remove('collapsed');
+        section.classList.add('expanded');
+        for (const s of sections) {
+          s.querySelector('.accordion-header')
+            ?.setAttribute('aria-expanded', s === section ? 'true' : 'false');
+        }
+
+        syncTrailers();
+
+      });
 
       const cards = Array.from(section.querySelectorAll<HTMLElement>('.deck-card'));
       const navThumbs = Array.from(section.querySelectorAll<HTMLElement>('.deck-nav-thumb'));
@@ -1264,47 +1304,44 @@ ${activeFonts
 
       // Deck Stack Clicks & Parallax
       cards.forEach((card, i) => {
-        if (!card.dataset.hasClickListener) {
-          card.dataset.hasClickListener = 'true';
-          card.addEventListener('click', (e) => {
-            if (i !== activeIndex) {
-              // A card behind the front one means "bring me forward".
-              e.preventDefault();
-              e.stopPropagation();
-              activeIndex = i;
-              renderDeck();
-              return;
-            }
-            /*
-              The FRONT card means "go in" — and it is now a real <a>, so
-              that needs no code at all. Falling through to the browser's own
-              navigation is what makes the tile work for keyboards, screen
-              readers, middle-click and open-in-new-tab, none of which a
-              `window.location` assignment supports.
-
-              The separate "Enter" button in the trailer corner is gone with
-              it: there is one target per hub now, and it is the artwork.
-            */
-          });
-
+        card.addEventListener('click', (e) => {
+          if (i !== activeIndex) {
+            // A card behind the front one means "bring me forward".
+            e.preventDefault();
+            e.stopPropagation();
+            activeIndex = i;
+            renderDeck();
+            return;
+          }
           /*
-            NO PARALLAX TILT ON THE FRONT CARD.
+            The FRONT card means "go in" — and it is now a real <a>, so
+            that needs no code at all. Falling through to the browser's own
+            navigation is what makes the tile work for keyboards, screen
+            readers, middle-click and open-in-new-tab, none of which a
+            `window.location` assignment supports.
 
-            This used to write an INLINE transform on every mousemove, which
-            caused three separate complaints about the big artwork not sitting
-            still — and one of them was a genuine bug rather than a taste
-            issue. `renderDeck()` re-assigns `card.className` but cannot clear
-            an inline style, and inline beats any stylesheet rule. So a tilt
-            left behind by the pointer survived the next selection and
-            overrode the deck's own positioning: the card that should have
-            settled at translateX(0) stayed wherever the last mousemove had
-            put it. That is why selecting a brand appeared to move the image
-            at random.
-
-            The front card is the largest thing on the page and the thing the
-            eye fixes on. It holds still.
+            The separate "Enter" button in the trailer corner is gone with
+            it: there is one target per hub now, and it is the artwork.
           */
-        }
+        });
+
+        /*
+          NO PARALLAX TILT ON THE FRONT CARD.
+
+          This used to write an INLINE transform on every mousemove, which
+          caused three separate complaints about the big artwork not sitting
+          still — and one of them was a genuine bug rather than a taste
+          issue. `renderDeck()` re-assigns `card.className` but cannot clear
+          an inline style, and inline beats any stylesheet rule. So a tilt
+          left behind by the pointer survived the next selection and
+          overrode the deck's own positioning: the card that should have
+          settled at translateX(0) stayed wherever the last mousemove had
+          put it. That is why selecting a brand appeared to move the image
+          at random.
+
+          The front card is the largest thing on the page and the thing the
+          eye fixes on. It holds still.
+        */
       });
 
       /*
@@ -1326,8 +1363,7 @@ ${activeFonts
       */
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-      if (!reducedMotion && !section.dataset.hasDriftListener) {
-        section.dataset.hasDriftListener = 'true';
+      if (!reducedMotion) {
 
         const resetDrift = () => {
           section.style.setProperty('--drift-x', '0');
@@ -1364,8 +1400,7 @@ ${activeFonts
         admits it has reached its end and keeps a feather on a crisp edge.
       */
       const navTrack = section.querySelector<HTMLElement>('.deck-nav-track');
-      if (navTrack && !navTrack.dataset.hasOverflowListener) {
-        navTrack.dataset.hasOverflowListener = 'true';
+      if (navTrack) {
 
         const syncNavFade = () => {
           const max = navTrack.scrollWidth - navTrack.clientWidth;
@@ -1387,17 +1422,14 @@ ${activeFonts
 
       // Quick Nav Thumb Clicks
       navThumbs.forEach((thumb, i) => {
-        if (!thumb.dataset.hasClickListener) {
-          thumb.dataset.hasClickListener = 'true';
-          thumb.addEventListener('click', (e) => {
-            if (i !== activeIndex) {
-              e.preventDefault();
-              e.stopPropagation();
-              activeIndex = i;
-              renderDeck();
-            }
-          });
-        }
+        thumb.addEventListener('click', (e) => {
+          if (i !== activeIndex) {
+            e.preventDefault();
+            e.stopPropagation();
+            activeIndex = i;
+            renderDeck();
+          }
+        });
       });
     });
 
