@@ -173,3 +173,79 @@ export function parseImageDimensions(rawUrl: unknown): ImageDimensions | null {
 
   return { width, height };
 }
+
+/*
+  ─── LINKS THAT WRAP AN IMAGE NEED A NAME ───────────────────────────────────
+
+  Substack wraps body images in a click-to-enlarge anchor:
+
+    <a target="_blank" href="<full size>" rel="noopener noreferrer">
+      <img src="…" alt="" />
+    </a>
+
+  and it supplies no alt text, because from its point of view the image is
+  already the content. An anchor whose only content is an image with an empty
+  alt has NO accessible name at all: a screen reader announces "link" and
+  nothing else, 29 times across the current store.
+
+  Lighthouse caught it as `link-name` on /intel/<slug> — 97% accessibility
+  where every other audited page scores 100. WCAG 2.4.4 and 4.1.2.
+
+  Two ways to fix it and they are not equivalent. Unwrapping the anchor would
+  also work, but it removes a reader-facing affordance (tap the image, get the
+  full-size original) to satisfy an audit, which is the wrong trade. Naming the
+  link keeps the behaviour and fixes the defect.
+
+  DELIBERATELY CONSERVATIVE, like everything else in this file:
+
+    • only anchors whose content is images and whitespace — any text inside
+      already names the link, so it is left alone;
+    • an `alt` with real text already names the link, so that is left alone
+      too. This only fills the gap where there is genuinely no name;
+    • an existing aria-label, aria-labelledby or title is never overwritten;
+    • the "new tab" wording is used only when the anchor really does open one;
+    • anything unmatched is returned byte-identical.
+
+  Applied at RENDER time rather than at sync time on purpose: it fixes every
+  article already in the store on the next build, instead of waiting for each
+  one to be re-synced.
+*/
+
+/** Anchors, non-greedy. Anchors cannot legally nest, so this cannot mis-scope. */
+const ANCHOR = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+
+/** An `alt` that actually says something. `alt=""` deliberately does not match. */
+const ALT_WITH_TEXT = /\balt\s*=\s*(["'])(?!\1)[^"']*\1/i;
+
+/** An attribute that already supplies an accessible name. */
+const ALREADY_NAMED = /\s(?:aria-label|aria-labelledby)\s*=/i;
+
+/**
+ * Give an accessible name to links whose only content is an unlabelled image.
+ *
+ * Returns the HTML unchanged when there is nothing to name, which is the
+ * common case for an article with no images.
+ */
+export function labelImageLinks(html: unknown): string {
+  const source = String(html ?? '');
+  if (!source) return '';
+
+  return source.replace(ANCHOR, (match: string, attrs: string, inner: string) => {
+    if (ALREADY_NAMED.test(attrs)) return match;
+    if (ALT_WITH_TEXT.test(attrs)) return match; // a title/alt on the anchor itself
+    if (!/<img\b/i.test(inner)) return match;
+
+    /* Visible text inside the link is its name. Strip tags and see what is
+       left; anything at all means we must not touch it. */
+    if (inner.replace(/<[^>]*>/g, '').trim()) return match;
+
+    /* An image carrying real alt text names the link through its own content.
+       Only a missing or empty alt leaves the link silent. */
+    if (ALT_WITH_TEXT.test(inner)) return match;
+
+    const opensNewTab = /\starget\s*=\s*(["'])_blank\1/i.test(attrs);
+    const label = opensNewTab ? 'Open image in a new tab' : 'Open image';
+
+    return `<a${attrs} aria-label="${label}">${inner}</a>`;
+  });
+}

@@ -53,7 +53,7 @@ import { getDisplayTags } from '../../lib/tags';
 import { buildToc } from '../../lib/article-toc';
 import { stripCoverImageFromBody } from '../../lib/article-media';
 import { localArticleImage, localiseBodyImages } from '../../lib/article-images.ts';
-import { parseImageDimensions } from '../../lib/article-images-transform.ts';
+import { parseImageDimensions, labelImageLinks } from '../../lib/article-images-transform.ts';
 import { getCardImageSources, isSubstackFetchUrl } from '../../lib/card-images.ts';
 import logoImage from '../../assets/logo.webp';
 
@@ -106,7 +106,12 @@ const dedupedBody = stripCoverImageFromBody(article.bodyHtml, article.image);
   22.54 MB, several 3840x2160, rendering into a ~720px column. As committed
   WebP that is 1.63 MB across every width, and a phone downloads one width.
 */
-const bodyWithLocalImages = localiseBodyImages(dedupedBody);
+/* Rewrite images to committed renditions, THEN name the anchors Substack wraps
+   around them. Substack ships those links with an alt-less image inside, which
+   leaves them with no accessible name at all — see labelImageLinks(). Applied
+   here rather than at sync time so every article already in the store is fixed
+   by the next build. */
+const bodyWithLocalImages = labelImageLinks(localiseBodyImages(dedupedBody));
 
 /*
   ─── THE COVER, IN THREE FALLBACKS ──────────────────────────────────────────

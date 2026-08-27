@@ -23,7 +23,7 @@ import {
   liftPullQuotes,
 } from '../src/lib/articles-transform.ts';
 import { imageFingerprint, stripCoverImageFromBody } from '../src/lib/article-media.ts';
-import { parseImageDimensions } from '../src/lib/article-images-transform.ts';
+import { parseImageDimensions, labelImageLinks } from '../src/lib/article-images-transform.ts';
 import { getCardImageSources, isSubstackFetchUrl } from '../src/lib/card-images.ts';
 import {
   ALREADY_OPTIMISED,
@@ -642,9 +642,26 @@ test('the hero falls back to the original when there is no local rendition', () 
 });
 
 test('the body transform is applied to the html that is actually rendered', () => {
+  /*
+    Was an exact match on `localiseBodyImages(dedupedBody)`. The call is now
+    wrapped by labelImageLinks(), so the literal no longer matches — but the
+    invariant it was protecting is unchanged and still worth pinning: images
+    must be localised from the DEDUPED body, never from article.bodyHtml,
+    or the page renders the cover twice.
+  */
   assert.ok(
-    /const bodyWithLocalImages = localiseBodyImages\(dedupedBody\)/.test(articlePage),
-    'body images must be localised from the DEDUPED body',
+    /localiseBodyImages\(dedupedBody\)/.test(articlePage),
+    'body images must be localised from the DEDUPED body, not article.bodyHtml',
+  );
+  assert.ok(
+    /const bodyWithLocalImages = [\s\S]{0,40}localiseBodyImages\(dedupedBody\)/.test(articlePage),
+    'the localised, deduped body must be what lands in bodyWithLocalImages',
+  );
+  assert.ok(
+    /labelImageLinks\(localiseBodyImages\(dedupedBody\)\)/.test(articlePage),
+    'image links must be given an accessible name. Substack wraps body images in\n' +
+      '      a click-to-enlarge anchor around an alt-less image, which leaves the link\n' +
+      '      with no accessible name at all — Lighthouse `link-name`, WCAG 2.4.4/4.1.2.',
   );
   assert.ok(
     /buildToc\(bodyWithLocalImages\)/.test(articlePage),
@@ -905,4 +922,81 @@ test('liftPullQuotes survives junk input', () => {
   assert.equal(liftPullQuotes(''), '');
   assert.equal(liftPullQuotes(null), '');
   assert.equal(liftPullQuotes(undefined), '');
+});
+
+/*
+  ─── IMAGE LINKS NEED AN ACCESSIBLE NAME ────────────────────────────────────
+
+  Substack wraps body images in a click-to-enlarge anchor and supplies no alt
+  text, so the link had no accessible name at all — a screen reader announced
+  "link" and nothing else, 29 times across the current store. Lighthouse caught
+  it as `link-name`: 97% accessibility on /intel/<slug> where every other
+  audited page scores 100. WCAG 2.4.4 and 4.1.2.
+
+  The fixture is the real markup, verbatim from articles.json.
+*/
+console.log('\nlabelImageLinks');
+
+const REAL_IMAGE_LINK =
+  '<a target="_blank" href="https://substackcdn.com/image/fetch/x" rel="noopener noreferrer"><img src="a.png" alt="" /></a>';
+
+test('the real Substack image link gets a name', () => {
+  const out = labelImageLinks(REAL_IMAGE_LINK);
+  assert.match(out, /aria-label="Open image in a new tab"/);
+  // Everything else about the anchor survives untouched.
+  assert.match(out, /target="_blank"/);
+  assert.match(out, /rel="noopener noreferrer"/);
+  assert.match(out, /<img src="a\.png" alt="" \/>/);
+});
+
+test('a link that already has a name is left alone', () => {
+  for (const html of [
+    '<a href="/x" aria-label="Already named"><img src="a.png" alt=""></a>',
+    '<a href="/x" aria-labelledby="cap"><img src="a.png" alt=""></a>',
+    '<a href="/x"><img src="a.png" alt="A film poster"></a>',
+    '<a href="/x"><img src="a.png" alt="">Read the review</a>',
+  ]) {
+    assert.equal(labelImageLinks(html), html, html);
+  }
+});
+
+test('a link with no image is never touched', () => {
+  for (const html of ['<a href="/x">Words</a>', '<a href="/x"></a>', '<p>no links here</p>']) {
+    assert.equal(labelImageLinks(html), html, html);
+  }
+});
+
+test('the wording matches whether it really opens a new tab', () => {
+  assert.match(labelImageLinks('<a href="/x"><img src="a.png" alt=""></a>'), /aria-label="Open image"/);
+  assert.match(
+    labelImageLinks('<a href="/x" target="_blank"><img src="a.png" alt=""></a>'),
+    /aria-label="Open image in a new tab"/,
+  );
+});
+
+test('every image link in the real store ends up named', () => {
+  const records = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/data/articles.json'), 'utf-8'));
+  let unnamed = 0;
+  let total = 0;
+  for (const record of records) {
+    const out = labelImageLinks(record.bodyHtml || '');
+    for (const [, attrs, inner] of out.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)) {
+      if (!/<img\b/i.test(inner)) continue;
+      if (inner.replace(/<[^>]*>/g, '').trim()) continue;
+      total += 1;
+      const named =
+        /aria-label\s*=/i.test(attrs) ||
+        /aria-labelledby\s*=/i.test(attrs) ||
+        /\balt\s*=\s*(["'])(?!\1)/i.test(inner);
+      if (!named) unnamed += 1;
+    }
+  }
+  assert.ok(total > 0, 'expected image-wrapping links in the store');
+  assert.equal(unnamed, 0, `${unnamed} of ${total} image links still have no accessible name`);
+});
+
+test('labelImageLinks survives junk input', () => {
+  assert.equal(labelImageLinks(''), '');
+  assert.equal(labelImageLinks(null), '');
+  assert.equal(labelImageLinks(undefined), '');
 });
