@@ -1078,7 +1078,8 @@ ${activeFonts
         let isPointerDown = false;
         let pointerStartX = 0;
         deckStack.addEventListener('pointerdown', (e: PointerEvent) => {
-          if (e.pointerType === 'mouse' && e.button !== 0) return;
+          if (e.pointerType !== 'mouse') return; // Touch is handled by touchstart
+          if (e.button !== 0) return;
           isPointerDown = true;
           pointerStartX = e.screenX;
           try { deckStack.setPointerCapture(e.pointerId); } catch(err){}
@@ -1102,10 +1103,13 @@ ${activeFonts
         let wheelTimeout: ReturnType<typeof setTimeout> | undefined;
         let isWheeling = false;
         let accumulatedDelta = 0;
+        let wheelCooldown = false;
         
         deckStack.addEventListener('wheel', (e: WheelEvent) => {
           if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
             e.preventDefault();
+            
+            if (wheelCooldown) return;
             
             if (!isWheeling) {
               isWheeling = true;
@@ -1117,8 +1121,12 @@ ${activeFonts
             clearTimeout(wheelTimeout);
             wheelTimeout = setTimeout(() => {
               isWheeling = false;
-              handleSwipe(accumulatedDelta);
-            }, 80);
+              if (Math.abs(accumulatedDelta) > 30) {
+                wheelCooldown = true;
+                setTimeout(() => { wheelCooldown = false; }, 500); // Wait out trackpad momentum
+                handleSwipe(accumulatedDelta);
+              }
+            }, 40);
           }
         }, { passive: false });
       }
