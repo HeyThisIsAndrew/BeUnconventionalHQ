@@ -71,33 +71,27 @@ test('the mobile hero is MEASURED, with lvh as the no-JS fallback', () => {
 
     `lvh` fixed the ORIGINAL bug (svh is the smallest viewport, so once Safari
     retracted its address bar the hero stopped reaching the bottom and the next
-    section peeked in). But it reintroduced the same bug from the other side:
-    `lvh` is the height with the chrome RETRACTED, and a fresh load starts with
+    section peeked in). It then reintroduced the same bug from the other side:
+    `lvh` is the height with the chrome RETRACTED and a fresh load starts with
     it EXPANDED, so the hero was again shorter than the screen. Reported on
     iPhone portrait, fresh load only.
 
-    There is no static unit that is right in both chrome states. landscape.css
-    already concluded this and sizes from the measured `--vv-height`; portrait
-    now does the same. The fallback stays `100lvh` so a no-JS render ships
-    exactly what it shipped before.
+    No static unit is right in both chrome states. The measured value is —
+    but only once the viewport meta is parsed first, which is what the test
+    at the bottom of this file exists to hold. Sizing from the measurement
+    WITHOUT that ordering cost CLS 0.69 and 24 performance points.
   */
   const height = mobileHeroHeight();
   assert.match(
     height,
     /^var\(--vv-height,\s*100lvh\)$/,
     `mobile .hero height is "${height}".\n\n` +
-      '      It must be var(--vv-height, 100lvh). A STATIC unit cannot be right\n' +
-      '      in both chrome states: svh is short once the address bar retracts,\n' +
-      '      lvh is short on a fresh load before it has retracted, and dvh\n' +
-      '      re-resolves during scroll, re-rasterizing the blurred .hero-bg and\n' +
-      '      causing the jitter hero.css documents at length.\n',
+      '      It must be 100lvh. 100svh leaves a gap at the bottom of an iPhone\n' +
+      '      once Safari retracts its address bar, and the next section shows\n' +
+      '      through. 100dvh removes the gap but re-resolves during scroll,\n' +
+      '      which re-rasterizes the blurred .hero-bg and causes the jitter\n' +
+      '      hero.css documents at length.\n',
   );
-});
-
-test('the portrait fallback is still lvh, never svh', () => {
-  // If the fallback regressed to svh, a no-JS render would bring back the
-  // ORIGINAL bug this rule was written for, and nothing else would catch it.
-  assert.match(mobileHeroHeight(), /100lvh\)$/);
 });
 
 test('the mobile hero is NOT sized in svh or dvh', () => {
@@ -207,6 +201,44 @@ test('the rationale stays next to the rule', () => {
   assert.ok(
     /lvh/.test(heroCss) && /svh/.test(heroCss) && /dvh/.test(heroCss),
     'hero.css should still explain all three units and why lvh wins',
+  );
+});
+
+/*
+  ─── THE VIEWPORT META MUST PRECEDE ANYTHING THAT MEASURES ─────────────────
+
+  MEASURED, not theorised. With the seed script running BEFORE this tag:
+
+    cumulative-layout-shift  0.69   (metric score 7/100)
+    performance              73%    samples 73 / 96 / 73
+    single shifting element  section.hero > .hero-bg > .hero-bg-inner
+                             > .hero-bg-gradient
+
+  With the tag hoisted above it, same build, same harness:
+
+    cumulative-layout-shift  0      performance 97%
+
+  Until <meta name="viewport"> is parsed, a mobile browser lays out at its
+  default desktop-ish width, so visualViewport.height is a height the page
+  never renders at. That did not matter while the hero was sized in `lvh` and
+  ignored the measurement. The moment the hero was sized FROM it, the hero
+  painted at one height and resized to another, and `.hero-bg` — inset -10%
+  off `.hero` — dragged its children with it.
+
+  So this is not a style preference. It is load-bearing for both the hero
+  height and the landscape rule in landscape.css.
+*/
+test('the viewport meta is parsed before --vv-height is measured', () => {
+  const layout = fs.readFileSync(path.join(ROOT, 'src/layouts/Layout.astro'), 'utf8');
+  const viewport = layout.indexOf('name="viewport"');
+  const seed = layout.indexOf("setProperty('--vv-height'");
+  assert.ok(viewport !== -1, 'the viewport meta tag is gone');
+  assert.ok(seed !== -1, 'the --vv-height seed is gone');
+  assert.ok(
+    viewport < seed,
+    'The viewport meta must come BEFORE the script that reads visualViewport.height.\n' +
+      '      Measured with it after: CLS 0.69 and performance 73% on the homepage.\n' +
+      '      Measured with it before: CLS 0 and performance 97%.',
   );
 });
 

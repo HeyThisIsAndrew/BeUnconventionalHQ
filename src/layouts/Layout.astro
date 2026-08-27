@@ -137,6 +137,24 @@ const fallbackMark = await getImage({
         which put it at byte 1536: ClientRouter alone emits two meta tags plus
         a module script before anything else got a chance to render. */}
     <meta charset="utf-8" />
+    {/*
+      ─── BEFORE ANY SCRIPT THAT MEASURES THE VIEWPORT ───────────────────────
+      This used to sit ~100 lines further down, after the inline script that
+      seeds `--vv-height`. That script reads visualViewport.height, and until
+      this tag is parsed a mobile browser is still laying out at its default
+      desktop-ish viewport — so the measurement was taken against a viewport
+      the page never actually renders at.
+
+      Nothing depended on it while the hero was sized in `lvh`. The moment the
+      hero was sized FROM the measurement, the hero painted at one height and
+      resized to another, and Lighthouse recorded CLS 0.69 on the homepage
+      with `.hero-bg-gradient` (inset 0 inside `.hero-bg`, itself inset -10%
+      off `.hero`) as the single shifting element. Performance 97% to 73%.
+
+      Keep this above the seed script. Everything that measures the viewport
+      before first paint depends on it.
+    */}
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="preload" href="/fonts/syne.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/inter.woff2" as="font" type="font/woff2" crossorigin />
     {/*
@@ -241,10 +259,6 @@ const fallbackMark = await getImage({
       </script>
     )}
 
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1"
-    />
     <meta name="theme-color" content="#000000" />
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex, nofollow" />}
