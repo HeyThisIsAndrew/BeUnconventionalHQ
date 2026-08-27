@@ -73,6 +73,49 @@ const CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo'];
   the main navigation is absent here.
 */
 const PAGES = ['/', '/feed', '/intel', '/events', '/featured', '/about'];
+
+/*
+  ─── AND ONE ACTUAL ARTICLE ─────────────────────────────────────────────────
+
+  Every entry above is a hub. Not one is an /intel/<slug> page, which is the
+  page class that regressed hard enough for the owner to notice: a portrait
+  cover shipped at full resolution with no srcset, against a hardcoded 16:9
+  width/height that produced a ~660px layout shift on the LCP element. The
+  gate measured six pages and none of them could see it.
+
+  Chosen from articles.json rather than hardcoded, because a hardcoded slug
+  rots the moment that article is unpublished or renamed, and a gate pointed
+  at a 404 scores whatever a 404 scores. Newest first, since a new article is
+  where an unoptimised image arrives.
+
+  Applies the same eligibility the route does — non-hidden, has a body, has a
+  slug, not a reserved segment — so this can only ever name a page that
+  actually exists. Returns null on an empty or unreadable snapshot and the
+  gate simply audits the hubs, exactly as before.
+*/
+function newestArticlePath() {
+  try {
+    const raw = fs.readFileSync(path.join(ROOT, 'src/data/articles.json'), 'utf-8');
+    const eligible = JSON.parse(raw)
+      .filter(
+        (r) =>
+          r &&
+          !r.editorial?.hidden &&
+          r.hasBody &&
+          typeof r.slug === 'string' &&
+          r.slug &&
+          r.slug !== 'topic' &&
+          r.slug !== 'page',
+      )
+      .sort((a, b) => new Date(b.isoDate).getTime() - new Date(a.isoDate).getTime());
+    return eligible.length ? `/intel/${eligible[0].slug}` : null;
+  } catch {
+    return null;
+  }
+}
+
+/** What the gate actually audits: every hub, plus the newest article. */
+const AUDIT_PAGES = [...PAGES, newestArticlePath()].filter(Boolean);
 const SERVER_READY_TIMEOUT_MS = 30_000;
 /*
   Form factor. Lighthouse's default is MOBILE (a throttled mid-tier phone),
@@ -250,7 +293,7 @@ async function run() {
         : {}),
     };
 
-    for (const pagePath of PAGES) {
+    for (const pagePath of AUDIT_PAGES) {
       const url = `${BASE_URL}${pagePath}`;
       console.log(`[lighthouse-check] Auditing ${pagePath}...`);
       const runnerResult = await lighthouse(url, lighthouseFlags);

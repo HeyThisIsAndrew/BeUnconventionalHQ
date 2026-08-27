@@ -46,6 +46,7 @@ import {
   getPublishedArticles,
   getNextArticle,
   getRelatedArticles,
+  topicPath,
   RESERVED_SLUGS,
 } from '../../lib/articles';
 import { getDisplayTags } from '../../lib/tags';
@@ -254,6 +255,43 @@ if (article.contentType === 'Review') {
   // Analysis, Interview and anything unmapped → the general Article type.
   articleSchema = { '@context': 'https://schema.org', '@type': 'Article', ...shared };
 }
+
+/*
+  ─── BREADCRUMBS, THE MACHINE HALF ──────────────────────────────────────────
+
+  The visible trail above the headline was added without this, and visible
+  breadcrumbs alone produce no breadcrumb rich result — Google reads the trail
+  from BreadcrumbList, not from the <nav>. So the markup was doing the
+  navigation half of the job and none of the search half.
+
+  MIRRORS THE VISIBLE TRAIL EXACTLY: Home > Intel > Category, and stops where
+  the <ol> stops. Structured data that claims a crumb the reader cannot see is
+  a mismatch Google's guidelines call out, so the article's own title is
+  deliberately NOT appended as a fourth item — the rendered trail does not
+  carry one either.
+
+  The category crumb is conditional for the same reason the <li> is: an
+  article with no category renders a two-item trail, and the schema has to
+  agree with whatever actually rendered.
+*/
+const breadcrumbTrail: Array<{ name: string; path: string }> = [
+  { name: 'Home', path: '/' },
+  { name: ARTICLE_SECTION.name, path: ARTICLE_SECTION.path },
+  ...(article.category
+    ? [{ name: article.category, path: topicPath(article.category) }]
+    : []),
+];
+
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: breadcrumbTrail.map((crumb, index) => ({
+    '@type': 'ListItem',
+    position: index + 1,
+    name: crumb.name,
+    item: new URL(crumb.path, site.url).toString(),
+  })),
+};
 ---
 
 <Layout
@@ -272,6 +310,12 @@ if (article.contentType === 'Review') {
     is:inline
     set:html={JSON.stringify(articleSchema)}
   />
+  <script
+    slot="head"
+    type="application/ld+json"
+    is:inline
+    set:html={JSON.stringify(breadcrumbSchema)}
+  />
   <meta property="article:published_time" content={article.isoDate} slot="head" />
   {article.lastUpdated && <meta property="article:modified_time" content={article.lastUpdated} slot="head" />}
   <meta property="article:author" content={author.url} slot="head" />
@@ -289,7 +333,7 @@ if (article.contentType === 'Review') {
             <ol>
               <li><a href="/">Home</a></li>
               <li><a href="/intel">Intel</a></li>
-              {article.category && <li><a href={`/intel/topic/${article.category.toLowerCase()}`}>{article.category}</a></li>}
+              {article.category && <li><a href={topicPath(article.category)}>{article.category}</a></li>}
             </ol>
           </nav>
           
