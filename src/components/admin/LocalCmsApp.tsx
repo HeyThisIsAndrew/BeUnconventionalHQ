@@ -1443,7 +1443,7 @@ const HUB_CATEGORIES = [
   { value: 'universes', label: 'Franchises' },
   { value: 'streaming', label: 'Streamers' },
   { value: 'studios', label: 'Studios' },
-  { value: 'gaming', label: 'Gaming' },
+  { value: 'gaming', label: 'Games' },
   { value: 'other', label: 'Uncategorised' },
 ];
 

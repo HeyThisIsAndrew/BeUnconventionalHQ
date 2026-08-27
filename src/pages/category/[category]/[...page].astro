@@ -9,6 +9,7 @@ import CardGrid from '../../../components/CardGrid.astro';
 import EmptyState from '../../../components/EmptyState.astro';
 import { LABELS, MESSAGES } from '../../../data/content.js';
 import { categories } from '../../../data/categories.js';
+import { tagMatchesCategory } from '../../../data/constants.js';
 import type { GetStaticPathsOptions } from 'astro';
 
 export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
@@ -16,17 +17,25 @@ export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
   const videos = await getVideosUnified();
 
   return categories.flatMap((cat) => {
-    const catLabel = cat.label.toLowerCase();
+    /*
+      Matched through CATEGORY_TAG_ALIASES, not against the label directly.
 
+      Nothing tags its own content with our label. An article carries the tags
+      its Substack post was published with; a video carries the topic slugs the
+      YouTube sync derived. Both say "gaming", and renaming this category to
+      Games could not reach back and change either of them.
+
+      Comparing `cat.slug` to a tag literally would therefore have built
+      /category/games with zero items in it and no error anywhere: a page that
+      renders its own empty state looks like a content problem, not a taxonomy
+      one, and there is nothing in a build log to say otherwise. The alias map
+      in src/data/constants.js is what keeps the old tag spelling resolving to
+      the new slug. It also absorbs the events/event pair that used to be
+      special-cased here inline.
+    */
     function matchesCategory(item: any) {
       const itemTags = Array.isArray(item.tags) ? item.tags : [item.category || 'general'];
-      return itemTags.some((t: any) => {
-        const trimmed = typeof t === 'string' ? t.toLowerCase().trim() : '';
-        if (trimmed === catLabel) return true;
-        if (catLabel === 'events' && trimmed === 'event') return true;
-        if (catLabel === 'event' && trimmed === 'events') return true;
-        return false;
-      });
+      return itemTags.some((t: any) => tagMatchesCategory(cat.slug, t));
     }
 
     const filteredItems = [

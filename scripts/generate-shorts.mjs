@@ -31,8 +31,10 @@ export const PUBLISHED_SHORTS_QUERY = `*[_type == "short" && contentStatus == "p
 
 /**
  * Pure: Sanity docs → the shorts.json shape. Grouping key is the mapped
- * category, lowercased ("events", "gaming", …) — exactly what ShortsRow's
- * `category` prop looks up. Unmatched topics land under "general" so nothing
+ * CATEGORY, lowercased ("events", "games", …) — exactly what ShortsRow's
+ * `category` prop looks up. Not the topic slug: a short tagged with the topic
+ * `gaming` groups under `games`, because #146 renamed the category and left
+ * the slug alone. Unmatched topics land under "general" so nothing
  * silently disappears; that pool just isn't rendered anywhere yet.
  */
 export function buildShortsData(docs, now = new Date()) {

@@ -101,12 +101,18 @@ const shortDoc = (id, topics) => ({
   topics,
 });
 
+/*
+  The grouping key is the mapped CATEGORY, lowercased — not the topic slug that
+  produced it. Those were the same word until #146 renamed Gaming to Games, and
+  now they are not: a short tagged with the topic `gaming` lands under `games`.
+  Keeping the mismatched pair in this fixture is the point.
+*/
 test('buildShortsData: groups by topic-derived category, lowercase keys', () => {
   const data = buildShortsData(
     [shortDoc('a0000000001', ['film']), shortDoc('b0000000002', ['gaming']), shortDoc('c0000000003', ['film'])],
     new Date('2026-07-16T19:00:00Z'),
   );
-  assert.deepEqual(Object.keys(data.categories).sort(), ['film', 'gaming']);
+  assert.deepEqual(Object.keys(data.categories).sort(), ['film', 'games']);
   assert.equal(data.categories.film.length, 2);
   assert.equal(data.categories.film[0].id, 'a0000000001');
   assert.equal(data.categories.film[0].editorialTag, 'film');
@@ -114,7 +120,7 @@ test('buildShortsData: groups by topic-derived category, lowercase keys', () => 
 });
 
 test('buildShortsData: emits the exact shorts.json entry shape', () => {
-  const [entry] = buildShortsData([shortDoc('a0000000001', ['gaming'])]).categories.gaming;
+  const [entry] = buildShortsData([shortDoc('a0000000001', ['gaming'])]).categories.games;
   assert.deepEqual(Object.keys(entry).sort(), ['editorialTag', 'id', 'thumbnailUrl', 'title'].sort());
   assert.equal(entry.thumbnailUrl, 'https://i.ytimg.com/vi/a0000000001/maxresdefault.jpg');
 });
@@ -133,7 +139,7 @@ test('buildShortsData: caps each category at MAX_PER_CATEGORY', () => {
   const docs = Array.from({ length: MAX_PER_CATEGORY + 5 }, (_, i) =>
     shortDoc(`id${String(i).padStart(9, '0')}`, ['gaming']),
   );
-  assert.equal(buildShortsData(docs).categories.gaming.length, MAX_PER_CATEGORY);
+  assert.equal(buildShortsData(docs).categories.games.length, MAX_PER_CATEGORY);
 });
 
 test('buildShortsData: empty/nullish input → empty categories', () => {

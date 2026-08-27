@@ -21,13 +21,13 @@ const optimizedBg = await getImage({ src: logoImage, format: 'webp', width: 400 
 // The three COVERAGE cards carry the same hand-drawn pillar artwork the
 // homepage uses, as a low-opacity watermark behind the text. Pulled from
 // data/categories.js rather than re-importing the PNGs directly so the two
-// surfaces can't drift: swap the homepage's film/tv/gaming art and this
+// surfaces can't drift: swap the homepage's film/tv/games art and this
 // sheet follows. Still fully static - categories.js is a local module of
 // static asset imports, no fetch of any kind.
 import { categories } from '../../data/categories.js';
 const categoryBySlug = Object.fromEntries(categories.map((cat) => [cat.slug, cat]));
-const [filmArt, tvArt, gamingArt] = await Promise.all(
-  ['film', 'tv', 'gaming'].map((slug) =>
+const [filmArt, tvArt, gamesArt] = await Promise.all(
+  ['film', 'tv', 'games'].map((slug) =>
     getImage({ src: categoryBySlug[slug].image, format: 'webp', width: 400 })
   )
 );
@@ -407,9 +407,12 @@ const [filmArt, tvArt, gamingArt] = await Promise.all(
            the 2.079in card content box: at 0.35in GAMING alone was already
            2.499in, and the longest value cannot wrap because it's a single
            word, so .metric-card's overflow:hidden clipped it mid-letter.
-           0.26in puts the longest (GAMING) at 1.856in, a 10% margin, and all
-           three share the one size. That in turn caps how long any value can
-           be: 'TV/STREAMING' would have forced every card down to 0.144in,
+           0.26in puts GAMING at 1.856in, a 10% margin, and all
+           three share the one size. (GAMING became GAMES in #146, one glyph
+           shorter, so the cap was measured against a longer word than any
+           card now carries. Left at 0.26in: it is still the constraint if a
+           fourth pillar is ever added.) That in turn caps how long any value
+           can be: 'TV/STREAMING' would have forced every card down to 0.144in,
            barely above the 0.13in label, so streaming lives in card two's
            label instead of its headline. */
         .metric-value {
@@ -767,7 +770,7 @@ const [filmArt, tvArt, gamingArt] = await Promise.all(
         <div class="pitch-container">
             <div class="headshot-placeholder"></div>
             <div class="pitch">
-                Be Unconventional HQ is an independent outlet covering film, television, gaming, and creator culture through a cinematic editorial lens. Coverage spans reviews and criticism, industry and business analysis, and on-location premiere and convention reporting. Editorial decisions are made independently, and all provided materials are disclosed.
+                Be Unconventional HQ is an independent outlet covering film, television, games, and creator culture through a cinematic editorial lens. Coverage spans reviews and criticism, industry and business analysis, and on-location premiere and convention reporting. Editorial decisions are made independently, and all provided materials are disclosed.
             </div>
         </div>
 
@@ -786,8 +789,8 @@ const [filmArt, tvArt, gamingArt] = await Promise.all(
                     <div class="metric-label">Streaming &amp; Seasons</div>
                 </div>
 
-                <div class="metric-card" style={`--cardArt: url('${gamingArt.src}')`}>
-                    <div class="metric-value">GAMING</div>
+                <div class="metric-card" style={`--cardArt: url('${gamesArt.src}')`}>
+                    <div class="metric-value">GAMES</div>
                     <div class="metric-label">Coverage &amp; Analysis</div>
                 </div>
 
@@ -826,7 +829,7 @@ const [filmArt, tvArt, gamingArt] = await Promise.all(
                         <span class="data-value">Episodes &amp; streaming</span>
                     </li>
                     <li>
-                        <span class="data-label">Gaming</span>
+                        <span class="data-label">Games</span>
                         <span class="data-value">Coverage &amp; analysis</span>
                     </li>
                     <li>

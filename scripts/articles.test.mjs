@@ -127,11 +127,11 @@ test('exact tag match wins and uses the site label Film, not Movies', () => {
 
 test('tag matching is case and punctuation insensitive', () => {
   assert.equal(mapCategory(['comic-con'], ''), 'Events');
-  assert.equal(mapCategory(['GAMING'], ''), 'Gaming');
+  assert.equal(mapCategory(['GAMING'], ''), 'Games');
 });
 
 test('tags beat body text', () => {
-  assert.equal(mapCategory(['Gaming'], 'a movie review about cinema'), 'Gaming');
+  assert.equal(mapCategory(['Gaming'], 'a movie review about cinema'), 'Games');
 });
 
 test('falls back to text scan when no tag is usable', () => {

@@ -31,9 +31,12 @@ nothing. Your job is the things these gates cannot see.
    units were tried (`svh`, `dvh`, a measured `visualViewport` height); all
    three were worse and the reasoning is recorded in
    `scripts/viewport-units.test.mjs`. It needs a real device. Out of scope.
-2. **`Gaming` → `Games` was deliberately NOT done.** It collides with a
-   site-wide taxonomy and a live indexed URL. Filed as issue #146. The
-   `/featured` row still says GAMING on purpose.
+2. **`Gaming` → `Games` HAS since been done** (issue #146), taxonomy and URLs
+   together: `/category/gaming` and `/intel/topic/gaming` now 301 to their
+   `games` equivalents, and old tag spellings resolve through
+   `CATEGORY_TAG_ALIASES` in `src/data/constants.js`. This note used to say
+   the rename was deliberately skipped and that `/featured` still read GAMING.
+   It does not any more.
 3. **`.brand-stage` geometry changed on `/featured`.** It went from the old
    two-column insets back to `inset: 0`, and `.brand-stage-mark` from 74% to
    88%. This is intentional: a stale duplicate of the stylesheet had been

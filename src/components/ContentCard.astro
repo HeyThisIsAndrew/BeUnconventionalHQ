@@ -4,6 +4,7 @@ import { getDisplayTags } from '../lib/tags';
 import { parseVideoId } from '../lib/platforms/youtube';
 import { getCardImageSources, CARD_IMAGE_SIZES } from '../lib/card-images';
 import { LABELS } from '../data/content.js';
+import { CATEGORY_TAG_ALIASES, categoryTagAliases } from '../data/constants.js';
 import logoImage from '../assets/logo-mark.webp';
 import { getImage } from 'astro:assets';
 
@@ -45,9 +46,28 @@ const baseTags = Array.isArray(item.tags) ? item.tags : (Array.isArray(item.yout
 const itemTags = [...baseTags, item.category || ''];
 const lowerTags = itemTags.map((t: string) => typeof t === 'string' ? t.toLowerCase() : '');
 
+/*
+  `data-categories` is what the Feed's #hash filter reads (see FeedGrid), and
+  it is NOT the same list as the tags above.
+
+  A card's tags are whatever Substack or YouTube supplied, so a games post says
+  "gaming" and will keep saying it. Filtering on the renamed slug alone would
+  have matched nothing. Expanding through the alias map means the card answers
+  to every spelling of its own category, which also keeps any #gaming link
+  already shared or bookmarked working after the rename.
+*/
+const filterKeys = new Set(lowerTags.filter(Boolean));
+for (const slug of Object.keys(CATEGORY_TAG_ALIASES)) {
+  const aliases = categoryTagAliases(slug);
+  if (aliases.some((alias: string) => filterKeys.has(alias))) {
+    aliases.forEach((alias: string) => filterKeys.add(alias));
+  }
+}
+const filterAttr = [...filterKeys].join(',');
+
 let primaryLabel = item.category || '';
 if (!primaryLabel || primaryLabel.toLowerCase() === 'general') {
-  if (lowerTags.includes('gaming') || lowerTags.includes('games')) primaryLabel = 'Gaming';
+  if (lowerTags.includes('gaming') || lowerTags.includes('games')) primaryLabel = 'Games';
   else if (lowerTags.includes('film') || lowerTags.includes('movies')) primaryLabel = 'Film';
   else if (lowerTags.includes('tv') || lowerTags.includes('television')) primaryLabel = 'TV';
   else if (lowerTags.includes('event') || lowerTags.includes('events')) primaryLabel = 'Event';
@@ -93,7 +113,7 @@ const wrapperProps = isPlayable
       class: `reveal video-card-home content-card w-full variant-${variant}`,
       'data-delay': index * 100,
       'data-type': 'video',
-      'data-categories': lowerTags.join(','),
+      'data-categories': filterAttr,
       'data-video-id': videoId,
       'data-action': variant === 'hero' ? 'inline-video' : 'open-video',
       role: 'button' as const,
@@ -119,7 +139,7 @@ const wrapperProps = isPlayable
       href: cardHref,
       ...externalLinkProps,
       class: `reveal video-card-home content-card w-full variant-${variant}`,
-      'data-categories': lowerTags.join(','),
+      'data-categories': filterAttr,
       'data-type': isVideo ? 'video' : 'article',
       'data-delay': index * 100
     };

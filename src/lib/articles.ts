@@ -99,7 +99,7 @@ export function getArticleBySlug(slug: string): ArticleRecord | undefined {
 /** Distinct categories present in the archive, in the site's canonical order. */
 export function getArticleCategories(): string[] {
   const present = new Set(getAllArticles().map((r) => r.category).filter(Boolean));
-  return ['Film', 'TV', 'Gaming', 'Events', 'General'].filter((c) => present.has(c));
+  return ['Film', 'TV', 'Games', 'Events', 'General'].filter((c) => present.has(c));
 }
 
 /**

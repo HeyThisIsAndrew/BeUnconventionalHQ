@@ -10,7 +10,7 @@ const RSS_URL = 'https://beunconventionalhq.substack.com/feed';
 const CATEGORIES = {
   MOVIES: 'Film',
   TV: 'TV',
-  GAMING: 'Gaming',
+  GAMING: 'Games',
   EVENTS: 'Events',
 };
 

@@ -35,7 +35,7 @@ function buildArticleLastmod() {
     
     let maxGlobal = 0;
     /** @type {Record<string, number>} */
-    const maxByCategory = { Film: 0, TV: 0, Gaming: 0, Events: 0 };
+    const maxByCategory = { Film: 0, TV: 0, Games: 0, Events: 0 };
     
     for (const record of JSON.parse(raw)) {
       if (!record || record.editorial?.hidden || !record.hasBody || !record.slug) continue;
@@ -290,8 +290,29 @@ export default defineConfig({
     '/feed/film': '/category/film',
     '/feed/film/2': '/category/film/2',
     '/feed/tv': '/category/tv',
-    '/feed/gaming': '/category/gaming',
+    // Retargeted past /category/gaming when that moved (below). A redirect
+    // whose destination is itself a redirect costs a crawler an extra hop and
+    // is the shape Search Console reports as a redirect chain.
+    '/feed/gaming': '/category/games',
     '/feed/events': '/category/events',
+
+    /*
+      ─── THE GAMING → GAMES RENAME (#146) ───────────────────────────────────
+      The content category was renamed from `Gaming` to `Games`, and the label
+      is the URL slug, so two live paths moved. Both were generated from the
+      category list, both were in the sitemap, and /category/gaming is one of
+      the URLs Search Console already lists for this site (it learned it from
+      the noindex stub described above, and never forgot it).
+
+      The hub-category label of the same name did NOT move anything: that key
+      is a document field, not a route segment. See HUB_CATEGORY_LABELS in
+      src/lib/local-content.ts for why those are two different taxonomies.
+
+      No /category/gaming/2 or /intel/topic/gaming/2 is listed because neither
+      ever had enough items to paginate.
+    */
+    '/category/gaming': '/category/games',
+    '/intel/topic/gaming': '/intel/topic/games',
   },
   // ClientRouter already swaps pages without a full reload; prefetching the
   // destination on hover/touch-start is what makes that swap feel instant
@@ -461,7 +482,11 @@ export default defineConfig({
           '/feed/film/2',
           '/feed/tv',
           '/feed/gaming',
-          '/feed/events'
+          '/feed/events',
+          // Renamed to /category/games and /intel/topic/games (#146). Same
+          // rule: the sitemap advertises destinations, never sources.
+          '/category/gaming',
+          '/intel/topic/gaming'
         ];
         return !excludedPaths.includes(path);
       },

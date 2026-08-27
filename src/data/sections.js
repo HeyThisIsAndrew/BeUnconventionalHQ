@@ -54,7 +54,7 @@ export const DEFAULT_BYLINE = {
      appears under every article. Signals editorial standing rather than
      enthusiasm, which is what accreditation boards and Google's quality
      guidance both look for. */
-  bio: 'Covering film, television and gaming with on-location reporting, long-form criticism and industry analysis.',
+  bio: 'Covering film, television and games with on-location reporting, long-form criticism and industry analysis.',
 };
 
 /** Where the writing is authored. Attribution links point back here. */

@@ -8,7 +8,10 @@ How to tag a Substack post so it lands in the right place on beunconventionalhq.
 
 ## The short version
 
-**Put one of these four words in the post's Substack tags: `Film`, `TV`, `Gaming`, `Events`.**
+**Put one of these four words in the post's Substack tags: `Film`, `TV`, `Games`, `Events`.**
+
+(`Gaming` still works. It was the category name until #146 and is kept as a
+keyword alias, so nothing you have already published needs retagging.)
 
 That's it. Everything else here is fallback behaviour for when you forget.
 
@@ -37,7 +40,7 @@ shared with the video taxonomy, so they are not editor-managed.
 |---|---|
 | **Film** | Movie reviews, trailers, box office, cinema |
 | **TV** | Series, seasons, episodes, streaming shows |
-| **Gaming** | Games, consoles, gaming culture |
+| **Games** | Games, consoles, gaming culture |
 | **Events** | Conventions, premieres, on-location coverage |
 | **General** | Fallback only — never tag this deliberately |
 
@@ -64,7 +67,7 @@ If no tag names a category outright, these tags map across:
 |---|---|
 | `movie`, `movies`, `cinema`, `boxoffice` | Film |
 | `television`, `series`, `season`, `episode`, `streaming`, `show` | TV |
-| `game`, `games`, `videogame`, `playstation`, `xbox`, `nintendo`, `steam` | Gaming |
+| `gaming`, `game`, `games`, `videogame`, `playstation`, `xbox`, `nintendo`, `steam` | Games |
 | `event`, `convention`, `con`, `comiccon`, `comic-con`, `sdcc`, `d23`, `premiere`, `expo` | Events |
 
 **3. Title/description keyword scan (weakest — a safety net, not a strategy).**
@@ -104,7 +107,7 @@ a hub picks up both the video and the written coverage.
 
 Tag freely — extra tags are preserved on the record and are used for hub
 matching and Feed filtering. Only the **category** resolution stops at the first
-match, and it checks in the order Film → TV → Gaming → Events.
+match, and it checks in the order Film → TV → Games → Events.
 
 So if a post is genuinely both, put the one you want as its badge first in the
 list *and* make it an exact category name, since exact matches are resolved
@@ -177,7 +180,7 @@ which survives every future sync:
   "title": "A better headline for the site",
   "excerpt": "A hand-written standfirst.",
   "image": "https://…",
-  "category": "Gaming",
+  "category": "Games",
   "featured": true,
   "hidden": false,
   "sortWeight": 10
