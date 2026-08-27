@@ -26,6 +26,9 @@ const {
   prevUrl,
   nextUrl,
   preloadImage,
+  preloadImageSrcset,
+  preloadImageSizes,
+
   /*
     Origins to warm before the browser discovers it needs them. Opt-in per
     page rather than global, because a preconnect to an origin a page never
@@ -247,7 +250,8 @@ const fallbackMark = await getImage({
     {noindex && <meta name="robots" content="noindex, nofollow" />}
     {prevUrl && <link rel="prev" href={prevUrl} />}
     {nextUrl && <link rel="next" href={nextUrl} />}
-    {preloadImage && <link rel="preload" as="image" href={preloadImage} fetchpriority="high" />}
+    {preloadImage && <link rel="preload" as="image" href={preloadImage} imagesrcset={preloadImageSrcset || undefined} imagesizes={preloadImageSizes || undefined} fetchpriority="high" />}
+
     {/*
       Both hints, deliberately. `preconnect` opens the connection; the
       `dns-prefetch` beside it is the fallback for browsers that ignore or

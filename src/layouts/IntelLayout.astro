@@ -82,7 +82,11 @@ const {
 const hasMagazine = magazineArticles.length > 0;
 const hasArchive = page.data.length > 0;
 const hasVideos = videos.length > 0;
-const defaultPreloadImage = preloadImage || (hasMagazine && magazineArticles[0]?.image ? getCardImageSources(magazineArticles[0].image).src : null);
+const firstMagSources = hasMagazine && magazineArticles[0]?.image ? getCardImageSources(magazineArticles[0].image) : null;
+const defaultPreloadImage = preloadImage || (firstMagSources ? firstMagSources.src : null);
+const defaultPreloadSrcset = firstMagSources ? firstMagSources.srcset : null;
+const defaultPreloadSizes = firstMagSources?.srcset ? "(max-width: 900px) 92vw, 720px" : null;
+
 
 // Nothing at all to show — not even one article in the spread.
 const isEmpty = !hasMagazine && !hasArchive;
@@ -93,7 +97,7 @@ const isEmpty = !hasMagazine && !hasArchive;
   description={description}
   headingLabel={headingLabel}
   page={page}
-  preloadImage={defaultPreloadImage}
+  preloadImage={defaultPreloadImage} preloadImageSrcset={defaultPreloadSrcset} preloadImageSizes={defaultPreloadSizes}
   kicker={ARTICLE_SECTION.kicker}
   titlePrimary={ARTICLE_SECTION.titlePrimary}
   titleSecondary={ARTICLE_SECTION.titleSecondary}

@@ -260,6 +260,10 @@ if (article.contentType === 'Review') {
   title={`${article.title} | ${site.name}`}
   description={article.excerpt}
   image={heroImage}
+  preloadImage={heroImageSources?.src || article.image}
+  preloadImageSrcset={heroImageSources?.srcset || undefined}
+  preloadImageSizes={heroImageSources?.srcset ? "(max-width: 900px) 92vw, 720px" : undefined}
+
   type="article"
 >
   <script
@@ -335,7 +339,7 @@ if (article.contentType === 'Review') {
                 alt={`Cover image for ${article.title}`}
                 width={heroDimensions.width}
                 height={heroDimensions.height}
-                loading="eager"
+                loading="eager" fetchpriority="high"
                 decoding="async"
               />
             )}
