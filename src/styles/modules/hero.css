@@ -84,36 +84,36 @@ body.scroll-locked .hero {
 
      Hero.astro's measureLift() reads `hero.offsetHeight` rather than assuming
      a unit, so the splash lift follows this automatically. */
+  /*
+     ─── AND `--vv-height` IS WRONG HERE. TRIED IT, MEASURED IT ─────────────
+     Sizing this from the measured `visualViewport.height` looked like the
+     obvious next step — no static unit is right in both chrome states, and
+     landscape.css already measures. On a real iPhone it made the reported
+     symptom WORSE, and the reason is a distinction that is easy to miss:
+
+       visualViewport  is the SMALL viewport. With the toolbar shown it
+                       EXCLUDES the toolbar.
+       layout viewport is the LARGE one. iOS paints page content behind and
+                       just below the translucent toolbar.
+
+     So a hero sized to the visual viewport is SHORTER than the layout
+     viewport, and the strip between the two is exactly where the next
+     section shows through — under the toolbar, which is where it was
+     photographed.
+
+     `lvh` IS the layout viewport, so the hero reaches its bottom in every
+     chrome state. That is what the note above means by "never SHORTER than
+     the visible area", and it is why this is a static unit, not a
+     measurement.
+
+     landscape.css can measure because it uses the value as a MIN-bound with
+     an auto-sized box, so a too-small measurement just lets the content
+     decide. This rule is an outright size, where too small is a gap.
+
+     Do not swap this for svh, dvh or a measurement without testing on a real
+     iOS device. All three have been tried. */
   .hero {
-    /*
-       ─── AND `lvh` WAS NOT RIGHT EITHER, ON A FRESH LOAD ──────────────────
-       Everything above is still true and none of it is being undone. But
-       `lvh` is the height with the chrome RETRACTED, and a fresh load in iOS
-       Safari starts with it EXPANDED — so the hero is sized to a viewport the
-       reader does not have yet, and "EXPLORE THE HQ / WHAT WE COVER" showed
-       again at the bottom of the first screen. Reported on iPhone portrait,
-       fresh load only: a refresh does not reproduce it, because by then the
-       splash has already run and the chrome has settled.
-
-       That is the same trap the note above describes for `svh`, arrived at
-       from the other direction. There is no static unit that is right in both
-       chrome states, which is exactly the conclusion landscape.css reached
-       and solved — this rule simply never got the same treatment.
-
-       `--vv-height` is the real `visualViewport.height`, seeded inline in
-       Layout.astro BEFORE first paint and republished by viewport-anchor.ts
-       only after a rotation settles. Never on scroll. So it keeps every bit
-       of the stability this comment is about — constant per orientation, no
-       re-resolve, no `.hero-bg` re-rasterize — while being the height the
-       reader actually has instead of a guess at which chrome state they are
-       in.
-
-       `100lvh` stays as the fallback, so without JS this rule ships exactly
-       what it shipped before.
-
-       Hero.astro's measureLift() reads `hero.offsetHeight` rather than
-       assuming a unit, so the splash lift follows this automatically. */
-    height: var(--vv-height, 100lvh);
+    height: 100lvh;
   }
 
   /* Force visibility on mobile to rule out IntersectionObserver failures */

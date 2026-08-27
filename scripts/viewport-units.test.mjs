@@ -65,32 +65,36 @@ function mobileHeroHeight() {
 
 console.log('Hero viewport unit:');
 
-test('the mobile hero is MEASURED, with lvh as the no-JS fallback', () => {
+test('the mobile hero is sized in lvh, NOT a measurement', () => {
   /*
-    Was `assert.equal(height, '100lvh')`.
+    This assertion has now been wrong in both directions, so both are recorded.
 
-    `lvh` fixed the ORIGINAL bug (svh is the smallest viewport, so once Safari
-    retracted its address bar the hero stopped reaching the bottom and the next
-    section peeked in). It then reintroduced the same bug from the other side:
-    `lvh` is the height with the chrome RETRACTED and a fresh load starts with
-    it EXPANDED, so the hero was again shorter than the screen. Reported on
-    iPhone portrait, fresh load only.
+    `svh` was the ORIGINAL bug: it is the SMALLEST viewport, so once Safari
+    retracted its address bar the hero stopped reaching the bottom and the
+    next section peeked in. Changed to `lvh`.
 
-    No static unit is right in both chrome states. The measured value is —
-    but only once the viewport meta is parsed first, which is what the test
-    at the bottom of this file exists to hold. Sizing from the measurement
-    WITHOUT that ordering cost CLS 0.69 and 24 performance points.
+    `var(--vv-height, 100lvh)` was the attempted fix for a fresh-load report
+    of the same symptom, and on a real iPhone it made things WORSE.
+    visualViewport is the SMALL viewport; the LAYOUT viewport is the large
+    one, and iOS paints content behind and below the translucent toolbar. A
+    hero sized to the visual viewport is shorter than the layout viewport,
+    and that gap is exactly where the next section showed through.
+
+    `lvh` IS the layout viewport, so the hero reaches its bottom in every
+    chrome state. landscape.css can measure only because it uses the value as
+    a MIN-bound on an auto-sized box; this rule is an outright size, where
+    too small is a visible gap.
   */
   const height = mobileHeroHeight();
-  assert.match(
+  assert.equal(
     height,
-    /^var\(--vv-height,\s*100lvh\)$/,
+    '100lvh',
     `mobile .hero height is "${height}".\n\n` +
-      '      It must be 100lvh. 100svh leaves a gap at the bottom of an iPhone\n' +
-      '      once Safari retracts its address bar, and the next section shows\n' +
-      '      through. 100dvh removes the gap but re-resolves during scroll,\n' +
-      '      which re-rasterizes the blurred .hero-bg and causes the jitter\n' +
-      '      hero.css documents at length.\n',
+      '      It must be 100lvh. svh is short once the address bar retracts;\n' +
+      '      dvh re-resolves during scroll and re-rasterizes the blurred\n' +
+      '      .hero-bg; and a measured visualViewport height is SHORTER than\n' +
+      '      the layout viewport, which is what put the next section under\n' +
+      '      the toolbar on a real device. All three have been tried.\n',
   );
 });
 
