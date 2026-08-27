@@ -120,6 +120,35 @@ test('mismatched shapes abort rather than coercing', () => {
   assert.match(output, /different shapes/);
 });
 
+test('setup-git does nothing in an automated build', () => {
+  /*
+    The registration script runs from `postinstall`, so it fires on every CI
+    and deploy build too. Its comment claimed it no-ops on "CI checkouts" —
+    but a CI checkout IS a git work tree, so the work-tree guard passes there
+    and it registered the driver anyway. Caught in a Cloudflare Workers Build
+    log, printing its whole success banner on a production deploy.
+
+    Harmless (the config lands in a container that never merges anything) but
+    pointless work and noise in every release log. An automated build has no
+    interactive merges to resolve.
+  */
+  const setup = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'setup-git.mjs'), 'utf8');
+  for (const name of ['CI', 'GITHUB_ACTIONS']) {
+    assert.ok(
+      setup.includes(`'${name}'`),
+      `setup-git.mjs must recognise ${name} as an automated build and skip. ` +
+        'The work-tree check alone does NOT cover CI — a CI checkout is a work tree.',
+    );
+  }
+  assert.match(setup, /const automated = /, 'the automation check must gate the exit');
+
+  // And prove it, rather than trusting the source read.
+  const run = (env) => execFileSync('node', [join(dirname(fileURLToPath(import.meta.url)), 'setup-git.mjs')],
+    { encoding: 'utf8', env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'ignore'] });
+  assert.equal(run({ CI: 'true' }).trim(), '', 'CI=true must produce no output at all');
+  assert.equal(run({ GITHUB_ACTIONS: 'true' }).trim(), '', 'GITHUB_ACTIONS=true must produce no output');
+});
+
 test('.gitattributes names the driver for every file the syncs rewrite', () => {
   const attrs = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', '.gitattributes'), 'utf8');
   for (const f of ['videos', 'articles', 'instagram', 'article-images']) {
