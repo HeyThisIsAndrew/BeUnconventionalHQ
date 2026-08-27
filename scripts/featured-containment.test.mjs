@@ -25,6 +25,21 @@ const src = raw
   .replace(/\/\*[\s\S]*?\*\//g, '')
   .replace(/^\s*\/\/.*$/gm, '');
 
+/*
+  The page's own <style> block, comments removed.
+
+  Several guards below are about what is declared in CSS, and `src` is the
+  whole .astro file — frontmatter, markup and script included — so searching it
+  finds the TypeScript that GENERATES a rule as readily as a hardcoded one.
+  This narrows the search to the stylesheet.
+*/
+function styleBlock() {
+  const open = raw.indexOf('\n<style>');
+  const close = raw.indexOf('</style>', open);
+  if (open === -1 || close === -1) throw new Error('featured/index.astro has no <style> block');
+  return raw.slice(open + '\n<style>'.length, close).replace(/\/\*[\s\S]*?\*\//g, '');
+}
+
 let passed = 0;
 let failed = 0;
 function test(name, fn) {
@@ -381,9 +396,21 @@ test('a row is sized by its own share, not by what its siblings leave over', () 
 test('the shipping typeface is self-hosted, not a third-party stylesheet', () => {
   // A render-blocking stylesheet on another origin sits in the critical path of
   // a page whose whole layout is viewport-derived. Inter and Syne are already
-  // self-hosted here; the display face is now too. The picker's other seven
-  // faces stay remote because none of them ships.
-  assert.match(src, /montserrat-500-latin\.woff2/, 'the shipping face must be local');
+  // self-hosted here; the display face is now too. The picker's other faces
+  // stay remote because none of them ships.
+  //
+  // Asserted through PROD_FONT rather than against a filename: this test named
+  // montserrat-500-latin.woff2 for two changes of shipping face after
+  // Montserrat stopped being one, and passed both times on a file the page no
+  // longer serves.
+  const prod = src.match(/const PROD_FONT = '([a-z-]+)'/);
+  assert.ok(prod, 'PROD_FONT must be declared');
+  const map = src.slice(src.indexOf('const SELF_HOSTED_FILES'), src.indexOf('const selfHostedFile'));
+  assert.match(
+    map,
+    new RegExp(`\\b${prod[1]}: \\{[^}]*file: '/fonts/`),
+    `PROD_FONT is '${prod[1]}' but SELF_HOSTED_FILES serves it no local file`,
+  );
   assert.match(src, /font-display: optional/, 'optional, so a late font never swaps under the reader');
   assert.match(src, /const REMOTE_FONTS/, 'the remote faces must be separated from the shipping one');
   assert.doesNotMatch(src, /@import url/, '@import is the slowest way to load CSS');
@@ -411,9 +438,18 @@ test('every candidate face is actually served, and none are hardcoded', () => {
 
   // Exactly one place declares a face's rule, and it is generated.
   assert.match(src, /\[data-title-font='\$\{f\.id\}'\]/, 'per-face rules are generated from DEMO_FONTS');
-  const scoped = src.slice(src.indexOf('TEMPORARY typography demo'));
-  assert.doesNotMatch(scoped, /data-demo-font='[a-z-]+'\]/,
+  /*
+    This used to slice from the string 'TEMPORARY typography demo', which is
+    inside a COMMENT — and `src` has had its comments stripped. indexOf
+    returned -1, slice(-1) handed back the file's last character, and the
+    assertion below passed against one byte for as long as it existed. The
+    duplicate it was written to catch was sitting in the file the whole time.
+    Search the real stylesheet instead.
+  */
+  assert.doesNotMatch(styleBlock(), /data-demo-font='[a-z-]+'\]/,
     'no hardcoded per-face rules — they go stale the moment a face is added');
+  assert.doesNotMatch(styleBlock(), /\[data-title-font='(?!demo')[a-z-]+'\]/,
+    "no hardcoded per-face rules — only 'demo' may appear as a literal here");
 
   // The self-hosted file must belong to the face that ships.
   const map = src.slice(src.indexOf('const SELF_HOSTED_FILES'), src.indexOf('const selfHostedFile'));
@@ -423,6 +459,107 @@ test('every candidate face is actually served, and none are hardcoded', () => {
     new RegExp(`\\b${prod[1]}: \\{`).test(map),
     `PROD_FONT is '${prod[1]}' but no self-hosted file is registered for it`,
   );
+});
+
+test('the picker publishes variables; the scoped rules read them', () => {
+  /*
+    THE PICKER SET font-family AND LOST EVERY TIME.
+
+    Its rules live in an inline <style> in the head. The `.accordion-title`
+    rules they had to beat live in this component's SCOPED block, which Astro
+    rewrites to `.accordion-title[data-astro-cid-…]` — one class plus one
+    attribute, the same 0,2,0 as `[data-title-font='x'] .accordion-title`. The
+    scoped sheet is emitted second, so the tie went to the base rule.
+
+    Measured in dev with getComputedStyle before the fix: thirteen of the
+    seventeen faces left the title in the previously-selected face, and the
+    weight and tracking never moved for ANY of them. Four appeared to work,
+    and only because a stale duplicate of the scoped block still hardcoded
+    exactly those four further down the same sheet.
+
+    Custom properties do not have that fight: they inherit, and the scoped
+    rules opt in by reading them. Losing that indirection reinstates the bug
+    silently, so it is pinned from both ends.
+  */
+  const fontCssAt = src.indexOf('const fontCss');
+  // The CLOSING frontmatter fence. Searched from fontCss, not from 0 — the
+  // first `---` in the file is the OPENING fence and the slice comes back empty.
+  const gen = src.slice(fontCssAt, src.indexOf('\n---', fontCssAt));
+  assert.match(gen, /--accordion-title-face:/, 'the picker must publish the face as a variable');
+  assert.match(gen, /--accordion-title-weight:/, 'and its weight');
+  assert.match(gen, /--accordion-title-tracking:/, 'and its tracking');
+  assert.doesNotMatch(
+    gen,
+    /^\s*font-family:/m,
+    'the generated rules must NOT set font-family — the scoped .accordion-title ' +
+      'rule ties on specificity and is emitted later, so it wins and the picker ' +
+      'does nothing',
+  );
+
+  const style = styleBlock();
+  assert.match(
+    style,
+    /font-family: var\(\s*--accordion-title-face,/,
+    '.accordion-title must read the picker variable, with the original stack as ' +
+      'its fallback so a face that never arrives leaves the row untouched',
+  );
+  assert.match(style, /font-weight: var\(--accordion-title-weight,/,
+    'the weight must come from the face, or a display face with one cut is synthesised');
+
+  /*
+    The demo-mode selector is gated on `[data-title-font='demo']` deliberately.
+    Ungated, a per-row variable set on the title ELEMENT beats the picker's
+    value inherited from <main>, and picker mode silently keeps showing the
+    per-row demo assignment instead of the face that was pressed.
+  */
+  assert.match(
+    gen,
+    /\[data-title-font='demo'\] \.accordion-title\[data-demo-font=/,
+    "demo-mode rules must be gated on [data-title-font='demo'] or picker mode cannot win",
+  );
+});
+
+test('the featured stylesheet is not carrying a second copy of itself', () => {
+  /*
+    HOW THIS PAGE ACQUIRED A STALE TWIN.
+
+    `feat(featured): one layout at every size` COPIED the desktop block rather
+    than moving it, and the copy — an older revision, from
+    `fix(featured): stop painting on the video` — was left LATER in the same
+    sheet, where it quietly won. It reverted `.brand-stage` from the full plate
+    back to the old two-column insets, put `.brand-stage-mark` back to 74%, and
+    kept the four hardcoded per-face rules that made the typeface picker look
+    like it half-worked. About 1,500 lines, silently in charge, for four days.
+
+    These three counts are the cheapest thing that would have caught it: each
+    belongs to a block that exists once by construction, and a duplicated
+    region takes all three above one. Rules that are deliberately declared
+    twice — the unwrapped "ONE LAYOUT, EVERY SIZE" overrides at the end — are
+    not among them.
+  */
+  const style = styleBlock();
+  /* Anchored to the start of a line, so a selector that merely ENDS in the
+     name (`…:not([data-title-font='demo']) .accordion-title-demo-label`) is
+     not counted as a second declaration of it. */
+  const count = (selector) =>
+    (style.match(new RegExp(`^\\s*\\${selector} \\{`, 'gm')) ?? []).length;
+
+  assert.equal(count('.font-picker-btn'), 1,
+    'the picker is styled in one place; a second copy means a duplicated region');
+  assert.equal(count('.font-picker'), 1,
+    'the picker is positioned in one place');
+  assert.equal(count('.accordion-title-demo-label'), 1,
+    'the demo label is styled in one place');
+
+  /*
+    And the orphan the same merge left behind: a `to { … }` with no
+    `@keyframes` opening it, which a parser reads as a rule for a nonexistent
+    <to> element followed by a stray brace. Inert, but it is how the block
+    ended up unbalanced, and an unbalanced block is how a parser swallows the
+    rules after it.
+  */
+  assert.doesNotMatch(style, /^\s*to \{/m,
+    'an orphaned keyframe step — @keyframes was removed and its body left behind');
 });
 
 test("a hub's empty state carries no mark of ours", () => {
