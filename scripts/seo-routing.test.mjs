@@ -136,6 +136,37 @@ test('no page route returns Astro.redirect (that emits a noindex stub, not a 301
   );
 });
 
+/*
+  ─── THE FEED MUST AGREE WITH THE CANONICAL TAG ─────────────────────────────
+
+  @astrojs/rss defaults `trailingSlash` to true, so a relative item link comes
+  out as `/intel/<slug>/`. This site's canonical form is the bare one, set by
+  `assets.html_handling: "drop-trailing-slash"` in wrangler.jsonc and matched
+  by Layout.astro's canonical tag and the sitemap's serialize().
+
+  So the default shipped a feed whose every item pointed at a URL that 301s,
+  disagreeing with the canonical tag on the page it named — on the one surface
+  whose entire job is handing Google a list of URLs. Caught before it reached
+  Publisher Center; this stops it coming back.
+*/
+test('the RSS feed emits canonical, slash-free article URLs', () => {
+  const feed = fs.readFileSync(path.join(repoRoot, 'src/pages/rss.xml.ts'), 'utf-8');
+  assert.match(
+    feed,
+    /trailingSlash:\s*false/,
+    'rss() must set trailingSlash: false. The default is true, which emits /intel/<slug>/ — a URL that immediately redirects.',
+  );
+  assert.ok(
+    !/link:\s*`\/intel\//.test(feed),
+    'build the item link with articlePath(), not a hand-written /intel/ template string',
+  );
+});
+
+test('the RSS feed is discoverable from every page', () => {
+  const layout = fs.readFileSync(path.join(repoRoot, 'src/layouts/Layout.astro'), 'utf-8');
+  assert.match(layout, /rel="alternate"[^>]*application\/rss\+xml/);
+});
+
 if (failures > 0) {
   console.error(`\nseo-routing: ${failures} failing test(s)`);
   process.exit(1);
