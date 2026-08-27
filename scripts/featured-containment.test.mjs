@@ -532,8 +532,11 @@ test('the hub trailer hands over to the first rail tile when it stops', () => {
   assert.match(hub, /dispatchEvent\(new CustomEvent\('hub:stage-idle'\)\)/,
     'teardown must announce the stage is empty — that is the single signal covering ' +
       'ended, timed out, and never started');
-  assert.match(hub, /addEventListener\('hub:stage-idle', handOver, \{ once: true \}\)/,
-    'the handover is the FIRST idle only; a later teardown must not re-select');
+  assert.match(hub, /addEventListener\('hub:stage-idle', handOver\)/,
+    'the rail must hand over on every idle. `{ once: true }` was wrong once replay ' +
+      'existed — the second trailer would end and hand over to nothing. It is safe ' +
+      'to re-run because handOver returns early when a tile is already active, and ' +
+      'show() unloads the frame directly rather than through teardown().');
   assert.match(hub, /state === 0 && stage!?\.classList\.contains\('is-playing'\)/,
     'playerState 0 is ENDED, but the player also reports states before it starts — ' +
       'without the is-playing guard a pre-roll report tears the trailer down early');
@@ -544,6 +547,58 @@ test('the hub trailer hands over to the first rail tile when it stops', () => {
      and the page is back to claiming a tile is showing when it is not. */
   assert.doesNotMatch(hub, /hub-rail-card \$\{i === 0 \? 'active'/,
     'the rail must not hardcode tile 0 active — that is the bug this replaced');
+});
+
+test('the hub trailer can be played again without a reload', () => {
+  /*
+    The trailer used to play exactly once. `initHubStage` is guarded by
+    `stageInit`, `teardown()` unloads the frame to about:blank, and nothing
+    re-armed — so the only replay was a refresh, or leaving and returning
+    (ClientRouter swaps the DOM, which clears the guard). Measured:
+
+      first load:        frameSrc = https://www.youtube-nocook…
+      after it ends:     frameSrc = about:blank
+      re-fire page-load: frameSrc = about:blank        <- no replay
+      after re-navigate: frameSrc = https://www.youtube-nocook…
+
+    Arming is a function now so replay is a second CALL, not a second code
+    path. teardown() already leaves exactly the state arm() expects.
+
+    PLACEMENT WAS THE HARD PART, and the first attempt failed. Putting the
+    control over the hub's mark reads beautifully and cannot work: the
+    handover puts a rail pane up the instant the trailer ends, so `is-item`
+    is on from then on and a button behind that pane can never be pressed.
+    A test pressed it and found nothing clickable. It also cannot be
+    full-bleed — the pane carries its own Play and Read controls.
+
+    It shares the sound toggle's corner instead. The two are mutually
+    exclusive by definition, so one slot serves both.
+  */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8');
+
+  assert.match(hub, /const arm = \(delay: number\) =>/,
+    'arming must be a callable function — inline, the trailer can only ever play once');
+  assert.match(hub, /arm\(HUB_LEAD_IN_MS\)/, 'the first play waits, so the mark is seen before it dissolves');
+  assert.match(hub, /arm\(0\)/, 'a replay the visitor asked for starts immediately');
+
+  assert.match(hub, /class="hub-stage-replay"/, 'there must be a control');
+  assert.match(hub, /aria-label={`Replay the \$\{event\.title\} trailer`}/,
+    'an icon control needs a real name — this is the whole reason it is a <button> ' +
+      'and not a click handler on the decorative mark');
+
+  /* Never on screen at the same time as the sound toggle, which owns the
+     same corner while a trailer is running. */
+  assert.match(hub, /\.hub-stage\.is-playing \.hub-stage-replay \{\s*display: none/,
+    'replay must vanish while the trailer plays, or it collides with the sound toggle');
+  assert.doesNotMatch(hub, /\.hub-stage\.is-item \.hub-stage-replay \{\s*display: none/,
+    'hiding on is-item is the bug that made this unpressable: the handover leaves ' +
+      'is-item on permanently once the first trailer ends');
+
+  /* Replay while a tile is showing has to clear the rail, or the page is back
+     to a highlighted tile over a trailer that is not it. */
+  assert.match(hub, /dispatchEvent\(new CustomEvent\('hub:stage-replay'\)\)/,
+    'the stage must ASK the rail to stand down rather than setting card state itself');
+  assert.match(hub, /addEventListener\('hub:stage-replay'/, 'and the rail must answer');
 });
 
 test('the calendar dialog does not land on its own close button', () => {
