@@ -29,6 +29,24 @@ const contactSocials = [
     />
   </header>
 
+  {/*
+    THE LABEL BELONGS TO THE LINK, NOT THE BOX INSIDE IT.
+
+    These are icon-only links, so the accessible name has to come from an
+    attribute. `aria-label` used to sit on the inner <div>, and ARIA
+    PROHIBITS aria-label on a generic element — it is specified to be
+    ignored.
+
+    Chrome ignores the prohibition and passes the name up, which is why all
+    six measured correctly (`role=link NAME="YouTube"`) and why Lighthouse
+    scores /about at 100. So this was never broken in practice. It was
+    working by accident, and another browser or screen reader is entitled to
+    do what the spec says instead — at which point six links announce as
+    "link" with no name at all.
+
+    The label now sits on the <a>, where it is valid, and the icon wrapper is
+    aria-hidden so the SVG cannot announce itself a second time.
+  */}
   <div class="contact-socials-grid">
     {
       contactSocials.map((social, index) => (
@@ -38,11 +56,12 @@ const contactSocials = [
           rel="noopener noreferrer"
           class="contact-social-card animate-on-scroll"
           data-delay={index * 100}
+          aria-label={social.name}
         >
           <div
             class="contact-social-icon-wrapper"
             set:html={socialIcons[social.name as keyof typeof socialIcons]}
-            aria-label={social.name}
+            aria-hidden="true"
           />
         </a>
       ))

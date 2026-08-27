@@ -610,17 +610,24 @@ ${activeFonts
                       {categoryBrands.map((brand: Brand, bIndex: number) => {
                          const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(400).height(200).auto('format').quality(70).url() : null;
                          return (
-                           <div class={`deck-nav-thumb ${bIndex === 0 ? 'active' : ''}`} data-index={bIndex}>
+                           <button
+                             type="button"
+                             class={`deck-nav-thumb ${bIndex === 0 ? 'active' : ''}`}
+                             data-index={bIndex}
+                             aria-label={`Show ${brand.title}`}
+                             aria-current={bIndex === 0 ? 'true' : 'false'}
+                           >
                              
-                             {/* TOOLTIP */}
-                             <div class="custom-tooltip">{brand.title}</div>
+                             {/* TOOLTIP. A <span>, not a <div>: a <button> may
+                                 only contain phrasing content. */}
+                             <span class="custom-tooltip">{brand.title}</span>
 
                              {heroUrl ? (
-                                <img src={heroUrl} alt={brand.title} loading="lazy" class="nav-thumb-img" />
+                                <img src={heroUrl} alt="" loading="lazy" class="nav-thumb-img" />
                              ) : (
-                                <div class="nav-thumb-fallback">{brand.title}</div>
+                                <span class="nav-thumb-fallback">{brand.title}</span>
                              )}
-                           </div>
+                           </button>
                          );
                       })}
                     </div>
@@ -1096,7 +1103,13 @@ ${activeFonts
           card.style.transform = '';
           infoPanels[i].className = 'brand-info-panel';
           
-          if (navThumbs[i]) navThumbs[i].className = 'deck-nav-thumb';
+          if (navThumbs[i]) {
+            navThumbs[i].className = 'deck-nav-thumb';
+            /* The class is the look; aria-current is the announcement. Both
+               have to move together or a screen reader keeps naming the hub
+               that used to be showing. */
+            navThumbs[i].setAttribute('aria-current', 'false');
+          }
           if (glowLayers[i]) glowLayers[i].className = 'ambient-glow-layer';
 
           if (i === activeIndex) {
@@ -1104,6 +1117,7 @@ ${activeFonts
             infoPanels[i].classList.add('active');
             if (navThumbs[i]) {
               navThumbs[i].classList.add('active');
+              navThumbs[i].setAttribute('aria-current', 'true');
               const track = navThumbs[i].closest('.deck-nav-track');
               if (track) {
                 const thumbLeft = navThumbs[i].offsetLeft;
@@ -2334,17 +2348,61 @@ ${activeFonts
     background: rgba(255,255,255,0.2);
   }
 
+  /*
+    A <button>, NOT A DIV — AND THE RESETS THAT COSTS.
+
+    These were <div>s carrying a click handler, so the rail could not be
+    reached with Tab at all: focus went from the row heading straight past
+    the whole rail. A <div> is a plain box; browsers only put genuinely
+    interactive elements in the tab order, and one that merely BEHAVES like a
+    button when clicked is not one.
+
+    It was never a dead end — the deck cards themselves are real <a>s, so
+    every hub stayed reachable — but the rail is the fast way to switch and
+    a keyboard user simply did not have it. WCAG 2.1.1.
+
+    A <button> is focusable for free, fires on Enter and Space with no extra
+    code, and announces its state. The price is the four resets below: user
+    agents give buttons their own font, colour, alignment and radius, and
+    without these the rail rendered with system-font labels and rounded
+    corners. `background` and `border` were already declared, which is why
+    only these four are needed.
+  */
   .deck-nav-thumb {
     width: 120px;
     height: 60px;
     flex-shrink: 0;
     background: #111;
     border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 0;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-align: inherit;
     opacity: 0.4;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
     position: relative;
     overflow: visible; /* so tooltip can escape */
+  }
+
+  /*
+    Being focusable is no use if you cannot see where you are. Uses
+    `--color-accent-text`, not `--color-accent`: this ring has to be legible
+    against the rail's near-black, and the deep red is 3.21:1 (see CLAUDE.md).
+  */
+  .deck-nav-thumb:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: 3px;
+    opacity: 1;
+    z-index: 3;
+  }
+
+  /* The tooltip is the accessible name's visual twin; a keyboard user
+     reaching a thumb should see the same label a mouse user gets on hover. */
+  .deck-nav-thumb:focus-visible .custom-tooltip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
   
   .deck-nav-thumb:hover {

@@ -509,6 +509,107 @@ test('one physical trackpad swipe can only ever move one card', () => {
       'momentum jitter clears it constantly');
 });
 
+test('the hub trailer hands over to the first rail tile when it stops', () => {
+  /*
+    The rail used to ship tile 0 marked active in the markup while the stage
+    played the hub's own trailer, so a fresh PlayStation page highlighted
+    "Marvel's Wolverine" over a PS5 trailer. Removing that hardcoded state
+    stopped the page lying but left the rail showing nothing at all.
+
+    This is the other half. The stage announces `hub:stage-idle` whenever the
+    trailer stops for ANY reason — ended (playerState 0), ran its
+    HUB_RUN_MS, or never started — and the rail selects its first tile.
+
+    Verified in a browser across five cases: nothing selected during the
+    trailer; tile 0 after it ends; a visitor's own pick is never overridden;
+    reduced motion selects immediately; a hub with no tiles does not throw.
+  */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8');
+
+  assert.match(hub, /stage\.dataset\.stageArmed = '1'/,
+    'the stage must record that a trailer is genuinely coming, so the rail can tell ' +
+      'waiting-for-handover from nothing-will-ever-happen');
+  assert.match(hub, /dispatchEvent\(new CustomEvent\('hub:stage-idle'\)\)/,
+    'teardown must announce the stage is empty — that is the single signal covering ' +
+      'ended, timed out, and never started');
+  assert.match(hub, /addEventListener\('hub:stage-idle', handOver, \{ once: true \}\)/,
+    'the handover is the FIRST idle only; a later teardown must not re-select');
+  assert.match(hub, /state === 0 && stage!?\.classList\.contains\('is-playing'\)/,
+    'playerState 0 is ENDED, but the player also reports states before it starts — ' +
+      'without the is-playing guard a pre-roll report tears the trailer down early');
+  assert.match(hub, /if \(cards\.some\(\(c\) => c\.classList\.contains\('active'\)\)\) return;/,
+    'a visitor who has already picked a tile must never have the stage yanked away');
+
+  /* The markup must NOT pre-select, or the handover has nothing to hand over to
+     and the page is back to claiming a tile is showing when it is not. */
+  assert.doesNotMatch(hub, /hub-rail-card \$\{i === 0 \? 'active'/,
+    'the rail must not hardcode tile 0 active — that is the bug this replaced');
+});
+
+test('the calendar dialog does not land on its own close button', () => {
+  /*
+    Reported as "a red box around the X that should not be there on desktop,
+    iPad or iPhone". It was the keyboard focus ring, painted on every open
+    before anyone touched anything.
+
+    Nothing in the component focuses the button: `showModal()` focuses the
+    first focusable child, and browsers treat that as keyboard-style focus, so
+    `:focus-visible` matched. Measured on the built page: outline
+    "2px solid rgb(204, 0, 0)", focusVisible true, immediately on open.
+
+    A `tabindex="-1"` container takes focus without painting a ring, so focus
+    still moves into the dialog — which screen readers, Escape and <dialog>'s
+    native Tab trapping all depend on — without looking focused.
+  */
+  const modal = readFileSync(join(here, '..', 'src', 'components', 'SpanningCalendarModal.astro'), 'utf8');
+  assert.match(modal, /class="modal-inner" tabindex="-1" autofocus/,
+    'the dialog needs a non-button landing spot, or showModal() paints a focus ring on the X');
+  assert.match(modal, /\.modal-inner:focus-visible \{\s*outline: none/,
+    'the landing spot must not paint a ring of its own');
+  assert.match(modal, /\.close-btn:focus-visible \{/,
+    'the X must STILL show a ring when a keyboard user Tabs to it — that is not the bug');
+});
+
+test('the deck nav rail is operable from a keyboard', () => {
+  /*
+    These were <div>s carrying a click handler, so Tab went from the row
+    heading straight past the entire rail. A <div> is a plain box; browsers
+    only put genuinely interactive elements in the tab order, and one that
+    merely BEHAVES like a button when clicked is not one. WCAG 2.1.1.
+
+    Never a dead end — the deck cards are real <a>s, so every hub stayed
+    reachable — but the rail is the fast way to switch and a keyboard user
+    simply did not have it.
+
+    Verified in a browser after the change: Tab reaches all four thumbs,
+    each announces as `button` named "Show <hub>", Enter moves the deck, and
+    the focus ring computes to rgb(239,69,69).
+  */
+  const thumb = src.slice(src.indexOf('deck-nav-track'), src.indexOf('</div>', src.indexOf('deck-nav-track')));
+  assert.match(thumb, /<button\s+type="button"/,
+    'the rail thumbs must be real <button>s — a div with a click handler is not focusable');
+  assert.doesNotMatch(thumb, /<div class={`deck-nav-thumb/,
+    'a div thumb is the regression this pins');
+  assert.match(thumb, /aria-label={`Show \$\{brand\.title\}`}/,
+    'an icon-only button needs an accessible name');
+  assert.match(thumb, /aria-current=/, 'which thumb is showing must be announced, not only painted');
+
+  const style = styleBlock();
+  /* A <button> inherits a UA font, colour, alignment and radius. Without
+     these the rail rendered in the system font with rounded corners. */
+  for (const reset of ['font: inherit', 'color: inherit', 'text-align: inherit', 'border-radius: 0']) {
+    assert.ok(style.includes(reset),
+      `.deck-nav-thumb must reset \`${reset}\` — buttons carry user-agent defaults a div does not`);
+  }
+  assert.match(style, /\.deck-nav-thumb:focus-visible/,
+    'being focusable is no use if you cannot see where you are');
+
+  /* renderDeck paints the class; aria-current is the announcement. Both have
+     to move together or a screen reader keeps naming the previous hub. */
+  assert.match(src, /setAttribute\('aria-current', 'true'\)/, 'renderDeck must set aria-current');
+  assert.match(src, /setAttribute\('aria-current', 'false'\)/, 'and clear it');
+});
+
 test('the picker publishes variables; the scoped rules read them', () => {
   /*
     THE PICKER SET font-family AND LOST EVERY TIME.

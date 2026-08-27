@@ -1591,6 +1591,18 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     const conn = (navigator as unknown as { connection?: { saveData?: boolean } }).connection;
     if (conn?.saveData) return;
 
+    /*
+      PAST EVERY GUARD, SO A TRAILER IS GENUINELY COMING.
+
+      initHubRail reads this to decide whether to wait for the handover or do
+      it immediately. Expressed as a marker rather than re-tested there,
+      because the reasons a trailer never plays are all up here — no trailer
+      on the hub, no frame, reduced motion, Save-Data — and duplicating five
+      conditions in a second function is how two lists drift apart. This one
+      is set at the single point where all five have already passed.
+    */
+    stage.dataset.stageArmed = '1';
+
     const timers: number[] = [];
     const clearAll = () => {
       timers.forEach((t) => { window.clearTimeout(t); window.clearInterval(t); });
@@ -1602,11 +1614,26 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       stage.classList.remove('is-playing');
       /* HARD RULE 4: 'about:blank', never ''. */
       if (frame.src !== 'about:blank') frame.src = 'about:blank';
+      /*
+        THE STAGE IS EMPTY NOW — SAY SO.
+
+        One announcement covering every way the trailer can stop: it ended,
+        it ran out its HUB_RUN_MS, or it never started at all. The rail hands
+        over to its first tile on this, so it does not have to know which of
+        the three happened, and no case is left without a handover.
+      */
+      stage.dispatchEvent(new CustomEvent('hub:stage-idle'));
     };
     const reveal = () => {
       clearAll();
-      window.removeEventListener('message', onMessage);
       stage.classList.add('is-playing');
+      /*
+        THE LISTENER STAYS ON, deliberately. It used to be removed here, which
+        meant the only way the trailer could end was the HUB_RUN_MS timer —
+        a 42-second wait after a 30-second trailer had already finished. It is
+        kept so `playerState === 0` can hand over the moment the video is
+        genuinely done. teardown() removes it either way.
+      */
       timers.push(window.setTimeout(teardown, HUB_RUN_MS));
     };
 
@@ -1622,7 +1649,20 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       const state = typeof info === 'object' && info !== null
         ? (info as { playerState?: number }).playerState
         : info;
-      if (state === 1) reveal();
+      if (state === 1) {
+        reveal();
+        return;
+      }
+      /*
+        0 is ENDED. Guarded on is-playing because the player also reports
+        states before it ever starts (-1 unstarted, 5 cued), and treating a
+        pre-roll report as "finished" would tear the trailer down before it
+        began.
+      */
+      /* `stage!` for the same reason `frame!` is asserted above: onMessage is a
+         hoisted function declaration, so TypeScript does not carry the
+         enclosing `if (!stage) return` narrowing into its body. */
+      if (state === 0 && stage!.classList.contains('is-playing')) teardown();
     }
 
     timers.push(window.setTimeout(() => {
@@ -1680,6 +1720,49 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       if (frame && frame.src !== 'about:blank') frame.src = 'about:blank';
       stage.classList.remove('is-playing');
     };
+
+    /*
+      ─── THE TRAILER HANDS OVER TO THE FIRST TILE ─────────────────────────
+
+      The rail used to ship tile 0 marked active in the markup, while the
+      stage played the hub's own trailer — so a fresh PlayStation page
+      highlighted "Marvel's Wolverine" over a PS5 trailer. That hardcoded
+      state was removed, which stopped the page lying but left the rail
+      showing nothing selected and no hint the tiles do anything.
+
+      This is the other half. The stage announces `hub:stage-idle` when the
+      trailer stops for ANY reason — ended, ran its 42s, or never started —
+      and the rail then selects its first tile. The highlight appears only
+      once it is true.
+
+      `once: true` because the first idle is the handover; later teardowns
+      (a visitor picking a tile unloads the frame too) must not re-select.
+
+      The visitor always wins: if they have already picked a tile before the
+      trailer finishes, the handover is skipped rather than yanking the stage
+      back to something they did not ask for.
+    */
+    const handOver = () => {
+      if (cards.some((c) => c.classList.contains('active'))) return;
+      show(0);
+    };
+
+    /*
+      NOT ARMED MEANS NOTHING IS COMING. No trailer on this hub, no frame,
+      reduced motion, or Save-Data — initHubStage sets `stageArmed` only once
+      all of those have passed. With no trailer to wait for there is nothing
+      to hand over FROM, so the rail selects immediately rather than sitting
+      inert forever. Reduced motion lands here too, which is the right
+      outcome: a reader who asked for less movement gets the end state without
+      the transition.
+    */
+    if (cards.length > 0) {
+      if (stage.dataset.stageArmed === '1') {
+        stage.addEventListener('hub:stage-idle', handOver, { once: true });
+      } else {
+        handOver();
+      }
+    }
 
     /*
       FADE ONLY THE SIDE THAT ACTUALLY CONTINUES.

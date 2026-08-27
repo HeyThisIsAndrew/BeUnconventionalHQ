@@ -115,9 +115,22 @@ const topEvents = events.slice(0, 3);
     color: #666;
     margin: 0 0.3rem;
   }
+  /*
+    THE READABLE RED, NOT THE DECORATIVE ONE.
+
+    This was `--color-accent` (#cc0000), which is 3.21:1 on the dark surface
+    and fails WCAG AA's 4.5:1 for text. CLAUDE.md states the rule outright:
+    #cc0000 is a border and glow colour only, never text or an icon.
+    `--color-accent-text` (#ef4444) is the same red at 5.02:1.
+
+    Automated tools cannot catch this: Lighthouse and axe measure colour AT
+    REST, not on hover or focus, which is why this survived a 100/100
+    accessibility score. `:focus-visible` matters most here — it is the state
+    a keyboard user sees on every single row they move through.
+  */
   .mini-event-row:hover .mini-event-name,
   .mini-event-row:focus-visible .mini-event-name {
-    color: var(--color-accent, #cc0000);
+    color: var(--color-accent-text, #ef4444);
     background-size: 100% 2px;
   }
 
