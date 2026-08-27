@@ -1075,36 +1075,86 @@ ${activeFonts
         }, { passive: true });
 
         /*
-          ─── NO POINTER-DRAG AND NO WHEEL SWIPE ON DESKTOP ──────────────────
+          ─── TRACKPAD SWIPE, ON THE LEADING EDGE ────────────────────────────
 
-          Both were added to give the deck a trackpad gesture. Both were
-          removed after testing on a real desktop, because between them they
-          broke the deck's primary interaction: clicking a card to bring it
-          forward.
+          A two-finger horizontal swipe advances the deck by one card. This is
+          the second attempt; the first was removed for being unusable, and
+          the difference is WHEN it fires.
 
-          THE CLICK BUG. The drag handler called
-          `deckStack.setPointerCapture(e.pointerId)` on pointerdown. Pointer
-          capture RETARGETS the subsequent `click` to the capturing element,
-          so the click landed on `.deck-stack` and never reached the
-          per-card listener below. Selecting a hub by clicking the peeking
-          card behind the front one stopped working entirely — reported as
-          "I can't even click through to select new carousels".
+          THE FIRST VERSION FIRED ON THE TRAILING EDGE. It debounced 40ms from
+          the LAST wheel event, and macOS momentum keeps emitting wheel events
+          for a second or more after your fingers lift. Every one re-armed the
+          timer, so nothing moved until momentum fully decayed — then a 500ms
+          cooldown was added on top. Measured at one to three seconds per
+          swipe.
 
-          THE DELAY. The wheel handler only acted 40ms after the LAST wheel
-          event, and macOS trackpad momentum keeps emitting wheel events for
-          a second or more after your fingers lift. Every one of them
-          re-armed the timer, so the deck did not move until momentum fully
-          decayed — then a further 500ms cooldown was added on top. Measured
-          by the owner as one to three seconds per swipe. It was structurally
-          "wait until the gesture is completely over, then act", which is the
-          opposite of what a swipe should feel like.
+          This fires the moment horizontal intent is unambiguous — 40px of
+          accumulated deltaX — and then LOCKS until the gesture goes quiet.
+          Instant response, and exactly one card per physical swipe no matter
+          how long the momentum tail runs.
 
-          Neither is worth rebuilding. A desktop deck already has a better
-          affordance than a gesture: the cards behind the front one are
-          visible, hoverable and clickable, and clicking is precise where a
-          momentum-based swipe is a guess. Touch swipe below stays, because
-          on a phone there is no hover and the peeking cards are much smaller.
+          The lock is released by SILENCE, not by a timer. A fixed cooldown is
+          a guess about how long momentum lasts, and it is wrong in both
+          directions: too short and the tail advances a second card, too long
+          and a deliberate second swipe is swallowed. 120ms of no wheel events
+          means the trackpad has genuinely stopped, whether that took 200ms or
+          two seconds. The next swipe then fires on its first 40px.
+
+          THE TRADE-OFF, stated: one continuous un-lifted drag moves one card,
+          not several. That is the same rule as "one swipe, one card" and it
+          is why momentum can never over-advance.
+
+          preventDefault() matters for a second reason beyond stopping the
+          page scrolling: on macOS a horizontal trackpad swipe is also the
+          browser's back/forward gesture, and without this, swiping the deck
+          would navigate away from the page.
+
+          NO POINTER DRAG. That is what broke clicking last time —
+          setPointerCapture() retargets the subsequent `click` to the
+          capturing element, so it never reached the per-card listener.
+          Nothing here touches pointer events, so clicking a card to select it
+          is unaffected. Wheel events cannot interfere with clicks.
         */
+        if (cards.length > 1) {
+          const SWIPE_DELTA = 40;   // px of horizontal intent before firing
+          const QUIET_MS = 120;     // silence that means the gesture ended
+
+          let wheelDelta = 0;
+          let locked = false;
+          let quietTimer: ReturnType<typeof setTimeout> | undefined;
+
+          deckStack.addEventListener(
+            'wheel',
+            (e: WheelEvent) => {
+              // Vertical intent belongs to the page, not the deck.
+              if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+
+              e.preventDefault();
+
+              // Any horizontal event, handled or not, means the gesture is
+              // still running — so keep pushing the release out.
+              clearTimeout(quietTimer);
+              quietTimer = setTimeout(() => {
+                locked = false;
+                wheelDelta = 0;
+              }, QUIET_MS);
+
+              if (locked) return;
+
+              wheelDelta += e.deltaX;
+              if (Math.abs(wheelDelta) < SWIPE_DELTA) return;
+
+              locked = true;
+              const forward = wheelDelta > 0;
+              wheelDelta = 0;
+              activeIndex = forward
+                ? (activeIndex + 1) % cards.length
+                : (activeIndex - 1 + cards.length) % cards.length;
+              renderDeck();
+            },
+            { passive: false },
+          );
+        }
       }
 
       // Deck Stack Clicks & Parallax
