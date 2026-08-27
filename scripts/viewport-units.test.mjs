@@ -10,7 +10,7 @@
   a phone. Reading the stylesheet is the one check that discriminates, costs
   milliseconds, and cannot be fooled.
 
-  THE BUG THIS PINS
+  THE BUG THIS PINS — REPORTED, FIXED, AND CONFIRMED ON DEVICE
 
   The mobile hero was `height: 100svh`. `svh` is the SMALLEST the viewport
   ever gets (address bar fully expanded). When iOS Safari retracts that bar
@@ -18,6 +18,13 @@
   bottom of the screen, and the next section's header peeks in underneath —
   reported from an iPhone as "you can see the top of EXPLORE THE HQ / WHAT WE
   COVER at the bottom of the screen".
+
+  STATUS: RESOLVED. `100lvh` was verified on a physical iPhone in portrait,
+  scrolling down and back to the top and letting the address bar retract
+  mid-scroll. The leak does not occur. It took three attempts to get here
+  (see the note on the assertion below), and the only thing that distinguishes
+  the right unit from the wrong ones is a real device — so the guard stays,
+  and stays static, for the reason set out above.
 
   `lvh` is the correct fixed value: never shorter than the visible area, and
   still a constant per orientation, so it keeps the anti-jitter property that
