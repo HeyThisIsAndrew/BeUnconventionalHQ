@@ -53,6 +53,11 @@ import { categories } from '../data/categories.js';
     CSS for an effect two declarations can express.
   */
   function initCatStagger() {
+    /* Signs in with the watchdog in Layout.astro's inline head script, which
+       un-gates these tiles if this never runs. Set before the early return:
+       a page with no tiles is not a page whose reveal is broken. */
+    window.__hqStaggerReady = true;
+
     const tiles = document.querySelectorAll<HTMLElement>('.cat-stagger');
     if (tiles.length === 0) return;
 
