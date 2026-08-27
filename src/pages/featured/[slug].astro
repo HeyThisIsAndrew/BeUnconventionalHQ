@@ -426,8 +426,32 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
               const isVideo = item.contentType === 'video';
               const vid = isVideo ? parseVideoId(item.link || '') : null;
               const still = item.image ?? item.thumbnail ?? null;
+              /*
+                `inert` AS WELL AS `aria-hidden`, and they must move together.
+
+                A hidden pane still contains a real `Play` button or `Read`
+                link. `aria-hidden` takes it out of the accessibility tree but
+                leaves it in the TAB ORDER, so a keyboard user could land on a
+                control inside a pane nobody can see, announced as nothing
+                because the tree says it is not there. axe rates it serious
+                (`aria-hidden-focus`), 13 nodes on a five-item hub.
+
+                `inert` is the attribute that actually removes a subtree from
+                focus, and it ships in the markup rather than being applied on
+                init, so the page is correct before any script runs — the same
+                reasoning as the reveal failsafe.
+
+                This note sits ABOVE the return, as a plain block comment.
+                An Astro-style JSX comment placed inside the return makes the
+                callback return two nodes and the build fails with
+                "Expected , or ) but found class". Written up two commits ago
+                for the /featured rail and walked into again here.
+
+                NOTE: astro check does NOT catch that - only npm run build
+                does. Do not take a clean check as proof this file compiles.
+              */
               return (
-                <div class="hub-stage-item" data-index={i} aria-hidden="true">
+                <div class="hub-stage-item" data-index={i} aria-hidden="true" inert>
                   {still && <img src={still} alt="" class="hub-stage-item-still" loading="lazy" />}
                   <span class="hub-stage-item-scrim"></span>
                   <div class="hub-stage-item-copy">
@@ -1862,6 +1886,10 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
         const on = i === index;
         pane.classList.toggle('active', on);
         pane.setAttribute('aria-hidden', on ? 'false' : 'true');
+        /* In step with aria-hidden, always. Hiding a pane from the
+           accessibility tree while leaving its Play button in the tab order
+           is how a keyboard user lands on a control that announces nothing. */
+        pane.toggleAttribute('inert', !on);
       });
       stage.classList.add('is-item');
 
@@ -1939,6 +1967,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       panes.forEach((pane) => {
         pane.classList.remove('active');
         pane.setAttribute('aria-hidden', 'true');
+        pane.setAttribute('inert', '');
       });
       stage.classList.remove('is-item');
     });

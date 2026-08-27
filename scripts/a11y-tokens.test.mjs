@@ -106,5 +106,37 @@ test('--color-accent is never used as a text or icon colour', () => {
   );
 });
 
+test('aria-hidden subtrees with focusable content are also inert', () => {
+  /*
+    `aria-hidden` removes a subtree from the ACCESSIBILITY TREE but leaves it
+    in the TAB ORDER. A keyboard user can therefore land on a control inside
+    something nobody can see, and it announces nothing, because the tree says
+    it is not there. axe rates this serious (`aria-hidden-focus`).
+
+    Found on a hub page: 13 nodes, all Instagram marquee CLONES. Those exist
+    only to make the loop look continuous, and each is a full copy of the row
+    with every link intact — so tabbing through the gallery walked the same
+    posts up to fifteen times, every stop silent.
+
+    `inert` is the attribute that actually removes a subtree from focus. The
+    rule pinned here is that the two must be set TOGETHER: anywhere a hidden
+    container holds a link or a button, both attributes appear.
+
+    Not a blanket ban on aria-hidden — most uses wrap an icon or a decorative
+    span with nothing focusable in it, and those are correct as they are.
+  */
+  const gallery = readFileSync(join(ROOT, 'src/components/CinematicGallery.astro'), 'utf8');
+  assert.match(gallery, /aria-hidden=\{groupIndex > 2 \? "true" : undefined\}\s*\n\s*inert=/,
+    'the duplicate marquee groups in the markup must carry inert beside aria-hidden');
+  assert.match(gallery, /clone\.setAttribute\('aria-hidden', 'true'\);\s*\n\s*clone\.setAttribute\('inert', ''\)/,
+    'the JS-cloned groups must too — there are up to 13 of them, and they are the ' +
+      'ones axe actually flagged');
+
+  const hub = readFileSync(join(ROOT, 'src/pages/featured/[slug].astro'), 'utf8');
+  assert.match(hub, /pane\.toggleAttribute\('inert', !on\)/,
+    'show() must keep inert in step with aria-hidden on the stage panes, or the ' +
+      'active pane keeps its Play button unreachable');
+});
+
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
 process.exit(failed === 0 ? 0 : 1);
