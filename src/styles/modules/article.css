@@ -575,22 +575,41 @@
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.16em;
-  text-decoration: none;
   line-height: 1.4;
 }
 
-/* Subject (Film / TV / Gaming) — accent, and a link to that topic page. */
+/*
+  ─── THIS IS A LABEL. IT IS NOT, AND NEVER BECAME, A LINK. ─────────────────
+
+  It renders the article's brand and kind — "MARVEL | REVIEW" — from
+  getDisplayTags(), which derives them from the post's tags. They are
+  descriptions, not destinations: there is no /marvel page for the first half
+  to point at, and the SUBJECT does have a link already, in the breadcrumb
+  above (Home / Intel / Film).
+
+  Three link-flavoured rules had been left on it after it stopped being an
+  <a>, and one of them was a reported bug:
+
+    .article-tag-category:hover { color: var(--color-white) }
+
+  A hover state on a non-interactive element is invisible on a mouse — you
+  never rest the pointer there — and unmissable on a phone, because iOS
+  applies :hover on tap and LEAVES IT APPLIED until you tap somewhere else.
+  Reported as "why does it change colour when I tap it", with two
+  screenshots. Measured on the built page: rgb(239,68,68) at rest,
+  rgb(240,240,240) after hover, on a <span> whose closest('a') is null.
+
+  Gone with it: `text-decoration: none`, which has nothing to remove on a
+  span, and `.article-tag-type`, which no markup on this site has ever used.
+  a11y.css also stopped giving `.article-tag` an expanded tap target — that
+  affordance is for things you can tap, and on static text an invisible hit
+  area can only take taps from its neighbours.
+
+  If a tag ever does become a link, it needs all four back, not just the
+  colour.
+*/
 .article-tag-category {
   color: var(--color-accent-text);
-}
-
-.article-tag-category:hover {
-  color: var(--color-white);
-}
-
-/* Kind (Review / Analysis / Dispatch) — quieter, not a link. */
-.article-tag-type {
-  color: var(--color-white-muted);
 }
 
 .article-score {

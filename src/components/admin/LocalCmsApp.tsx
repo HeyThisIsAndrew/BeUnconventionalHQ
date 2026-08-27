@@ -1440,7 +1440,7 @@ function EventForm({
   decision — a typo here would strand a hub in a row that never renders.
 */
 const HUB_CATEGORIES = [
-  { value: 'universes', label: 'The Multiverse' },
+  { value: 'universes', label: 'Franchises' },
   { value: 'streaming', label: 'Streamers' },
   { value: 'studios', label: 'Studios' },
   { value: 'gaming', label: 'Gaming' },
