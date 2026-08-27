@@ -461,6 +461,54 @@ test('every candidate face is actually served, and none are hardcoded', () => {
   );
 });
 
+test('one physical trackpad swipe can only ever move one card', () => {
+  /*
+    THE THIRD VERSION OF THIS GESTURE. Each earlier one shipped and was
+    reported:
+
+      1. debounced from the LAST wheel event, so macOS momentum held it for
+         the whole tail. "one to three seconds per swipe."
+      2. released on any RISING delta, but the deck fires part-way through the
+         push while fingers are still accelerating, so the rest of that same
+         push read as a new gesture. "one swipe moved two cards."
+      3. released on any sample 2px above the previous one. Momentum is
+         quantised and jitters up by more than 2px constantly, and a tail
+         still running at 25px/event re-accumulates the 40px firing threshold
+         in two events. Modelled against a realistic decaying tail with ±2px
+         of noise, SIX OF EIGHT swipes advanced two cards. Reported as
+         "sometimes it swipes through multiple carousels rather than one".
+
+    Version three compares against the TROUGH, not the previous sample:
+    momentum only decays, so its trough keeps falling and noise measured
+    against the lowest point so far cannot clear it, while a real push
+    re-accelerates past it many times over.
+
+    MIN_FIRE_GAP is the unconditional backstop. Whatever the release logic
+    concludes, no physical swipe moves two cards.
+  */
+  const gesture = src.slice(src.indexOf('const SWIPE_DELTA'), src.indexOf('// Deck Stack Clicks'));
+
+  assert.match(gesture, /const MIN_FIRE_GAP = (\d+)/,
+    'the hard cap on cards per swipe is gone; the release heuristic is then the ' +
+      'only thing standing between one swipe and several, and it has been wrong twice');
+  const gap = Number(gesture.match(/const MIN_FIRE_GAP = (\d+)/)[1]);
+  assert.ok(gap >= 150 && gap <= 320,
+    `MIN_FIRE_GAP is ${gap}ms. Below ~150 momentum can still re-trigger inside it; ` +
+      `above ~320 it starts eating a deliberate second swipe, which is what the ` +
+      `first version of this gesture was reported for.`);
+  assert.match(gesture, /now - lastFire < MIN_FIRE_GAP/, 'the cap must actually gate the fire');
+
+  assert.match(gesture, /trough/, 'the tail must be measured against its trough');
+  assert.match(gesture, /abs < trough\) trough = abs/, 'the trough has to track downward');
+  assert.match(gesture, /REARM_FLOOR/,
+    'without a floor, a tail decayed to 1px re-arms on a 3px blip, which is 2.5x ' +
+      'its trough and means nothing');
+
+  assert.doesNotMatch(gesture, /abs <= lastAbs \+/,
+    'releasing on a rise above the PREVIOUS sample is version three of this bug: ' +
+      'momentum jitter clears it constantly');
+});
+
 test('the picker publishes variables; the scoped rules read them', () => {
   /*
     THE PICKER SET font-family AND LOST EVERY TIME.

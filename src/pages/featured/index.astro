@@ -1201,16 +1201,19 @@ ${activeFonts
           is unaffected. Wheel events cannot interfere with clicks.
         */
         if (cards.length > 1) {
-          const SWIPE_DELTA = 40;   // px of horizontal intent before firing
-          const QUIET_MS = 120;     // silence that means the gesture ended
-          const TAIL_RATIO = 0.6;   // fallen this far below peak = coasting
-          const RISE = 2;           // growth during the tail = fingers back
+          const SWIPE_DELTA = 40;     // px of horizontal intent before firing
+          const QUIET_MS = 120;       // silence that means the gesture ended
+          const TAIL_RATIO = 0.6;     // fallen this far below peak = coasting
+          const REARM_FACTOR = 2.5;   // climbed this far back above the trough
+          const REARM_FLOOR = 10;     // ...and is a real push, not tail jitter
+          const MIN_FIRE_GAP = 220;   // ms; no physical swipe moves two cards
 
           let wheelDelta = 0;
           let locked = false;
           let peak = 0;
           let tailing = false;
-          let lastAbs = 0;
+          let trough = Infinity;
+          let lastFire = -Infinity;
           let quietTimer: ReturnType<typeof setTimeout> | undefined;
 
           const release = () => {
@@ -1218,7 +1221,7 @@ ${activeFonts
             wheelDelta = 0;
             peak = 0;
             tailing = false;
-            lastAbs = 0;
+            trough = Infinity;
           };
 
           deckStack.addEventListener(
@@ -1259,37 +1262,69 @@ ${activeFonts
                     stage 1  still at or near the peak — this is the rest of
                              the push that already fired. Never releases.
                     stage 2  fallen to 60% of peak — now genuinely coasting,
-                             and from here a delta that GROWS can only mean
-                             fingers are back on the trackpad.
+                             and from here a delta that CLIMBS BACK can only
+                             mean fingers are on the trackpad again.
 
-                  Releasing early is deliberately cheap: it does not advance
-                  anything by itself, because firing still needs a fresh
-                  SWIPE_DELTA accumulated from zero, and a decaying tail will
-                  not reach it. The failure mode is "ready slightly sooner",
-                  never a double advance.
+                  ─── AND THE THIRD BUG: "CLIMBS BACK" WAS +2px ────────────
+
+                  Stage 2 used to release on any sample 2px above the previous
+                  one, and this comment used to claim that releasing early was
+                  cheap because "a decaying tail will not reach SWIPE_DELTA".
+                  That was simply wrong. A tail still running at 25px/event
+                  reaches 40px accumulated in two events, so an early release
+                  fired a second card off the FIRST swipe's own momentum.
+
+                  It is also not a rare race. macOS momentum is quantised and
+                  noisy, and jitters up by more than 2px constantly. Modelled
+                  against a realistic decaying tail with ±2px of noise, six of
+                  eight swipes advanced two cards. Reported as "sometimes it
+                  swipes through multiple carousels rather than one".
+
+                  The fix is to compare against the TROUGH rather than the
+                  previous sample. Momentum only decays, so its trough keeps
+                  falling; a real push re-accelerates and clears the trough
+                  many times over. Noise cannot, because it is measured against
+                  the lowest point so far rather than the last point. The floor
+                  stops a tail that has decayed to 1px from re-arming on a 3px
+                  blip, which is 2.5x its trough and means nothing.
+
+                  MIN_FIRE_GAP is the backstop that makes the guarantee
+                  unconditional: no physical swipe can move two cards, whatever
+                  the release logic decides. At 220ms it is far below a
+                  deliberate second swipe (people cannot repeat one in under
+                  ~250ms) and far above the few milliseconds in which momentum
+                  would re-trigger, so it never costs a real gesture.
                 */
                 if (abs > peak) peak = abs;
 
                 if (!tailing) {
-                  if (abs < peak * TAIL_RATIO) tailing = true;
-                  lastAbs = abs;
+                  if (abs < peak * TAIL_RATIO) {
+                    tailing = true;
+                    trough = abs;
+                  }
                   return;
                 }
 
-                if (abs <= lastAbs + RISE) {
-                  lastAbs = abs;
-                  return;
-                }
+                if (abs < trough) trough = abs;
+                if (abs < REARM_FLOOR || abs < trough * REARM_FACTOR) return;
                 release();
               }
 
-              lastAbs = abs;
               wheelDelta += e.deltaX;
               if (Math.abs(wheelDelta) < SWIPE_DELTA) return;
+
+              /* The unconditional half of "one swipe, one card". */
+              const now = e.timeStamp || performance.now();
+              if (now - lastFire < MIN_FIRE_GAP) {
+                wheelDelta = 0;
+                return;
+              }
 
               locked = true;
               peak = abs;
               tailing = false;
+              trough = Infinity;
+              lastFire = now;
               const forward = wheelDelta > 0;
               wheelDelta = 0;
               activeIndex = forward
