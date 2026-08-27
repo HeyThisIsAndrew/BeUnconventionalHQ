@@ -1074,61 +1074,37 @@ ${activeFonts
           handleSwipe(touchStartX - e.changedTouches[0].screenX);
         }, { passive: true });
 
-        // Pointer events (click & drag on desktop/tablet)
-        let isPointerDown = false;
-        let pointerStartX = 0;
-        deckStack.addEventListener('pointerdown', (e: PointerEvent) => {
-          if (e.pointerType !== 'mouse') return; // Touch is handled by touchstart
-          if (e.button !== 0) return;
-          isPointerDown = true;
-          pointerStartX = e.screenX;
-          try { deckStack.setPointerCapture(e.pointerId); } catch(err){}
-        });
-        
-        const endPointer = (e: PointerEvent) => {
-          if (!isPointerDown) return;
-          isPointerDown = false;
-          try { deckStack.releasePointerCapture(e.pointerId); } catch(err){}
-          const diff = pointerStartX - e.screenX;
-          if (Math.abs(diff) > 50) {
-            deckStack.dataset.preventClick = 'true';
-            setTimeout(() => { deckStack.dataset.preventClick = 'false'; }, 100);
-            handleSwipe(diff);
-          }
-        };
-        deckStack.addEventListener('pointerup', endPointer);
-        deckStack.addEventListener('pointercancel', endPointer);
+        /*
+          ─── NO POINTER-DRAG AND NO WHEEL SWIPE ON DESKTOP ──────────────────
 
-        // Wheel events (mouse pad swipe / scroll)
-        let wheelTimeout: ReturnType<typeof setTimeout> | undefined;
-        let isWheeling = false;
-        let accumulatedDelta = 0;
-        let wheelCooldown = false;
-        
-        deckStack.addEventListener('wheel', (e: WheelEvent) => {
-          if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-            e.preventDefault();
-            
-            if (wheelCooldown) return;
-            
-            if (!isWheeling) {
-              isWheeling = true;
-              accumulatedDelta = 0;
-            }
-            
-            accumulatedDelta += e.deltaX;
-            
-            clearTimeout(wheelTimeout);
-            wheelTimeout = setTimeout(() => {
-              isWheeling = false;
-              if (Math.abs(accumulatedDelta) > 30) {
-                wheelCooldown = true;
-                setTimeout(() => { wheelCooldown = false; }, 500); // Wait out trackpad momentum
-                handleSwipe(accumulatedDelta);
-              }
-            }, 40);
-          }
-        }, { passive: false });
+          Both were added to give the deck a trackpad gesture. Both were
+          removed after testing on a real desktop, because between them they
+          broke the deck's primary interaction: clicking a card to bring it
+          forward.
+
+          THE CLICK BUG. The drag handler called
+          `deckStack.setPointerCapture(e.pointerId)` on pointerdown. Pointer
+          capture RETARGETS the subsequent `click` to the capturing element,
+          so the click landed on `.deck-stack` and never reached the
+          per-card listener below. Selecting a hub by clicking the peeking
+          card behind the front one stopped working entirely — reported as
+          "I can't even click through to select new carousels".
+
+          THE DELAY. The wheel handler only acted 40ms after the LAST wheel
+          event, and macOS trackpad momentum keeps emitting wheel events for
+          a second or more after your fingers lift. Every one of them
+          re-armed the timer, so the deck did not move until momentum fully
+          decayed — then a further 500ms cooldown was added on top. Measured
+          by the owner as one to three seconds per swipe. It was structurally
+          "wait until the gesture is completely over, then act", which is the
+          opposite of what a swipe should feel like.
+
+          Neither is worth rebuilding. A desktop deck already has a better
+          affordance than a gesture: the cards behind the front one are
+          visible, hoverable and clickable, and clicking is precise where a
+          momentum-based swipe is a guess. Touch swipe below stays, because
+          on a phone there is no hover and the peeking cards are much smaller.
+        */
       }
 
       // Deck Stack Clicks & Parallax
@@ -1136,13 +1112,6 @@ ${activeFonts
         if (!card.dataset.hasClickListener) {
           card.dataset.hasClickListener = 'true';
           card.addEventListener('click', (e) => {
-            const stack = card.closest('.deck-stack') as HTMLElement;
-            if (stack && stack.dataset.preventClick === 'true') {
-              e.preventDefault();
-              e.stopPropagation();
-              return;
-            }
-
             if (i !== activeIndex) {
               // A card behind the front one means "bring me forward".
               e.preventDefault();
@@ -3363,6 +3332,23 @@ ${activeFonts
      1.02 nudge on a 720px image is a visible drift for no information. */
   .deck-card.active:hover .deck-card-image {
     transform: none;
+  }
+
+  /*
+     ─── AND THE PEEKING CARDS WAKE UP ──────────────────────────────────────
+     The cards behind the front one sit at 0.8 and 0.5 opacity so the front
+     one reads as the subject. That also makes them look inert, and with the
+     trackpad gesture removed, clicking them IS the desktop interaction — so
+     they have to say so. Reported as wanting to click the sliver of "Harry
+     Potter" showing behind the front card.
+
+     Opacity only, and only on hover. Moving them would fight `renderDeck()`,
+     which owns their transform; the image scale above already supplies the
+     motion. */
+  .deck-card.next-1:hover,
+  .deck-card.next-2:hover {
+    opacity: 1;
+    transition: opacity 0.25s ease;
   }
 
   .deck-card-overlay {
