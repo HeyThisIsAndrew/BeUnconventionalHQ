@@ -85,9 +85,14 @@ to undo. Google caches what it sees.
   - Exactly one `<link rel="canonical">`, absolute, on the apex domain, and
     **slash-free** (`wrangler.jsonc` sets
     `assets.html_handling: "drop-trailing-slash"`).
-  - `<meta name="robots">` present ONLY where intended. Gated routes are
-    `/events-new`, `/links`, `/admin`, `/local-cms`. **Anything else
-    carrying `noindex` is a P0.**
+  - `<meta name="robots">` present ONLY where intended. **Read the `filter:`
+    array in `astro.config.mjs`'s sitemap config for the gated set — do not
+    take a list from this brief or from CLAUDE.md.** An earlier version of
+    this brief hardcoded four routes and omitted `/media-kit` and
+    `/collaborations/press-kit`, and a review agent duly reported both as
+    P0 blockers. They were correctly gated the whole time. A route in that
+    filter array carrying `noindex` is correct; anything NOT in it that
+    carries `noindex` is a P0.
   - Astro's static redirect template emits `noindex` + a canonical to the
     target. Confirm every redirect stub in `astro.config.mjs`
     (`/articles`, `/videos`, `/events-new`, `/press-kit`) resolves to a real
@@ -214,7 +219,11 @@ regression once.
   `CLAUDE.md`) and passes AA at rest. `--color-accent` (#cc0000, 3.21:1) is a
   border/glow colour only — flag it **only** if it is used as text or an icon.
 - Reduced motion: with `prefers-reduced-motion: reduce`, confirm the splash,
-  the tile stagger and the deck transitions are OFF, not merely faster.
+  the tile stagger and the deck transitions do not visibly animate.
+  **`transition-duration: 1ms !important` is the intended implementation, not
+  a defect** — `none` stops `transitionend` firing, and code here waits on it.
+  An earlier version of this brief said "OFF, not merely faster", and a review
+  agent reported the deliberate 1ms as a P0.
 
 ---
 
