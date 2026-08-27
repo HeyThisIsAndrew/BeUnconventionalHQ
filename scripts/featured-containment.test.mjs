@@ -878,7 +878,7 @@ test('the hub hero is the deck page\'s stage, and keeps its own height', () => {
     activates pane 1, sets is-item, and unloads the trailer to about:blank.
   */
   assert.match(hub, /hub-rail-card/, 'the hero features recent coverage');
-  assert.match(hub, /<button\s+type="button"\s+class=\{`hub-rail-card/,
+  assert.match(hub, /<button\s+type="button"\s+class="hub-rail-card"/,
     'rail items must be real buttons — the deck shipped as divs once and was unreachable');
   assert.match(hub, /data-action="open-video"/, 'video panes reuse the site\'s modal handler');
   assert.match(hub, /pickHeroItems/, 'what the hero features must live in ONE function');
