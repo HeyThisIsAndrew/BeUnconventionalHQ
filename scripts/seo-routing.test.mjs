@@ -104,6 +104,47 @@ test('lastmod is derived only from dates an article actually carries', () => {
   assert.ok(!/Date\.now\(\)/.test(builder), 'lastmod must never be built from the current time');
 });
 
+/*
+  ─── A MIXED PAGE CANNOT BE DATED FROM ARTICLES ALONE ──────────────────────
+
+  / and /feed show videos and shorts alongside articles, but their lastmod was
+  taken from the newest ARTICLE. A YouTube sync runs every six hours and
+  changes both pages; on any day one landed after the last post, the sitemap
+  said they had not changed since that post.
+
+  Wrong in the "nothing happened" direction is the worse error: it tells a
+  crawler to skip a page that did change, which is the opposite of why lastmod
+  was added at all. /intel and /feed/articles are article-only and are
+  correctly dated from articles alone.
+*/
+test('mixed surfaces take the newest of articles OR media', () => {
+  const builder = config.slice(config.indexOf('function buildArticleLastmod'), config.indexOf('const ARTICLE_LASTMOD'));
+
+  assert.match(builder, /videos\.json/, 'the media snapshot is no longer read; / and /feed are back to article-only dates');
+  assert.match(builder, /\['video', 'short', 'live'\]/, 'only dated doc types may contribute; hubs carry no date');
+  assert.match(builder, /Math\.max\(maxGlobal, maxMedia\)/, 'mixed surfaces must take the newer of the two sources');
+
+  const mixed = builder.slice(builder.indexOf('const maxMixed'));
+  for (const route of ["'/'", "'/feed'"]) {
+    assert.ok(mixed.includes(`map.set(${route}`), `${route} must be dated from the mixed maximum`);
+  }
+});
+
+test('article-only surfaces stay dated from articles alone', () => {
+  const builder = config.slice(config.indexOf('function buildArticleLastmod'), config.indexOf('const ARTICLE_LASTMOD'));
+  const articleOnly = builder.slice(builder.indexOf('if (maxGlobal > 0)'), builder.indexOf('let maxMedia'));
+  assert.ok(articleOnly.includes("map.set('/intel'"), '/intel lists only articles and should be dated from them');
+  assert.ok(
+    !articleOnly.includes("map.set('/'"),
+    'the homepage must NOT be dated from the article-only maximum — it shows media too',
+  );
+});
+
+test('an unreadable media snapshot degrades instead of failing the build', () => {
+  const builder = config.slice(config.indexOf('let maxMedia'), config.indexOf('const maxMixed'));
+  assert.match(builder, /catch\s*\{/, 'reading videos.json must be wrapped; a missing snapshot cannot fail a build');
+});
+
 test('no page route returns Astro.redirect (that emits a noindex stub, not a 301)', () => {
   // This is the incident above, made un-repeatable. Config `redirects` are
   // fine — the Cloudflare adapter turns those into real 301s in _redirects.

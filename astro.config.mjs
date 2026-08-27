@@ -55,12 +55,53 @@ function buildArticleLastmod() {
       }
     }
     
+    /*
+      ─── ARTICLE-ONLY SURFACES ────────────────────────────────────────────
+
+      /intel and /feed/articles list articles and nothing else, so the newest
+      article IS their modification date.
+    */
     if (maxGlobal > 0) {
       const isoGlobal = new Date(maxGlobal).toISOString();
       map.set('/intel', isoGlobal);
-      map.set('/feed', isoGlobal);
       map.set('/feed/articles', isoGlobal);
-      map.set('/', isoGlobal);
+    }
+
+    /*
+      ─── AND THE MIXED ONES ───────────────────────────────────────────────
+
+      / and /feed show videos and shorts alongside articles, so dating them
+      from the newest ARTICLE was a claim neither page can support: a
+      six-hourly YouTube sync changes both, and on that day the sitemap said
+      they had not changed since the last post.
+
+      A lastmod that is wrong in the "nothing happened" direction is the worse
+      of the two errors — it tells a crawler to skip a page that did change,
+      which is the opposite of the reason lastmod was added. So these take the
+      newest of EITHER source. videos.json carries `publishedAt` on video,
+      short and live docs; hub docs (event, featuredBrand, topic) have no date
+      and are skipped rather than guessed at.
+    */
+    let maxMedia = 0;
+    try {
+      const rawMedia = fs.readFileSync(path.resolve(process.cwd(), 'src/data/videos.json'), 'utf-8');
+      for (const doc of JSON.parse(rawMedia)) {
+        if (!doc || !['video', 'short', 'live'].includes(doc._type)) continue;
+        const date = doc.publishedAt ? new Date(doc.publishedAt) : null;
+        if (!date || Number.isNaN(date.getTime())) continue;
+        if (date.getTime() > maxMedia) maxMedia = date.getTime();
+      }
+    } catch {
+      // No media snapshot: fall back to the article date alone, which is
+      // exactly what these pages carried before.
+    }
+
+    const maxMixed = Math.max(maxGlobal, maxMedia);
+    if (maxMixed > 0) {
+      const isoMixed = new Date(maxMixed).toISOString();
+      map.set('/', isoMixed);
+      map.set('/feed', isoMixed);
+      map.set('/feed/videos', isoMixed);
     }
     
     for (const [cat, maxTime] of Object.entries(maxByCategory)) {
