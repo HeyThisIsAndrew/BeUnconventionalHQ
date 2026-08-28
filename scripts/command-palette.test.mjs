@@ -265,5 +265,32 @@ test('the readable red comes from the token, not a near-miss of it', () => {
     'read-me red is a token; #ff4444 was a hand-mixed near-miss of #ef4444');
 });
 
+/*
+  The row is a flex line: [96x54 image][text column]. Section pages carry no
+  image, so the image element was skipped, the text column became the first
+  child, and that row's badge and title slid left into the thumbnail's lane.
+  One row out of ten not lining up does not read as "this one is different",
+  it reads as broken.
+*/
+test('a result with no image still renders the leading box, so the column line holds', () => {
+  const imgBranch = paletteCode.match(/if \(item\.image\) \{[\s\S]*?a\.appendChild\(placeholder\);/);
+  assert.ok(imgBranch,
+    'the image branch must have an else that appends a placeholder — skipping the box ' +
+    'entirely is what broke the alignment');
+  assert.match(imgBranch[0], /\} else \{/, 'and it must be the else of the image branch');
+  assert.match(paletteCode, /className = 'cmd-result-image is-placeholder'/,
+    'the placeholder must reuse .cmd-result-image so it inherits the exact box metrics');
+  assert.match(paletteCode, /placeholder\.setAttribute\('aria-hidden', 'true'\)/,
+    'the glyph is decorative — the badge already says PAGE and the title says which');
+
+  const rule = palette.match(/\.cmd-result-image\.is-placeholder \{[\s\S]*?\}/);
+  assert.ok(rule, 'the placeholder must be styled');
+  assert.doesNotMatch(rule[0], /width:|height:/,
+    'it must NOT restate width/height — it inherits them from .cmd-result-image, ' +
+    'which is what keeps the two cases identical when that size changes');
+  assert.match(rule[0], /color: var\(--color-white-muted\)/,
+    'the glyph sits at the muted token so it reads as a placeholder, not as content');
+});
+
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
 process.exit(failed === 0 ? 0 : 1);
