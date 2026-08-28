@@ -154,11 +154,66 @@ test('hub marks are contained, video stills are covered', () => {
   house convention; search was 38x38 sitting 4px from it, so a thumb aimed at
   search that landed slightly right opened the menu instead.
 */
-test('the mobile header search button is a 44px target', () => {
+test('both search triggers are 44px targets, sized from ONE rule', () => {
   const btn = navbar.match(/<button class="nav-search-btn" data-action="open-search"[^>]*>/);
   assert.ok(btn, 'the mobile search trigger must exist');
-  assert.match(btn[0], /width: 44px/, 'the target must be 44px wide, matching .nav-toggle beside it');
-  assert.match(btn[0], /height: 44px/, 'and 44px tall');
+  /*
+    This used to assert `width: 44px` in a `style="..."` attribute. Inline
+    styles are why the desktop twin shipped 0x0 and unfixable: nothing in CSS
+    could reach it, and the two copies had no shared source of truth. The
+    sizing now lives in navbar.css and both copies read from it.
+  */
+  assert.doesNotMatch(btn[0], /style="/,
+    'the trigger must not carry inline styles — no stylesheet can override them, ' +
+    'which is how the desktop copy ended up 0x0 with no way to fix it');
+
+  const css = readFileSync(join(ROOT, 'src/styles/modules/navbar.css'), 'utf8');
+  const rule = css.match(/\n\.nav-search-btn \{[\s\S]*?\}/);
+  assert.ok(rule, '.nav-search-btn must be styled in navbar.css');
+  assert.match(rule[0], /width: 44px/, 'the target must be 44px wide, matching .nav-toggle beside it');
+  assert.match(rule[0], /height: 44px/, 'and 44px tall');
+
+  /*
+    An inline SVG with no width/height and no CSS size computes to 0x0 and
+    takes its button with it. The desktop copy had exactly that, and scripted
+    clicks still passed because `.click()` does not care about size.
+  */
+  const svgRule = css.match(/\.nav-search-btn svg \{[\s\S]*?\}/);
+  assert.ok(svgRule, 'the icon must be sized in CSS, not left to the SVG to size itself');
+  assert.match(svgRule[0], /width: 22px/, 'icon width');
+  assert.match(svgRule[0], /height: 22px/, 'icon height');
+});
+
+/*
+  a11y.css expands the hamburger's tap region to its LEFT, into what its own
+  note calls "the empty middle of the bar where nothing else is interactive".
+  The search button was then put in exactly that space, so the band covered it
+  entirely and `.nav-toggle`'s higher z-index won every tap. Reported from a
+  device: the magnifying glass could not be pressed in landscape.
+*/
+test('the toggle\'s tap band stops at the gap and never crosses its neighbour', () => {
+  const a11y = readFileSync(join(ROOT, 'src/styles/modules/a11y.css'), 'utf8');
+  const navbarCss = readFileSync(join(ROOT, 'src/styles/modules/navbar.css'), 'utf8');
+
+  const gap = navbarCss.match(/--nav-control-gap:\s*(\d+)px/);
+  assert.ok(gap, 'the gap must be a named token, since two files depend on it');
+  assert.ok(Number(gap[1]) >= 16,
+    `the gap is ${gap[1]}px. Below 16px the toggle's own expansion drops under the ` +
+    '2800px2 minimum that e2e-corner-controls enforces, trading away a fix made for ' +
+    'a real device report.');
+
+  const bands = a11y.match(/#navbar(\.menu-open)? \.nav-toggle::before \{[\s\S]*?\}/g) || [];
+  assert.ok(bands.length >= 2, 'the toggle band is set in a base rule and a landscape rule');
+  for (const band of bands) {
+    assert.match(band, /left: calc\(-1 \* var\(--nav-control-gap\) \+ 4px\)/,
+      'every toggle band must cap its leftward reach at the gap (minus a buffer for ' +
+      'sub-pixel rounding). A literal -48px or -16px here covers the search button.');
+  }
+
+  assert.match(a11y, /#navbar \.nav-search-btn::before/,
+    'the search button takes the leftward budget instead — the bar to ITS left is empty');
+  assert.match(a11y, /\.nav-search-btn::before,\n\.nav-toggle::before/,
+    'and it must be in the base pseudo-element rule, or it has no region at all');
 });
 
 /*

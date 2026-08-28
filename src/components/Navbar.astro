@@ -36,13 +36,12 @@ const isActive = (href: string) =>
     </div>
     <div class="mobile-search-wrapper mobile-only" style="display: flex; align-items: center;">
       {/*
-        44x44, matching `.nav-toggle` beside it. At `padding: 0.5rem` around a
-        22px icon this measured 38x38, under the 44px minimum, and sat 4px from
-        a 44x44 hamburger. A thumb aimed at search that landed 5px right opened
-        the menu instead. The icon stays 22px; only the target grows.
+        Styled by `.nav-search-btn` in navbar.css, not inline. The inline
+        version could not be overridden by any stylesheet rule, which is how
+        the desktop twin below ended up 0x0 with no way to fix it from CSS.
       */}
-      <button class="nav-search-btn" data-action="open-search" aria-label="Search" style="background: none; border: none; color: white; cursor: pointer; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; margin-right: 0.25rem; position: relative; z-index: 10;">
-        <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+      <button class="nav-search-btn" data-action="open-search" aria-label="Search">
+        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" aria-hidden="true">
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
@@ -63,20 +62,18 @@ const isActive = (href: string) =>
           ))
         }
         <li class="nav-item desktop-only">
+          {/*
+            This SVG carried no width/height and nothing in CSS sized it, so
+            the button computed 0x0 and could not be clicked at all on desktop.
+            It looked fine in a scripted test because `.click()` works on a
+            zero-size element; a person has nothing to aim at. `.nav-search-btn
+            svg` in navbar.css now sizes both copies from one place.
+          */}
           <button type="button" class="nav-search-btn desktop-only" data-action="open-search" aria-label="Search Be Unconventional">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            <style>
-              .desktop-only .nav-search-btn:hover { opacity: 1; }
-              @media (min-width: 1025px) {
-                .mobile-only { display: none !important; }
-              }
-              @media (max-width: 1024px) {
-                .desktop-only { display: none !important; }
-              }
-            </style>
           </button>
         </li>
       </ul>

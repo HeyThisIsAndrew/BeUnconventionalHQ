@@ -215,6 +215,25 @@
   touch-action: manipulation;
 }
 
+/*
+  The base rule above expands every one of these controls 16px to the LEFT at
+  all sizes. For the navbar toggle that now means 16px across the search
+  button, which in portrait killed the right third of it. Same collision as
+  the landscape one below, smaller. Capped at the gap in both orientations.
+*/
+#navbar .nav-toggle::before {
+  /*
+    The gap MINUS a 4px buffer, not the whole gap. Expanding by exactly the
+    gap puts the band's left edge on the search button's right edge, and
+    fractional layout positions then decide who owns that boundary column: a
+    hit-test grid measured 9% of the search button going to the toggle at
+    852x393 purely on sub-pixel rounding. The buffer is the no-man's land
+    that makes the answer independent of rounding.
+  */
+  left: calc(-1 * var(--nav-control-gap) + 4px);
+}
+
+.nav-search-btn::before,
 .nav-toggle::before,
 .close-fullscreen-btn::before,
 .modal-close::before {
@@ -288,6 +307,37 @@
   */
   #navbar .nav-toggle::before {
     bottom: -6px;
+    /*
+      THE SPACE TO THE LEFT IS NO LONGER EMPTY.
+
+      This was `-48px`, and the note above says why: "the extra area is taken
+      to the LEFT instead, across the empty middle of the bar where nothing
+      else is interactive." That was true when it was written. It stopped being
+      true when the search button was added directly to the left of this
+      toggle.
+
+      A 48px band starting 4px from a 44px button covers that button
+      completely, and `.nav-toggle` carries a higher z-index, so it won every
+      tap. Reported from a device: the magnifying glass could not be pressed in
+      landscape at all. Measured: `elementFromPoint` at the dead centre of the
+      search button returned BUTTON.nav-toggle.
+
+      So the toggle now expands left only as far as the gap between the two
+      controls, never across its neighbour, and the search button takes the
+      empty bar beyond it with a region of its own below. Both controls end up
+      with a forgiving target instead of one swallowing the other.
+    */
+    left: calc(-1 * var(--nav-control-gap) + 4px);
+  }
+
+  /*
+    The search button gets the leftward budget the toggle gave up. The bar to
+    ITS left really is empty, which is the condition the original note set.
+    Same 6px downward cap for the same reason: page content sits directly
+    beneath the closed bar.
+  */
+  #navbar .nav-search-btn::before {
+    bottom: -6px;
     left: -48px;
   }
 
@@ -306,7 +356,13 @@
   */
   #navbar.menu-open .nav-toggle::before {
     bottom: -48px;
-    left: -48px;
+    /*
+      Still capped at the gap horizontally, and by the same amount, for the
+      same reason as above: the search button is beside it in both states.
+      Only the VERTICAL budget changes when the menu opens, because that is
+      the axis with nothing underneath it.
+    */
+    left: calc(-1 * var(--nav-control-gap) + 4px);
   }
 
   /* The overlay close buttons sit over their own full-screen overlays, where
