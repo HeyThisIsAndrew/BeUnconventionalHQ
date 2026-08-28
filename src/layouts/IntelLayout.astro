@@ -89,10 +89,30 @@ const defaultPreloadSizes = firstMagSources?.srcset ? "(max-width: 900px) 92vw, 
 
 
 // Nothing at all to show — not even one article in the spread.
+/*
+  An article section with nothing in it.
+
+  The page still renders, and it must: IntelFilters shows every canonical
+  category whether or not it has articles, so removing the page would make a
+  visible button 404. An honest "no items found" screen is the better answer
+  for a reader.
+
+  It is NOT the better answer for Google. /intel/topic/events had zero
+  articles, no robots directive, and a place in our own sitemap — so we were
+  actively inviting Google to crawl an empty page, and Search Console returned
+  "Soft 404: URL is not available to Google" on 2026-08-28. That is not a
+  penalty, but it is us advertising a destination with nothing at it, which is
+  the same rule scripts/seo-routing.test.mjs already enforces for redirects.
+
+  So: exists for humans, noindex for crawlers, and dropped from the sitemap in
+  astro.config.mjs. All three conditions lift by themselves the moment the
+  category has its first article.
+*/
 const isEmpty = !hasMagazine && !hasArchive;
 ---
 
 <FeedLayout
+  noindex={isEmpty}
   title={title}
   description={description}
   headingLabel={headingLabel}

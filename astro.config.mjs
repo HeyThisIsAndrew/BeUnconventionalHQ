@@ -122,6 +122,53 @@ function buildArticleLastmod() {
 
 const ARTICLE_LASTMOD = buildArticleLastmod();
 
+/**
+ * Article-section categories that currently have NOTHING in them.
+ *
+ * /intel/topic/<category> is generated for every canonical category, not only
+ * the ones with articles, because IntelFilters always shows every category and
+ * a filter button that 404s is worse than one leading to an honest empty
+ * state. That is right for a reader and wrong for a crawler.
+ *
+ * /intel/topic/events had zero articles and sat in this sitemap anyway, so we
+ * were advertising a destination with nothing at it. Search Console returned
+ * "Soft 404: URL is not available to Google" on 2026-08-28. The page keeps
+ * rendering (and now carries noindex, set by IntelLayout); it just stops being
+ * advertised. Both lift automatically on that category's first article.
+ *
+ * Same eligibility rule as buildArticleLastmod above: a record needs a body
+ * and a slug, and must not be hidden.
+ */
+function emptyArticleTopicPaths() {
+  const withArticles = new Set();
+  try {
+    const raw = fs.readFileSync(path.resolve(process.cwd(), 'src/data/articles.json'), 'utf-8');
+    for (const record of JSON.parse(raw)) {
+      if (!record || record.editorial?.hidden || !record.hasBody || !record.slug) continue;
+      if (record.category) withArticles.add(String(record.category).toLowerCase());
+    }
+  } catch {
+    /* Unreadable snapshot: exclude nothing rather than silently dropping the
+       whole section from the sitemap. Degrading toward "advertise it" is the
+       safer direction of the two. */
+    return [];
+  }
+  /* 'General' is the unmapped-post bucket and is never browsable, so it has no
+     page to exclude. Mirrors the same filter in the route's getStaticPaths. */
+  return CANONICAL_ARTICLE_CATEGORIES
+    .filter((category) => category !== 'General')
+    .map((category) => category.toLowerCase())
+    .filter((slug) => !withArticles.has(slug))
+    .map((slug) => `/intel/topic/${slug}`);
+}
+
+/* Duplicated from src/data/constants.js on purpose: this file is plain Node
+   and cannot import the ESM module that statically imports JSON. Kept in sync
+   by scripts/seo-routing.test.mjs, which fails if the two lists diverge. */
+const CANONICAL_ARTICLE_CATEGORIES = ['Film', 'TV', 'Games', 'Events', 'General'];
+
+const EMPTY_ARTICLE_TOPIC_PATHS = emptyArticleTopicPaths();
+
 // Dev-only Local CMS backing store: GET/POST src/data/videos.json straight off
 // disk. Only wired into the Vite DEV server (configureServer never runs for
 // `astro build`), so this never ships to the production worker bundle.
@@ -486,7 +533,11 @@ export default defineConfig({
           // Renamed to /category/games and /intel/topic/games (#146). Same
           // rule: the sitemap advertises destinations, never sources.
           '/category/gaming',
-          '/intel/topic/gaming'
+          '/intel/topic/gaming',
+          // Article-section pages with no articles at all. Computed, not
+          // listed: the set changes as categories fill up. See
+          // emptyArticleTopicPaths() above.
+          ...EMPTY_ARTICLE_TOPIC_PATHS
         ];
         return !excludedPaths.includes(path);
       },

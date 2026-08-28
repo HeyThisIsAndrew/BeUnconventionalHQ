@@ -91,6 +91,76 @@ test('no redirected path is also advertised in the sitemap', () => {
   }
 });
 
+/*
+  ─── AN EMPTY SECTION PAGE IS A SOFT 404 ────────────────────────────────────
+
+  Search Console, 2026-08-28, on /intel/topic/events:
+
+    "Page cannot be indexed: Soft 404"
+
+  Google fetched it fine and found nothing on it. That category had zero
+  articles, the page carried no robots directive, and it was in our own
+  sitemap — so we were advertising a destination with nothing at it. Same rule
+  the redirect test above enforces, different cause.
+
+  The page must keep rendering: IntelFilters shows every canonical category
+  whether or not it has articles, so deleting it turns a visible button into a
+  404, which is worse for a reader than an honest empty state. The fix is that
+  it exists for humans and is invisible to crawlers, and BOTH halves have to
+  hold or it comes back.
+
+  Both lift automatically on that category's first article, which is exactly
+  why this needs a test: the bug disappears on its own and can be "fixed" by
+  publishing, leaving the real defect in place for the next empty category.
+*/
+test('an article section with no articles is noindexed and unadvertised', () => {
+  const intelLayout = fs.readFileSync(path.join(repoRoot, 'src/layouts/IntelLayout.astro'), 'utf-8');
+  const feedLayout = fs.readFileSync(path.join(repoRoot, 'src/layouts/FeedLayout.astro'), 'utf-8');
+
+  assert.match(
+    intelLayout,
+    /noindex=\{isEmpty\}/,
+    'IntelLayout must pass noindex when a section is empty. Without it an empty category page ' +
+      'invites Google to index a "no items found" screen, which Search Console reports as a soft 404.',
+  );
+  assert.match(
+    feedLayout,
+    /noindex=\{noindex\}/,
+    'FeedLayout must forward noindex to Layout, or IntelLayout is setting a prop nothing reads.',
+  );
+
+  assert.match(
+    config,
+    /function emptyArticleTopicPaths\(\)/,
+    'the sitemap no longer computes which article-section pages are empty',
+  );
+  assert.match(
+    config,
+    /\.\.\.EMPTY_ARTICLE_TOPIC_PATHS/,
+    'emptyArticleTopicPaths() is computed but not spread into excludedPaths, so empty pages are ' +
+      'still advertised in the sitemap',
+  );
+});
+
+/*
+  The config cannot import src/data/constants.js — it is plain Node and that
+  module statically imports JSON — so the canonical category list is duplicated
+  there. Duplicated lists drift; this is the alarm.
+*/
+test('the config\'s category list still matches the real one', () => {
+  const constants = fs.readFileSync(path.join(repoRoot, 'src/data/constants.js'), 'utf-8');
+  const real = /CATEGORIES = (\[[^\]]*\])/.exec(constants);
+  const copy = /CANONICAL_ARTICLE_CATEGORIES = (\[[^\]]*\])/.exec(config);
+  assert.ok(real, 'could not parse CATEGORIES out of src/data/constants.js');
+  assert.ok(copy, 'could not parse CANONICAL_ARTICLE_CATEGORIES out of astro.config.mjs');
+  assert.equal(
+    copy[1].replace(/\s+/g, ''),
+    real[1].replace(/\s+/g, ''),
+    'astro.config.mjs carries a stale copy of the category list. A category missing from the copy ' +
+      'can never be excluded from the sitemap when it empties.',
+  );
+});
+
 test('the sitemap stamps lastmod on article pages', () => {
   assert.match(config, /ARTICLE_LASTMOD/, 'the lastmod map is gone; the sitemap is back to carrying no lastmod at all');
   assert.match(config, /lastmod \? \{ \.\.\.item/, 'serialize() no longer attaches lastmod');

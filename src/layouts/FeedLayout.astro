@@ -43,7 +43,15 @@ interface Props {
   preloadImage?: string | null;
   preloadImageSrcset?: string | null;
   preloadImageSizes?: string | null;
-
+  /**
+   * Keep this page out of the index. Set by IntelLayout when a section has no
+   * articles at all: the page still has to EXIST, because the category filter
+   * row always shows every category and a button that 404s is worse than one
+   * that leads to an honest empty state. But an empty page is not something to
+   * invite Google to index, and Search Console correctly calls it a soft 404.
+   * See the matching sitemap exclusion in astro.config.mjs.
+   */
+  noindex?: boolean;
 }
 
 const {
@@ -59,11 +67,11 @@ const {
   preloadImage = null,
   preloadImageSrcset = null,
   preloadImageSizes = null,
-
+  noindex = false,
 } = Astro.props;
 ---
 
-<Layout title={title} description={description} prevUrl={page.url.prev} nextUrl={page.url.next} preloadImage={preloadImage} preloadImageSrcset={preloadImageSrcset} preloadImageSizes={preloadImageSizes}>
+<Layout title={title} description={description} prevUrl={page.url.prev} nextUrl={page.url.next} preloadImage={preloadImage} preloadImageSrcset={preloadImageSrcset} preloadImageSizes={preloadImageSizes} noindex={noindex}>
   <main class:list={['feed-page', 'flex-1', 'flex', 'flex-col', 'w-full', mainClass]}>
     <div class="container-page flex-1 flex flex-col">
       <header class="section-header animate-on-scroll" data-nav-anchor>
