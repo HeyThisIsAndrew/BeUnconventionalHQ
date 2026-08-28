@@ -292,5 +292,71 @@ test('a result with no image still renders the leading box, so the column line h
     'the glyph sits at the muted token so it reads as a placeholder, not as content');
 });
 
+/*
+  The empty-query view was volunteering D23, which finished on 16 August.
+  Retrospective coverage is not something to put in front of somebody who has
+  not asked for it. Past events stay indexed and stay findable by typing; this
+  is only about what the panel offers unprompted.
+*/
+test('the default view only volunteers an event that is still ahead of us', () => {
+  assert.match(paletteCode, /const eligibleForDefault =/,
+    'there must be one eligibility rule for the default view');
+  assert.match(paletteCode, /d\.type === 'event'\) return isStillAhead\(d\)/,
+    'events must be gated on still being ahead of us');
+  assert.match(paletteCode, /!out\.includes\(d\) && eligibleForDefault\(d\)/,
+    'the backfill must apply the same rule, or a finished event walks back in ' +
+    'through the side door when a bucket comes up short');
+});
+
+/*
+  Hard rule 1. `new Date("2026-08-16")` is midnight UTC, which renders as the
+  15th anywhere west of Greenwich, so an event would drop out of the panel a
+  day early for most of the audience. Compare the strings.
+*/
+test('the still-ahead check compares date STRINGS and never builds a Date', () => {
+  const fn = paletteCode.match(/const isStillAhead = \(d: any\) => \{[\s\S]*?\n    \};/);
+  assert.ok(fn, 'isStillAhead must exist');
+  assert.doesNotMatch(fn[0], /new Date\(/,
+    'building a Date from a calendar string UTC-shifts it to the previous day');
+  assert.match(fn[0], /end >= today/, 'a same-precision string comparison');
+  assert.match(paletteCode, /import \{ toYMD \} from '\.\.\/lib\/events\.ts'/,
+    "today must come from the site's own helper, not a reimplementation");
+});
+
+/*
+  A multi-day show is not over on its opening morning. Gating on the start
+  date alone would have hidden SDCC on 23 July, mid-event.
+*/
+test('the check uses the END of an event, not its start', () => {
+  const fn = paletteCode.match(/const isStillAhead = \(d: any\) => \{[\s\S]*?\n    \};/)[0];
+  assert.match(fn, /d\.endDate \|\| d\.date/,
+    'end date first, falling back to the start for a single-day event');
+
+  const index = readFileSync(join(ROOT, 'src/pages/api/search-index.json.ts'), 'utf8');
+  assert.match(index, /endDate: e\.endDate \|\| e\.startDate/,
+    'the index must carry an end date for every event, or the client cannot make this call');
+  assert.match(index, /endDate\?: string \| null/, 'and it must be on the entry type');
+});
+
+/*
+  The empty view already shows three articles. Intel is the page those
+  articles live on: it is not a result, it is the container of results that
+  are already on screen.
+*/
+test('Intel is kept out of the default view but stays searchable', () => {
+  const index = readFileSync(join(ROOT, 'src/pages/api/search-index.json.ts'), 'utf8');
+  const intel = index.match(/\{ id: 'intel'.*?\}/);
+  assert.ok(intel, 'the Intel page entry must exist');
+  assert.match(intel[0], /excludeFromDefault: true/, 'flagged out of the default view');
+  assert.match(intel[0], /url: '\/intel'/,
+    'and still present in the index, so typing "intel" finds it');
+  assert.match(paletteCode, /if \(d\.excludeFromDefault\) return false/,
+    'the client must honour the flag');
+
+  /* The decision lives with the pages, not hardcoded in the palette. */
+  assert.doesNotMatch(paletteCode, /'\/intel'/,
+    'the palette must not name a specific URL — that couples it to the page list');
+});
+
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
 process.exit(failed === 0 ? 0 : 1);

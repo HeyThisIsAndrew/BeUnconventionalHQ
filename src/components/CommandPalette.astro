@@ -77,6 +77,15 @@
 </dialog>
 
 <script>
+  /*
+    `toYMD` formats "today" as a YYYY-MM-DD string in the site's reference
+    timezone. Imported rather than reimplemented because hard rule 1 lives in
+    this helper: calendar dates are strings, and the moment you build a Date
+    from one it UTC-shifts to the previous day west of Greenwich. Comparing
+    same-precision date STRINGS is the only safe way to ask "is this over".
+  */
+  import { toYMD } from '../lib/events.ts';
+
   let indexLoaded = false;
   let searchData: any[] = [];
   let fuse: any = null;
@@ -254,17 +263,50 @@
       ['page', 1],
     ];
 
+    /*
+      AN EVENT EARNS ITS SLOT ONLY WHILE IT IS STILL AHEAD OF US.
+
+      The empty-query view was showing D23, which finished on 16 August. Past
+      coverage is not a thing to put in front of somebody who has not asked
+      for it: the event page is retrospective, and the slot is better spent on
+      something they can still act on, or on more of the content they came for.
+
+      Compared as strings, never as Dates, and against the END of the event so
+      a multi-day show is not written off on its opening morning. Evaluated
+      here in the browser rather than baked into the index, because the index
+      is generated at BUILD time: an event that was upcoming when the site was
+      built would stay marked upcoming until the next deploy.
+
+      Past events stay in the index and stay findable by typing. This is only
+      about what we volunteer.
+    */
+    const today = toYMD();
+    const isStillAhead = (d: any) => {
+      const end = (d.endDate || d.date || '').slice(0, 10);
+      return end ? end >= today : true; // undated event: no basis to hide it
+    };
+
+    const eligibleForDefault = (d: any) => {
+      if (d.excludeFromDefault) return false;
+      if (d.type === 'event') return isStillAhead(d);
+      return true;
+    };
+
     const defaultResults = () => {
       const out: any[] = [];
       for (const [type, count] of DEFAULT_MIX) {
-        out.push(...searchData.filter((d) => d.type === type).slice(0, count));
+        out.push(
+          ...searchData.filter((d) => d.type === type && eligibleForDefault(d)).slice(0, count)
+        );
       }
       /* If a bucket is short (no events yet, say), backfill from whatever is
          left so the panel never opens looking half-empty. */
       if (out.length < 10) {
         for (const d of searchData) {
           if (out.length >= 10) break;
-          if (!out.includes(d)) out.push(d);
+          /* The backfill honours the same rules, or a finished event walks
+             straight back in through the side door. */
+          if (!out.includes(d) && eligibleForDefault(d)) out.push(d);
         }
       }
       return out.map((item) => ({ item }));

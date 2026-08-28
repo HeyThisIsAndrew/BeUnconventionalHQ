@@ -21,6 +21,20 @@ interface SearchEntry {
   url: string;
   image?: string | null;
   date?: string | null;
+  /*
+    Events only. The default view shows an event only while it is still ahead
+    of us, and that decision has to be made in the BROWSER, not here: this
+    file runs at build time, so an event that was upcoming when the site was
+    built is still marked upcoming a month later. The client compares today
+    against these two, so it needs the end as well as the start. A multi-day
+    event is not over on its first morning.
+  */
+  endDate?: string | null;
+  /*
+    Kept out of the empty-query view, but still findable by typing. See the
+    `pages` list below for why a given page is flagged.
+  */
+  excludeFromDefault?: boolean;
   tags?: string[];
 }
 
@@ -43,7 +57,13 @@ export async function GET() {
   /* Undated for the same reason as hubs: a section index is a place, not a
      post, and stamping it with the build time floated it above real content. */
   const pages: SearchEntry[] = [
-    { id: 'intel', title: 'Intel', type: 'page', url: '/intel' },
+    /*
+      Intel is excluded from the empty-query view because the view already
+      shows three articles, and Intel is the page those articles live on. It
+      is not a result, it is the container of results that are already there.
+      Still indexed, so typing "intel" finds it.
+    */
+    { id: 'intel', title: 'Intel', type: 'page', url: '/intel', excludeFromDefault: true },
     { id: 'featured', title: 'Featured Hubs', type: 'page', url: '/featured' },
     { id: 'events', title: 'Events', type: 'page', url: '/events' },
     { id: 'media-kit', title: 'Media Kit', type: 'page', url: '/media-kit' },
@@ -75,6 +95,7 @@ export async function GET() {
       url: `/events/${e.slug?.current}`,
       image: resolveImage(e.heroImage),
       date: e.startDate,
+      endDate: e.endDate || e.startDate,
       tags: []
     })),
     ...hubs.map((h: any): SearchEntry => ({
