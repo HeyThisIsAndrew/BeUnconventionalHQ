@@ -175,7 +175,9 @@
     // Listeners
     closeBtn?.addEventListener('click', closePalette);
     dialog.addEventListener('click', (e) => {
-      if (e.target === dialog) closePalette();
+      const target = e.target as HTMLElement;
+      if (target === dialog) closePalette();
+      if (target.closest('.cmd-result-item')) closePalette();
     });
 
     // Keyboard Shortcuts
@@ -185,6 +187,11 @@
         e.preventDefault();
         dialog.open ? closePalette() : openPalette();
       }
+    });
+
+    // Ensure it always closes on View Transition navigation
+    document.addEventListener('astro:before-swap', () => {
+      if (dialog.open) closePalette();
     });
     
     // Mobile search affordance trigger (any button with data-action="open-search")
