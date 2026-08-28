@@ -5,7 +5,7 @@ import eventsImg from '../assets/categories/events.PNG';
 
 /**
  * Content pillars surfaced on the homepage. Each links to the Videos page
- * pre-filtered via a URL hash (e.g. /videos#gaming).
+ * pre-filtered via a URL hash (e.g. /videos#games).
  */
 export const categories = [
   {
@@ -23,8 +23,8 @@ export const categories = [
     action: 'Binge',
   },
   {
-    slug: 'gaming',
-    label: 'Gaming',
+    slug: 'games',
+    label: 'Games',
     blurb: 'Coverage, reviews & culture',
     image: gamingImg,
     action: 'Press Start',

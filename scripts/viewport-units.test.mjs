@@ -19,6 +19,12 @@
   reported from an iPhone as "you can see the top of EXPLORE THE HQ / WHAT WE
   COVER at the bottom of the screen".
 
+  CHECK THE ZOOM LEVEL FIRST. A later report of this exact symptom was the
+  browser zoomed OUT, not a regression. At 100% the hero is correct; a gap at
+  other zoom levels is expected and explicitly out of scope. A zoomed-out
+  screenshot is indistinguishable from the real bug, and chasing one is how
+  days get spent re-testing units that were already right.
+
   STATUS: RESOLVED. `100lvh` was verified on a physical iPhone in portrait,
   scrolling down and back to the top and letting the address bar retract
   mid-scroll. The leak does not occur. It took three attempts to get here

@@ -33,6 +33,7 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
           <div 
             class="ig-marquee-group" 
             aria-hidden={groupIndex > 2 ? "true" : undefined}
+            inert={groupIndex > 2 ? true : undefined}
           >
           {items.map((item) => {
             if (!item || !item.displayUrl) return null;
@@ -263,7 +264,22 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
       // This absorbs iOS momentum scrolling so it never hits the physical DOM limits.
       while (groups.length < 15) {
         const clone = groups[0].cloneNode(true) as HTMLElement;
+        /*
+          `inert` AS WELL AS `aria-hidden`, and for the same reason the
+          duplicate groups in the markup carry both.
+
+          These clones exist only to make the marquee loop look continuous.
+          Each one is a full copy of the row, links and all. `aria-hidden`
+          keeps them out of the accessibility tree but leaves every one of
+          those links IN THE TAB ORDER — so a keyboard user tabbing through
+          the gallery walks the same set of posts up to fifteen times, and
+          each stop announces nothing, because the tree says it is not there.
+
+          axe rates it serious (`aria-hidden-focus`), 13 nodes on a hub page.
+          `inert` is the attribute that actually removes a subtree from focus.
+        */
         clone.setAttribute('aria-hidden', 'true');
+        clone.setAttribute('inert', '');
         track.appendChild(clone);
         groups.push(clone);
       }

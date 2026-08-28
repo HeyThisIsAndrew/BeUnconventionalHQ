@@ -60,7 +60,7 @@ export function buildPublishedQuery(docType: string = 'video') {
 const SITE_CATEGORIES: Record<string, string> = {
   film: 'Film',
   tv: 'TV',
-  gaming: 'Gaming',
+  gaming: 'Games',
 };
 
 export interface MapOptions {

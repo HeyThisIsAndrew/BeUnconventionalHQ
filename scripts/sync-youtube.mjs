@@ -33,7 +33,7 @@ export const UNCATEGORIZED_TOPIC_ID = 'topic-uncategorized';
 export const TIER1_TOPIC_SEEDS = Object.freeze([
   { _id: 'topic-film', title: 'Film', slug: 'film', isTier1Category: true, keywords: ['film', 'movie', 'movies'] },
   { _id: 'topic-tv', title: 'TV', slug: 'tv', isTier1Category: true, keywords: ['tv', 'television', 'tv show', 'series'] },
-  { _id: 'topic-gaming', title: 'Gaming', slug: 'gaming', isTier1Category: true, keywords: ['gaming', 'game', 'games', 'video game', 'video games'] },
+  { _id: 'topic-gaming', title: 'Games', slug: 'gaming', isTier1Category: true, keywords: ['gaming', 'game', 'games', 'video game', 'video games'] },
   { _id: 'topic-events', title: 'Events', slug: 'events', isTier1Category: true, keywords: ['event', 'events', 'convention'] },
   { _id: UNCATEGORIZED_TOPIC_ID, title: 'Uncategorized', slug: 'uncategorized', isTier1Category: false, keywords: [] },
 ]);

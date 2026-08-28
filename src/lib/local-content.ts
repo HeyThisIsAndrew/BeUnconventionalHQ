@@ -310,5 +310,17 @@ export const HUB_CATEGORY_LABELS: Record<string, string> = {
   universes: 'Franchises',
   streaming: 'Streamers',
   studios: 'Studios',
-  gaming: 'Gaming',
+
+  /*
+    `gaming` follows the same rule for the same reason: the key is a document
+    field, so it stays, and only the label moved to "Games".
+
+    Do not read that as "the Games rename touched nothing." It is the HUB
+    taxonomy that costs nothing here. The site-wide CONTENT category of the
+    same name is a different taxonomy that happens to share the word, and it
+    IS a route segment: /category/gaming had to be 301'd to /category/games,
+    and /intel/topic/gaming with it. Both redirects are in astro.config.mjs.
+    See issue #146.
+  */
+  gaming: 'Games',
 };

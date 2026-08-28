@@ -509,6 +509,217 @@ test('one physical trackpad swipe can only ever move one card', () => {
       'momentum jitter clears it constantly');
 });
 
+test('the hub trailer hands over to the first rail tile when it stops', () => {
+  /*
+    The rail used to ship tile 0 marked active in the markup while the stage
+    played the hub's own trailer, so a fresh PlayStation page highlighted
+    "Marvel's Wolverine" over a PS5 trailer. Removing that hardcoded state
+    stopped the page lying but left the rail showing nothing at all.
+
+    This is the other half. The stage announces `hub:stage-idle` whenever the
+    trailer stops for ANY reason — ended (playerState 0), ran its
+    HUB_RUN_MS, or never started — and the rail selects its first tile.
+
+    Verified in a browser across five cases: nothing selected during the
+    trailer; tile 0 after it ends; a visitor's own pick is never overridden;
+    reduced motion selects immediately; a hub with no tiles does not throw.
+  */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8');
+
+  assert.match(hub, /stage\.dataset\.stageArmed = '1'/,
+    'the stage must record that a trailer is genuinely coming, so the rail can tell ' +
+      'waiting-for-handover from nothing-will-ever-happen');
+  assert.match(hub, /dispatchEvent\(new CustomEvent\('hub:stage-idle'\)\)/,
+    'teardown must announce the stage is empty — that is the single signal covering ' +
+      'ended, timed out, and never started');
+  assert.match(hub, /addEventListener\('hub:stage-idle', handOver\)/,
+    'the rail must hand over on every idle. `{ once: true }` was wrong once replay ' +
+      'existed — the second trailer would end and hand over to nothing. It is safe ' +
+      'to re-run because handOver returns early when a tile is already active, and ' +
+      'show() unloads the frame directly rather than through teardown().');
+  assert.match(hub, /state === 0 && stage!?\.classList\.contains\('is-playing'\)/,
+    'playerState 0 is ENDED, but the player also reports states before it starts — ' +
+      'without the is-playing guard a pre-roll report tears the trailer down early');
+  assert.match(hub, /if \(cards\.some\(\(c\) => c\.classList\.contains\('active'\)\)\) return;/,
+    'a visitor who has already picked a tile must never have the stage yanked away');
+
+  /* The markup must NOT pre-select, or the handover has nothing to hand over to
+     and the page is back to claiming a tile is showing when it is not. */
+  assert.doesNotMatch(hub, /hub-rail-card \$\{i === 0 \? 'active'/,
+    'the rail must not hardcode tile 0 active — that is the bug this replaced');
+});
+
+test('the hub trailer can be played again without a reload', () => {
+  /*
+    The trailer used to play exactly once. `initHubStage` is guarded by
+    `stageInit`, `teardown()` unloads the frame to about:blank, and nothing
+    re-armed — so the only replay was a refresh, or leaving and returning
+    (ClientRouter swaps the DOM, which clears the guard). Measured:
+
+      first load:        frameSrc = https://www.youtube-nocook…
+      after it ends:     frameSrc = about:blank
+      re-fire page-load: frameSrc = about:blank        <- no replay
+      after re-navigate: frameSrc = https://www.youtube-nocook…
+
+    Arming is a function now so replay is a second CALL, not a second code
+    path. teardown() already leaves exactly the state arm() expects.
+
+    PLACEMENT WAS THE HARD PART, and it took three attempts.
+
+    1. Over the hub's mark. Unpressable: the handover puts a rail pane up the
+       instant the trailer ends, so `is-item` is on from then on and a control
+       behind that pane can never be reached. A test pressed it and found
+       nothing clickable.
+    2. The stage's top-right corner, sharing the sound toggle's slot. That is
+       pressable, and it was still wrong. Reported from a phone as confusing:
+       the stage shows a RAIL CARD almost all of its life, so a pill reading
+       TRAILER sat in the corner of the Wolverine card, which carries its own
+       PLAY button. Two play affordances on one image, for two different
+       videos.
+    3. The copy column, beside Read more. The button replays the HUB's
+       trailer, so it belongs with the hub's identity, not with whatever the
+       stage happens to be showing. Out there it cannot overlap the stage at
+       any breakpoint or in any state.
+
+    So this test pins the thing that went wrong twice: the control must NOT be
+    a descendant of .hub-stage.
+  */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8');
+
+  assert.match(hub, /const arm = \(delay: number\) =>/,
+    'arming must be a callable function — inline, the trailer can only ever play once');
+  assert.match(hub, /arm\(HUB_LEAD_IN_MS\)/, 'the first play waits, so the mark is seen before it dissolves');
+  assert.match(hub, /arm\(0\)/, 'a replay the visitor asked for starts immediately');
+
+  assert.match(hub, /class="hub-stage-replay"/, 'there must be a control');
+
+  /*
+    ─── IT MUST NOT LIVE ON THE STAGE ────────────────────────────────────────
+
+    Slice from the stage's opening tag to its close and assert the button is
+    not in there. Both failed placements were inside this element.
+  */
+  const stageOpen = hub.indexOf('class="hero-trailer hub-stage animate-on-scroll"');
+  assert.ok(stageOpen > 0, 'could not find the stage element; this test is no longer reading the markup');
+  const stageMarkup = hub.slice(stageOpen, hub.indexOf('</section>', stageOpen));
+  assert.ok(
+    !stageMarkup.includes('hub-stage-replay'),
+    'the replay control is inside .hub-stage again. On the stage it reads as a control for ' +
+      'whatever the stage is showing, which is a rail card with its own PLAY button almost ' +
+      'all of the time. It belongs in the copy column with the hub identity.',
+  );
+
+  /*
+    ─── NAMED FROM ITS OWN CONTENT ───────────────────────────────────────────
+
+    WCAG 2.5.3 (Label in Name) wants the accessible name to CONTAIN the visible
+    text. The old aria-label was "Replay the <hub> trailer" against visible
+    text "Trailer" — fine — but the visible text is "Play trailer" now, and
+    "Replay the PlayStation trailer" does not contain "play trailer". So the
+    name comes from content plus an sr-only suffix instead.
+  */
+  assert.ok(
+    !/class="hub-stage-replay"[^>]*aria-label/.test(hub),
+    'an aria-label here replaces the name built from the visible words. Name it from content.',
+  );
+  assert.match(hub, /<span class="hub-stage-replay-text">Play trailer<\/span>/,
+    'the visible words are what a speech-input user will say');
+  assert.match(hub, /<span class="sr-only"> for \{event\.title\}<\/span>/,
+    'the hub name belongs in the accessible name, after the visible text so it still contains it');
+
+  /* Hidden while the trailer runs. Matched from the shared ancestor now that
+     the button is not a descendant of the stage. */
+  assert.match(hub, /\.hero-grid-container:has\(\.hub-stage\.is-playing\) \.hub-stage-replay \{\s*display: none/,
+    'replay must vanish while the trailer plays; the old .hub-stage.is-playing selector ' +
+      'cannot match a button that is no longer inside the stage');
+
+  /*
+    ─── GATED ON A TRAILER, NOT ON ANY PLAYABLE VIDEO ────────────────────────
+
+    hasPlayableVideo is also true for a hub with no trailer that merely has a
+    video in its rail, and initHubStage returns early on !stage.dataset.trailer
+    — so such a hub would render a button that does nothing. Every hub has a
+    trailer today, which is precisely why this would have shipped unnoticed.
+  */
+  assert.match(hub, /\{trailerId && \(/,
+    'the replay control must be gated on trailerId');
+  assert.ok(
+    !/\{hasPlayableVideo && \(\s*\/\*[\s\S]{0,400}?WATCH IT AGAIN/.test(hub),
+    'the replay control is gated on hasPlayableVideo again, which renders a dead button ' +
+      'on a hub whose only videos are in the rail',
+  );
+
+  /* Replay while a tile is showing has to clear the rail, or the page is back
+     to a highlighted tile over a trailer that is not it. */
+  assert.match(hub, /dispatchEvent\(new CustomEvent\('hub:stage-replay'\)\)/,
+    'the stage must ASK the rail to stand down rather than setting card state itself');
+  assert.match(hub, /addEventListener\('hub:stage-replay'/, 'and the rail must answer');
+});
+
+test('the calendar dialog does not land on its own close button', () => {
+  /*
+    Reported as "a red box around the X that should not be there on desktop,
+    iPad or iPhone". It was the keyboard focus ring, painted on every open
+    before anyone touched anything.
+
+    Nothing in the component focuses the button: `showModal()` focuses the
+    first focusable child, and browsers treat that as keyboard-style focus, so
+    `:focus-visible` matched. Measured on the built page: outline
+    "2px solid rgb(204, 0, 0)", focusVisible true, immediately on open.
+
+    A `tabindex="-1"` container takes focus without painting a ring, so focus
+    still moves into the dialog — which screen readers, Escape and <dialog>'s
+    native Tab trapping all depend on — without looking focused.
+  */
+  const modal = readFileSync(join(here, '..', 'src', 'components', 'SpanningCalendarModal.astro'), 'utf8');
+  assert.match(modal, /class="modal-inner" tabindex="-1" autofocus/,
+    'the dialog needs a non-button landing spot, or showModal() paints a focus ring on the X');
+  assert.match(modal, /\.modal-inner:focus-visible \{\s*outline: none/,
+    'the landing spot must not paint a ring of its own');
+  assert.match(modal, /\.close-btn:focus-visible \{/,
+    'the X must STILL show a ring when a keyboard user Tabs to it — that is not the bug');
+});
+
+test('the deck nav rail is operable from a keyboard', () => {
+  /*
+    These were <div>s carrying a click handler, so Tab went from the row
+    heading straight past the entire rail. A <div> is a plain box; browsers
+    only put genuinely interactive elements in the tab order, and one that
+    merely BEHAVES like a button when clicked is not one. WCAG 2.1.1.
+
+    Never a dead end — the deck cards are real <a>s, so every hub stayed
+    reachable — but the rail is the fast way to switch and a keyboard user
+    simply did not have it.
+
+    Verified in a browser after the change: Tab reaches all four thumbs,
+    each announces as `button` named "Show <hub>", Enter moves the deck, and
+    the focus ring computes to rgb(239,69,69).
+  */
+  const thumb = src.slice(src.indexOf('deck-nav-track'), src.indexOf('</div>', src.indexOf('deck-nav-track')));
+  assert.match(thumb, /<button\s+type="button"/,
+    'the rail thumbs must be real <button>s — a div with a click handler is not focusable');
+  assert.doesNotMatch(thumb, /<div class={`deck-nav-thumb/,
+    'a div thumb is the regression this pins');
+  assert.match(thumb, /aria-label={`Show \$\{brand\.title\}`}/,
+    'an icon-only button needs an accessible name');
+  assert.match(thumb, /aria-current=/, 'which thumb is showing must be announced, not only painted');
+
+  const style = styleBlock();
+  /* A <button> inherits a UA font, colour, alignment and radius. Without
+     these the rail rendered in the system font with rounded corners. */
+  for (const reset of ['font: inherit', 'color: inherit', 'text-align: inherit', 'border-radius: 0']) {
+    assert.ok(style.includes(reset),
+      `.deck-nav-thumb must reset \`${reset}\` — buttons carry user-agent defaults a div does not`);
+  }
+  assert.match(style, /\.deck-nav-thumb:focus-visible/,
+    'being focusable is no use if you cannot see where you are');
+
+  /* renderDeck paints the class; aria-current is the announcement. Both have
+     to move together or a screen reader keeps naming the previous hub. */
+  assert.match(src, /setAttribute\('aria-current', 'true'\)/, 'renderDeck must set aria-current');
+  assert.match(src, /setAttribute\('aria-current', 'false'\)/, 'and clear it');
+});
+
 test('the picker publishes variables; the scoped rules read them', () => {
   /*
     THE PICKER SET font-family AND LOST EVERY TIME.

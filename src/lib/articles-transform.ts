@@ -231,7 +231,7 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
   // first, would have swallowed everything into Film.
   Film: ['film', 'films', 'movie', 'movies', 'cinema', 'boxoffice'],
   TV: ['tv', 'television', 'series', 'season', 'episode', 'streaming', 'show'],
-  Gaming: ['gaming', 'game', 'games', 'videogame', 'playstation', 'xbox', 'nintendo', 'steam'],
+  Games: ['gaming', 'game', 'games', 'videogame', 'playstation', 'xbox', 'nintendo', 'steam'],
   Events: ['event', 'events', 'convention', 'con', 'comiccon', 'comic-con', 'sdcc', 'd23', 'premiere', 'expo'],
 };
 
@@ -269,7 +269,7 @@ export function mapCategory(tags: string[] = [], text = ''): string {
 /**
  * CONTENT TYPE — what KIND of article this is, as distinct from its subject.
  *
- * `category` answers "what is it about" (Film / TV / Gaming / Events).
+ * `category` answers "what is it about" (Film / TV / Games / Events).
  * `contentType` answers "what is it" (a Review, an Analysis, a Dispatch...).
  *
  * Both are needed. Search engines treat a review very differently from a news

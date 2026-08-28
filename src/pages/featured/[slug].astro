@@ -290,6 +290,62 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
                   </button>
                 </div>
               )}
+
+              {trailerId && (
+                /*
+                  ─── WATCH IT AGAIN ─────────────────────────────────────────
+
+                  The trailer plays once and unloads itself. Before this there
+                  was no way back to it: initHubStage is guarded by `stageInit`
+                  and never re-armed, so the only replay was a refresh, or
+                  leaving and returning (ClientRouter swaps the DOM, which
+                  clears the guard). Measured, and neither is discoverable.
+
+                  ─── PLACEMENT, THIRD ATTEMPT ───────────────────────────────
+
+                  It has been in two wrong places already, and both failures
+                  were about WHAT THE BUTTON LOOKS LIKE IT BELONGS TO.
+
+                  First it went over the hub's mark: click the logo, watch it
+                  again. Unpressable, because the handover puts a rail pane up
+                  the instant the trailer ends, so `is-item` is on from then on
+                  and a control behind that pane can never be reached.
+
+                  Then it moved to the stage's top-right corner, sharing the
+                  sound toggle's slot. That is pressable and it is still wrong,
+                  reported from a phone with the word "confusing". The stage
+                  spends almost all of its life showing a RAIL CARD, not the
+                  mark, so a pill reading TRAILER sat in the corner of the
+                  Wolverine card — a card that carries its own PLAY button.
+                  Two play affordances on one image, for two different videos.
+
+                  The button was never stage chrome. It replays the HUB's
+                  trailer, so it belongs with the hub's identity: under the
+                  mark, beside Read more, in the column that is already about
+                  "what is this hub". Out here it cannot overlap anything the
+                  stage shows, at any breakpoint, in any state.
+
+                  NAMED FROM ITS OWN CONTENT, not an aria-label. WCAG 2.5.3
+                  requires the accessible name to CONTAIN the visible text, and
+                  "Replay the PlayStation trailer" does not contain "Play
+                  trailer". The sr-only suffix gives the hub name to a screen
+                  reader while keeping the visible words inside the name.
+
+                  Gated on `trailerId`, NOT `hasPlayableVideo`. The latter is
+                  also true for a hub with no trailer that merely has a video
+                  in its rail, and initHubStage bails on `!stage.dataset.trailer`
+                  — so that hub would have rendered a button that does nothing.
+                  Every hub happens to have a trailer today, which is exactly
+                  why this would have shipped unnoticed.
+                */
+                <button type="button" class="hub-stage-replay">
+                  <svg class="hub-stage-replay-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M8 5v14l11-7z" fill="currentColor" />
+                  </svg>
+                  <span class="hub-stage-replay-text">Play trailer</span>
+                  <span class="sr-only"> for {event.title}</span>
+                </button>
+              )}
             </div>
 
           </div>
@@ -387,8 +443,32 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
               const isVideo = item.contentType === 'video';
               const vid = isVideo ? parseVideoId(item.link || '') : null;
               const still = item.image ?? item.thumbnail ?? null;
+              /*
+                `inert` AS WELL AS `aria-hidden`, and they must move together.
+
+                A hidden pane still contains a real `Play` button or `Read`
+                link. `aria-hidden` takes it out of the accessibility tree but
+                leaves it in the TAB ORDER, so a keyboard user could land on a
+                control inside a pane nobody can see, announced as nothing
+                because the tree says it is not there. axe rates it serious
+                (`aria-hidden-focus`), 13 nodes on a five-item hub.
+
+                `inert` is the attribute that actually removes a subtree from
+                focus, and it ships in the markup rather than being applied on
+                init, so the page is correct before any script runs — the same
+                reasoning as the reveal failsafe.
+
+                This note sits ABOVE the return, as a plain block comment.
+                An Astro-style JSX comment placed inside the return makes the
+                callback return two nodes and the build fails with
+                "Expected , or ) but found class". Written up two commits ago
+                for the /featured rail and walked into again here.
+
+                NOTE: astro check does NOT catch that - only npm run build
+                does. Do not take a clean check as proof this file compiles.
+              */
               return (
-                <div class="hub-stage-item" data-index={i} aria-hidden="true">
+                <div class="hub-stage-item" data-index={i} aria-hidden="true" inert>
                   {still && <img src={still} alt="" class="hub-stage-item-still" loading="lazy" />}
                   <span class="hub-stage-item-scrim"></span>
                   <div class="hub-stage-item-copy">
@@ -928,6 +1008,83 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     opacity: 0.97;
   }
 
+  /*
+    THE REPLAY CONTROL.
+
+    Lives in the copy column beside Read more, NOT on the stage. It used to
+    sit in the stage's top-right corner sharing the sound toggle's slot, and
+    that read as a control belonging to whatever the stage was showing — which
+    is a rail card almost all of the time, and rail cards have their own PLAY.
+    See the note on the markup for the full history.
+
+    Consequences of being out here: no absolute positioning, no z-index, no
+    overlap to reason about, and nothing to hide it behind. The sound toggle
+    now owns its corner alone.
+  */
+  .hub-stage-replay {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.15rem;
+    /*
+      HARD EDGES. Every other control on /featured is square — the deck nav
+      thumbs carry an explicit `border-radius: 0` reset for exactly this
+      reason — and this pill was the one exception on the page.
+
+      Vertical padding is deliberately unchanged at 0.5rem: the ask was a
+      rectangle at the SAME height, so only the horizontal padding grew, which
+      a rectangle needs more of than a pill to avoid reading as cramped.
+    */
+    padding: 0.5rem 1.05rem 0.5rem 0.9rem;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 0;
+    background: rgba(0, 0, 0, 0.32);
+    color: var(--color-white, #f0f0f0);
+    font-family: var(--font-body);
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 0.25s ease, background 0.25s ease;
+  }
+
+  .hub-stage-replay:hover,
+  .hub-stage-replay:focus-visible {
+    border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.85);
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  /*
+    While the trailer runs there is nothing to replay, and the stage's own
+    sound toggle is the control that matters. Matched from the shared
+    ancestor because the button is no longer inside .hub-stage; if :has()
+    is ever unavailable the button simply stays visible during playback,
+    which is inert rather than broken (the click handler returns early on
+    is-playing anyway).
+  */
+  .hero-grid-container:has(.hub-stage.is-playing) .hub-stage-replay {
+    display: none;
+  }
+
+  .hub-stage-replay-glyph {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+  }
+
+  /* The readable red, per scripts/a11y-tokens.test.mjs — this ring sits on
+     dark artwork and #cc0000 is 3.21:1. */
+  .hub-stage-replay:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hub-stage-replay {
+      transition: none;
+    }
+  }
+
   .hub-stage-mark-img {
     width: 62%;
     max-height: 78%;
@@ -1281,9 +1438,11 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     display: none;
     align-items: center;
     gap: 0.4rem;
-    padding: 0.38rem 0.7rem 0.38rem 0.55rem;
+    padding: 0.38rem 0.75rem 0.38rem 0.6rem;
     border: 1px solid rgba(255, 255, 255, 0.24);
-    border-radius: 999px;
+    /* Squared with the replay control. Leaving one of the two pills rounded
+       would be the same inconsistency, just moved. */
+    border-radius: 0;
     background: rgba(0, 0, 0, 0.55);
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
@@ -1591,6 +1750,18 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     const conn = (navigator as unknown as { connection?: { saveData?: boolean } }).connection;
     if (conn?.saveData) return;
 
+    /*
+      PAST EVERY GUARD, SO A TRAILER IS GENUINELY COMING.
+
+      initHubRail reads this to decide whether to wait for the handover or do
+      it immediately. Expressed as a marker rather than re-tested there,
+      because the reasons a trailer never plays are all up here — no trailer
+      on the hub, no frame, reduced motion, Save-Data — and duplicating five
+      conditions in a second function is how two lists drift apart. This one
+      is set at the single point where all five have already passed.
+    */
+    stage.dataset.stageArmed = '1';
+
     const timers: number[] = [];
     const clearAll = () => {
       timers.forEach((t) => { window.clearTimeout(t); window.clearInterval(t); });
@@ -1602,11 +1773,26 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       stage.classList.remove('is-playing');
       /* HARD RULE 4: 'about:blank', never ''. */
       if (frame.src !== 'about:blank') frame.src = 'about:blank';
+      /*
+        THE STAGE IS EMPTY NOW — SAY SO.
+
+        One announcement covering every way the trailer can stop: it ended,
+        it ran out its HUB_RUN_MS, or it never started at all. The rail hands
+        over to its first tile on this, so it does not have to know which of
+        the three happened, and no case is left without a handover.
+      */
+      stage.dispatchEvent(new CustomEvent('hub:stage-idle'));
     };
     const reveal = () => {
       clearAll();
-      window.removeEventListener('message', onMessage);
       stage.classList.add('is-playing');
+      /*
+        THE LISTENER STAYS ON, deliberately. It used to be removed here, which
+        meant the only way the trailer could end was the HUB_RUN_MS timer —
+        a 42-second wait after a 30-second trailer had already finished. It is
+        kept so `playerState === 0` can hand over the moment the video is
+        genuinely done. teardown() removes it either way.
+      */
       timers.push(window.setTimeout(teardown, HUB_RUN_MS));
     };
 
@@ -1622,23 +1808,83 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       const state = typeof info === 'object' && info !== null
         ? (info as { playerState?: number }).playerState
         : info;
-      if (state === 1) reveal();
+      if (state === 1) {
+        reveal();
+        return;
+      }
+      /*
+        0 is ENDED. Guarded on is-playing because the player also reports
+        states before it ever starts (-1 unstarted, 5 cued), and treating a
+        pre-roll report as "finished" would tear the trailer down before it
+        began.
+      */
+      /* `stage!` for the same reason `frame!` is asserted above: onMessage is a
+         hoisted function declaration, so TypeScript does not carry the
+         enclosing `if (!stage) return` narrowing into its body. */
+      if (state === 0 && stage!.classList.contains('is-playing')) teardown();
     }
 
-    timers.push(window.setTimeout(() => {
-      /* `origin` is required for the handshake and is only knowable at runtime. */
-      frame.src = `${src}&origin=${encodeURIComponent(window.location.origin)}`;
-      window.addEventListener('message', onMessage);
-      /* The player only answers once it has booted, so keep asking. */
-      timers.push(window.setInterval(() => {
-        frame.contentWindow?.postMessage('{"event":"listening"}', '*');
-      }, 250));
-      /* Never started: blocked autoplay, blocked domain, embedding disabled.
-         Take it down and leave the mark up. */
+    /*
+      ARMING IS A FUNCTION NOW, BECAUSE IT HAPPENS MORE THAN ONCE.
+
+      This used to be a single inline setTimeout, which is why the trailer
+      could only ever play once: teardown() unloads the frame and drops the
+      listener, and nothing could put them back. Lifting it out makes replay
+      a second call rather than a second code path, so the two can never
+      drift.
+
+      teardown() already leaves exactly the state arm() expects — timers
+      cleared, listener removed, src at 'about:blank', is-playing off — so
+      there is nothing to reset first.
+
+      `delay` is the one difference between the two callers. The first play
+      waits HUB_LEAD_IN_MS so the mark is seen before it dissolves; a replay
+      the visitor just asked for starts immediately, because they have
+      already seen the mark and are waiting on a button they pressed.
+    */
+    const arm = (delay: number) => {
       timers.push(window.setTimeout(() => {
-        if (!stage.classList.contains('is-playing')) teardown();
-      }, HUB_PLAY_TIMEOUT_MS));
-    }, HUB_LEAD_IN_MS));
+        /* `origin` is required for the handshake and is only knowable at runtime. */
+        frame.src = `${src}&origin=${encodeURIComponent(window.location.origin)}`;
+        window.addEventListener('message', onMessage);
+        /* The player only answers once it has booted, so keep asking. */
+        timers.push(window.setInterval(() => {
+          frame.contentWindow?.postMessage('{"event":"listening"}', '*');
+        }, 250));
+        /* Never started: blocked autoplay, blocked domain, embedding disabled.
+           Take it down and leave the mark up. */
+        timers.push(window.setTimeout(() => {
+          if (!stage.classList.contains('is-playing')) teardown();
+        }, HUB_PLAY_TIMEOUT_MS));
+      }, delay));
+    };
+
+    arm(HUB_LEAD_IN_MS);
+
+    /*
+      The replay button. Guarded on `is-playing` so a double-press cannot
+      stack two arm() calls and race two loads of the same frame.
+
+      It also re-arms out of the RAIL's state: if the visitor picked a tile
+      and then asks for the trailer, `is-item` has to come off or the pane
+      stays over the stage. show() put it there; this is the only thing that
+      takes it back off.
+    */
+    /* Not stage.querySelector any more: the control moved out to the copy
+       column. One stage and one button per page, same as how `stage` itself
+       is found. */
+    const replay = document.querySelector<HTMLButtonElement>('.hub-stage-replay');
+    replay?.addEventListener('click', () => {
+      if (stage.classList.contains('is-playing')) return;
+      /*
+        The RAIL owns which tile is selected, so the stage asks rather than
+        reaching in. Setting the cards from here would put rail state in two
+        places, which is the exact bug the handover was written to fix — the
+        rail said one thing and the stage showed another.
+      */
+      stage.dispatchEvent(new CustomEvent('hub:stage-replay'));
+      arm(0);
+    });
   }
 
   /*
@@ -1672,6 +1918,10 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
         const on = i === index;
         pane.classList.toggle('active', on);
         pane.setAttribute('aria-hidden', on ? 'false' : 'true');
+        /* In step with aria-hidden, always. Hiding a pane from the
+           accessibility tree while leaving its Play button in the tab order
+           is how a keyboard user lands on a control that announces nothing. */
+        pane.toggleAttribute('inert', !on);
       });
       stage.classList.add('is-item');
 
@@ -1680,6 +1930,79 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       if (frame && frame.src !== 'about:blank') frame.src = 'about:blank';
       stage.classList.remove('is-playing');
     };
+
+    /*
+      ─── THE TRAILER HANDS OVER TO THE FIRST TILE ─────────────────────────
+
+      The rail used to ship tile 0 marked active in the markup, while the
+      stage played the hub's own trailer — so a fresh PlayStation page
+      highlighted "Marvel's Wolverine" over a PS5 trailer. That hardcoded
+      state was removed, which stopped the page lying but left the rail
+      showing nothing selected and no hint the tiles do anything.
+
+      This is the other half. The stage announces `hub:stage-idle` when the
+      trailer stops for ANY reason — ended, ran its 42s, or never started —
+      and the rail then selects its first tile. The highlight appears only
+      once it is true.
+
+      `once: true` because the first idle is the handover; later teardowns
+      (a visitor picking a tile unloads the frame too) must not re-select.
+
+      The visitor always wins: if they have already picked a tile before the
+      trailer finishes, the handover is skipped rather than yanking the stage
+      back to something they did not ask for.
+    */
+    const handOver = () => {
+      if (cards.some((c) => c.classList.contains('active'))) return;
+      show(0);
+    };
+
+    /*
+      NOT ARMED MEANS NOTHING IS COMING. No trailer on this hub, no frame,
+      reduced motion, or Save-Data — initHubStage sets `stageArmed` only once
+      all of those have passed. With no trailer to wait for there is nothing
+      to hand over FROM, so the rail selects immediately rather than sitting
+      inert forever. Reduced motion lands here too, which is the right
+      outcome: a reader who asked for less movement gets the end state without
+      the transition.
+    */
+    if (cards.length > 0) {
+      if (stage.dataset.stageArmed === '1') {
+        stage.addEventListener('hub:stage-idle', handOver);
+      } else {
+        handOver();
+      }
+    }
+
+    /*
+      THE REPLAY BUTTON ASKS THE RAIL TO STAND DOWN.
+
+      Pressing replay while a tile is showing has to clear the rail too, or
+      the page goes straight back to the bug the handover fixed: a highlighted
+      tile over a trailer that is not it.
+
+      The rail does its own clearing rather than the stage doing it, so which
+      tile is selected stays owned by one function.
+
+      Note `handOver` above is NOT `{ once: true }`. It was, and that was
+      wrong once replay existed: the second trailer would end and hand over to
+      nothing. It is safe to re-run because handOver returns early if any tile
+      is already active, and because show() unloads the frame directly rather
+      than through teardown(), so selecting a tile never raises `stage-idle`
+      in the first place.
+    */
+    stage.addEventListener('hub:stage-replay', () => {
+      cards.forEach((c) => {
+        c.classList.remove('active');
+        c.setAttribute('aria-pressed', 'false');
+      });
+      panes.forEach((pane) => {
+        pane.classList.remove('active');
+        pane.setAttribute('aria-hidden', 'true');
+        pane.setAttribute('inert', '');
+      });
+      stage.classList.remove('is-item');
+    });
 
     /*
       FADE ONLY THE SIDE THAT ACTUALLY CONTINUES.

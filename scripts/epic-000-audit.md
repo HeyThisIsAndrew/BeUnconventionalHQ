@@ -171,7 +171,7 @@ Per EPIC-001's "if anything conflicts with the repo, the repo wins" rule:
 
 - **`src/consts.ts` should not be created.** The repo convention is `src/data/*.js` (`site.js`, `constants.js`, `categories.js`). The `Intel` section constant belongs there.
 - **The Sanity override layer conflicts with the documented architecture.** CLAUDE.md records a deliberate pivot away from Sanity as a runtime data source; `@sanity/client` is imported only by `scripts/`, never by `src/`. The established override mechanism is now `/local-cms` over `src/data/videos.json`. Recommend articles follow the local-JSON pattern.
-- **Category labels are `Film`, not `Movies`** — `CATEGORIES` is `['Film', 'TV', 'Gaming', 'Events', 'General']`. The tagging guide must match, or tag mapping silently fails.
+- **Category labels are `Film`, not `Movies`** — `CATEGORIES` is `['Film', 'TV', 'Games', 'Events', 'General']`. The tagging guide must match, or tag mapping silently fails.
 - **`sanitize-html` is not installed.**
 - **The article archive is already 2 records deep** (`src/data/cache/articles.json`). EPIC-001's correction #2 treats rolling-window archive loss as a future risk; it has already happened. The backfill follow-up is most of the archive, not polish.
 - **`QuadrantFilter`'s `isNavMode` prop is dead** — the component destructures only `showTypes`. Call sites pass `isNavMode` and it does nothing. Preserved as-is (passing it through `FeedLayout`) to avoid changing behaviour, but do not build on it.

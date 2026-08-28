@@ -12,7 +12,34 @@ const { events } = Astro.props;
 
 <dialog id="spanning-calendar-modal" class="fade-in-overlay" aria-label="Events Calendar">
   <!-- Unified Responsive Calendar View -->
-  <div class="modal-inner">
+  {/*
+    `tabindex="-1" autofocus` — THE DIALOG MUST NOT LAND ON THE CLOSE BUTTON.
+
+    Reported as "a red box around the X that should not be there on desktop,
+    iPad or iPhone". It was the keyboard focus ring, painted every time the
+    calendar opened, before anyone had touched anything.
+
+    Nothing in this component focuses the button. `showModal()` does: the
+    dialog element automatically focuses the first focusable child, and
+    browsers treat that automatic focus as keyboard-style, so
+    `.close-btn:focus-visible` matched and the outline painted. Measured on
+    the built page immediately after opening:
+
+      desktop — just opened: {"outline":"2px solid rgb(204, 0, 0)",
+                              "focusVisible":true,"focused":true}
+      mobile  — just opened: identical
+
+    Deleting the ring was not the fix. It is how a keyboard user knows where
+    they are, and its colour is correct — an outline is decoration, which is
+    exactly what `--color-accent` is for. The bug was that it appeared when
+    nobody was using a keyboard.
+
+    A container with `tabindex="-1"` takes focus without painting a ring, so
+    the dialog lands here instead. Focus still moves inside the dialog, which
+    is what screen readers, Escape and <dialog>'s native Tab trapping all
+    depend on. Tab to the X and the ring appears, because now it is true.
+  */}
+  <div class="modal-inner" tabindex="-1" autofocus>
     <div class="modal-close-bar">
       <button class="close-btn" aria-label="Close Calendar">&times;</button>
     </div>
@@ -59,6 +86,13 @@ const { events } = Astro.props;
   #spanning-calendar-modal::backdrop {
     background: rgba(0, 0, 0, 0.9);
     backdrop-filter: blur(10px);
+  }
+
+  /* It is only focusable so the dialog has somewhere to land (see the note in
+     the markup). It must never look focused — that is the button's job. */
+  .modal-inner:focus,
+  .modal-inner:focus-visible {
+    outline: none;
   }
 
   .modal-inner {
@@ -112,7 +146,8 @@ const { events } = Astro.props;
 }
 
 .close-btn:hover {
-  color: var(--color-accent, #cc0000);
+  /* The READABLE red. #cc0000 is 3.21:1 and this is a glyph you look at. */
+  color: var(--color-accent-text, #ef4444);
   transform: rotate(90deg);
 }
 

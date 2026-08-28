@@ -58,7 +58,7 @@ export const SECTIONS = {
     primary: 'Recent',
     secondary: 'Videos',
   },
-  /** The four category tiles (Film / TV / Gaming / Events). */
+  /** The four category tiles (Film / TV / Games / Events). */
   whatWeCover: {
     kicker: 'Explore The HQ',
     primary: 'What We',

@@ -61,7 +61,7 @@ const SIGNALS = {
     ],
     [2, /\b(series|tv show|finale|binge|streaming)\b/],
   ],
-  Gaming: [
+  Games: [
     [
       3,
       /\b(gameplay|playthrough|game review|boss fight|speedrun|elden ring|zelda|mario|mortal kombat 1|playstation|xbox|nintendo|steam deck)\b/,
@@ -82,7 +82,7 @@ const SIGNALS = {
   ],
 };
 
-const ORDER = ['Film', 'TV', 'Gaming', 'Events', 'Netflix'];
+const ORDER = ['Film', 'TV', 'Games', 'Events', 'Netflix'];
 
 export function categorize(text) {
   const pool = (text || '').toLowerCase();

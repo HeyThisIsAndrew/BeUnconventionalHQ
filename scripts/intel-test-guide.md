@@ -35,7 +35,7 @@ otherwise never-delete by design.
 | Very short body | 1 | Truncation safety net → **no local page**, card stays pointed at Substack |
 | `General` category | 1 | A post with no filter button, by design |
 
-Spread across categories: Film 7, TV 5, Gaming 6, Events 5, General 1.
+Spread across categories: Film 7, TV 5, Games 6, Events 5, General 1.
 
 Enough for **2 pages** — 7 in the magazine spread, 12 on page 1's archive,
 the rest on `/intel/2`.
@@ -63,7 +63,7 @@ see broken images everywhere, that's the placeholder host, not the site.
 
 - Should look and behave exactly like the Feed's. Compare side by side.
 - Click a category → filters. Click the **same** category again → clears.
-- **Gaming and Events have mock content now**, so to test the empty state,
+- **Games and Events have mock content now**, so to test the empty state,
   regenerate with a small count (`--count 6`) or check a category you know is
   thin. An empty category should show *"No items found for this filter."* with
   a **Clear Filters** button — identical to the Feed.
