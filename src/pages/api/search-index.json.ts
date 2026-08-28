@@ -21,6 +21,13 @@ export async function GET() {
     }
   };
 
+  const pages = [
+    { id: 'intel', title: 'Intel', type: 'page', url: '/intel', date: new Date().toISOString() },
+    { id: 'featured', title: 'Featured Hubs', type: 'page', url: '/featured', date: new Date().toISOString() },
+    { id: 'events', title: 'Events', type: 'page', url: '/events', date: new Date().toISOString() },
+    { id: 'media-kit', title: 'Media Kit', type: 'page', url: '/media-kit', date: new Date().toISOString() },
+  ];
+
   const index = [
     ...videos.map((v: any) => ({
       id: v.id,
@@ -51,14 +58,20 @@ export async function GET() {
     })),
     ...hubs.map((h: any) => ({
       id: h.slug?.current || h._id,
-      title: h.title,
+      title: `${h.title} Hub`,
       type: 'hub',
       url: `/featured/${h.slug?.current}`,
       image: resolveImage(h.logo || h.heroImage),
-      date: null,
+      date: new Date().toISOString(), // Hubs stay relatively fresh in the index
       tags: h.youtubeSyncKeywords || []
-    }))
-  ].filter(item => item.title && item.url);
+    })),
+    ...pages
+  ].filter(item => item.title && item.url)
+   .sort((a, b) => {
+     const dateA = a.date ? new Date(a.date).getTime() : 0;
+     const dateB = b.date ? new Date(b.date).getTime() : 0;
+     return dateB - dateA;
+   });
 
   return new Response(JSON.stringify(index), {
     status: 200,
