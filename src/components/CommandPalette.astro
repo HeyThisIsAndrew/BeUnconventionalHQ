@@ -45,7 +45,14 @@
         aria-controls="cmd-palette-results"
         aria-expanded="false"
         aria-autocomplete="list"
-        placeholder="Search videos, articles, events..."
+        {/*
+          Short enough to survive a phone. The descriptive version,
+          "Search videos, articles, events...", was cut off mid-word in the
+          field on a 393px screen, which is where most of this gets used. The
+          full description lives on `aria-label` above, so nothing is lost for
+          a screen reader.
+        */}
+        placeholder="Search the HQ"
         autocomplete="off"
         spellcheck="false"
         enterkeyhint="search"
@@ -71,7 +78,16 @@
       </button>
     </div>
     <div class="cmd-palette-results" id="cmd-palette-results" role="listbox">
-      <div class="cmd-palette-empty" id="cmd-palette-empty">No results found.</div>
+      {/*
+        "No results found." is a status code with a full stop. This is the one
+        moment the search talks back to a person, and it is the moment they
+        are most likely to give up, so it says what happened and then what to
+        try instead.
+      */}
+      <div class="cmd-palette-empty" id="cmd-palette-empty">
+        <span class="cmd-empty-line">Nothing matches that.</span>
+        <span class="cmd-empty-hint">Try a title, a studio, or a franchise.</span>
+      </div>
     </div>
   </div>
 </dialog>
@@ -143,7 +159,18 @@
       if (isDefaultView) {
         const eyebrow = document.createElement('div');
         eyebrow.className = 'cmd-palette-eyebrow';
-        eyebrow.textContent = 'RECENT TRANSMISSIONS';
+        /*
+          Was "RECENT TRANSMISSIONS". Two problems. It is not accurate: this
+          list is a curated spread across articles, videos, hubs and pages, not
+          a recency feed, and it stopped being one when the mix replaced the
+          date sort. And "transmissions" is broadcast-sci-fi, a register this
+          site does not otherwise use.
+
+          What the list actually is: the place to begin when you have not typed
+          anything yet. So it says that, in the verb-first form the site's
+          other eyebrows already use ("EXPLORE THE HQ", "WHAT WE COVER").
+        */
+        eyebrow.textContent = 'START HERE';
         resultsContainer.appendChild(eyebrow);
       }
 
@@ -501,8 +528,19 @@
     opacity: 1;
     transform: scale(1) translateY(0);
   }
+  /*
+    NEARLY OPAQUE, DELIBERATELY.
+
+    This was 0.85. The site's own lesson from the hub backdrops is in
+    CLAUDE.md: a plate that lets the layer behind it through reads as a leak,
+    not as depth, and the scrims there had to reach alpha 1 and hold it for
+    exactly this reason. A search panel is a surface you read dense text on, so
+    the argument is stronger here than it was there. 0.96 keeps a trace of the
+    blurred page behind it without the page's own type showing through the
+    results.
+  */
   .cmd-palette-content {
-    background: rgba(10, 10, 10, 0.85);
+    background: rgba(10, 10, 10, 0.96);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     border: 1px solid rgba(255, 255, 255, 0.15);
@@ -570,15 +608,45 @@
     width: 20px;
     height: 20px;
   }
+  /*
+    THE INPUT IS SET IN THE DISPLAY FACE, NOT THE BODY FACE.
+
+    It was `font-family: inherit` at weight 300, so the largest text in the
+    panel, the one thing a person is actually looking at, was the only element
+    in here not speaking in the site's voice. The eyebrow and the badges were
+    already Syne; the field between them was a generic light sans. That gap is
+    what made the panel read as a well-built stock component wearing the
+    site's colours.
+
+    Weight 500, not 700: this is something being typed, not a heading. The
+    slight negative tracking keeps a long query from running wide on a phone.
+  */
   #cmd-palette-input {
     flex: 1;
     background: transparent;
     border: none;
-    color: #fff;
+    color: var(--color-white);
+    /* Stays >= 16px: below that Safari zooms the page on focus and never
+       zooms back. 1.25rem is 20px. */
     font-size: 1.25rem;
-    outline: none;
-    font-family: inherit;
-    font-weight: 300;
+    /*
+      NO `outline: none` HERE.
+
+      It was there, and it half-disabled the site's focus indicator rather
+      than replacing it. a11y.css defines one ring for the whole site: a 3px
+      white outline PLUS a dark halo, so it stays visible on any background.
+      `outline: none` removed the white outline and left the halo, which is
+      why the field showed a dark box with no bright edge: no contrast, no
+      indicator, and a stray rectangle on screen. Worst of both.
+
+      A text input always matches `:focus-visible` when focused, because it
+      takes keyboard input, so this ring is exactly what a search field is
+      supposed to show. Leaving the site's own ring in place is both the
+      accessible answer (WCAG 2.4.7) and the consistent one.
+    */
+    font-family: var(--font-display, 'Syne Variable', sans-serif);
+    font-weight: 500;
+    letter-spacing: -0.01em;
   }
   #cmd-palette-input::placeholder {
     /*
@@ -594,6 +662,11 @@
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255,255,255,0.05);
     color: #aaa;
+    /* The last element in the panel still in the body face. The badges and
+       the eyebrow beside it are already Syne; a lone body-font chip in a row
+       of display-font labels is the kind of inconsistency you feel without
+       being able to name. */
+    font-family: var(--font-display, 'Syne Variable', sans-serif);
     font-size: 0.65rem;
     padding: 0.3rem 0.6rem;
     border-radius: 0;
@@ -749,5 +822,21 @@
     font-size: 1.1rem;
     display: none;
     letter-spacing: 0.02em;
+  }
+  /*
+    Shown as a block by the script when there is nothing to list, so the two
+    lines need to stack. `display` on the parent is toggled in JS; these are
+    only ever laid out inside it.
+  */
+  .cmd-empty-line,
+  .cmd-empty-hint {
+    display: block;
+  }
+  .cmd-empty-hint {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.75;
   }
 </style>

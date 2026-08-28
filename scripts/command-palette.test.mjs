@@ -413,5 +413,77 @@ test('Intel is kept out of the default view but stays searchable', () => {
     'the palette must not name a specific URL — that couples it to the page list');
 });
 
+/*
+  `outline: none` on the input removed the white half of the site's focus ring
+  and left the dark halo behind it: no contrast, no indicator, and a stray dark
+  rectangle around the field. A text input always matches :focus-visible when
+  focused, so this ring is exactly what a search field should show.
+*/
+test('the input does not disable the site focus ring', () => {
+  /* Against the comment-stripped copy: the note explaining WHY the outline is
+     not suppressed necessarily contains the words `outline: none`. */
+  const rule = paletteCode.match(/#cmd-palette-input \{[\s\S]*?\n  \}/);
+  assert.ok(rule, 'the input must be styled');
+  assert.doesNotMatch(rule[0], /outline:\s*none/,
+    'a11y.css defines one focus ring for the whole site (3px white outline plus a ' +
+    'dark halo). Suppressing the outline leaves the halo and produces a dark box ' +
+    'with no visible indicator, which fails WCAG 2.4.7 and looks like a bug.');
+
+  const a11y = readFileSync(join(ROOT, 'src/styles/modules/a11y.css'), 'utf8');
+  assert.match(a11y, /:focus-visible \{[\s\S]*?outline: 3px solid/,
+    'and the global ring must still exist for it to inherit');
+});
+
+/*
+  The critique that started this: the panel was a well-built stock component
+  wearing the site's colours. The clearest tell was the input itself, the
+  largest text in the panel, being the only voice-carrying element left in the
+  body face while the eyebrow and badges around it were already Syne.
+*/
+test('every voice-carrying element in the panel is in the display face', () => {
+  const DISPLAY = /font-family: var\(--font-display/;
+  for (const [what, sel] of [
+    ['the input', '#cmd-palette-input'],
+    ['result titles', '.cmd-result-title'],
+    ['type badges', '.cmd-result-badge'],
+    ['the eyebrow', '.cmd-palette-eyebrow'],
+    ['the empty state', '.cmd-palette-empty'],
+    ['the dismiss chip', '.close-btn'],
+  ]) {
+    const rule = paletteCode.match(new RegExp(sel.replace(/[.#]/g, '\\$&') + ' \\{[\\s\\S]*?\\n  \\}'));
+    assert.ok(rule, `${what} must be styled`);
+    assert.match(rule[0], DISPLAY,
+      `${what} is in the body face. The panel reads as generic when the site's own ` +
+      'voice stops at the decorations.');
+  }
+});
+
+/*
+  "No results found." is a status code with a full stop, delivered at the exact
+  moment somebody is most likely to give up. It should say what happened and
+  then what to try.
+*/
+test('the empty state offers a next step, not just a verdict', () => {
+  assert.match(palette, /class="cmd-empty-hint"/,
+    'the empty state must carry a hint line telling the reader what to try');
+  assert.doesNotMatch(paletteCode, /No results found\./,
+    'the bare status-code wording must be gone');
+  /* House style, and it applies to anything a visitor reads. */
+  const empty = palette.match(/<div class="cmd-palette-empty"[\s\S]*?<\/div>/)[0];
+  assert.doesNotMatch(empty, /—/, 'no em dashes in user-facing copy');
+});
+
+/*
+  The eyebrow said "RECENT TRANSMISSIONS" over a list that is a curated spread
+  across articles, videos, hubs and pages, and has not been a recency feed
+  since the mix replaced the date sort. It was inaccurate as well as off-voice.
+*/
+test('the default-view eyebrow describes what the list actually is', () => {
+  assert.doesNotMatch(paletteCode, /RECENT TRANSMISSIONS/,
+    'the list is not a recency feed and the register is not the site\'s');
+  assert.match(paletteCode, /eyebrow\.textContent = '[A-Z ]+'/,
+    'there must still be an eyebrow, and it stays in the uppercase house form');
+});
+
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
 process.exit(failed === 0 ? 0 : 1);
