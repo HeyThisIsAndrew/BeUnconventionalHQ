@@ -1456,7 +1456,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     opacity: 0.72;
     transition: opacity 0.25s ease, border-color 0.25s ease;
   }
-  .hub-stage.is-playing .hub-stage-sound { display: inline-flex; }
+  .hub-stage.is-playing:not(.is-chosen-video) .hub-stage-sound { display: inline-flex; }
   .hub-stage-sound:hover,
   .hub-stage-sound:focus-visible {
     opacity: 1;
@@ -1930,6 +1930,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       const frame = stage.querySelector<HTMLIFrameElement>('.hub-stage-iframe');
       if (frame && frame.src !== 'about:blank') frame.src = 'about:blank';
       stage.classList.remove('is-playing');
+      stage.classList.remove('is-chosen-video');
     };
 
     /*
@@ -2003,6 +2004,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
         pane.setAttribute('inert', '');
       });
       stage.classList.remove('is-item');
+      stage.classList.remove('is-chosen-video');
     });
 
     /*
@@ -2134,7 +2136,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
 
     const embedUrl = (id: string, muted: boolean) =>
       `https://www.youtube-nocookie.com/embed/${id}` +
-      `?autoplay=1&mute=${muted ? '1' : '0'}&controls=0&enablejsapi=1&rel=0&modestbranding=1&playsinline=1` +
+      `?autoplay=1&mute=${muted ? '1' : '0'}&enablejsapi=1&rel=0&modestbranding=1&playsinline=1` +
       /* `origin` is required for the jsapi handshake and is only knowable at
          runtime. Without it the player never answers, and "did it start?"
          below could never be answered either. */
@@ -2183,9 +2185,9 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
 
         stage.classList.remove('is-item');
         stage.classList.add('is-playing');
+        stage.classList.add('is-chosen-video');
 
-        const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-        const withSound = !isTouch && !soundBlocked();
+        const withSound = !soundBlocked();
         
         frame.src = embedUrl(id, !withSound);
         stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: !withSound } }));

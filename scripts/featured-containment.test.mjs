@@ -1266,7 +1266,7 @@ test('the visitor can turn the sound on', () => {
 
   assert.match(hub, /class="hub-stage-sound"/, 'the stage needs a sound control');
   assert.match(hub, /<button type="button" class="hub-stage-sound"/, 'it must be a real button');
-  assert.match(hub, /\.hub-stage\.is-playing \.hub-stage-sound \{[^}]*display: inline-flex/,
+  assert.match(hub, /\.hub-stage\.is-playing(?:[^{]+)? \.hub-stage-sound \{[^}]*display: inline-flex/,
     'it only means anything while something is playing');
 
   // HARD RULE 3: it is a SIBLING of the video, never a clipping wrapper.
