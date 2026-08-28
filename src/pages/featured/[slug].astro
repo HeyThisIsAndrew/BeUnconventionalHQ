@@ -290,6 +290,62 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
                   </button>
                 </div>
               )}
+
+              {trailerId && (
+                /*
+                  ─── WATCH IT AGAIN ─────────────────────────────────────────
+
+                  The trailer plays once and unloads itself. Before this there
+                  was no way back to it: initHubStage is guarded by `stageInit`
+                  and never re-armed, so the only replay was a refresh, or
+                  leaving and returning (ClientRouter swaps the DOM, which
+                  clears the guard). Measured, and neither is discoverable.
+
+                  ─── PLACEMENT, THIRD ATTEMPT ───────────────────────────────
+
+                  It has been in two wrong places already, and both failures
+                  were about WHAT THE BUTTON LOOKS LIKE IT BELONGS TO.
+
+                  First it went over the hub's mark: click the logo, watch it
+                  again. Unpressable, because the handover puts a rail pane up
+                  the instant the trailer ends, so `is-item` is on from then on
+                  and a control behind that pane can never be reached.
+
+                  Then it moved to the stage's top-right corner, sharing the
+                  sound toggle's slot. That is pressable and it is still wrong,
+                  reported from a phone with the word "confusing". The stage
+                  spends almost all of its life showing a RAIL CARD, not the
+                  mark, so a pill reading TRAILER sat in the corner of the
+                  Wolverine card — a card that carries its own PLAY button.
+                  Two play affordances on one image, for two different videos.
+
+                  The button was never stage chrome. It replays the HUB's
+                  trailer, so it belongs with the hub's identity: under the
+                  mark, beside Read more, in the column that is already about
+                  "what is this hub". Out here it cannot overlap anything the
+                  stage shows, at any breakpoint, in any state.
+
+                  NAMED FROM ITS OWN CONTENT, not an aria-label. WCAG 2.5.3
+                  requires the accessible name to CONTAIN the visible text, and
+                  "Replay the PlayStation trailer" does not contain "Play
+                  trailer". The sr-only suffix gives the hub name to a screen
+                  reader while keeping the visible words inside the name.
+
+                  Gated on `trailerId`, NOT `hasPlayableVideo`. The latter is
+                  also true for a hub with no trailer that merely has a video
+                  in its rail, and initHubStage bails on `!stage.dataset.trailer`
+                  — so that hub would have rendered a button that does nothing.
+                  Every hub happens to have a trailer today, which is exactly
+                  why this would have shipped unnoticed.
+                */
+                <button type="button" class="hub-stage-replay">
+                  <svg class="hub-stage-replay-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M8 5v14l11-7z" fill="currentColor" />
+                  </svg>
+                  <span class="hub-stage-replay-text">Play trailer</span>
+                  <span class="sr-only"> for {event.title}</span>
+                </button>
+              )}
             </div>
 
           </div>
@@ -321,45 +377,6 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
                 <span class="hub-stage-wordmark">{event.title}</span>
               )}
             </div>
-
-            {hasPlayableVideo && (
-              /*
-                ─── WATCH IT AGAIN ─────────────────────────────────────────
-
-                The trailer plays once and unloads itself. Before this there
-                was no way back to it: initHubStage is guarded by `stageInit`
-                and never re-armed, so the only replay was a refresh, or
-                leaving and returning (ClientRouter swaps the DOM, which
-                clears the guard). Measured, and neither is discoverable.
-
-                THE FIRST ATTEMPT PUT THIS OVER THE HUB'S MARK — click the
-                logo, watch it again. It reads well and it does not work,
-                because the trailer now hands over to the first rail tile the
-                moment it ends. So `is-item` is on from then on, a pane covers
-                the mark, and a button hidden behind that pane can never be
-                pressed. Caught by a test that pressed it and found nothing
-                clickable.
-
-                It also could not stay full-bleed: the pane carries its own
-                `Play` and `Read` controls, and a transparent button across the
-                stage swallows them.
-
-                So it lives in the corner the sound toggle uses. The two are
-                never on screen together — sound appears only while playing,
-                replay only while not — so they share one slot and one visual
-                language, and neither ever overlaps anything.
-              */
-              <button
-                type="button"
-                class="hub-stage-replay"
-                aria-label={`Replay the ${event.title} trailer`}
-              >
-                <svg class="hub-stage-replay-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path d="M8 5v14l11-7z" fill="currentColor" />
-                </svg>
-                <span class="hub-stage-replay-text">Trailer</span>
-              </button>
-            )}
 
             {hasPlayableVideo && (
               /*
@@ -994,48 +1011,49 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
   /*
     THE REPLAY CONTROL.
 
-    Shares the sound toggle's corner and pill styling deliberately: the two
-    are mutually exclusive — sound only exists while a trailer plays, replay
-    only while one is not — so one slot serves both and the stage never grows
-    a second piece of chrome.
+    Lives in the copy column beside Read more, NOT on the stage. It used to
+    sit in the stage's top-right corner sharing the sound toggle's slot, and
+    that read as a control belonging to whatever the stage was showing — which
+    is a rail card almost all of the time, and rail cards have their own PLAY.
+    See the note on the markup for the full history.
 
-    Visible rather than hover-revealed. The first version faded a glyph in
-    over the hub's mark, which is invisible to anyone who never hovers and,
-    worse, ended up permanently behind the rail pane that the handover puts
-    up the moment the trailer finishes.
+    Consequences of being out here: no absolute positioning, no z-index, no
+    overlap to reason about, and nothing to hide it behind. The sound toggle
+    now owns its corner alone.
   */
   .hub-stage-replay {
-    position: absolute;
-    top: 0.7rem;
-    right: 0.7rem;
-    z-index: 12;
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.38rem 0.7rem 0.38rem 0.55rem;
-    border: 1px solid rgba(255, 255, 255, 0.24);
+    gap: 0.45rem;
+    margin-top: 0.15rem;
+    padding: 0.5rem 0.9rem 0.5rem 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.28);
     border-radius: 999px;
-    background: rgba(0, 0, 0, 0.55);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.32);
     color: var(--color-white, #f0f0f0);
     font-family: var(--font-body);
     font-size: 0.62rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     cursor: pointer;
-    opacity: 0.72;
-    transition: opacity 0.25s ease, border-color 0.25s ease;
+    transition: border-color 0.25s ease, background 0.25s ease;
   }
 
   .hub-stage-replay:hover,
   .hub-stage-replay:focus-visible {
-    opacity: 1;
-    border-color: rgba(255, 255, 255, 0.5);
+    border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.85);
+    background: rgba(0, 0, 0, 0.5);
   }
 
-  /* While the trailer runs, the sound toggle owns this corner. */
-  .hub-stage.is-playing .hub-stage-replay {
+  /*
+    While the trailer runs there is nothing to replay, and the stage's own
+    sound toggle is the control that matters. Matched from the shared
+    ancestor because the button is no longer inside .hub-stage; if :has()
+    is ever unavailable the button simply stays visible during playback,
+    which is inert rather than broken (the click handler returns early on
+    is-playing anyway).
+  */
+  .hero-grid-container:has(.hub-stage.is-playing) .hub-stage-replay {
     display: none;
   }
 
@@ -1841,7 +1859,10 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       stays over the stage. show() put it there; this is the only thing that
       takes it back off.
     */
-    const replay = stage.querySelector<HTMLButtonElement>('.hub-stage-replay');
+    /* Not stage.querySelector any more: the control moved out to the copy
+       column. One stage and one button per page, same as how `stage` itself
+       is found. */
+    const replay = document.querySelector<HTMLButtonElement>('.hub-stage-replay');
     replay?.addEventListener('click', () => {
       if (stage.classList.contains('is-playing')) return;
       /*

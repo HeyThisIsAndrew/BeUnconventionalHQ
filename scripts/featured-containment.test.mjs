@@ -564,15 +564,25 @@ test('the hub trailer can be played again without a reload', () => {
     Arming is a function now so replay is a second CALL, not a second code
     path. teardown() already leaves exactly the state arm() expects.
 
-    PLACEMENT WAS THE HARD PART, and the first attempt failed. Putting the
-    control over the hub's mark reads beautifully and cannot work: the
-    handover puts a rail pane up the instant the trailer ends, so `is-item`
-    is on from then on and a button behind that pane can never be pressed.
-    A test pressed it and found nothing clickable. It also cannot be
-    full-bleed — the pane carries its own Play and Read controls.
+    PLACEMENT WAS THE HARD PART, and it took three attempts.
 
-    It shares the sound toggle's corner instead. The two are mutually
-    exclusive by definition, so one slot serves both.
+    1. Over the hub's mark. Unpressable: the handover puts a rail pane up the
+       instant the trailer ends, so `is-item` is on from then on and a control
+       behind that pane can never be reached. A test pressed it and found
+       nothing clickable.
+    2. The stage's top-right corner, sharing the sound toggle's slot. That is
+       pressable, and it was still wrong. Reported from a phone as confusing:
+       the stage shows a RAIL CARD almost all of its life, so a pill reading
+       TRAILER sat in the corner of the Wolverine card, which carries its own
+       PLAY button. Two play affordances on one image, for two different
+       videos.
+    3. The copy column, beside Read more. The button replays the HUB's
+       trailer, so it belongs with the hub's identity, not with whatever the
+       stage happens to be showing. Out there it cannot overlap the stage at
+       any breakpoint or in any state.
+
+    So this test pins the thing that went wrong twice: the control must NOT be
+    a descendant of .hub-stage.
   */
   const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8');
 
@@ -582,17 +592,62 @@ test('the hub trailer can be played again without a reload', () => {
   assert.match(hub, /arm\(0\)/, 'a replay the visitor asked for starts immediately');
 
   assert.match(hub, /class="hub-stage-replay"/, 'there must be a control');
-  assert.match(hub, /aria-label={`Replay the \$\{event\.title\} trailer`}/,
-    'an icon control needs a real name — this is the whole reason it is a <button> ' +
-      'and not a click handler on the decorative mark');
 
-  /* Never on screen at the same time as the sound toggle, which owns the
-     same corner while a trailer is running. */
-  assert.match(hub, /\.hub-stage\.is-playing \.hub-stage-replay \{\s*display: none/,
-    'replay must vanish while the trailer plays, or it collides with the sound toggle');
-  assert.doesNotMatch(hub, /\.hub-stage\.is-item \.hub-stage-replay \{\s*display: none/,
-    'hiding on is-item is the bug that made this unpressable: the handover leaves ' +
-      'is-item on permanently once the first trailer ends');
+  /*
+    ─── IT MUST NOT LIVE ON THE STAGE ────────────────────────────────────────
+
+    Slice from the stage's opening tag to its close and assert the button is
+    not in there. Both failed placements were inside this element.
+  */
+  const stageOpen = hub.indexOf('class="hero-trailer hub-stage animate-on-scroll"');
+  assert.ok(stageOpen > 0, 'could not find the stage element; this test is no longer reading the markup');
+  const stageMarkup = hub.slice(stageOpen, hub.indexOf('</section>', stageOpen));
+  assert.ok(
+    !stageMarkup.includes('hub-stage-replay'),
+    'the replay control is inside .hub-stage again. On the stage it reads as a control for ' +
+      'whatever the stage is showing, which is a rail card with its own PLAY button almost ' +
+      'all of the time. It belongs in the copy column with the hub identity.',
+  );
+
+  /*
+    ─── NAMED FROM ITS OWN CONTENT ───────────────────────────────────────────
+
+    WCAG 2.5.3 (Label in Name) wants the accessible name to CONTAIN the visible
+    text. The old aria-label was "Replay the <hub> trailer" against visible
+    text "Trailer" — fine — but the visible text is "Play trailer" now, and
+    "Replay the PlayStation trailer" does not contain "play trailer". So the
+    name comes from content plus an sr-only suffix instead.
+  */
+  assert.ok(
+    !/class="hub-stage-replay"[^>]*aria-label/.test(hub),
+    'an aria-label here replaces the name built from the visible words. Name it from content.',
+  );
+  assert.match(hub, /<span class="hub-stage-replay-text">Play trailer<\/span>/,
+    'the visible words are what a speech-input user will say');
+  assert.match(hub, /<span class="sr-only"> for \{event\.title\}<\/span>/,
+    'the hub name belongs in the accessible name, after the visible text so it still contains it');
+
+  /* Hidden while the trailer runs. Matched from the shared ancestor now that
+     the button is not a descendant of the stage. */
+  assert.match(hub, /\.hero-grid-container:has\(\.hub-stage\.is-playing\) \.hub-stage-replay \{\s*display: none/,
+    'replay must vanish while the trailer plays; the old .hub-stage.is-playing selector ' +
+      'cannot match a button that is no longer inside the stage');
+
+  /*
+    ─── GATED ON A TRAILER, NOT ON ANY PLAYABLE VIDEO ────────────────────────
+
+    hasPlayableVideo is also true for a hub with no trailer that merely has a
+    video in its rail, and initHubStage returns early on !stage.dataset.trailer
+    — so such a hub would render a button that does nothing. Every hub has a
+    trailer today, which is precisely why this would have shipped unnoticed.
+  */
+  assert.match(hub, /\{trailerId && \(/,
+    'the replay control must be gated on trailerId');
+  assert.ok(
+    !/\{hasPlayableVideo && \(\s*\/\*[\s\S]{0,400}?WATCH IT AGAIN/.test(hub),
+    'the replay control is gated on hasPlayableVideo again, which renders a dead button ' +
+      'on a hub whose only videos are in the rail',
+  );
 
   /* Replay while a tile is showing has to clear the rail, or the page is back
      to a highlighted tile over a trailer that is not it. */
