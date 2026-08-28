@@ -507,7 +507,14 @@
     font-weight: 300;
   }
   #cmd-palette-input::placeholder {
-    color: #555;
+    /*
+      Was `#555`: 2.66:1 on the panel, which fails WCAG AA for text and is
+      darker than anything else on the site. A placeholder is text, and this
+      one is the first thing anyone reads in here. `--color-white-muted` is
+      the site's established floor for subordinate copy at 5.58:1, and still
+      sits well below the #fff of what you type.
+    */
+    color: var(--color-white-muted);
   }
   .close-btn {
     background: rgba(255, 255, 255, 0.08);
@@ -634,7 +641,8 @@
   }
   .cmd-result-item[data-action="open-video"] .cmd-result-badge {
     border-color: rgba(204, 0, 0, 0.4);
-    color: #ff4444;
+    /* The site's readable red is a token. #ff4444 was a near-miss of it. */
+    color: var(--color-accent-text);
   }
   .cmd-result-title {
     font-family: var(--font-display, 'Syne Variable', sans-serif);
@@ -648,7 +656,11 @@
   .cmd-palette-empty {
     padding: 3rem 2rem;
     text-align: center;
-    color: #666;
+    /*
+      Was `#666`: 3.45:1, under AA. This is the "no results" message, read at
+      the exact moment somebody's search has failed them.
+    */
+    color: var(--color-white-muted);
     font-family: var(--font-display, 'Syne Variable', sans-serif);
     font-size: 1.1rem;
     display: none;

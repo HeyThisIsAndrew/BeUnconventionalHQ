@@ -207,5 +207,63 @@ test('the input declares the full combobox pattern', () => {
     'aria-expanded must be kept in step in JS, or it lies from the first keystroke');
 });
 
+/*
+  The panel introduced two greys DARKER than anything the site uses. CLAUDE.md
+  records that the muted palette is a deliberate trade-off and that an audit of
+  six routes found zero failures at rest, with `--color-white-muted` (#888888)
+  as the floor for subordinate copy. `#555` placeholder text (2.66:1) and `#666`
+  empty-state text (3.45:1) were both below that floor and below WCAG AA.
+
+  Contrast is recomputed here rather than quoted, so it cannot drift from the
+  tokens it describes.
+*/
+const lum = (hex) => {
+  const c = [1, 3, 5].map((i) => parseInt(hex.substr(i, 2), 16) / 255)
+    .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+};
+const ratio = (a, b) => {
+  const [x, y] = [lum(a), lum(b)];
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+};
+
+test('the panel reads no text darker than the site\'s own muted floor', () => {
+  const base = readFileSync(join(ROOT, 'src/styles/global-base.css'), 'utf8');
+  const muted = base.match(/--color-white-muted:\s*(#[0-9a-fA-F]{6})/);
+  assert.ok(muted, '--color-white-muted must be defined');
+  /* The panel is rgba(10,10,10,.85) over a 70%-black backdrop: effectively #0a0a0a. */
+  const PANEL = '#0a0a0a';
+  assert.ok(ratio(muted[1], PANEL) >= 4.5,
+    `the muted token itself must clear AA on the panel (got ${ratio(muted[1], PANEL).toFixed(2)}:1)`);
+
+  for (const [what, sel] of [['placeholder', '#cmd-palette-input::placeholder'], ['empty state', '.cmd-palette-empty']]) {
+    const rule = palette.match(new RegExp(sel.replace(/[.#*]/g, '\\$&') + '\\s*\\{[\\s\\S]*?\\}'));
+    assert.ok(rule, `there must be a ${what} rule`);
+    const hex = rule[0].match(/color:\s*(#[0-9a-fA-F]{3,6})/);
+    if (hex) {
+      const full = hex[1].length === 4
+        ? '#' + hex[1].slice(1).split('').map((c) => c + c).join('')
+        : hex[1];
+      assert.fail(
+        `${what} hardcodes ${full} at ${ratio(full, PANEL).toFixed(2)}:1 on the panel. ` +
+        'Use var(--color-white-muted): it is the site\'s floor and it clears AA.');
+    }
+    assert.match(rule[0], /color:\s*var\(--color-white-muted\)/,
+      `${what} text must use the muted token, not a darker one-off grey`);
+  }
+});
+
+/*
+  There are two reds and they are not interchangeable. The palette used
+  `#ff4444`, which is neither of them: a near-miss of `--color-accent-text`
+  that no other file would pick up if the token ever changed.
+*/
+test('the readable red comes from the token, not a near-miss of it', () => {
+  const videoBadge = palette.match(/\.cmd-result-item\[data-action="open-video"\] \.cmd-result-badge \{[\s\S]*?\}/);
+  assert.ok(videoBadge, 'the video badge rule must exist');
+  assert.match(videoBadge[0], /color:\s*var\(--color-accent-text\)/,
+    'read-me red is a token; #ff4444 was a hand-mixed near-miss of #ef4444');
+});
+
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
 process.exit(failed === 0 ? 0 : 1);
