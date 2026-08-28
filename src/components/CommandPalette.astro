@@ -19,29 +19,30 @@
 </dialog>
 
 <script>
-  import Fuse from 'fuse.js';
-
   let indexLoaded = false;
   let searchData: any[] = [];
-  let fuse: Fuse<any> | null = null;
+  let fuse: any = null;
   let activeIndex = -1;
 
   async function loadIndex() {
     if (indexLoaded) return;
     try {
-      const res = await fetch('/api/search-index.json');
-      if (res.ok) {
-        searchData = await res.json();
-        fuse = new Fuse(searchData, {
-          keys: [
-            { name: 'title', weight: 2 },
-            { name: 'tags', weight: 1 },
-            { name: 'type', weight: 0.5 }
-          ],
-          threshold: 0.4,
-          ignoreLocation: true,
-        });
-      }
+      const [fuseModule, res] = await Promise.all([
+        import('fuse.js'),
+        fetch('/api/search-index.json')
+      ]);
+      const Fuse = fuseModule.default;
+      searchData = await res.json();
+      
+      fuse = new Fuse(searchData, {
+        keys: [
+          { name: 'title', weight: 2 },
+          { name: 'tags', weight: 1 },
+          { name: 'type', weight: 0.5 }
+        ],
+        threshold: 0.4,
+        ignoreLocation: true,
+      });
       indexLoaded = true;
     } catch (e) {
       console.error('Failed to load search index:', e);
