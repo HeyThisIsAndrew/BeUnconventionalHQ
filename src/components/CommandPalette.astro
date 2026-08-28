@@ -9,8 +9,66 @@
         <circle cx="11" cy="11" r="8"></circle>
         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
       </svg>
-      <input type="text" id="cmd-palette-input" placeholder="Search videos, articles, events..." autocomplete="off" spellcheck="false" />
-      <button class="close-btn" aria-label="Close search (Esc)">ESC</button>
+      {/*
+        A COMPLETE COMBOBOX, OR NONE.
+
+        The results carried role="listbox" and role="option" and the input got
+        `aria-activedescendant`, but the input itself had no role. A partial
+        pattern is worse than no pattern: options with no combobox to belong
+        to, and an activedescendant pointing out of nowhere. `aria-expanded` is
+        kept in step in JS on open and close.
+      */}
+      {/*
+        PHONE KEYBOARD HINTS (`enterkeyhint`, `autocapitalize`, `autocorrect`
+        below). All three change what the on-screen keyboard does, and none of
+        them apply on desktop.
+
+        `enterkeyhint` labels the return key "Search" instead of "Go".
+        `autocapitalize` stops the first letter of every query becoming a
+        capital. `autocorrect` stops iOS rewriting the words this site is
+        mostly made of: title casing and proper nouns like MCU, Sanderson or
+        Gundam are exactly what autocorrect treats as mistakes.
+
+        `type` stays "text", not "search": Safari decorates a search input with
+        its own clear button and inner shadow, which fights the panel.
+
+        This comment sits OUT here rather than among the attributes below: a
+        JSX comment block inside an element's attribute list is a parse error
+        that `astro build` does not report. `npx astro check` does. The two
+        catch different things, so run both.
+      */}
+      <input
+        type="text"
+        id="cmd-palette-input"
+        role="combobox"
+        aria-label="Search videos, articles, events and hubs"
+        aria-controls="cmd-palette-results"
+        aria-expanded="false"
+        aria-autocomplete="list"
+        placeholder="Search videos, articles, events..."
+        autocomplete="off"
+        spellcheck="false"
+        enterkeyhint="search"
+        autocapitalize="off"
+        autocorrect="off"
+      />
+      {/*
+        THE DISMISS CONTROL HAS TO WORK ON A DEVICE WITH NO ESC KEY.
+
+        It was a ~30x20px chip reading "ESC". On desktop that is a good hint.
+        On a phone it names a key that does not exist, at well under a 44px
+        target, and it is the only visible way out: the backdrop is mostly
+        covered by the panel itself, so "tap outside" is not the escape hatch
+        it is on desktop.
+
+        So: the key name on desktop, a 44x44 close glyph on touch. The
+        accessible name stays the same in both, and stays a superset of the
+        visible "ESC" for WCAG 2.5.3 (Label in Name).
+      */}
+      <button class="close-btn" aria-label="Close search (Esc)">
+        <span class="close-btn-key" aria-hidden="true">ESC</span>
+        <span class="close-btn-glyph" aria-hidden="true">&#215;</span>
+      </button>
     </div>
     <div class="cmd-palette-results" id="cmd-palette-results" role="listbox">
       <div class="cmd-palette-empty" id="cmd-palette-empty">No results found.</div>
@@ -87,6 +145,17 @@
         a.className = 'cmd-result-item';
         a.setAttribute('role', 'option');
         a.setAttribute('id', `cmd-result-${idx}`);
+        /*
+          A `role="option"` with no `aria-selected` is an incomplete option.
+          `aria-activedescendant` tells a screen reader WHICH row is current,
+          but the reader announces the selected STATE from this attribute, so
+          without it the row is read out with no indication it is the one
+          Enter will open. Every row carries it; `updateActiveState()` flips
+          the current one to true.
+        */
+        a.setAttribute('aria-selected', 'false');
+        // Lets the mix be asserted without parsing the badge's display text.
+        a.setAttribute('data-type', item.type);
         
         // If it's a video, use the global handler
         if (item.type === 'video') {
@@ -186,17 +255,41 @@
       items.forEach((item, idx) => {
         if (idx === activeIndex) {
           item.classList.add('active');
+          item.setAttribute('aria-selected', 'true');
           item.scrollIntoView({ block: 'nearest' });
           input.setAttribute('aria-activedescendant', `cmd-result-${idx}`);
         } else {
           item.classList.remove('active');
+          item.setAttribute('aria-selected', 'false');
         }
       });
     };
 
     // Open/Close logic
-    const openPalette = () => {
+    /*
+      WHERE FOCUS GOES WHEN THE PALETTE CLOSES.
+
+      A <dialog> is supposed to hand focus back to whatever opened it, and in
+      practice here it did not: opening from the header's search button and
+      pressing Escape left `document.activeElement` on <body>. For a keyboard
+      user that is not a cosmetic detail. Focus on <body> means the next Tab
+      restarts from the top of the document, so closing a search they decided
+      against costs them their place on the page. Remember the opener and put
+      focus back on it.
+    */
+    let lastFocused: HTMLElement | null = null;
+
+    const openPalette = (opener?: HTMLElement | null) => {
       if (dialog.open) return;
+      /*
+        The opener is passed in rather than read off `document.activeElement`,
+        because a tap does not reliably focus a <button>: iOS Safari leaves
+        activeElement on <body>, so reading it there restored focus to nothing
+        for exactly the case that needed it. Cmd+K passes nothing and falls
+        back to activeElement, which is correct: that path should return the
+        user to whatever they were on.
+      */
+      lastFocused = opener ?? (document.activeElement as HTMLElement | null);
       dialog.showModal();
       if (window.__hqScrollLock) {
         window.__hqScrollLock.lock();
@@ -204,18 +297,48 @@
         document.body.style.overflow = 'hidden';
       }
       input.value = '';
+      input.setAttribute('aria-expanded', 'true');
       loadIndex().then(() => performSearch());
     };
 
-    const closePalette = () => {
-      dialog.close();
+    /*
+      TEARDOWN HANGS OFF THE DIALOG'S OWN `close` EVENT, NOT OFF closePalette().
+
+      A <dialog> opened with showModal() closes on Escape BY ITSELF, without
+      running any of our code. The teardown used to live inside closePalette(),
+      which Escape only reaches when focus happens to be in the input. Move
+      focus anywhere else first — one Tab lands on the ESC button — and Escape
+      closed the dialog while leaving `modal-open` on <html> and the page
+      unscrollable, with a reload as the only way out. Reproduced:
+
+        focus = close-btn, Escape -> open:false, body overflow:"hidden"
+
+      `close` fires for every path: Escape, dialog.close(), form submission.
+      Putting the unlock here makes it impossible to close this without
+      unlocking, which is the property that was missing.
+    */
+    dialog.addEventListener('close', () => {
       if (window.__hqScrollLock) {
         window.__hqScrollLock.unlock();
       } else {
         document.body.style.overflow = '';
       }
       input.value = '';
-      input.blur();
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
+      /*
+        Only if it is still in the document and still focusable: a result click
+        navigates away, and on a view transition the old button is gone.
+      */
+      if (lastFocused && lastFocused.isConnected && lastFocused !== document.body) {
+        lastFocused.focus({ preventScroll: true });
+      }
+      lastFocused = null;
+    });
+
+    const closePalette = () => {
+      /* The `close` listener above does the teardown. */
+      if (dialog.open) dialog.close();
     };
 
     // Listeners
@@ -243,9 +366,10 @@
     // Mobile search affordance trigger (any button with data-action="open-search")
     document.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
-      if (target.closest('[data-action="open-search"]')) {
+      const trigger = target.closest('[data-action="open-search"]') as HTMLElement | null;
+      if (trigger) {
         e.preventDefault();
-        openPalette();
+        openPalette(trigger);
       }
     });
 
@@ -294,16 +418,6 @@
     margin: 0;
     overflow: visible;
   }
-  @media (max-width: 640px) {
-    .cmd-palette {
-      top: 10%;
-      transform: translate(-50%, 0);
-      width: 95%;
-    }
-    .cmd-palette-content {
-      max-height: 70vh;
-    }
-  }
   .cmd-palette::backdrop {
     background: rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(4px);
@@ -326,6 +440,44 @@
     opacity: 0;
     transform: scale(0.98) translateY(-10px);
     transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  /*
+    THIS BLOCK MUST STAY BELOW THE BASE `.cmd-palette-content` RULE.
+
+    Both selectors are a single class, so they have identical specificity and
+    SOURCE ORDER decides. When this sat above the base rule, the base
+    `max-height: 80vh` won and the `60dvh` below never applied at all: the
+    panel still measured 682px in an 852px viewport. The fix was written and
+    silently did nothing. Do not move this block up.
+  */
+  @media (max-width: 640px) {
+    .cmd-palette {
+      top: 5%;
+      transform: translate(-50%, 0);
+      width: 95%;
+    }
+    /*
+      `dvh`, NOT `vh`, AND SMALLER.
+
+      At `70vh` the panel was 682px tall in an 852px viewport, ending at 767px.
+      A typical iOS keyboard takes ~336px, leaving 516px usable — so 251px of
+      the results sat behind the keyboard, unreachable while typing, which is
+      the whole time this thing is open.
+
+      `dvh` is the DYNAMIC viewport height: it shrinks when the keyboard comes
+      up, which is exactly the case here.
+
+      This deliberately differs from the mobile hero, which uses `lvh` and
+      where `dvh` is explicitly rejected (see scripts/viewport-units.test.mjs
+      and hero.css). That rule is about an element sized to the SCROLL
+      viewport, where `dvh` re-resolving as the address bar retracts makes the
+      hero resize mid-scroll. Nothing scrolls behind a modal — the page is
+      locked — so the objection does not transfer, and the property that makes
+      `dvh` wrong there is the one that makes it right here.
+    */
+    .cmd-palette-content {
+      max-height: 60dvh;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .cmd-palette-content {
@@ -373,6 +525,30 @@
   .close-btn:hover {
     background: rgba(255, 255, 255, 0.15);
     color: #fff;
+  }
+  .close-btn-glyph {
+    display: none;
+  }
+  @media (max-width: 640px) {
+    .close-btn {
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .close-btn-key {
+      display: none;
+    }
+    .close-btn-glyph {
+      display: block;
+      font-size: 1.35rem;
+      line-height: 1;
+      font-weight: 400;
+      letter-spacing: 0;
+    }
   }
   .cmd-palette-results {
     overflow-y: auto;
