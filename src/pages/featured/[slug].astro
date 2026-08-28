@@ -2183,7 +2183,9 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
         stage.classList.remove('is-item');
         stage.classList.add('is-playing');
 
-        const withSound = !soundBlocked();
+        const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+        const withSound = !isTouch && !soundBlocked();
+        
         frame.src = embedUrl(id, !withSound);
         stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: !withSound } }));
         if (!withSound) return;

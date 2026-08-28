@@ -57,14 +57,16 @@ import { parseImageDimensions, labelImageLinks } from '../../lib/article-images-
 import { getCardImageSources, isSubstackFetchUrl } from '../../lib/card-images.ts';
 import logoImage from '../../assets/logo.webp';
 
-export async function getStaticPaths() {
-  return getPublishedArticles()
-    // A slug matching a route segment would shadow that route.
-    .filter((article) => !RESERVED_SLUGS.has(article.slug))
-    .map((article) => ({ params: { slug: article.slug }, props: { article } }));
-}
+export const prerender = false;
 
-const { article } = Astro.props;
+const { slug } = Astro.params;
+const article = getPublishedArticles().find(
+  (a) => a.slug === slug && !RESERVED_SLUGS.has(a.slug)
+);
+
+if (!article) {
+  return new Response(null, { status: 404, statusText: 'Not found' });
+}
 
 /*
   The cover image is rendered as the hero below, so remove the copy of it the

@@ -1173,7 +1173,7 @@ test('pressing Play once is enough', () => {
     own bug. So mute is decided BEFORE the frame loads, and the press tries
     mute=0 first.
   */
-  assert.match(handler, /const withSound = !soundBlocked\(\)/, 'the press must try for sound');
+  assert.match(handler, /const withSound = .*!soundBlocked\(\)/, 'the press must try for sound');
   assert.match(handler, /embedUrl\(id, !withSound\)/, 'and open the video accordingly');
   assert.match(hub, /mute=\$\{muted \? '1' : '0'\}/, 'mute is decided per load, not hardcoded');
 

@@ -1,0 +1,329 @@
+---
+// src/components/CommandPalette.astro
+---
+
+<dialog id="command-palette" class="cmd-palette" aria-label="Search content">
+  <div class="cmd-palette-content">
+    <div class="cmd-palette-header">
+      <svg class="search-icon" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <input type="text" id="cmd-palette-input" placeholder="Search videos, articles, events..." autocomplete="off" spellcheck="false" />
+      <button class="close-btn" aria-label="Close search (Esc)">ESC</button>
+    </div>
+    <div class="cmd-palette-results" id="cmd-palette-results" role="listbox">
+      <div class="cmd-palette-empty" id="cmd-palette-empty">No results found.</div>
+    </div>
+  </div>
+</dialog>
+
+<script>
+  import Fuse from 'fuse.js';
+
+  let indexLoaded = false;
+  let searchData: any[] = [];
+  let fuse: Fuse<any> | null = null;
+  let activeIndex = -1;
+
+  async function loadIndex() {
+    if (indexLoaded) return;
+    try {
+      const res = await fetch('/api/search-index.json');
+      if (res.ok) {
+        searchData = await res.json();
+        fuse = new Fuse(searchData, {
+          keys: [
+            { name: 'title', weight: 2 },
+            { name: 'tags', weight: 1 },
+            { name: 'type', weight: 0.5 }
+          ],
+          threshold: 0.4,
+          ignoreLocation: true,
+        });
+      }
+      indexLoaded = true;
+    } catch (e) {
+      console.error('Failed to load search index:', e);
+    }
+  }
+
+  function initCommandPalette() {
+    const dialog = document.getElementById('command-palette') as HTMLDialogElement;
+    const input = document.getElementById('cmd-palette-input') as HTMLInputElement;
+    const resultsContainer = document.getElementById('cmd-palette-results');
+    const emptyState = document.getElementById('cmd-palette-empty');
+    const closeBtn = dialog?.querySelector('.close-btn');
+    
+    if (!dialog || !input || !resultsContainer || !emptyState) return;
+    if (dialog.dataset.init === 'true') return;
+    dialog.dataset.init = 'true';
+
+    const renderResults = (results: any[]) => {
+      // Clear previous
+      Array.from(resultsContainer.children).forEach(child => {
+        if (child !== emptyState) child.remove();
+      });
+
+      if (results.length === 0) {
+        emptyState.style.display = 'block';
+        return;
+      }
+      
+      emptyState.style.display = 'none';
+      
+      results.slice(0, 10).forEach((result, idx) => {
+        const item = result.item;
+        const a = document.createElement('a');
+        a.href = item.url;
+        a.className = 'cmd-result-item';
+        a.setAttribute('role', 'option');
+        a.setAttribute('id', `cmd-result-${idx}`);
+        
+        // If it's a video, use the global handler
+        if (item.type === 'video') {
+          a.setAttribute('data-action', 'open-video');
+          const videoId = item.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/)?.[1] || item.id;
+          a.setAttribute('data-video-id', videoId);
+        }
+
+        const typeLabel = document.createElement('span');
+        typeLabel.className = 'cmd-result-badge';
+        typeLabel.textContent = item.type.toUpperCase();
+
+        const title = document.createElement('span');
+        title.className = 'cmd-result-title';
+        title.textContent = item.title;
+
+        const info = document.createElement('div');
+        info.className = 'cmd-result-info';
+        info.appendChild(typeLabel);
+        info.appendChild(title);
+
+        a.appendChild(info);
+        resultsContainer.appendChild(a);
+      });
+    };
+
+    const performSearch = () => {
+      if (!fuse) return;
+      const query = input.value.trim();
+      if (!query) {
+        renderResults(searchData.map(item => ({ item })));
+      } else {
+        renderResults(fuse.search(query));
+      }
+      activeIndex = -1;
+      updateActiveState();
+    };
+
+    const updateActiveState = () => {
+      const items = Array.from(resultsContainer.querySelectorAll('.cmd-result-item'));
+      items.forEach((item, idx) => {
+        if (idx === activeIndex) {
+          item.classList.add('active');
+          item.scrollIntoView({ block: 'nearest' });
+          input.setAttribute('aria-activedescendant', `cmd-result-${idx}`);
+        } else {
+          item.classList.remove('active');
+        }
+      });
+    };
+
+    // Open/Close logic
+    const openPalette = () => {
+      if (dialog.open) return;
+      dialog.showModal();
+      document.body.style.overflow = 'hidden';
+      input.value = '';
+      loadIndex().then(() => performSearch());
+    };
+
+    const closePalette = () => {
+      dialog.close();
+      document.body.style.overflow = '';
+      input.value = '';
+      input.blur();
+    };
+
+    // Listeners
+    closeBtn?.addEventListener('click', closePalette);
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) closePalette();
+    });
+
+    // Keyboard Shortcuts
+    document.addEventListener('keydown', (e) => {
+      // Cmd+K / Ctrl+K
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        dialog.open ? closePalette() : openPalette();
+      }
+    });
+    
+    // Mobile search affordance trigger (any button with data-action="open-search")
+    document.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-action="open-search"]')) {
+        e.preventDefault();
+        openPalette();
+      }
+    });
+
+    input.addEventListener('input', () => performSearch());
+    
+    input.addEventListener('keydown', (e) => {
+      const items = Array.from(resultsContainer.querySelectorAll('.cmd-result-item')) as HTMLElement[];
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        activeIndex = (activeIndex + 1) % items.length;
+        updateActiveState();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        activeIndex = activeIndex - 1 < 0 ? items.length - 1 : activeIndex - 1;
+        updateActiveState();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (activeIndex >= 0 && activeIndex < items.length) {
+          items[activeIndex].click();
+          closePalette();
+        } else if (items.length > 0) {
+          items[0].click();
+          closePalette();
+        }
+      } else if (e.key === 'Escape') {
+        closePalette();
+      }
+    });
+  }
+
+  document.addEventListener('astro:page-load', initCommandPalette);
+  initCommandPalette();
+</script>
+
+<style>
+  .cmd-palette {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%;
+    max-width: 600px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+  }
+  .cmd-palette::backdrop {
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  .cmd-palette[open] .cmd-palette-content {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  .cmd-palette-content {
+    background: var(--color-surface, #111);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    max-height: 80vh;
+    opacity: 0;
+    transform: scale(0.98) translateY(-10px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cmd-palette-content {
+      transition: none;
+    }
+  }
+  .cmd-palette-header {
+    display: flex;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .search-icon {
+    color: #888;
+    margin-right: 0.75rem;
+  }
+  #cmd-palette-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 1.125rem;
+    outline: none;
+    font-family: inherit;
+  }
+  #cmd-palette-input::placeholder {
+    color: #666;
+  }
+  .close-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: #888;
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+  }
+  .close-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+  }
+  .cmd-palette-results {
+    overflow-y: auto;
+    padding: 0.5rem;
+  }
+  .cmd-result-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    text-decoration: none;
+    color: #ddd;
+    cursor: pointer;
+    transition: background 0.1s ease;
+  }
+  .cmd-result-item:hover, .cmd-result-item.active {
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+  }
+  .cmd-result-item.active {
+    background: rgba(204, 0, 0, 0.15); /* Brand red tint */
+  }
+  .cmd-result-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .cmd-result-badge {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.4rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+  }
+  .cmd-result-title {
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cmd-palette-empty {
+    padding: 2rem;
+    text-align: center;
+    color: #888;
+    font-size: 0.95rem;
+    display: none;
+  }
+</style>
