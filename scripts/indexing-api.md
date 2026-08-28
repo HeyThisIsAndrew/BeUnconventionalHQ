@@ -1,7 +1,28 @@
 # Google Indexing API notifier — runbook
 
-Covers `scripts/notify-indexing-api.mjs` and the step it powers in
-`.github/workflows/sync-articles.yml`.
+Covers `scripts/notify-indexing-api.mjs` and the manual workflow it powers,
+`.github/workflows/notify-indexing-api.yml`.
+
+> **This is MANUAL only, as of 2026-08-28.** It used to run automatically at
+> the end of `sync-articles.yml` on every run that published an article. That
+> step is gone. Two reasons:
+>
+> 1. Automated submission of an unsupported content type is the part that
+>    carries real policy risk. Google's docs say abuse of the API can cost you
+>    access entirely. Firing by hand, for one URL, when it actually matters, is
+>    a different risk profile from firing on a schedule forever.
+> 2. It held the `content-sync-push` concurrency group for up to 10 minutes
+>    while `--require-live` polled for the Cloudflare deploy, so the YouTube
+>    and Instagram syncs queued behind every article publish.
+>
+> Nothing was lost. The step never fired in 101 runs of that workflow, and
+> `GOOGLE_INDEXING_CREDENTIALS` was never configured, so the pipeline has been
+> inert on GitHub's side its whole life.
+>
+> **Reach for Search Console's own "Request Indexing" button first.** It does
+> the same job, with no API and no credential. This workflow exists for when
+> you want it scripted, validated before it goes, and logged in the run
+> history.
 
 ---
 
@@ -139,10 +160,16 @@ GOOGLE_INDEXING_CREDENTIALS="$(cat ~/Downloads/buhq-indexing-abc123.json)" \
 The script is **dry-run by default**, the same contract as
 `scripts/sync-youtube.mjs`. Nothing reaches Google without `--execute`.
 
-Flags: `--snapshot <file>`, `--before <file>`, `--url <url>` (repeatable),
-`--type URL_UPDATED|URL_DELETED`, `--require-live`, `--live-timeout <seconds>`,
-`--execute`. Read the header of `scripts/notify-indexing-api.mjs` for what
-each one is for.
+Flags: `--url <url>` (repeatable), `--type URL_UPDATED|URL_DELETED`,
+`--require-live`, `--live-timeout <seconds>`, `--execute`. Read the header of
+`scripts/notify-indexing-api.mjs` for what each one is for.
+
+`--snapshot <file>` and `--before <file>` also still exist. They computed the
+diff between "articles that had pages before the sync ran" and "after", which
+is what the old automatic step submitted. Nothing calls them now. They are
+kept because they are covered by `scripts/indexing-api.test.mjs` and cost
+nothing, and because a future "submit everything published this week" job
+would want exactly that shape.
 
 ### What it will refuse
 
