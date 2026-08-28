@@ -1842,10 +1842,14 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       the visitor just asked for starts immediately, because they have
       already seen the mark and are waiting on a button they pressed.
     */
-    const arm = (delay: number) => {
+    const arm = (delay: number, withSound: boolean = false) => {
       timers.push(window.setTimeout(() => {
         /* `origin` is required for the handshake and is only knowable at runtime. */
-        frame.src = `${src}&origin=${encodeURIComponent(window.location.origin)}`;
+        let finalSrc = `${src}&origin=${encodeURIComponent(window.location.origin)}`;
+        if (withSound) {
+          finalSrc = finalSrc.replace('mute=1', 'mute=0');
+        }
+        frame.src = finalSrc;
         window.addEventListener('message', onMessage);
         /* The player only answers once it has booted, so keep asking. */
         timers.push(window.setInterval(() => {
@@ -1876,7 +1880,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     const replay = document.querySelector<HTMLButtonElement>('.hub-stage-replay');
     replay?.addEventListener('click', () => {
       if (stage.classList.contains('is-playing')) return;
-      withSound = true;
+      
       /*
         The RAIL owns which tile is selected, so the stage asks rather than
         reaching in. Setting the cards from here would put rail state in two
@@ -1884,7 +1888,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
         rail said one thing and the stage showed another.
       */
       stage.dispatchEvent(new CustomEvent('hub:stage-replay'));
-      arm(0);
+      arm(0, true);
     });
   }
 
