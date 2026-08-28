@@ -29,11 +29,31 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
   <infinite-marquee data-profile-url={profileUrl}>
     <div class="ig-carousel-wrapper" style="mask-image: linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%); -webkit-mask-image: linear-gradient(to right, transparent 0, black 24px, black calc(100% - 24px), transparent 100%);">
       <div class="ig-carousel-track">
+        {/*
+          DUPLICATE GROUPS ARE HIDDEN FROM SCREEN READERS, NOT DISABLED.
+
+          This is a MARQUEE. Every group scrolls through the visible area —
+          that is the entire point of the component — so a duplicate group is
+          not an offscreen copy, it is tiles the visitor is looking at and
+          expects to click.
+
+          `inert` was used here and it broke exactly that. It removes a
+          subtree from the tab order, which is what was wanted, but it also
+          disables POINTER EVENTS on everything inside it. Thirteen of the
+          fifteen groups were inert, so most of the tiles scrolling past were
+          dead to clicks. Reported from production as "the tiles in the
+          Instagram carousel are not clickable".
+
+          `tabindex="-1"` on the links is the correct tool. It takes the
+          duplicates out of sequential focus navigation, which is what
+          satisfies axe's `aria-hidden-focus` rule (that rule is about
+          TABBABLE elements inside an aria-hidden subtree), while leaving
+          them fully clickable with a mouse or a finger.
+        */}
         {Array.from({ length: 5 }, (_, i) => i + 1).map((groupIndex) => (
           <div 
             class="ig-marquee-group" 
             aria-hidden={groupIndex > 2 ? "true" : undefined}
-            inert={groupIndex > 2 ? true : undefined}
           >
           {items.map((item) => {
             if (!item || !item.displayUrl) return null;
@@ -55,7 +75,7 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
             const sources = getCardImageSources(item.localImage || item.displayUrl);
             
             return (
-              <a href={item.permalink} target="_blank" rel="noopener noreferrer" class="ig-carousel-tile" data-play-hover="true">
+              <a href={item.permalink} target="_blank" rel="noopener noreferrer" class="ig-carousel-tile" data-play-hover="true" tabindex={groupIndex > 2 ? -1 : undefined}>
                 {/* The anchor is the HOVER TARGET and never moves; this frame
                     is what lifts, clips and draws the border. Splitting them
                     is what stops the hover from flickering — see the note on
@@ -265,8 +285,7 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
       while (groups.length < 15) {
         const clone = groups[0].cloneNode(true) as HTMLElement;
         /*
-          `inert` AS WELL AS `aria-hidden`, and for the same reason the
-          duplicate groups in the markup carry both.
+          `aria-hidden` PLUS `tabindex="-1"` ON THE LINKS. NOT `inert`.
 
           These clones exist only to make the marquee loop look continuous.
           Each one is a full copy of the row, links and all. `aria-hidden`
@@ -274,12 +293,21 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
           those links IN THE TAB ORDER — so a keyboard user tabbing through
           the gallery walks the same set of posts up to fifteen times, and
           each stop announces nothing, because the tree says it is not there.
+          axe rates that serious (`aria-hidden-focus`), 13 nodes on a hub page.
 
-          axe rates it serious (`aria-hidden-focus`), 13 nodes on a hub page.
-          `inert` is the attribute that actually removes a subtree from focus.
+          `inert` was the first fix and it was wrong. It does remove the
+          subtree from the tab order, but it ALSO disables pointer events on
+          everything inside it — and these clones are not offscreen, they
+          scroll through the visible area like every other group. Most of the
+          tiles a visitor could see became unclickable. Reported from
+          production.
+
+          tabindex="-1" removes them from sequential focus navigation, which
+          is what the axe rule actually measures, and leaves the links working
+          for a mouse or a finger.
         */
         clone.setAttribute('aria-hidden', 'true');
-        clone.setAttribute('inert', '');
+        clone.querySelectorAll('a').forEach((a) => a.setAttribute('tabindex', '-1'));
         track.appendChild(clone);
         groups.push(clone);
       }

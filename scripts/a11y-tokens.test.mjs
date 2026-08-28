@@ -106,32 +106,72 @@ test('--color-accent is never used as a text or icon colour', () => {
   );
 });
 
-test('aria-hidden subtrees with focusable content are also inert', () => {
+test('a hidden subtree is out of the TAB order, and inert only where nothing is visible', () => {
   /*
     `aria-hidden` removes a subtree from the ACCESSIBILITY TREE but leaves it
-    in the TAB ORDER. A keyboard user can therefore land on a control inside
-    something nobody can see, and it announces nothing, because the tree says
-    it is not there. axe rates this serious (`aria-hidden-focus`).
+    in the TAB ORDER. A keyboard user can land on a control inside something
+    nobody can see, and it announces nothing, because the tree says it is not
+    there. axe rates this serious (`aria-hidden-focus`).
 
-    Found on a hub page: 13 nodes, all Instagram marquee CLONES. Those exist
-    only to make the loop look continuous, and each is a full copy of the row
-    with every link intact — so tabbing through the gallery walked the same
-    posts up to fifteen times, every stop silent.
+    ─── THE PART THIS TEST GOT WRONG THE FIRST TIME ──────────────────────────
 
-    `inert` is the attribute that actually removes a subtree from focus. The
-    rule pinned here is that the two must be set TOGETHER: anywhere a hidden
-    container holds a link or a button, both attributes appear.
+    The original version of this test required `inert` beside every
+    `aria-hidden`, and that shipped a production bug.
 
-    Not a blanket ban on aria-hidden — most uses wrap an icon or a decorative
-    span with nothing focusable in it, and those are correct as they are.
+    `inert` removes a subtree from the tab order, which was the goal. It ALSO
+    disables pointer events on everything inside it. The Instagram carousel is
+    a MARQUEE: all fifteen groups scroll through the visible area, and thirteen
+    of them were `inert`. So most of the tiles a visitor could see were dead to
+    clicks. Reported from production as "the tiles are not clickable".
+
+    The rule is therefore about the TAB ORDER, not about `inert`:
+
+      - VISIBLE duplicates (marquee groups and their clones) use
+        `tabindex="-1"` on the links. Out of sequential focus navigation,
+        which is what the axe rule measures, still clickable by pointer.
+      - GENUINELY HIDDEN subtrees, like a collapsed stage pane nobody can
+        reach or click, use `inert`. There is nothing to click, so removing
+        pointer events costs nothing.
+
+    Both are pinned below, and `inert` is explicitly banned from the carousel.
   */
   const gallery = readFileSync(join(ROOT, 'src/components/CinematicGallery.astro'), 'utf8');
-  assert.match(gallery, /aria-hidden=\{groupIndex > 2 \? "true" : undefined\}\s*\n\s*inert=/,
-    'the duplicate marquee groups in the markup must carry inert beside aria-hidden');
-  assert.match(gallery, /clone\.setAttribute\('aria-hidden', 'true'\);\s*\n\s*clone\.setAttribute\('inert', ''\)/,
-    'the JS-cloned groups must too — there are up to 13 of them, and they are the ' +
-      'ones axe actually flagged');
 
+  /* Strip comments: the fix is explained at length in this file and the word
+     `inert` appears throughout that prose. Only real attributes count. */
+  const galleryCode = gallery
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
+  assert.ok(
+    !/\binert\b/.test(galleryCode),
+    'The Instagram carousel must NOT use inert. Every marquee group scrolls through the visible ' +
+      'area, and inert disables pointer events, so the tiles stop being clickable. This exact ' +
+      'regression reached production. Use tabindex="-1" on the links instead.',
+  );
+  assert.match(
+    galleryCode,
+    /tabindex=\{groupIndex > 2 \? -1 : undefined\}/,
+    'the duplicate marquee groups must take their links out of the tab order with tabindex="-1"',
+  );
+  assert.match(
+    galleryCode,
+    /clone\.querySelectorAll\('a'\)\.forEach\(\(a\) => a\.setAttribute\('tabindex', '-1'\)\)/,
+    'the JS-cloned groups must too — there are up to ten of them, and they are the ones axe ' +
+      'actually flagged',
+  );
+  assert.match(
+    galleryCode,
+    /aria-hidden=\{groupIndex > 2 \? "true" : undefined\}/,
+    'duplicates must still be hidden from screen readers, or the same posts are announced 15 times',
+  );
+
+  /*
+    The hub stage panes are the opposite case and keep `inert`: a collapsed
+    pane is not on screen, so there is nothing to click and removing pointer
+    events costs nothing. Dropping it there would put the Play button of every
+    inactive pane back in the tab order.
+  */
   const hub = readFileSync(join(ROOT, 'src/pages/featured/[slug].astro'), 'utf8');
   assert.match(hub, /pane\.toggleAttribute\('inert', !on\)/,
     'show() must keep inert in step with aria-hidden on the stage panes, or the ' +
