@@ -157,6 +157,42 @@ test('no stored article is stranded in a category that no longer exists', () => 
   );
 });
 
+/*
+  ─── THE SYNC CAN QUIETLY UNDO THE RENAME ────────────────────────────────────
+
+  Caught on a real merge. While this branch sat open, the scheduled YouTube
+  sync ran twice on main and rewrote videos.json from a tree that predates the
+  rename, so main's copy of the `topic-gaming` document still said
+  "Gaming". Merging main in resolved that field back to the old value.
+
+  It resolved silently because the merge driver classifies `title` as FACTUAL
+  (a YouTube fact, synced every run, newer copy wins) — which is right for a
+  video document and wrong for a TOPIC document, whose title is our own
+  taxonomy label seeded by TIER1_TOPIC_SEEDS in scripts/sync-youtube.mjs. The
+  driver does not distinguish the two, so the newer side won on a field no
+  sync should have opinions about.
+
+  Nothing a visitor sees was affected: the site derives its category label from
+  the topic SLUG through SITE_CATEGORIES in src/lib/videos.ts, and the topic
+  title is read only by the dev-only Local CMS. It also self-corrects on the
+  first sync run after the merge, because the seed now says Games. But
+  "invisible and self-correcting eventually" is exactly how a value flip-flops
+  for weeks without anyone noticing, so it is pinned here instead.
+*/
+test('the sync has not reverted the topic document title', () => {
+  const topic = media.find((d) => d?._id === 'topic-gaming');
+  assert.ok(topic, 'the topic-gaming document is gone from the snapshot');
+  assert.equal(
+    topic.title,
+    'Games',
+    'the topic title is back to the pre-rename value. A sync running from a tree without the ' +
+      'rename wrote it, and the merge driver treats `title` as a YouTube fact even on a topic ' +
+      'document, whose title is ours. Fix the snapshot; the seed in scripts/sync-youtube.mjs ' +
+      'already says Games, so it will hold.',
+  );
+  assert.equal(topic.slug?.current, 'gaming', 'the topic SLUG must not move — URLs and tags depend on it');
+});
+
 test('the category route still matches through the alias map', () => {
   const route = read('src/pages/category/[category]/[...page].astro');
   assert.match(
