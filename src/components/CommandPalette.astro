@@ -98,7 +98,14 @@
         if (item.image) {
           const img = document.createElement('img');
           img.src = item.image;
-          img.className = 'cmd-result-image';
+          /*
+            A hub's image is its LOGO, and a logo must never be cropped. The
+            thumbnail rule (`object-fit: cover` on a 16:9 box) chopped the top
+            and bottom off the Warner Bros shield and the DC disc, which is not
+            something to do to somebody else's brand mark. Tagged here so the
+            stylesheet can treat the two cases differently.
+          */
+          img.className = item.type === 'hub' ? 'cmd-result-image is-mark' : 'cmd-result-image';
           img.alt = '';
           img.loading = 'lazy';
           a.appendChild(img);
@@ -123,11 +130,50 @@
       });
     };
 
+    /*
+      THE DEFAULT VIEW IS A CURATED MIX, NOT THE TOP OF A DATE SORT.
+
+      It used to be `searchData.slice(0, 10)`, and the index is sorted newest
+      first. Hubs and section pages were stamped with the BUILD TIME, so all 18
+      hubs sorted above every real article and video and the palette opened on
+      nothing but hubs. That is fixed at the source (they carry no date now),
+      but "the ten newest things" is still the wrong opening move for a search
+      box: it shows one kind of thing whenever one kind of thing was published
+      last.
+
+      An empty query is somebody who has not told us what they want yet. So
+      show them the SHAPE of the site — a few of each kind, newest first within
+      each — rather than a slice of one bucket.
+    */
+    const DEFAULT_MIX: Array<[string, number]> = [
+      ['article', 3],
+      ['video', 3],
+      ['hub', 2],
+      ['event', 1],
+      ['page', 1],
+    ];
+
+    const defaultResults = () => {
+      const out: any[] = [];
+      for (const [type, count] of DEFAULT_MIX) {
+        out.push(...searchData.filter((d) => d.type === type).slice(0, count));
+      }
+      /* If a bucket is short (no events yet, say), backfill from whatever is
+         left so the panel never opens looking half-empty. */
+      if (out.length < 10) {
+        for (const d of searchData) {
+          if (out.length >= 10) break;
+          if (!out.includes(d)) out.push(d);
+        }
+      }
+      return out.map((item) => ({ item }));
+    };
+
     const performSearch = () => {
       if (!fuse) return;
       const query = input.value.trim();
       if (!query) {
-        renderResults(searchData.map(item => ({ item })), true);
+        renderResults(defaultResults(), true);
       } else {
         renderResults(fuse.search(query));
       }
@@ -373,6 +419,23 @@
     flex-shrink: 0;
     background: #111;
     border: 1px solid rgba(255,255,255,0.1);
+  }
+  /*
+    BRAND MARKS ARE CONTAINED, NEVER COVERED.
+
+    `cover` fills the box and crops whatever does not fit. That is right for a
+    video still, where the edges are incidental. It is wrong for a logo: the
+    Warner Bros shield and the DC disc were both losing their top and bottom,
+    and a cropped logo is the kind of thing the brand's own people notice.
+
+    `contain` fits the whole mark inside the box and letterboxes the remainder.
+    Slight padding so a wordmark that runs edge to edge in its own file does
+    not touch the border.
+  */
+  .cmd-result-image.is-mark {
+    object-fit: contain;
+    padding: 6px;
+    background: #0a0a0a;
   }
   .cmd-result-info {
     display: flex;

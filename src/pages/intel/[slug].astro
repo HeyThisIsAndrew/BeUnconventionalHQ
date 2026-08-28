@@ -57,16 +57,28 @@ import { parseImageDimensions, labelImageLinks } from '../../lib/article-images-
 import { getCardImageSources, isSubstackFetchUrl } from '../../lib/card-images.ts';
 import logoImage from '../../assets/logo.webp';
 
-export const prerender = false;
+/*
+  STATIC, NOT ON-DEMAND. `export const prerender = false` was set here and it
+  is why this is written back the way it was.
 
-const { slug } = Astro.params;
-const article = getPublishedArticles().find(
-  (a) => a.slug === slug && !RESERVED_SLUGS.has(a.slug)
-);
+  Turning these pages on-demand removed every article from the build output,
+  and the sitemap is generated FROM the build output. Measured: 51 sitemap
+  URLs to 42, 19 lastmod stamps to 11, and all 8 /intel/<slug> entries gone.
+  Articles are the site's primary SEO asset and the last week of Search
+  Console work was about getting exactly those URLs discovered.
 
-if (!article) {
-  return new Response(null, { status: 404, statusText: 'Not found' });
+  Whether /intel should go on-demand is a real question with real upside
+  (it is most of #151), but it is an architectural decision with a sitemap
+  consequence that has to be handled deliberately, not a side effect.
+*/
+export async function getStaticPaths() {
+  return getPublishedArticles()
+    // A slug matching a route segment would shadow that route.
+    .filter((article) => !RESERVED_SLUGS.has(article.slug))
+    .map((article) => ({ params: { slug: article.slug }, props: { article } }));
 }
+
+const { article } = Astro.props;
 
 /*
   The cover image is rendered as the hero below, so remove the copy of it the

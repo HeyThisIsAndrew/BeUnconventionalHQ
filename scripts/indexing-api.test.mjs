@@ -116,7 +116,7 @@ test('the site still decides page existence the way the notifier copies it', () 
   assert.match(articlesLib, /RESERVED_SLUGS = new Set\(\['topic', 'page'\]\)/);
   // The route really does build from getPublishedArticles minus reserved slugs
   assert.match(intelRoute, /getPublishedArticles\(\)/);
-  assert.match(intelRoute, /RESERVED_SLUGS\.has\((article|a)\.slug\)/);
+  assert.match(intelRoute, /RESERVED_SLUGS\.has\(article\.slug\)/);
 });
 
 test('eligibleArticleUrls reproduces that rule over the real snapshot', () => {
