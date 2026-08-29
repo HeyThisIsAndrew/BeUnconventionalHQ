@@ -1844,17 +1844,38 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     */
     const arm = (delay: number, withSound: boolean = false) => {
       const execute = () => {
+        let isSoundBlocked = false;
+        try { isSoundBlocked = sessionStorage.getItem('hub-sound-blocked') === '1'; } catch {}
+        
+        const tryWithSound = withSound && !isSoundBlocked;
+
         /* `origin` is required for the handshake and is only knowable at runtime. */
         let finalSrc = `${src}&origin=${encodeURIComponent(window.location.origin)}`;
-        if (withSound) {
+        if (tryWithSound) {
           finalSrc = finalSrc.replace('mute=1', 'mute=0');
         }
+        
         frame.src = finalSrc;
+        stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: !tryWithSound } }));
+        
         window.addEventListener('message', onMessage);
+        
         /* The player only answers once it has booted, so keep asking. */
         timers.push(window.setInterval(() => {
           frame.contentWindow?.postMessage('{"event":"listening"}', '*');
         }, 250));
+        
+        if (tryWithSound) {
+          timers.push(window.setTimeout(() => {
+            if (!stage.classList.contains('is-playing')) {
+              try { sessionStorage.setItem('hub-sound-blocked', '1'); } catch {}
+              let mutedSrc = `${src}&origin=${encodeURIComponent(window.location.origin)}`;
+              frame.src = mutedSrc;
+              stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: true } }));
+            }
+          }, 1500));
+        }
+
         /* Never started: blocked autoplay, blocked domain, embedding disabled.
            Take it down and leave the mark up. */
         timers.push(window.setTimeout(() => {
