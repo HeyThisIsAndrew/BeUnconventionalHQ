@@ -146,7 +146,7 @@ const FILTER_LABELS: Record<Filter, string> = {
 // are YouTube-sourced content; event/featuredBrand are hand-curated hub
 // pages. Topics are taxonomy nodes.
 const FILTER_GROUPS: { label: string; filters: Filter[] }[] = [
-  { label: 'Content', filters: ['All', 'Videos', 'Shorts', 'Live'] },
+  { label: 'Content', filters: ['All', 'Videos', 'Shorts', 'Live', 'Articles'] },
   { label: 'Hubs & Pages', filters: ['Events', 'Featured'] },
   { label: 'Taxonomy', filters: ['Topics'] },
 ];
