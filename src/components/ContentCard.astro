@@ -207,7 +207,7 @@ if (isVideo && item.youtubeId) {
     "name": item.title,
     "description": schemaDescription,
     "thumbnailUrl": [item.thumbnailUrl || item.thumbnail || cardImage],
-    "uploadDate": item.publishedAt || item.date,
+    "uploadDate": (item.publishedAt || item.date)?.includes("T") ? (item.publishedAt || item.date) : ((item.publishedAt || item.date) ? `${item.publishedAt || item.date}T12:00:00Z` : undefined),
     "contentUrl": `https://www.youtube.com/watch?v=${item.youtubeId}`,
     "embedUrl": `https://www.youtube.com/embed/${item.youtubeId}`,
     // schema.org types familyFriendly as Boolean, not the string "yes".
