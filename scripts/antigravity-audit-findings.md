@@ -124,7 +124,7 @@ plus two remediation commits).
 
 ```
 astro check    0 errors, 0 warnings, 0 hints
-npm test       30/30 suites
+npm test       31/31 suites
 npm run build  clean
 npm run test:e2e   22/23
 ```

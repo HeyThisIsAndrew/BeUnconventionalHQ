@@ -8,6 +8,7 @@ import cloudflare from '@astrojs/cloudflare';
 import react from '@astrojs/react';
 import partytown from '@astrojs/partytown';
 import { createClient } from '@sanity/client';
+import { validateStorePayload } from './src/lib/local-cms-store.mjs';
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -254,14 +255,12 @@ function localCmsMiddleware() {
           });
           req.on('end', () => {
             if (tooLarge) return;
-            let body = '';
-            try {
-              body = Buffer.concat(chunks).toString('utf-8');
-              JSON.parse(body);
-            } catch (err) {
-              res.statusCode = 400;
+            const body = Buffer.concat(chunks).toString('utf-8');
+            const check = validateStorePayload(body, 'videos.json');
+            if (!check.ok) {
+              res.statusCode = check.status;
               res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ success: false, error: 'Invalid JSON, videos.json left untouched.' }));
+              res.end(JSON.stringify({ success: false, error: check.error }));
               return;
             }
             const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
@@ -315,14 +314,12 @@ function localCmsMiddleware() {
           });
           req.on('end', () => {
             if (tooLarge) return;
-            let body = '';
-            try {
-              body = Buffer.concat(chunks).toString('utf-8');
-              JSON.parse(body);
-            } catch (err) {
-              res.statusCode = 400;
+            const body = Buffer.concat(chunks).toString('utf-8');
+            const check = validateStorePayload(body, 'articles.json');
+            if (!check.ok) {
+              res.statusCode = check.status;
               res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ success: false, error: 'Invalid JSON, articles.json left untouched.' }));
+              res.end(JSON.stringify({ success: false, error: check.error }));
               return;
             }
             const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
