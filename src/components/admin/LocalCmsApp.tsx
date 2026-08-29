@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { urlFor } from '../../lib/local-content.ts';
 
-type DocType = 'video' | 'short' | 'live' | 'event' | 'featuredBrand' | 'topic';
+type DocType = 'video' | 'short' | 'live' | 'event' | 'featuredBrand' | 'topic' | 'article';
 
 type LocationInfo = { venue?: string; city?: string; region?: string; country?: string };
 
@@ -9,6 +9,18 @@ type Doc = {
   _id: string;
   _type: DocType;
   title: string;
+
+  // article
+  guid?: string;
+  editorial?: {
+    title?: string;
+    excerpt?: string;
+    image?: string;
+    category?: string;
+    featured?: boolean;
+    hidden?: boolean;
+    sortWeight?: number;
+  };
 
   // video / short / live
   youtubeId?: string;
@@ -38,7 +50,7 @@ type Doc = {
   relatedMedia?: { title: string; mediaType: string }[];
 
   // event / featuredBrand
-  slug?: { _type: 'slug'; current: string };
+  slug?: { _type: 'slug'; current: string } | string;
   status?: string;
   eventType?: string;
   startDate?: string;
@@ -89,6 +101,7 @@ const TYPE_META: Record<string, { label: string; badge: string }> = {
   event: { label: 'Event', badge: 'bg-amber-500/20 text-amber-300' },
   featuredBrand: { label: 'Featured', badge: 'bg-emerald-500/20 text-emerald-300' },
   topic: { label: 'Topic', badge: 'bg-indigo-500/20 text-indigo-300' },
+  article: { label: 'Article', badge: 'bg-teal-500/20 text-teal-300' },
 };
 
 // Helper for parsing sanity image references or plain strings
@@ -114,7 +127,7 @@ const getImageUrl = (image: any) => {
   return null;
 };
 
-const FILTERS = ['All', 'Videos', 'Shorts', 'Live', 'Events', 'Featured', 'Topics'] as const;
+const FILTERS = ['All', 'Videos', 'Shorts', 'Live', 'Events', 'Featured', 'Topics', 'Articles'] as const;
 type Filter = (typeof FILTERS)[number] | 'GlobalStatus';
 
 const FILTER_LABELS: Record<Filter, string> = {
@@ -125,6 +138,7 @@ const FILTER_LABELS: Record<Filter, string> = {
   Events: 'Events',
   Featured: 'Featured Brands',
   Topics: 'Topics',
+  Articles: 'Articles',
   GlobalStatus: 'Global Status',
 };
 
@@ -411,10 +425,18 @@ export default function LocalCmsApp() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/local-cms/videos')
-      .then((res) => res.json())
-      .then((data) => {
-        setDocs(Array.isArray(data) ? data : []);
+    Promise.all([
+      fetch('/api/local-cms/videos').then(res => res.json()),
+      fetch('/api/local-cms/articles').then(res => res.json())
+    ])
+      .then(([videoData, articleData]) => {
+        const vDocs = Array.isArray(videoData) ? videoData : [];
+        const aDocs = Array.isArray(articleData) ? articleData.map((a) => ({
+          ...a,
+          _id: a.guid,
+          _type: 'article'
+        })) : [];
+        setDocs([...vDocs, ...aDocs]);
         setLoading(false);
       })
       .catch((err) => {
@@ -428,13 +450,25 @@ export default function LocalCmsApp() {
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/local-cms/videos', {
+      const vDocs = docs.filter(d => d._type !== 'article');
+      const aDocs = docs.filter(d => d._type === 'article').map(d => {
+        const { _id, _type, ...rest } = d;
+        return rest;
+      });
+
+      const resV = await fetch('/api/local-cms/videos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(docs),
+        body: JSON.stringify(vDocs),
       });
-      if (!res.ok) throw new Error('Failed to save');
-      setMessage({ text: 'Saved to videos.json', type: 'success' });
+      const resA = await fetch('/api/local-cms/articles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(aDocs),
+      });
+
+      if (!resV.ok || !resA.ok) throw new Error('Failed to save');
+      setMessage({ text: 'Saved data successfully', type: 'success' });
     } catch (err) {
       console.error(err);
       setMessage({ text: 'Failed to save videos.json', type: 'error' });
@@ -531,7 +565,7 @@ export default function LocalCmsApp() {
   };
 
   const filterCounts = useMemo(() => {
-    let counts = { All: 0, Videos: 0, Shorts: 0, Live: 0, Events: 0, Featured: 0, Topics: 0 };
+    let counts = { All: 0, Videos: 0, Shorts: 0, Live: 0, Events: 0, Featured: 0, Topics: 0, Articles: 0 };
     docs.forEach((d) => {
       const type = d.manualTypeOverride || d._type;
       if (['video', 'short', 'live'].includes(type as string)) counts.All++;
@@ -541,13 +575,14 @@ export default function LocalCmsApp() {
       if (type === 'event' || d.manualTypeOverride === 'event') counts.Events++;
       if (type === 'featuredBrand' || d.featured === true) counts.Featured++;
       if (type === 'topic') counts.Topics++;
+      if (type === 'article') counts.Articles++;
     });
     return counts;
   }, [docs]);
 
   const filteredDocs = useMemo(() => {
     let list = docs.filter(
-      (d) => d.title?.toLowerCase().includes(search.toLowerCase()) || d.youtubeId?.includes(search),
+      (d) => d.title?.toLowerCase().includes(search.toLowerCase()) || d.youtubeId?.includes(search) || d.guid?.includes(search),
     );
     if (activeFilter && activeFilter !== 'GlobalStatus') {
       list = list.filter((d) => {
@@ -559,12 +594,13 @@ export default function LocalCmsApp() {
         if (activeFilter === 'Events') return type === 'event' || d.manualTypeOverride === 'event';
         if (activeFilter === 'Featured') return type === 'featuredBrand' || d.featured === true;
         if (activeFilter === 'Topics') return type === 'topic';
+        if (activeFilter === 'Articles') return type === 'article';
         return true;
       });
     }
     if (statusFilter) {
       list = list.filter((d) => {
-        if (d._type === 'topic') return false;
+        if (d._type === 'topic' || d._type === 'article') return false;
         const status = d.contentStatus || d.status;
         if (statusFilter === 'published') return status === 'published' || status === 'live' || status === 'completed';
         if (statusFilter === 'needs-review') return status === 'needs-review';
@@ -580,7 +616,7 @@ export default function LocalCmsApp() {
     let other = 0;
 
     docs.forEach((doc) => {
-      if (doc._type === 'topic') return; // Topics are taxonomy nodes without statuses
+      if (doc._type === 'topic' || doc._type === 'article') return;
       
       const status = doc.contentStatus || doc.status;
       if (status === 'published' || status === 'live' || status === 'completed') published++;
@@ -872,6 +908,9 @@ export default function LocalCmsApp() {
                 )}
                 {selected._type === 'featuredBrand' && (
                   <BrandForm doc={selected} updateDoc={updateDoc} updateSlug={updateSlug} />
+                )}
+                {selected._type === 'article' && (
+                  <ArticleForm doc={selected} updateDoc={updateDoc} />
                 )}
                 {selected._type === 'topic' && (
                   <TopicForm doc={selected} updateDoc={updateDoc} updateSlug={updateSlug} />
@@ -1602,6 +1641,74 @@ function TopicForm({
         <Field label="Empty-State Message">
           <textarea value={doc.emptyStateMessage || ''} onChange={(e) => update('emptyStateMessage', e.target.value)} className={textareaClass} placeholder="First-person message shown when this category has no content yet..." />
         </Field>
+      </div>
+    </div>
+  );
+}
+
+function ArticleForm({
+  doc,
+  updateDoc,
+}: {
+  doc: Doc;
+  updateDoc: (id: string, field: keyof Doc, value: any) => void;
+}) {
+  const update = (field: keyof Doc, value: any) => updateDoc(doc._id, field, value);
+  const updateEditorial = (field: keyof NonNullable<Doc['editorial']>, value: any) => {
+    const next = { ...(doc.editorial || {}), [field]: value };
+    // Clean up empty strings
+    if (value === '') delete next[field];
+    update('editorial', Object.keys(next).length > 0 ? next : undefined);
+  };
+
+  return (
+    <div className={sectionClass}>
+      <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+        <h4 className="text-blue-400 font-bold mb-2">Editorial Overrides</h4>
+        <p className="text-sm text-blue-200/70">
+          The base article syncs from Substack hourly. Anything you set here overrides Substack and will never be overwritten by the sync.
+        </p>
+      </div>
+      
+      <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5 mb-5">
+        <Field label="Override Title">
+          <input type="text" value={doc.editorial?.title || ''} onChange={(e) => updateEditorial('title', e.target.value)} placeholder={doc.title} className={inputClass} />
+        </Field>
+        <Field label="Override Category">
+          <select value={doc.editorial?.category || ''} onChange={(e) => updateEditorial('category', e.target.value)} className={inputClass}>
+            <option value="">(Use Substack tags)</option>
+            <option value="Film">Film</option>
+            <option value="TV">TV</option>
+            <option value="Gaming">Gaming</option>
+            <option value="Events">Events</option>
+          </select>
+        </Field>
+      </div>
+
+      <div className="mb-5">
+        <Field label="Override Excerpt (Standfirst)">
+          <textarea value={doc.editorial?.excerpt || ''} onChange={(e) => updateEditorial('excerpt', e.target.value)} rows={3} className={inputClass} placeholder="A hand-written standfirst..." />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5 mb-5">
+        <Field label="Sort Weight (Higher = Top)">
+          <input type="number" value={doc.editorial?.sortWeight || 0} onChange={(e) => updateEditorial('sortWeight', parseInt(e.target.value) || 0)} className={inputClass} />
+        </Field>
+        <Field label="Override Image URL">
+          <input type="text" value={doc.editorial?.image || ''} onChange={(e) => updateEditorial('image', e.target.value)} className={inputClass} placeholder="https://..." />
+        </Field>
+      </div>
+
+      <div className="flex gap-6 mt-6 pt-6 border-t border-white/10">
+        <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-white group">
+          <input type="checkbox" checked={doc.editorial?.featured || false} onChange={(e) => updateEditorial('featured', e.target.checked)} className="rounded border-gray-600 bg-gray-700 text-red-500 focus:ring-red-500 focus:ring-offset-gray-900" />
+          <span className="group-hover:text-red-400 transition-colors">Featured</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-400 group">
+          <input type="checkbox" checked={doc.editorial?.hidden || false} onChange={(e) => updateEditorial('hidden', e.target.checked)} className="rounded border-gray-600 bg-gray-700 text-gray-500 focus:ring-gray-500 focus:ring-offset-gray-900" />
+          <span className="group-hover:text-gray-300 transition-colors">Hide entirely</span>
+        </label>
       </div>
     </div>
   );

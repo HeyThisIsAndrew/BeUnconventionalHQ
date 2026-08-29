@@ -233,6 +233,58 @@ function localCmsMiddleware() {
       // Returns the bare asset id ("image-<hash>-<W>x<H>-<ext>") - a plain
       // string, kept out of resolving it to a CDN URL here so urlFor() stays
       // the single place that happens, same as every other image on the site.
+      
+      server.middlewares.use('/api/local-cms/articles', /** @param {import('http').IncomingMessage} req @param {import('http').ServerResponse} res @param {Function} next */ (req, res, next) => {
+        const filePath = path.resolve(process.cwd(), 'src/data/articles.json');
+        if (req.method === 'GET') {
+          res.setHeader('Content-Type', 'application/json');
+          if (!fs.existsSync(filePath)) {
+            res.end('[]');
+            return;
+          }
+          res.end(fs.readFileSync(filePath, 'utf-8'));
+          return;
+        }
+        if (req.method === 'POST') {
+          let chunks = [];
+          let totalLength = 0;
+          let tooLarge = false;
+          req.on('data', chunk => {
+            if (tooLarge) return;
+            chunks.push(chunk);
+            totalLength += chunk.length;
+            if (totalLength > 50 * 1024 * 1024) {
+              tooLarge = true;
+              res.statusCode = 413;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: 'Payload Too Large' }));
+              req.on('error', () => {}); 
+              req.destroy();
+            }
+          });
+          req.on('end', () => {
+            if (tooLarge) return;
+            let body = '';
+            try {
+              body = Buffer.concat(chunks).toString('utf-8');
+              JSON.parse(body);
+            } catch (err) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: 'Invalid JSON, articles.json left untouched.' }));
+              return;
+            }
+            const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+            fs.writeFileSync(tmpPath, body, 'utf-8');
+            fs.renameSync(tmpPath, filePath);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true }));
+          });
+          return;
+        }
+        next();
+      });
+
       server.middlewares.use('/api/local-cms/upload', /** @param {import('http').IncomingMessage} req @param {import('http').ServerResponse} res @param {Function} next */ (req, res, next) => {
         if (req.method === 'POST') {
           /** @type {Buffer[]} */
