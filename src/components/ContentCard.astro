@@ -173,9 +173,31 @@ const watermark = await getImage({
   format: 'webp',
   quality: 70,
 });
+
+let videoSchemaJson = null;
+if (isVideo && item.youtubeId) {
+  videoSchemaJson = {
+    "@context": "https://schema.org",
+    "@type": "VideoObject",
+    "name": item.title,
+    "description": item.description,
+    "thumbnailUrl": [item.thumbnailUrl || item.thumbnail || cardImage],
+    "uploadDate": item.publishedAt || item.date,
+    "contentUrl": `https://www.youtube.com/watch?v=${item.youtubeId}`,
+    "embedUrl": `https://www.youtube.com/embed/${item.youtubeId}`,
+    "familyFriendly": "yes"
+  };
+  // Convert duration to ISO 8601 duration format (e.g., PT120S)
+  if (item.durationSeconds) {
+    videoSchemaJson.duration = `PT${Math.round(item.durationSeconds)}S`;
+  }
+}
 ---
 
 <CardWrapper {...wrapperProps} data-play-hover={isVideo ? 'true' : undefined}>
+  {videoSchemaJson && (
+    <script type="application/ld+json" set:html={JSON.stringify(videoSchemaJson)} />
+  )}
   {/*
     Supplies the action verb the removed `aria-label` used to carry. It is
     part of the accessible name (name-from-content walks hidden-from-sight
