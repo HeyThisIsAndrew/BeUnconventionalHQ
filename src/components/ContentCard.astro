@@ -173,24 +173,6 @@ const watermark = await getImage({
   format: 'webp',
   quality: 70,
 });
-
-let videoSchemaJson = null;
-if (isVideo && item.youtubeId) {
-  videoSchemaJson = {
-    "@context": "https://schema.org",
-    "@type": "VideoObject",
-    "name": item.title,
-    "description": item.description,
-    "thumbnailUrl": [item.thumbnailUrl || item.thumbnail || cardImage],
-    "uploadDate": item.publishedAt || item.date,
-    "contentUrl": `https://www.youtube.com/watch?v=${item.youtubeId}`,
-    "embedUrl": `https://www.youtube.com/embed/${item.youtubeId}`,
-    "familyFriendly": "yes"
-  };
-  if (item.durationSeconds) {
-    videoSchemaJson.duration = `PT${Math.round(item.durationSeconds)}S`;
-  }
-}
 ---
 
 <CardWrapper {...wrapperProps} data-play-hover={isVideo ? 'true' : undefined}>
