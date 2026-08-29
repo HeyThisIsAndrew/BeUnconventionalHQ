@@ -186,6 +186,8 @@ function localCmsMiddleware() {
         }
         if (req.method === 'POST') {
           /** @type {Buffer[]} */
+          /** @type {Buffer[]} */
+          /** @type {Buffer[]} */
           let chunks = [];
           let totalLength = 0;
           let tooLarge = false;

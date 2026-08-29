@@ -511,7 +511,7 @@ export default function LocalCmsApp() {
     const newSlug = slugify(value);
     // Same-type collision would break static route generation (two docs
     // mapping to the same /events/<slug> or /featured/<slug> path).
-    const collision = docs.find((d) => d._id !== id && d._type === doc._type && d.slug?.current === newSlug);
+    const collision = docs.find((d) => d._id !== id && d._type === doc._type && (typeof d.slug === "string" ? d.slug : d.slug?.current) === newSlug);
     if (collision) {
       alert(`"${collision.title}" already uses the slug "${newSlug}". Pick a different one - two ${TYPE_META[doc._type].label} docs can't share a route.`);
       return;
@@ -880,7 +880,7 @@ export default function LocalCmsApp() {
                     </a>
                   )}
                 </div>
-                {!(selected._type === 'topic' && ['film', 'tv', 'gaming', 'events', 'uncategorized'].includes(selected.slug?.current || '')) ? (
+                {!(selected._type === 'topic' && ['film', 'tv', 'gaming', 'events', 'uncategorized'].includes((typeof selected.slug === "string" ? selected.slug : selected.slug?.current) || '')) ? (
                   <button
                     onClick={() => deleteDoc(selected._id)}
                     className="flex-shrink-0 text-xs font-bold text-rose-500 hover:text-white border border-rose-500/30 hover:border-rose-500 hover:bg-rose-600 rounded-lg px-3 py-2 transition-all duration-300 shadow-sm hover:shadow-[0_0_15px_rgba(225,29,72,0.4)]"
@@ -1375,11 +1375,11 @@ function EventForm({
         <Field label="Slug">
           <input
             type="text"
-            value={doc.slug?.current || ''}
+            value={(typeof doc.slug === "string" ? doc.slug : doc.slug?.current) || ''}
             onChange={(e) => updateSlug(doc._id, e.target.value)}
             className={`${inputClass} font-mono`}
           />
-          <p className="text-xs text-gray-600 mt-1.5">/events/{doc.slug?.current || '…'}</p>
+          <p className="text-xs text-gray-600 mt-1.5">/events/{(typeof doc.slug === "string" ? doc.slug : doc.slug?.current) || '…'}</p>
         </Field>
         <Field label="Status">
           <select value={doc.status || 'upcoming'} onChange={(e) => update('status', e.target.value)} className={inputClass}>
@@ -1505,11 +1505,11 @@ function BrandForm({
         <Field label="Slug">
           <input
             type="text"
-            value={doc.slug?.current || ''}
+            value={(typeof doc.slug === "string" ? doc.slug : doc.slug?.current) || ''}
             onChange={(e) => updateSlug(doc._id, e.target.value)}
             className={`${inputClass} font-mono`}
           />
-          <p className="text-xs text-gray-600 mt-1.5">/featured/{doc.slug?.current || '…'}</p>
+          <p className="text-xs text-gray-600 mt-1.5">/featured/{(typeof doc.slug === "string" ? doc.slug : doc.slug?.current) || '…'}</p>
         </Field>
         <Field label="Trailer URL">
           <input type="text" value={doc.trailerUrl || ''} onChange={(e) => update('trailerUrl', e.target.value)} className={inputClass} placeholder="https://youtube.com/watch?v=…" />
@@ -1606,7 +1606,7 @@ function TopicForm({
   updateSlug: (id: string, value: string) => void;
 }) {
   const update = (field: keyof Doc, value: any) => updateDoc(doc._id, field, value);
-  const isProtectedSlug = ['film', 'tv', 'gaming', 'events', 'uncategorized'].includes(doc.slug?.current || '');
+  const isProtectedSlug = ['film', 'tv', 'gaming', 'events', 'uncategorized'].includes((typeof doc.slug === "string" ? doc.slug : doc.slug?.current) || '');
 
   return (
     <div className={sectionClass}>
@@ -1617,7 +1617,7 @@ function TopicForm({
         <Field label="Slug">
           <input
             type="text"
-            value={doc.slug?.current || ''}
+            value={(typeof doc.slug === "string" ? doc.slug : doc.slug?.current) || ''}
             onChange={(e) => updateSlug(doc._id, e.target.value)}
             disabled={isProtectedSlug}
             className={`${inputClass} font-mono ${isProtectedSlug ? 'opacity-50 cursor-not-allowed' : ''}`}
