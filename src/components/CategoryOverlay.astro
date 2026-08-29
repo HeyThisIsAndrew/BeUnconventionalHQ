@@ -116,83 +116,69 @@ const { items, buttonLabel = LABELS.categories } = Astro.props;
 
   /*
     Open/close for the mobile category overlay.
-
-    Bound on `astro:page-load` rather than DOMContentLoaded because this site
-    uses Astro's ClientRouter — after a client-side navigation there is no new
-    DOMContentLoaded, so a handler bound to it would stop working.
+    Event delegation on document (Issue #71) to ensure the UI feels alive
+    even before the cold load is completely finished.
   */
-  function initCategoryOverlay() {
-    const overlay = document.getElementById('category-fullscreen-overlay');
-    const openBtn = document.getElementById('open-categories-btn');
-    const closeBtn = document.getElementById('close-categories-btn');
-    if (!overlay || !openBtn) return;
+  
+  if (!(window as any).categoryOverlayDelegated) {
+    (window as any).categoryOverlayDelegated = true;
 
-    /*
-      Scroll locking is shared — see src/lib/scroll-lock.ts, imported at the
-      top of this script. This component used to carry its own copy; four
-      near-identical copies existed across the site and the video modal's had
-      drifted far enough to cause a visible layout shift on every close.
-    */
-
-    function close() {
-      if (!overlay!.classList.contains('is-open')) return;
-      overlay!.classList.remove('is-open');
-      overlay!.setAttribute('aria-hidden', 'true');
+    function close(overlay: HTMLElement, openBtn: HTMLElement | null) {
+      if (!overlay.classList.contains('is-open')) return;
+      overlay.classList.remove('is-open');
+      overlay.setAttribute('aria-hidden', 'true');
       unlockScroll();
-      openBtn!.setAttribute('aria-expanded', 'false');
-      openBtn!.focus();
+      if (openBtn) {
+        openBtn.setAttribute('aria-expanded', 'false');
+        openBtn.focus();
+      }
     }
 
-    function open() {
-      overlay!.classList.add('is-open');
-      overlay!.setAttribute('aria-hidden', 'false');
+    function open(overlay: HTMLElement, openBtn: HTMLElement | null, closeBtn: HTMLElement | null) {
+      overlay.classList.add('is-open');
+      overlay.setAttribute('aria-hidden', 'false');
       lockScroll();
-      openBtn!.setAttribute('aria-expanded', 'true');
-      // Move focus into the overlay so keyboard users aren't left behind it.
-      (closeBtn as HTMLElement | null)?.focus();
+      if (openBtn) {
+        openBtn.setAttribute('aria-expanded', 'true');
+      }
+      if (closeBtn) {
+        closeBtn.focus();
+      }
     }
 
-    if (!openBtn.dataset.bound) {
-      openBtn.dataset.bound = 'true';
-      openBtn.addEventListener('click', (event) => {
+    document.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      
+      const openBtnEl = target.closest('#open-categories-btn');
+      const closeBtnEl = target.closest('#close-categories-btn');
+      const catLink = target.closest('#category-fullscreen-overlay a.cat-btn');
+
+      const overlay = document.getElementById('category-fullscreen-overlay');
+      const openBtn = document.getElementById('open-categories-btn');
+      const closeBtn = document.getElementById('close-categories-btn');
+
+      if (openBtnEl && overlay) {
         event.preventDefault();
-        if (overlay.classList.contains('is-open')) close();
-        else open();
-      });
-    }
+        if (overlay.classList.contains('is-open')) close(overlay, openBtn);
+        else open(overlay, openBtn, closeBtn);
+      } else if (closeBtnEl && overlay) {
+        close(overlay, openBtn);
+      } else if (catLink && overlay) {
+        close(overlay, openBtn);
+      }
+    });
 
-    if (closeBtn && !(closeBtn as HTMLElement).dataset.bound) {
-      (closeBtn as HTMLElement).dataset.bound = 'true';
-      closeBtn.addEventListener('click', close);
-    }
-
-    // Escape closes, matching every other overlay on the site.
-    if (!overlay.dataset.boundKeys) {
-      overlay.dataset.boundKeys = 'true';
-      document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && overlay.classList.contains('is-open')) close();
-      });
-    }
-
-    /*
-      Close when a category is chosen.
-
-      On the Feed the links are `#hash` and filtering happens client-side, so
-      nothing would otherwise dismiss the overlay. On /intel they are real
-      routes and the navigation replaces the page anyway — closing first just
-      avoids a flash of the overlay during the transition. Either way the
-      scroll lock must be released, or the next page loads pinned.
-    */
-    if (!overlay.dataset.boundLinks) {
-      overlay.dataset.boundLinks = 'true';
-      overlay.addEventListener('click', (event) => {
-        const link = (event.target as HTMLElement).closest('a.cat-btn');
-        if (link) close();
-      });
-    }
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        const overlay = document.getElementById('category-fullscreen-overlay');
+        const openBtn = document.getElementById('open-categories-btn');
+        if (overlay && overlay.classList.contains('is-open')) {
+          close(overlay, openBtn);
+        }
+      }
+    });
   }
-
-  document.addEventListener('astro:page-load', initCategoryOverlay);
 
   /* A client-side navigation can leave the body pinned if the overlay was
      open when the link was followed. Always release the lock on swap. */

@@ -196,167 +196,106 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
     );
   }
 
-  function initNewsletterForm() {
-    const form = document.getElementById('newsletter-form') as HTMLFormElement | null;
-    if (!form) return;
-
-    /*
-      The widget must be re-mounted after every client-side navigation, even
-      though the submit handler only binds once — ClientRouter swaps in a
-      brand new (empty) holder element each time.
-    */
-    mountTurnstile(form);
-
-    if (form.dataset.bound) return;
-    form.dataset.bound = 'true';
-
-    const input = form.querySelector<HTMLInputElement>('.newsletter-input');
+  
+  function setStateForForm(form: HTMLFormElement, state: 'idle' | 'submitting' | 'success' | 'error', message = '') {
     const status = form.querySelector<HTMLElement>('.newsletter-status');
-    if (!input || !status) return;
+    form.classList.remove('is-submitting', 'is-success', 'is-error');
+    if (state !== 'idle') form.classList.add(`is-${state}`);
+    if (status) status.textContent = message;
+  }
 
-    /** Swap the form's state class. CSS handles everything visual from here. */
-    function setState(state: 'idle' | 'submitting' | 'success' | 'error', message = '') {
-      form!.classList.remove('is-submitting', 'is-success', 'is-error');
-      if (state !== 'idle') form!.classList.add(`is-${state}`);
-      status!.textContent = message;
-    }
+  if (!(window as any).newsletterFormSetup) {
+    (window as any).newsletterFormSetup = true;
 
-    form.addEventListener('submit', async (event) => {
+    document.addEventListener('input', (event) => {
+      const target = event.target as HTMLElement | null;
+      if (!target || !target.matches('.newsletter-input')) return;
+      const form = target.closest('#newsletter-form') as HTMLFormElement;
+      if (form && form.classList.contains('is-error')) {
+        setStateForForm(form, 'idle');
+      }
+    });
+
+    document.addEventListener('submit', async (event) => {
+      const form = (event.target as HTMLElement).closest('#newsletter-form') as HTMLFormElement;
+      if (!form) return;
+      
       event.preventDefault();
 
+      const input = form.querySelector<HTMLInputElement>('.newsletter-input');
+      if (!input) return;
       const email = input.value.trim();
 
-      // Validate before touching the network — `type="email"` gives us the
-      // browser's own check for free, which is stricter than any regex worth
-      // hand-writing here.
       if (!email || !input.checkValidity()) {
-        setState('error', 'Please enter a valid email address.');
+        setStateForForm(form, 'error', 'Please enter a valid email address.');
         input.focus();
         return;
       }
 
-      /*
-        Read the bot-check token BEFORE showing the submitting state, so a
-        missing token surfaces as an actionable message rather than a spinner
-        that turns into a server error.
-
-        `getResponse()` returns '' until the challenge completes. When
-        Turnstile is not configured at all there is no widget, the token stays
-        undefined, and the endpoint does not ask for one — see the matching
-        guard in src/pages/api/subscribe.ts.
-      */
       const token =
         widgetId && window.turnstile
           ? (window.turnstile.getResponse(widgetId) ?? '')
           : '';
 
-      /*
-        Distinguish "you haven't done the challenge yet" from "the challenge
-        could not load". They need different words: one is a prompt, the other
-        is an apology with a way out.
-      */
       if (turnstileUnavailable) {
-        setState(
+        setStateForForm(
+          form,
           'error',
           "Our anti-spam check couldn't load. This is usually caused by an ad blocker or network filter. Please disable it to subscribe."
         );
         return;
       }
 
-      /*
-        A rendered widget is not the same as a VISIBLE one.
-
-        turnstile.render() returns an id as soon as it accepts the call, and
-        the widget draws afterwards. If it never draws, the reader is told to
-        "complete the verification challenge above" while staring at empty
-        space.
-      */
       const holder = document.getElementById('newsletter-turnstile');
       const widgetDrew = holder && holder.getBoundingClientRect().height > 0;
 
       if (widgetId && !widgetDrew) {
-        setState(
+        setStateForForm(
+          form,
           'error',
           "Our anti-spam check failed to display. Please refresh the page to try again."
         );
         return;
       }
 
-      /*
-        If the token is empty, the challenge isn't complete.
-        If it failed to load entirely (ad blocker, domain mismatch), turnstileUnavailable
-        will be true (either from script load failure or the widget's error-callback),
-        which is handled above.
-      */
       if (widgetId && !token && !email.startsWith('e2e-test-')) {
-        // Did the reader submit before completing the challenge?
-        setState('error', 'Please complete the verification challenge above.');
+        setStateForForm(form, 'error', 'Please complete the verification challenge above.');
         return;
       }
 
-      setState('submitting', 'Subscribing…');
+      setStateForForm(form, 'submitting', 'Subscribing…');
 
       try {
         const response = await fetch('/api/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          /* The endpoint reads this exact key — it is the name Turnstile
-             itself uses for the token field. */
           body: JSON.stringify({ email, 'cf-turnstile-response': token }),
         });
 
         const data = await response.json().catch(() => ({}));
 
         if (response.ok && data.success) {
-          /*
-            Pin the height BEFORE switching state.
-
-            Success hides the input row and the bot-check widget, which would
-            otherwise collapse the band and leave the confirmation sitting
-            just under the subtitle — or, with the widget still occupying its
-            space, pushed hard against the bottom edge. Recording the height
-            the form already has lets the CSS hold that exact size and centre
-            the message inside it, so nothing moves and the confirmation sits
-            in the middle of the space the form used to fill.
-
-            Read here, in the same tick, while the form is still laid out —
-            after the class lands the row is gone and this measures nothing.
-          */
-          const formStyle = getComputedStyle(form!);
-          form!.style.setProperty(
+          const formStyle = getComputedStyle(form);
+          form.style.setProperty(
             '--newsletter-locked-height',
-            /*
-              Height PLUS the top margin, because the success rule zeroes that
-              margin. Rolling it into the locked height keeps the total space
-              identical, and — the point of doing it this way — it means the
-              centred message is equidistant from the subtitle above and the
-              band's bottom edge. Measuring the height alone left the margin
-              outside the centred area and the message ~27px low.
-            */
-            `${form!.offsetHeight + parseFloat(formStyle.marginTop || '0')}px`
+            `${form.offsetHeight + parseFloat(formStyle.marginTop || '0')}px`
           );
-          setState('success', "You're on the list. Watch your inbox.");
-          form!.reset();
-          /* A token is single-use. Reset so a second subscribe from the same
-             page gets a fresh one instead of a silent server rejection. */
+          setStateForForm(form, 'success', "You're on the list. Watch your inbox.");
+          form.reset();
           if (widgetId && window.turnstile) window.turnstile.reset(widgetId);
         } else {
           if (widgetId && window.turnstile) window.turnstile.reset(widgetId);
-          // Surface the endpoint's own message when it gives one — it knows
-          // more than we do about why it refused.
-          setState('error', data.error ?? 'Something went wrong. Please try again.');
+          setStateForForm(form, 'error', data.error ?? 'Something went wrong. Please try again.');
         }
       } catch (e) {
-        setState('error', 'Network error. Please try again.');
+        setStateForForm(form, 'error', 'Network error. Please try again.');
       }
-    });
-
-    // Typing after a failure clears the error, so the message never lingers
-    // over input the reader has already corrected.
-    input.addEventListener('input', () => {
-      if (form!.classList.contains('is-error')) setState('idle');
     });
   }
 
-  document.addEventListener('astro:page-load', initNewsletterForm);
+  document.addEventListener('astro:page-load', () => {
+    const form = document.getElementById('newsletter-form') as HTMLFormElement;
+    if (form) mountTurnstile(form);
+  });
+
 </script>
