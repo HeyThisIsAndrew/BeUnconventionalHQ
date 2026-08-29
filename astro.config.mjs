@@ -5,10 +5,11 @@ import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import sitemap from '@astrojs/sitemap';
 import cloudflare from '@astrojs/cloudflare';
-import sanity from '@sanity/astro';
 import react from '@astrojs/react';
 import partytown from '@astrojs/partytown';
 import { createClient } from '@sanity/client';
+
+const isProd = process.env.NODE_ENV === 'production';
 
 // Same project the Studio and urlFor() already point at (src/lib/local-content.ts).
 const SANITY_PROJECT_ID = '38nhxsib';
@@ -618,14 +619,13 @@ export default defineConfig({
         return lastmod ? { ...item, url: url.toString(), lastmod } : { ...item, url: url.toString() };
       },
     }),
-    sanity({
+    ...(isProd ? [] : [(await import('@sanity/astro')).default({
       projectId: '38nhxsib',
       dataset: 'production',
-      useCdn: process.env.NODE_ENV === 'production', // Set to false in dev for fresh data, true in prod for CDN cache
+      useCdn: false,
       apiVersion: '2024-03-01',
-      // Like /local-cms, the Studio is a dev-only tool; don't ship it to production
-      studioBasePath: process.env.NODE_ENV === 'production' ? undefined : '/admin',
-    }),
+      studioBasePath: '/admin',
+    })]),
   ],
   adapter: cloudflare({
     /*
