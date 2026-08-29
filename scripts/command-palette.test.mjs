@@ -189,6 +189,38 @@ test('the two events volunteered are the SOONEST, not the furthest out', () => {
   input.value; when only the `input` listener could unhide the clear button,
   typing then closing then reopening left the X sitting over an empty field.
 */
+/*
+  Issue #180 lists the clear control's acceptance criteria explicitly. Three of
+  them are properties of the markup and stylesheet rather than of behaviour, so
+  they are pinned here: it shipped at 32x32, sitting directly beside a
+  .close-btn that IS 44px, which is the house minimum every other control in
+  this panel holds to.
+*/
+test('the clear button meets the house tap-target minimum on mobile', () => {
+  const rule = mobileCss.match(/\.clear-search-btn \{[\s\S]*?\}/);
+  assert.ok(rule, 'there must be a mobile rule for the clear control');
+  assert.match(rule[0], /width: 44px/, '44px wide under a thumb, not 32');
+  assert.match(rule[0], /height: 44px/, '44px tall under a thumb, not 32');
+});
+
+test('the clear button names itself, and never submits', () => {
+  const btn = palette.match(/<button[^>]*class="clear-search-btn"[^>]*>/);
+  assert.ok(btn, 'the clear control must exist');
+  assert.match(btn[0], /aria-label="Clear search"/,
+    'it is a glyph, so the accessible name has to be supplied');
+  assert.match(btn[0], /type="button"/,
+    'without type="button" it submits whatever form it lands in');
+  assert.match(btn[0], /\bhidden\b/,
+    'it must start hidden: an empty field with an X on it is another thing to explain');
+});
+
+test('the clear button uses the readable red, not the decorative one', () => {
+  const hover = palette.match(/\.clear-search-btn:hover \{[\s\S]*?\}/);
+  assert.ok(hover, 'there must be a hover state, matching .close-btn');
+  assert.match(hover[0], /var\(--color-accent-text\)/,
+    'a glyph is text: --color-accent (#cc0000) is 3.21:1 and is border/glow only');
+});
+
 test('the clear button cannot disagree with the input it clears', () => {
   assert.match(paletteCode, /const syncClearBtn = \(\) => \{/,
     'one function must own the clear button visibility');
