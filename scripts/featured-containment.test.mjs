@@ -586,10 +586,17 @@ test('the hub trailer can be played again without a reload', () => {
   */
   const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8');
 
-  assert.match(hub, /const arm = \(delay: number\) =>/,
+  /* Allows extra parameters: arm() grew a `withSound` argument so a replay the
+     visitor pressed can start unmuted, while the automatic first play stays
+     muted (the only state a browser will start on its own). What matters is
+     that arming is a CALLABLE, not its exact arity. */
+  assert.match(hub, /const arm = \(delay: number[^)]*\) =>/,
     'arming must be a callable function — inline, the trailer can only ever play once');
   assert.match(hub, /arm\(HUB_LEAD_IN_MS\)/, 'the first play waits, so the mark is seen before it dissolves');
-  assert.match(hub, /arm\(0\)/, 'a replay the visitor asked for starts immediately');
+  /* `arm(0)` or `arm(0, true)` — no lead-in either way. The second argument
+     asks for sound, which a replay is entitled to because the visitor pressed
+     a button and that counts as activation. */
+  assert.match(hub, /arm\(0[,)]/, 'a replay the visitor asked for starts immediately');
 
   assert.match(hub, /class="hub-stage-replay"/, 'there must be a control');
 
@@ -1173,7 +1180,7 @@ test('pressing Play once is enough', () => {
     own bug. So mute is decided BEFORE the frame loads, and the press tries
     mute=0 first.
   */
-  assert.match(handler, /const withSound = !soundBlocked\(\)/, 'the press must try for sound');
+  assert.match(handler, /const withSound = .*!soundBlocked\(\)/, 'the press must try for sound');
   assert.match(handler, /embedUrl\(id, !withSound\)/, 'and open the video accordingly');
   assert.match(hub, /mute=\$\{muted \? '1' : '0'\}/, 'mute is decided per load, not hardcoded');
 
@@ -1266,7 +1273,7 @@ test('the visitor can turn the sound on', () => {
 
   assert.match(hub, /class="hub-stage-sound"/, 'the stage needs a sound control');
   assert.match(hub, /<button type="button" class="hub-stage-sound"/, 'it must be a real button');
-  assert.match(hub, /\.hub-stage\.is-playing \.hub-stage-sound \{[^}]*display: inline-flex/,
+  assert.match(hub, /\.hub-stage\.is-playing(?:[^{]+)? \.hub-stage-sound \{[^}]*display: inline-flex/,
     'it only means anything while something is playing');
 
   // HARD RULE 3: it is a SIBLING of the video, never a clipping wrapper.

@@ -418,6 +418,122 @@ async function runTests() {
       }
     }
 
+    /*
+      ━━━ SIBLING CONTROLS INSIDE THE BAR MUST NOT SWALLOW EACH OTHER ━━━
+
+      THE BLIND SPOT THAT LET A REAL BUG THROUGH.
+
+      The steal-check above deliberately skips every point inside the navbar's
+      own box, on the reasoning that "the bar is opaque and fixed, so it
+      already covers whatever scrolls under it". That was sound when the bar's
+      right side held exactly one control.
+
+      It stopped being sound when the search button was added beside the
+      hamburger. The hamburger's band expands LEFT — a11y.css says so
+      explicitly, "across the empty middle of the bar where nothing else is
+      interactive" — and the search button was then placed in precisely that
+      space. The band covered the whole button, `.nav-toggle` carries the
+      higher z-index, and every tap on the magnifying glass opened the menu
+      instead. Reported from a device in landscape as the search icon being
+      unpressable.
+
+      The check above could not see it, because the entire collision happens
+      INSIDE the bar, which is the region it skips.
+
+      So this checks the other question: for each control in the bar, is every
+      point of its own visible box actually reachable, or is a neighbour on top
+      of it? Page content under the bar is still not at issue. Its siblings are.
+    */
+    {
+      const page = await browser.newPage();
+      for (const vp of VIEWPORTS) {
+        await page.setViewport({ ...vp, hasTouch: true, isMobile: true });
+        await page.goto('http://localhost:4321/intel', { waitUntil: 'networkidle2' });
+
+        const report = await page.evaluate(async () => {
+          const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+          document.documentElement.classList.remove('splash-armed', 'splash-lifting', 'splash-dropping');
+          await wait(600);
+
+          /* visibility:hidden cannot be hit, so it is not a neighbour that can
+             steal anything. The category overlay's close button reuses
+             .nav-toggle and would otherwise be measured as if it were here. */
+          const onScreen = (el) =>
+            el && el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden';
+
+          const controls = [...document.querySelectorAll('#navbar button, #navbar a')].filter(onScreen);
+
+          return controls.map((el) => {
+            const r = el.getBoundingClientRect();
+            let reachable = 0;
+            let total = 0;
+            const thieves = new Set();
+            for (let dx = 2; dx < r.width; dx += 3) {
+              for (let dy = 2; dy < r.height; dy += 3) {
+                const x = Math.round(r.left + dx);
+                const y = Math.round(r.top + dy);
+                if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue;
+                total++;
+                const hit = document.elementFromPoint(x, y);
+                if (hit === el || el.contains(hit)) { reachable++; continue; }
+                const other = hit && hit.closest('button, a');
+                if (other && other !== el && !el.contains(other) && !other.contains(el)) {
+                  thieves.add(
+                    other.tagName.toLowerCase() +
+                      (other.className ? '.' + other.className.toString().trim().split(/\s+/)[0] : '')
+                  );
+                }
+              }
+            }
+            return {
+              name: el.tagName.toLowerCase() +
+                (el.className ? '.' + el.className.toString().trim().split(/\s+/)[0] : ''),
+              label: el.getAttribute('aria-label') || el.textContent.trim().slice(0, 20),
+              w: Math.round(r.width),
+              h: Math.round(r.height),
+              reachablePct: total ? Math.round((reachable / total) * 100) : null,
+              thieves: [...thieves],
+            };
+          });
+        });
+
+        for (const c of report) {
+          if (c.reachablePct === null) continue;
+          assert.equal(
+            c.thieves.length,
+            0,
+            `${vp.label}: "${c.label}" (${c.name}) is only ${c.reachablePct}% reachable — ` +
+              `${c.thieves.join(', ')} sits on top of it. A neighbour's invisible hit band ` +
+              `is covering a control that is right there on screen, so it looks pressable ` +
+              `and is not. Cap the expansion in a11y.css so it stops at the gap.`
+          );
+        }
+
+        /*
+          And the search button specifically must be a real target, not a
+          zero-size one. Its desktop copy shipped with an SVG that had no
+          width, no height and nothing in CSS sizing it, so the button computed
+          0x0. Scripted clicks still worked, which is exactly why nothing
+          caught it: `.click()` does not care about size, and a person has
+          nothing to aim at.
+        */
+        const search = report.find((c) => /Search/i.test(c.label || ''));
+        assert.ok(search, `${vp.label}: there is no visible search control in the navbar`);
+        assert.ok(
+          search.w >= 44 && search.h >= 44,
+          `${vp.label}: the search control is ${search.w}x${search.h}, under the 44px ` +
+            `minimum the rest of these controls hold to`
+        );
+
+        console.log(
+          `  ✓ ${vp.label}: ${report.filter((c) => c.reachablePct !== null).length} nav controls, ` +
+            `none covering another; search ${search.w}x${search.h}`
+        );
+        passed++;
+      }
+      await page.close();
+    }
+
     console.log(`\n✅ Corner Controls E2E tests passed (${passed} checks).`);
   } catch (error) {
     console.error('\n❌ Corner Controls E2E failed:', error.message);

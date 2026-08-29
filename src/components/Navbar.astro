@@ -34,24 +34,48 @@ const isActive = (href: string) =>
         </div>
       </a>
     </div>
-    <button class="nav-toggle" aria-label="Toggle Menu" aria-expanded="false">
-      <span class="line line-1"></span><span class="line line-2"></span><span
-        class="line line-3"></span>
-    </button>
+    <div class="mobile-search-wrapper mobile-only" style="display: flex; align-items: center;">
+      {/*
+        Styled by `.nav-search-btn` in navbar.css, not inline. The inline
+        version could not be overridden by any stylesheet rule, which is how
+        the desktop twin below ended up 0x0 with no way to fix it from CSS.
+      */}
+      <button class="nav-search-btn" data-action="open-search" aria-label="Search">
+        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+      </button>
+      <button class="nav-toggle" aria-label="Toggle Menu" aria-expanded="false">
+        <span class="line line-1"></span><span class="line line-2"></span><span class="line line-3"></span>
+      </button>
+    </div>
     <nav class="nav-container">
       <ul class="nav-list">
         {
           navItems.map((item) => (
             <li class="nav-item">
-              <a
-                href={`/${item.href}`}
-                class:list={[{ active: isActive(item.href) }]}
-              >
+              <a href={`/${item.href}`} class:list={[{ active: isActive(item.href) }]}>
                 {item.label}
               </a>
             </li>
           ))
         }
+        <li class="nav-item desktop-only">
+          {/*
+            This SVG carried no width/height and nothing in CSS sized it, so
+            the button computed 0x0 and could not be clicked at all on desktop.
+            It looked fine in a scripted test because `.click()` works on a
+            zero-size element; a person has nothing to aim at. `.nav-search-btn
+            svg` in navbar.css now sizes both copies from one place.
+          */}
+          <button type="button" class="nav-search-btn desktop-only" data-action="open-search" aria-label="Search Be Unconventional">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </button>
+        </li>
       </ul>
     </nav>
   </div>

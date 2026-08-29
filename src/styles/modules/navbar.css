@@ -173,3 +173,111 @@
   color: var(--color-accent-hover);
   text-shadow: 0 0 20px rgba(204, 0, 0, 0.8);
 }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   THE TWO NAV CONTROLS ON THE RIGHT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/*
+  These rules used to live in a `<style>` block nested INSIDE the desktop
+  search <button>, and the mobile button was styled by a long `style="..."`
+  attribute. Both are moved here, because that arrangement caused a real bug:
+  an inline style cannot be overridden by any stylesheet rule, and the desktop
+  twin had no sizing at all, so it computed 0x0 and was unclickable while the
+  mobile one looked fine. One rule, both copies, one place to change it.
+*/
+@media (min-width: 1025px) {
+  .mobile-only { display: none !important; }
+}
+@media (max-width: 1024px) {
+  .desktop-only { display: none !important; }
+}
+
+/*
+  THE GAP IS LOAD-BEARING, NOT DECORATION. See a11y.css.
+
+  `.nav-toggle` grows an invisible tap region to its LEFT in landscape, into
+  what used to be empty bar. The search button now sits in that space, so the
+  gap between the two is what the toggle's region is allowed to expand into
+  without covering its neighbour. a11y.css reads this value; do not set the
+  spacing there or here alone.
+*/
+:root {
+  /*
+    20px, and the number is derived rather than chosen for looks.
+
+    Both controls need a forgiving tap region and they are now neighbours, so
+    the gap is the budget they share. e2e-corner-controls asserts a minimum
+    effective area of 2800px2 per control. In landscape the vertical budget is
+    capped at 6px (page content sits directly beneath the bar), so a control
+    is 50px tall and needs at least 56px of width:
+
+      (44 + L) * 50 >= 2800   ->   L >= 12px of leftward expansion
+
+    The toggle takes the gap minus a 4px buffer, so the gap must be at least
+    16px. 20px gives the toggle 60x50 = 3000px2 with room to spare, and keeps
+    its PORTRAIT expansion at the same 16px the base rule always gave it, so
+    that measurement does not move either.
+
+    Below 16px the toggle drops under the minimum and the build fails, which
+    is the intended behaviour: shrinking this silently trades away a fix made
+    for a real device report.
+  */
+  --nav-control-gap: 20px;
+}
+
+.mobile-search-wrapper {
+  gap: var(--nav-control-gap);
+}
+
+/*
+  Both copies of the search button. 44x44 matches `.nav-toggle` beside it,
+  which is the house minimum for a touch target; the icon stays 22px and only
+  the target is large.
+*/
+.nav-search-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--color-white);
+  cursor: pointer;
+  /* Its own containing block for the tap region in a11y.css. */
+  position: relative;
+  z-index: 10;
+  touch-action: manipulation;
+}
+
+/*
+  An inline SVG with no width/height and no CSS size collapses to 0x0 and
+  takes its button with it. Sized here so neither copy can drift.
+*/
+.nav-search-btn svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+/*
+  The inherited rule was a bare `:hover { opacity: 1 }` with no base opacity
+  anywhere, so hovering changed nothing at all. Given a resting state it now
+  behaves like the logo beside it, which is the only other icon-ish thing up
+  here: slightly held back at rest, full strength on hover.
+
+  Updated to match the interaction states of the main nav links.
+*/
+.nav-search-btn {
+  /* The site's white is a token. rgba(245,245,245,...) was a near-miss of it. */
+  color: color-mix(in srgb, var(--color-white) 80%, transparent);
+  transition: color 0.3s ease, filter 0.3s ease;
+}
+
+.nav-search-btn:hover,
+.nav-search-btn:focus-visible {
+  color: var(--color-accent-text);
+  filter: drop-shadow(0 0 16px rgba(204, 0, 0, 0.6));
+}
