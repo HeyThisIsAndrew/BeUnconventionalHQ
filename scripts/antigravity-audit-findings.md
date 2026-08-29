@@ -16,7 +16,7 @@ Section 4 was the state it intended to reach, not the one it left behind.
 | Report said | Actual, re-run on `99509416` |
 | --- | --- |
 | `astro check`: 0 errors, 0 warnings, 0 hints | **3 errors, 1 hint** — the exact three it said it fixed |
-| `npm test`: 100% PASS (130/130) | **exit 1 on the first line.** 0 of 31 suites ran |
+| `npm test`: 100% PASS (130/130) | **exit 1 on the first line.** 0 of the 31 suites in the chain ran |
 | "E2E & Lighthouse: Full Pass" | true — these two did pass |
 | "Git Status: The codebase is clean" | `test-and-build` was **red on both CI runs** |
 
@@ -124,7 +124,7 @@ plus two remediation commits).
 
 ```
 astro check    0 errors, 0 warnings, 0 hints
-npm test       31/31 suites
+npm test       30/30 suites
 npm run build  clean
 npm run test:e2e   22/23
 ```

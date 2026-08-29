@@ -31,13 +31,13 @@ Order matters. Gates 3 and 4 need `dist/`, which gate 2 does not produce.
 | # | Gate | Command | Bar |
 | --- | --- | --- | --- |
 | 1 | Types | `npx astro check` | **0 errors, 0 warnings, 0 hints.** Baseline is 0/0/0 since the Astro 7 migration, so any number above zero is yours |
-| 2 | Offline units | `npm test` | **All 31 suites, exit 0.** Check the exit code: `npm test; echo $?` |
+| 2 | Offline units | `npm test` | **All 30 suites, exit 0.** Check the exit code: `npm test; echo $?` |
 | 3 | Build | `npm run build` | Exit 0. Fully offline by design |
 | 4 | End-to-end | `npm run test:e2e` | 22/23. `e2e-newsletter-subscribe` is on the runner's documented `CI_SKIP` list and needs a Turnstile challenge a sandboxed network blocks |
 
 ### Reading gate 2 correctly
 
-`npm test` is thirty-one suites joined by `&&`. **It short-circuits.** A suite
+`npm test` is thirty suites joined by `&&`. **It short-circuits.** A suite
 that fails or exits early hides every suite after it, so "the last thing printed
 was a pass" tells you nothing. Always check `echo $?`, and if a suite fails,
 run the rest individually before concluding anything about scope:
@@ -114,7 +114,7 @@ Report per gate, with the output. This template is the whole deliverable:
 
 ```
 astro check     0 errors, 0 warnings, 0 hints        <paste the Result line>
-npm test        31/31 suites, exit 0                 <paste the last suite + EXIT=>
+npm test        30/30 suites, exit 0                 <paste the last suite + EXIT=>
 npm run build   exit 0
 npm run test:e2e  22/23 (newsletter-subscribe: CI_SKIP)
 CI              <the actual conclusion of test-and-build on the PR>
