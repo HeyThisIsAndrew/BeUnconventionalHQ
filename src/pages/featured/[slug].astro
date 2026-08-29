@@ -1843,7 +1843,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       already seen the mark and are waiting on a button they pressed.
     */
     const arm = (delay: number, withSound: boolean = false) => {
-      timers.push(window.setTimeout(() => {
+      const execute = () => {
         /* `origin` is required for the handshake and is only knowable at runtime. */
         let finalSrc = `${src}&origin=${encodeURIComponent(window.location.origin)}`;
         if (withSound) {
@@ -1860,7 +1860,13 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
         timers.push(window.setTimeout(() => {
           if (!stage.classList.contains('is-playing')) teardown();
         }, HUB_PLAY_TIMEOUT_MS));
-      }, delay));
+      };
+
+      if (delay > 0) {
+        timers.push(window.setTimeout(execute, delay));
+      } else {
+        execute();
+      }
     };
 
     arm(HUB_LEAD_IN_MS);
