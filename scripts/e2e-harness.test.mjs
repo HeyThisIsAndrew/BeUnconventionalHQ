@@ -144,6 +144,72 @@ test('an unreclaimable port aborts the run instead of repeating per suite', () =
   );
 });
 
+/*
+  ─── `npm test` IS THE OFFLINE SUITE, AND MUST STAY BUILD-INDEPENDENT ───────
+
+  THE INCIDENT. A search-relevance suite that reads
+  dist/client/api/search-index.json was added to `npm test` — and placed
+  FIRST. The chain is joined by `&&`, so its `process.exit(1)` on a missing
+  index took all thirty offline suites with it, and CI's unit job runs
+  `npm test` with no build step, so it could never have passed. The PR sat
+  with a red `test-and-build` and a report claiming 130/130.
+
+  The cost was not the broken suite. It was the thirty working ones: among
+  them command-palette.test.mjs, which pins the search palette's default view
+  and would have caught, on the first run, that the same branch had knocked
+  two of the four hub categories out of it.
+
+  A suite that needs built output belongs in `test:e2e`, which CI runs in the
+  job that has already produced dist/. scripts/e2e-run.mjs discovers those
+  from disk, so moving the file is the whole of the fix.
+*/
+test('no suite in `npm test` reads build output', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const suites = [...pkg.scripts.test.matchAll(/scripts\/([\w.-]+\.test\.mjs)/g)].map((m) => m[1]);
+  assert.ok(suites.length > 25, `expected the full offline suite, found ${suites.length}`);
+
+  /*
+    Comments are stripped first, the same way command-palette.test.mjs does it:
+    a suite that EXPLAINS this rule quotes the path it is about, and this test
+    matched itself on its own docstring the first time it ran.
+  */
+  const codeOf = (f) => fs.readFileSync(path.join(ROOT, 'scripts', f), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  const offenders = suites.filter((f) => /\bdist\//.test(codeOf(f)));
+  assert.deepEqual(offenders, [],
+    `${offenders.join(', ')} read build output but run in \`npm test\`, which CI runs ` +
+    'with no build step. Rename to e2e-*.test.mjs so scripts/e2e-run.mjs picks it up ' +
+    'in the job that has already built.');
+});
+
+/*
+  And the same boundary from the other side: `npm test` short-circuits on `&&`,
+  so ANY suite that exits before its assertions run hides every suite after it.
+  A bare process.exit in the offline suite is therefore never local damage.
+*/
+test('no suite in `npm test` bails out with process.exit before its assertions', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const suites = [...pkg.scripts.test.matchAll(/scripts\/([\w.-]+\.test\.mjs)/g)].map((m) => m[1]);
+
+  const offenders = suites.filter((f) => {
+    const src = fs.readFileSync(path.join(ROOT, 'scripts', f), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+    /*
+      Reporting a real failure at the END is what these suites are for; the
+      pattern being caught is the guard clause that quits before any test runs,
+      which is what a missing prerequisite looks like.
+    */
+    const exits = [...src.matchAll(/process\.exit\(1\)/g)].map((m) => m.index);
+    const firstTest = src.search(/\n\s*test\(/);
+    return firstTest !== -1 && exits.some((i) => i < firstTest);
+  });
+  assert.deepEqual(offenders, [],
+    `${offenders.join(', ')} can exit(1) before running a single assertion. In an ` +
+    '`&&` chain that takes every later suite down with it.');
+});
+
 test('the e2e job does NOT blank the Turnstile site key', () => {
   /*
     THE INCIDENT — first otherwise-healthy CI run of these suites, 19/20:
