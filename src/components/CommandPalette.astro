@@ -1,9 +1,25 @@
 ---
 // src/components/CommandPalette.astro
-import logoImage from '../assets/logo-mark.webp';
+import { getImage } from 'astro:assets';
+import logoMark from '../assets/logo-mark.webp';
+
+/*
+  `getImage()`, NOT `logoMark.src`.
+
+  With compile-time image optimization on, the raw import path is never
+  emitted into the build. Referencing `.src` directly produced
+  `/assets/logo-mark.BcqkpBBj.webp`, a URL that does not exist, on all 53
+  pages: a broken image behind every result row that has no artwork of its
+  own. `scripts/e2e-asset-integrity.test.mjs` caught it and names this exact
+  fix in its failure message.
+
+  Requested at 192px for a 96px box, so it stays sharp on a 2x screen. Same
+  pattern as media-kit.astro.
+*/
+const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192 });
 ---
 
-<dialog id="command-palette" class="cmd-palette" aria-label="Search content" transition:persist="command-palette" data-fallback-src={logoImage.src}>
+<dialog id="command-palette" class="cmd-palette" aria-label="Search content" transition:persist="command-palette" data-fallback-src={fallbackImage.src}>
   <div class="cmd-palette-content">
     <div class="cmd-palette-header">
       <label for="cmd-palette-input" class="search-icon-label" aria-hidden="true">
@@ -110,15 +126,31 @@ import logoImage from '../assets/logo-mark.webp';
   let fuse: any = null;
   let activeIndex = -1;
 
-  // Track if the user is navigating via keyboard (Tab) so we can selectively 
-  // show focus rings on elements that Safari natively forces `:focus-visible` on.
+  /*
+    Track keyboard navigation so the focus ring can be shown to the people who
+    need it and hidden from the people who do not. Safari forces
+    `:focus-visible` on a text input even for a plain click, so the browser's
+    own signal cannot be used here.
+
+    Cmd+K COUNTS. It is keyboard navigation by definition, and gating only on
+    Tab meant a keyboard user who opened the palette with the shortcut landed
+    in the input with no focus indicator at all, while the same user pressing
+    Tab got one. Measured: opening via Cmd+K produced `outline: none`.
+  */
   if (typeof document !== 'undefined') {
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Tab') document.body.classList.add('is-keyboard-nav');
+      if (e.key === 'Tab' || ((e.metaKey || e.ctrlKey) && e.key === 'k')) {
+        document.body.classList.add('is-keyboard-nav');
+      }
     }, true);
     document.addEventListener('mousedown', () => {
       document.body.classList.remove('is-keyboard-nav');
     }, true);
+    /* A tap is not keyboard navigation either, and it does not always emit a
+       mousedown before focus on iOS. */
+    document.addEventListener('touchstart', () => {
+      document.body.classList.remove('is-keyboard-nav');
+    }, { capture: true, passive: true });
   }
 
   async function loadIndex() {
@@ -244,15 +276,23 @@ import logoImage from '../assets/logo-mark.webp';
           img.loading = 'lazy';
           a.appendChild(img);
         } else {
+          /*
+            The box is appended UNCONDITIONALLY, with or without a source.
+
+            Guarding the whole append on `fallbackSrc` being present brings
+            back the bug this branch already fixed once: with no element, the
+            text column becomes the row's first child and slides left out of
+            the column line every other row holds. An <img> with no src still
+            occupies its 96x54 box, so the alignment survives even if the
+            attribute ever goes missing.
+          */
           const fallbackSrc = document.getElementById('command-palette')?.getAttribute('data-fallback-src');
-          if (fallbackSrc) {
-            const img = document.createElement('img');
-            img.src = fallbackSrc;
-            img.className = 'cmd-result-image is-mark';
-            img.alt = '';
-            img.loading = 'lazy';
-            a.appendChild(img);
-          }
+          const img = document.createElement('img');
+          if (fallbackSrc) img.src = fallbackSrc;
+          img.className = 'cmd-result-image is-mark';
+          img.alt = '';
+          img.loading = 'lazy';
+          a.appendChild(img);
         }
 
         const info = document.createElement('div');
@@ -735,9 +775,34 @@ import logoImage from '../assets/logo-mark.webp';
     text-transform: uppercase;
     transition: all 0.2s ease;
   }
-  .close-btn:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: #fff;
+  /*
+    RED ON HOVER, LIKE EVERY OTHER CONTROL ON THE SITE.
+
+    This went white-on-lighter-grey, which is a generic UI hover and the only
+    one of its kind here. The house state is red: `.modal-close:hover` and
+    `.nav-search-btn:hover` both go to `--color-accent-text`, and the VIDEO
+    badge a few rows down in this very panel is already a red-bordered chip.
+
+    Both tokens are used for what CLAUDE.md says each is for:
+    `--color-accent-text` (#ef4444) is the red you can read, and
+    `--color-accent` (#cc0000) is a border and glow colour only. The chip's
+    label uses the first, its border and wash use the second.
+
+    `:focus-visible` is included so a keyboard user sees the same state a
+    mouse does, and `:active` gives touch a press response, since a phone
+    never produces a hover at all.
+  */
+  .close-btn:hover,
+  .close-btn:focus-visible {
+    background: rgba(204, 0, 0, 0.1);
+    border-color: rgba(204, 0, 0, 0.4);
+    color: var(--color-accent-text);
+    filter: drop-shadow(0 0 10px rgba(204, 0, 0, 0.35));
+  }
+  .close-btn:active {
+    background: rgba(204, 0, 0, 0.2);
+    border-color: rgba(204, 0, 0, 0.65);
+    color: var(--color-accent-text);
   }
   .close-btn-glyph {
     display: none;
@@ -822,8 +887,9 @@ import logoImage from '../assets/logo-mark.webp';
     not touch the border.
   */
   /*
-    Squared like everything else, and the glyph sits at the muted token so it
-    reads as a quiet placeholder rather than as content.
+    `cover` crops whatever does not fit, which is right for a video still and
+    wrong for somebody else's logo, or for the site's own mark standing in for
+    a result that has no artwork.
   */
   .cmd-result-image.is-mark {
     object-fit: contain;
@@ -881,15 +947,38 @@ import logoImage from '../assets/logo-mark.webp';
     lines need to stack. `display` on the parent is toggled in JS; these are
     only ever laid out inside it.
   */
+  /*
+    BOTH LINES ARE UPPERCASE, AND THAT IS THE POINT.
+
+    Reported as "these are different fonts". They were not: both measured as
+    Syne. What actually differed was CASE, and that turned out to be the real
+    problem rather than a mismatch.
+
+    Syne is a display face. This site sets it in uppercase everywhere it
+    speaks -- eyebrows, badges, buttons, the hero's own lines -- and uses
+    Inter for anything read as a sentence. A full lowercase sentence in Syne
+    was the one place that rule was broken, and its lowercase letterforms are
+    idiosyncratic enough that it read as a foreign typeface sitting above a
+    familiar one.
+
+    So the pair now matches, and hierarchy comes from size, weight and opacity
+    instead of from case. Same face, same voice, one clearly leading the other.
+  */
   .cmd-empty-line,
   .cmd-empty-hint {
     display: block;
+    text-transform: uppercase;
+  }
+  .cmd-empty-line {
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
   }
   .cmd-empty-hint {
-    margin-top: 0.5rem;
-    font-size: 0.85rem;
+    margin-top: 0.6rem;
+    font-size: 0.8rem;
+    font-weight: 400;
     letter-spacing: 0.06em;
-    text-transform: uppercase;
-    opacity: 0.75;
+    opacity: 0.7;
   }
 </style>

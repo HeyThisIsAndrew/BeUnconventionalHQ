@@ -127,11 +127,28 @@ test('focus returns to whatever opened the palette', () => {
   open on nothing but hubs.
 */
 test('the empty query shows a curated mix, not the top of a date sort', () => {
-  assert.match(palette, /const DEFAULT_MIX/, 'the curated default mix must exist');
-  const mix = palette.match(/const DEFAULT_MIX[\s\S]*?\];/)[0];
-  for (const type of ['article', 'video', 'hub', 'event']) {
-    assert.match(mix, new RegExp(`'${type}'`), `the default mix must include ${type}`);
-  }
+  /*
+    The spec is 3 articles, 3 videos, and 4 hubs taken one per category: ten
+    items that show the SHAPE of the site rather than a slice of one bucket.
+    Articles and videos come from DEFAULT_MIX; the hubs are picked separately
+    because "first of each category" is not a count.
+  */
+  const mix = paletteCode.match(/const DEFAULT_MIX[\s\S]*?\];/);
+  assert.ok(mix, 'the curated default mix must exist');
+  assert.match(mix[0], /\['article', 3\]/, 'three articles');
+  assert.match(mix[0], /\['video', 3\]/, 'three videos');
+
+  assert.match(paletteCode, /seenCategories/,
+    'the four hubs must be picked one per category, not as the first four in the index');
+  assert.match(paletteCode, /d\.hubCategory/,
+    'which needs hubCategory on the hub entries');
+  assert.match(paletteCode, /selectedHubs\.length >= 4/, 'four hubs');
+
+  const index = readFileSync(join(ROOT, 'src/pages/api/search-index.json.ts'), 'utf8');
+  assert.match(index, /hubCategory: h\.hubCategory/,
+    'the index must carry hubCategory or the per-category pick silently degrades ' +
+    'to the first four hubs in the file');
+
   assert.doesNotMatch(paletteCode, /searchData\.slice\(0, 10\)/,
     'the raw date-sorted slice is what put 18 hubs above every article');
 });
@@ -407,9 +424,39 @@ test('Intel is kept out of the default view but stays searchable', () => {
 /*
   `outline: none` on the input removed the white half of the site's focus ring
   and left the dark halo behind it: no contrast, no indicator, and a stray dark
-  rectangle around the field. A text input always matches :focus-visible when
-  focused, so this ring is exactly what a search field should show.
+  rectangle around the field.
+
+  The ring is now shown conditionally rather than unconditionally: Safari
+  forces `:focus-visible` on a text input even for a plain click, so the
+  browser's own signal cannot separate a click from a keypress here. A body
+  class tracks that instead. That is a legitimate approach and it is also more
+  breakable than a plain rule, so the pieces are pinned: suppress on focus,
+  restore under the keyboard class, and set the class for EVERY keyboard route
+  in — including Cmd+K, which is keyboard navigation by definition and was
+  missing, leaving a keyboard user with no indicator at all.
 */
+test('the focus ring is suppressed for pointers and restored for keyboards', () => {
+  assert.match(paletteCode, /#cmd-palette-input:focus \{[\s\S]*?outline: none/,
+    'the ring is suppressed on plain focus, because Safari forces :focus-visible here');
+  assert.match(paletteCode, /body\.is-keyboard-nav #cmd-palette-input:focus \{[\s\S]*?outline: 3px solid/,
+    'and restored under the keyboard class, or keyboard users lose the indicator ' +
+    'entirely (WCAG 2.4.7)');
+
+  const setter = paletteCode.match(/document\.addEventListener\('keydown'[\s\S]*?\}, true\);/);
+  assert.ok(setter, 'a keydown listener must set the keyboard class');
+  assert.match(setter[0], /e\.key === 'Tab'/, 'Tab counts');
+  assert.match(setter[0], /metaKey \|\| e\.ctrlKey\) && e\.key === 'k'/,
+    'and so does Cmd+K: it is how a keyboard user opens this thing, and gating only ' +
+    'on Tab left them with no focus indicator');
+
+  assert.match(paletteCode, /addEventListener\('mousedown'[\s\S]*?remove\('is-keyboard-nav'\)/,
+    'a pointer must clear it again');
+
+  const a11y = readFileSync(join(ROOT, 'src/styles/modules/a11y.css'), 'utf8');
+  assert.match(a11y, /:focus-visible \{[\s\S]*?outline: 3px solid/,
+    'the site-wide ring must still exist for everything outside this panel');
+});
+
 
 /*
   The critique that started this: the panel was a well-built stock component
@@ -460,6 +507,30 @@ test('the default-view eyebrow describes what the list actually is', () => {
     'the list is not a recency feed and the register is not the site\'s');
   assert.match(paletteCode, /eyebrow\.textContent = '[A-Z ]+'/,
     'there must still be an eyebrow, and it stays in the uppercase house form');
+});
+
+/*
+  The dismiss chip hovered white-on-lighter-grey, a generic UI state and the
+  only one of its kind on the site. Every other control goes red:
+  `.modal-close:hover` and `.nav-search-btn:hover` both use
+  `--color-accent-text`, and the VIDEO badge in this same panel is already a
+  red-bordered chip.
+*/
+test('the dismiss chip uses the house red for hover, focus and press', () => {
+  const hover = paletteCode.match(/\.close-btn:hover,\n  \.close-btn:focus-visible \{[\s\S]*?\}/);
+  assert.ok(hover, 'hover and focus-visible must share one rule, so a keyboard user ' +
+    'sees what a mouse user sees');
+  assert.match(hover[0], /color: var\(--color-accent-text\)/,
+    'the label is read, so it takes the readable red (#ef4444), never #cc0000');
+  assert.match(hover[0], /border-color: rgba\(204, 0, 0/,
+    'the border takes the decorative red, which is what CLAUDE.md reserves it for');
+
+  assert.match(paletteCode, /\.close-btn:active \{[\s\S]*?color: var\(--color-accent-text\)/,
+    'and there must be an :active state — a phone never produces a hover, so without ' +
+    'it a tap gives no feedback at all');
+
+  assert.doesNotMatch(paletteCode, /\.close-btn:hover \{\s*background: rgba\(255, 255, 255, 0\.15\);\s*color: #fff;/,
+    'the old generic white hover must be gone');
 });
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
