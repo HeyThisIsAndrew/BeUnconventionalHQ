@@ -72,7 +72,7 @@ export async function GET() {
 
   const entries: SearchEntry[] = [
     ...videos.map((v: any): SearchEntry => ({
-      id: v.id,
+      id: v.youtubeId,
       title: v.title,
       type: 'video',
       url: v.link || '#',
