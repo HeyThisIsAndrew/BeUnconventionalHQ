@@ -187,8 +187,6 @@ function localCmsMiddleware() {
         }
         if (req.method === 'POST') {
           /** @type {Buffer[]} */
-          /** @type {Buffer[]} */
-          /** @type {Buffer[]} */
           let chunks = [];
           let totalLength = 0;
           let tooLarge = false;
@@ -249,10 +247,11 @@ function localCmsMiddleware() {
           return;
         }
         if (req.method === 'POST') {
+          /** @type {Buffer[]} */
           let chunks = [];
           let totalLength = 0;
           let tooLarge = false;
-          req.on('data', chunk => {
+          req.on('data', /** @param {Buffer} chunk */ chunk => {
             if (tooLarge) return;
             chunks.push(chunk);
             totalLength += chunk.length;

@@ -128,21 +128,35 @@ test('focus returns to whatever opened the palette', () => {
 */
 test('the empty query shows a curated mix, not the top of a date sort', () => {
   /*
-    The spec is 3 articles, 3 videos, and 4 hubs taken one per category: ten
+    The spec was 3 articles, 3 videos, and 4 hubs taken one per category: ten
     items that show the SHAPE of the site rather than a slice of one bucket.
-    Articles and videos come from DEFAULT_MIX; the hubs are picked separately
-    because "first of each category" is not a count.
+
+    Issue #183 put up to two upcoming events at the top, and the first cut
+    simply prepended them to that ten. renderResults() shows ten, so the two
+    hubs on the end fell off the bottom and two of the four categories stopped
+    being represented, silently. That is the bug these assertions now pin: the
+    hub block is fixed at four and the events come out of the ARTICLE/VIDEO
+    budget, never out of the hubs.
   */
+  assert.match(paletteCode, /const DEFAULT_VIEW_SIZE = 10;/,
+    'the ten-item cap must be a named constant, not a literal in two places');
+  assert.match(paletteCode, /const DEFAULT_HUB_COUNT = 4;/, 'four hubs');
+  assert.match(paletteCode, /results\.slice\(0, DEFAULT_VIEW_SIZE\)/,
+    'renderResults must enforce the same cap the mix is budgeted against');
+
   const mix = paletteCode.match(/const DEFAULT_MIX[\s\S]*?\];/);
   assert.ok(mix, 'the curated default mix must exist');
-  assert.match(mix[0], /\['article', 3\]/, 'three articles');
-  assert.match(mix[0], /\['video', 3\]/, 'three videos');
+  assert.match(paletteCode, /DEFAULT_VIEW_SIZE - DEFAULT_HUB_COUNT - upcomingEvents\.length/,
+    'articles and videos must fill what is LEFT after the events and the hubs, ' +
+    'or the hub block gets pushed past the cap again');
+  assert.match(mix[0], /\['article', articleCount\]/, 'articles take the larger half');
+  assert.match(mix[0], /\['video', mixBudget - articleCount\]/, 'videos take the rest');
 
   assert.match(paletteCode, /seenCategories/,
     'the four hubs must be picked one per category, not as the first four in the index');
   assert.match(paletteCode, /d\.hubCategory/,
     'which needs hubCategory on the hub entries');
-  assert.match(paletteCode, /selectedHubs\.length >= 4/, 'four hubs');
+  assert.match(paletteCode, /selectedHubs\.length >= DEFAULT_HUB_COUNT/, 'four hubs');
 
   const index = readFileSync(join(ROOT, 'src/pages/api/search-index.json.ts'), 'utf8');
   assert.match(index, /hubCategory: h\.hubCategory/,
@@ -151,6 +165,42 @@ test('the empty query shows a curated mix, not the top of a date sort', () => {
 
   assert.doesNotMatch(paletteCode, /searchData\.slice\(0, 10\)/,
     'the raw date-sorted slice is what put 18 hubs above every article');
+});
+
+/*
+  getEventsLocal() sorts events DESCENDING by startDate, so the search index
+  hands the palette the furthest-out event FIRST. Slicing two off the top of
+  that volunteered next year's event ahead of next week's, under a heading
+  that means the opposite. The default view has to sort ascending itself.
+*/
+test('the two events volunteered are the SOONEST, not the furthest out', () => {
+  const block = paletteCode.match(/const upcomingEvents = searchData[\s\S]*?;\n/);
+  assert.ok(block, 'the default view must pick its own upcoming events');
+  assert.match(block[0], /\.sort\(/,
+    'the index order is descending by start date, so this must re-sort');
+  assert.match(block[0], /String\(a\.date \?\? ''\)\.localeCompare\(String\(b\.date \?\? ''\)\)/,
+    'ascending, and as STRINGS: these are YYYY-MM-DD calendar dates and must ' +
+    'never be fed to new Date() (CLAUDE.md hard rule 1)');
+});
+
+/*
+  The dialog is built once and persists across navigations, so its state
+  outlives any one opening. openPalette() and the `close` handler both blank
+  input.value; when only the `input` listener could unhide the clear button,
+  typing then closing then reopening left the X sitting over an empty field.
+*/
+test('the clear button cannot disagree with the input it clears', () => {
+  assert.match(paletteCode, /const syncClearBtn = \(\) => \{/,
+    'one function must own the clear button visibility');
+  assert.doesNotMatch(paletteCode, /clearBtn\.hidden = (?!input\.value\.length === 0)/,
+    'nothing may set clearBtn.hidden directly; every path goes through syncClearBtn');
+
+  /* Every path that blanks the field must resync the button. */
+  const clears = paletteCode.match(/input\.value = '';\n\s*syncClearBtn\(\);/g) || [];
+  const allClears = paletteCode.match(/input\.value = '';/g) || [];
+  assert.equal(clears.length, allClears.length,
+    `all ${allClears.length} paths that clear the input must call syncClearBtn, ` +
+    `only ${clears.length} do`);
 });
 
 /*
