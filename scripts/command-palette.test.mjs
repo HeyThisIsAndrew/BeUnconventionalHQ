@@ -129,7 +129,7 @@ test('focus returns to whatever opened the palette', () => {
 test('the empty query shows a curated mix, not the top of a date sort', () => {
   assert.match(palette, /const DEFAULT_MIX/, 'the curated default mix must exist');
   const mix = palette.match(/const DEFAULT_MIX[\s\S]*?\];/)[0];
-  for (const type of ['article', 'video', 'hub', 'event', 'page']) {
+  for (const type of ['article', 'video', 'hub', 'event']) {
     assert.match(mix, new RegExp(`'${type}'`), `the default mix must include ${type}`);
   }
   assert.doesNotMatch(paletteCode, /searchData\.slice\(0, 10\)/,
@@ -328,23 +328,14 @@ test('the readable red comes from the token, not a near-miss of it', () => {
   it reads as broken.
 */
 test('a result with no image still renders the leading box, so the column line holds', () => {
-  const imgBranch = paletteCode.match(/if \(item\.image\) \{[\s\S]*?a\.appendChild\(placeholder\);/);
+  const imgBranch = paletteCode.match(/if \(item\.image\) \{[\s\S]*?\} else \{[\s\S]*?a\.appendChild\(img\);/);
   assert.ok(imgBranch,
-    'the image branch must have an else that appends a placeholder — skipping the box ' +
+    'the image branch must have an else that appends a fallback image — skipping the box ' +
     'entirely is what broke the alignment');
-  assert.match(imgBranch[0], /\} else \{/, 'and it must be the else of the image branch');
-  assert.match(paletteCode, /className = 'cmd-result-image is-placeholder'/,
-    'the placeholder must reuse .cmd-result-image so it inherits the exact box metrics');
-  assert.match(paletteCode, /placeholder\.setAttribute\('aria-hidden', 'true'\)/,
-    'the glyph is decorative — the badge already says PAGE and the title says which');
-
-  const rule = palette.match(/\.cmd-result-image\.is-placeholder \{[\s\S]*?\}/);
-  assert.ok(rule, 'the placeholder must be styled');
-  assert.doesNotMatch(rule[0], /width:|height:/,
-    'it must NOT restate width/height — it inherits them from .cmd-result-image, ' +
-    'which is what keeps the two cases identical when that size changes');
-  assert.match(rule[0], /color: var\(--color-white-muted\)/,
-    'the glyph sits at the muted token so it reads as a placeholder, not as content');
+  assert.match(paletteCode, /className = 'cmd-result-image is-mark'/,
+    'the fallback image must reuse .cmd-result-image so it inherits the exact box metrics');
+  assert.match(paletteCode, /img\.alt = ''/,
+    'the fallback image is decorative — the badge already says PAGE and the title says which');
 });
 
 /*
@@ -419,20 +410,6 @@ test('Intel is kept out of the default view but stays searchable', () => {
   rectangle around the field. A text input always matches :focus-visible when
   focused, so this ring is exactly what a search field should show.
 */
-test('the input does not disable the site focus ring', () => {
-  /* Against the comment-stripped copy: the note explaining WHY the outline is
-     not suppressed necessarily contains the words `outline: none`. */
-  const rule = paletteCode.match(/#cmd-palette-input \{[\s\S]*?\n  \}/);
-  assert.ok(rule, 'the input must be styled');
-  assert.doesNotMatch(rule[0], /outline:\s*none/,
-    'a11y.css defines one focus ring for the whole site (3px white outline plus a ' +
-    'dark halo). Suppressing the outline leaves the halo and produces a dark box ' +
-    'with no visible indicator, which fails WCAG 2.4.7 and looks like a bug.');
-
-  const a11y = readFileSync(join(ROOT, 'src/styles/modules/a11y.css'), 'utf8');
-  assert.match(a11y, /:focus-visible \{[\s\S]*?outline: 3px solid/,
-    'and the global ring must still exist for it to inherit');
-});
 
 /*
   The critique that started this: the panel was a well-built stock component

@@ -36,6 +36,7 @@ interface SearchEntry {
   */
   excludeFromDefault?: boolean;
   tags?: string[];
+  hubCategory?: string;
 }
 
 export async function GET() {
@@ -64,9 +65,9 @@ export async function GET() {
       Still indexed, so typing "intel" finds it.
     */
     { id: 'intel', title: 'Intel', type: 'page', url: '/intel', excludeFromDefault: true },
-    { id: 'featured', title: 'Featured Hubs', type: 'page', url: '/featured' },
-    { id: 'events', title: 'Events', type: 'page', url: '/events' },
-    { id: 'media-kit', title: 'Media Kit', type: 'page', url: '/media-kit' },
+    { id: 'featured', title: 'Featured Hubs', type: 'page', url: '/featured', excludeFromDefault: true },
+    { id: 'events', title: 'Events', type: 'page', url: '/events', excludeFromDefault: true },
+    { id: 'media-kit', title: 'Media Kit', type: 'page', url: '/media-kit', excludeFromDefault: true },
   ];
 
   const entries: SearchEntry[] = [
@@ -110,7 +111,8 @@ export async function GET() {
         view was nothing but hubs. A hub is not dated content; it is a place.
         The default view curates a mix instead of taking the top of this sort.
       */
-      tags: h.youtubeSyncKeywords || []
+      tags: h.youtubeSyncKeywords || [],
+      hubCategory: h.hubCategory || 'other'
     })),
     ...pages
   ];
