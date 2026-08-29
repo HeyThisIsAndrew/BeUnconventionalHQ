@@ -91,6 +91,12 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
         accessible name stays the same in both, and stays a superset of the
         visible "ESC" for WCAG 2.5.3 (Label in Name).
       */}
+      <button type="button" class="clear-search-btn" id="cmd-palette-clear" aria-label="Clear search" hidden>
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
       <button class="close-btn" aria-label="Close search (Esc)">
         <span class="close-btn-key" aria-hidden="true">ESC</span>
         <span class="close-btn-glyph" aria-hidden="true">&#215;</span>
@@ -362,6 +368,10 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
 
     const defaultResults = () => {
       const out: any[] = [];
+      
+      const upcomingEvents = searchData.filter((d) => d.type === 'event' && eligibleForDefault(d));
+      out.push(...upcomingEvents.slice(0, 2));
+
       const DEFAULT_MIX: Array<[string, number]> = [
         ['article', 3],
         ['video', 3]
@@ -546,7 +556,27 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
       }
     });
 
-    input.addEventListener('input', () => performSearch());
+    
+    const clearBtn = document.getElementById('cmd-palette-clear');
+    
+    if (clearBtn) {
+      clearBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        input.value = '';
+        clearBtn.hidden = true;
+        input.focus();
+        // Since input is cleared, trigger performSearch so it resets to default view
+        performSearch();
+      });
+    }
+
+    input.addEventListener('input', () => {
+      if (clearBtn) {
+        clearBtn.hidden = input.value.trim().length === 0;
+      }
+      performSearch();
+    });
+
     
     input.addEventListener('keydown', (e) => {
       const items = Array.from(resultsContainer.querySelectorAll('.cmd-result-item')) as HTMLElement[];
@@ -747,16 +777,29 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
     outline-offset: 2px !important;
     box-shadow: 0 0 0 5px rgba(0, 0, 0, 0.6) !important;
   }
+  
   #cmd-palette-input::placeholder {
-    /*
-      Was `#555`: 2.66:1 on the panel, which fails WCAG AA for text and is
-      darker than anything else on the site. A placeholder is text, and this
-      one is the first thing anyone reads in here. `--color-white-muted` is
-      the site's established floor for subordinate copy at 5.58:1, and still
-      sits well below the #fff of what you type.
-    */
     color: var(--color-white-muted);
   }
+  .clear-search-btn {
+    background: none;
+    border: none;
+    color: var(--color-white-muted);
+    cursor: pointer;
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.5rem;
+    transition: color 0.2s ease, transform 0.2s ease;
+  }
+  .clear-search-btn:hover {
+    color: var(--color-accent-text);
+  }
+  .clear-search-btn[hidden] {
+    display: none;
+  }
+
   .close-btn {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255,255,255,0.05);
