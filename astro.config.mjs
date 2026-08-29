@@ -15,6 +15,55 @@ const isProd = process.env.NODE_ENV === 'production';
 const SANITY_PROJECT_ID = '38nhxsib';
 const SANITY_DATASET = 'production';
 
+/*
+  ─── THE STUDIO INTEGRATION IS DEV-ONLY, AND ITS ABSENCE MUST NOT BE FATAL ──
+
+  @sanity/astro is a devDependency now (issue #151: it and `sanity` are ~170 MB
+  that production never executes). Two things follow, and only the first one
+  was handled when it moved.
+
+  1. It must not be MOUNTED in production. `astro build` calls
+     ensureProcessNodeEnv('production') before it loads this file, so `isProd`
+     is true for every real build - verified: no /admin route and no Sanity
+     chunk in dist. `astro dev` sets 'development', so the Studio is there
+     when you want it.
+
+  2. It must not be IMPORTED when it is not installed. That is the case
+     `isProd` alone does not cover: a build whose environment already exports
+     NODE_ENV as something other than "production" skips the guard and reaches
+     a bare `await import()` of a package that `npm ci --omit=dev` never
+     installed. The import throws and takes the whole build with it, for a
+     dev-only tool that production does not want mounted anyway.
+
+  So the failure is caught and LOUD, per the house rule the article and
+  YouTube syncs already follow: say what broke, keep going. Skipping is always
+  the correct outcome here - the only thing lost is /admin, which is a local
+  tool - and the warning is there so a broken dev install reads as broken
+  rather than as the Studio silently not existing.
+*/
+async function studioIntegration() {
+  if (isProd) return [];
+  try {
+    const { default: sanity } = await import('@sanity/astro');
+    return [sanity({
+      projectId: SANITY_PROJECT_ID,
+      dataset: SANITY_DATASET,
+      // Fresh data locally; a production build never gets here.
+      useCdn: false,
+      apiVersion: '2024-03-01',
+      studioBasePath: '/admin',
+    })];
+  } catch (err) {
+    console.warn(
+      '[studio] @sanity/astro could not be loaded, so /admin is not mounted. ' +
+      'Everything else builds normally. If you wanted the Studio, run a full ' +
+      '`npm install` (it is a devDependency).\n         ' +
+      (err instanceof Error ? err.message : String(err))
+    );
+    return [];
+  }
+}
+
 /**
  * /intel/<slug> → ISO date, for the sitemap's <lastmod>.
  *
@@ -618,13 +667,7 @@ export default defineConfig({
         return lastmod ? { ...item, url: url.toString(), lastmod } : { ...item, url: url.toString() };
       },
     }),
-    ...(isProd ? [] : [(await import('@sanity/astro')).default({
-      projectId: '38nhxsib',
-      dataset: 'production',
-      useCdn: false,
-      apiVersion: '2024-03-01',
-      studioBasePath: '/admin',
-    })]),
+    ...(await studioIntegration()),
   ],
   adapter: cloudflare({
     /*

@@ -192,9 +192,15 @@ const watermark = await getImage({
 const SCHEMA_DESCRIPTION_MAX = 300;
 let videoSchemaJson: Record<string, unknown> | null = null;
 if (isVideo && item.youtubeId) {
-  const schemaDescription = excerpt.length > SCHEMA_DESCRIPTION_MAX
+  /*
+    Falls back to the title because `description` is REQUIRED on a VideoObject:
+    nine of the shorts in videos.json carry no description at all, and an empty
+    string is worse than a short one - it makes the whole block invalid rather
+    than merely thin.
+  */
+  const schemaDescription = (excerpt.length > SCHEMA_DESCRIPTION_MAX
     ? `${excerpt.slice(0, SCHEMA_DESCRIPTION_MAX).trimEnd()}...`
-    : excerpt;
+    : excerpt) || item.title;
   videoSchemaJson = {
     "@context": "https://schema.org",
     "@type": "VideoObject",
