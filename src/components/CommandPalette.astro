@@ -91,6 +91,12 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
         accessible name stays the same in both, and stays a superset of the
         visible "ESC" for WCAG 2.5.3 (Label in Name).
       */}
+      <button type="button" class="clear-search-btn" id="cmd-palette-clear" aria-label="Clear search" hidden>
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
       <button class="close-btn" aria-label="Close search (Esc)">
         <span class="close-btn-key" aria-hidden="true">ESC</span>
         <span class="close-btn-glyph" aria-hidden="true">&#215;</span>
@@ -189,6 +195,15 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
     if (dialog.dataset.init === 'true') return;
     dialog.dataset.init = 'true';
 
+    const clearBtn = document.getElementById('cmd-palette-clear') as HTMLButtonElement | null;
+    const syncClearBtn = () => {
+      if (clearBtn) clearBtn.hidden = input.value.length === 0;
+    };
+
+    const DEFAULT_VIEW_SIZE = 10;
+    const DEFAULT_HUB_COUNT = 4;
+    const DEFAULT_EVENT_COUNT = 2;
+
     const renderResults = (results: any[], isDefaultView = false) => {
       // Clear previous
       Array.from(resultsContainer.children).forEach(child => {
@@ -220,7 +235,7 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
         resultsContainer.appendChild(eyebrow);
       }
 
-      results.slice(0, 10).forEach((result, idx) => {
+      results.slice(0, DEFAULT_VIEW_SIZE).forEach((result, idx) => {
         const item = result.item;
         const a = document.createElement('a');
         a.href = item.url;
@@ -360,11 +375,41 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
       return true;
     };
 
+    /*
+      renderResults() shows TEN. Everything below budgets against that number
+      rather than pushing and hoping, because the two things that went wrong
+      here both came from ignoring it.
+
+      Events are the newer arrival (#183). getEventsLocal() sorts DESCENDING by
+      startDate, so the index hands us the furthest-out event first and a plain
+      .slice(0, 2) volunteered next year's before next week's. Sort ascending
+      on the way in: "upcoming" means soonest.
+
+      And the four hubs are not padding. They are one per hubCategory, which is
+      the whole point of the block below. Prepending two events to a mix that
+      already totalled ten pushed the last two hubs past the slice, so two of
+      the four categories silently stopped being represented. So the events
+      come out of the article/video budget, not out of the hubs.
+    */
     const defaultResults = () => {
       const out: any[] = [];
+
+      const upcomingEvents = searchData
+        .filter((d) => d.type === 'event' && eligibleForDefault(d))
+        .sort((a, b) => String(a.date ?? '').localeCompare(String(b.date ?? '')))
+        .slice(0, DEFAULT_EVENT_COUNT);
+      out.push(...upcomingEvents);
+
+      /*
+        Six between articles and videos when there is no event to show, which
+        is what this was before events joined the mix, and the articles-first
+        split when there are.
+      */
+      const mixBudget = DEFAULT_VIEW_SIZE - DEFAULT_HUB_COUNT - upcomingEvents.length;
+      const articleCount = Math.ceil(mixBudget / 2);
       const DEFAULT_MIX: Array<[string, number]> = [
-        ['article', 3],
-        ['video', 3]
+        ['article', articleCount],
+        ['video', mixBudget - articleCount]
       ];
       
       for (const [type, count] of DEFAULT_MIX) {
@@ -383,17 +428,17 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
           if (!seenCategories.has(category)) {
             seenCategories.add(category);
             selectedHubs.push(d);
-            if (selectedHubs.length >= 4) break;
+            if (selectedHubs.length >= DEFAULT_HUB_COUNT) break;
           }
         }
       }
       
       // If we didn't find 4 distinct categories, just backfill with any other hubs
-      if (selectedHubs.length < 4) {
+      if (selectedHubs.length < DEFAULT_HUB_COUNT) {
         for (const d of searchData) {
           if (d.type === 'hub' && eligibleForDefault(d) && !selectedHubs.includes(d)) {
             selectedHubs.push(d);
-            if (selectedHubs.length >= 4) break;
+            if (selectedHubs.length >= DEFAULT_HUB_COUNT) break;
           }
         }
       }
@@ -402,9 +447,9 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
 
       /* If a bucket is short (no events yet, say), backfill from whatever is
          left so the panel never opens looking half-empty. */
-      if (out.length < 10) {
+      if (out.length < DEFAULT_VIEW_SIZE) {
         for (const d of searchData) {
-          if (out.length >= 10) break;
+          if (out.length >= DEFAULT_VIEW_SIZE) break;
           if (!out.includes(d) && eligibleForDefault(d)) out.push(d);
         }
       }
@@ -470,6 +515,7 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
         document.body.style.overflow = 'hidden';
       }
       input.value = '';
+      syncClearBtn();
       input.setAttribute('aria-expanded', 'true');
       loadIndex().then(() => performSearch());
     };
@@ -497,6 +543,7 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
         document.body.style.overflow = '';
       }
       input.value = '';
+      syncClearBtn();
       input.setAttribute('aria-expanded', 'false');
       input.removeAttribute('aria-activedescendant');
       /*
@@ -546,7 +593,38 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
       }
     });
 
-    input.addEventListener('input', () => performSearch());
+    /*
+      THE CLEAR BUTTON'S VISIBILITY IS DERIVED FROM THE INPUT, NEVER SET AD HOC.
+
+      This dialog is created once and persists across navigations, so its state
+      outlives any single opening. The `input` listener was the only thing
+      unhiding the button, and openPalette() and the `close` handler both blank
+      `input.value` without telling it. Type "marvel", close, reopen: empty
+      field, X still sitting there, and clicking it did nothing you could see.
+
+      syncClearBtn() reads the field and is called from every path that can
+      change it, which makes the mismatch unrepresentable rather than merely
+      fixed in the two places it was noticed.
+
+      It tests `.length`, not `.trim().length`: a field holding only spaces is
+      not empty, and the button is what gets you back out of it.
+    */
+    if (clearBtn) {
+      clearBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        input.value = '';
+        syncClearBtn();
+        input.focus();
+        // Since input is cleared, trigger performSearch so it resets to default view
+        performSearch();
+      });
+    }
+
+    input.addEventListener('input', () => {
+      syncClearBtn();
+      performSearch();
+    });
+
     
     input.addEventListener('keydown', (e) => {
       const items = Array.from(resultsContainer.querySelectorAll('.cmd-result-item')) as HTMLElement[];
@@ -747,6 +825,7 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
     outline-offset: 2px !important;
     box-shadow: 0 0 0 5px rgba(0, 0, 0, 0.6) !important;
   }
+  
   #cmd-palette-input::placeholder {
     /*
       Was `#555`: 2.66:1 on the panel, which fails WCAG AA for text and is
@@ -757,6 +836,25 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
     */
     color: var(--color-white-muted);
   }
+  .clear-search-btn {
+    background: none;
+    border: none;
+    color: var(--color-white-muted);
+    cursor: pointer;
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.5rem;
+    transition: color 0.2s ease, transform 0.2s ease;
+  }
+  .clear-search-btn:hover {
+    color: var(--color-accent-text);
+  }
+  .clear-search-btn[hidden] {
+    display: none;
+  }
+
   .close-btn {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255,255,255,0.05);
@@ -808,6 +906,20 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
     display: none;
   }
   @media (max-width: 640px) {
+    /*
+      44x44, the same as .close-btn beside it and the house minimum every other
+      control here holds to (issue #180 lists it explicitly). The desktop rule
+      sizes this from a 16px glyph plus 0.5rem of padding, which is 32x32 - fine
+      under a cursor, under the minimum under a thumb, and it sits directly
+      next to a control that IS 44px.
+    */
+    .clear-search-btn {
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      flex-shrink: 0;
+      margin-right: 0.25rem;
+    }
     .close-btn {
       width: 44px;
       height: 44px;

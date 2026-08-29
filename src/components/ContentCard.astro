@@ -173,9 +173,78 @@ const watermark = await getImage({
   format: 'webp',
   quality: 70,
 });
+
+/*
+  VideoObject JSON-LD, per Google's video indexing guidelines.
+
+  `Record<string, unknown>` rather than an inferred object literal: `duration`
+  is appended conditionally below, and TypeScript will not let you add a key
+  that the inferred shape does not have (ts(2339)).
+
+  THE DESCRIPTION IS THE CLEANED EXCERPT, TRUNCATED - NOT `item.description`.
+  A raw YouTube description on this channel runs 2-3 KB of chapter lists,
+  affiliate links and hashtag blocks. Emitted verbatim on every card, that put
+  18 KB of JSON-LD into the homepage's 351 KB of HTML, about 5% of the document,
+  to say nothing a summary does not. `excerpt` is the same text already
+  stripped of markup and hashtag clusters further up this file, so this reuses
+  that work rather than cleaning the string a second time.
+*/
+const SCHEMA_DESCRIPTION_MAX = 300;
+let videoSchemaJson: Record<string, unknown> | null = null;
+if (isVideo && item.youtubeId) {
+  /*
+    Falls back to the title because `description` is REQUIRED on a VideoObject:
+    nine of the shorts in videos.json carry no description at all, and an empty
+    string is worse than a short one - it makes the whole block invalid rather
+    than merely thin.
+  */
+  const schemaDescription = (excerpt.length > SCHEMA_DESCRIPTION_MAX
+    ? `${excerpt.slice(0, SCHEMA_DESCRIPTION_MAX).trimEnd()}...`
+    : excerpt) || item.title;
+  /*
+    Google wants a full ISO 8601 instant here, not a bare calendar date.
+
+    Every video in videos.json currently carries `publishedAt` as a real
+    timestamp ("2026-08-07T01:25:44Z"), so the padding branch below fires for
+    NONE of them and the emitted uploadDate is the raw value. Checked: 23
+    distinct uploadDate values in the built output, all ending in Z, none
+    bearing the noon stamp. It is here for the `item.date` fallback, which is a
+    YYYY-MM-DD calendar string wherever it is used.
+
+    Noon UTC rather than midnight, deliberately: a bare date padded to
+    T00:00:00Z lands on the previous day for every reader west of Greenwich,
+    which is hard rule 1 (CLAUDE.md) arriving by a different door.
+  */
+  const rawUploadDate = item.publishedAt || item.date;
+  const uploadDate = !rawUploadDate
+    ? undefined
+    : String(rawUploadDate).includes('T')
+      ? rawUploadDate
+      : `${rawUploadDate}T12:00:00Z`;
+
+  videoSchemaJson = {
+    "@context": "https://schema.org",
+    "@type": "VideoObject",
+    "name": item.title,
+    "description": schemaDescription,
+    "thumbnailUrl": [item.thumbnailUrl || item.thumbnail || cardImage],
+    "uploadDate": uploadDate,
+    "contentUrl": `https://www.youtube.com/watch?v=${item.youtubeId}`,
+    "embedUrl": `https://www.youtube.com/embed/${item.youtubeId}`,
+    // schema.org types familyFriendly as Boolean, not the string "yes".
+    "familyFriendly": true
+  };
+  // Convert duration to ISO 8601 duration format (e.g., PT120S)
+  if (item.durationSeconds) {
+    videoSchemaJson.duration = `PT${Math.round(item.durationSeconds)}S`;
+  }
+}
 ---
 
 <CardWrapper {...wrapperProps} data-play-hover={isVideo ? 'true' : undefined}>
+  {videoSchemaJson && (
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(videoSchemaJson).replace(/</g, '\\u003c')} />
+  )}
   {/*
     Supplies the action verb the removed `aria-label` used to carry. It is
     part of the accessible name (name-from-content walks hidden-from-sight

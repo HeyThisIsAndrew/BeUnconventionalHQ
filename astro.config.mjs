@@ -5,14 +5,65 @@ import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import sitemap from '@astrojs/sitemap';
 import cloudflare from '@astrojs/cloudflare';
-import sanity from '@sanity/astro';
 import react from '@astrojs/react';
 import partytown from '@astrojs/partytown';
 import { createClient } from '@sanity/client';
+import { validateStorePayload } from './src/lib/local-cms-store.mjs';
+
+const isProd = process.env.NODE_ENV === 'production';
 
 // Same project the Studio and urlFor() already point at (src/lib/local-content.ts).
 const SANITY_PROJECT_ID = '38nhxsib';
 const SANITY_DATASET = 'production';
+
+/*
+  ─── THE STUDIO INTEGRATION IS DEV-ONLY, AND ITS ABSENCE MUST NOT BE FATAL ──
+
+  @sanity/astro is a devDependency now (issue #151: it and `sanity` are ~170 MB
+  that production never executes). Two things follow, and only the first one
+  was handled when it moved.
+
+  1. It must not be MOUNTED in production. `astro build` calls
+     ensureProcessNodeEnv('production') before it loads this file, so `isProd`
+     is true for every real build - verified: no /admin route and no Sanity
+     chunk in dist. `astro dev` sets 'development', so the Studio is there
+     when you want it.
+
+  2. It must not be IMPORTED when it is not installed. That is the case
+     `isProd` alone does not cover: a build whose environment already exports
+     NODE_ENV as something other than "production" skips the guard and reaches
+     a bare `await import()` of a package that `npm ci --omit=dev` never
+     installed. The import throws and takes the whole build with it, for a
+     dev-only tool that production does not want mounted anyway.
+
+  So the failure is caught and LOUD, per the house rule the article and
+  YouTube syncs already follow: say what broke, keep going. Skipping is always
+  the correct outcome here - the only thing lost is /admin, which is a local
+  tool - and the warning is there so a broken dev install reads as broken
+  rather than as the Studio silently not existing.
+*/
+async function studioIntegration() {
+  if (isProd) return [];
+  try {
+    const { default: sanity } = await import('@sanity/astro');
+    return [sanity({
+      projectId: SANITY_PROJECT_ID,
+      dataset: SANITY_DATASET,
+      // Fresh data locally; a production build never gets here.
+      useCdn: false,
+      apiVersion: '2024-03-01',
+      studioBasePath: '/admin',
+    })];
+  } catch (err) {
+    console.warn(
+      '[studio] @sanity/astro could not be loaded, so /admin is not mounted. ' +
+      'Everything else builds normally. If you wanted the Studio, run a full ' +
+      '`npm install` (it is a devDependency).\n         ' +
+      (err instanceof Error ? err.message : String(err))
+    );
+    return [];
+  }
+}
 
 /**
  * /intel/<slug> → ISO date, for the sitemap's <lastmod>.
@@ -204,14 +255,12 @@ function localCmsMiddleware() {
           });
           req.on('end', () => {
             if (tooLarge) return;
-            let body = '';
-            try {
-              body = Buffer.concat(chunks).toString('utf-8');
-              JSON.parse(body);
-            } catch (err) {
-              res.statusCode = 400;
+            const body = Buffer.concat(chunks).toString('utf-8');
+            const check = validateStorePayload(body, 'videos.json');
+            if (!check.ok) {
+              res.statusCode = check.status;
               res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ success: false, error: 'Invalid JSON, videos.json left untouched.' }));
+              res.end(JSON.stringify({ success: false, error: check.error }));
               return;
             }
             const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
@@ -233,6 +282,57 @@ function localCmsMiddleware() {
       // Returns the bare asset id ("image-<hash>-<W>x<H>-<ext>") - a plain
       // string, kept out of resolving it to a CDN URL here so urlFor() stays
       // the single place that happens, same as every other image on the site.
+      
+      server.middlewares.use('/api/local-cms/articles', /** @param {import('http').IncomingMessage} req @param {import('http').ServerResponse} res @param {Function} next */ (req, res, next) => {
+        const filePath = path.resolve(process.cwd(), 'src/data/articles.json');
+        if (req.method === 'GET') {
+          res.setHeader('Content-Type', 'application/json');
+          if (!fs.existsSync(filePath)) {
+            res.end('[]');
+            return;
+          }
+          res.end(fs.readFileSync(filePath, 'utf-8'));
+          return;
+        }
+        if (req.method === 'POST') {
+          /** @type {Buffer[]} */
+          let chunks = [];
+          let totalLength = 0;
+          let tooLarge = false;
+          req.on('data', /** @param {Buffer} chunk */ chunk => {
+            if (tooLarge) return;
+            chunks.push(chunk);
+            totalLength += chunk.length;
+            if (totalLength > 50 * 1024 * 1024) {
+              tooLarge = true;
+              res.statusCode = 413;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: 'Payload Too Large' }));
+              req.on('error', () => {}); 
+              req.destroy();
+            }
+          });
+          req.on('end', () => {
+            if (tooLarge) return;
+            const body = Buffer.concat(chunks).toString('utf-8');
+            const check = validateStorePayload(body, 'articles.json');
+            if (!check.ok) {
+              res.statusCode = check.status;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: check.error }));
+              return;
+            }
+            const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+            fs.writeFileSync(tmpPath, body, 'utf-8');
+            fs.renameSync(tmpPath, filePath);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true }));
+          });
+          return;
+        }
+        next();
+      });
+
       server.middlewares.use('/api/local-cms/upload', /** @param {import('http').IncomingMessage} req @param {import('http').ServerResponse} res @param {Function} next */ (req, res, next) => {
         if (req.method === 'POST') {
           /** @type {Buffer[]} */
@@ -564,14 +664,7 @@ export default defineConfig({
         return lastmod ? { ...item, url: url.toString(), lastmod } : { ...item, url: url.toString() };
       },
     }),
-    sanity({
-      projectId: '38nhxsib',
-      dataset: 'production',
-      useCdn: process.env.NODE_ENV === 'production', // Set to false in dev for fresh data, true in prod for CDN cache
-      apiVersion: '2024-03-01',
-      // Like /local-cms, the Studio is a dev-only tool; don't ship it to production
-      studioBasePath: process.env.NODE_ENV === 'production' ? undefined : '/admin',
-    }),
+    ...(await studioIntegration()),
   ],
   adapter: cloudflare({
     /*
