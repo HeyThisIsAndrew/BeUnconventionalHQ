@@ -201,13 +201,34 @@ if (isVideo && item.youtubeId) {
   const schemaDescription = (excerpt.length > SCHEMA_DESCRIPTION_MAX
     ? `${excerpt.slice(0, SCHEMA_DESCRIPTION_MAX).trimEnd()}...`
     : excerpt) || item.title;
+  /*
+    Google wants a full ISO 8601 instant here, not a bare calendar date.
+
+    Every video in videos.json currently carries `publishedAt` as a real
+    timestamp ("2026-08-07T01:25:44Z"), so the padding branch below fires for
+    NONE of them and the emitted uploadDate is the raw value. Checked: 23
+    distinct uploadDate values in the built output, all ending in Z, none
+    bearing the noon stamp. It is here for the `item.date` fallback, which is a
+    YYYY-MM-DD calendar string wherever it is used.
+
+    Noon UTC rather than midnight, deliberately: a bare date padded to
+    T00:00:00Z lands on the previous day for every reader west of Greenwich,
+    which is hard rule 1 (CLAUDE.md) arriving by a different door.
+  */
+  const rawUploadDate = item.publishedAt || item.date;
+  const uploadDate = !rawUploadDate
+    ? undefined
+    : String(rawUploadDate).includes('T')
+      ? rawUploadDate
+      : `${rawUploadDate}T12:00:00Z`;
+
   videoSchemaJson = {
     "@context": "https://schema.org",
     "@type": "VideoObject",
     "name": item.title,
     "description": schemaDescription,
     "thumbnailUrl": [item.thumbnailUrl || item.thumbnail || cardImage],
-    "uploadDate": (item.publishedAt || item.date)?.includes("T") ? (item.publishedAt || item.date) : ((item.publishedAt || item.date) ? `${item.publishedAt || item.date}T12:00:00Z` : undefined),
+    "uploadDate": uploadDate,
     "contentUrl": `https://www.youtube.com/watch?v=${item.youtubeId}`,
     "embedUrl": `https://www.youtube.com/embed/${item.youtubeId}`,
     // schema.org types familyFriendly as Boolean, not the string "yes".
