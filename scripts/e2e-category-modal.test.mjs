@@ -40,6 +40,47 @@ async function runTests() {
     assert.ok(isHidden, 'Category overlay should be hidden after closing');
 
     /*
+      REGRESSION GUARD: closing the overlay must not open the mobile nav menu.
+
+      The overlay's close button is `class="close-fullscreen-btn nav-toggle
+      menu-open"` — it borrows `.nav-toggle` purely to inherit the
+      hamburger-to-X styling. While Navbar bound its handler to the element it
+      got from `document.querySelector('.nav-toggle')` that was harmless,
+      because that only ever resolved to the navbar's own button. When the
+      handler moved to document-level delegation, a bare
+      `closest('.nav-toggle')` started matching this button too: closing the
+      categories overlay ALSO opened the mobile menu behind it and left the
+      scroll lock held, so the page stayed pinned and the next tap on the real
+      hamburger merely closed a menu the reader never opened — indistinguishable
+      from a dead button.
+
+      Nothing else in the suite catches this: the overlay does close, so every
+      assertion above still passes. The fix is scoping the delegated selectors
+      to `#navbar`, and this is what proves it stays scoped.
+    */
+    const afterClose = await page.evaluate(() => ({
+      menuOpen: document.getElementById('navbar')?.classList.contains('menu-open'),
+      locked: window.__hqScrollLock ? window.__hqScrollLock.isLocked() : false,
+      bodyPosition: getComputedStyle(document.body).position,
+    }));
+    assert.equal(
+      afterClose.menuOpen,
+      false,
+      'closing the categories overlay must not open the mobile nav menu',
+    );
+    assert.equal(
+      afterClose.locked,
+      false,
+      'closing the categories overlay must release the scroll lock',
+    );
+    assert.notEqual(
+      afterClose.bodyPosition,
+      'fixed',
+      'the page must not stay pinned after the overlay closes',
+    );
+    console.log('  \u2713 closing the overlay leaves the navbar and scroll lock alone');
+
+    /*
       REGRESSION GUARD: the overlay must actually cover the viewport.
 
       A `position: fixed` element resolves against the viewport ONLY when no

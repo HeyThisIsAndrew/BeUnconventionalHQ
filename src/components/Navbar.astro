@@ -347,14 +347,33 @@ const isActive = (href: string) =>
       document.addEventListener('click', (e) => {
         const target = e.target;
         if (!target) return;
-        const toggle = target.closest('.nav-toggle');
-        const navLink = target.closest('.nav-list a');
+        /*
+          SCOPED TO `#navbar`, DELIBERATELY.
+
+          `.nav-toggle` is not unique to the navbar: CategoryOverlay's close
+          button reuses the class to inherit the hamburger-to-X styling
+          (`class="close-fullscreen-btn nav-toggle menu-open"`). The
+          element-bound handler this replaced read
+          `document.querySelector('.nav-toggle')`, which only ever matched the
+          navbar's own button, so the overlay's close button was never a
+          toggle. A bare `closest('.nav-toggle')` matches BOTH, and closing the
+          category overlay then also opened the mobile menu behind it and left
+          `__hqScrollLock` held — a phantom menu plus a pinned page, which made
+          the next tap on the real hamburger look dead because it merely closed
+          the menu nobody asked for.
+        */
+        const toggle = target.closest('#navbar .nav-toggle');
+        const navLink = target.closest('#navbar .nav-list a');
         const navbar = document.getElementById('navbar');
         
         if (toggle && navbar) {
           const isOpened = navbar.classList.contains('menu-open');
           if (isOpened) {
-            if (!window['__hqScrollLock'].isLocked()) {
+            /* Guarded like every other `__hqScrollLock` read in this file.
+               Navbar never imports src/lib/scroll-lock, it only reads the
+               global another component's import defines, so on a page without
+               one of those components this is undefined. */
+            if (!window['__hqScrollLock'] || !window['__hqScrollLock'].isLocked()) {
               navbar.classList.remove('menu-open');
               toggle.setAttribute('aria-expanded', 'false');
               return;
@@ -363,13 +382,17 @@ const isActive = (href: string) =>
             toggle.setAttribute('aria-expanded', 'false');
             window['__hqScrollLock'].unlock();
           } else {
-            window['__hqScrollLock'].lock();
+            if (window['__hqScrollLock']) window['__hqScrollLock'].lock();
             navbar.classList.add('menu-open');
             toggle.setAttribute('aria-expanded', 'true');
           }
         } else if (navLink && navbar && navbar.classList.contains('menu-open')) {
           navbar.classList.remove('menu-open');
-          const toggleEl = document.querySelector('.nav-toggle');
+          /* `#navbar`-scoped for the same reason as the selectors above:
+             a bare `.nav-toggle` can resolve to CategoryOverlay's close
+             button, which would leave the real hamburger still reading
+             aria-expanded="true" after the menu had closed. */
+          const toggleEl = document.querySelector('#navbar .nav-toggle');
           if (toggleEl) toggleEl.setAttribute('aria-expanded', 'false');
           
           if (window['__hqScrollLock'] && window['__hqScrollLock'].isLocked()) {
