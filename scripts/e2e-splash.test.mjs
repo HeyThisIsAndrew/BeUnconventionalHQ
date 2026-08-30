@@ -458,7 +458,7 @@ try {
     await new Promise((r) => setTimeout(r, 1600));
 
     // Hamburger.
-    await page.waitForSelector('.nav-toggle[data-mobile-click-bound]', { timeout: 5000 });
+    await page.waitForSelector('.nav-toggle', { timeout: 5000 });
     await page.click('.nav-toggle');
     await new Promise((r) => setTimeout(r, 500));
     const menuOpen = await page.evaluate(() => ({

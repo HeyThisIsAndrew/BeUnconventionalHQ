@@ -381,193 +381,74 @@ const overlayItems = categories.map((c) => {
   import { navigate } from 'astro:transitions/client';
   import { lockScroll, unlockScroll } from '../lib/scroll-lock';
 
-  function initQuadrantFilter() {
-    /*
-    const categoryModal = document.getElementById('category-modal') as HTMLDialogElement;
-    const openBtn = document.getElementById('open-categories-btn');
-
-    function handleAnimationEnd(e: Event) {
-      if (e.target !== categoryModal) return;
-      categoryModal.classList.remove('closing');
-      categoryModal.close();
-      document.body.classList.remove('modal-open');
-      categoryModal.removeEventListener('animationend', handleAnimationEnd);
-    }
-
-    function closeCategoryModal() {
-      if (!categoryModal || !categoryModal.open || categoryModal.classList.contains('closing')) return;
-      categoryModal.classList.add('closing');
-      categoryModal.addEventListener('animationend', handleAnimationEnd);
-      if (openBtn) {
-        openBtn.setAttribute('aria-expanded', 'false');
-        openBtn.focus();
-      }
-    }
-
-    if (categoryModal && !categoryModal.dataset.boundCancel) {
-      categoryModal.addEventListener('cancel', (e) => {
-        e.preventDefault();
-        closeCategoryModal();
-      });
-      categoryModal.dataset.boundCancel = 'true';
-    }
-
-    const explicitCloseBtn = categoryModal?.querySelector('.close-btn');
-    if (explicitCloseBtn && !(explicitCloseBtn as HTMLElement).dataset.bound) {
-      explicitCloseBtn.addEventListener('click', () => {
-        closeCategoryModal();
-      });
-      (explicitCloseBtn as HTMLElement).dataset.bound = 'true';
-    }
-
-    if (openBtn && categoryModal && !openBtn.dataset.bound) {
-      openBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (categoryModal.open) {
-          if (categoryModal.classList.contains('closing')) {
-            categoryModal.classList.remove('closing');
-            categoryModal.removeEventListener('animationend', handleAnimationEnd);
-          } else {
-            closeCategoryModal();
-          }
-        } else {
-          categoryModal.showModal();
-          document.body.classList.add('modal-open');
-          openBtn.setAttribute('aria-expanded', 'true');
-        }
-      });
-      openBtn.dataset.bound = 'true';
-    }
-
-    if (categoryModal && !categoryModal.dataset.boundClick) {
-      categoryModal.addEventListener('click', (e) => {
-        const rect = categoryModal.getBoundingClientRect();
-        if (
-          e.clientY < rect.top ||
-          e.clientY > rect.bottom ||
-          e.clientX < rect.left ||
-          e.clientX > rect.right
-        ) {
-          if (categoryModal.open) closeCategoryModal();
-        }
-      });
-      categoryModal.dataset.boundClick = 'true';
-    }
-
-    // Close modal on link click during nav mode (Event Delegation)
-    if (categoryModal && !categoryModal.dataset.boundNavDelegation) {
-      categoryModal.addEventListener('click', (e) => {
-        const link = (e.target as HTMLElement).closest('a.cat-btn');
-        if (!link) return;
-
-        const hrefAttr = link.getAttribute('href');
-
-        if (categoryModal.open) {
-          categoryModal.classList.remove('closing');
-          categoryModal.close();
-          document.body.classList.remove('modal-open');
-          const btn = document.getElementById('open-categories-btn');
-          if (btn) {
-            btn.setAttribute('aria-expanded', 'false');
-            btn.focus();
-          }
-        }
-        
-        if (hrefAttr && !hrefAttr.startsWith('#')) {
-          e.preventDefault();
-          navigate((link as HTMLAnchorElement).href);
-        }
-      });
-      categoryModal.dataset.boundNavDelegation = 'true';
-    }
-    */
-
-    /* =========================================================================
-       NEW FULL-SCREEN IMMERSIVE LOGIC
-       ========================================================================= */
-
-    const overlay = document.getElementById('category-fullscreen-overlay');
-    const openBtn = document.getElementById('open-categories-btn');
-    const closeBtn = document.getElementById('close-categories-btn');
-
-    function closeFullscreenOverlay() {
-      if (!overlay || !overlay.classList.contains('is-open')) return;
+  if (!(window as any).categoryOverlayDelegated) {
+    (window as any).categoryOverlayDelegated = true;
+    
+    function closeFullscreenOverlay(overlay: HTMLElement, openBtn: HTMLElement | null) {
+      if (!overlay.classList.contains('is-open')) return;
       overlay.classList.remove('is-open');
-      
       unlockScroll();
-      
       if (openBtn) {
         openBtn.setAttribute('aria-expanded', 'false');
         openBtn.focus();
       }
     }
 
-    function openFullscreenOverlay() {
-      if (!overlay) return;
-      
+    function openFullscreenOverlay(overlay: HTMLElement, openBtn: HTMLElement | null) {
       lockScroll();
-      
       overlay.classList.add('is-open');
-      
       if (openBtn) openBtn.setAttribute('aria-expanded', 'true');
     }
 
-    if (closeBtn && !(closeBtn as HTMLElement).dataset.bound) {
-      closeBtn.addEventListener('click', closeFullscreenOverlay);
-      (closeBtn as HTMLElement).dataset.bound = 'true';
-    }
+    document.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      
+      const openBtnEl = target.closest('#open-categories-btn');
+      const closeBtnEl = target.closest('#close-categories-btn');
+      const catLink = target.closest('#category-fullscreen-overlay a.cat-btn');
 
-    if (openBtn && overlay && !openBtn.dataset.bound) {
-      openBtn.addEventListener('click', (e) => {
+      const overlay = document.getElementById('category-fullscreen-overlay');
+      const openBtn = document.getElementById('open-categories-btn');
+
+      if (openBtnEl && overlay) {
         e.preventDefault();
-        if (overlay.classList.contains('is-open')) {
-          closeFullscreenOverlay();
-        } else {
-          openFullscreenOverlay();
-        }
-      });
-      openBtn.dataset.bound = 'true';
-    }
-
-    // Close modal on link click during nav mode (Event Delegation)
-    if (overlay && !overlay.dataset.boundNavDelegation) {
-      overlay.addEventListener('click', (e) => {
-        const link = (e.target as HTMLElement).closest('a.cat-btn');
-        if (!link) return;
-
-        const hrefAttr = link.getAttribute('href');
-        closeFullscreenOverlay();
-        
+        if (overlay.classList.contains('is-open')) closeFullscreenOverlay(overlay, openBtn);
+        else openFullscreenOverlay(overlay, openBtn);
+      } else if (closeBtnEl && overlay) {
+        closeFullscreenOverlay(overlay, openBtn);
+      } else if (catLink && overlay) {
+        const hrefAttr = catLink.getAttribute('href');
+        closeFullscreenOverlay(overlay, openBtn);
         if (hrefAttr && !hrefAttr.startsWith('#')) {
           e.preventDefault();
-          navigate((link as HTMLAnchorElement).href);
+          navigate((catLink as HTMLAnchorElement).href);
         }
-      });
-      overlay.dataset.boundNavDelegation = 'true';
-    }
+      }
+    });
 
-    // Update the Categories button text based on active route
+    // Close overlay on navigation to prevent scroll lock leaks
+    document.addEventListener('astro:before-preparation', () => {
+      const overlay = document.getElementById('category-fullscreen-overlay');
+      if (overlay?.classList.contains('is-open')) {
+        overlay.classList.remove('is-open');
+        unlockScroll();
+      }
+    });
+  }
+
+  // Handle Astro page loads to update the button text
+  document.addEventListener('astro:page-load', () => {
+    const openBtn = document.getElementById('open-categories-btn');
     if (openBtn) {
       const activeCat = document.querySelector('.desktop-category-row .cat-btn.active');
       if (activeCat) {
         openBtn.textContent = `Categories | ${activeCat.textContent?.trim()}`;
         openBtn.classList.add('active');
       } else {
-        openBtn.textContent = `Categories`;
+        openBtn.textContent = 'Categories';
         openBtn.classList.remove('active');
       }
-    }
-  }
-
-  // Handle Astro page loads
-  document.addEventListener('astro:page-load', initQuadrantFilter);
-
-  // Close overlay on navigation to prevent scroll lock leaks
-  document.addEventListener('astro:before-preparation', () => {
-    const overlay = document.getElementById('category-fullscreen-overlay');
-    if (overlay?.classList.contains('is-open')) {
-      overlay.classList.remove('is-open');
-      unlockScroll();
     }
   });
 </script>

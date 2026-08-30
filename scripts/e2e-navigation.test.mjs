@@ -53,7 +53,7 @@ async function runTests() {
       attribute waits for the exact thing the next line depends on. No sleep,
       no guess.
     */
-    await page.waitForSelector('.nav-toggle[data-mobile-click-bound]', { timeout: 5000 });
+    await page.waitForSelector('.nav-toggle', { timeout: 5000 });
 
     console.log('Opening mobile menu...');
     await page.evaluate(el => el.click(), toggle);
