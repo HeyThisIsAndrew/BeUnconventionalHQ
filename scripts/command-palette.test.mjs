@@ -615,5 +615,27 @@ test('the dismiss chip uses the house red for hover, focus and press', () => {
     'the old generic white hover must be gone');
 });
 
+/*
+  NETWORK CHAOS DEFENSIVE GUARDS (Ticket #182 Workstream B).
+
+  Assuming the environment is hostile:
+    1. loadIndex() must validate HTTP status and ensure searchData is an Array.
+    2. renderResults() must not throw on missing urls or non-string URLs.
+    3. defaultResults() must safely guard against non-array or empty data.
+*/
+test('loadIndex() validates HTTP status and ensures searchData is an Array', () => {
+  assert.match(paletteCode, /if \(!res\.ok\) \{/, 'loadIndex must check res.ok');
+  assert.match(paletteCode, /Array\.isArray\(data\)/, 'searchData must be guarded with Array.isArray');
+});
+
+test('renderResults() handles malformed entries without throwing', () => {
+  assert.match(paletteCode, /item\.url \|\| '#'/);
+  assert.match(paletteCode, /typeof item\.url === 'string'/);
+});
+
+test('defaultResults() guards against non-array searchData', () => {
+  assert.match(paletteCode, /if \(!Array\.isArray\(searchData\)/);
+});
+
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
 process.exit(failed === 0 ? 0 : 1);
