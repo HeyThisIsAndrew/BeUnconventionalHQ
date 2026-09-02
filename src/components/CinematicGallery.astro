@@ -313,153 +313,239 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
       }
       
       if (groups.length < 2) return;
-      
-      // Let images load before measuring
-      setTimeout(() => {
-        let groupWidth = (groups[1] as HTMLElement).offsetLeft - (groups[0] as HTMLElement).offsetLeft;
-        const speed = 0.5; // pixels per frame
-        let isPaused = false;
-        
-        this._resizeObserver = new ResizeObserver(() => {
-          const newWidth = (groups[1] as HTMLElement).offsetLeft - (groups[0] as HTMLElement).offsetLeft;
-          if (newWidth > 0 && Math.abs(newWidth - groupWidth) > 5) {
-            groupWidth = newWidth;
-            // Snap to middle immediately on layout shift
-            exactScrollLeft = groupWidth * Math.floor(groups.length / 2);
-            track.scrollLeft = exactScrollLeft;
-          }
-        });
-        this._resizeObserver.observe(track);
-  
-        let exactScrollLeft = groupWidth * Math.floor(groups.length / 2);
-        track.scrollLeft = exactScrollLeft;
-  
-        let interactionTimeout: ReturnType<typeof setTimeout>;
-        
-        const handleInteractionEnd = () => {
-          clearTimeout(interactionTimeout);
-          interactionTimeout = setTimeout(() => {
-            this._isTouching = false;
-            this._isDragging = false;
-            this._isActuallyDragging = false;
-            isPaused = false;
-            track.classList.remove('is-scrolling');
-          }, 150);
-        };
 
-        const updateScroll = () => {
-          if (!isPaused && !this._isTouching && !this._isDragging) {
+      /*
+        ─── SIZING IS MEASURED, NOT GUESSED AT AFTER A TIMER ────────────────
+
+        This whole block used to run inside `setTimeout(..., 100)`, whose only
+        job was "let the images load before measuring". It was never a
+        guarantee. In Firefox a pass of font or image painting can still be in
+        flight at 100ms, and a `groupWidth` measured mid-paint is wrong for the
+        entire life of the page: the wrap boundary lands in the wrong place and
+        the rail visibly jumps every time it comes round.
+
+        It is not needed any more either. Every tile now carries a rigid
+        width AND height in CSS (see `.ig-carousel-tile`), so a group's width
+        no longer depends on whether its images have arrived. One animation
+        frame is enough to be past the first layout, and the ResizeObserver
+        below re-measures if anything does shift later.
+      */
+      let groupWidth = 0;
+
+      const measureGroupWidth = () => {
+        /*
+          getBoundingClientRect() + the flex gap, NOT
+          `groups[1].offsetLeft - groups[0].offsetLeft`.
+
+          offsetLeft is rounded to whole pixels, so a fractional group width
+          (a 1.25rem gap at a non-integer root font size, or any browser zoom)
+          is truncated — and that error compounds on every wrap. The rect is
+          subpixel exact. `columnGap` is read rather than the `gap` shorthand
+          because the shorthand serialises inconsistently across engines.
+
+          This deliberately does NOT give `.ig-carousel-track`
+          `position: relative`. The touch branch's tap-to-centre maths and the
+          desktop drag both read `tile.offsetLeft - track.offsetLeft`, which
+          assumes the tiles and the track share an offsetParent (the wrapper).
+          Positioning the track would make the track itself the tiles'
+          offsetParent and silently break both.
+        */
+        const styles = getComputedStyle(track);
+        const gap = parseFloat(styles.columnGap || styles.gap || '0') || 0;
+        const rect = (groups[0] as HTMLElement).getBoundingClientRect().width;
+        if (rect > 0) return rect + gap;
+        return (groups[1] as HTMLElement).offsetLeft - (groups[0] as HTMLElement).offsetLeft;
+      };
+
+      let exactScrollLeft = 0;
+      /*
+        The last value the BROWSER stored, read straight back out after we
+        wrote it — not the float we asked for.
+
+        Firefox truncates `scrollLeft` to an integer while Chromium keeps the
+        fraction, so comparing the engine's value against our own float
+        `exactScrollLeft` reported a divergence on virtually every frame in
+        Gecko. That pinned `isPaused` on and re-armed the 150ms resume timer
+        forever: the rail stuttered continuously, and only in Firefox.
+
+        Comparing against what the engine actually took makes this check
+        measure user scrolling, which is the only thing it was ever for.
+      */
+      let lastAppliedScroll = 0;
+      let isPaused = false;
+
+      const centreOnMiddleGroup = () => {
+        exactScrollLeft = groupWidth * Math.floor(groups.length / 2);
+        track.scrollLeft = exactScrollLeft;
+        lastAppliedScroll = track.scrollLeft;
+      };
+
+      this._resizeObserver = new ResizeObserver(() => {
+        const newWidth = measureGroupWidth();
+        if (newWidth > 0 && Math.abs(newWidth - groupWidth) > 5) {
+          groupWidth = newWidth;
+          // Snap to middle immediately on layout shift
+          centreOnMiddleGroup();
+        }
+      });
+      this._resizeObserver.observe(track);
+
+      let interactionTimeout: ReturnType<typeof setTimeout>;
+
+      const handleInteractionEnd = () => {
+        clearTimeout(interactionTimeout);
+        interactionTimeout = setTimeout(() => {
+          this._isTouching = false;
+          this._isDragging = false;
+          this._isActuallyDragging = false;
+          isPaused = false;
+          track.classList.remove('is-scrolling');
+        }, 150);
+      };
+
+      /*
+        SPEED IS PER SECOND, NOT PER FRAME.
+
+        This was `exactScrollLeft += 0.5` once per rAF, which is only "half a
+        pixel per frame" if the display runs at 60Hz. On a 120Hz ProMotion
+        panel or a 144Hz monitor the same code moved the rail at double or
+        triple the intended speed, and under Gecko's variable refresh it
+        stuttered. 30px/s is the same visual speed 0.5px/frame gave at 60Hz,
+        now independent of the refresh rate.
+      */
+      const PIXELS_PER_SECOND = 30;
+      let lastTimestamp = performance.now();
+
+      const updateScroll = (now: DOMHighResTimeStamp) => {
+        // Capped so a backgrounded tab (rAF stops firing) does not resume with
+        // one enormous jump.
+        const delta = Math.min((now - lastTimestamp) / 1000, 0.1);
+        lastTimestamp = now;
+
+        if (!isPaused && !this._isTouching && !this._isDragging) {
+          const currentScroll = track.scrollLeft;
+
+          // Detect native scroll (trackpad, keyboard) by divergence from the
+          // value the engine stored for us last frame. The threshold is well
+          // clear of a 1px rounding step; a real scroll gesture is far larger.
+          if (Math.abs(currentScroll - lastAppliedScroll) > 6) {
+            isPaused = true;
+            exactScrollLeft = currentScroll;
+            lastAppliedScroll = currentScroll;
+            handleInteractionEnd();
+          } else {
             // Apply infinite wrap boundary ONLY when momentum is completely finished
-            let shift = 0;
-            let currentScroll = track.scrollLeft;
-            
             if (groupWidth > 0) {
               if (currentScroll >= groupWidth * (groups.length - 2)) {
-                shift = -groupWidth;
+                exactScrollLeft -= groupWidth;
               } else if (currentScroll <= groupWidth) {
-                shift = groupWidth;
+                exactScrollLeft += groupWidth;
               }
             }
-            
-            if (shift !== 0) {
-              exactScrollLeft += shift;
-              track.scrollLeft = exactScrollLeft;
-            }
 
-            // Detect native scroll (trackpad, keyboard) by divergence
-            if (Math.abs(track.scrollLeft - exactScrollLeft) > 2.5) {
-              isPaused = true;
-              exactScrollLeft = track.scrollLeft;
-              handleInteractionEnd();
-            } else {
-              exactScrollLeft += speed;
-              track.scrollLeft = exactScrollLeft;
-            }
-          } else {
-            exactScrollLeft = track.scrollLeft;
+            exactScrollLeft += PIXELS_PER_SECOND * delta;
+            track.scrollLeft = exactScrollLeft;
+            /* Read back rather than assuming the write took: this is the
+               integer Firefox actually kept, and it is what the next frame's
+               divergence check has to be measured against. */
+            lastAppliedScroll = track.scrollLeft;
           }
-          
-          this._animationFrame = requestAnimationFrame(updateScroll);
-        };
-  
+        } else {
+          exactScrollLeft = track.scrollLeft;
+          lastAppliedScroll = exactScrollLeft;
+        }
+
         this._animationFrame = requestAnimationFrame(updateScroll);
-  
-        // Touch handling
-        track.addEventListener('touchstart', (e) => {
-          isPaused = true;
-          this._isTouching = true;
-          this._isActuallyDragging = false;
-          if (e.touches && e.touches.length > 0) {
-            this._startX = e.touches[0].pageX - track.offsetLeft;
-            this._startY = e.touches[0].pageY;
-            this._scrollLeftStart = track.scrollLeft;
-          }
-        }, { passive: true });
-        
-        track.addEventListener('touchmove', (e) => {
-          if (!this._isTouching || !e.touches || e.touches.length === 0) return;
-          const x = e.touches[0].pageX - track.offsetLeft;
-          if (!this._isActuallyDragging && (Math.abs(x - this._startX) > 5 || Math.abs(e.touches[0].pageY - this._startY) > 5)) {
-            this._isActuallyDragging = true;
-            track.classList.add('is-scrolling');
-          }
-        }, { passive: true });
+      };
 
-        track.addEventListener('touchend', handleInteractionEnd, { passive: true });
-        track.addEventListener('touchcancel', handleInteractionEnd, { passive: true });
-
-        // Desktop Mouse Dragging
-        track.addEventListener('mousedown', (e) => {
-          this._isDragging = true;
-          this._isActuallyDragging = false;
-          isPaused = true;
-          this._startX = e.pageX - track.offsetLeft;
-          this._startY = e.pageY;
+      // Touch handling
+      track.addEventListener('touchstart', (e) => {
+        isPaused = true;
+        this._isTouching = true;
+        this._isActuallyDragging = false;
+        if (e.touches && e.touches.length > 0) {
+          this._startX = e.touches[0].pageX - track.offsetLeft;
+          this._startY = e.touches[0].pageY;
           this._scrollLeftStart = track.scrollLeft;
-        });
+        }
+      }, { passive: true });
+      
+      track.addEventListener('touchmove', (e) => {
+        if (!this._isTouching || !e.touches || e.touches.length === 0) return;
+        const x = e.touches[0].pageX - track.offsetLeft;
+        if (!this._isActuallyDragging && (Math.abs(x - this._startX) > 5 || Math.abs(e.touches[0].pageY - this._startY) > 5)) {
+          this._isActuallyDragging = true;
+          track.classList.add('is-scrolling');
+        }
+      }, { passive: true });
 
-        track.addEventListener('mousemove', (e) => {
-          if (!this._isDragging) return;
-          const x = e.pageX - track.offsetLeft;
-          const walk = (x - this._startX) * 1.5;
-          
-          if (!this._isActuallyDragging && (Math.abs(x - this._startX) > 5 || Math.abs(e.pageY - this._startY) > 5)) {
-            this._isActuallyDragging = true;
-            track.classList.add('is-scrolling');
-          }
-          
-          if (this._isActuallyDragging) {
-            e.preventDefault();
-            track.scrollLeft = this._scrollLeftStart - walk;
-            exactScrollLeft = track.scrollLeft;
-          }
-        });
+      track.addEventListener('touchend', handleInteractionEnd, { passive: true });
+      track.addEventListener('touchcancel', handleInteractionEnd, { passive: true });
 
-        track.addEventListener('mouseup', () => {
-          if (this._isDragging) handleInteractionEnd();
-        });
+      // Desktop Mouse Dragging
+      track.addEventListener('mousedown', (e) => {
+        this._isDragging = true;
+        this._isActuallyDragging = false;
+        isPaused = true;
+        this._startX = e.pageX - track.offsetLeft;
+        this._startY = e.pageY;
+        this._scrollLeftStart = track.scrollLeft;
+      });
 
-        track.addEventListener('mouseleave', () => {
-          isPaused = false;
-          if (this._isDragging) handleInteractionEnd();
-        });
-
-        // Click Interception
-        track.addEventListener('click', (e) => {
-          if (this._isActuallyDragging || track.classList.contains('is-scrolling')) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-        }, { capture: true });
-
-        // Hover Pause
-        track.addEventListener('mouseenter', () => {
-          if (!this._isDragging && !this._isTouching) {
-            isPaused = true;
-          }
-        });
+      track.addEventListener('mousemove', (e) => {
+        if (!this._isDragging) return;
+        const x = e.pageX - track.offsetLeft;
+        const walk = (x - this._startX) * 1.5;
         
-      }, 100);
+        if (!this._isActuallyDragging && (Math.abs(x - this._startX) > 5 || Math.abs(e.pageY - this._startY) > 5)) {
+          this._isActuallyDragging = true;
+          track.classList.add('is-scrolling');
+        }
+        
+        if (this._isActuallyDragging) {
+          e.preventDefault();
+          track.scrollLeft = this._scrollLeftStart - walk;
+          exactScrollLeft = track.scrollLeft;
+        }
+      });
+
+      track.addEventListener('mouseup', () => {
+        if (this._isDragging) handleInteractionEnd();
+      });
+
+      track.addEventListener('mouseleave', () => {
+        isPaused = false;
+        if (this._isDragging) handleInteractionEnd();
+      });
+
+      // Click Interception
+      track.addEventListener('click', (e) => {
+        if (this._isActuallyDragging || track.classList.contains('is-scrolling')) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }, { capture: true });
+
+      // Hover Pause
+      track.addEventListener('mouseenter', () => {
+        if (!this._isDragging && !this._isTouching) {
+          isPaused = true;
+        }
+      });
+
+      /*
+        One frame, not a timer. By the time this callback runs the initial
+        layout has been computed, so the measurement is against real geometry
+        rather than a hopeful 100ms. Every listener above is wired
+        synchronously, so an interaction landing before this frame is still
+        handled.
+      */
+      requestAnimationFrame(() => {
+        groupWidth = measureGroupWidth();
+        centreOnMiddleGroup();
+        lastTimestamp = performance.now();
+        this._animationFrame = requestAnimationFrame(updateScroll);
+      });
     }
 
     disconnectedCallback() {
@@ -521,10 +607,23 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
     display: none;
   }
 
+  /*
+    `width: max-content` IS LOAD-BEARING, NOT BELT-AND-BRACES.
+
+    The track is a flex container and each group is a flex item, so without an
+    intrinsic width the groups are sized from the container and WebKit is free
+    to shrink them below the sum of their tiles. It did: the tiles inside were
+    squeezed together and overlapped, and the 1.25rem gaps between them
+    vanished. `max-content` pins each group to exactly the width its tiles and
+    gaps need, and `flex-shrink: 0` then stops the track taking it back.
+    Both are needed — `flex-shrink: 0` alone leaves the BASE size wrong.
+  */
   .ig-marquee-group {
     display: flex;
     gap: 1.25rem;
     flex-shrink: 0;
+    width: max-content;
+    min-width: max-content;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -554,9 +653,28 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
     Keep the transform OFF the anchor. Anything that moves belongs on the
     frame.
   */
+  /*
+    RIGID BOX, NOT A FLEX BASIS PLUS AN ASPECT RATIO.
+
+    `flex: 0 0 220px` with `aspect-ratio: 4 / 5` and nothing else is enough in
+    Chromium and is NOT enough in WebKit. Every child of this anchor is
+    absolutely positioned (`.ig-tile-frame` is `position: absolute; inset: 0`),
+    so the tile has no in-flow content at all, and WebKit treats the
+    aspect-ratio on a zero-content flex item as indefinite. The tiles collapsed
+    and the row's flex `gap` collapsed with them — reported from Safari as
+    overlapping tiles with no spacing.
+
+    Stating width AND height outright removes the resolution step entirely.
+    `aspect-ratio` stays as the declaration of intent; the explicit height is
+    the same number it would compute to (220 * 5/4).
+  */
   .ig-carousel-tile {
     flex: 0 0 220px; /* Locked width */
+    width: 220px;
+    min-width: 220px;
+    max-width: 220px;
     aspect-ratio: 4 / 5; /* Forces the height to wrap perfectly */
+    height: 275px; /* 220px * (5/4) — WebKit will not resolve this from the ratio alone */
     scroll-snap-align: start;
     position: relative;
     text-decoration: none;
@@ -589,6 +707,10 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
     }
     .ig-carousel-tile {
       flex: 0 0 160px; /* Even smaller on phones */
+      width: 160px;
+      min-width: 160px;
+      max-width: 160px;
+      height: 200px; /* 160px * (5/4) */
     }
   }
 
@@ -761,9 +883,17 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
     has somewhere to go.
   */
   .ig-carousel-track .ig-rail-label {
-    /* Same footprint as a tile so the rail rhythm and placement are unchanged. */
+    /* Same footprint as a tile so the rail rhythm and placement are unchanged.
+       That includes the explicit width/height: these are injected into the
+       same `max-content` group as the tiles, so a label left to resolve its
+       own size from `aspect-ratio` alone collapses in WebKit exactly the way
+       the tiles did, and takes the rail's spacing with it. */
     flex: 0 0 220px;
+    width: 220px;
+    min-width: 220px;
+    max-width: 220px;
     aspect-ratio: 4 / 5;
+    height: 275px;
     scroll-snap-align: center;
     position: relative;
     display: flex;
@@ -779,6 +909,10 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
   @media (max-width: 560px) {
     .ig-carousel-track .ig-rail-label {
       flex: 0 0 160px;
+      width: 160px;
+      min-width: 160px;
+      max-width: 160px;
+      height: 200px;
     }
   }
 

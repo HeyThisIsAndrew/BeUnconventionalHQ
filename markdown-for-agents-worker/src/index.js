@@ -1,5 +1,5 @@
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request) {
     const acceptHeader = request.headers.get("Accept") || "";
 
     // If the client doesn't ask for markdown, pass through normally
