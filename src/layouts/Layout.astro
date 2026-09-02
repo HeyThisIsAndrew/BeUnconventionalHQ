@@ -12,7 +12,7 @@ import { ClientRouter } from 'astro:transitions';
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
 import logoImage from '../assets/logo.webp';
 import logoMark from '../assets/logo-mark.webp';
-import { getImage } from 'astro:assets';
+import { getImage, Font } from 'astro:assets';
 
 const {
   title = site.name,
@@ -157,8 +157,8 @@ const fallbackMark = await getImage({
       before first paint depends on it.
     */}
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="preload" href="/fonts/syne.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/inter.woff2" as="font" type="font/woff2" crossorigin />
+    <Font cssVariable="--font-display" preload={true} />
+    <Font cssVariable="--font-body" preload={true} />
     {/*
       The hashed URL of the fallback brand mark, handed to CSS. A stylesheet
       cannot read Astro frontmatter, and the filename carries a content hash,

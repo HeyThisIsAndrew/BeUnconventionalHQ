@@ -5,9 +5,8 @@
 // window.print() doesn't reliably wait on, so a slow/blocked fetch printed
 // the whole page (both --font-display and --font-body resolve to this one
 // family) in the browser's fallback sans-serif.
-import '@fontsource-variable/syne';
 import { site } from '../data/site.js';
-import { Image, getImage } from 'astro:assets';
+import { Image, getImage, Font } from 'astro:assets';
 import logoImage from '../assets/logo.webp';
 const optimizedBg = await getImage({ src: logoImage, format: 'webp', width: 400 });
 
@@ -78,6 +77,7 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Be Unconventional HQ - Digital Media Kit</title>
     <meta name="robots" content="noindex">
+    <Font cssVariable="--font-display" preload={true} />
     <style is:global>
         /* CSS reset and print setup */
         * {
@@ -99,8 +99,7 @@ const headlineMetricLabel = hasImpressions ? 'Total Impressions' : 'Total Views'
             --text-main: #f0f0f0;
             --text-muted: #888888;
             --accent-red: #cc0000;
-            --font-display: 'Syne Variable', 'Syne', sans-serif;
-            --font-body: 'Syne Variable', 'Syne', sans-serif;
+            --font-body: var(--font-display, 'Syne', sans-serif);
         }
 
         html, body {

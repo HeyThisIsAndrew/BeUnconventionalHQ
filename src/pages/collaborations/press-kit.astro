@@ -12,9 +12,8 @@
 // the document handed to publicists and credentialing bodies, and it has to
 // render identically whether or not the YouTube/Instagram/TikTok pipelines
 // are healthy. Audience numbers live on /media-kit; keep them there.
-import '@fontsource-variable/syne';
 import { site } from '../../data/site.js';
-import { Image, getImage } from 'astro:assets';
+import { Image, getImage, Font } from 'astro:assets';
 import logoImage from '../../assets/logo.webp';
 const optimizedBg = await getImage({ src: logoImage, format: 'webp', width: 400 });
 
@@ -39,6 +38,7 @@ const [filmArt, tvArt, gamesArt] = await Promise.all(
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Be Unconventional HQ - Digital Press Kit</title>
     <meta name="robots" content="noindex">
+    <Font cssVariable="--font-display" preload={true} />
     <style is:global>
         /* CSS reset and print setup */
         * {
@@ -60,8 +60,7 @@ const [filmArt, tvArt, gamesArt] = await Promise.all(
             --text-main: #f0f0f0;
             --text-muted: #888888;
             --accent-red: #cc0000;
-            --font-display: 'Syne Variable', 'Syne', sans-serif;
-            --font-body: 'Syne Variable', 'Syne', sans-serif;
+            --font-body: var(--font-display, 'Syne', sans-serif);
         }
 
         html, body {
