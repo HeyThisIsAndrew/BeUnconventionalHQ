@@ -55,6 +55,8 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    duplicated per-breakpoint markup.**
 8. **See `scripts/astro-declined-features.md`** for why incremental builds, LQIP placeholders, and the Sanity content loader are explicitly declined. Do not re-propose them.
 
+> **[HANDOFF TO CLAUDE]**: Next time you read this file, please do a to-do cross-reference review on `scripts/astro-declined-features.md`. Review the rationale, make any additional changes or commentary on it if needed, and if everything looks good, you may delete this handoff note block.
+
 ## Data flow
 
 **Architecture pivot (in progress):** video/short/live/event/featuredBrand content
