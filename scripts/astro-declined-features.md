@@ -38,8 +38,3 @@ This becomes arguable only if the LCP element ever moves back into the `astro:as
 **Revisit Condition**:
 None. Our architecture relies on offline JSON stores populated via isolated CRON syncs.
 
-## The General Lesson on Attribution
-
-Five of the six proposals in the originating review that suggested these features were falsely attributed to the "What's New in Astro, August 2026" blog post. That post did not mention any of them. (It covered Astro 7.2, the new Project Steward, the Astro Playground, Astro Together Germany, the Community Support repo, and partner news).
-
-**Rule**: Attribution is checkable, and must always be checked before suggesting architectural overhauls based on perceived documentation updates.
