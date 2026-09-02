@@ -53,6 +53,7 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
 6. **No `filter: drop-shadow` on `<img>`** — known iOS Safari rendering bugs.
 7. **Rearrange layouts with responsive CSS / grid areas, not JS reordering or
    duplicated per-breakpoint markup.**
+8. **See `scripts/astro-declined-features.md`** for why incremental builds, LQIP placeholders, and the Sanity content loader are explicitly declined. Do not re-propose them.
 
 ## Data flow
 
