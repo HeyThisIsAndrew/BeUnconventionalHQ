@@ -166,8 +166,12 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
         import('fuse.js'),
         fetch('/api/search-index.json')
       ]);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch search index: HTTP ${res.status}`);
+      }
       const Fuse = fuseModule.default;
-      searchData = await res.json();
+      const data = await res.json();
+      searchData = Array.isArray(data) ? data : [];
       
       fuse = new Fuse(searchData, {
         keys: [
@@ -181,6 +185,8 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
       indexLoaded = true;
     } catch (e) {
       console.error('Failed to load search index:', e);
+      fuse = null;
+      searchData = [];
     }
   }
 
@@ -236,9 +242,9 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
       }
 
       results.slice(0, DEFAULT_VIEW_SIZE).forEach((result, idx) => {
-        const item = result.item;
+        const item = result?.item || {};
         const a = document.createElement('a');
-        a.href = item.url;
+        a.href = item.url || '#';
         a.className = 'cmd-result-item';
         a.setAttribute('role', 'option');
         a.setAttribute('id', `cmd-result-${idx}`);
@@ -252,12 +258,13 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
         */
         a.setAttribute('aria-selected', 'false');
         // Lets the mix be asserted without parsing the badge's display text.
-        a.setAttribute('data-type', item.type);
+        const itemType = (item.type || 'unknown').toLowerCase();
+        a.setAttribute('data-type', itemType);
         
         // If it's a video, use the global handler
-        if (item.type === 'video') {
+        if (itemType === 'video') {
           a.setAttribute('data-action', 'open-video');
-          const videoId = item.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/)?.[1] || item.id;
+          const videoId = (typeof item.url === 'string' ? item.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/)?.[1] : null) || item.id || '';
           a.setAttribute('data-video-id', videoId);
         }
 
@@ -315,11 +322,11 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
 
         const typeLabel = document.createElement('span');
         typeLabel.className = 'cmd-result-badge';
-        typeLabel.textContent = item.type.toUpperCase();
+        typeLabel.textContent = (item.type || '').toUpperCase();
 
         const title = document.createElement('span');
         title.className = 'cmd-result-title';
-        title.textContent = item.title;
+        title.textContent = item.title != null ? String(item.title) : '';
 
         info.appendChild(typeLabel);
         info.appendChild(title);
@@ -393,6 +400,9 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
     */
     const defaultResults = () => {
       const out: any[] = [];
+      if (!Array.isArray(searchData) || searchData.length === 0) {
+        return out.map((item) => ({ item }));
+      }
 
       const upcomingEvents = searchData
         .filter((d) => d.type === 'event' && eligibleForDefault(d))
@@ -457,7 +467,10 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
     };
 
     const performSearch = () => {
-      if (!fuse) return;
+      if (!fuse) {
+        renderResults([], false);
+        return;
+      }
       const query = input.value.trim();
       if (!query) {
         renderResults(defaultResults(), true);
