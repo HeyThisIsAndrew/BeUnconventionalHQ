@@ -1,39 +1,30 @@
-export const prerender = false;
-
+/**
+ * Compatibility shim for the pre-Actions `/api/contact` URL (#203).
+ *
+ * The logic moved to `src/actions/index.ts`; this route exists only so that
+ * anything external still POSTing JSON here keeps working. See the sibling
+ * `subscribe.ts` for why `callAction` is the only way to reach an action from
+ * server code.
+ */
 import type { APIRoute } from 'astro';
 import { actions } from 'astro:actions';
+import { respondToActionResult } from '../../lib/action-http';
+
+// POST-only endpoint, not a page - same on-demand convention as
+// live-status.json.ts. Without this the static prerenderer tries (and
+// fails) to prerender a GET response for a route with no GET handler.
+export const prerender = false;
 
 export const POST: APIRoute = async (context) => {
+  let body: unknown;
   try {
-    const body = await context.request.json();
-    
-    let result;
-    if (typeof context.callAction === 'function') {
-      result = await context.callAction(actions.contact, body);
-    } else if (actions.contact.safe) {
-      result = await actions.contact.safe(body);
-    } else {
-      result = await actions.contact(body);
-    }
-
-    const { data, error } = result || result;
-    
-    if (error) {
-      return new Response(
-        JSON.stringify({ error: error.message }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    return new Response(
-      JSON.stringify(data),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
-  } catch (err: any) {
-    console.error('Contact API error:', err);
-    return new Response(
-      JSON.stringify({ error: err.message || 'An unexpected error occurred.' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    body = await context.request.json();
+  } catch {
+    return new Response(JSON.stringify({ error: 'Expected a JSON body.' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
+
+  return respondToActionResult(await context.callAction(actions.contact, body as any));
 };
