@@ -26,12 +26,8 @@ async function runTests() {
 
     console.log('Closing overlay via close button...');
     const closeBtn = await page.$('#category-fullscreen-overlay .close-fullscreen-btn');
-    if (closeBtn) {
-      await page.evaluate(el => el.click(), closeBtn);
-    } else {
-      console.log('No specific close button found, clicking outside or using Escape.');
-      await page.keyboard.press('Escape');
-    }
+    assert.ok(closeBtn, 'the overlay must render a close button');
+    await page.evaluate(el => el.click(), closeBtn);
     console.log('Waiting for overlay to hide...');
     const isHidden = await page.waitForFunction(() => {
       const modal = document.getElementById('category-fullscreen-overlay');
@@ -79,6 +75,127 @@ async function runTests() {
       'the page must not stay pinned after the overlay closes',
     );
     console.log('  \u2713 closing the overlay leaves the navbar and scroll lock alone');
+
+    /*
+      REGRESSION GUARD: Escape closes the overlay (#189).
+
+      This used to be untestable here by accident. The close step above tried
+      the button first and pressed Escape only as a fallback, and it always
+      found the button, so the Escape path never once ran. That mattered,
+      because Escape lived in CategoryOverlay's delegated block while
+      QuadrantFilter carried a competing block guarded by the SAME window
+      flag. Whichever chunk Vite emitted first won, and if the order had ever
+      flipped, Escape would have vanished with nothing to catch it: the
+      overlay still opens, and still closes by button, so every other
+      assertion in this file would have stayed green while a keyboard user
+      was left with a full-screen overlay they could not dismiss.
+
+      So press Escape on its own terms, on both surfaces that share the
+      component, and check the whole close contract rather than just the
+      class: focus has to come back to the trigger, or a keyboard user is
+      dropped at the top of the document.
+    */
+    for (const route of ['/feed', '/intel']) {
+      await page.goto(`http://localhost:4321${route}`, { waitUntil: 'networkidle0' });
+      await page.waitForSelector('#open-categories-btn', { timeout: 5000 });
+      await page.click('#open-categories-btn');
+      await page.waitForFunction(
+        () => document.getElementById('category-fullscreen-overlay')?.classList.contains('is-open'),
+        { timeout: 3000 },
+      );
+
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(
+        () => !document.getElementById('category-fullscreen-overlay')?.classList.contains('is-open'),
+        { timeout: 3000 },
+      ).catch(() => {
+        throw new Error(`${route}: Escape did not close the category overlay`);
+      });
+
+      const afterEscape = await page.evaluate(() => {
+        const overlay = document.getElementById('category-fullscreen-overlay');
+        const openBtn = document.getElementById('open-categories-btn');
+        return {
+          ariaHidden: overlay?.getAttribute('aria-hidden'),
+          ariaExpanded: openBtn?.getAttribute('aria-expanded'),
+          focusReturned: document.activeElement === openBtn,
+          locked: window.__hqScrollLock ? window.__hqScrollLock.isLocked() : false,
+          bodyPosition: getComputedStyle(document.body).position,
+        };
+      });
+
+      assert.equal(afterEscape.ariaHidden, 'true', `${route}: overlay must be aria-hidden after Escape`);
+      assert.equal(afterEscape.ariaExpanded, 'false', `${route}: trigger must report collapsed after Escape`);
+      assert.ok(afterEscape.focusReturned, `${route}: focus must return to the Categories button`);
+      assert.equal(afterEscape.locked, false, `${route}: Escape must release the scroll lock`);
+      assert.notEqual(afterEscape.bodyPosition, 'fixed', `${route}: the page must not stay pinned`);
+      console.log(`  \u2713 ${route}: Escape closes the overlay and restores focus`);
+    }
+
+    /*
+      REGRESSION GUARD: opening the overlay moves focus INTO it (#189).
+
+      The other behaviour that lived only in the block that could have lost
+      the race. Without it the overlay opens with focus still on the trigger
+      behind it, so the first Tab walks the page underneath rather than the
+      menu.
+    */
+    await page.goto('http://localhost:4321/feed', { waitUntil: 'networkidle0' });
+    await page.waitForSelector('#open-categories-btn', { timeout: 5000 });
+    await page.click('#open-categories-btn');
+    await page.waitForFunction(
+      () => document.getElementById('category-fullscreen-overlay')?.classList.contains('is-open'),
+      { timeout: 3000 },
+    );
+    const onOpen = await page.evaluate(() => ({
+      focusInsideOverlay: document
+        .getElementById('category-fullscreen-overlay')
+        ?.contains(document.activeElement),
+      ariaHidden: document.getElementById('category-fullscreen-overlay')?.getAttribute('aria-hidden'),
+    }));
+    assert.ok(onOpen.focusInsideOverlay, 'opening must move focus into the overlay');
+    assert.equal(onOpen.ariaHidden, 'false', 'the open overlay must not be aria-hidden');
+    console.log('  \u2713 opening moves focus into the overlay and clears aria-hidden');
+    await page.keyboard.press('Escape');
+
+    /*
+      REGRESSION GUARD: the "Categories | Film" label updates on /category.
+
+      This handler mutates the overlay's own button but used to live in
+      QuadrantFilter. When #189 emptied QuadrantFilter's script of imports,
+      Rollup folded what was left into FeedGrid's chunk, which
+      /category/[category] never loads, so the label silently stopped
+      updating on exactly the pages where a category IS active. Nothing
+      caught it; the overlay still opened and closed correctly.
+    */
+    await page.goto('http://localhost:4321/category/film', { waitUntil: 'networkidle0' });
+    await page.waitForSelector('#open-categories-btn', { timeout: 5000 });
+    await page.waitForFunction(
+      () => /Categories \|/.test(document.getElementById('open-categories-btn')?.textContent ?? ''),
+      { timeout: 3000 },
+    ).catch(() => {
+      throw new Error('/category/film: the Categories button never picked up the active category');
+    });
+    const labelled = await page.evaluate(() => {
+      const btn = document.getElementById('open-categories-btn');
+      return { text: btn?.textContent?.trim(), active: btn?.classList.contains('active') };
+    });
+    assert.match(labelled.text, /^Categories \| /, 'the button must name the active category');
+    assert.ok(labelled.active, 'the button must carry .active on a category page');
+    console.log(`  \u2713 /category/film: button reads "${labelled.text}"`);
+
+    /*
+      And the other side of that guard: /intel shares this component but has
+      no `.desktop-category-row`, so the handler must leave its label alone
+      rather than stamping a default over it.
+    */
+    await page.goto('http://localhost:4321/intel', { waitUntil: 'networkidle0' });
+    await page.waitForSelector('#open-categories-btn', { timeout: 5000 });
+    const intelLabel = await page.evaluate(
+      () => document.getElementById('open-categories-btn')?.textContent?.trim(),
+    );
+    assert.doesNotMatch(intelLabel, /\|/, `/intel: label should be untouched, got "${intelLabel}"`);
+    console.log(`  \u2713 /intel: button label left alone ("${intelLabel}")`);
 
     /*
       REGRESSION GUARD: the overlay must actually cover the viewport.
