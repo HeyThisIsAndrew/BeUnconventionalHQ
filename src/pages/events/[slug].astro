@@ -73,11 +73,27 @@ const unifiedContent = [
 const brandColor = event.brandColor || 'var(--color-accent, #cc0000)';
 // Cap the hero at 2400px wide (retina-safe for a full-bleed banner) instead of
 // serving the raw upload, and let Sanity pick the best format.
-const heroMobileUrl = event.heroImage ? urlFor(event.heroImage).width(800).auto('format').url() : '';
-const heroTabletUrl = event.heroImage ? urlFor(event.heroImage).width(1200).auto('format').url() : '';
-const heroUrl = event.heroImage
-  ? urlFor(event.heroImage).width(2400).auto('format').url()
-  : '';
+/*
+  ─── ONE IMAGE, CHOSEN ONCE (#191) ────────────────────────────────────────
+  Width descriptors rather than `<picture media>`, for the same reason as the
+  hub hero in featured/[slug].astro: the preload below and the <img> have to
+  agree on which candidate they want.
+
+  A `<picture>` with `media` queries picks by viewport; a `<link rel=preload>`
+  picks with `imagesrcset`/`imagesizes`. Mix the two and the browser fetches
+  the preloaded candidate at high priority AND the one the picture selects,
+  which on a desktop viewport is two images where the accelerated one is
+  discarded. This is not art direction, it is one image at three sizes, so
+  `srcset` is the right tool and the preload can mirror it exactly.
+*/
+const HERO_WIDTHS = [800, 1200, 2400];
+const heroAt = (w: number) =>
+  event.heroImage ? urlFor(event.heroImage).width(w).auto('format').url() : '';
+const heroMobileUrl = heroAt(800);
+const heroSrcset = event.heroImage ? HERO_WIDTHS.map((w) => `${heroAt(w)} ${w}w`).join(', ') : '';
+/* Full-bleed banner, so the slot is the viewport width. */
+const heroSizes = '100vw';
+const heroUrl = heroAt(2400);
 const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
 
 // The trailer (poster, players, sound) is fully encapsulated in <HeroTrailer/>.
@@ -85,7 +101,16 @@ const trailerUrl = event.trailerUrl;
 const trailerId = parseVideoId(trailerUrl);
 ---
 
-<Layout title={`${event.title}`} description={`Complete coverage of ${event.title}`}>
+{/* The hero backdrop IS the LCP element on this page, so it is handed to
+    <Layout> for a preload. #191 task 3 asked for this and it was the one
+    sub-task left undone: the events hero had no preload at all. */}
+<Layout
+  title={`${event.title}`}
+  description={`Complete coverage of ${event.title}`}
+  preloadImage={heroMobileUrl || undefined}
+  preloadImageSrcset={heroSrcset || undefined}
+  preloadImageSizes={event.heroImage ? heroSizes : undefined}
+>
   <main class="event-dashboard" style={`--brand-color: ${brandColor};`}>
     
     {/* Cinematic Hero */}
@@ -95,11 +120,15 @@ const trailerId = parseVideoId(trailerUrl);
           Burns transform. Animating a single element caused edge slivers. */}
       <div class="event-hero-bg-wrapper" style={!heroUrl ? `background: ${fallbackGradient};` : ''}>
         {heroUrl && (
-          <picture>
-            <source media="(min-width: 1024px)" srcset={heroUrl} />
-            <source media="(min-width: 768px)" srcset={heroTabletUrl} />
-            <img src={heroMobileUrl} alt="" class="event-hero-bg-animated" loading="eager" fetchpriority="high" />
-          </picture>
+          <img
+            src={heroMobileUrl}
+            srcset={heroSrcset}
+            sizes={heroSizes}
+            alt=""
+            class="event-hero-bg-animated"
+            loading="eager"
+            fetchpriority="high"
+          />
         )}
       </div>
       <div class="event-hero-overlay flex flex-col justify-center">

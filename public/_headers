@@ -84,6 +84,37 @@
 /api/*
   X-Robots-Tag: noindex
 
+# ─── AGENT DISCOVERY (#192) ────────────────────────────────────────────────
+#
+# RFC 8288 Link headers, so an agent that fetches a page and reads only its
+# headers still finds the machine-readable surfaces. The point of doing it in
+# headers rather than <link> tags is that a HEAD request is enough: an agent
+# does not have to download and parse HTML to learn the site has an API.
+#
+# `api-catalog` is the relation RFC 9727 registers for exactly this.
+/*
+  Link: </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json", </llms.txt>; rel="alternate"; type="text/plain", </.well-known/mcp/server-card.json>; rel="service-desc"; type="application/json"
+
+# RFC 9727 requires this media type, and the file has no extension for
+# Cloudflare to infer one from, so it would otherwise be served as
+# application/octet-stream and a conforming client would ignore it.
+/.well-known/api-catalog
+  Content-Type: application/linkset+json
+
+# Same problem, different files: these have no extension either, and a skill
+# served as octet-stream is a skill nothing will read.
+/.well-known/agent-skills/*
+  Access-Control-Allow-Origin: *
+/auth.md
+  Content-Type: text/markdown; charset=utf-8
+
+# Discovery documents are fetched cross-origin by agents that are not a
+# browser on our site, so they need CORS. They are public by definition; this
+# grants read access to files that are already world-readable.
+/.well-known/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=3600
+
 # Unhashed static files in public/. Everything Astro emits lands under
 # /assets/* with a content hash and gets an immutable year from the Cloudflare
 # adapter, but these keep stable filenames and so were being served with no
