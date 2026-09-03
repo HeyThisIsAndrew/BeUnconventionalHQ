@@ -116,12 +116,36 @@ const { items, buttonLabel = LABELS.categories } = Astro.props;
 
   /*
     Open/close for the mobile category overlay.
-    Event delegation on document (Issue #71) to ensure the UI feels alive
-    even before the cold load is completely finished.
+
+    ─── THIS COMPONENT IS THE SOLE OWNER OF THIS BEHAVIOUR (#189) ───────────
+    QuadrantFilter.astro used to carry a second, near-identical delegated
+    block guarded by the SAME `window.categoryOverlayDelegated` flag, and it
+    renders <CategoryOverlay /> itself, so on /feed both scripts ran on one
+    page. Whichever module Vite happened to emit first claimed the flag and
+    the other's entire block never registered.
+
+    Nothing pinned that order. It was an emergent property of chunk emission,
+    and if a refactor or an Astro upgrade had flipped it, QuadrantFilter would
+    have won and taken Escape-to-close, the `aria-hidden` toggle and the focus
+    move with it. Silently: the overlay still opened and still closed by
+    button, so it looked fine, while a keyboard user was left with a
+    full-screen overlay they could open and not dismiss.
+
+    All four elements the handler touches are rendered HERE — the open button,
+    the close button, the overlay and the category links — so this is where
+    the handler belongs. QuadrantFilter's copy is deleted rather than given
+    its own flag: two live handlers on the same selectors would double-close
+    the overlay.
+
+    Event delegation on document (Issue #71) so the UI feels alive before the
+    cold load has finished.
   */
-  
-  if (!(window as any).categoryOverlayDelegated) {
-    (window as any).categoryOverlayDelegated = true;
+
+  /* Renamed from `categoryOverlayDelegated` deliberately. That name read as
+     a shared latch two components could compete for, which is exactly what
+     went wrong. This one names its owner. */
+  if (!(window as any).__hqCategoryOverlayBound) {
+    (window as any).__hqCategoryOverlayBound = true;
 
     function close(overlay: HTMLElement, openBtn: HTMLElement | null) {
       if (!overlay.classList.contains('is-open')) return;
@@ -142,6 +166,24 @@ const { items, buttonLabel = LABELS.categories } = Astro.props;
         openBtn.setAttribute('aria-expanded', 'true');
       }
       if (closeBtn) {
+        /*
+          This focus() silently did nothing until the CSS was fixed alongside
+          it, and the failure predates #189.
+
+          `.category-fullscreen-overlay` transitioned `visibility` over 0.4s in
+          both directions, so at the instant `.is-open` landed the computed
+          value was still `hidden` — and a hidden element cannot take focus.
+          A keyboard user opened a full-screen menu with focus left on the page
+          behind it, and their next Tab walked that page rather than the menu.
+          #189 lists this as a behaviour that would be lost if the two racing
+          handlers swapped order; it was already lost in the handler that won.
+
+          styles/modules/filters.css now flips visibility with no delay on the
+          way in, so the button is focusable here. Reading `offsetHeight` first
+          forces the pending style recalc to land before focus() asks whether
+          the element is visible.
+        */
+        void overlay.offsetHeight;
         closeBtn.focus();
       }
     }
@@ -180,7 +222,64 @@ const { items, buttonLabel = LABELS.categories } = Astro.props;
     });
   }
 
+  /*
+    Two things QuadrantFilter's deleted block did that are deliberately NOT
+    carried over. #189 suggested folding them in; both turned out to be worse
+    than the default.
+
+    1. `preventDefault()` + `navigate()` on a non-hash `a.cat-btn`.
+       Redundant, and a regression. <ClientRouter /> is mounted site-wide
+       (Layout.astro) and already turns a same-origin anchor click into a
+       client-side navigation. Crucially it first bails on metaKey, ctrlKey,
+       altKey and shiftKey, so cmd-click still opens a category in a new tab.
+       The deleted block checked none of those, so folding it in would have
+       swallowed every modified click on /intel and /category — trading a
+       latent bug for a live one. Letting the link behave like a link is both
+       less code and more correct.
+
+    2. `astro:before-preparation` → `unlockScroll()`.
+       The scroll lock is REFERENCE COUNTED (src/lib/scroll-lock.ts), so an
+       extra counted decrement does not merely repeat work: with the mobile
+       nav also open it would release ITS lock and unpin the page underneath.
+       The line below is the right cleanup because `releaseScrollLock()`
+       resets the counter outright, which is what a document about to be
+       replaced actually needs.
+  */
+
   /* A client-side navigation can leave the body pinned if the overlay was
-     open when the link was followed. Always release the lock on swap. */
+     open when the link was followed. Always release the lock on swap.
+     Registered OUTSIDE the guard above: it is idempotent, and leak protection
+     must not depend on which script won a race. */
   document.addEventListener('astro:before-swap', releaseScrollLock);
+
+  /*
+    Reflect the current category on the closed button: "Categories | Film".
+
+    This lived in QuadrantFilter, which renders the desktop row this reads
+    from, but it MUTATES the button this component renders. It moved here
+    because leaving it there broke it: with QuadrantFilter's delegated block
+    deleted its script had no imports left, Rollup folded the remainder into
+    FeedGrid's chunk, and /category/[category] does not load that chunk, so
+    the label quietly stopped updating there.
+
+    Guarded on the desktop row EXISTING rather than on finding an active
+    button in it. /intel renders this overlay from IntelFilters, which has no
+    `.desktop-category-row` at all; without the guard the handler would run
+    there and overwrite whatever `buttonLabel` that surface asked for with a
+    hardcoded default.
+  */
+  document.addEventListener('astro:page-load', () => {
+    const openBtn = document.getElementById('open-categories-btn');
+    const desktopRow = document.querySelector('.desktop-category-row');
+    if (!openBtn || !desktopRow) return;
+
+    const activeCat = desktopRow.querySelector('.cat-btn.active');
+    if (activeCat) {
+      openBtn.textContent = `Categories | ${activeCat.textContent?.trim()}`;
+      openBtn.classList.add('active');
+    } else {
+      openBtn.textContent = 'Categories';
+      openBtn.classList.remove('active');
+    }
+  });
 </script>

@@ -181,7 +181,21 @@
   justify-content: flex-start;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.4s ease;
+  /*
+    `visibility` is stepped, not delayed, and the two directions differ.
+
+    It used to read `visibility 0.4s ease` in both directions. Transitioning
+    visibility that way means that at the instant `.is-open` is added the
+    computed value is still `hidden`, and a hidden element CANNOT TAKE FOCUS.
+    So the overlay's `closeBtn.focus()` was a silent no-op and a keyboard user
+    opened a full-screen menu with focus left on the page behind it. Measured
+    in Chrome: hidden at the click, visible one frame later.
+
+    Closing keeps the delay (hide only once the fade has finished, so the
+    overlay does not vanish instantly); opening flips it at once. `opacity`
+    still does all the visible work, so the animation is unchanged.
+  */
+  transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.4s;
   padding-top: calc(env(safe-area-inset-top) + 4rem);
   padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
   padding-left: max(1.5rem, env(safe-area-inset-left));
@@ -219,6 +233,8 @@
 .category-fullscreen-overlay.is-open {
   opacity: 1;
   visibility: visible;
+  /* No delay on the way in: focusable in the same tick the class lands. */
+  transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0s;
 }
 
 /* `absolute` against the overlay, which is itself viewport-fixed and
