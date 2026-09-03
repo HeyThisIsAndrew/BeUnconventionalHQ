@@ -35,6 +35,15 @@ interface SearchEntry {
     `pages` list below for why a given page is flagged.
   */
   excludeFromDefault?: boolean;
+  /*
+    Events only. The editorial override stored on the document, which
+    `getEventStatus` honours over the calendar. Carried here because a
+    consumer working from this index alone cannot otherwise tell a cancelled
+    event from one that is still going ahead, and would happily present a
+    cancelled event as upcoming. Added for the WebMCP `get_upcoming_events`
+    tool (#192); the palette does not read it yet.
+  */
+  status?: 'scheduled' | 'cancelled' | 'postponed';
   tags?: string[];
   hubCategory?: string;
 }
@@ -97,6 +106,7 @@ export async function GET() {
       image: resolveImage(e.heroImage),
       date: e.startDate,
       endDate: e.endDate || e.startDate,
+      status: e.status,
       tags: []
     })),
     ...hubs.map((h: any): SearchEntry => ({

@@ -488,6 +488,29 @@ const fallbackMark = await getImage({
     )}
 
     {/*
+      ─── WEBMCP: TOOLS FOR VISITING AI AGENTS (#192, task 3) ───────────────
+      Hands the browser a few read-only tools an in-page agent can call:
+      search, upcoming events, live status. See src/lib/webmcp.ts.
+
+      The feature test is inlined here and the implementation is behind a
+      DYNAMIC import on purpose. `document.modelContext` exists today only in
+      Chrome with a flag set, so for effectively every visitor this is the
+      whole cost: one property read, and the 4 KB module is never fetched.
+      Statically importing it would have put that 4 KB on every page of a
+      branch whose other half is LCP work.
+
+      Site-wide because an agent can land on any page. NOT re-run on
+      `astro:page-load`: ClientRouter replaces the body but the document
+      survives, so the first registration still stands and running it again
+      would register duplicates.
+    */}
+    <script>
+      if ((document as any).modelContext?.registerTool) {
+        import('../lib/webmcp').then((m) => m.initWebMcp());
+      }
+    </script>
+
+    {/*
       Dev-only geometry overlay for the inline YouTube player. The guard is
       what keeps it out of production entirely — `astro build` evaluates
       `import.meta.env.DEV` as false, so neither the markup nor its script is
