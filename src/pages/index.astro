@@ -20,9 +20,13 @@ import InstagramFeed from '../components/InstagramFeed.astro';
 const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
 const isHomePage = currentPath === '/';
 
-
-Astro.response.headers.set('Link', '</.well-known/api-catalog>; rel="api-catalog"');
-
+/*
+  No `Astro.response.headers.set('Link', ...)` here. This page is prerendered
+  (static output), so there is no response object at request time and the call
+  was a silent no-op. The RFC 8288 Link header is set for `/*` in
+  `public/_headers`, which Cloudflare applies to the static asset, and
+  scripts/agent-discovery.test.mjs asserts it is there.
+*/
 ---
 
 <Layout title="Be Unconventional HQ" preloadImage={bannerImg.src}>
