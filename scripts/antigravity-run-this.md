@@ -142,7 +142,9 @@ those 3 permalinks appear in `dist/client/index.html`.
 ```bash
 # No test key leaked into a production build.
 git stash list; grep -c '1x00000000000000000000AA' dist/client/index.html
-grep -c '0x4AAAAAAD6D_U7FgRw-3m_G' dist/client/index.html
+# The production site key rotated in #190, Managed -> Invisible. Read the
+# current one out of wrangler.jsonc rather than trusting this line.
+grep -c '0x4AAAAAAElijhmIA5xTA1CM' dist/client/index.html
 ```
 Expected: **0** test-key occurrences, **1 or more** production-key occurrences.
 Anything else is a **BLOCKING** finding — report it immediately and loudly.
