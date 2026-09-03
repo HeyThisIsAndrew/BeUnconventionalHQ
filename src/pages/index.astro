@@ -10,6 +10,7 @@ import TakeoverBillboard from '../components/TakeoverBillboard.astro';
 import { getVideosUnified } from '../lib/videos-source';
 import PageTitle from '../components/PageTitle.astro';
 import ContentCard from '../components/ContentCard.astro';
+import bannerImg from '../assets/banner.webp';
 import SubscribeCTA from '../components/SubscribeCTA.astro';
 import Section from '../components/Section.astro';
 import SectionHeader from '../components/SectionHeader.astro';
@@ -18,9 +19,13 @@ import InstagramFeed from '../components/InstagramFeed.astro';
 // Get the current path, stripping trailing slashes for safety
 const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
 const isHomePage = currentPath === '/';
+
+
+Astro.response.headers.set('Link', '</.well-known/api-catalog>; rel="api-catalog"');
+
 ---
 
-<Layout title="Be Unconventional HQ">
+<Layout title="Be Unconventional HQ" preloadImage={bannerImg.src}>
   <main>
   <Hero />
 

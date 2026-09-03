@@ -73,6 +73,8 @@ const unifiedContent = [
 const brandColor = event.brandColor || 'var(--color-accent, #cc0000)';
 // Cap the hero at 2400px wide (retina-safe for a full-bleed banner) instead of
 // serving the raw upload, and let Sanity pick the best format.
+const heroMobileUrl = event.heroImage ? urlFor(event.heroImage).width(800).auto('format').url() : '';
+const heroTabletUrl = event.heroImage ? urlFor(event.heroImage).width(1200).auto('format').url() : '';
 const heroUrl = event.heroImage
   ? urlFor(event.heroImage).width(2400).auto('format').url()
   : '';
@@ -91,8 +93,14 @@ const trailerId = parseVideoId(trailerUrl);
       {/* Two layers (issue #22): the wrapper owns clipping/coverage and stays
           static; the inner layer owns the background image and the slow Ken
           Burns transform. Animating a single element caused edge slivers. */}
-      <div class="event-hero-bg-wrapper">
-        <div class="event-hero-bg-animated" style={heroUrl ? `background-image: url('${heroUrl}');` : `background-image: ${fallbackGradient};`}></div>
+      <div class="event-hero-bg-wrapper" style={!heroUrl ? `background: ${fallbackGradient};` : ''}>
+        {heroUrl && (
+          <picture>
+            <source media="(min-width: 1024px)" srcset={heroUrl} />
+            <source media="(min-width: 768px)" srcset={heroTabletUrl} />
+            <img src={heroMobileUrl} alt="" class="event-hero-bg-animated" loading="eager" fetchpriority="high" />
+          </picture>
+        )}
       </div>
       <div class="event-hero-overlay flex flex-col justify-center">
         <div
@@ -243,9 +251,9 @@ const trailerId = parseVideoId(trailerUrl);
     inset: 0;
     /* Cover the whole hero (behind the copy AND the trailer). It re-crops when
        the description expands — an accepted trade for full coverage. */
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
+    object-fit: cover;
+    width: 100%;
+    height: 100%;
     /* translateZ(0) promotes this layer to its own compositor layer. Without
        it, the overlay's backdrop-filter blur stops the animated transform from
        repainting (issue #22 root cause) — keep it in the base AND in every

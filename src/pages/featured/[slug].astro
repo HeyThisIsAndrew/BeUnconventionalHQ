@@ -126,6 +126,10 @@ const categoryLabel = HUB_CATEGORY_LABELS[event.hubCategory ?? ''] ?? '';
   Held back to a tint rather than the brand colour at full strength: this is the
   ground a logo and a line of type sit on, and four hubs are set to pure white.
 */
+
+const heroBackdropMobileUrl = heroBackdrop ? urlFor(heroBackdrop.ref).width(600).auto('format').quality(70).url() : '';
+const heroBackdropTabletUrl = heroBackdrop ? urlFor(heroBackdrop.ref).width(900).auto('format').quality(70).url() : '';
+const heroBackdropDesktopUrl = heroBackdrop ? urlFor(heroBackdrop.ref).width(1200).auto('format').quality(70).url() : '';
 const fallbackGradient = `linear-gradient(135deg, rgba(${brandRgb}, 0.28) 0%, #0a0a0a 62%, #111 100%)`;
 
 // The trailer (poster, players, sound) is fully encapsulated in <HeroTrailer/>.
@@ -171,7 +175,7 @@ const stageMarkUrl = event.logo ? urlFor(event.logo).height(520).auto('format').
 const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format').url() : null;
 ---
 
-<Layout title={`${event.title}`} description={`Complete coverage of ${event.title}`}>
+<Layout title={`${event.title}`} description={`Complete coverage of ${event.title}`} preloadImage={heroBackdropMobileUrl || undefined}>
   <main class="event-dashboard" style={`--brand-color: ${brandColor}; --brand-rgb: ${brandRgb};`}>
     
     {/* TODO: Refactor this hero section into a reusable component to share with
@@ -184,19 +188,11 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
           Burns transform. Animating a single element caused edge slivers. */}
       <div class="event-hero-bg-wrapper">
         {heroBackdrop ? (
-          /*
-            The hub's own art, blurred, with the slow push this hero has always
-            had. It used to be a cross-fade of up to six stills gathered from
-            the thumbnails of videos tagged to the hub — which meant a hub could
-            end up backed by a photograph of the site owner. See
-            getHubBackdrop().
-          */
-          <div
-            class="event-hero-bg-animated hero-backdrop-plate"
-            style={`background-image: url('${
-              urlFor(heroBackdrop.ref).width(900).auto('format').quality(70).url()
-            }');`}
-          ></div>
+          <picture>
+            <source media="(min-width: 1024px)" srcset={heroBackdropDesktopUrl} />
+            <source media="(min-width: 768px)" srcset={heroBackdropTabletUrl} />
+            <img src={heroBackdropMobileUrl} alt="" class="event-hero-bg-animated hero-backdrop-plate" loading="eager" fetchpriority="high" />
+          </picture>
         ) : (
           <div class="event-hero-bg-animated" style={`background-image: ${fallbackGradient};`}></div>
         )}
@@ -631,21 +627,10 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     inset: 0;
     /* Cover the whole hero (behind the copy AND the trailer). It re-crops when
        the description expands — an accepted trade for full coverage. */
-    background-size: cover;
-    /*
-      BIASED TOWARD THE TOP, NOT CENTRED.
-
-      The hero is far wider than it is tall (~2.4:1), and key art is 16:9, so
-      `cover` has to crop roughly a quarter of the image's height. Centred, it
-      took half of that off the top — which is where faces are. Reported as
-      Spider-Man's head being cut off.
-
-      22% keeps the upper third intact and still trims from the bottom, where
-      key art carries its logos and billing block and where this page draws its
-      own scrim anyway.
-    */
-    background-position: center 22%;
-    background-repeat: no-repeat;
+    object-fit: cover;
+    object-position: center 22%;
+    width: 100%;
+    height: 100%;
     /* translateZ(0) promotes this layer to its own compositor layer. Without
        it, the overlay's backdrop-filter blur stops the animated transform from
        repainting (issue #22 root cause) — keep it in the base AND in every
