@@ -93,6 +93,28 @@ jobs:
       - name: Production build
         run: npm run build
 
+      - name: Generate SEO Audit SARIF
+        run: npx astro-seo-audit@0.3.3 --dir dist/client --baseline .astro-seo-audit-baseline.json --fail-on none --format sarif --output seo-audit.sarif
+
+      - name: Upload SEO SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: seo-audit.sarif
+          category: seo-audit
+
+      - name: Enforce SEO Baseline
+        run: npx astro-seo-audit@0.3.3 --dir dist/client --baseline .astro-seo-audit-baseline.json --fail-on error --output seo-report.html
+
+      - name: Upload SEO HTML Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: seo-audit-report
+          path: seo-report.html
+          retention-days: 14
+
+
       - name: Lighthouse gate (90%+)
         run: npm run lighthouse
 
