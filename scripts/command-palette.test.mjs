@@ -158,7 +158,10 @@ test('the empty query shows a curated mix, not the top of a date sort', () => {
     'which needs hubCategory on the hub entries');
   assert.match(paletteCode, /selectedHubs\.length >= DEFAULT_HUB_COUNT/, 'four hubs');
 
-  const index = readFileSync(join(ROOT, 'src/pages/api/search-index.json.ts'), 'utf8');
+  /* The builder moved out of src/pages/api/search-index.json.ts into this lib
+     when the MCP endpoint needed the same rows server-side (#192). The route
+     is now a two-line wrapper; the shape these tests care about is here. */
+  const index = readFileSync(join(ROOT, 'src/lib/search-index.ts'), 'utf8');
   assert.match(index, /hubCategory: h\.hubCategory/,
     'the index must carry hubCategory or the per-category pick silently degrades ' +
     'to the first four hubs in the file');
@@ -477,7 +480,7 @@ test('the check uses the END of an event, not its start', () => {
   assert.match(fn, /d\.endDate \|\| d\.date/,
     'end date first, falling back to the start for a single-day event');
 
-  const index = readFileSync(join(ROOT, 'src/pages/api/search-index.json.ts'), 'utf8');
+  const index = readFileSync(join(ROOT, 'src/lib/search-index.ts'), 'utf8');
   assert.match(index, /endDate: e\.endDate \|\| e\.startDate/,
     'the index must carry an end date for every event, or the client cannot make this call');
   assert.match(index, /endDate\?: string \| null/, 'and it must be on the entry type');
@@ -489,7 +492,7 @@ test('the check uses the END of an event, not its start', () => {
   are already on screen.
 */
 test('Intel is kept out of the default view but stays searchable', () => {
-  const index = readFileSync(join(ROOT, 'src/pages/api/search-index.json.ts'), 'utf8');
+  const index = readFileSync(join(ROOT, 'src/lib/search-index.ts'), 'utf8');
   const intel = index.match(/\{ id: 'intel'.*?\}/);
   assert.ok(intel, 'the Intel page entry must exist');
   assert.match(intel[0], /excludeFromDefault: true/, 'flagged out of the default view');

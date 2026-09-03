@@ -15,7 +15,7 @@
   audience the site is aimed at. CLAUDE.md hard rule 1.
 */
 import assert from 'node:assert/strict';
-import { selectUpcomingEvents, clampLimit } from '../src/lib/webmcp.ts';
+import { selectUpcomingEvents, clampLimit } from '../src/lib/agent-tools.ts';
 
 let failures = 0;
 function check(name, fn) {
