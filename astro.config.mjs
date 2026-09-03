@@ -1,5 +1,5 @@
 // @ts-check
-import { defineConfig, envField } from 'astro/config';
+import { defineConfig, envField, fontProviders, svgoOptimizer } from 'astro/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
@@ -468,6 +468,48 @@ export default defineConfig({
   prefetch: {
     prefetchAll: true,
     defaultStrategy: 'hover',
+  },
+
+  // Astro Fonts API: Declares Syne and Inter with fallback metric overrides
+  // to eliminate Cumulative Layout Shift (CLS) on font swap, serving existing
+  // repository font files via fontProviders.local() for fully offline builds.
+  fonts: [
+    {
+      name: 'Syne',
+      cssVariable: '--font-display',
+      provider: fontProviders.local(),
+      weights: [600, 700, 800],
+      options: {
+        variants: [
+          {
+            src: ['./public/fonts/syne.woff2'],
+          },
+        ],
+      },
+    },
+    {
+      name: 'Inter',
+      cssVariable: '--font-body',
+      provider: fontProviders.local(),
+      weights: [400, 500, 600],
+      options: {
+        variants: [
+          {
+            src: ['./public/fonts/inter.woff2'],
+          },
+        ],
+      },
+    },
+  ],
+
+  experimental: {
+    // Upgrades prefetch from fetch-only to the Speculation Rules API so
+    // hovered links are prerendered and parsed in Chromium-based browsers,
+    // making subsequent ClientRouter navigations instantaneous.
+    clientPrerender: true,
+    // Optimizes imported SVGs at build time using SVGO, eliminating redundant
+    // metadata and whitespace without runtime client JS overhead.
+    svgOptimizer: svgoOptimizer(),
   },
 
   image: {
