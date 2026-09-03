@@ -34,7 +34,7 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response('Missing signature', { status: 403 });
   }
 
-  const textBody = await request.text();
+  const bodyBuffer = await request.arrayBuffer();
 
   // Compute HMAC-SHA1
   const encoder = new TextEncoder();
@@ -46,7 +46,7 @@ export const POST: APIRoute = async ({ request }) => {
     ['sign']
   );
   
-  const signatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(textBody));
+  const signatureBuffer = await crypto.subtle.sign('HMAC', key, bodyBuffer);
   const signatureArray = Array.from(new Uint8Array(signatureBuffer));
   const signatureHex = signatureArray.map(b => b.toString(16).padStart(2, '0')).join('');
   const expectedSignature = `sha1=${signatureHex}`;
@@ -55,6 +55,8 @@ export const POST: APIRoute = async ({ request }) => {
     console.error('Signature mismatch');
     return new Response('Invalid signature', { status: 403 });
   }
+
+  const textBody = new TextDecoder().decode(bodyBuffer);
 
   // Check if body contains <yt:videoId> (new/updated video) or <at:deleted-entry (deleted video)
   if (!textBody.includes('<yt:videoId>') && !textBody.includes('<at:deleted-entry')) {
