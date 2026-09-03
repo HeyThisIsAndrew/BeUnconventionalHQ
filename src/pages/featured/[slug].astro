@@ -126,6 +126,33 @@ const categoryLabel = HUB_CATEGORY_LABELS[event.hubCategory ?? ''] ?? '';
   Held back to a tint rather than the brand colour at full strength: this is the
   ground a logo and a line of type sit on, and four hubs are set to pure white.
 */
+
+/*
+  ─── ONE IMAGE, CHOSEN ONCE (#191) ────────────────────────────────────────
+  Width descriptors, not `<picture media>`, and the reason is the preload.
+
+  This started as a <picture> with `media` queries at 768px and 1024px, while
+  <Layout> was preloaded with the 600px url. Those are two different selection
+  algorithms, so on any desktop viewport the browser obediently fetched the
+  600px image at high priority BECAUSE we asked it to, then looked at the
+  <picture>, picked the 1200px source, and fetched that too. Two downloads,
+  and the one the preload accelerated was the one that got thrown away — on
+  the ticket whose entire purpose is a 3.9s LCP.
+
+  This is not art direction: it is the same image at three sizes, so `srcset`
+  with `w` descriptors is the right tool. It also makes the preload honest,
+  because `imagesrcset`/`imagesizes` run the exact same selection the <img>
+  does, so the browser preloads precisely the candidate it is going to use.
+*/
+const BACKDROP_WIDTHS = [600, 900, 1200];
+const backdropUrl = (w: number) =>
+  heroBackdrop ? urlFor(heroBackdrop.ref).width(w).auto('format').quality(70).url() : '';
+const heroBackdropMobileUrl = backdropUrl(600);
+const heroBackdropSrcset = heroBackdrop
+  ? BACKDROP_WIDTHS.map((w) => `${backdropUrl(w)} ${w}w`).join(', ')
+  : '';
+/* Full-bleed behind the hero, so the slot really is the viewport width. */
+const heroBackdropSizes = '100vw';
 const fallbackGradient = `linear-gradient(135deg, rgba(${brandRgb}, 0.28) 0%, #0a0a0a 62%, #111 100%)`;
 
 // The trailer (poster, players, sound) is fully encapsulated in <HeroTrailer/>.
@@ -171,7 +198,13 @@ const stageMarkUrl = event.logo ? urlFor(event.logo).height(520).auto('format').
 const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format').url() : null;
 ---
 
-<Layout title={`${event.title}`} description={`Complete coverage of ${event.title}`}>
+<Layout
+  title={`${event.title}`}
+  description={`Complete coverage of ${event.title}`}
+  preloadImage={heroBackdropMobileUrl || undefined}
+  preloadImageSrcset={heroBackdropSrcset || undefined}
+  preloadImageSizes={heroBackdrop ? heroBackdropSizes : undefined}
+>
   <main class="event-dashboard" style={`--brand-color: ${brandColor}; --brand-rgb: ${brandRgb};`}>
     
     {/* TODO: Refactor this hero section into a reusable component to share with
@@ -187,16 +220,20 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
           /*
             The hub's own art, blurred, with the slow push this hero has always
             had. It used to be a cross-fade of up to six stills gathered from
-            the thumbnails of videos tagged to the hub — which meant a hub could
-            end up backed by a photograph of the site owner. See
-            getHubBackdrop().
+            the thumbnails of videos tagged to the hub — which meant a hub
+            could end up backed by a photograph of the site owner. See
+            getHubBackdrop(). Do not reintroduce that; a hub is somebody
+            else's brand.
           */
-          <div
+          <img
+            src={heroBackdropMobileUrl}
+            srcset={heroBackdropSrcset}
+            sizes={heroBackdropSizes}
+            alt=""
             class="event-hero-bg-animated hero-backdrop-plate"
-            style={`background-image: url('${
-              urlFor(heroBackdrop.ref).width(900).auto('format').quality(70).url()
-            }');`}
-          ></div>
+            loading="eager"
+            fetchpriority="high"
+          />
         ) : (
           <div class="event-hero-bg-animated" style={`background-image: ${fallbackGradient};`}></div>
         )}
@@ -631,21 +668,10 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     inset: 0;
     /* Cover the whole hero (behind the copy AND the trailer). It re-crops when
        the description expands — an accepted trade for full coverage. */
-    background-size: cover;
-    /*
-      BIASED TOWARD THE TOP, NOT CENTRED.
-
-      The hero is far wider than it is tall (~2.4:1), and key art is 16:9, so
-      `cover` has to crop roughly a quarter of the image's height. Centred, it
-      took half of that off the top — which is where faces are. Reported as
-      Spider-Man's head being cut off.
-
-      22% keeps the upper third intact and still trims from the bottom, where
-      key art carries its logos and billing block and where this page draws its
-      own scrim anyway.
-    */
-    background-position: center 22%;
-    background-repeat: no-repeat;
+    object-fit: cover;
+    object-position: center 22%;
+    width: 100%;
+    height: 100%;
     /* translateZ(0) promotes this layer to its own compositor layer. Without
        it, the overlay's backdrop-filter blur stops the animated transform from
        repainting (issue #22 root cause) — keep it in the base AND in every

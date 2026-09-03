@@ -558,6 +558,12 @@ export default defineConfig({
     inlineStylesheets: 'always',
   },
   vite: {
+    build: {
+      minify: 'esbuild',
+    },
+    esbuild: {
+      drop: ['console', 'debugger'],
+    },
     plugins: [tailwindcss(), localCmsMiddleware()],
     ssr: {
       noExternal: ['react', 'react-dom']

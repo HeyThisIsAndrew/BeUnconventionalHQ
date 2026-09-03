@@ -10,6 +10,7 @@ import TakeoverBillboard from '../components/TakeoverBillboard.astro';
 import { getVideosUnified } from '../lib/videos-source';
 import PageTitle from '../components/PageTitle.astro';
 import ContentCard from '../components/ContentCard.astro';
+import bannerImg from '../assets/banner.webp';
 import SubscribeCTA from '../components/SubscribeCTA.astro';
 import Section from '../components/Section.astro';
 import SectionHeader from '../components/SectionHeader.astro';
@@ -18,9 +19,17 @@ import InstagramFeed from '../components/InstagramFeed.astro';
 // Get the current path, stripping trailing slashes for safety
 const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
 const isHomePage = currentPath === '/';
+
+/*
+  No `Astro.response.headers.set('Link', ...)` here. This page is prerendered
+  (static output), so there is no response object at request time and the call
+  was a silent no-op. The RFC 8288 Link header is set for `/*` in
+  `public/_headers`, which Cloudflare applies to the static asset, and
+  scripts/agent-discovery.test.mjs asserts it is there.
+*/
 ---
 
-<Layout title="Be Unconventional HQ">
+<Layout title="Be Unconventional HQ" preloadImage={bannerImg.src}>
   <main>
   <Hero />
 
