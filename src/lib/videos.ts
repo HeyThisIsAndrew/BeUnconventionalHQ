@@ -18,6 +18,7 @@ export interface UnifiedVideo {
   link: string;
   thumbnail: string;
   category: string;
+  labelOverride?: string;
   tags?: string[];
   youtubeTags?: string[];
   date: string;
@@ -99,6 +100,7 @@ export function mapSanityVideo(doc: any, { categorize }: MapOptions = {}): Unifi
       : `https://www.youtube.com/watch?v=${id}`,
     thumbnail: doc.thumbnailUrl || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
     category: topicMatch ?? categorize?.(doc.title) ?? 'General',
+    labelOverride: doc.labelOverride,
     tags: (doc.topics ?? []).map(String),
     youtubeTags: doc.youtubeTags ?? [],
     date,

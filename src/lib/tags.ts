@@ -8,7 +8,7 @@ export function getDisplayTags(item: any): string[] {
   let cleanTokens = explicitTokens.map(t => typeof t === 'string' ? t.replace(/[#@\s]/g, '').toUpperCase() : '');
   cleanTokens = [...new Set(cleanTokens.filter(Boolean))];
 
-  let tag1 = '';
+  let tag1 = item.labelOverride || '';
   const brandMap = [
     { label: 'MARVEL', regex: /MARVEL|WOLVERINE|AVENGERS|SPIDER|XMEN|MCU|DEADPOOL|VENOM/ },
     { label: 'DC', regex: /DC$|DCU|BATMAN|SUPERMAN|WONDERWOMAN|JUSTICELEAGUE|JOKER|LANTERNS/ },
@@ -33,11 +33,13 @@ export function getDisplayTags(item: any): string[] {
     { label: 'PARAMOUNT', regex: /PARAMOUNT/ }
   ];
 
-  for (const b of brandMap) {
-    const match = cleanTokens.find(t => b.regex.test(t));
-    if (match) {
-      tag1 = b.label;
-      break;
+  if (!tag1) {
+    for (const b of brandMap) {
+      const match = cleanTokens.find(t => b.regex.test(t));
+      if (match) {
+        tag1 = b.label;
+        break;
+      }
     }
   }
 

@@ -26,6 +26,7 @@ type Doc = {
   youtubeId?: string;
   description?: string;
   thumbnailUrl?: string;
+  labelOverride?: string;
   durationSeconds?: number;
   isShort?: boolean;
   isLive?: boolean;
@@ -1179,6 +1180,20 @@ function VideoForm({
             </p>
           )}
         </Field>
+        <div className="@lg:col-span-full">
+          <Field label="Brand Label Override">
+            <input
+              type="text"
+              value={doc.labelOverride || ''}
+              onChange={(e) => update('labelOverride', e.target.value)}
+              className={inputClass}
+              placeholder="e.g. SONY PICTURES"
+            />
+            <p className="text-xs text-gray-400 mt-1.5">
+              Forces a specific visual brand label on the video card instead of auto-guessing from tags.
+            </p>
+          </Field>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2 border-b border-white/10 pb-2">
