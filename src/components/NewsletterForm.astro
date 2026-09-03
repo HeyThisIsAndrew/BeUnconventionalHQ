@@ -94,6 +94,7 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
 
 <script>
   import { whenTurnstileReady } from '../lib/turnstile-lazy';
+  import { actions } from 'astro:actions';
 
   /*
     Newsletter submit handler.
@@ -107,12 +108,16 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
     render: (el: HTMLElement, opts: Record<string, unknown>) => string;
     getResponse: (widgetId?: string) => string | undefined;
     reset: (widgetId?: string) => void;
+    execute: (widgetId?: string) => void;
   }
   declare global {
     interface Window {
       turnstile?: TurnstileApi;
     }
   }
+
+  let turnstileResolver: ((token: string) => void) | null = null;
+  let turnstileRejecter: ((err: Error) => void) | null = null;
 
   /** Widget id from turnstile.render(), needed to read its token back. */
   let widgetId: string | null = null;
@@ -145,10 +150,16 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
           /* Matches the other forms on the site. `flexible` fills the
              container width rather than forcing a fixed 300px box, which
              would overflow the narrow mobile subscribe band. */
-          size: 'flexible',
-          theme: 'dark',
+          execution: 'execute',
+          callback: (token: string) => {
+            if (turnstileResolver) turnstileResolver(token);
+          },
+          'timeout-callback': () => {
+            if (turnstileRejecter) turnstileRejecter(new Error('timeout'));
+          },
           'error-callback': () => {
             turnstileUnavailable = true;
+            if (turnstileRejecter) turnstileRejecter(new Error('error'));
           },
         });
         return;
@@ -234,11 +245,6 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
         return;
       }
 
-      const token =
-        widgetId && window.turnstile
-          ? (window.turnstile.getResponse(widgetId) ?? '')
-          : '';
-
       if (turnstileUnavailable) {
         setStateForForm(
           form,
@@ -248,35 +254,35 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
         return;
       }
 
-      const holder = document.getElementById('newsletter-turnstile');
-      const widgetDrew = holder && holder.childElementCount > 0;
+      setStateForForm(form, 'submitting', 'Verifying…');
 
-      if (widgetId && !widgetDrew) {
-        setStateForForm(
-          form,
-          'error',
-          "Our anti-spam check failed to display. Please refresh the page to try again."
-        );
-        return;
-      }
-
-      if (widgetId && !token && !email.startsWith('e2e-test-')) {
-        setStateForForm(form, 'error', 'Please complete the verification challenge above.');
-        return;
+      let token = '';
+      if (widgetId && window.turnstile) {
+        try {
+          token = await new Promise<string>((resolve, reject) => {
+            turnstileResolver = resolve;
+            turnstileRejecter = reject;
+            window.turnstile!.execute(widgetId!);
+            // Safety bound: 8 seconds maximum for the invisible challenge
+            setTimeout(() => reject(new Error('timeout')), 8000);
+          });
+        } catch (err) {
+          setStateForForm(
+            form,
+            'error',
+            "Our anti-spam check failed or timed out. Please try again."
+          );
+          if (widgetId && window.turnstile) window.turnstile.reset(widgetId);
+          return;
+        }
       }
 
       setStateForForm(form, 'submitting', 'Subscribing…');
 
       try {
-        const response = await fetch('/api/subscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, 'cf-turnstile-response': token }),
-        });
+        const { data, error } = await actions.subscribe({ email, 'cf-turnstile-response': token });
 
-        const data = await response.json().catch(() => ({}));
-
-        if (response.ok && data.success) {
+        if (!error && data?.success) {
           const formStyle = getComputedStyle(form);
           form.style.setProperty(
             '--newsletter-locked-height',
@@ -287,7 +293,7 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
           if (widgetId && window.turnstile) window.turnstile.reset(widgetId);
         } else {
           if (widgetId && window.turnstile) window.turnstile.reset(widgetId);
-          setStateForForm(form, 'error', data.error ?? 'Something went wrong. Please try again.');
+          setStateForForm(form, 'error', error?.message || 'Something went wrong. Please try again.');
         }
       } catch (e) {
         setStateForForm(form, 'error', 'Network error. Please try again.');
