@@ -125,7 +125,10 @@ after two attempts rather than hiding it. **Revert.**
   CI job only, and `wrangler.jsonc` still carries the real key.
 
 **Falsify:** confirm a production build (no `.env` override) still bakes
-`0x4AAAAAAD6D_U7FgRw-3m_G` into the pages. If this PR leaked a test key into
+the site key from `wrangler.jsonc` into the pages. It was
+`0x4AAAAAAD6D_U7FgRw-3m_G` when this was written and rotated to the Invisible
+widget's key in #190, so read the current value out of `wrangler.jsonc` rather
+than pinning it here. If this PR leaked a test key into
 anything production serves, that is a **blocking** finding.
 
 ### D. A reporting-only desktop Lighthouse job

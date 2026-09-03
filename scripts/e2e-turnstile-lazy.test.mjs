@@ -16,9 +16,14 @@
     - widgets still mount after a client-side navigation, which the implicit
       renderer never did
 
+  It also covers the execute-mode flow added in #190 the same way: the stub's
+  `execute()` decides whether a token arrives, so the form's wait, its
+  timeout, its lock and its recovery are all exercised without Cloudflare.
+
   It does NOT prove a real challenge solves, that Cloudflare accepts the
-  rendered widget, or that /api/subscribe validates the resulting token.
-  Those need a live key against the deploy preview and are listed on the PR.
+  rendered widget, or that the subscribe action validates the resulting
+  token. Those need a live key against the deploy preview and are listed on
+  the PR.
 */
 import { launchTestBrowser } from './e2e-browser.mjs';
 import { startPreviewServer } from './e2e-server.mjs';
@@ -330,75 +335,150 @@ async function runTests() {
       condition — a stub that accepts render() and draws nothing — and asserts
       the form says something true and offers a way out instead.
     */
-    console.log('Widget renders but never draws...');
-    const blind = await browser.newPage();
-    await blind.setViewport({ width: 390, height: 844 });
-    await blind.setRequestInterception(true);
-    blind.on('request', (req) => {
-      const url = req.url();
-      if (!url.includes(TURNSTILE_HOST)) {
-        req.continue().catch(() => {});
-        return;
-      }
-      const onload = new URL(url).searchParams.get('onload') || '';
-      // Accepts render(), returns an id, and deliberately draws NO iframe.
-      req
-        .respond({
-          status: 200,
-          contentType: 'application/javascript',
-          body: `
-            window.turnstile = {
-              render: function () { return 'never-draws-1'; },
-              getResponse: function () { return ''; },
-              reset: function () {},
-              remove: function () {},
-            };
-            if (typeof window[${JSON.stringify(onload)}] === 'function') window[${JSON.stringify(onload)}]();
-          `,
-        })
-        .catch(() => {});
+    /*
+      ─── EXECUTE MODE (#190) ────────────────────────────────────────────────
+      The scenario that used to sit here — "the widget renders but draws no
+      children, so something is wrong" — was retired, not lost. In execute
+      mode a HEALTHY widget also draws nothing, so drawing nothing stopped
+      being evidence of anything. What replaces it is the contract that
+      actually holds now: pressing Subscribe runs the challenge, the form
+      waits for the token, and every way that wait can end is handled.
+
+      These stubs implement `execute()` because the form calls it. A stub
+      without it would make the form fail for the wrong reason and the
+      assertions below would pass without testing anything.
+    */
+    async function runExecuteScenario(executeBody, act) {
+      const page = await browser.newPage();
+      await page.setViewport({ width: 390, height: 844 });
+      await page.setRequestInterception(true);
+      page.on('request', (req) => {
+        const url = req.url();
+        if (!url.includes(TURNSTILE_HOST)) {
+          req.continue().catch(() => {});
+          return;
+        }
+        const onload = new URL(url).searchParams.get('onload') || '';
+        req
+          .respond({
+            status: 200,
+            contentType: 'application/javascript',
+            body: `
+              window.__tsExecutes = 0;
+              window.__tsCallback = null;
+              window.turnstile = {
+                render: function (el, opts) {
+                  window.__tsCallback = opts && opts.callback;
+                  return 'execute-widget-1';
+                },
+                reset: function () {},
+                remove: function () {},
+                execute: function () { window.__tsExecutes++; ${executeBody} },
+              };
+              if (typeof window[${JSON.stringify(onload)}] === 'function') {
+                window[${JSON.stringify(onload)}]();
+              }
+            `,
+          })
+          .catch(() => {});
+      });
+
+      await page.goto('http://localhost:4321/', { waitUntil: 'networkidle0' });
+      await page.evaluate(() => {
+        document.querySelector('#newsletter-form input[type=email]').focus();
+      });
+      await new Promise((r) => setTimeout(r, 600));
+      await page.evaluate(() => {
+        const input = document.querySelector('#newsletter-form input[type=email]');
+        input.value = 'e2e-execute@example.com';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+
+      await act(page);
+
+      const state = await page.evaluate(() => {
+        const form = document.getElementById('newsletter-form');
+        return {
+          message: document.getElementById('newsletter-status').textContent.trim(),
+          isError: form.classList.contains('is-error'),
+          isSuccess: form.classList.contains('is-success'),
+          isSubmitting: form.classList.contains('is-submitting'),
+          ariaBusy: form.getAttribute('aria-busy'),
+          executes: window.__tsExecutes,
+          hasIframe: !!document.querySelector('#newsletter-turnstile iframe'),
+        };
+      });
+      await page.close();
+      return state;
+    }
+
+    console.log('Execute mode: the happy path...');
+
+    const spammed = await runExecuteScenario(
+      // A token, one tick later, the way a real silent challenge resolves.
+      'setTimeout(function () { if (window.__tsCallback) window.__tsCallback("execute-token"); }, 50);',
+      async (page) => {
+        /* Spam-click. #188's guarantee has to survive the challenge wait
+           being the long part of the flow. */
+        await page.evaluate(() => {
+          const button = document.querySelector('.newsletter-submit');
+          button.click();
+          button.click();
+          button.click();
+        });
+        await new Promise((r) => setTimeout(r, 2500));
+      },
+    );
+
+    check('a token arrives and the form posts successfully', () => {
+      assert.equal(spammed.isSuccess, true, `expected success, got: "${spammed.message}"`);
+      assert.match(spammed.message, /on the list/i);
     });
 
-    await blind.goto('http://localhost:4321/', { waitUntil: 'networkidle0' });
-    await blind.evaluate(() => {
-      document.querySelector('#newsletter-form input[type=email]').focus();
+    check('nothing is drawn in the subscribe band on the silent path', () => {
+      assert.equal(spammed.hasIframe, false);
     });
-    await new Promise((r) => setTimeout(r, 600));
 
-    await blind.evaluate(() => {
-      const input = document.querySelector('#newsletter-form input[type=email]');
-      input.value = 'reader@example.com';
-      input.dispatchEvent(new Event('input', { bubbles: true }));
+    check('spam-clicking Subscribe runs exactly ONE challenge', () => {
+      assert.equal(
+        spammed.executes,
+        1,
+        `expected 1 execute() for 3 clicks, got ${spammed.executes}`,
+      );
     });
-    await blind.evaluate(() => {
-      document.querySelector('.newsletter-submit').click();
+
+    check('aria-busy is cleared once the form settles', () => {
+      assert.equal(spammed.ariaBusy, null);
     });
-    await new Promise((r) => setTimeout(r, 500));
 
-    const blindState = await blind.evaluate(() => ({
-      message: document.getElementById('newsletter-status').textContent.trim(),
-      isError: document.getElementById('newsletter-form').classList.contains('is-error'),
-      hasIframe: !!document.querySelector('#newsletter-turnstile iframe'),
-    }));
+    console.log('Execute mode: the challenge never calls back...');
 
-    check('an undrawn widget does not claim there is a challenge to complete', () => {
-      assert.equal(blindState.hasIframe, false, 'precondition: the stub must draw nothing');
+    const stalled = await runExecuteScenario(
+      // Silence. No callback, no error-callback, no timeout-callback.
+      '/* never calls back */',
+      async (page) => {
+        await page.evaluate(() => document.querySelector('.newsletter-submit').click());
+        /* Just past CHALLENGE_TIMEOUT_MS (12s) in NewsletterForm.astro. */
+        await new Promise((r) => setTimeout(r, 14000));
+      },
+    );
+
+    check('a stalled challenge fails instead of spinning forever', () => {
+      assert.equal(stalled.isError, true, `expected the error state, got: "${stalled.message}"`);
+      assert.match(stalled.message, /anti-spam check/i);
+    });
+
+    check('...and never tells the reader to complete something invisible', () => {
       assert.ok(
-        !/complete the verification challenge/i.test(blindState.message),
-        `told the reader to complete a challenge that is not on screen: "${blindState.message}"`,
+        !/complete the verification challenge/i.test(stalled.message),
+        `told the reader to complete a challenge that is not on screen: "${stalled.message}"`,
       );
     });
 
-    check('...and says what is actually wrong, with a way out', () => {
-      assert.equal(blindState.isError, true, 'should be in the error state');
-      assert.match(
-        blindState.message,
-        /anti-spam check/i,
-        `expected an honest anti-spam message, got: "${blindState.message}"`,
-      );
+    check('...and leaves the form usable rather than locked', () => {
+      assert.equal(stalled.isSubmitting, false, 'the form is still locked in is-submitting');
+      assert.equal(stalled.ariaBusy, null, 'the form still reports itself busy');
     });
-
-    await blind.close();
 
     console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);
     if (failed > 0) exitCode = 1;

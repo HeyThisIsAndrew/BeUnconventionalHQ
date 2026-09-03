@@ -93,12 +93,40 @@ Settings → Variables and Secrets), not the Pages project.
 |---|---|
 | `YOUTUBE_API_KEY` | Google Cloud → YouTube Data API v3 key. Same key the sync script uses. Encrypt. |
 | `YOUTUBE_CHANNEL_ID` | Optional. Defaults to the HQ channel (`UCXqU6781pQgYXDExLvMw2Og`). |
-| `PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare Turnstile site key. Public by design (ships in page HTML) — plain var, not a secret. |
+| `PUBLIC_TURNSTILE_SITE_KEY` | **Not a Worker variable. Set it in `wrangler.jsonc` `vars` and rebuild.** See the note below this table before touching it. |
 | `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile secret key, read server-side by `api/contact.ts` and `api/subscribe.ts` to verify submissions. Encrypt. |
 | `RESEND_API_KEY` | Used by `api/contact.ts` / `api/subscribe.ts` to send mail. Encrypt. |
 | `WEBSUB_SECRET` | HMAC secret verifying `api/youtube-webhook.ts` push notifications. Encrypt. Must match the `hub.secret` used in `renew-websub.yml`. |
 | `GITHUB_DISPATCH_TOKEN` | Read by `api/youtube-webhook.ts` to trigger `sync-youtube.yml` on a push notification. Encrypt. |
 | `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` / `TWITCH_CHANNEL_LOGIN` | Only needed once the Twitch live provider (below) is activated. Encrypt the secret. |
+
+### `PUBLIC_TURNSTILE_SITE_KEY` is the one exception in that table
+
+Every other row above is a runtime value and belongs on the Worker. This one
+does not, and setting it there does nothing. It cost a production outage to
+learn, so it is written down here.
+
+It is declared `context: 'client'` in the astro:env schema, and this site is
+static output, so Astro inlines it at BUILD time into the prerendered HTML of
+every page carrying the newsletter form. Its value comes from `vars` in
+`wrangler.jsonc`. A Worker variable is a RUNTIME value: it cannot reach back
+into HTML that was already built. `@astrojs/cloudflare` also copies those vars
+into `dist/server/wrangler.json`, which is the config `npm run deploy` deploys
+with, so a dashboard edit is overwritten by the next deploy regardless.
+
+`TURNSTILE_SECRET_KEY` is the opposite and stays in the table: server-side,
+read at runtime through `cloudflare:workers`, so the dashboard IS where it
+lives. The two therefore rotate in different places, and rotating only one
+leaves the browser holding a token from widget A while the server verifies it
+against widget B's secret. siteverify answers `invalid-input-response` and
+every submission fails, with no code defect to find. Rotate both in the same
+sitting: the site key in `wrangler.jsonc` followed by a rebuild and redeploy,
+the secret in the dashboard.
+
+A `.env` value overrides the key baked into the HTML but NOT the copy in
+`dist/server/wrangler.json`, which reproduces that same mismatch from a third
+direction. Keep Turnstile keys out of `.env` for any build you intend to
+deploy; they are for local dev only.
 
 For local `astro dev`, put them in `.env` instead (see `.env.example`).
 

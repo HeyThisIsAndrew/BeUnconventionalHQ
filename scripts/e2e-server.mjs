@@ -108,9 +108,19 @@ export async function startPreviewServer({ port = 4321, timeoutMs = 120000 } = {
     stdio: 'pipe',
     // Own process group, so stopServer can take the workerd child down too.
     detached: true,
-    env: { 
-      ...process.env, 
-      PUBLIC_TURNSTILE_SITE_KEY: '', 
+    env: {
+      ...process.env,
+      /*
+        Best effort only, and deliberately not relied on. Both names are in
+        the astro:env schema, and @astrojs/cloudflare resolves those from
+        wrangler.jsonc `vars` and from the values baked in at build time, both
+        of which outrank this process env (see the long note in
+        .github/workflows/ci.yml). What actually decides whether the suites
+        get a token is the key the BUILD was made with, which is why CI writes
+        Cloudflare's always-passes test keys into `.env` before building and
+        `.env.example` tells you to do the same locally.
+      */
+      PUBLIC_TURNSTILE_SITE_KEY: '',
       TURNSTILE_SECRET_KEY: '',
       ASTRO_TELEMETRY_DISABLED: '1'
     },

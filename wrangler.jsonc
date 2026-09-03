@@ -34,8 +34,34 @@
   "assets": {
     "html_handling": "drop-trailing-slash"
   },
+  // ─── THIS FILE IS THE SOURCE OF TRUTH FOR PUBLIC_TURNSTILE_SITE_KEY ──────
+  //
+  // Editing that key as a plain-text variable in the Cloudflare dashboard does
+  // NOTHING, and it is worth understanding why before anyone tries it again.
+  //
+  // PUBLIC_TURNSTILE_SITE_KEY is declared `context: 'client'` in the
+  // astro:env schema (astro.config.mjs). Client variables are inlined at BUILD
+  // time, and this site is static output, so the key is written into the
+  // prerendered HTML of every page carrying the newsletter form. A Worker
+  // binding is a RUNTIME value: it cannot reach back into HTML that was
+  // already built. On top of that, @astrojs/cloudflare copies these vars into
+  // dist/server/wrangler.json, which is the config `npm run deploy` deploys
+  // with, so a dashboard edit to a var named here is overwritten by the next
+  // deploy anyway.
+  //
+  // TURNSTILE_SECRET_KEY is the opposite and must never appear here: it is a
+  // server secret, read at runtime through `cloudflare:workers`, so the
+  // dashboard IS where it lives.
+  //
+  // The two therefore rotate in different places, and rotating only one leaves
+  // the browser holding a token from widget A while the server verifies it
+  // against widget B's secret. siteverify answers `invalid-input-response` and
+  // every submission fails. Change the site key HERE, rebuild, redeploy, and
+  // change the secret in the dashboard, in the same sitting.
   "vars": {
-    "PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAAD6D_U7FgRw-3m_G",
+    // "Newsletter Subscribe (Invisible)" widget. Its Managed predecessor was
+    // 0x4AAAAAAD6D_U7FgRw-3m_G; see #190 for why the mode changed.
+    "PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAAElijhmIA5xTA1CM",
     "PUBLIC_GTM_ID": "GTM-PDDF3D6K"
   },
   "kv_namespaces": [
