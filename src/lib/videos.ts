@@ -18,7 +18,9 @@ export interface UnifiedVideo {
   link: string;
   thumbnail: string;
   category: string;
-  labelOverride?: string;
+  badge1?: string;
+  badge2?: string;
+  badge3?: string;
   tags?: string[];
   youtubeTags?: string[];
   date: string;
@@ -100,17 +102,19 @@ export function mapSanityVideo(doc: any, { categorize }: MapOptions = {}): Unifi
       : `https://www.youtube.com/watch?v=${id}`,
     thumbnail: doc.thumbnailUrl || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
     category: topicMatch ?? categorize?.(doc.title) ?? 'General',
-    labelOverride: doc.labelOverride,
+    badge1: doc.badge1,
+    badge2: doc.badge2,
+    badge3: doc.badge3,
     tags: (doc.topics ?? []).map(String),
     youtubeTags: doc.youtubeTags ?? [],
     date,
     isShort,
     isLive,
+    featured: doc.featured || false,
     isEvent,
-    contentType: effectiveType,
+    contentType: effectiveType as any,
     youtubeId: id,
     durationSeconds: doc.durationSeconds,
-    featured: doc.featured ?? false,
     publishedAt: doc.publishedAt ?? undefined,
     source: 'sanity',
     

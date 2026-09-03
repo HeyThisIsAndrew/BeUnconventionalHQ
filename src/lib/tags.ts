@@ -8,7 +8,7 @@ export function getDisplayTags(item: any): string[] {
   let cleanTokens = explicitTokens.map(t => typeof t === 'string' ? t.replace(/[#@\s]/g, '').toUpperCase() : '');
   cleanTokens = [...new Set(cleanTokens.filter(Boolean))];
 
-  let tag1 = item.labelOverride || '';
+  let tag1 = item.badge1 || '';
   const brandMap = [
     { label: 'MARVEL', regex: /MARVEL|WOLVERINE|AVENGERS|SPIDER|XMEN|MCU|DEADPOOL|VENOM/ },
     { label: 'DC', regex: /DC$|DCU|BATMAN|SUPERMAN|WONDERWOMAN|JUSTICELEAGUE|JOKER|LANTERNS/ },
@@ -43,7 +43,7 @@ export function getDisplayTags(item: any): string[] {
     }
   }
 
-  let tag2 = '';
+  let tag2 = item.badge2 || '';
   const typeMap = [
     { label: 'REVIEW', regex: /REVIEW/ },
     { label: 'COMMENTARY', regex: /COMMENTARY/ },
@@ -59,18 +59,20 @@ export function getDisplayTags(item: any): string[] {
     { label: 'DISPATCH', regex: /DISPATCH/ }
   ];
 
-  for (const type of typeMap) {
-    const match = cleanTokens.find(t => type.regex.test(t));
-    if (match) {
-      tag2 = type.label;
-      break;
-    } else if (item.contentType && type.regex.test(item.contentType.toUpperCase())) {
-      tag2 = type.label;
-      break;
+  if (!tag2) {
+    for (const type of typeMap) {
+      const match = cleanTokens.find(t => type.regex.test(t));
+      if (match) {
+        tag2 = type.label;
+        break;
+      } else if (item.contentType && type.regex.test(item.contentType.toUpperCase())) {
+        tag2 = type.label;
+        break;
+      }
     }
   }
 
-  let tag3 = '';
+  let tag3 = item.badge3 || '';
   const eventMap = [
     { label: 'SDCC', regex: /SDCC|COMICCON/ },
     { label: 'CONVENTION', regex: /^CONVENTIONS?$|WONDERCON/ },
@@ -85,12 +87,14 @@ export function getDisplayTags(item: any): string[] {
     { label: 'PREMIERE', regex: /PREMIERE/ }
   ];
 
-  for (const e of eventMap) {
-    if (tag2 === e.label) continue;
-    const match = cleanTokens.find(t => e.regex.test(t));
-    if (match) {
-      tag3 = e.label;
-      break;
+  if (!tag3) {
+    for (const e of eventMap) {
+      if (tag2 === e.label) continue;
+      const match = cleanTokens.find(t => e.regex.test(t));
+      if (match) {
+        tag3 = e.label;
+        break;
+      }
     }
   }
 
