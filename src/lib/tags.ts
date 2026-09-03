@@ -8,14 +8,15 @@ export function getDisplayTags(item: any): string[] {
   let cleanTokens = explicitTokens.map(t => typeof t === 'string' ? t.replace(/[#@\s]/g, '').toUpperCase() : '');
   cleanTokens = [...new Set(cleanTokens.filter(Boolean))];
 
-  let tag1 = '';
+  let tag1 = item.badge1 || '';
   const brandMap = [
     { label: 'MARVEL', regex: /MARVEL|WOLVERINE|AVENGERS|SPIDER|XMEN|MCU|DEADPOOL|VENOM/ },
     { label: 'DC', regex: /DC$|DCU|BATMAN|SUPERMAN|WONDERWOMAN|JUSTICELEAGUE|JOKER|LANTERNS/ },
     { label: 'NETFLIX', regex: /NETFLIX/ },
     { label: 'APPLE TV+', regex: /APPLE/ },
     { label: 'DISNEY', regex: /DISNEY/ },
-    { label: 'PLAYSTATION', regex: /\bSONY\b|SONYPICTURES|PLAYSTATION|PS5|PS4/ },
+    { label: 'SONY PICTURES', regex: /SONYPICTURES/ },
+    { label: 'PLAYSTATION', regex: /\bSONY\b|PLAYSTATION|PS5|PS4/ },
     { label: 'WARNER BROS', regex: /WARNER|WB/ },
     { label: 'HBO', regex: /HBO|^MAX$|HBOMAX/ },
     { label: 'UNIVERSAL PICTURES', regex: /UNIVERSAL/ },
@@ -32,15 +33,17 @@ export function getDisplayTags(item: any): string[] {
     { label: 'PARAMOUNT', regex: /PARAMOUNT/ }
   ];
 
-  for (const b of brandMap) {
-    const match = cleanTokens.find(t => b.regex.test(t));
-    if (match) {
-      tag1 = b.label;
-      break;
+  if (!tag1) {
+    for (const b of brandMap) {
+      const match = cleanTokens.find(t => b.regex.test(t));
+      if (match) {
+        tag1 = b.label;
+        break;
+      }
     }
   }
 
-  let tag2 = '';
+  let tag2 = item.badge2 || '';
   const typeMap = [
     { label: 'REVIEW', regex: /REVIEW/ },
     { label: 'COMMENTARY', regex: /COMMENTARY/ },
@@ -56,18 +59,20 @@ export function getDisplayTags(item: any): string[] {
     { label: 'DISPATCH', regex: /DISPATCH/ }
   ];
 
-  for (const type of typeMap) {
-    const match = cleanTokens.find(t => type.regex.test(t));
-    if (match) {
-      tag2 = type.label;
-      break;
-    } else if (item.contentType && type.regex.test(item.contentType.toUpperCase())) {
-      tag2 = type.label;
-      break;
+  if (!tag2) {
+    for (const type of typeMap) {
+      const match = cleanTokens.find(t => type.regex.test(t));
+      if (match) {
+        tag2 = type.label;
+        break;
+      } else if (item.contentType && type.regex.test(item.contentType.toUpperCase())) {
+        tag2 = type.label;
+        break;
+      }
     }
   }
 
-  let tag3 = '';
+  let tag3 = item.badge3 || '';
   const eventMap = [
     { label: 'SDCC', regex: /SDCC|COMICCON/ },
     { label: 'CONVENTION', regex: /^CONVENTIONS?$|WONDERCON/ },
@@ -82,12 +87,14 @@ export function getDisplayTags(item: any): string[] {
     { label: 'PREMIERE', regex: /PREMIERE/ }
   ];
 
-  for (const e of eventMap) {
-    if (tag2 === e.label) continue;
-    const match = cleanTokens.find(t => e.regex.test(t));
-    if (match) {
-      tag3 = e.label;
-      break;
+  if (!tag3) {
+    for (const e of eventMap) {
+      if (tag2 === e.label) continue;
+      const match = cleanTokens.find(t => e.regex.test(t));
+      if (match) {
+        tag3 = e.label;
+        break;
+      }
     }
   }
 

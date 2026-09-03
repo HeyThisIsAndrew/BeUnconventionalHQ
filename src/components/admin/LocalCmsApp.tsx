@@ -26,6 +26,9 @@ type Doc = {
   youtubeId?: string;
   description?: string;
   thumbnailUrl?: string;
+  badge1?: string;
+  badge2?: string;
+  badge3?: string;
   durationSeconds?: number;
   isShort?: boolean;
   isLive?: boolean;
@@ -1179,6 +1182,41 @@ function VideoForm({
             </p>
           )}
         </Field>
+        <div className="@lg:col-span-full">
+          <p className="text-sm font-bold text-white mb-2">Visual Badge Overrides</p>
+          <div className="grid grid-cols-1 @sm:grid-cols-3 gap-4">
+            <Field label="Badge 1 (Brand)">
+              <input
+                type="text"
+                value={doc.badge1 || ''}
+                onChange={(e) => update('badge1', e.target.value)}
+                className={inputClass}
+                placeholder="e.g. SONY PICTURES"
+              />
+            </Field>
+            <Field label="Badge 2 (Format)">
+              <input
+                type="text"
+                value={doc.badge2 || ''}
+                onChange={(e) => update('badge2', e.target.value)}
+                className={inputClass}
+                placeholder="e.g. REVIEW"
+              />
+            </Field>
+            <Field label="Badge 3 (Event)">
+              <input
+                type="text"
+                value={doc.badge3 || ''}
+                onChange={(e) => update('badge3', e.target.value)}
+                className={inputClass}
+                placeholder="e.g. SDCC"
+              />
+            </Field>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            Leave blank to let the system auto-guess from tags. Fill in to explicitly force a badge.
+          </p>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2 border-b border-white/10 pb-2">
