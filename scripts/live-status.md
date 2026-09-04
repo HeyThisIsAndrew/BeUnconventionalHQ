@@ -135,7 +135,10 @@ For local `astro dev`, put them in `.env` instead (see `.env.example`).
 Live detection uses `search.list` = **100 units/call** against the free
 **10,000 units/day** — a hard ceiling of ~100 checks/day.
 
-The CDN is the rate limiter, not application code. Caching is handled declaratively in `astro.config.mjs` using Astro 7's `routeRules` and the `cacheCloudflare()` provider, which automatically intercepts the following cache policy and stores it at the Cloudflare edge:
+The CDN is the rate limiter, not application code. The policy is declared in
+`astro.config.mjs` via Astro 7 `routeRules` plus the `cacheCloudflare()`
+provider, which turns the rule into a `Cloudflare-CDN-Cache-Control` header
+on the response:
 
 - `s-maxage=900` → Cloudflare hits this endpoint at most ~96×/day
   (~9,600 units worst case, inside quota even with the daily sync running).
@@ -143,19 +146,56 @@ The CDN is the rate limiter, not application code. Caching is handled declarativ
 - `stale-while-revalidate=300` → visitors get instant answers while the edge
   refreshes in the background.
 
-### Cache Purging (Instant Live Transitions)
+### How the rule becomes headers
 
-Because we use Astro's `cacheCloudflare()` provider, every response is automatically tagged with its request path (`/api/live-status.json`) using Cloudflare's `Cache-Tag` headers.
+`routeRules` entries are `{ maxAge, swr, tags }` and nothing else. The shape is
+validated by a plain `z.object()`, which **strips unknown keys silently rather
+than rejecting them**, so a rule written any other way parses "successfully" as
+`{}` and disables itself. Written correctly, the rule above produces:
 
-To make a live transition appear immediately (without waiting for the 15-minute `s-maxage` window to expire), you can hit Cloudflare's Purge Cache API from any webhook or admin tool:
+```
+Cloudflare-CDN-Cache-Control: public, max-age=900, stale-while-revalidate=300
+Cache-Tag: astro-path:/api/live-status.json,astro-version:<deploy id>
+```
+
+`maxAge` is the EDGE lifetime here, not the browser's: `Cloudflare-CDN-Cache-Control`
+is CDN-targeted, so `max-age` on it does the job `s-maxage` does on a normal
+`Cache-Control`. The handler still sends its own `Cache-Control: max-age=0,
+s-maxage=900` for browsers and any non-Cloudflare intermediary.
+
+The `astro-version:` tag comes from the `CF_VERSION_METADATA` binding in
+`wrangler.jsonc`. Without that binding the tag is simply absent and stale
+entries survive a deploy.
+
+`scripts/route-cache.test.mjs` pins all of this, including the tag strings
+quoted below, so the runbook cannot drift away from what the code emits.
+
+### Cache purging (instant live transitions)
+
+To make a live transition appear without waiting out the 15-minute window,
+purge by tag. **The tag is `astro-path:` + the path, not the bare path** — the
+prefix is what `pathTag()` in the provider emits, and a purge for the bare
+path silently matches nothing:
 
 ```bash
 curl -X POST "https://api.cloudflare.com/client/v4/zones/<YOUR_ZONE_ID>/purge_cache" \
      -H "Authorization: Bearer <YOUR_API_TOKEN>" \
      -H "Content-Type: application/json" \
-     --data '{"tags":["/api/live-status.json"]}'
+     --data '{"tags":["astro-path:/api/live-status.json"]}'
 ```
-This forces the edge to re-fetch the status on the next visitor, avoiding any quota waste while allowing instant billboard updates.
+
+This forces the edge to re-fetch on the next visitor: one `search.list` call,
+not one per visitor.
+
+Purge by tag is an Enterprise-plan feature on Cloudflare. On a lower plan use a
+single-file purge instead, which needs no tag:
+
+```bash
+curl -X POST "https://api.cloudflare.com/client/v4/zones/<YOUR_ZONE_ID>/purge_cache" \
+     -H "Authorization: Bearer <YOUR_API_TOKEN>" \
+     -H "Content-Type: application/json" \
+     --data '{"files":["https://beunconventionalhq.com/api/live-status.json"]}'
+```
 
 ## Twitch (built — activate with credentials)
 
