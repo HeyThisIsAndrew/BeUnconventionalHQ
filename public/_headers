@@ -14,6 +14,26 @@
   Permissions-Policy: geolocation=(), camera=(), microphone=()
   # Force HTTPS for one year (site is HTTPS-only on Cloudflare Pages).
   Strict-Transport-Security: max-age=31536000
+
+  # ─── AGENT DISCOVERY (#192) ──────────────────────────────────────────────
+  #
+  # RFC 8288 Link headers, so an agent that fetches a page and reads only its
+  # headers still finds the machine-readable surfaces. A HEAD request is
+  # enough; no HTML parsing required.
+  #
+  # ⚠️  THIS LIVES INSIDE THE EXISTING `/*` BLOCK, NOT A SECOND ONE.
+  #
+  # It was originally added as its own `/*` section further down this file,
+  # and that took the entire security block above OFF EVERY PAGE IN
+  # PRODUCTION. Cloudflare applies the LAST matching rule for a path, not the
+  # union of them, so a second `/*` does not add headers — it replaces the
+  # first one wholesale. The site shipped with no CSP, no HSTS, no
+  # X-Frame-Options and no nosniff until it was caught in a Lighthouse run
+  # (Best Practices 73, with all four Trust and Safety audits failing).
+  #
+  # Never declare the same path twice in this file. Add to the existing block.
+  # scripts/headers-integrity.test.mjs fails the build if a duplicate returns.
+  Link: </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json", </llms.txt>; rel="alternate"; type="text/plain", </.well-known/mcp/server-card.json>; rel="service-desc"; type="application/json"
   # Restrict where content may load from. Allowlist matches the site's real
   # dependencies: Google Tag Manager/Analytics (scripts + beacons), the Meta /
   # TikTok / Clarity marketing pixels, YouTube embeds, and https image CDNs
@@ -83,17 +103,6 @@
 # Prevent Google from indexing the massive raw JSON payload of the search index.
 /api/*
   X-Robots-Tag: noindex
-
-# ─── AGENT DISCOVERY (#192) ────────────────────────────────────────────────
-#
-# RFC 8288 Link headers, so an agent that fetches a page and reads only its
-# headers still finds the machine-readable surfaces. The point of doing it in
-# headers rather than <link> tags is that a HEAD request is enough: an agent
-# does not have to download and parse HTML to learn the site has an API.
-#
-# `api-catalog` is the relation RFC 9727 registers for exactly this.
-/*
-  Link: </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json", </llms.txt>; rel="alternate"; type="text/plain", </.well-known/mcp/server-card.json>; rel="service-desc"; type="application/json"
 
 # RFC 9727 requires this media type, and the file has no extension for
 # Cloudflare to infer one from, so it would otherwise be served as
