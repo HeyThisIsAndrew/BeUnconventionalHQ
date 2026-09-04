@@ -1,76 +1,26 @@
 ---
-/*
-  ESCAPE HATCH FOR INSTAGRAM / TIKTOK / THREADS IN-APP BROWSERS (#198).
-
-  ─── WHY THIS EXISTS INSTEAD OF THE PACKAGE'S OWN COMPONENT ───────────────
-  `@vdaluz/astro-inapp-escape` ships an `InAppEscape.astro`, and this file
-  deliberately does NOT use it. It reuses the package's DETECTION
-  (`detectInApp` wraps `inapp-spy`, which is the hard part and is well
-  maintained) and owns the BEHAVIOUR, because the packaged component makes
-  two assumptions this site breaks:
-
-  1. IT RUNS ONCE, AT TOP LEVEL, AND NEVER AGAIN.
-
-     Its script reveals the banner with a bare `classList.remove('hidden')`
-     in module scope. This site renders `<ClientRouter />`, so an internal
-     link is a view transition: the body is swapped for freshly rendered
-     HTML in which the banner is hidden again, and a module script does not
-     re-execute. The banner would appear on the first page and then vanish
-     for the rest of the session, which is why `Layout.astro` binds
-     `astro:page-load` a dozen times over. This one does too.
-
-  2. IT NAVIGATES ANDROID AWAY WITH NO USER GESTURE.
-
-     `window.location.href = intent://...` fires on load for every visitor
-     `inapp-spy` believes is in an in-app browser. A false positive throws a
-     real reader off the page with no way back, and the redirect is
-     unattributable in analytics because it happens before anything settles.
-     Here Android gets the same banner as iOS, with a BUTTON. Leaving is the
-     visitor's decision, which is the whole point of an escape hatch.
-
-  Known limit, not a bug we can fix: an `intent://` URL has no room for the
-  page's own fragment, because `#Intent;...;end` occupies the fragment slot.
-  A visitor who escapes from `/intel/foo#section` lands on `/intel/foo`.
-  That is a property of the Android intent URI scheme, and it is a far
-  smaller cost now that escaping is one deliberate tap rather than an
-  automatic redirect on every deep link.
-*/
-interface Props {
-  /** Copy shown to a visitor trapped in an in-app browser. */
-  message?: string;
-}
-
-const {
-  message = 'Open in your device browser for full video playback and sign in.',
-} = Astro.props;
 ---
 
 <div class="inapp-escape" data-inapp-escape role="status" aria-live="polite">
-  <p class="inapp-escape-text">{message}</p>
+  <div class="inapp-escape-content">
+    <p class="inapp-escape-text" data-inapp-text hidden>
+      <!-- Populated by JS based on platform -->
+    </p>
 
-  {/* Android only. iOS gives no programmatic way out, so it keeps the hint
-      copy below and this button stays out of the accessibility tree. */}
-  <button type="button" class="inapp-escape-open" data-inapp-open hidden>
-    Open in browser
-  </button>
+    {/* Android only button */}
+    <button type="button" class="inapp-escape-open" data-inapp-open hidden>
+      Open in browser
+    </button>
+  </div>
 
-  <p class="inapp-escape-hint" data-inapp-hint hidden>
-    Tap the menu, then choose Open in Browser.
-  </p>
-
-  <button type="button" class="inapp-escape-dismiss" data-inapp-dismiss>
-    <span aria-hidden="true">&times;</span>
-    <span class="sr-only">Dismiss this message</span>
+  <button type="button" class="inapp-escape-dismiss" data-inapp-dismiss aria-label="Dismiss this message">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+      <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+    </svg>
   </button>
 </div>
 
 <style>
-  /*
-    Hidden by DEFAULT STATE, not by a `hidden` attribute. `display: flex`
-    below would win over the UA's `[hidden] { display: none }` and the banner
-    would show for everybody, which is the trap the attribute sets for any
-    element that also carries a display rule.
-  */
   .inapp-escape {
     display: none;
   }
@@ -78,66 +28,60 @@ const {
   .inapp-escape.is-visible {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    
-
-    /*
-      FIXED, not absolute. The packaged component positions absolutely, so
-      the banner scrolls away while the navbar (which is `position: fixed`)
-      stays. A message telling you how to leave should not be the one thing
-      that leaves.
-    */
+    justify-content: space-between;
+    gap: 0.5rem;
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    /* Above the navbar's 100 and the modal layer's 300. */
     z-index: 500;
-
-    padding: 0.5rem 1rem;
+    padding: 0.5rem 0.75rem;
     background: var(--color-black, #0a0a0a);
     border-bottom: 1px solid var(--color-accent, #cc0000);
     color: var(--color-white, #f0f0f0);
-    font-size: 0.8125rem;
-    line-height: 1.4;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  }
+
+  .inapp-escape-content {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex: 1;
   }
 
   .inapp-escape-text {
-    flex: 1 1 auto;
     margin: 0;
-  }
-
-  .inapp-escape-hint {
-    margin: 0;
-    /* 5.33:1 on this background. See the palette note in CLAUDE.md. */
-    color: var(--color-white-muted, #888888);
+    font-size: 0.8125rem;
+    line-height: 1.3;
+    flex: 1;
   }
 
   .inapp-escape-open {
     flex: 0 0 auto;
-    padding: 0.35rem 0.75rem;
+    padding: 0.35rem 0.6rem;
     background: transparent;
     border: 1px solid var(--color-accent, #cc0000);
-    /* The legible red. `--color-accent` is 3.21:1 and is a border colour. */
     color: var(--color-accent-text, #ef4444);
     font-size: 0.75rem;
     font-family: inherit;
     font-weight: 700;
     cursor: pointer;
+    border-radius: 4px;
+    white-space: nowrap;
   }
 
   .inapp-escape-dismiss {
     flex: 0 0 auto;
-    /* 44px: the pointer target floor, so the close control is not the one
-       thing on the banner a thumb cannot hit. */
-    min-width: 44px;
-    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
     background: transparent;
     border: 0;
     color: var(--color-white-muted, #888888);
-    font-size: 1.25rem;
-    line-height: 1;
     cursor: pointer;
+    padding: 0;
   }
 
   .inapp-escape-open:focus-visible,
@@ -150,53 +94,25 @@ const {
 <script>
   import { detectInApp, detectPlatform } from '@vdaluz/astro-inapp-escape';
 
-  /*
-    An `intent://` URL that reopens the current page in whatever browser the
-    device actually defaults to. No `package=`, deliberately: pinning Chrome
-    breaks every device whose default is Samsung Internet or Firefox.
-
-    Written here rather than imported so the fragment loss above is visible
-    at the point it happens instead of buried in a dependency.
-  */
   function androidIntentUrl(href: string): string {
     const parsed = new URL(href);
     const scheme = parsed.protocol.replace(':', '');
     return `intent://${parsed.host}${parsed.pathname}${parsed.search}#Intent;scheme=${scheme};end`;
   }
 
-  /* Per tab, not per page: a visitor who dismissed this once has answered. */
   const DISMISS_KEY = 'hq:inapp-escape-dismissed';
 
   function dismissed(): boolean {
-    try {
-      return sessionStorage.getItem(DISMISS_KEY) === '1';
-    } catch {
-      /* Private mode and blocked storage both throw. Showing the banner is
-         the safe failure: the visitor can always dismiss it again. */
-      return false;
-    }
+    try { return sessionStorage.getItem(DISMISS_KEY) === '1'; } catch { return false; }
   }
 
   function rememberDismissal() {
-    try {
-      sessionStorage.setItem(DISMISS_KEY, '1');
-    } catch {
-      /* Nothing to do. The banner returns on the next page, which is
-         annoying but not broken. */
-    }
+    try { sessionStorage.setItem(DISMISS_KEY, '1'); } catch {}
   }
 
   function initInAppEscape() {
     const banner = document.querySelector('[data-inapp-escape]') as HTMLElement | null;
     if (!banner) return;
-
-    /*
-      ONCE PER ELEMENT, and the flag lives on the ELEMENT rather than in
-      module scope. `astro:page-load` fires after `DOMContentLoaded` on a
-      first load, so a module-level guard would be right once and then wrong
-      forever: after a view transition this is a brand new node that has
-      never been wired, and it must be wired again.
-    */
     if (banner.dataset.inappInit === '1') return;
     banner.dataset.inappInit = '1';
 
@@ -205,20 +121,19 @@ const {
 
     const platform = detectPlatform(navigator.userAgent);
     const openBtn = banner.querySelector('[data-inapp-open]') as HTMLElement | null;
-    const hint = banner.querySelector('[data-inapp-hint]') as HTMLElement | null;
+    const textNode = banner.querySelector('[data-inapp-text]') as HTMLElement | null;
 
-    if (platform === 'android' && openBtn) {
+    if (platform === 'android' && openBtn && textNode) {
+      textNode.textContent = "Social browsers break videos.";
+      textNode.hidden = false;
       openBtn.hidden = false;
       openBtn.addEventListener('click', () => {
         window.location.href = androidIntentUrl(window.location.href);
       });
-    } else if (platform === 'ios' && hint) {
-      /* iOS exposes no way to hand a URL to Safari, so the best available
-         action is telling the visitor which menu to open. */
-      hint.hidden = false;
+    } else if (platform === 'ios' && textNode) {
+      textNode.innerHTML = "For video playback, tap <strong>•••</strong> and select <strong>Open in Browser</strong>.";
+      textNode.hidden = false;
     } else {
-      /* In-app, but neither platform we can help. Saying nothing beats a
-         banner whose advice does not match the device. */
       return;
     }
 
