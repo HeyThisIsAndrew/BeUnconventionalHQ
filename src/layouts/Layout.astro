@@ -7,6 +7,7 @@ import Footer from '../components/Footer.astro';
 import Navbar from '../components/Navbar.astro';
 import BrandGlow from '../components/BrandGlow.astro';
 import VideoDebugOverlay from '../components/VideoDebugOverlay.astro';
+import InAppEscape from '../components/InAppEscape.astro';
 import { site } from '../data/site.js';
 import { ClientRouter } from 'astro:transitions';
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
@@ -406,6 +407,12 @@ const fallbackMark = await getImage({
     <meta name="twitter:image" content={image} />
   </head>
   <body>
+    {/* In-app-browser escape hatch (#198). Styling and behaviour live in the
+        component: it owns a fixed banner, an Android button instead of an
+        automatic redirect, and an `astro:page-load` binding so it survives
+        the view transitions <ClientRouter /> performs. */}
+    <InAppEscape />
+
     {/* Site-wide brand signature. Decorative, fixed, behind all content —
         see src/components/BrandGlow.astro for the performance reasoning. */}
     <BrandGlow />
