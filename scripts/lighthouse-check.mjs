@@ -184,6 +184,77 @@ function fail(message) {
   process.exitCode = 1;
 }
 
+/*
+  THIRD-PARTY REACHABILITY.
+
+  This gate scored the homepage at 90% mobile while PageSpeed scored the same
+  commit at 58%. The gap was not throttling and not the build: the sandbox
+  this runs in has no egress to youtube.com, so ~845 KiB of YouTube player
+  JavaScript that a real visitor downloads was silently absent from every
+  local run. The gate was not measuring a faster page, it was measuring a
+  DIFFERENT page, and then reporting green.
+
+  A missing third party cannot fail the build — CI is sandboxed on purpose and
+  a hard failure here would just be permanently red. But it must never again
+  be invisible. So probe the origins the site actually pulls at runtime, say
+  which ones are missing, and stamp the caveat onto the summary line so
+  "all pages passed" can never be read as "this page is fast in the world".
+*/
+const THIRD_PARTY_ORIGINS = [
+  'https://www.youtube.com',
+  'https://i.ytimg.com',
+  'https://www.googletagmanager.com',
+  'https://fonts.gstatic.com',
+  'https://static.cloudflareinsights.com',
+];
+
+let unreachableThirdParties = [];
+
+async function probeThirdParties() {
+  const results = await Promise.all(
+    THIRD_PARTY_ORIGINS.map(async (origin) => {
+      try {
+        const res = await fetch(origin, { method: 'GET', signal: AbortSignal.timeout(8000) });
+        return isEgressDenial(res) ? origin : null;
+      } catch {
+        /* DNS failure, refused connection, timeout: unambiguously unreachable. */
+        return origin;
+      }
+    }),
+  );
+  return results.filter(Boolean);
+}
+
+/*
+  A blocked host does NOT throw. The first version of this probe assumed it
+  did, accepted "any response at all" as proof the tunnel opened, and reported
+  every origin reachable while the sandbox was answering each one itself:
+
+      HTTP/1.1 403  x-deny-reason: host_not_allowed
+      Host not in allowlist: www.youtube.com.
+
+  That is the same false green the probe exists to stop, one layer down. So
+  read the response, not just the fact that one arrived.
+
+  Two signals, deliberately narrow so a CI runner with real egress never trips
+  them and starts crying wolf:
+
+    1. `x-deny-reason` — the agent sandbox's own marker. Definitive.
+    2. A 403 whose body is a short `text/plain` note. Real origins answer 403
+       with HTML or JSON, and the two origins that matter most here
+       (youtube.com/iframe_api, googletagmanager.com) answer 200 to anyone.
+
+  A proxy that blocks with neither shape is still missed, which is why the
+  warning says "confirm against PageSpeed Insights" rather than claiming the
+  measurement is complete.
+*/
+function isEgressDenial(res) {
+  if (res.headers.get('x-deny-reason')) return true;
+  const type = res.headers.get('content-type') || '';
+  const length = Number(res.headers.get('content-length') || '0');
+  return res.status === 403 && type.startsWith('text/plain') && length > 0 && length < 512;
+}
+
 async function waitForServer(url, timeoutMs) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -202,6 +273,17 @@ async function run() {
   if (!fs.existsSync(path.join(ROOT, 'dist/server/entry.mjs'))) {
     fail('dist/server/entry.mjs not found. Run `npm run build` first.');
     return;
+  }
+
+  unreachableThirdParties = await probeThirdParties();
+  if (unreachableThirdParties.length) {
+    console.warn(
+      `\n[lighthouse-check] ⚠️  PARTIAL MEASUREMENT — ${unreachableThirdParties.length} third-party origin(s) unreachable:\n` +
+        unreachableThirdParties.map((o) => `      ${o}`).join('\n') +
+        `\n    Their bytes and main-thread cost are ABSENT from every score below.\n` +
+        `    Real visitors download them. Treat these numbers as an upper bound,\n` +
+        `    and confirm against PageSpeed Insights before calling a page fast.\n`,
+    );
   }
 
   console.log('[lighthouse-check] Starting preview server...');
@@ -431,7 +513,13 @@ async function run() {
         `    Not a failure, and the build is green. Worth a look before it drifts under ${FAIL_THRESHOLD * 100}%.`,
     );
   } else {
-    console.log(`\n[lighthouse-check] All pages passed at ${PASS_THRESHOLD * 100}%+ across all categories.`);
+    console.log(
+      `\n[lighthouse-check] All pages passed at ${PASS_THRESHOLD * 100}%+ across all categories` +
+        (unreachableThirdParties.length
+          ? ` — WITH ${unreachableThirdParties.length} THIRD PARTY(IES) UNREACHABLE.\n` +
+            `    This is not a full measurement. See the warning at the top of this run.`
+          : '.'),
+    );
   }
 }
 

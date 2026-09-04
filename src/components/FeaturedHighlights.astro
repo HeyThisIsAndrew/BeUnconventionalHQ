@@ -1000,10 +1000,64 @@ const highlightedItems = [...selectedVideos, article].filter(Boolean).sort((a: a
 
     // (Hover logic is now defined above)
 
-    loadYouTubeAPI().then(() => {
-      activateIndex(currentIndex);
-      startAutoPlay();
-    });
+    /*
+      THE YOUTUBE IFRAME API IS NOT PART OF THE CRITICAL PATH.
+
+      This used to be a bare `loadYouTubeAPI()` running straight off
+      `DOMContentLoaded`. That injects `youtube.com/iframe_api`, which on the
+      homepage pulls ~845 KiB of YouTube JavaScript (~517 KiB of it never
+      executed) across three new origins, for a section that is BELOW THE FOLD.
+
+      On desktop nobody noticed. On PageSpeed's mobile profile (Slow 4G,
+      1.6 Mbps, 4x CPU) those bytes are ~4s of bandwidth ahead of a 32 KiB
+      hero image, and they landed the homepage at Performance 58 with a 10.9s
+      LCP while the same run scored 84 on desktop. The LCP image was never
+      slow, it was starved.
+
+      So: paint the carousel immediately and fetch the player only once the
+      section is actually approaching the viewport. `activateIndex()` already
+      guards every player call behind `win.YT && win.YT.Player` (see the
+      `isVideo && videoBtn && win.YT` test), and `loadYouTubeAPI()` already
+      resolves `null` when the API is blocked — the static-carousel fallback
+      is a supported state, not a broken one. Calling it now just makes that
+      state the FIRST state instead of an error state.
+
+      When the API does arrive we re-run `activateIndex(currentIndex)` so the
+      slide that is showing upgrades in place to a real player. Re-entry is
+      safe: `activateIndex` destroys any existing player first, and
+      `startAutoPlay` no-ops while a timer is already pending.
+
+      NOTE FOR ANYONE MEASURING THIS: a local Lighthouse run cannot see any of
+      it. Sandboxed CI has no egress to youtube.com, so the whole payload is
+      silently absent and the page scores ~90 no matter what this code does.
+      `scripts/lighthouse-check.mjs` now says so out loud rather than
+      reporting a green it did not actually measure.
+    */
+    const startPlayers = () => {
+      loadYouTubeAPI().then(() => {
+        if (!section.isConnected) return;
+        activateIndex(currentIndex);
+        startAutoPlay();
+      });
+    };
+
+    activateIndex(currentIndex);
+    startAutoPlay();
+
+    if ('IntersectionObserver' in window) {
+      /* 300px of lead time: enough to have the API in flight before the
+         section is on screen, short enough that a visitor who never scrolls
+         down never pays for it at all. */
+      const apiObserver = new IntersectionObserver((entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        apiObserver.disconnect();
+        startPlayers();
+      }, { rootMargin: '300px 0px' });
+      apiObserver.observe(section);
+      document.addEventListener('astro:before-swap', () => apiObserver.disconnect(), { once: true });
+    } else {
+      startPlayers();
+    }
 
     document.addEventListener('astro:before-swap', () => {
       stopAutoPlay();
