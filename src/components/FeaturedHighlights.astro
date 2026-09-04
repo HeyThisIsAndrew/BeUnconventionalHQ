@@ -1027,11 +1027,16 @@ const highlightedItems = [...selectedVideos, article].filter(Boolean).sort((a: a
       safe: `activateIndex` destroys any existing player first, and
       `startAutoPlay` no-ops while a timer is already pending.
 
-      NOTE FOR ANYONE MEASURING THIS: a local Lighthouse run cannot see any of
-      it. Sandboxed CI has no egress to youtube.com, so the whole payload is
-      silently absent and the page scores ~90 no matter what this code does.
-      `scripts/lighthouse-check.mjs` now says so out loud rather than
-      reporting a green it did not actually measure.
+      NOTE FOR ANYONE MEASURING THIS: no automated check in this repo will
+      show you the win, so do not go looking for one and conclude the change
+      did nothing. The Lighthouse gate audits `astro preview` on localhost,
+      where TTFB is ~15ms and the LCP image wins its race regardless — it
+      scored `/` at 94% both before and after this change. Some agent
+      sandboxes additionally cannot reach youtube.com at all, so the payload
+      is simply absent there; `scripts/lighthouse-check.mjs` now says so out
+      loud rather than reporting a green it did not actually measure. The
+      evidence for this change is the PageSpeed trace above, not a local
+      number. Verify it on a deployed URL.
     */
     const startPlayers = () => {
       loadYouTubeAPI().then(() => {

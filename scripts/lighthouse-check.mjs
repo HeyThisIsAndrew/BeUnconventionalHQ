@@ -187,18 +187,33 @@ function fail(message) {
 /*
   THIRD-PARTY REACHABILITY.
 
-  This gate scored the homepage at 90% mobile while PageSpeed scored the same
-  commit at 58%. The gap was not throttling and not the build: the sandbox
-  this runs in has no egress to youtube.com, so ~845 KiB of YouTube player
-  JavaScript that a real visitor downloads was silently absent from every
-  local run. The gate was not measuring a faster page, it was measuring a
-  DIFFERENT page, and then reporting green.
+  This gate reported the homepage green while PageSpeed scored the same commit
+  at 58% mobile. Some agent sandboxes (the Claude Code remote environment among
+  them) have no egress to youtube.com, so ~845 KiB of YouTube player JavaScript
+  that a real visitor downloads was silently absent from those runs. The gate
+  was not measuring a faster page, it was measuring a DIFFERENT page, and then
+  reporting green.
 
-  A missing third party cannot fail the build — CI is sandboxed on purpose and
-  a hard failure here would just be permanently red. But it must never again
-  be invisible. So probe the origins the site actually pulls at runtime, say
-  which ones are missing, and stamp the caveat onto the summary line so
-  "all pages passed" can never be read as "this page is fast in the world".
+  READ THIS BEFORE TRUSTING THE NUMBER BELOW. GitHub Actions is NOT one of
+  those sandboxes: it reaches youtube.com, googletagmanager.com and the rest
+  fine, and this probe correctly stays quiet there about all of them except
+  static.cloudflareinsights.com. Yet CI still scored `/` at 94% mobile on the
+  commit PageSpeed scored 58%, BEFORE and AFTER the fix that removed the
+  YouTube payload from the critical path. So an unreachable third party is one
+  cause of the gap and demonstrably not the whole of it.
+
+  The larger one is the origin. This gate audits `astro preview` on localhost,
+  where TTFB is ~15ms and every first-party asset is effectively free, so the
+  LCP image wins its race no matter what else is competing. Production answers
+  over a real network from Cloudflare. Lighthouse's simulated throttling models
+  the link, not the origin, and cannot manufacture that difference. Closing it
+  means pointing the audit at a deployed preview URL, which this gate does not
+  yet do.
+
+  Hence: probe, report, and never fail. A missing third party is a caveat on a
+  number, not a verdict on a build — and the caveat is deliberately worded to
+  send the reader to PageSpeed rather than to imply that a quiet probe means
+  the measurement is complete. It is not.
 */
 const THIRD_PARTY_ORIGINS = [
   'https://www.youtube.com',
