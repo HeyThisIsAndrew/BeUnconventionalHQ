@@ -397,6 +397,14 @@ function localCmsMiddleware() {
 
 export default defineConfig({
   cache: { provider: cacheCloudflare() },
+  routeRules: {
+    "/api/live-status.json": {
+      headers: {
+        "Cache-Control": "public, max-age=0, s-maxage=900, stale-while-revalidate=300"
+      }
+    }
+  },
+
 
   site: 'https://beunconventionalhq.com',
   base: '/',

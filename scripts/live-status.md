@@ -130,12 +130,12 @@ deploy; they are for local dev only.
 
 For local `astro dev`, put them in `.env` instead (see `.env.example`).
 
-## Quota math (why the cache policy is what it is)
+## Quota math and Edge Caching
 
 Live detection uses `search.list` = **100 units/call** against the free
 **10,000 units/day** — a hard ceiling of ~100 checks/day.
 
-The CDN is the rate limiter, not application code:
+The CDN is the rate limiter, not application code. Caching is handled declaratively in `astro.config.mjs` using Astro 7's `routeRules` and the `cacheCloudflare()` provider, which automatically intercepts the following cache policy and stores it at the Cloudflare edge:
 
 - `s-maxage=900` → Cloudflare hits this endpoint at most ~96×/day
   (~9,600 units worst case, inside quota even with the daily sync running).
@@ -143,10 +143,19 @@ The CDN is the rate limiter, not application code:
 - `stale-while-revalidate=300` → visitors get instant answers while the edge
   refreshes in the background.
 
-Trade-off: "going live" appears on the site within ≤15 minutes. To tighten
-that later without quota risk, add a 0-quota presence signal (e.g. the
-`canlive` scrape or RSS heuristic) as a cheap pre-check gating the expensive
-`search.list` call.
+### Cache Purging (Instant Live Transitions)
+
+Because we use Astro's `cacheCloudflare()` provider, every response is automatically tagged with its request path (`/api/live-status.json`) using Cloudflare's `Cache-Tag` headers.
+
+To make a live transition appear immediately (without waiting for the 15-minute `s-maxage` window to expire), you can hit Cloudflare's Purge Cache API from any webhook or admin tool:
+
+```bash
+curl -X POST "https://api.cloudflare.com/client/v4/zones/<YOUR_ZONE_ID>/purge_cache" \
+     -H "Authorization: Bearer <YOUR_API_TOKEN>" \
+     -H "Content-Type: application/json" \
+     --data '{"tags":["/api/live-status.json"]}'
+```
+This forces the edge to re-fetch the status on the next visitor, avoiding any quota waste while allowing instant billboard updates.
 
 ## Twitch (built — activate with credentials)
 
