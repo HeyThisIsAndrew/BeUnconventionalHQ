@@ -5,6 +5,7 @@ import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import sitemap from '@astrojs/sitemap';
 import cloudflare from '@astrojs/cloudflare';
+import { cacheCloudflare } from '@astrojs/cloudflare/cache';
 import react from '@astrojs/react';
 import partytown from '@astrojs/partytown';
 import { createClient } from '@sanity/client';
@@ -395,6 +396,8 @@ function localCmsMiddleware() {
 }
 
 export default defineConfig({
+  cache: { provider: cacheCloudflare() },
+
   site: 'https://beunconventionalhq.com',
   base: '/',
   // 'ignore' (default): dev accepts links with or without a trailing slash.
