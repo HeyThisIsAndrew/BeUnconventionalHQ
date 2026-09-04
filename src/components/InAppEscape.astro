@@ -120,21 +120,49 @@
     if (!detectInApp().isInApp) return;
 
     const platform = detectPlatform(navigator.userAgent);
-    const openBtn = banner.querySelector('[data-inapp-open]') as HTMLElement | null;
+    const openBtn = banner.querySelector('[data-inapp-open]') as HTMLButtonElement | null;
     const textNode = banner.querySelector('[data-inapp-text]') as HTMLElement | null;
+    if (!openBtn || !textNode) return;
+    if (platform !== 'android' && platform !== 'ios') return;
 
-    if (platform === 'android' && openBtn && textNode) {
-      textNode.textContent = "Social browsers break videos.";
-      textNode.hidden = false;
-      openBtn.hidden = false;
+    /*
+      ONE BANNER, ONE LAYOUT, BOTH PLATFORMS.
+
+      An earlier pass gave Android a short line plus a button and gave iOS a
+      full sentence of instructions with no button. Same component, two
+      different shapes: Android sat on one line, iOS wrapped to two and was
+      visibly taller. Nothing about the site changes between the two, so
+      nothing about this banner should either.
+
+      What genuinely differs is only what the BUTTON CAN DO. Android can hand
+      the URL to the default browser through an `intent://`. iOS exposes no
+      such API, so nothing a script does will open Safari there. That is a
+      one-word difference in behaviour, and it does not justify a different
+      layout: both platforms get the same sentence and the same button, and
+      on iOS the button swaps the sentence for the menu instructions in
+      place. The banner keeps its height either way.
+    */
+    textNode.textContent = 'Social browsers break videos.';
+    textNode.hidden = false;
+    openBtn.hidden = false;
+
+    if (platform === 'android') {
       openBtn.addEventListener('click', () => {
         window.location.href = androidIntentUrl(window.location.href);
       });
-    } else if (platform === 'ios' && textNode) {
-      textNode.innerHTML = "For video playback, tap <strong>•••</strong> and select <strong>Open in Browser</strong>.";
-      textNode.hidden = false;
     } else {
-      return;
+      openBtn.addEventListener('click', () => {
+        /*
+          textContent, not innerHTML. The bullets are literal characters, so
+          there is nothing here that needs parsing as markup, and a node that
+          is only ever assigned plain text cannot become an injection point
+          later when somebody makes the copy configurable.
+        */
+        textNode.textContent = 'Tap the ••• menu, then choose Open in Browser.';
+        /* The button has said everything it can say. Hiding it gives the
+           longer sentence the full width, so this stays one line too. */
+        openBtn.hidden = true;
+      });
     }
 
     banner.querySelector('[data-inapp-dismiss]')?.addEventListener('click', () => {
