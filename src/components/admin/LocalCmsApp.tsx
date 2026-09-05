@@ -1717,7 +1717,7 @@ function ArticleForm({
             <option value="">(Use Substack tags)</option>
             <option value="Film">Film</option>
             <option value="TV">TV</option>
-            <option value="Gaming">Gaming</option>
+            <option value="Games">Games</option>
             <option value="Events">Events</option>
           </select>
         </Field>
