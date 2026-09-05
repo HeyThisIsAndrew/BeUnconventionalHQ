@@ -175,7 +175,22 @@ test('no suite in `npm test` reads build output', () => {
   */
   const codeOf = (f) => fs.readFileSync(path.join(ROOT, 'scripts', f), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/^\s*\/\/.*$/gm, '');
+    .replace(/^\s*\/\/.*$/gm, '')
+    /*
+      A DEPENDENCY'S `dist/` IS NOT OUR BUILD OUTPUT.
+
+      The rule above is about `dist/` as produced by `npm run build`, which the
+      unit job never runs. `node_modules/<pkg>/dist/...` is a published file
+      that exists the moment `npm ci` finishes, so reading one is exactly as
+      safe as importing the package.
+
+      Without this, route-cache.test.mjs was flagged for reading Astro's own
+      shipped cache schema out of `node_modules/astro/dist/`. The advice in the
+      failure message (rename to `e2e-*`) would have moved a suite that needs
+      no build into the job that builds, and quietly stopped it running in the
+      job that actually gates merges.
+    */
+    .replace(/node_modules\/[\w@./-]+/g, '');
   const offenders = suites.filter((f) => /\bdist\//.test(codeOf(f)));
   assert.deepEqual(offenders, [],
     `${offenders.join(', ')} read build output but run in \`npm test\`, which CI runs ` +

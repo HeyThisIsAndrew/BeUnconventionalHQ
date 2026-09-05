@@ -58,6 +58,21 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      # Type check, and it BLOCKS.
+      #
+      # `astro check` was run by hand and quoted in review notes, but never by
+      # CI, so nothing enforced it. #196 shipped a `routeRules` entry with a
+      # `headers` key that does not exist on `RouteRule`; `astro check` caught
+      # it as ts(2353) and the PR was still green, because `astro build` does
+      # not type-check `astro.config.mjs`. The rule silently stripped to `{}`
+      # and disabled the edge cache in front of a 100-unit-per-call YouTube
+      # endpoint.
+      #
+      # The baseline is 0/0/0 (CLAUDE.md: "introduce zero NEW errors"), so
+      # this can be a hard gate rather than a warning.
+      - name: Type check
+        run: npx astro check
+
       # Keep Turnstile off the pages the gate measures.
       #
       # An EMPTY value, not a test key. That distinction is the whole point

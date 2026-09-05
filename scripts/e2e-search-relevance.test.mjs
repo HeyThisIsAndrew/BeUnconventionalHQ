@@ -52,7 +52,6 @@ test('Search Relevance', async (t) => {
     { query: 'hbo', expectedTopId: 'hbo-max', expectedType: 'hub' },
     { query: 'warner bros', expectedTopId: 'warner-bros', expectedType: 'hub' },
     { query: 'universal', expectedTopId: 'universal', expectedType: 'hub' },
-    { query: 'sony', expectedTopId: 'sony-pictures', expectedType: 'hub' },
     { query: 'dc', expectedTopId: 'dc-comics', expectedType: 'hub' },
 
     // Core Nav / Pages

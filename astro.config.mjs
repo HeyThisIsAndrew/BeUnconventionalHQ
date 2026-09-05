@@ -5,6 +5,7 @@ import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import sitemap from '@astrojs/sitemap';
 import cloudflare from '@astrojs/cloudflare';
+import { cacheCloudflare } from '@astrojs/cloudflare/cache';
 import react from '@astrojs/react';
 import partytown from '@astrojs/partytown';
 import { createClient } from '@sanity/client';
@@ -395,6 +396,37 @@ function localCmsMiddleware() {
 }
 
 export default defineConfig({
+  cache: { provider: cacheCloudflare() },
+  /*
+    EDGE CACHE POLICY FOR THE QUOTA-GATED ROUTES (#196).
+
+    `RouteRule` is `{ maxAge, swr, tags }` and nothing else. It is validated
+    by a plain `z.object()`, which STRIPS unknown keys instead of rejecting
+    them, so a rule written in any other shape parses "successfully" as `{}`
+    and silently disables the policy it was meant to declare. An earlier
+    version of this block used `{ headers: { 'Cache-Control': ... } }` and
+    did exactly that: the provider received `{}` and emitted a bare
+    `Cloudflare-CDN-Cache-Control: public` with no TTL at all.
+
+    That is not a cosmetic slip on this particular route. `/api/live-status.json`
+    calls YouTube `search.list` at 100 units against a 10,000/day quota, and
+    the edge cache IS the rate limiter (see scripts/live-status.md). A rule
+    that strips to `{}` removes the limiter.
+
+    `maxAge` here is the EDGE lifetime: it is emitted on
+    `Cloudflare-CDN-Cache-Control`, which is CDN-targeted, so it plays the
+    role `s-maxage` plays on a normal `Cache-Control`. The route's own
+    `Cache-Control` (set in the handler) still carries `max-age=0` for
+    browsers, so visitors revalidate while the edge serves for 15 minutes.
+
+    `scripts/route-cache.test.mjs` validates this against Astro's own shipped
+    schema, so a future rule that strips to nothing fails the suite rather
+    than shipping quiet.
+  */
+  routeRules: {
+    '/api/live-status.json': { maxAge: 900, swr: 300 },
+  },
+
   site: 'https://beunconventionalhq.com',
   base: '/',
   // 'ignore' (default): dev accepts links with or without a trailing slash.
