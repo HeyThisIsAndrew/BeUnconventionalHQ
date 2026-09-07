@@ -600,7 +600,7 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
             {/* Calendar */}
             <div class="article-rail-related">
               <p class="article-rail-head" id="article-support-head">Upcoming Events</p>
-              <MiniCalendarSidebar events={Astro.props.allEvents?.filter((e: any) => e.startDate >= new Date().toISOString().split('T')[0]) || []} />
+              <MiniCalendarSidebar events={Astro.props.allEvents?.filter((e: any) => (e.endDate || e.startDate).slice(0, 10) >= new Date().toISOString().split('T')[0]).sort((a: any, b: any) => a.startDate.localeCompare(b.startDate)) || []} />
             </div>
 
             {/* Coverage Inquiry */}
