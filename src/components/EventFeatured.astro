@@ -480,12 +480,15 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
             <span class="article-tag article-tag-category">
               {categoryLabel || (typeof event.category === 'object' && event.category !== null ? (event.category.title || event.category.name || 'LIVE EVENT') : event.category) || 'LIVE EVENT'}
             </span>
-            <span class="dot">&bull;</span>
-            <span class="article-tag">LIVE EVENT</span>
             {event.location && (
               <Fragment>
                 <span class="dot">&bull;</span>
-                <span class="article-tag">{event.location}</span>
+                <span class="article-tag">
+                  {typeof event.location === 'string' ? event.location : 
+                   [event.location.city, event.location.region].filter(Boolean).join(', ') || 
+                   event.location.venue || 
+                   event.location.country}
+                </span>
               </Fragment>
             )}
             {event.startDate && (
