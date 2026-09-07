@@ -170,8 +170,15 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
           {/* Coverage Grid */}
           {unifiedContent.length > 0 && (
             <div id="event-coverage" class="mt-8 scroll-mt-32">
+              
               <div class="flex items-center justify-between mb-8 border-b border-gray-800 pb-4">
                 <h2 class="text-2xl font-bold font-display uppercase tracking-tight text-white">Coverage</h2>
+                
+                <div class="filter-controls animate-on-scroll">
+                  <button class="filter-btn type-btn active" data-filter="all" aria-pressed="true">ALL</button>
+                  <button class="filter-btn type-btn" data-filter="article" aria-pressed="false">ARTICLES</button>
+                  <button class="filter-btn type-btn" data-filter="video" aria-pressed="false">VIDEOS</button>
+                </div>
               </div>
               <div class="card-grid">
                 {unifiedContent.map((item: any, index: number) => (
@@ -214,6 +221,38 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     <SubscribeCTA />
 
   </main>
+
+<script>
+  function initEventFilters() {
+    const filterBtns = Array.from(document.querySelectorAll('.filter-btn'));
+    if (!filterBtns.length) return;
+
+    filterBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        filterBtns.forEach((b) => {
+          b.classList.remove('active');
+          b.setAttribute('aria-pressed', 'false');
+        });
+        btn.classList.add('active');
+        btn.setAttribute('aria-pressed', 'true');
+
+        let activeFilter = 'all';
+        if (btn.classList.contains('type-btn')) {
+          activeFilter = btn.getAttribute('data-filter') || '';
+        }
+
+        const cards = document.querySelectorAll('.content-card');
+        cards.forEach((card) => {
+          const show = activeFilter === 'all' || card.getAttribute('data-type') === activeFilter;
+          (card as HTMLElement).style.display = show ? 'block' : 'none';
+        });
+      });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', initEventFilters);
+  document.addEventListener('astro:page-load', initEventFilters);
+</script>
 </Layout>
 
 <style>
