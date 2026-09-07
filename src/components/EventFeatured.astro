@@ -44,6 +44,7 @@ const trailerId = parseVideoId(trailerUrl);
             srcset={heroSrcset}
             sizes={heroSizes}
             alt=""
+            aria-hidden="true"
             class="event-hero-bg-animated"
             loading="eager"
             fetchpriority="high"
@@ -53,17 +54,18 @@ const trailerId = parseVideoId(trailerUrl);
       <div class="event-hero-overlay flex flex-col justify-end">
         <div class="container container-page !px-6 lg:!px-20 xl:!px-24 text-center items-center flex flex-col">
           <div class="hero-status mb-4"><EventStatusIndicator event={event} /></div>
-          <h1 class="sr-only">{event.title} Coverage</h1>
-          {event.logo ? (
-            <img
-              src={urlFor(event.logo).height(240).url()}
-              alt={`${event.title} logo`}
-              class="hero-logo w-full h-auto max-w-sm md:max-w-md lg:max-w-lg mb-8"
-              height="240"
-            />
-          ) : (
-            <h1 class="hero-title">{event.title}</h1>
-          )}
+          <h1 class="hero-title">
+            {event.logo ? (
+              <img
+                src={urlFor(event.logo).height(240).url()}
+                alt={event.title}
+                class="hero-logo w-full h-auto max-w-sm md:max-w-md lg:max-w-lg mb-8"
+                height="240"
+              />
+            ) : (
+              event.title
+            )}
+          </h1>
           <p class="hero-meta text-sm md:text-base mb-8 text-gray-300">
             <span class="event-dates">{formatEventDateRange(event.startDate, event.endDate)}</span>
             {formatLocation(event.location) && (
@@ -79,14 +81,16 @@ const trailerId = parseVideoId(trailerUrl);
 
     {/* The 1536px Magazine Spread */}
     <div class="container-page content-container pt-12 pb-24">
-      <div class="magazine-spread mb-16">
-        <h2 class="sr-only">Featured Stories</h2>
-        <div class="grid grid-cols-1 md:grid-cols-[1fr_2.15fr_1fr] gap-6 w-full">
-          {unifiedContent.slice(0, 5).map((item: any, index: number) => (
-             <ContentCard item={item} index={index} />
-          ))}
+      {unifiedContent.length > 0 && (
+        <div class="magazine-spread mb-16">
+          <h2 class="sr-only">Featured Stories</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_2.15fr_1fr] gap-6 w-full">
+            {unifiedContent.slice(0, 5).map((item: any, index: number) => (
+               <ContentCard item={item} index={index} />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {trailerId && (
         <div class="hero-trailer aspect-video w-full h-auto max-w-5xl mx-auto bg-black rounded-lg overflow-hidden border border-gray-800 mb-16">
@@ -199,5 +203,15 @@ const trailerId = parseVideoId(trailerUrl);
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
     gap: 1.5rem;
+  }
+
+  /* Make the 5-item spread fill the 3-column grid elegantly on desktop */
+  @media (min-width: 1024px) {
+    .magazine-spread .grid > :nth-child(4) {
+      grid-column: 1 / 3;
+    }
+    .magazine-spread .grid > :nth-child(5) {
+      grid-column: 3 / 4;
+    }
   }
 </style>

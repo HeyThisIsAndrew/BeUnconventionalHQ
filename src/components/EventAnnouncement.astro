@@ -44,6 +44,7 @@ const trailerId = parseVideoId(trailerUrl);
             srcset={heroSrcset}
             sizes={heroSizes}
             alt=""
+            aria-hidden="true"
             class="event-hero-bg-animated"
             loading="eager"
             fetchpriority="high"
@@ -53,17 +54,18 @@ const trailerId = parseVideoId(trailerUrl);
       <div class="event-hero-overlay flex flex-col justify-end">
         <div class="container container-page !px-6 lg:!px-20 xl:!px-24">
           <div class="event-hero-content hero-copy animate-on-scroll">
-            <h1 class="sr-only">{event.title}</h1>
-            {event.logo ? (
-              <img
-                src={urlFor(event.logo).height(240).url()}
-                alt={`${event.title} logo`}
-                class="hero-logo w-full h-auto max-w-xs md:max-w-sm mb-4"
-                height="240"
-              />
-            ) : (
-              <h1 class="hero-title">{event.title}</h1>
-            )}
+            <h1 class="hero-title">
+              {event.logo ? (
+                <img
+                  src={urlFor(event.logo).height(240).url()}
+                  alt={event.title}
+                  class="hero-logo w-full h-auto max-w-xs md:max-w-sm mb-4"
+                  height="240"
+                />
+              ) : (
+                event.title
+              )}
+            </h1>
           </div>
         </div>
       </div>
@@ -73,15 +75,15 @@ const trailerId = parseVideoId(trailerUrl);
       <div class="grid grid-cols-1 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_360px] gap-12 xl:gap-20">
         
         {/* Left Column (70%) */}
-        <div class="event-main-col flex flex-col gap-12">
+        <div class="event-main-col flex flex-col gap-12 min-w-0">
           
           {/* Mobile-only RSVP (Stacks above content on mobile) */}
-          <div class="lg:hidden w-full sticky-utility-mobile">
+          <div class="lg:hidden w-full sticky-utility-mobile z-40 top-4">
             <div class="flex flex-col gap-4">
               <div class="hero-status"><EventStatusIndicator event={event} /></div>
               {(event.officialWebsite || event.signUpLink) && (
-                <a href={event.officialWebsite || event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn w-full text-center">
-                  Official event information
+                <a href={event.officialWebsite || event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn w-full text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+                  Official event information<span class="sr-only"> (opens in a new tab)</span>
                 </a>
               )}
             </div>
@@ -89,12 +91,14 @@ const trailerId = parseVideoId(trailerUrl);
 
           <div class="event-about">
             {/* Quick Navigation Index */}
-            <div class="flex gap-4 mb-8 text-sm uppercase tracking-wider font-bold">
-              <a href="#event-description" class="text-white hover:text-[#ef4444] border-b-2 border-transparent hover:border-[#ef4444] transition-colors pb-1">Event Description</a>
+            <nav aria-label="Quick Navigation" class="flex flex-wrap gap-4 mb-8 text-sm uppercase tracking-wider font-bold">
+              <a href="#event-description" class="text-white hover:text-[#ef4444] border-b-2 border-transparent hover:border-[#ef4444] transition-colors py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">Event Description</a>
               {(event.officialWebsite || event.signUpLink) && (
-                <a href={event.officialWebsite || event.signUpLink} target="_blank" rel="noopener noreferrer" class="text-white hover:text-[#ef4444] border-b-2 border-transparent hover:border-[#ef4444] transition-colors pb-1">Sign Up</a>
+                <a href={event.officialWebsite || event.signUpLink} target="_blank" rel="noopener noreferrer" class="text-white hover:text-[#ef4444] border-b-2 border-transparent hover:border-[#ef4444] transition-colors py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+                  Sign Up<span class="sr-only"> (opens in a new tab)</span>
+                </a>
               )}
-            </div>
+            </nav>
             <h2 class="text-3xl font-bold font-display uppercase tracking-tight mb-4" id="event-description">About the Event</h2>
             <p class="hero-meta text-sm md:text-base mb-6 text-gray-300">
               <span class="event-dates">{formatEventDateRange(event.startDate, event.endDate)}</span>
@@ -138,7 +142,7 @@ const trailerId = parseVideoId(trailerUrl);
         </div>
 
         {/* Right Column (30%) */}
-        <aside class="event-sidebar hidden lg:block">
+        <aside class="event-sidebar hidden lg:block" aria-label="Event Details and Calendar">
           <div class="sticky top-32 flex flex-col gap-8">
             <div class="sidebar-module bg-[#0a0a0a] border border-gray-800 p-8 rounded-xl shadow-2xl">
               <div class="hero-status mb-6"><EventStatusIndicator event={event} /></div>
@@ -147,8 +151,8 @@ const trailerId = parseVideoId(trailerUrl);
                 {formatLocation(event.location) && <p><strong>Location:</strong> {formatLocation(event.location)}</p>}
               </div>
               {(event.officialWebsite || event.signUpLink) && (
-                <a href={event.officialWebsite || event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn w-full text-center">
-                  Sign Up / Tickets
+                <a href={event.officialWebsite || event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn w-full text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+                  Sign Up / Tickets<span class="sr-only"> (opens in a new tab)</span>
                 </a>
               )}
             </div>
@@ -158,7 +162,7 @@ const trailerId = parseVideoId(trailerUrl);
               <p class="text-gray-300 text-sm mb-6 leading-relaxed">
                 BE Unconventional HQ provides premium editorial coverage for events, including live photography, video interviews, and written features.
               </p>
-              <a href="/contact?subject=Press+Inquiry" class="text-[#ef4444] text-sm font-bold uppercase tracking-wider hover:text-white transition-colors border-b border-[#ef4444] pb-1">
+              <a href="/contact?subject=Press+Inquiry" class="text-red-400 text-sm font-bold uppercase tracking-wider hover:text-white transition-colors border-b border-red-400 pb-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
                 Request Press Kit &rarr;
               </a>
             </div>
