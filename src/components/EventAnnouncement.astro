@@ -1252,45 +1252,12 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
   initEventFilters();
   initHubRail();
   initHubSound();
-  initHeroParallax();
   document.addEventListener('astro:page-load', () => {
     initHubStage();
-    initEventFilters();
+  initEventFilters();
     initHubRail();
     initHubSound();
-    initHeroParallax();
   });
-
-  function initHeroParallax() {
-    const hero = document.querySelector('.event-hero');
-    if (!hero) return;
-
-    if (window.innerWidth < 768) return;
-
-    let ticking = false;
-
-    function onScroll() {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          const scrollY = window.scrollY;
-          if (scrollY > 800) {
-            ticking = false;
-            return;
-          }
-          const progress = Math.min(scrollY / 500, 1);
-          hero.style.setProperty('--scroll-progress', progress.toString());
-          ticking = false;
-        });
-        ticking = true;
-      }
-    }
-
-    window.addEventListener('scroll', onScroll, { passive: true });
-    
-    document.addEventListener('astro:before-swap', () => {
-      window.removeEventListener('scroll', onScroll);
-    }, { once: true });
-  }
 </script>
 </Layout>
 
@@ -2417,32 +2384,5 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
     gap: 1.5rem;
-  }
-
-  /* --- Scroll-Driven Parallax --- */
-  @media (min-width: 768px) {
-    .event-hero {
-      position: relative;
-      overflow: hidden;
-    }
-    .event-hero-bg-wrapper {
-      transform: translateY(calc(var(--scroll-progress, 0) * 150px));
-      will-change: transform;
-    }
-    .hero-identity {
-      transform: translateY(calc(var(--scroll-progress, 0) * 220px)) scale(calc(1 - (var(--scroll-progress, 0) * 0.2)));
-      transform-origin: left top;
-      will-change: transform;
-    }
-    .hero-trailer {
-      transform: translateY(calc(var(--scroll-progress, 0) * 100px)) scale(calc(1 - (var(--scroll-progress, 0) * 0.15)));
-      opacity: calc(1 - (var(--scroll-progress, 0) * 1.5));
-      will-change: transform, opacity;
-      transform-origin: center top;
-    }
-    .hero-description-wrapper {
-      opacity: calc(1 - (var(--scroll-progress, 0) * 2));
-      will-change: opacity;
-    }
   }
 </style>
