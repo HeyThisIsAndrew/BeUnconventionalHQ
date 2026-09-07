@@ -2443,26 +2443,28 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
 
 <script>
   document.addEventListener('astro:page-load', () => {
-    const links = Array.from(document.querySelectorAll('[data-event-toc]'));
+    const links = Array.from(document.querySelectorAll<HTMLElement>('[data-event-toc]'));
     if (!links.length) return;
     
     const sections = links
-      .map((link) => document.getElementById(link.dataset.eventToc))
-      .filter((el) => Boolean(el));
+      .map((link) => document.getElementById(link.dataset.eventToc ?? ''))
+      .filter((el): el is HTMLElement => Boolean(el));
       
     if (!sections.length) return;
 
     // Observe the header element inside the section so its height is small, matching Article TOC behavior
-    const headings = sections.map((sec) => sec.firstElementChild).filter(Boolean);
+    const headings = sections
+      .map((sec) => sec.firstElementChild)
+      .filter((el): el is HTMLElement => Boolean(el));
 
-    const setActive = (id) => {
+    const setActive = (id: string) => {
       links.forEach((link) => {
         const isActive = link.dataset.eventToc === id;
         link.classList.toggle('active', isActive);
       });
     };
 
-    const activeHeadings = new Set();
+    const activeHeadings = new Set<Element>();
     const observer = new IntersectionObserver(
       (records) => {
         records.forEach(r => {
@@ -2486,7 +2488,9 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
     );
 
     headings.forEach((heading) => observer.observe(heading));
-    setActive(headings[0].id);
+    if (sections[0] && sections[0].id) {
+      setActive(sections[0].id);
+    }
   });
 </script>
 
