@@ -461,13 +461,12 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
         
         {/* LEFT RAIL: Navigation */}
         <aside class="article-rail article-rail-left">
-          <nav aria-label="Event Navigation" style="padding-top: 2rem;">
-            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 border-l-2 border-red-500 pl-3">On this page</h3>
-            <ul class="flex flex-col gap-3 text-sm font-bold uppercase tracking-wider pl-3">
-              <li><a href="#event-description" class="text-gray-400 hover:text-white transition-colors">About</a></li>
-              
-              {unifiedContent.length > 0 && <li><a href="#event-coverage" class="text-gray-400 hover:text-white transition-colors">Coverage</a></li>}
-              <li><a href="#event-details" class="text-gray-400 hover:text-white transition-colors">Details</a></li>
+          <nav class="article-toc" aria-label="Event Navigation">
+            <p class="article-rail-head" id="article-toc-head" style="margin-bottom: 1.5rem; text-transform: uppercase;">On This Page</p>
+            <ul class="article-toc-list">
+              <li class="article-toc-item"><a href="#event-description" data-event-toc="event-description">About</a></li>
+              <li class="article-toc-item"><a href="#event-details" data-event-toc="event-details">Details</a></li>
+              {unifiedContent.length > 0 && <li class="article-toc-item"><a href="#event-coverage" data-event-toc="event-coverage">Coverage</a></li>}
             </ul>
           </nav>
         </aside>
@@ -518,8 +517,10 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
           )}
 
           {/* Section: About */}
-          <section id="event-description" class="scroll-mt-32 mt-8">
-            <h3 class="text-2xl md:text-3xl font-display font-bold text-white tracking-tight mb-6">About</h3>
+          <section id="event-description" class="scroll-mt-32 intel-break">
+            <div class="intel-break-head">
+              <h3 class="intel-break-title">ABOUT</h3>
+            </div>
             <div class="article-body event-editorial-body">
               {event.description || event.body ? (
                 <Fragment set:html={event.body || `<p>${event.description}</p>`} />
@@ -545,8 +546,10 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
           
 
           {/* Section: Event Details & Venue */}
-          <section id="event-details" class="scroll-mt-32 mt-16 mb-12">
-            <h3 class="text-2xl md:text-3xl font-display font-bold text-white tracking-tight mb-8">Details</h3>
+          <section id="event-details" class="scroll-mt-32 intel-break">
+            <div class="intel-break-head">
+              <h3 class="intel-break-title">DETAILS</h3>
+            </div>
             
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-10 border-t border-b border-white/10 py-10">
               <div>
@@ -597,11 +600,9 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
           
           {/* Section: Coverage Grid */}
           {unifiedContent.length > 0 && (
-            <section id="event-coverage" class="mt-12 scroll-mt-32">
-              
-              <div class="flex items-center justify-between mb-8 border-b border-gray-800 pb-4">
-                <h3 class="text-2xl md:text-3xl font-display font-bold text-white tracking-tight mb-6">Coverage</h3>
-                
+            <section id="event-coverage" class="scroll-mt-32 intel-break">
+              <div class="intel-break-head">
+                <h3 class="intel-break-title">COVERAGE</h3>
               </div>
               <div class="card-grid">
                 {unifiedContent.map((item: any, index: number) => (
@@ -2462,3 +2463,50 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
   }
 
 </style>
+
+<script>
+  document.addEventListener('astro:page-load', () => {
+    const links = Array.from(document.querySelectorAll('[data-event-toc]'));
+    if (!links.length) return;
+    
+    const headings = links
+      .map((link) => document.getElementById(link.dataset.eventToc))
+      .filter((el) => Boolean(el));
+      
+    if (!headings.length) return;
+
+    const setActive = (id) => {
+      links.forEach((link) => {
+        const isActive = link.dataset.eventToc === id;
+        link.classList.toggle('active', isActive);
+      });
+    };
+
+    const activeHeadings = new Set();
+    const observer = new IntersectionObserver(
+      (records) => {
+        records.forEach(r => {
+          if (r.isIntersecting) activeHeadings.add(r.target);
+          else activeHeadings.delete(r.target);
+        });
+
+        if (activeHeadings.size > 0) {
+          const visible = Array.from(activeHeadings)
+            .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0];
+          if (visible.id) setActive(visible.id);
+          return;
+        }
+
+        const ZONE_TOP = 80;
+        const passed = headings.filter((h) => h.getBoundingClientRect().top < ZONE_TOP);
+        const fallback = passed.length > 0 ? passed[passed.length - 1] : headings[0];
+        if (fallback?.id) setActive(fallback.id);
+      },
+      { rootMargin: '-80px 0px -50% 0px', threshold: 0 },
+    );
+
+    headings.forEach((heading) => observer.observe(heading));
+    setActive(headings[0].id);
+  });
+</script>
+
