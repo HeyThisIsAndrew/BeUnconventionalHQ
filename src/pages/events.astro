@@ -83,7 +83,12 @@ const pastEvents = allEvents
                           feed's height, which would break position:sticky. Only
                           matters at lg, where sticky is active.
       */}
-      <div class="grid grid-cols-1 md:grid-cols-12 md:gap-8 lg:items-start w-full" style="margin-top: 3.5rem;">
+      {secondaryUpcoming.length > 0 && (
+        <div class="intel-break-head w-full animate-on-scroll" style="margin-top: 3.5rem; margin-bottom: 2.5rem;">
+          <h2 id="more-upcoming-heading" class="intel-break-title">UPCOMING EVENTS</h2>
+        </div>
+      )}
+      <div class="grid grid-cols-1 md:grid-cols-12 md:gap-8 lg:items-start w-full" style={secondaryUpcoming.length === 0 ? "margin-top: 3.5rem;" : ""}>
         {/*
           OVERFLOW GUARDRAIL (min-w-0): grid/flex children default to
           min-width:auto and refuse to shrink below their intrinsic content, so a
@@ -96,9 +101,6 @@ const pastEvents = allEvents
           {/* Secondary upcoming events as a clean vertical list. */}
           {secondaryUpcoming.length > 0 && (
             <section class="upcoming-section animate-on-scroll" aria-labelledby="more-upcoming-heading">
-              <div class="intel-break-head mb-8">
-                <h2 id="more-upcoming-heading" class="intel-break-title">UPCOMING EVENTS</h2>
-              </div>
               <UpcomingEventsList events={secondaryUpcoming} />
             </section>
           )}
