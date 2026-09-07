@@ -1,14 +1,11 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import HeroTrailer from './HeroTrailer.astro';
 import InstagramFeed from './InstagramFeed.astro';
 import SubscribeCTA from './SubscribeCTA.astro';
-import EventStatusIndicator from './EventStatusIndicator.astro';
 import ContentCard from './ContentCard.astro';
 import MiniCalendarSidebar from './MiniCalendarSidebar.astro';
 import { getHubTopicKeywords } from '../lib/instagram-topic';
 import { parseVideoId } from '../lib/platforms/youtube';
-import { formatEventDateRange, formatLocation } from '../lib/events';
 import { urlFor, HUB_CATEGORY_LABELS } from '../lib/local-content';
 
 const { event, unifiedContent } = Astro.props;
@@ -38,14 +35,14 @@ const trailerId = parseVideoId(trailerUrl);
 const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format').url() : null;
 
 const HERO_ITEM_LIMIT = 5;
-function pickHeroItems(items) {
+function pickHeroItems(items: any[]) {
   return items.slice(0, HERO_ITEM_LIMIT);
 }
 const heroItems = pickHeroItems(unifiedContent);
 
 const hasPlayableVideo =
   !!trailerId ||
-  heroItems.some((it) => it.contentType === 'video' && parseVideoId(it.link || ''));
+  heroItems.some((it: any) => it.contentType === 'video' && parseVideoId(it.link || ''));
 
 const stageMarkUrl = event.logo ? urlFor(event.logo).height(520).auto('format').url() : null;
 const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
@@ -576,7 +573,7 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
         const cards = document.querySelectorAll('.content-card');
         cards.forEach((card) => {
           const show = activeFilter === 'all' || card.getAttribute('data-type') === activeFilter;
-          card.style.display = show ? 'block' : 'none';
+          (card as HTMLElement).style.display = show ? 'block' : 'none';
         });
       });
     });
