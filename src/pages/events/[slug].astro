@@ -4,6 +4,7 @@ import { getVideosUnified, getShortsUnified, getLiveStreamsUnified } from '../..
 import { getEventsLocal } from '../../lib/local-content';
 import EventAnnouncement from '../../components/EventAnnouncement.astro';
 import EventFeatured from '../../components/EventFeatured.astro';
+import SpanningCalendarModal from '../../components/SpanningCalendarModal.astro';
 
 export async function getStaticPaths() {
   const events = getEventsLocal();
@@ -56,8 +57,11 @@ const allEvents = getEventsLocal();
 
 ---
 
-{isFeatured ? (
-  <EventFeatured event={event} unifiedContent={unifiedContent} allEvents={allEvents} />
-) : (
-  <EventAnnouncement event={event} unifiedContent={unifiedContent} allEvents={allEvents} />
-)}
+<>
+  {isFeatured ? (
+    <EventFeatured event={event} unifiedContent={unifiedContent} allEvents={allEvents} />
+  ) : (
+    <EventAnnouncement event={event} unifiedContent={unifiedContent} allEvents={allEvents} />
+  )}
+  <SpanningCalendarModal events={allEvents} />
+</>
