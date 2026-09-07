@@ -2466,6 +2466,22 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
       });
     };
 
+    let overrideId: string | null = null;
+    let overrideTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    links.forEach(link => {
+      link.addEventListener('click', () => {
+        const targetId = link.dataset.eventToc;
+        if (targetId) {
+          overrideId = targetId;
+          setActive(targetId);
+          if (overrideTimeout) clearTimeout(overrideTimeout);
+          // 1s is enough time for smooth scrolling to finish
+          overrideTimeout = setTimeout(() => { overrideId = null; }, 1000);
+        }
+      });
+    });
+
     const activeHeadings = new Set<Element>();
     const observer = new IntersectionObserver(
       (records) => {
@@ -2474,6 +2490,20 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
           else activeHeadings.delete(r.target);
         });
 
+        if (overrideId) return;
+
+        // If user is at the absolute bottom of the document, highlight the last visible heading
+        if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 10) {
+          const visibleHeadings = headings.filter(h => h.getBoundingClientRect().top < window.innerHeight);
+          if (visibleHeadings.length > 0) {
+            const last = visibleHeadings[visibleHeadings.length - 1];
+            if (last && last.parentElement) {
+              setActive(last.parentElement.id);
+              return;
+            }
+          }
+        }
+
         if (activeHeadings.size > 0) {
           const visible = Array.from(activeHeadings)
             .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0];
@@ -2481,12 +2511,12 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
           return;
         }
 
-        const ZONE_TOP = 80;
+        const ZONE_TOP = 130;
         const passed = headings.filter((h) => h.getBoundingClientRect().top < ZONE_TOP);
         const fallback = passed.length > 0 ? passed[passed.length - 1] : headings[0];
         if (fallback && fallback.parentElement) setActive(fallback.parentElement.id);
       },
-      { rootMargin: '-80px 0px -50% 0px', threshold: 0 },
+      { rootMargin: '-128px 0px -50% 0px', threshold: 0 },
     );
 
     headings.forEach((heading) => observer.observe(heading));
