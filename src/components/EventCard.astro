@@ -1,4 +1,5 @@
 ---
+import eventsImg from '../assets/categories/events.PNG';
 import { parseEventDate } from '../lib/events';
 import { parseVideoId } from '../lib/platforms/youtube';
 import { buildImageSet } from '../lib/local-content';
@@ -17,8 +18,8 @@ const fallbackInitials = event.title
   .join('')
   .toUpperCase();
 
-const hasValidImage = logo?.src || hero?.src || trailerId;
-const imageSrc = logo?.src ?? hero?.src ?? (trailerId ? `https://img.youtube.com/vi/${trailerId}/hqdefault.jpg` : null);
+const hasValidImage = true;
+const imageSrc = logo?.src ?? hero?.src ?? (trailerId ? `https://img.youtube.com/vi/${trailerId}/hqdefault.jpg` : eventsImg.src);
 const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
 ---
 
@@ -28,25 +29,15 @@ const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
   style={`--index: ${index};`}
 >
   <div class="past-event-media">
-    {hasValidImage ? (
-      <img
-        src={imageSrc}
-        srcset={imageSrcset}
-        sizes="120px"
-        alt={event.title}
-        loading="lazy"
-        decoding="async"
-        class="past-event-img"
-        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
-      />
-      <div class="fallback-monogram" style="display: none;">
-        {fallbackInitials}
-      </div>
-    ) : (
-      <div class="fallback-monogram" style="display: flex;">
-        {fallbackInitials}
-      </div>
-    )}
+    <img
+      src={imageSrc}
+      srcset={imageSrcset}
+      sizes="120px"
+      alt={event.title}
+      loading="lazy"
+      decoding="async"
+      class="past-event-img"
+    />
   </div>
 
   <div class="past-event-body">
