@@ -133,7 +133,31 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
               "Franchises", so the page you land on says so, in the same
               plate the row header uses.
             */}
-            {categoryLabel && <span class="hero-eyebrow">{categoryLabel}</span>}
+            {/* Category & Metadata Badges */}
+            <div class="hero-eyebrow" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
+              <span class="article-tag article-tag-category">
+                {categoryLabel || (typeof event.category === 'object' && event.category !== null ? (event.category.title || event.category.name || 'LIVE EVENT') : event.category) || 'LIVE EVENT'}
+              </span>
+              {event.location && (
+                <Fragment>
+                  <span class="dot">&bull;</span>
+                  <span class="article-tag" style="text-transform: uppercase;">
+                    {typeof event.location === 'string' ? event.location : 
+                     [event.location.city, event.location.region].filter(Boolean).join(', ') || 
+                     event.location.venue || 
+                     event.location.country}
+                  </span>
+                </Fragment>
+              )}
+              {event.startDate && (
+                <Fragment>
+                  <span class="dot">&bull;</span>
+                  <time datetime={event.startDate} class="article-tag" style="text-transform: uppercase;">{
+                    new Date(event.startDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  }{event.endDate && event.endDate !== event.startDate ? '–' + new Date(event.endDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}</time>
+                </Fragment>
+              )}
+            </div>
 
             {/*
               THE MARK IS ON THE STAGE NOW, so the copy does not repeat it. A
@@ -474,48 +498,6 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
         {/* CENTER COLUMN: Event Content */}
         <article class="article-column">
           
-          {/* Category & Metadata Badges */}
-          <div class="article-eyebrow">
-            <span class="article-tag article-tag-category">
-              {categoryLabel || (typeof event.category === 'object' && event.category !== null ? (event.category.title || event.category.name || 'LIVE EVENT') : event.category) || 'LIVE EVENT'}
-            </span>
-            {event.location && (
-              <Fragment>
-                <span class="dot">&bull;</span>
-                <span class="article-tag">
-                  {typeof event.location === 'string' ? event.location : 
-                   [event.location.city, event.location.region].filter(Boolean).join(', ') || 
-                   event.location.venue || 
-                   event.location.country}
-                </span>
-              </Fragment>
-            )}
-            {event.startDate && (
-              <Fragment>
-                <span class="dot">&bull;</span>
-                <time datetime={event.startDate}>{
-                  new Date(event.startDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-                }{event.endDate && event.endDate !== event.startDate ? `–${new Date(event.endDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` : ''}</time>
-              </Fragment>
-            )}
-          </div>
-
-          {/* Display Title */}
-          <h1 class="article-title">{event.title}</h1>
-
-          {/* Event Featured Visual */}
-          {event.heroImage && (
-            <img
-              src={heroAt(1200)}
-              srcset={heroBackdropSrcset}
-              sizes="(max-width: 900px) 92vw, 720px"
-              alt={`Key visual for ${event.title}`}
-              class="article-hero"
-              loading="lazy"
-              decoding="async"
-            />
-          )}
-
           {/* Section: About */}
           <section id="event-description" class="scroll-mt-32 intel-break">
             <div class="intel-break-head">
