@@ -33,6 +33,22 @@ export default defineType({
   fields: [
     // ── Core ────────────────────────────────────────────────────────────
     defineField({
+      name: 'layoutMode',
+      title: 'Layout Mode',
+      type: 'string',
+      fieldset: 'core',
+      description: 'Choose "Announcement" for early coverage (70/30 split) or "Featured" for a full editorial hub takeover.',
+      options: {
+        list: [
+          { title: 'Announcement', value: 'announcement' },
+          { title: 'Featured', value: 'featured' },
+        ],
+        layout: 'radio',
+      },
+      initialValue: 'announcement',
+      validation: (rule) => rule.required(),
+    }),
+    defineField({
       name: 'title',
       title: 'Title',
       type: 'string',

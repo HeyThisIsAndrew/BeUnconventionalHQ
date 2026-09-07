@@ -1,0 +1,203 @@
+---
+import Layout from '../layouts/Layout.astro';
+import HeroTrailer from './HeroTrailer.astro';
+import InstagramFeed from './InstagramFeed.astro';
+import SubscribeCTA from './SubscribeCTA.astro';
+import EventStatusIndicator from './EventStatusIndicator.astro';
+import ContentCard from './ContentCard.astro';
+import MiniCalendarSidebar from './MiniCalendarSidebar.astro';
+import { getHubTopicKeywords } from '../lib/instagram-topic';
+import { parseVideoId } from '../lib/platforms/youtube';
+import { formatEventDateRange, formatLocation } from '../lib/events';
+import { urlFor } from '../lib/local-content';
+
+const { event, unifiedContent } = Astro.props;
+
+const brandColor = event.brandColor || 'var(--color-accent, #cc0000)';
+
+const HERO_WIDTHS = [800, 1200, 2400];
+const heroAt = (w: number) => event.heroImage ? urlFor(event.heroImage).width(w).auto('format').url() : '';
+const heroMobileUrl = heroAt(800);
+const heroSrcset = event.heroImage ? HERO_WIDTHS.map((w) => `${heroAt(w)} ${w}w`).join(', ') : '';
+const heroSizes = '100vw';
+const heroUrl = heroAt(2400);
+const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
+
+const trailerUrl = event.trailerUrl;
+const trailerId = parseVideoId(trailerUrl);
+---
+
+<Layout
+  title={event.title}
+  description={`Coverage of ${event.title}`}
+  preloadImage={heroMobileUrl || undefined}
+  preloadImageSrcset={heroSrcset || undefined}
+  preloadImageSizes={event.heroImage ? heroSizes : undefined}
+>
+  <main class="event-dashboard featured-takeover" style={`--brand-color: ${brandColor};`}>
+    
+    <section class="event-hero">
+      <div class="event-hero-bg-wrapper" style={!heroUrl ? `background: ${fallbackGradient};` : ''}>
+        {heroUrl && (
+          <img
+            src={heroMobileUrl}
+            srcset={heroSrcset}
+            sizes={heroSizes}
+            alt=""
+            class="event-hero-bg-animated"
+            loading="eager"
+            fetchpriority="high"
+          />
+        )}
+      </div>
+      <div class="event-hero-overlay flex flex-col justify-end">
+        <div class="container container-page !px-6 lg:!px-20 xl:!px-24 text-center items-center flex flex-col">
+          <div class="hero-status mb-4"><EventStatusIndicator event={event} /></div>
+          <h1 class="sr-only">{event.title} Coverage</h1>
+          {event.logo ? (
+            <img
+              src={urlFor(event.logo).height(240).url()}
+              alt={`${event.title} logo`}
+              class="hero-logo w-full h-auto max-w-sm md:max-w-md lg:max-w-lg mb-8"
+              height="240"
+            />
+          ) : (
+            <h1 class="hero-title">{event.title}</h1>
+          )}
+          <p class="hero-meta text-sm md:text-base mb-8 text-gray-300">
+            <span class="event-dates">{formatEventDateRange(event.startDate, event.endDate)}</span>
+            {formatLocation(event.location) && (
+              <span class="event-location">
+                <span class="mx-2 text-gray-500">•</span>
+                {formatLocation(event.location)}
+              </span>
+            )}
+          </p>
+        </div>
+      </div>
+    </section>
+
+    {/* The 1536px Magazine Spread */}
+    <div class="container-page content-container pt-12 pb-24">
+      <div class="magazine-spread mb-16">
+        <h2 class="sr-only">Featured Stories</h2>
+        <div class="grid grid-cols-1 md:grid-cols-[1fr_2.15fr_1fr] gap-6 w-full">
+          {unifiedContent.slice(0, 5).map((item: any, index: number) => (
+             <ContentCard item={item} index={index} />
+          ))}
+        </div>
+      </div>
+
+      {trailerId && (
+        <div class="hero-trailer aspect-video w-full h-auto max-w-5xl mx-auto bg-black rounded-lg overflow-hidden border border-gray-800 mb-16">
+          <HeroTrailer trailerId={trailerId} title={event.title} />
+        </div>
+      )}
+
+      <div class="event-content" id="event-content">
+        <div class="flex flex-col lg:flex-row gap-12">
+          
+          <div class="flex-1">
+            <div class="flex items-center justify-between mb-8 border-b border-gray-800 pb-4">
+              <h2 class="text-3xl font-bold font-display uppercase tracking-tight">Latest Coverage</h2>
+            </div>
+            
+            {unifiedContent.length > 5 ? (
+              <div class="card-grid">
+                {unifiedContent.slice(5).map((item: any, index: number) => (
+                  <ContentCard item={item} index={index} />
+                ))}
+              </div>
+            ) : (
+              <p class="text-gray-500 italic">No additional coverage found.</p>
+            )}
+          </div>
+
+          {/* Right sidebar area for Calendar */}
+          <aside class="w-full lg:w-80 flex-shrink-0">
+            <div class="sticky top-32">
+              <MiniCalendarSidebar events={Astro.props.allEvents?.filter((e: any) => e.startDate >= new Date().toISOString().split('T')[0]) || []} />
+            </div>
+          </aside>
+
+        </div>
+      </div>
+
+      <div class="mt-20 pt-8 border-t border-gray-900 text-center flex flex-col gap-4 items-center">
+        <a href="#top" class="text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-white transition-colors">
+          Back to Top &uarr;
+        </a>
+        <a href="?view=announcement" class="text-xs font-medium text-gray-600 hover:text-gray-400 transition-colors underline">
+          View original announcement record (Archive)
+        </a>
+      </div>
+    </div>
+    
+    <InstagramFeed topicKeywords={getHubTopicKeywords(event)} />
+    <SubscribeCTA />
+
+  </main>
+</Layout>
+
+<style>
+  .event-hero {
+    position: relative;
+    background-color: #111;
+  }
+  .event-hero-bg-wrapper {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    z-index: 0;
+  }
+  .event-hero-bg-animated {
+    position: absolute;
+    inset: 0;
+    object-fit: cover;
+    width: 100%;
+    height: 100%;
+    transform: translateZ(0);
+    animation: cinematic-hero-zoom 30s ease-in-out infinite alternate;
+  }
+  @keyframes cinematic-hero-zoom {
+    from { transform: scale(1.08) translateZ(0); }
+    to { transform: scale(1) translateZ(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .event-hero-bg-animated { animation: none; }
+  }
+  .event-hero-overlay {
+    position: relative;
+    z-index: 1;
+    min-height: 60vh;
+    background: linear-gradient(
+      to top,
+      rgba(10, 10, 10, 1) 0%,
+      rgba(0, 0, 0, 0.4) 100%
+    );
+    padding-top: clamp(6rem, 4.5rem + 6vw, 8.5rem);
+    padding-bottom: 4rem;
+  }
+
+  .hero-logo {
+    max-height: 240px;
+    object-fit: contain;
+  }
+  .hero-title {
+    font-family: var(--font-display, 'Inter', sans-serif);
+    font-size: clamp(2rem, 4vw, 5rem);
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 0.95;
+    text-transform: uppercase;
+    color: var(--color-white, #f0f0f0);
+    text-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+    margin: 0;
+  }
+  
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+    gap: 1.5rem;
+  }
+</style>
