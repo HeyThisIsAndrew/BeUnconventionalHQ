@@ -4,6 +4,8 @@ import InstagramFeed from './InstagramFeed.astro';
 import SubscribeCTA from './SubscribeCTA.astro';
 import ContentCard from './ContentCard.astro';
 import MiniCalendarSidebar from './MiniCalendarSidebar.astro';
+import ReferralLinks from './ReferralLinks.astro';
+
 import { getHubTopicKeywords } from '../lib/instagram-topic';
 import { parseVideoId } from '../lib/platforms/youtube';
 import { urlFor, HUB_CATEGORY_LABELS } from '../lib/local-content';
@@ -557,28 +559,34 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
         </article>
 
         {/* RIGHT RAIL: Widgets */}
-        <aside class="article-rail article-rail-right">
-          <div class="flex flex-col gap-10 sticky top-32">
+        <aside class="article-rail article-rail-right" aria-labelledby="article-support-head">
+          <div class="article-rail-sticky">
             
             {/* Calendar */}
-            <div class="calendar-widget">
-              <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 border-b border-gray-800 pb-2">Upcoming Events</h3>
+            <div class="article-rail-related">
+              <p class="article-rail-head" id="article-support-head">Upcoming Events</p>
               <MiniCalendarSidebar events={Astro.props.allEvents?.filter((e: any) => e.startDate >= new Date().toISOString().split('T')[0]) || []} />
             </div>
 
             {/* Coverage Inquiry */}
-            <div class="coverage-inquiry">
-              <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 border-b border-gray-800 pb-2">Coverage Inquiry</h3>
+            <div class="article-rail-related mt-10">
+              <p class="article-rail-head">Coverage Inquiry</p>
               <p class="text-gray-400 text-sm mb-4 leading-relaxed">
                 BE Unconventional HQ provides premium editorial coverage for events, including live photography, video interviews, and written features.
               </p>
               <a href="mailto:press@beunconventionalhq.com?subject=Press%20Inquiry" class="text-white text-xs font-bold uppercase tracking-wider hover:text-red-400 transition-colors border-b border-transparent hover:border-red-400 pb-1">
-                Request Press Kit &rarr;
+                Contact Press Desk &rarr;
               </a>
+            </div>
+            
+            {/* Affiliate / Support Cards */}
+            <div class="article-rail-support mt-10">
+              <ReferralLinks compact />
             </div>
 
           </div>
         </aside>
+
 
       </div>
     </div>
@@ -2404,8 +2412,8 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
       will-change: min-height;
     }
     .event-hero.hero-shrunk .event-hero-overlay {
-      min-height: 120px !important;
-      padding-top: 60px;
+      min-height: 140px !important;
+      padding-top: 72px;
       padding-bottom: 0;
     }
     .event-hero.hero-shrunk .hub-rail,
