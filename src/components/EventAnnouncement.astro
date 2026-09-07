@@ -465,6 +465,7 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
               <li><a href="#event-description" class="text-gray-400 hover:text-white transition-colors">About</a></li>
               {trailerId && <li><a href="#event-trailer" class="text-gray-400 hover:text-white transition-colors">Trailer</a></li>}
               {unifiedContent.length > 0 && <li><a href="#event-coverage" class="text-gray-400 hover:text-white transition-colors">Coverage</a></li>}
+              {event.signUpLink && <li><a href={event.signUpLink} target="_blank" rel="noopener noreferrer" class="text-gray-400 hover:text-white transition-colors">Tickets / RSVP</a></li>}
             </ul>
           </nav>
         </aside>
@@ -472,26 +473,85 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
         {/* CENTER COLUMN: Event Content */}
         <article class="article-column">
           
-          {/* Coverage Grid */}
-          {unifiedContent.length === 0 && <div class="empty-state hidden" aria-hidden="true" style="display:none;"></div>}
+          {/* Category & Metadata Badges */}
+          <div class="article-eyebrow">
+            <span class="article-tag article-tag-category">
+              {categoryLabel || event.category || 'LIVE EVENT'}
+            </span>
+            <span class="dot">&bull;</span>
+            <span class="article-tag">LIVE EVENT</span>
+            {event.location && (
+              <Fragment>
+                <span class="dot">&bull;</span>
+                <span class="article-tag">{event.location}</span>
+              </Fragment>
+            )}
+            {event.startDate && (
+              <Fragment>
+                <span class="dot">&bull;</span>
+                <time datetime={event.startDate}>{
+                  new Date(event.startDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                }{event.endDate && event.endDate !== event.startDate ? `–${new Date(event.endDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` : ''}</time>
+              </Fragment>
+            )}
+          </div>
+
+          {/* Display Title */}
+          <h1 class="article-title">{event.title}</h1>
+
+          {/* Event Featured Visual */}
+          {event.heroImage && (
+            <img
+              src={heroAt(1200)}
+              srcset={heroBackdropSrcset}
+              sizes="(max-width: 900px) 92vw, 720px"
+              alt={`Key visual for ${event.title}`}
+              class="article-hero"
+              loading="lazy"
+              decoding="async"
+            />
+          )}
+
+          {/* Section: About */}
+          <section id="event-description" class="scroll-mt-32 mt-8">
+            <h2 class="intel-break-title">About</h2>
+            <div class="article-body event-editorial-body">
+              {event.description || event.body ? (
+                <Fragment set:html={event.body || `<p>${event.description}</p>`} />
+              ) : (
+                <Fragment>
+                  <p>
+                    {event.startDate && (
+                      <Fragment>
+                        {new Date(event.startDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
+                        {event.endDate && event.endDate !== event.startDate && (
+                          <Fragment>–{new Date(event.endDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</Fragment>
+                        )}
+                        {event.location && <Fragment> in {event.location}</Fragment>}
+                        {' — '}
+                      </Fragment>
+                    )}
+                    three unforgettable days of showcases, sneak peeks, exclusive shopping, and once-in-a-lifetime experiences.
+                  </p>
+                </Fragment>
+              )}
+            </div>
+          </section>
+          
+          {/* Section: Coverage Grid */}
           {unifiedContent.length > 0 && (
-            <div id="event-coverage" class="mt-8 scroll-mt-32">
+            <section id="event-coverage" class="mt-12 scroll-mt-32">
               
               <div class="flex items-center justify-between mb-8 border-b border-gray-800 pb-4">
                 <h2 class="text-2xl font-bold font-display uppercase tracking-tight text-white">Coverage</h2>
                 
-                <div class="filter-controls animate-on-scroll">
-                  <button class="filter-btn type-btn active" data-filter="all" aria-pressed="true">ALL</button>
-                  <button class="filter-btn type-btn" data-filter="article" aria-pressed="false">ARTICLES</button>
-                  <button class="filter-btn type-btn" data-filter="video" aria-pressed="false">VIDEOS</button>
-                </div>
               </div>
               <div class="card-grid">
                 {unifiedContent.map((item: any, index: number) => (
                   <ContentCard item={item} index={index} />
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
         </article>
@@ -547,6 +607,21 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
 
      Teardown is `about:blank` — HARD RULE 4 — never ''.
      ══════════════════════════════════════════════════════════════════════ */
+  const eventHero = document.querySelector(".event-hero");
+  if (eventHero) {
+    window.addEventListener("scroll", () => {
+      if (window.innerWidth >= 768) {
+        if (window.scrollY > 150) {
+          eventHero.classList.add("hero-shrunk");
+        } else {
+          eventHero.classList.remove("hero-shrunk");
+        }
+      } else {
+        eventHero.classList.remove("hero-shrunk");
+      }
+    }, { passive: true });
+  }
+
   const HUB_LEAD_IN_MS = 900;
   const HUB_PLAY_TIMEOUT_MS = 7000;
   const HUB_RUN_MS = 42000;
@@ -2314,8 +2389,52 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
   /* Grid for Coverage Cards */
   .card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
     gap: 1.5rem;
+  }
+
+  @media (min-width: 768px) {
+    .event-hero {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+    }
+    .event-hero-overlay {
+      transition: min-height 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), padding 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+      will-change: min-height;
+    }
+    .event-hero.hero-shrunk .event-hero-overlay {
+      min-height: 120px !important;
+      padding-top: 60px;
+      padding-bottom: 0;
+    }
+    .event-hero.hero-shrunk .hub-rail,
+    .event-hero.hero-shrunk .hero-description-wrapper,
+    .event-hero.hero-shrunk .hero-info-cta {
+      opacity: 0;
+      pointer-events: none;
+      position: absolute;
+      visibility: hidden;
+    }
+    .event-hero.hero-shrunk .hero-identity {
+      flex-direction: row;
+      align-items: center;
+      margin-bottom: 0;
+    }
+    .event-hero.hero-shrunk .hero-logo {
+      max-height: 50px !important;
+      transition: max-height 0.4s ease;
+    }
+    .event-hero.hero-shrunk .hero-title {
+      font-size: 1.5rem;
+      transition: font-size 0.4s ease;
+    }
+    .event-hero.hero-shrunk .hub-stage {
+      opacity: 0;
+      transform: scale(0.95);
+      pointer-events: none;
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
   }
 
 </style>
