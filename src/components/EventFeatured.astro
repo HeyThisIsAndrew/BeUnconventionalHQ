@@ -2448,11 +2448,14 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
     const links = Array.from(document.querySelectorAll('[data-event-toc]'));
     if (!links.length) return;
     
-    const headings = links
+    const sections = links
       .map((link) => document.getElementById(link.dataset.eventToc))
       .filter((el) => Boolean(el));
       
-    if (!headings.length) return;
+    if (!sections.length) return;
+
+    // Observe the header element inside the section so its height is small, matching Article TOC behavior
+    const headings = sections.map((sec) => sec.firstElementChild).filter(Boolean);
 
     const setActive = (id) => {
       links.forEach((link) => {
@@ -2472,14 +2475,14 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
         if (activeHeadings.size > 0) {
           const visible = Array.from(activeHeadings)
             .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0];
-          if (visible.id) setActive(visible.id);
+          if (visible && visible.parentElement) setActive(visible.parentElement.id);
           return;
         }
 
         const ZONE_TOP = 80;
         const passed = headings.filter((h) => h.getBoundingClientRect().top < ZONE_TOP);
         const fallback = passed.length > 0 ? passed[passed.length - 1] : headings[0];
-        if (fallback?.id) setActive(fallback.id);
+        if (fallback && fallback.parentElement) setActive(fallback.parentElement.id);
       },
       { rootMargin: '-80px 0px -50% 0px', threshold: 0 },
     );
