@@ -13,15 +13,11 @@ import { urlFor } from '../lib/local-content';
 
 const { event, unifiedContent } = Astro.props;
 
-const brandColor = event.brandColor || 'var(--color-accent, #cc0000)';
-
 const HERO_WIDTHS = [800, 1200, 2400];
-const heroAt =  (w: number) => event.heroImage ? urlFor(event.heroImage).width(w).auto('format').url() : '';
+const heroAt = (w: number) => event.heroImage ? urlFor(event.heroImage).width(w).auto('format').url() : '';
 const heroMobileUrl = heroAt(800);
-const heroSrcset = event.heroImage ? HERO_WIDTHS.map( (w: number) => `${heroAt(w)} ${w}w`).join(', ') : '';
+const heroSrcset = event.heroImage ? HERO_WIDTHS.map((w) => `${heroAt(w)} ${w}w`).join(', ') : '';
 const heroSizes = '100vw';
-const heroUrl = heroAt(2400);
-const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
 
 const trailerUrl = event.trailerUrl;
 const trailerId = parseVideoId(trailerUrl);
@@ -34,114 +30,136 @@ const trailerId = parseVideoId(trailerUrl);
   preloadImageSrcset={heroSrcset || undefined}
   preloadImageSizes={event.heroImage ? heroSizes : undefined}
 >
-  <main class="event-dashboard featured-takeover" style={`--brand-color: ${brandColor};`}>
+  <main class="event-page-wrapper">
     
-    <section class="event-hero">
-      <div class="event-hero-bg-wrapper" style={!heroUrl ? `background: ${fallbackGradient};` : ''}>
-        {heroUrl && (
-          <img
-            src={heroMobileUrl}
-            srcset={heroSrcset}
-            sizes={heroSizes}
-            alt=""
-            class="event-hero-bg-animated"
-            loading="eager"
-            fetchpriority="high"
-          />
-        )}
-      </div>
-      <div class="event-hero-overlay flex flex-col justify-end">
-        <div class="container container-page !px-6 lg:!px-20 xl:!px-24 text-center items-center flex flex-col">
-          <div class="hero-status mb-4"><EventStatusIndicator event={event} /></div>
-          {event.logo && <h1 class="sr-only">{event.title}</h1>}
-          {event.logo ? (
-            <img
-              src={urlFor(event.logo).height(240).url()}
-              alt={`${event.title} logo`}
-              class="hero-logo mb-8"
-              height="240"
-            />
-          ) : (
-            <h1 class="hero-title">{event.title}</h1>
-          )}
-          <p class="hero-meta text-sm md:text-base mb-8">
-            <span class="event-dates">{formatEventDateRange(event.startDate, event.endDate)}</span>
-            {formatLocation(event.location) && (
-              <span class="event-location">
-                <span class="mx-2 text-gray-500">•</span>
-                {formatLocation(event.location)}
-              </span>
-            )}
-          </p>
-        </div>
-      </div>
-    </section>
+    {/* Minimal Hero Header (just the image as a 30vh banner) */}
+    {event.heroImage && (
+      <section class="event-banner">
+        <img
+          src={heroMobileUrl}
+          srcset={heroSrcset}
+          sizes={heroSizes}
+          alt=""
+          class="event-banner-img"
+          loading="eager"
+          fetchpriority="high"
+        />
+        <div class="event-banner-overlay"></div>
+      </section>
+    )}
 
-    <div class="container-page content-container pt-12 pb-24">
+    <div class="container-page py-12 lg:py-20">
       
-      {/* Event Editorial Intro */}
-      {event.description && (
-        <div class="max-w-4xl mx-auto mb-16">
-          <div class="article-body">
-            <p>{event.description}</p>
-          </div>
-        </div>
-      )}
-
-      {/* The 1536px Magazine Spread */}
-      {unifiedContent.length > 0 && (
-        <div class="magazine-spread mb-16">
-          <h2 class="sr-only">Featured Stories</h2>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_2.15fr_1fr] gap-6 w-full">
-            {unifiedContent.slice(0, 5).map( (item: any, index: number) => (
-               <ContentCard item={item} index={index} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {trailerId && (
-        <div class="hero-trailer aspect-video w-full h-auto max-w-5xl mx-auto bg-black rounded-lg overflow-hidden border border-gray-800 mb-16">
-          <HeroTrailer trailerId={trailerId} title={event.title} />
-        </div>
-      )}
-
-      <div class="event-content" id="event-content">
-        <div class="flex flex-col lg:flex-row gap-12">
-          
-          <div class="flex-1">
-            <div class="flex items-center justify-between mb-8 border-b border-gray-800 pb-4">
-              <h2 class="text-3xl font-bold font-display uppercase tracking-tight">Latest Coverage</h2>
-            </div>
+      {/* 3-Column Article Layout */}
+      <div class="event-article-layout">
+        
+        {/* LEFT RAIL: Navigation & Event Details */}
+        <aside class="event-rail event-rail-left">
+          <div class="sticky top-32 flex flex-col gap-12">
             
-            {unifiedContent.length > 5 ? (
+            <nav aria-label="Event Navigation" class="event-nav hidden lg:block">
+              <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">On this page</h3>
+              <ul class="flex flex-col gap-3 text-sm font-bold uppercase tracking-wider">
+                <li><a href="#event-description" class="text-white hover:text-red-400 transition-colors">About</a></li>
+                {trailerId && <li><a href="#event-trailer" class="text-white hover:text-red-400 transition-colors">Trailer</a></li>}
+                {unifiedContent.length > 0 && <li><a href="#event-coverage" class="text-white hover:text-red-400 transition-colors">Coverage</a></li>}
+              </ul>
+            </nav>
+
+            <div class="event-details-box bg-[#111] border border-gray-800 p-6 rounded-lg">
+              <div class="hero-status mb-4"><EventStatusIndicator event={event} /></div>
+              
+              <div class="text-gray-300 text-sm mb-6 space-y-3">
+                <div>
+                  <span class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Date</span>
+                  <span class="font-medium text-white">{formatEventDateRange(event.startDate, event.endDate)}</span>
+                </div>
+                {formatLocation(event.location) && (
+                  <div>
+                    <span class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Location</span>
+                    <span class="font-medium text-white">{formatLocation(event.location)}</span>
+                  </div>
+                )}
+              </div>
+              
+              {(event.officialWebsite || event.signUpLink) && (
+                <div class="pt-4 border-t border-gray-800">
+                  <a href={event.officialWebsite || event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn w-full text-center">
+                    Sign Up / Tickets
+                  </a>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </aside>
+
+        {/* CENTER COLUMN: Content */}
+        <article class="event-column">
+          
+          <header class="mb-10 text-center lg:text-left">
+            {event.logo && <h1 class="sr-only">{event.title}</h1>}
+            {event.logo ? (
+              <img
+                src={urlFor(event.logo).height(240).url()}
+                alt={`${event.title} logo`}
+                class="hero-logo mx-auto lg:mx-0"
+                height="240"
+              />
+            ) : (
+              <h1 class="hero-title">{event.title}</h1>
+            )}
+          </header>
+
+          {event.description && (
+            <div id="event-description" class="article-body scroll-mt-32">
+              <p>{event.description}</p>
+            </div>
+          )}
+
+          {trailerId && (
+            <div id="event-trailer" class="mt-12 scroll-mt-32">
+              <div class="hero-trailer aspect-video w-full bg-black rounded-lg overflow-hidden border border-gray-800">
+                <HeroTrailer trailerId={trailerId} title={event.title} />
+              </div>
+            </div>
+          )}
+
+          {unifiedContent.length > 0 && (
+            <div id="event-coverage" class="mt-20 scroll-mt-32">
+              <h2 class="text-3xl font-display font-bold uppercase tracking-wide text-white border-b border-gray-800 pb-3 mb-8">Coverage</h2>
               <div class="card-grid">
-                {unifiedContent.slice(5).map( (item: any, index: number) => (
+                {unifiedContent.map((item: any, index: number) => (
                   <ContentCard item={item} index={index} />
                 ))}
               </div>
-            ) : (
-              <p class="text-gray-500 italic">No additional coverage found.</p>
-            )}
-          </div>
-
-          {/* Right sidebar area for Calendar */}
-          <aside class="w-full lg:w-80 flex-shrink-0">
-            <div class="sticky top-32">
-              <MiniCalendarSidebar events={Astro.props.allEvents?.filter( (e: any) => e.startDate >= new Date().toISOString().split('T')[0]) || []} />
             </div>
-          </aside>
+          )}
 
-        </div>
-      </div>
+        </article>
 
-      <div class="mt-20 pt-8 border-t border-gray-900 text-center flex flex-col gap-4 items-center">
-        <a href="#top" class="text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-white transition-colors">
-          Back to Top &uarr;
-        </a>
-        <a href="?view=announcement" class="text-xs font-medium text-gray-600 hover:text-gray-400 transition-colors underline">
-          View original announcement record (Archive)
-        </a>
+        {/* RIGHT RAIL: Widgets */}
+        <aside class="event-rail event-rail-right">
+          <div class="sticky top-32 flex flex-col gap-8">
+            
+            {/* Coverage Inquiry */}
+            <div class="coverage-inquiry bg-[#cc0000]/10 border border-[#cc0000]/30 p-6 rounded-lg">
+              <h3 class="font-display font-bold text-lg uppercase tracking-wide text-white mb-3">Coverage Inquiry</h3>
+              <p class="text-gray-300 text-xs mb-4 leading-relaxed">
+                BE Unconventional HQ provides premium editorial coverage for events, including live photography, video interviews, and written features.
+              </p>
+              <a href="mailto:press@beunconventionalhq.com?subject=Press%20Inquiry" class="text-red-400 text-xs font-bold uppercase tracking-wider hover:text-white transition-colors border-b border-red-400 pb-1">
+                Request Press Kit &rarr;
+              </a>
+            </div>
+
+            <div class="calendar-widget">
+              <MiniCalendarSidebar events={Astro.props.allEvents?.filter((e: any) => e.startDate >= new Date().toISOString().split('T')[0]) || []} />
+            </div>
+
+          </div>
+        </aside>
+
       </div>
     </div>
     
@@ -152,53 +170,66 @@ const trailerId = parseVideoId(trailerUrl);
 </Layout>
 
 <style>
-  .event-hero {
+  .event-banner {
     position: relative;
-    background-color: #111;
-  }
-  .event-hero-bg-wrapper {
-    position: absolute;
-    inset: 0;
+    height: 35vh;
+    min-height: 250px;
+    background: #111;
     overflow: hidden;
-    z-index: 0;
   }
-  .event-hero-bg-animated {
-    position: absolute;
-    inset: 0;
-    object-fit: cover;
+  .event-banner-img {
     width: 100%;
     height: 100%;
-    transform: translateZ(0);
-    animation: cinematic-hero-zoom 30s ease-in-out infinite alternate;
+    object-fit: cover;
+    object-position: center 20%;
   }
-  @keyframes cinematic-hero-zoom {
-    from { transform: scale(1.08) translateZ(0); }
-    to { transform: scale(1) translateZ(0); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .event-hero-bg-animated { animation: none; }
-  }
-  
-  .event-hero-overlay {
-    position: relative;
-    z-index: 1;
-    min-height: 70vh;
-    background: linear-gradient(
-      to top,
-      rgba(0, 0, 0, 0.97) 0%,
-      rgba(0, 0, 0, 0.55) 55%,
-      rgba(0, 0, 0, 0.35) 100%
-    );
-    -webkit-backdrop-filter: blur(3px);
-    backdrop-filter: blur(3px);
-    display: flex;
-    align-items: center;
-    padding-top: clamp(6rem, 4.5rem + 6vw, 8.5rem);
-    padding-bottom: clamp(2.5rem, 2rem + 2.5vw, 4rem);
+  .event-banner-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.3) 100%);
   }
 
+  /* 3-Column Article Layout */
+  .event-article-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+  }
+
+  @media (min-width: 1024px) {
+    .event-article-layout {
+      display: grid;
+      grid-template-columns: 14rem minmax(0, 1fr) 18rem;
+      grid-template-areas: "left center right";
+      gap: 3rem;
+      align-items: start;
+    }
+    
+    .event-rail-left { grid-area: left; }
+    .event-column { grid-area: center; }
+    .event-rail-right { grid-area: right; }
+  }
+
+  /* Reorder on mobile: Logo/Title -> Event Details -> Content -> Widgets */
+  @media (max-width: 1023px) {
+    .event-column { order: 1; }
+    .event-rail-left { order: 2; }
+    .event-rail-right { order: 3; }
+    
+    /* Pull the header out of the column visually so it sits at the very top */
+    .event-column {
+      display: flex;
+      flex-direction: column;
+    }
+    .event-column > header {
+      order: -1;
+      margin-bottom: 2rem;
+    }
+  }
+
+  /* Typography */
   .hero-logo {
-    max-height: clamp(84px, 46px + 12vw, 180px);
+    max-height: clamp(84px, 46px + 12vw, 160px);
     max-width: min(100%, 420px);
     width: auto;
     height: auto;
@@ -207,55 +238,33 @@ const trailerId = parseVideoId(trailerUrl);
 
   .hero-title {
     font-family: var(--font-display, 'Inter', sans-serif);
-    font-size: clamp(1.9rem, calc(1.1rem + 3vw), 3.75rem);
+    font-size: clamp(2rem, calc(1.5rem + 3vw), 3.5rem);
     font-weight: 900;
     letter-spacing: -0.04em;
-    line-height: 0.95;
+    line-height: 1;
     text-transform: uppercase;
     color: var(--color-white, #f0f0f0);
-    text-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
-    overflow-wrap: break-word;
-    word-break: break-word;
-    margin: 0 0 1rem 0;
   }
 
-  .hero-meta {
-    font-size: clamp(0.9rem, 0.8rem + 0.6vw, 1.25rem);
-    color: #fff;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-  }
-
-  .event-dates, .event-location {
+  .hero-rsvp-btn {
     display: inline-block;
+    background: var(--color-accent, #cc0000);
+    color: white;
+    text-decoration: none;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 0.75rem 1.5rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: background 0.3s ease;
+  }
+  .hero-rsvp-btn:hover {
+    background: #a00000;
   }
 
   .card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
     gap: 1.5rem;
-  }
-
-  /* Make the 5-item spread fill the 3-column grid elegantly on desktop */
-  @media (min-width: 1024px) {
-    .magazine-spread .grid > :nth-child(4) {
-      grid-column: 1 / 3;
-    }
-    .magazine-spread .grid > :nth-child(5) {
-      grid-column: 3 / 4;
-    }
-  }
-
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
   }
 </style>
