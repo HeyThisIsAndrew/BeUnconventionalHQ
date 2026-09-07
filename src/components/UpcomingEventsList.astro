@@ -3,45 +3,90 @@ import { formatLocation } from '../lib/events';
 import EventStatusIndicator from './EventStatusIndicator.astro';
 
 const { events = [] } = Astro.props;
+
+const currentYear = new Date().getFullYear();
+
+// Group events by year
+const groupedEvents = events.reduce((acc: any, event: any) => {
+  let year = currentYear;
+  if (event?.startDate) {
+    // Use UTC to prevent off-by-one errors from local timezone
+    const d = new Date(event.startDate + 'T00:00:00Z');
+    if (!isNaN(d.getTime())) {
+      year = d.getUTCFullYear();
+    }
+  }
+  
+  if (!acc[year]) acc[year] = [];
+  acc[year].push(event);
+  return acc;
+}, {});
+
+const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number(b));
 ---
 
-<ul class="uel-list" role="list">
-  {events.map((event: any) => {
-    const slug = event?.slug?.current ?? '';
-    const locationLabel = formatLocation(event?.location);
-    
-    let month = '';
-    let day = '';
-    if (event?.startDate) {
-      // Use UTC to prevent off-by-one errors from local timezone
-      const d = new Date(event.startDate + 'T00:00:00Z');
-      if (!isNaN(d.getTime())) {
-        month = d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }).toUpperCase();
-        day = d.toLocaleDateString('en-US', { day: 'numeric', timeZone: 'UTC' });
-      }
-    }
+<div class="uel-container">
+  {sortedYears.map((yearStr, index) => {
+    const yearNum = Number(yearStr);
+    const showHeader = yearNum !== currentYear;
+    const yearEvents = groupedEvents[yearStr];
 
     return (
-      <li class="uel-item">
-        <a href={`/events/${slug}`} class="uel-link">
-          <div class="uel-date-badge">
-            <span class="uel-badge-month">{month}</span>
-            <span class="uel-badge-day">{day}</span>
+      <div class="uel-year-group">
+        {showHeader && (
+          <div class="intel-break-head w-full animate-on-scroll" style="margin-top: 3rem; margin-bottom: 2rem;">
+            <h2 class="intel-break-title">{yearNum}</h2>
           </div>
+        )}
+        <ul class="uel-list" role="list">
+          {yearEvents.map((event: any) => {
+            const slug = event?.slug?.current ?? '';
+            const locationLabel = formatLocation(event?.location);
+            
+            let month = '';
+            let day = '';
+            if (event?.startDate) {
+              const d = new Date(event.startDate + 'T00:00:00Z');
+              if (!isNaN(d.getTime())) {
+                month = d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }).toUpperCase();
+                day = d.toLocaleDateString('en-US', { day: 'numeric', timeZone: 'UTC' });
+              }
+            }
 
-          <div class="uel-body">
-            <h3 class="uel-title">{event.title}</h3>
-            {locationLabel && <span class="uel-location-pill">{locationLabel}</span>}
-          </div>
+            return (
+              <li class="uel-item">
+                <a href={`/events/${slug}`} class="uel-link">
+                  <div class="uel-date-badge">
+                    <span class="uel-badge-month">{month}</span>
+                    <span class="uel-badge-day">{day}</span>
+                  </div>
 
-          <span class="uel-arrow" aria-hidden="true">&rarr;</span>
-        </a>
-      </li>
+                  <div class="uel-body">
+                    <h3 class="uel-title">{event.title}</h3>
+                    {locationLabel && <span class="uel-location-pill">{locationLabel}</span>}
+                  </div>
+
+                  <span class="uel-arrow" aria-hidden="true">&rarr;</span>
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     );
   })}
-</ul>
+</div>
 
 <style>
+  .uel-container {
+    display: flex;
+    flex-direction: column;
+  }
+  .uel-year-group {
+    display: flex;
+    flex-direction: column;
+  }
+
   .uel-list {
     list-style: none;
     margin: 0;
