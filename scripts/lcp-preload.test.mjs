@@ -35,7 +35,8 @@ const code = (s) =>
 /** Pages that preload their LCP hero, and the class on that hero. */
 const HERO_PAGES = [
   { file: 'src/pages/featured/[slug].astro', heroClass: 'hero-backdrop-plate' },
-  { file: 'src/pages/events/[slug].astro', heroClass: 'event-hero-bg-animated' },
+  { file: 'src/components/EventAnnouncement.astro', heroClass: 'event-hero-bg-animated' },
+  { file: 'src/components/EventFeatured.astro', heroClass: 'event-hero-bg-animated' },
 ];
 
 let failures = 0;
