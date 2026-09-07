@@ -13,121 +13,166 @@ import { urlFor } from '../lib/local-content';
 
 const { event, unifiedContent } = Astro.props;
 
-const HERO_WIDTHS = [800, 1200, 2400];
+const brandColor = (typeof event.brandColor === 'string' ? event.brandColor : event.brandColor?.hex) || '#CC0000';
+
+function hexToRgbTriple(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return '204, 0, 0';
+  const int = parseInt(m[1], 16);
+  return `${(int >> 16) & 255}, ${(int >> 8) & 255}, ${int & 255}`;
+}
+const brandRgb = hexToRgbTriple(brandColor);
+
+const HERO_WIDTHS = [600, 900, 1200, 2400];
 const heroAt = (w: number) => event.heroImage ? urlFor(event.heroImage).width(w).auto('format').url() : '';
-const heroMobileUrl = heroAt(800);
-const heroSrcset = event.heroImage ? HERO_WIDTHS.map((w) => `${heroAt(w)} ${w}w`).join(', ') : '';
-const heroSizes = '100vw';
+const heroBackdropMobileUrl = heroAt(800);
+const heroBackdropSrcset = event.heroImage ? HERO_WIDTHS.map((w) => `${heroAt(w)} ${w}w`).join(', ') : '';
+const heroBackdropSizes = '100vw';
+const heroBackdrop = event.heroImage;
+
+const fallbackGradient = `linear-gradient(135deg, rgba(${brandRgb}, 0.28) 0%, #0a0a0a 62%, #111 100%)`;
 
 const trailerUrl = event.trailerUrl;
 const trailerId = parseVideoId(trailerUrl);
+
+const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format').url() : null;
 ---
 
 <Layout
   title={event.title}
   description={`Coverage of ${event.title}`}
-  preloadImage={heroMobileUrl || undefined}
-  preloadImageSrcset={heroSrcset || undefined}
-  preloadImageSizes={event.heroImage ? heroSizes : undefined}
+  preloadImage={heroBackdropMobileUrl || undefined}
+  preloadImageSrcset={heroBackdropSrcset || undefined}
+  preloadImageSizes={event.heroImage ? heroBackdropSizes : undefined}
 >
-  <main class="event-page-wrapper">
+  <main class="event-dashboard" style={`--brand-color: ${brandColor}; --brand-rgb: ${brandRgb};`} data-trailer={trailerId}>
     
-    {/* Minimal Hero Header (just the image as a 30vh banner) */}
-    {event.heroImage && (
-      <section class="event-banner">
-        <img
-          src={heroMobileUrl}
-          srcset={heroSrcset}
-          sizes={heroSizes}
-          alt=""
-          class="event-banner-img"
-          loading="eager"
-          fetchpriority="high"
-        />
-        <div class="event-banner-overlay"></div>
-      </section>
-    )}
+    {/* 1. TOP HALF: Featured Hub Hero Layout (e.g. DC Page) */}
+    <section class="event-hero">
+      <div class="event-hero-bg-wrapper">
+        {heroBackdrop ? (
+          <img
+            src={heroBackdropMobileUrl}
+            srcset={heroBackdropSrcset}
+            sizes={heroBackdropSizes}
+            alt=""
+            class="event-hero-bg-animated hero-backdrop-plate"
+            loading="eager"
+            fetchpriority="high"
+          />
+        ) : (
+          <div class="event-hero-bg-animated" style={`background-image: ${fallbackGradient};`}></div>
+        )}
+      </div>
 
-    <div class="container-page py-12 lg:py-20">
-      
-      {/* 3-Column Article Layout */}
-      <div class="event-article-layout">
-        
-        {/* LEFT RAIL: Navigation & Event Details */}
-        <aside class="event-rail event-rail-left">
-          <div class="sticky top-32 flex flex-col gap-12">
-            
-            <nav aria-label="Event Navigation" class="event-nav hidden lg:block">
-              <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">On this page</h3>
-              <ul class="flex flex-col gap-3 text-sm font-bold uppercase tracking-wider">
-                <li><a href="#event-description" class="text-white hover:text-red-400 transition-colors">About</a></li>
-                {trailerId && <li><a href="#event-trailer" class="text-white hover:text-red-400 transition-colors">Trailer</a></li>}
-                {unifiedContent.length > 0 && <li><a href="#event-coverage" class="text-white hover:text-red-400 transition-colors">Coverage</a></li>}
-              </ul>
-            </nav>
+      {stageGhostUrl && (
+        <div class="hub-stage-bg" aria-hidden="true">
+          <div class="hub-stage-plate" style={`background-image: url('${stageGhostUrl}');`}></div>
+        </div>
+      )}
+      <div class="hub-stage-wash" aria-hidden="true"></div>
 
-            <div class="event-details-box bg-[#111] border border-gray-800 p-6 rounded-lg">
-              <div class="hero-status mb-4"><EventStatusIndicator event={event} /></div>
-              
-              <div class="text-gray-300 text-sm mb-6 space-y-3">
-                <div>
-                  <span class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Date</span>
-                  <span class="font-medium text-white">{formatEventDateRange(event.startDate, event.endDate)}</span>
-                </div>
-                {formatLocation(event.location) && (
-                  <div>
-                    <span class="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Location</span>
-                    <span class="font-medium text-white">{formatLocation(event.location)}</span>
-                  </div>
-                )}
-              </div>
-              
-              {(event.officialWebsite || event.signUpLink) && (
-                <div class="pt-4 border-t border-gray-800">
-                  <a href={event.officialWebsite || event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn w-full text-center">
-                    Sign Up / Tickets
-                  </a>
+      <div class="event-hero-overlay flex flex-col justify-center">
+        <div
+          class:list={[
+            'container',
+            'hero-grid-container',
+            'lg:!px-20',
+            'xl:!px-24',
+            '2xl:!max-w-[1920px]',
+            '2xl:!grid-cols-[1fr_1.2fr]',
+            '3xl:!max-w-[2400px]',
+            '3xl:!grid-cols-[1fr_1.4fr]',
+            { 'has-trailer': !!trailerId, 'has-cta': !!event.signUpLink },
+          ]}
+        >
+          <div class="event-hero-content hero-copy animate-on-scroll">
+            <span class="hero-eyebrow">Event</span>
+
+            <div class="hero-identity">
+              {event.logo ? (
+                <>
+                  <h1 class="sr-only">{event.title}</h1>
+                  <span class="hero-logo-wrap" aria-hidden="true">
+                    <img src={urlFor(event.logo).height(320).auto('format').url()} alt="" class="hero-logo" />
+                  </span>
+                </>
+              ) : (
+                <h1 class="hero-title">{event.title}</h1>
+              )}
+
+              {event.description && (
+                <div class="hero-description-wrapper mt-4">
+                  <p class="hero-description-text" id="event-about-text">{event.description}</p>
                 </div>
               )}
-            </div>
 
-          </div>
-        </aside>
-
-        {/* CENTER COLUMN: Content */}
-        <article class="event-column">
-          
-          <header class="mb-10 text-center lg:text-left">
-            {event.logo && <h1 class="sr-only">{event.title}</h1>}
-            {event.logo ? (
-              <img
-                src={urlFor(event.logo).height(240).url()}
-                alt={`${event.title} logo`}
-                class="hero-logo mx-auto lg:mx-0"
-                height="240"
-              />
-            ) : (
-              <h1 class="hero-title">{event.title}</h1>
-            )}
-          </header>
-
-          {event.description && (
-            <div id="event-description" class="article-body scroll-mt-32">
-              <p>{event.description}</p>
-            </div>
-          )}
-
-          {trailerId && (
-            <div id="event-trailer" class="mt-12 scroll-mt-32">
-              <div class="hero-trailer aspect-video w-full bg-black rounded-lg overflow-hidden border border-gray-800">
-                <HeroTrailer trailerId={trailerId} title={event.title} />
+              <div class="mt-6 flex flex-col gap-2">
+                <div class="hero-status"><EventStatusIndicator event={event} /></div>
+                <p class="hero-meta text-gray-200">
+                  <span class="event-dates">{formatEventDateRange(event.startDate, event.endDate)}</span>
+                  {formatLocation(event.location) && (
+                    <span class="event-location">
+                      <span class="mx-2 text-gray-500">•</span>
+                      {formatLocation(event.location)}
+                    </span>
+                  )}
+                </p>
               </div>
             </div>
+          </div>
+          
+          <div class="hub-stage">
+            {trailerId ? (
+              <div class="aspect-video w-full bg-black rounded-lg overflow-hidden shadow-2xl relative z-10 border border-white/10">
+                <HeroTrailer trailerId={trailerId} title={event.title} />
+              </div>
+            ) : (
+              event.logo && (
+                <div class="aspect-video flex items-center justify-center p-8">
+                  <img src={urlFor(event.logo).height(400).auto('format').url()} alt="" class="max-w-full max-h-full object-contain drop-shadow-2xl opacity-80 mix-blend-screen" />
+                </div>
+              )
+            )}
+          </div>
+          
+          {(event.officialWebsite || event.signUpLink) && (
+            <div class="hero-info-cta">
+              <a href={event.officialWebsite || event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+                Sign Up / Tickets
+              </a>
+            </div>
           )}
 
+        </div>
+      </div>
+    </section>
+
+    {/* 2. BOTTOM HALF: Article Layout View */}
+    <div class="container py-16">
+      <div class="article-layout">
+        
+        {/* LEFT RAIL: Navigation */}
+        <aside class="article-rail article-rail-left">
+          <nav aria-label="Event Navigation">
+            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 border-l-2 border-red-500 pl-3">On this page</h3>
+            <ul class="flex flex-col gap-3 text-sm font-bold uppercase tracking-wider pl-3">
+              <li><a href="#event-description" class="text-gray-400 hover:text-white transition-colors">About</a></li>
+              {trailerId && <li><a href="#event-trailer" class="text-gray-400 hover:text-white transition-colors">Trailer</a></li>}
+              {unifiedContent.length > 0 && <li><a href="#event-coverage" class="text-gray-400 hover:text-white transition-colors">Coverage</a></li>}
+            </ul>
+          </nav>
+        </aside>
+
+        {/* CENTER COLUMN: Event Content */}
+        <article class="article-column">
+          
+          {/* Coverage Grid */}
           {unifiedContent.length > 0 && (
-            <div id="event-coverage" class="mt-20 scroll-mt-32">
-              <h2 class="text-3xl font-display font-bold uppercase tracking-wide text-white border-b border-gray-800 pb-3 mb-8">Coverage</h2>
+            <div id="event-coverage" class="mt-8 scroll-mt-32">
+              <div class="flex items-center justify-between mb-8 border-b border-gray-800 pb-4">
+                <h2 class="text-2xl font-bold font-display uppercase tracking-tight text-white">Coverage</h2>
+              </div>
               <div class="card-grid">
                 {unifiedContent.map((item: any, index: number) => (
                   <ContentCard item={item} index={index} />
@@ -139,22 +184,24 @@ const trailerId = parseVideoId(trailerUrl);
         </article>
 
         {/* RIGHT RAIL: Widgets */}
-        <aside class="event-rail event-rail-right">
-          <div class="sticky top-32 flex flex-col gap-8">
+        <aside class="article-rail article-rail-right">
+          <div class="flex flex-col gap-10 sticky top-32">
             
-            {/* Coverage Inquiry */}
-            <div class="coverage-inquiry bg-[#cc0000]/10 border border-[#cc0000]/30 p-6 rounded-lg">
-              <h3 class="font-display font-bold text-lg uppercase tracking-wide text-white mb-3">Coverage Inquiry</h3>
-              <p class="text-gray-300 text-xs mb-4 leading-relaxed">
-                BE Unconventional HQ provides premium editorial coverage for events, including live photography, video interviews, and written features.
-              </p>
-              <a href="mailto:press@beunconventionalhq.com?subject=Press%20Inquiry" class="text-red-400 text-xs font-bold uppercase tracking-wider hover:text-white transition-colors border-b border-red-400 pb-1">
-                Request Press Kit &rarr;
-              </a>
+            {/* Calendar */}
+            <div class="calendar-widget">
+              <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 border-b border-gray-800 pb-2">Upcoming Events</h3>
+              <MiniCalendarSidebar events={Astro.props.allEvents?.filter((e: any) => e.startDate >= new Date().toISOString().split('T')[0]) || []} />
             </div>
 
-            <div class="calendar-widget">
-              <MiniCalendarSidebar events={Astro.props.allEvents?.filter((e: any) => e.startDate >= new Date().toISOString().split('T')[0]) || []} />
+            {/* Coverage Inquiry */}
+            <div class="coverage-inquiry">
+              <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 border-b border-gray-800 pb-2">Coverage Inquiry</h3>
+              <p class="text-gray-400 text-sm mb-4 leading-relaxed">
+                BE Unconventional HQ provides premium editorial coverage for events, including live photography, video interviews, and written features.
+              </p>
+              <a href="mailto:press@beunconventionalhq.com?subject=Press%20Inquiry" class="text-white text-xs font-bold uppercase tracking-wider hover:text-red-400 transition-colors border-b border-transparent hover:border-red-400 pb-1">
+                Request Press Kit &rarr;
+              </a>
             </div>
 
           </div>
@@ -170,80 +217,14 @@ const trailerId = parseVideoId(trailerUrl);
 </Layout>
 
 <style>
-  .event-banner {
-    position: relative;
-    height: 35vh;
-    min-height: 250px;
-    background: #111;
-    overflow: hidden;
-  }
-  .event-banner-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: center 20%;
-  }
-  .event-banner-overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.3) 100%);
-  }
+${featuredStyle}
 
-  /* 3-Column Article Layout */
-  .event-article-layout {
-    display: flex;
-    flex-direction: column;
-    gap: 3rem;
-  }
-
-  @media (min-width: 1024px) {
-    .event-article-layout {
-      display: grid;
-      grid-template-columns: 14rem minmax(0, 1fr) 18rem;
-      grid-template-areas: "left center right";
-      gap: 3rem;
-      align-items: start;
-    }
-    
-    .event-rail-left { grid-area: left; }
-    .event-column { grid-area: center; }
-    .event-rail-right { grid-area: right; }
-  }
-
-  /* Reorder on mobile: Logo/Title -> Event Details -> Content -> Widgets */
-  @media (max-width: 1023px) {
-    .event-column { order: 1; }
-    .event-rail-left { order: 2; }
-    .event-rail-right { order: 3; }
-    
-    /* Pull the header out of the column visually so it sits at the very top */
-    .event-column {
-      display: flex;
-      flex-direction: column;
-    }
-    .event-column > header {
-      order: -1;
-      margin-bottom: 2rem;
-    }
-  }
-
-  /* Typography */
-  .hero-logo {
-    max-height: clamp(84px, 46px + 12vw, 160px);
-    max-width: min(100%, 420px);
-    width: auto;
-    height: auto;
-    object-fit: contain;
-  }
-
-  .hero-title {
-    font-family: var(--font-display, 'Inter', sans-serif);
-    font-size: clamp(2rem, calc(1.5rem + 3vw), 3.5rem);
-    font-weight: 900;
-    letter-spacing: -0.04em;
-    line-height: 1;
+  /* Specific Event Overrides */
+  .hero-meta {
+    font-size: clamp(0.85rem, 0.8rem + 0.4vw, 1.1rem);
+    font-weight: 700;
     text-transform: uppercase;
-    color: var(--color-white, #f0f0f0);
+    letter-spacing: 0.12em;
   }
 
   .hero-rsvp-btn {
@@ -262,9 +243,25 @@ const trailerId = parseVideoId(trailerUrl);
     background: #a00000;
   }
 
+  /* Grid for Coverage Cards */
   .card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
     gap: 1.5rem;
+  }
+  
+  /* Article Layout additions to ensure mobile stacks correctly */
+  @media (max-width: 1200px) {
+    .article-rail {
+      display: block !important;
+      position: static !important;
+    }
+    .article-layout {
+      grid-template-areas: 
+        "toc"
+        "column"
+        "support";
+      grid-template-columns: 1fr;
+    }
   }
 </style>
