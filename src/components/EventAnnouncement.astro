@@ -467,7 +467,7 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
               <li><a href="#event-description" class="text-gray-400 hover:text-white transition-colors">About</a></li>
               
               {unifiedContent.length > 0 && <li><a href="#event-coverage" class="text-gray-400 hover:text-white transition-colors">Coverage</a></li>}
-              {event.signUpLink && <li><a href={event.signUpLink} target="_blank" rel="noopener noreferrer" class="text-gray-400 hover:text-white transition-colors">Tickets / RSVP</a></li>}
+              <li><a href="#event-details" class="text-gray-400 hover:text-white transition-colors">Details</a></li>
             </ul>
           </nav>
         </aside>
@@ -519,7 +519,7 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
 
           {/* Section: About */}
           <section id="event-description" class="scroll-mt-32 mt-8">
-            <h2 class="intel-break-title">About</h2>
+            <h3 class="text-2xl md:text-3xl font-display font-bold text-white tracking-tight mb-6">About</h3>
             <div class="article-body event-editorial-body">
               {event.description || event.body ? (
                 <Fragment set:html={event.body || `<p>${event.description}</p>`} />
@@ -545,61 +545,62 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
           
 
           {/* Section: Event Details & Venue */}
-          <div class="mt-12 grid grid-cols-1 sm:grid-cols-2 gap-8 border-t border-b border-gray-800 py-8">
-            <div>
-              <h3 class="text-sm font-bold font-display uppercase tracking-widest text-white mb-4">Details</h3>
-              <dl class="space-y-3 text-sm text-gray-400">
-                {event.startDate && (
-                  <div class="flex flex-col">
-                    <dt class="font-bold text-gray-200">Start:</dt>
-                    <dd>{new Date(event.startDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</dd>
-                  </div>
-                )}
-                {event.endDate && event.endDate !== event.startDate && (
-                  <div class="flex flex-col">
-                    <dt class="font-bold text-gray-200">End:</dt>
-                    <dd>{new Date(event.endDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</dd>
-                  </div>
-                )}
-                {event.officialWebsite && (
-                  <div class="flex flex-col">
-                    <dt class="font-bold text-gray-200">Website:</dt>
-                    <dd><a href={event.officialWebsite} target="_blank" rel="noopener noreferrer" class="text-red-600 hover:text-red-500 underline">{event.officialWebsite.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a></dd>
-                  </div>
-                )}
-                {event.signUpLink && (
-                  <div class="flex flex-col mt-2">
-                    <a href={event.signUpLink} target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-bold rounded-md text-white bg-red-600 hover:bg-red-700 w-fit">Tickets / RSVP</a>
-                  </div>
-                )}
-              </dl>
-            </div>
+          <section id="event-details" class="scroll-mt-32 mt-16 mb-12">
+            <h3 class="text-2xl md:text-3xl font-display font-bold text-white tracking-tight mb-8">Details</h3>
             
-            {event.location && (
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-10 border-t border-b border-white/10 py-10">
               <div>
-                <h3 class="text-sm font-bold font-display uppercase tracking-widest text-white mb-4">Venue</h3>
-                <address class="not-italic text-sm text-gray-400 space-y-1">
-                  {typeof event.location === 'string' ? (
-                    <p>{event.location}</p>
-                  ) : (
-                    <>
-                      {event.location.venue && <p class="font-bold text-gray-200">{event.location.venue}</p>}
-                      {(event.location.city || event.location.region) && (
-                        <p>{[event.location.city, event.location.region].filter(Boolean).join(', ')}</p>
-                      )}
-                      {event.location.country && <p>{event.location.country}</p>}
-                    </>
+                <dl class="space-y-6 text-sm text-gray-400">
+                  {event.startDate && (
+                    <div class="flex flex-col">
+                      <dt class="font-bold text-gray-200 mb-1 text-[0.7rem] tracking-[0.15em] uppercase">Start</dt>
+                      <dd>{new Date(event.startDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</dd>
+                    </div>
                   )}
-                </address>
+                  {event.endDate && event.endDate !== event.startDate && (
+                    <div class="flex flex-col">
+                      <dt class="font-bold text-gray-200 mb-1 text-[0.7rem] tracking-[0.15em] uppercase">End</dt>
+                      <dd>{new Date(event.endDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</dd>
+                    </div>
+                  )}
+                  {event.officialWebsite && (
+                    <div class="flex flex-col">
+                      <dt class="font-bold text-gray-200 mb-1 text-[0.7rem] tracking-[0.15em] uppercase">Website</dt>
+                      <dd><a href={event.officialWebsite} target="_blank" rel="noopener noreferrer" class="text-red-500 hover:text-red-400 underline transition-colors">{event.officialWebsite.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a></dd>
+                    </div>
+                  )}
+                  {event.signUpLink && (
+                    <div class="flex flex-col mt-4">
+                      <a href={event.signUpLink} target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center px-6 py-2 border border-transparent text-xs font-bold uppercase tracking-[0.15em] rounded text-white bg-red-600 hover:bg-red-700 w-fit transition-colors">Tickets / RSVP</a>
+                    </div>
+                  )}
+                </dl>
               </div>
-            )}
-          </div>
-\n          {/* Section: Coverage Grid */}
+              
+              {event.location && (
+                <div>
+                  <dl class="space-y-6 text-sm text-gray-400">
+                    <div class="flex flex-col">
+                      <dt class="font-bold text-gray-200 mb-1 text-[0.7rem] tracking-[0.15em] uppercase">Venue</dt>
+                      <dd class="text-base text-gray-300">
+                        {typeof event.location === 'string' ? event.location : (event.location.venue || 'TBA')}
+                      </dd>
+                      {typeof event.location !== 'string' && event.location.country && (
+                        <dd class="mt-1">{event.location.country}</dd>
+                      )}
+                    </div>
+                  </dl>
+                </div>
+              )}
+            </div>
+          </section>
+          
+          {/* Section: Coverage Grid */}
           {unifiedContent.length > 0 && (
             <section id="event-coverage" class="mt-12 scroll-mt-32">
               
               <div class="flex items-center justify-between mb-8 border-b border-gray-800 pb-4">
-                <h2 class="text-2xl font-bold font-display uppercase tracking-tight text-white">Coverage</h2>
+                <h3 class="text-2xl md:text-3xl font-display font-bold text-white tracking-tight mb-6">Coverage</h3>
                 
               </div>
               <div class="card-grid">
@@ -628,9 +629,7 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
               <p class="text-sm text-gray-400 mb-5 leading-relaxed">
                 BE Unconventional HQ provides premium editorial coverage for events, including live photography, video interviews, and written features.
               </p>
-              <a href="mailto:press@beunconventionalhq.com?subject=Press%20Inquiry" class="font-display text-xs font-bold uppercase tracking-widest text-red-500 hover:text-red-400 transition-colors">
-                Contact Press Desk &rarr;
-              </a>
+              <a href="mailto:press@beunconventionalhq.com?subject=Press%20Inquiry" class="press-desk-link">Contact Press Desk &rarr;</a>
             </div>
             
             {/* Affiliate / Support Cards */}
@@ -2438,4 +2437,26 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
     gap: 1.5rem;
   }
+
+  .press-desk-link {
+    font-family: var(--font-display, 'Syne Variable', sans-serif);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-white, #fff);
+    background-image: linear-gradient(var(--color-accent, #cc0000), var(--color-accent, #cc0000));
+    background-repeat: no-repeat;
+    background-position: 0 100%;
+    background-size: 0% 2px;
+    padding-bottom: 2px;
+    transition: color 0.3s ease, background-size 0.3s ease;
+    display: inline-block;
+  }
+  .press-desk-link:hover,
+  .press-desk-link:focus-visible {
+    color: var(--color-accent-text, #ef4444);
+    background-size: 100% 2px;
+  }
+
 </style>
