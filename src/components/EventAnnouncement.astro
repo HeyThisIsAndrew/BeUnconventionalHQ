@@ -12,13 +12,12 @@ import { formatEventDateRange, formatLocation } from '../lib/events';
 import { urlFor } from '../lib/local-content';
 
 const { event, unifiedContent } = Astro.props;
-
 const brandColor = event.brandColor || 'var(--color-accent, #cc0000)';
 
 const HERO_WIDTHS = [800, 1200, 2400];
-const heroAt = (w: number) => event.heroImage ? urlFor(event.heroImage).width(w).auto('format').url() : '';
+const heroAt =  (w: number) => event.heroImage ? urlFor(event.heroImage).width(w).auto('format').url() : '';
 const heroMobileUrl = heroAt(800);
-const heroSrcset = event.heroImage ? HERO_WIDTHS.map((w) => `${heroAt(w)} ${w}w`).join(', ') : '';
+const heroSrcset = event.heroImage ? HERO_WIDTHS.map( (w: number) => `${heroAt(w)} ${w}w`).join(', ') : '';
 const heroSizes = '100vw';
 const heroUrl = heroAt(2400);
 const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
@@ -36,6 +35,7 @@ const trailerId = parseVideoId(trailerUrl);
 >
   <main class="event-dashboard" style={`--brand-color: ${brandColor};`}>
     
+    {/* Purely Cinematic Banner Hero */}
     <section class="event-hero">
       <div class="event-hero-bg-wrapper" style={!heroUrl ? `background: ${fallbackGradient};` : ''}>
         {heroUrl && (
@@ -44,63 +44,36 @@ const trailerId = parseVideoId(trailerUrl);
             srcset={heroSrcset}
             sizes={heroSizes}
             alt=""
-            aria-hidden="true"
             class="event-hero-bg-animated"
             loading="eager"
             fetchpriority="high"
           />
         )}
       </div>
-      <div class="event-hero-overlay flex flex-col justify-end">
-        <div class="container container-page !px-6 lg:!px-20 xl:!px-24">
-          <div class="event-hero-content hero-copy animate-on-scroll">
-            <h1 class="hero-title">
-              {event.logo ? (
-                <img
-                  src={urlFor(event.logo).height(240).url()}
-                  alt={event.title}
-                  class="hero-logo w-full h-auto max-w-xs md:max-w-sm mb-4"
-                  height="240"
-                />
-              ) : (
-                event.title
-              )}
-            </h1>
-          </div>
-        </div>
-      </div>
+      {/* 40vh instead of 70vh since content is moved out */}
+      <div class="event-hero-overlay" style="min-height: 40vh;"></div>
     </section>
 
     <div class="container-page content-container pt-12 pb-24">
-      <div class="grid grid-cols-1 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_360px] gap-12 xl:gap-20">
+      {/* Mobile Right Column (Stacks ABOVE left column on mobile) */}
+      <div class="flex flex-col-reverse lg:flex-row gap-12 lg:gap-16">
         
-        {/* Left Column (70%) */}
-        <div class="event-main-col flex flex-col gap-12 min-w-0">
+        {/* LEFT COLUMN (70%) */}
+        <div class="flex-1 min-w-0 flex flex-col gap-10">
           
-          {/* Mobile-only RSVP (Stacks above content on mobile) */}
-          <div class="lg:hidden w-full sticky-utility-mobile z-40 top-4">
-            <div class="flex flex-col gap-4">
-              <div class="hero-status"><EventStatusIndicator event={event} /></div>
-              {(event.officialWebsite || event.signUpLink) && (
-                <a href={event.officialWebsite || event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn w-full text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
-                  Official event information<span class="sr-only"> (opens in a new tab)</span>
-                </a>
-              )}
-            </div>
-          </div>
-
-          <div class="event-about">
-            {/* Quick Navigation Index */}
-            <nav aria-label="Quick Navigation" class="flex flex-wrap gap-4 mb-8 text-sm uppercase tracking-wider font-bold">
-              <a href="#event-description" class="text-white hover:text-[#ef4444] border-b-2 border-transparent hover:border-[#ef4444] transition-colors py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">Event Description</a>
-              {(event.officialWebsite || event.signUpLink) && (
-                <a href={event.officialWebsite || event.signUpLink} target="_blank" rel="noopener noreferrer" class="text-white hover:text-[#ef4444] border-b-2 border-transparent hover:border-[#ef4444] transition-colors py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
-                  Sign Up<span class="sr-only"> (opens in a new tab)</span>
-                </a>
-              )}
-            </nav>
-            <h2 class="text-3xl font-bold font-display uppercase tracking-tight mb-4" id="event-description">About the Event</h2>
-            <p class="hero-meta text-sm md:text-base mb-6 text-gray-300">
+          <header class="event-header">
+            {event.logo && <h1 class="sr-only">{event.title}</h1>}
+            {event.logo ? (
+              <img
+                src={urlFor(event.logo).height(240).url()}
+                alt={`${event.title} logo`}
+                class="hero-logo mb-6"
+                height="240"
+              />
+            ) : (
+              <h1 class="hero-title">{event.title}</h1>
+            )}
+            <p class="hero-meta text-gray-300">
               <span class="event-dates">{formatEventDateRange(event.startDate, event.endDate)}</span>
               {formatLocation(event.location) && (
                 <span class="event-location">
@@ -109,24 +82,39 @@ const trailerId = parseVideoId(trailerUrl);
                 </span>
               )}
             </p>
-            {event.description && (
-              <div class="prose prose-invert max-w-none text-gray-300">
+          </header>
+
+          {/* Quick Navigation Index */}
+          <nav aria-label="Quick Navigation" class="flex flex-wrap gap-4 text-sm uppercase tracking-wider font-bold">
+            <a href="#event-description" class="text-white hover:text-[#ef4444] border-b-2 border-transparent hover:border-[#ef4444] transition-colors py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">Event Description</a>
+            {unifiedContent.length > 0 && (
+              <a href="#event-coverage" class="text-white hover:text-[#ef4444] border-b-2 border-transparent hover:border-[#ef4444] transition-colors py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">Coverage</a>
+            )}
+            {trailerId && (
+              <a href="#event-trailer" class="text-white hover:text-[#ef4444] border-b-2 border-transparent hover:border-[#ef4444] transition-colors py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">Trailer</a>
+            )}
+          </nav>
+
+          {event.description && (
+            <div id="event-description" class="scroll-mt-32">
+              <h2 class="text-2xl font-display font-bold uppercase tracking-wide text-white border-b border-gray-800 pb-3 mb-6">About the Event</h2>
+              <div class="article-body">
                 <p>{event.description}</p>
               </div>
-            )}
-          </div>
-
-          {trailerId && (
-            <div class="hero-trailer aspect-video w-full h-auto bg-black rounded-lg overflow-hidden border border-gray-800">
-              <HeroTrailer trailerId={trailerId} title={event.title} />
             </div>
           )}
 
-          <div class="event-content" id="event-content">
-            <div class="flex items-center justify-between mb-8 border-b border-gray-800 pb-4">
-              <h2 class="text-3xl font-bold font-display uppercase tracking-tight">Initial Coverage</h2>
+          {trailerId && (
+            <div id="event-trailer" class="scroll-mt-32">
+              <div class="hero-trailer aspect-video w-full h-auto max-w-4xl bg-black rounded-lg overflow-hidden border border-gray-800">
+                <HeroTrailer trailerId={trailerId} title={event.title} />
+              </div>
             </div>
-            
+          )}
+
+          {/* Event Content Row */}
+          <div id="event-coverage" class="scroll-mt-32">
+            <h2 class="text-2xl font-display font-bold uppercase tracking-wide text-white border-b border-gray-800 pb-3 mb-6">Coverage</h2>
             {unifiedContent.length > 0 ? (
               <div class="card-grid">
                 {unifiedContent.map((item: any, index: number) => (
@@ -134,16 +122,17 @@ const trailerId = parseVideoId(trailerUrl);
                 ))}
               </div>
             ) : (
-              <div class="empty-state bg-[#111] border border-gray-800 rounded-lg p-12 text-center">
-                <p class="text-gray-400 font-display text-lg uppercase tracking-wider">{event.title} coverage is coming soon.</p>
-              </div>
+              <p class="text-gray-500 italic">Coverage is coming soon.</p>
             )}
           </div>
+          
         </div>
 
-        {/* Right Column (30%) */}
-        <aside class="event-sidebar hidden lg:block" aria-label="Event Details and Calendar">
+        {/* RIGHT COLUMN (30%) - Utility Rail */}
+        <aside class="w-full lg:w-[320px] xl:w-[380px] flex-shrink-0">
           <div class="sticky top-32 flex flex-col gap-8">
+            
+            {/* Event Info Module */}
             <div class="sidebar-module bg-[#0a0a0a] border border-gray-800 p-8 rounded-xl shadow-2xl">
               <div class="hero-status mb-6"><EventStatusIndicator event={event} /></div>
               <div class="text-gray-300 text-sm mb-6 space-y-2">
@@ -157,6 +146,7 @@ const trailerId = parseVideoId(trailerUrl);
               )}
             </div>
 
+            {/* Coverage Inquiry Module */}
             <div class="sidebar-module coverage-inquiry bg-[#cc0000]/10 border border-[#cc0000]/30 p-8 rounded-xl">
               <h3 class="font-display font-bold text-xl uppercase tracking-wide text-white mb-4">Coverage Inquiry</h3>
               <p class="text-gray-300 text-sm mb-6 leading-relaxed">
@@ -167,9 +157,11 @@ const trailerId = parseVideoId(trailerUrl);
               </a>
             </div>
             
+            {/* Calendar Widget */}
             <div class="sidebar-module w-full">
               <MiniCalendarSidebar events={Astro.props.allEvents?.filter((e: any) => e.startDate >= new Date().toISOString().split('T')[0]) || []} />
             </div>
+            
           </div>
         </aside>
 
@@ -209,35 +201,54 @@ const trailerId = parseVideoId(trailerUrl);
   @media (prefers-reduced-motion: reduce) {
     .event-hero-bg-animated { animation: none; }
   }
+  
   .event-hero-overlay {
     position: relative;
     z-index: 1;
-    min-height: 50vh;
     background: linear-gradient(
       to top,
-      rgba(10, 10, 10, 1) 0%,
-      rgba(0, 0, 0, 0.4) 100%
+      rgba(0, 0, 0, 0.97) 0%,
+      rgba(0, 0, 0, 0.55) 55%,
+      rgba(0, 0, 0, 0.35) 100%
     );
-    padding-top: clamp(6rem, 4.5rem + 6vw, 8.5rem);
-    padding-bottom: 3rem;
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
   }
 
   .hero-logo {
-    max-height: 180px;
+    max-height: clamp(84px, 46px + 12vw, 180px);
+    max-width: min(100%, 420px);
+    width: auto;
+    height: auto;
     object-fit: contain;
   }
+
   .hero-title {
     font-family: var(--font-display, 'Inter', sans-serif);
-    font-size: clamp(2rem, 4vw, 4rem);
+    font-size: clamp(1.9rem, calc(1.1rem + 3vw), 3.75rem);
     font-weight: 900;
     letter-spacing: -0.04em;
     line-height: 0.95;
     text-transform: uppercase;
     color: var(--color-white, #f0f0f0);
-    text-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
-    margin: 0;
+    text-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    overflow-wrap: break-word;
+    word-break: break-word;
+    margin: 0 0 1rem 0;
   }
-  
+
+  .hero-meta {
+    font-size: clamp(0.9rem, 0.8rem + 0.6vw, 1.25rem);
+    color: #fff;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  .event-dates, .event-location {
+    display: inline-block;
+  }
+
   .hero-rsvp-btn {
     display: inline-block;
     background: transparent;
@@ -245,19 +256,32 @@ const trailerId = parseVideoId(trailerUrl);
     text-decoration: none;
     font-size: 0.9rem;
     font-weight: 700;
-    padding: 0.75rem 1.5rem;
+    padding: 0.75rem 2rem;
     border: 1px solid var(--color-accent, #cc0000);
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 2px;
     transition: background 0.3s ease, color 0.3s ease;
   }
-  .hero-rsvp-btn:hover {
+  .hero-rsvp-btn:hover, .hero-rsvp-btn:focus-visible {
     background: var(--color-accent, #cc0000);
     color: white;
   }
+
   .card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
     gap: 1.5rem;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 </style>

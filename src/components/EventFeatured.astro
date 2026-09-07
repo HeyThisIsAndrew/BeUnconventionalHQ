@@ -16,9 +16,9 @@ const { event, unifiedContent } = Astro.props;
 const brandColor = event.brandColor || 'var(--color-accent, #cc0000)';
 
 const HERO_WIDTHS = [800, 1200, 2400];
-const heroAt = (w: number) => event.heroImage ? urlFor(event.heroImage).width(w).auto('format').url() : '';
+const heroAt =  (w: number) => event.heroImage ? urlFor(event.heroImage).width(w).auto('format').url() : '';
 const heroMobileUrl = heroAt(800);
-const heroSrcset = event.heroImage ? HERO_WIDTHS.map((w) => `${heroAt(w)} ${w}w`).join(', ') : '';
+const heroSrcset = event.heroImage ? HERO_WIDTHS.map( (w: number) => `${heroAt(w)} ${w}w`).join(', ') : '';
 const heroSizes = '100vw';
 const heroUrl = heroAt(2400);
 const fallbackGradient = `linear-gradient(135deg, ${brandColor} 0%, #111 100%)`;
@@ -44,7 +44,6 @@ const trailerId = parseVideoId(trailerUrl);
             srcset={heroSrcset}
             sizes={heroSizes}
             alt=""
-            aria-hidden="true"
             class="event-hero-bg-animated"
             loading="eager"
             fetchpriority="high"
@@ -54,19 +53,18 @@ const trailerId = parseVideoId(trailerUrl);
       <div class="event-hero-overlay flex flex-col justify-end">
         <div class="container container-page !px-6 lg:!px-20 xl:!px-24 text-center items-center flex flex-col">
           <div class="hero-status mb-4"><EventStatusIndicator event={event} /></div>
-          <h1 class="hero-title">
-            {event.logo ? (
-              <img
-                src={urlFor(event.logo).height(240).url()}
-                alt={event.title}
-                class="hero-logo w-full h-auto max-w-sm md:max-w-md lg:max-w-lg mb-8"
-                height="240"
-              />
-            ) : (
-              event.title
-            )}
-          </h1>
-          <p class="hero-meta text-sm md:text-base mb-8 text-gray-300">
+          {event.logo && <h1 class="sr-only">{event.title}</h1>}
+          {event.logo ? (
+            <img
+              src={urlFor(event.logo).height(240).url()}
+              alt={`${event.title} logo`}
+              class="hero-logo mb-8"
+              height="240"
+            />
+          ) : (
+            <h1 class="hero-title">{event.title}</h1>
+          )}
+          <p class="hero-meta text-sm md:text-base mb-8">
             <span class="event-dates">{formatEventDateRange(event.startDate, event.endDate)}</span>
             {formatLocation(event.location) && (
               <span class="event-location">
@@ -79,13 +77,23 @@ const trailerId = parseVideoId(trailerUrl);
       </div>
     </section>
 
-    {/* The 1536px Magazine Spread */}
     <div class="container-page content-container pt-12 pb-24">
+      
+      {/* Event Editorial Intro */}
+      {event.description && (
+        <div class="max-w-4xl mx-auto mb-16">
+          <div class="article-body">
+            <p>{event.description}</p>
+          </div>
+        </div>
+      )}
+
+      {/* The 1536px Magazine Spread */}
       {unifiedContent.length > 0 && (
         <div class="magazine-spread mb-16">
           <h2 class="sr-only">Featured Stories</h2>
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_2.15fr_1fr] gap-6 w-full">
-            {unifiedContent.slice(0, 5).map((item: any, index: number) => (
+            {unifiedContent.slice(0, 5).map( (item: any, index: number) => (
                <ContentCard item={item} index={index} />
             ))}
           </div>
@@ -108,7 +116,7 @@ const trailerId = parseVideoId(trailerUrl);
             
             {unifiedContent.length > 5 ? (
               <div class="card-grid">
-                {unifiedContent.slice(5).map((item: any, index: number) => (
+                {unifiedContent.slice(5).map( (item: any, index: number) => (
                   <ContentCard item={item} index={index} />
                 ))}
               </div>
@@ -120,7 +128,7 @@ const trailerId = parseVideoId(trailerUrl);
           {/* Right sidebar area for Calendar */}
           <aside class="w-full lg:w-80 flex-shrink-0">
             <div class="sticky top-32">
-              <MiniCalendarSidebar events={Astro.props.allEvents?.filter((e: any) => e.startDate >= new Date().toISOString().split('T')[0]) || []} />
+              <MiniCalendarSidebar events={Astro.props.allEvents?.filter( (e: any) => e.startDate >= new Date().toISOString().split('T')[0]) || []} />
             </div>
           </aside>
 
@@ -170,35 +178,59 @@ const trailerId = parseVideoId(trailerUrl);
   @media (prefers-reduced-motion: reduce) {
     .event-hero-bg-animated { animation: none; }
   }
+  
   .event-hero-overlay {
     position: relative;
     z-index: 1;
-    min-height: 60vh;
+    min-height: 70vh;
     background: linear-gradient(
       to top,
-      rgba(10, 10, 10, 1) 0%,
-      rgba(0, 0, 0, 0.4) 100%
+      rgba(0, 0, 0, 0.97) 0%,
+      rgba(0, 0, 0, 0.55) 55%,
+      rgba(0, 0, 0, 0.35) 100%
     );
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    display: flex;
+    align-items: center;
     padding-top: clamp(6rem, 4.5rem + 6vw, 8.5rem);
-    padding-bottom: 4rem;
+    padding-bottom: clamp(2.5rem, 2rem + 2.5vw, 4rem);
   }
 
   .hero-logo {
-    max-height: 240px;
+    max-height: clamp(84px, 46px + 12vw, 180px);
+    max-width: min(100%, 420px);
+    width: auto;
+    height: auto;
     object-fit: contain;
   }
+
   .hero-title {
     font-family: var(--font-display, 'Inter', sans-serif);
-    font-size: clamp(2rem, 4vw, 5rem);
+    font-size: clamp(1.9rem, calc(1.1rem + 3vw), 3.75rem);
     font-weight: 900;
     letter-spacing: -0.04em;
     line-height: 0.95;
     text-transform: uppercase;
     color: var(--color-white, #f0f0f0);
-    text-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
-    margin: 0;
+    text-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    overflow-wrap: break-word;
+    word-break: break-word;
+    margin: 0 0 1rem 0;
   }
-  
+
+  .hero-meta {
+    font-size: clamp(0.9rem, 0.8rem + 0.6vw, 1.25rem);
+    color: #fff;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  .event-dates, .event-location {
+    display: inline-block;
+  }
+
   .card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
@@ -213,5 +245,17 @@ const trailerId = parseVideoId(trailerUrl);
     .magazine-spread .grid > :nth-child(5) {
       grid-column: 3 / 4;
     }
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 </style>
