@@ -543,7 +543,58 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
             </div>
           </section>
           
-          {/* Section: Coverage Grid */}
+
+          {/* Section: Event Details & Venue */}
+          <div class="mt-12 grid grid-cols-1 sm:grid-cols-2 gap-8 border-t border-b border-gray-800 py-8">
+            <div>
+              <h3 class="text-sm font-bold font-display uppercase tracking-widest text-white mb-4">Details</h3>
+              <dl class="space-y-3 text-sm text-gray-400">
+                {event.startDate && (
+                  <div class="flex flex-col">
+                    <dt class="font-bold text-gray-200">Start:</dt>
+                    <dd>{new Date(event.startDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</dd>
+                  </div>
+                )}
+                {event.endDate && event.endDate !== event.startDate && (
+                  <div class="flex flex-col">
+                    <dt class="font-bold text-gray-200">End:</dt>
+                    <dd>{new Date(event.endDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</dd>
+                  </div>
+                )}
+                {event.officialWebsite && (
+                  <div class="flex flex-col">
+                    <dt class="font-bold text-gray-200">Website:</dt>
+                    <dd><a href={event.officialWebsite} target="_blank" rel="noopener noreferrer" class="text-red-600 hover:text-red-500 underline">{event.officialWebsite.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a></dd>
+                  </div>
+                )}
+                {event.signUpLink && (
+                  <div class="flex flex-col mt-2">
+                    <a href={event.signUpLink} target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-bold rounded-md text-white bg-red-600 hover:bg-red-700 w-fit">Tickets / RSVP</a>
+                  </div>
+                )}
+              </dl>
+            </div>
+            
+            {event.location && (
+              <div>
+                <h3 class="text-sm font-bold font-display uppercase tracking-widest text-white mb-4">Venue</h3>
+                <address class="not-italic text-sm text-gray-400 space-y-1">
+                  {typeof event.location === 'string' ? (
+                    <p>{event.location}</p>
+                  ) : (
+                    <>
+                      {event.location.venue && <p class="font-bold text-gray-200">{event.location.venue}</p>}
+                      {(event.location.city || event.location.region) && (
+                        <p>{[event.location.city, event.location.region].filter(Boolean).join(', ')}</p>
+                      )}
+                      {event.location.country && <p>{event.location.country}</p>}
+                    </>
+                  )}
+                </address>
+              </div>
+            )}
+          </div>
+\n          {/* Section: Coverage Grid */}
           {unifiedContent.length > 0 && (
             <section id="event-coverage" class="mt-12 scroll-mt-32">
               
@@ -1399,7 +1450,6 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
       uses before the URL bar retracts — the unit this project already pins for
       exactly this reason (scripts/viewport-units.test.mjs).
     */
-    min-height: 62lvh;
     background: linear-gradient(
       to top,
       rgba(0, 0, 0, 0.97) 0%,
