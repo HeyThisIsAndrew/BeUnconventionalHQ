@@ -1,17 +1,19 @@
 ---
 import brandMarkImg from '../assets/logo-mark.webp';
+import { getImage } from 'astro:assets';
 import { parseEventDate } from '../lib/events';
 import { parseVideoId } from '../lib/platforms/youtube';
 import { buildImageSet } from '../lib/local-content';
 
 const { event, index = 0 } = Astro.props;
+const brandMarkImgOptimized = await getImage({ src: brandMarkImg, format: 'webp' });
 const trailerId = parseVideoId(event.trailerUrl);
 
 const hero = buildImageSet(event.heroImage, { widths: [320, 480, 640, 800], aspect: 16 / 9 });
 const logo = buildImageSet(event.logo, { widths: [96, 160, 240] });
 
 
-const imageSrc = logo?.src ?? hero?.src ?? (trailerId ? `https://img.youtube.com/vi/${trailerId}/hqdefault.jpg` : brandMarkImg.src);
+const imageSrc = logo?.src ?? hero?.src ?? (trailerId ? `https://img.youtube.com/vi/${trailerId}/hqdefault.jpg` : brandMarkImgOptimized.src);
 const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
 ---
 
