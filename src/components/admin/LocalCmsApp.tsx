@@ -1507,6 +1507,21 @@ function EventForm({
         <SponsorsArray value={doc.sponsors} onChange={(v) => update('sponsors', v)} />
         <PressAssetsArray value={doc.pressAssets} onChange={(v) => update('pressAssets', v)} />
       </div>
+
+      <div className="mt-10 pt-10 border-t border-white/10">
+        <Field label="Visibility">
+          <Toggle
+            label="Hide from the live site"
+            checked={doc.hidden || false}
+            onChange={(v) => update('hidden', v)}
+          />
+          <p className="text-xs text-gray-600 mt-1.5">
+            Hidden events are removed from /events and stop generating their own
+            page in a production build. They still appear in <code>npm run dev</code>,
+            so an unfinished event stays in front of you while you finish it.
+          </p>
+        </Field>
+      </div>
     </div>
   );
 }

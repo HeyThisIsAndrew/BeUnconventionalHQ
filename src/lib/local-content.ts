@@ -175,8 +175,10 @@ function withImageDimensions<T extends { logo?: any; heroImage?: any }>(doc: T):
 
 /** Equivalent to `*[_type == "event"] | order(startDate desc)`. */
 export function getEventsLocal(): any[] {
+  const showHidden = import.meta.env.DEV;
   return (localVideos as any[])
     .filter((d) => d._type === 'event')
+    .filter((d) => showHidden || d.hidden !== true)
     .map(withImageDimensions)
     .sort((a, b) => String(b.startDate ?? '').localeCompare(String(a.startDate ?? '')));
 }
