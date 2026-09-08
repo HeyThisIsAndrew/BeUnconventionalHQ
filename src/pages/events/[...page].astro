@@ -1,29 +1,51 @@
 ---
-import { SECTIONS, META, pageTitle } from '../data/content.js';
-import Layout from '../layouts/Layout.astro';
-import PageTitle from '../components/PageTitle.astro';
-import FeaturedEvent from '../components/FeaturedEvent.astro';
-import UpcomingEventsList from '../components/UpcomingEventsList.astro';
-import EventCard from '../components/EventCard.astro';
-import ReferralLinks from '../components/ReferralLinks.astro';
-import SubscribeCTA from '../components/SubscribeCTA.astro';
-import SpanningCalendarModal from '../components/SpanningCalendarModal.astro';
-import { getEventsLocal } from '../lib/local-content';
-import { toYMD } from '../lib/events';
+import { SECTIONS, META, pageTitle } from '../../data/content.js';
+import Layout from '../../layouts/Layout.astro';
+import PageTitle from '../../components/PageTitle.astro';
+import FeaturedEvent from '../../components/FeaturedEvent.astro';
+import UpcomingEventsList from '../../components/UpcomingEventsList.astro';
+import EventCard from '../../components/EventCard.astro';
+import ReferralLinks from '../../components/ReferralLinks.astro';
+import SubscribeCTA from '../../components/SubscribeCTA.astro';
+import SpanningCalendarModal from '../../components/SpanningCalendarModal.astro';
+import Pagination from '../../components/Pagination.astro';
+import { getEventsLocal } from '../../lib/local-content';
+import { toYMD } from '../../lib/events';
+
+export async function getStaticPaths({ paginate }: any) {
+  const allEvents = getEventsLocal();
+  const today = toYMD();
+  
+  // Past: already ended, most recent first.
+  const pastEvents = allEvents
+    .filter((e: any) => {
+      if (!e.startDate) return false;
+      const end = (e.endDate || e.startDate).slice(0, 10);
+      return end < today;
+    })
+    .sort((a: any, b: any) => b.startDate.localeCompare(a.startDate));
+
+  return paginate(pastEvents, { 
+    pageSize: 12,
+    props: { allEvents, today }
+  });
+}
+
+import type { Page } from 'astro';
+
+export interface Props {
+  page: Page<any>;
+  allEvents: any[];
+  today: string;
+}
+
+const { page, allEvents, today } = Astro.props as Props;
+const pastEvents = page.data;
 
 const title = pageTitle(META.events.title);
 const description = META.events.description;
 
-const allEvents = getEventsLocal();
-
-// Today's calendar date (YYYY-MM-DD) in the brand's reference timezone. Both
-// sides of the comparison are the SAME precision — comparing a bare
-// "2026-07-26" against a full ISO timestamp would sort the shorter string
-// lower and misclassify an event that ends *today* as past.
-const today = toYMD();
-
-// Upcoming: ends today or later, earliest start first. YYYY-MM-DD strings sort
-// chronologically, so localeCompare needs no Date objects.
+// Upcoming: ends today or later, earliest start first.
 const upcomingEvents = allEvents
   .filter((e: any) => {
     if (!e.startDate) return false;
@@ -35,15 +57,6 @@ const upcomingEvents = allEvents
 // The nearest upcoming event headlines the hub; the rest form the vertical list.
 const featuredEvent = upcomingEvents[0] ?? null;
 const secondaryUpcoming = upcomingEvents.slice(1);
-
-// Past: already ended, most recent first.
-const pastEvents = allEvents
-  .filter((e: any) => {
-    if (!e.startDate) return false;
-    const end = (e.endDate || e.startDate).slice(0, 10);
-    return end < today;
-  })
-  .sort((a: any, b: any) => b.startDate.localeCompare(a.startDate));
 ---
 
 <Layout title={title} description={description} preconnect={["https://cdn.sanity.io"]}>
@@ -129,6 +142,7 @@ const pastEvents = allEvents
                   <EventCard event={event} index={index} />
                 ))}
               </div>
+              <Pagination page={page} />
             </section>
           )}
         </section>
