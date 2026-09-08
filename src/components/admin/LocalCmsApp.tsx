@@ -19,7 +19,7 @@ type Doc = {
     category?: string;
     featured?: boolean;
     hidden?: boolean;
-  excludeFromHero?: boolean;
+  forceSpotlightHero?: boolean;
     sortWeight?: number;
   };
 
@@ -72,7 +72,7 @@ type Doc = {
   /** Which accordion row this hub appears in on /featured. */
   hubCategory?: string;
   hidden?: boolean;
-  excludeFromHero?: boolean;
+  forceSpotlightHero?: boolean;
   socialLinks?: { platform: string; url: string }[];
   metrics?: {
     snapshots: { date: string; viewCount: number }[];
@@ -1511,14 +1511,14 @@ function EventForm({
       </div>
 
       <div className="mt-10 pt-10 border-t border-white/10">
-        <Field label="Hero Placement">
+        <Field label="Hero Override">
           <Toggle
-            label="Exclude from Spotlight Hero"
-            checked={doc.excludeFromHero || false}
-            onChange={(v) => update('excludeFromHero', v)}
+            label="Force as Spotlight Hero"
+            checked={doc.forceSpotlightHero || false}
+            onChange={(v) => update('forceSpotlightHero', v)}
           />
           <p className="text-xs text-gray-600 mt-1.5">
-            If checked, this event will never be selected as the large Spotlight Hero at the top of the /events page, even if it is the next upcoming event. It will still appear in the standard Upcoming Events list.
+            If checked, this event will be forced into the Spotlight Hero spot at the top of the /events page. It will remain the hero until it expires (passes its end date), at which point the site will automatically fall back to the next upcoming event.
           </p>
         </Field>
 
