@@ -74,6 +74,7 @@ type Doc = {
   hubCategory?: string;
   hidden?: boolean;
   forceSpotlightHero?: boolean;
+  spotlightBadge?: 'countdown' | 'dot' | 'none';
   socialLinks?: { platform: string; url: string }[];
   metrics?: {
     snapshots: { date: string; viewCount: number }[];
@@ -1531,6 +1532,21 @@ function EventForm({
           />
           <p className="text-xs text-gray-600 mt-1.5">
             If checked, this event will be forced into the Spotlight Hero spot at the top of the /events page. It will remain the hero until it expires (passes its end date), at which point the site will automatically fall back to the next upcoming event.
+          </p>
+        </Field>
+
+        <Field label="Hero Badge">
+          <select 
+            value={doc.spotlightBadge || 'dot'} 
+            onChange={(e) => update('spotlightBadge', e.target.value)} 
+            className={inputClass}
+          >
+            <option value="dot">Upcoming Dot (Default)</option>
+            <option value="countdown">Countdown Timer</option>
+            <option value="none">None</option>
+          </select>
+          <p className="text-xs text-gray-600 mt-1.5">
+            Choose what badge appears over the hero image when this event is featured. Use Countdown for highly anticipated upcoming events. If the event is currently happening or past, the countdown won't make sense, so use Dot or None.
           </p>
         </Field>
 

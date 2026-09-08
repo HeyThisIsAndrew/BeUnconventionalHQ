@@ -102,29 +102,34 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
         ) : (
           <h2 class="fe-title">{event.title}</h2>
         )}
-        <div class="hidden md:inline-block fe-eyebrow mb-1"><EventStatusIndicator event={event} /></div>
+        {(event.spotlightBadge !== 'none' && event.spotlightBadge !== 'countdown') && (
+          <div class="fe-eyebrow mb-1 mt-2 md:mt-0"><EventStatusIndicator event={event} /></div>
+        )}
       </div>
 
   
     {/* Countdown Timer */}
-    <div class="fe-countdown hidden mt-3 mb-4 flex flex-row gap-5 text-white" data-target-date={event.startDate}>
-      <div class="flex flex-col items-center justify-center bg-black/40 backdrop-blur-md rounded-lg border border-white/10 px-3 py-2 min-w-[60px]">
-        <span class="text-2xl md:text-3xl font-bold font-mono tracking-tighter" data-days>00</span>
-        <span class="text-[9px] md:text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">Days</span>
+    {event.spotlightBadge === 'countdown' && (
+      <div class="fe-countdown hidden mt-3 mb-4 flex-row gap-2 sm:gap-3 md:gap-5 text-white flex-wrap" data-target-date={event.startDate}>
+        <div class="flex flex-col items-center justify-center bg-black/40 backdrop-blur-md rounded-lg border border-white/10 px-2 py-1.5 md:px-3 md:py-2 min-w-[50px] md:min-w-[60px]">
+          <span class="text-xl sm:text-2xl md:text-3xl font-bold font-mono tracking-tighter" data-days>00</span>
+          <span class="text-[8px] md:text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">Days</span>
+        </div>
+        <div class="flex flex-col items-center justify-center bg-black/40 backdrop-blur-md rounded-lg border border-white/10 px-2 py-1.5 md:px-3 md:py-2 min-w-[50px] md:min-w-[60px]">
+          <span class="text-xl sm:text-2xl md:text-3xl font-bold font-mono tracking-tighter" data-hours>00</span>
+          <span class="text-[8px] md:text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">Hrs</span>
+        </div>
+        <div class="flex flex-col items-center justify-center bg-black/40 backdrop-blur-md rounded-lg border border-white/10 px-2 py-1.5 md:px-3 md:py-2 min-w-[50px] md:min-w-[60px]">
+          <span class="text-xl sm:text-2xl md:text-3xl font-bold font-mono tracking-tighter" data-mins>00</span>
+          <span class="text-[8px] md:text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">Mins</span>
+        </div>
+        <div class="flex flex-col items-center justify-center bg-black/40 backdrop-blur-md rounded-lg border border-white/10 px-2 py-1.5 md:px-3 md:py-2 min-w-[50px] md:min-w-[60px]">
+          <span class="text-xl sm:text-2xl md:text-3xl font-bold font-mono tracking-tighter" data-secs>00</span>
+          <span class="text-[8px] md:text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">Secs</span>
+        </div>
       </div>
-      <div class="flex flex-col items-center justify-center bg-black/40 backdrop-blur-md rounded-lg border border-white/10 px-3 py-2 min-w-[60px]">
-        <span class="text-2xl md:text-3xl font-bold font-mono tracking-tighter" data-hours>00</span>
-        <span class="text-[9px] md:text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">Hrs</span>
-      </div>
-      <div class="flex flex-col items-center justify-center bg-black/40 backdrop-blur-md rounded-lg border border-white/10 px-3 py-2 min-w-[60px]">
-        <span class="text-2xl md:text-3xl font-bold font-mono tracking-tighter" data-mins>00</span>
-        <span class="text-[9px] md:text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">Mins</span>
-      </div>
-      <div class="flex flex-col items-center justify-center bg-black/40 backdrop-blur-md rounded-lg border border-white/10 px-3 py-2 min-w-[60px]">
-        <span class="text-2xl md:text-3xl font-bold font-mono tracking-tighter" data-secs>00</span>
-        <span class="text-[9px] md:text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">Secs</span>
-      </div>
-    </div>
+    )}
+
 
     {/* Meta Box */}
       <div class="flex flex-col flex-1 min-w-0 md:w-auto">
