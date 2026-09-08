@@ -62,6 +62,7 @@ type Doc = {
   location?: LocationInfo;
   organizer?: string;
   officialWebsite?: string;
+  relatedBrandSlug?: string;
   signUpLink?: string;
   trailerUrl?: string;
   logo?: any;
@@ -909,7 +910,7 @@ export default function LocalCmsApp() {
                   <VideoForm doc={selected} activeTab={activeTab} setActiveTab={setActiveTab} updateDoc={updateDoc} />
                 )}
                 {selected._type === 'event' && (
-                  <EventForm doc={selected} updateDoc={updateDoc} updateSlug={updateSlug} updateLocation={updateLocation} />
+                  <EventForm doc={selected} allDocs={docs} updateDoc={updateDoc} updateSlug={updateSlug} updateLocation={updateLocation} />
                 )}
                 {selected._type === 'featuredBrand' && (
                   <BrandForm doc={selected} updateDoc={updateDoc} updateSlug={updateSlug} />
@@ -1159,11 +1160,13 @@ function VideoForm({
   updateDoc,
 }: {
   doc: Doc;
+  allDocs: Doc[];
   activeTab: string;
   setActiveTab: (t: string) => void;
   updateDoc: (id: string, field: keyof Doc, value: any) => void;
 }) {
   const update = (field: keyof Doc, value: any) => updateDoc(doc._id, field, value);
+  const brandHubs = allDocs.filter(d => d._type === 'featuredBrand').sort((a,b) => a.title.localeCompare(b.title));
   return (
     <div className={sectionClass}>
       <div className="grid grid-cols-1 @lg:grid-cols-2 gap-4">
@@ -1395,6 +1398,7 @@ function VideoForm({
 }
 
 function EventForm({
+  allDocs,
   doc,
   updateDoc,
   updateSlug,
@@ -1429,6 +1433,14 @@ function EventForm({
             <option value="cancelled">Cancelled</option>
             <option value="postponed">Postponed</option>
             <option value="tbd">TBD</option>
+          </select>
+        </Field>
+        <Field label="Franchise / Brand Hub">
+          <select value={doc.relatedBrandSlug || ''} onChange={(e) => update('relatedBrandSlug', e.target.value)} className={inputClass}>
+            <option value="">None</option>
+            {brandHubs.map(b => (
+              <option key={b._id} value={typeof b.slug === 'string' ? b.slug : b.slug?.current}>{b.title}</option>
+            ))}
           </select>
         </Field>
         <Field label="Event Type">

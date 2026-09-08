@@ -2,9 +2,11 @@
 import Layout from '../../layouts/Layout.astro';
 import { getArticleItems } from '../../lib/feed-items';
 import { getVideosUnified } from '../../lib/videos-source';
-import { getFeaturedBrandsLocal, getHubBackdrop, urlFor, HUB_CATEGORY_LABELS } from '../../lib/local-content';
+import { getEventsLocal, getFeaturedBrandsLocal, getHubBackdrop, urlFor, HUB_CATEGORY_LABELS } from '../../lib/local-content';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
 import ContentCard from '../../components/ContentCard.astro';
+import EventCard from '../../components/EventCard.astro';
+import { toYMD } from '../../lib/events';
 import InstagramFeed from '../../components/InstagramFeed.astro';
 import { getHubTopicKeywords } from '../../lib/instagram-topic';
 import { parseVideoId } from '../../lib/platforms/youtube';
@@ -23,6 +25,19 @@ export async function getStaticPaths() {
 }
 
 const { event } = Astro.props;
+
+// Find associated upcoming events
+const today = toYMD();
+const allLocalEvents = getEventsLocal();
+const associatedUpcomingEvents = allLocalEvents
+  .filter((e: any) => {
+    if (e.relatedBrandSlug !== event.slug.current) return false;
+    if (!e.startDate) return false;
+    const end = (e.endDate || e.startDate).slice(0, 10);
+    return end >= today;
+  })
+  .sort((a: any, b: any) => a.startDate.localeCompare(b.startDate));
+
 
 // 1. Fetch Global Data
 const allVideos = await getVideosUnified();
@@ -606,7 +621,22 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       </div>
     </section>
 
+    
     <div class="container-page content-container">
+      {associatedUpcomingEvents.length > 0 && (
+        <section class="content-section">
+          <h2 class="sr-only">Upcoming {event.title} Events</h2>
+          <div class="filter-controls animate-on-scroll" style="margin-bottom: 2rem;">
+            <button class="filter-btn type-btn active" aria-pressed="true">UPCOMING EVENTS</button>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full animate-on-scroll">
+            {associatedUpcomingEvents.map((e: any, index: number) => (
+              <EventCard event={e} index={index} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {unifiedContent.length > 0 ? (
         <section class="content-section">
           <h2 class="sr-only">Event coverage</h2>

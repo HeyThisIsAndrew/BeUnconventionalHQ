@@ -16,18 +16,34 @@ export async function getStaticPaths({ paginate }: any) {
   const allEvents = getEventsLocal();
   const today = toYMD();
   
-  // Past: already ended, most recent first.
+  // 1. Compute upcoming events
+  const upcomingEventsAll = allEvents
+    .filter((e: any) => {
+      if (!e.startDate) return false;
+      const end = (e.endDate || e.startDate).slice(0, 10);
+      return end >= today;
+    })
+    .sort((a: any, b: any) => a.startDate.localeCompare(b.startDate));
+
+  // 2. Identify featured hero
+  const forcedHero = upcomingEventsAll.find((e: any) => e.forceSpotlightHero === true);
+  const featuredEvent = forcedHero || upcomingEventsAll[0] || null;
+  const secondaryUpcomingAll = upcomingEventsAll.filter((e: any) => e._id !== featuredEvent?._id);
+
+  // 3. Compute static past events (max 6, no pagination)
   const pastEvents = allEvents
     .filter((e: any) => {
       if (!e.startDate) return false;
       const end = (e.endDate || e.startDate).slice(0, 10);
       return end < today;
     })
-    .sort((a: any, b: any) => b.startDate.localeCompare(a.startDate));
+    .sort((a: any, b: any) => b.startDate.localeCompare(a.startDate))
+    .slice(0, 6); // Hard cap at 6!
 
-  return paginate(pastEvents, { 
+  // 4. Paginate ONLY the secondary upcoming events (pageSize 12)
+  return paginate(secondaryUpcomingAll, { 
     pageSize: 12,
-    props: { allEvents, today }
+    props: { allEvents, today, featuredEvent, pastEvents }
   });
 }
 
@@ -37,27 +53,18 @@ export interface Props {
   page: Page<any>;
   allEvents: any[];
   today: string;
+  featuredEvent: any;
+  pastEvents: any[];
 }
 
-const { page, allEvents, today } = Astro.props as Props;
-const pastEvents = page.data;
+const { page, allEvents, today, featuredEvent: featuredProp, pastEvents } = Astro.props as Props;
+const secondaryUpcoming = page.data;
 
 const title = pageTitle(META.events.title);
 const description = META.events.description;
 
-// Upcoming: ends today or later, earliest start first.
-const upcomingEvents = allEvents
-  .filter((e: any) => {
-    if (!e.startDate) return false;
-    const end = (e.endDate || e.startDate).slice(0, 10);
-    return end >= today;
-  })
-  .sort((a: any, b: any) => a.startDate.localeCompare(b.startDate));
-
-// If an event is manually forced into the spotlight, it overrides the default (as long as it hasn't expired).
-const forcedHero = upcomingEvents.find((e: any) => e.forceSpotlightHero === true);
-const featuredEvent = forcedHero || upcomingEvents[0] || null;
-const secondaryUpcoming = upcomingEvents.filter((e: any) => e._id !== featuredEvent?._id);
+// Only show the massive hero on Page 1 to save space on subsequent pages
+const featuredEvent = page.currentPage === 1 ? featuredProp : null;
 ---
 
 <Layout title={title} description={description} preconnect={["https://cdn.sanity.io"]}>
@@ -116,6 +123,7 @@ const secondaryUpcoming = upcomingEvents.filter((e: any) => e._id !== featuredEv
             <section class="upcoming-section animate-on-scroll" aria-labelledby="more-upcoming-heading">
               <UpcomingEventsList events={secondaryUpcoming} />
             </section>
+            <Pagination page={page} />
           )}
 
           {/*
@@ -143,7 +151,6 @@ const secondaryUpcoming = upcomingEvents.filter((e: any) => e._id !== featuredEv
                   <EventCard event={event} index={index} />
                 ))}
               </div>
-              <Pagination page={page} />
             </section>
           )}
         </section>

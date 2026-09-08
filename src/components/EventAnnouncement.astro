@@ -8,9 +8,11 @@ import ReferralLinks from './ReferralLinks.astro';
 
 import { getHubTopicKeywords } from '../lib/instagram-topic';
 import { parseVideoId } from '../lib/platforms/youtube';
-import { urlFor, HUB_CATEGORY_LABELS } from '../lib/local-content';
+import { urlFor, HUB_CATEGORY_LABELS, getFeaturedBrandsLocal } from '../lib/local-content';
 
 const { event, unifiedContent } = Astro.props;
+
+const relatedBrand = event.relatedBrandSlug ? getFeaturedBrandsLocal().find((b: any) => (typeof b.slug === 'string' ? b.slug : b.slug?.current) === event.relatedBrandSlug) : null;
 
 const brandColor = (typeof event.brandColor === 'string' ? event.brandColor : event.brandColor?.hex) || '#CC0000';
 
@@ -602,6 +604,24 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
               <p class="article-rail-head" id="article-support-head">Upcoming Events</p>
               <MiniCalendarSidebar events={Astro.props.allEvents?.filter((e: any) => (e.endDate || e.startDate).slice(0, 10) >= new Date().toISOString().split('T')[0]).sort((a: any, b: any) => a.startDate.localeCompare(b.startDate)) || []} />
             </div>
+
+                        {/* Associated Franchise Hub */}
+            {relatedBrand && (
+              <div class="article-rail-related" style="margin-bottom: 3.5rem;">
+                <p class="article-rail-head">Official Franchise Hub</p>
+                <div style="background: rgba(15, 15, 15, 0.8); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); padding: 1.5rem; text-align: center; border-radius: 4px;">
+                  {relatedBrand.logo && (
+                    <img src={urlFor(relatedBrand.logo).height(80).auto('format').url()} alt={relatedBrand.title} style="max-height: 40px; margin: 0 auto 1rem;" />
+                  )}
+                  <p class="text-sm text-gray-400 leading-relaxed mb-4">
+                    Explore all our coverage, videos, and intel for {relatedBrand.title}.
+                  </p>
+                  <a href={`/featured/${event.relatedBrandSlug}`} class="press-desk-link" style="display: inline-block;">
+                    Explore Hub &rarr;
+                  </a>
+                </div>
+              </div>
+            )}
 
             {/* Coverage Inquiry */}
             <div class="article-rail-related" style="margin-top: 3.5rem;">
