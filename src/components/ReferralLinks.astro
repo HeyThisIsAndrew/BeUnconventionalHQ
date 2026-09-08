@@ -34,6 +34,7 @@ import {
   REFERRAL_HEADING,
 } from '../data/referrals.js';
 import { BRAND_ICONS } from '../data/icons.js';
+import { Image } from 'astro:assets';
 
 interface Props {
   /** Heading text. Defaults to the shared one. */
@@ -87,7 +88,13 @@ const groups = getReferralGroups();
                     src/data/icons.js, which is authored in this repo — it is
                     never user input and never comes from a feed.
                   */}
-                  <span class="referral-icon" aria-hidden="true" set:html={BRAND_ICONS[item.icon] ?? BRAND_ICONS.storefront} />
+                  {item.image ? (
+                    <span class="referral-icon referral-icon-img" aria-hidden="true">
+                      <Image src={item.image} alt="" class="object-contain" />
+                    </span>
+                  ) : (
+                    <span class="referral-icon" aria-hidden="true" set:html={item.icon ? (BRAND_ICONS[item.icon as keyof typeof BRAND_ICONS] ?? BRAND_ICONS.storefront) : BRAND_ICONS.storefront} />
+                  )}
 
                   <span class="referral-copy">
                     <span class="referral-label">

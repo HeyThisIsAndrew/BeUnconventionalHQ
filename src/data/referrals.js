@@ -38,6 +38,7 @@
  * Do not remove it, and do not move it below the links.
  */
 import { site } from './site.js';
+import mintMobileImg from '../assets/partners/mint-mobile.png';
 
 /**
  * One partner link.
@@ -50,7 +51,8 @@ import { site } from './site.js';
  * @property {string}  label      short display name
  * @property {string}  href       the tagged referral / affiliate URL
  * @property {string}  blurb      one honest line on why it is here
- * @property {string}  icon       a key from BRAND_ICONS (src/data/icons.js)
+ * @property {string}  [icon]     a key from BRAND_ICONS (src/data/icons.js)
+ * @property {any}      [image]    an imported image asset for the partner
  * @property {string}  [offer]    concrete reader incentive, e.g. "$15 credit"
  * @property {boolean} [affiliate] false when the link pays us nothing
  *
@@ -98,7 +100,7 @@ export const REFERRAL_GROUPS = [
         href: 'https://my.mintmobile.com/refer/pHvGFQz',
         blurb: 'The wireless plan that keeps on-location coverage affordable.',
         offer: '$15 renewal credit',
-        icon: 'signal',
+        image: mintMobileImg,
       },
     ],
   },
