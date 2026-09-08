@@ -10,13 +10,6 @@ const trailerId = parseVideoId(event.trailerUrl);
 const hero = buildImageSet(event.heroImage, { widths: [320, 480, 640, 800], aspect: 16 / 9 });
 const logo = buildImageSet(event.logo, { widths: [96, 160, 240] });
 
-// Fallback logic for broken images
-const fallbackInitials = event.title
-  .split(' ')
-  .map((w: string) => w[0])
-  .slice(0, 2)
-  .join('')
-  .toUpperCase();
 
 const imageSrc = logo?.src ?? hero?.src ?? (trailerId ? `https://img.youtube.com/vi/${trailerId}/hqdefault.jpg` : brandMarkImg.src);
 const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
