@@ -54,9 +54,10 @@ const upcomingEvents = allEvents
   })
   .sort((a: any, b: any) => a.startDate.localeCompare(b.startDate));
 
-// The nearest upcoming event headlines the hub; the rest form the vertical list.
-const featuredEvent = upcomingEvents[0] ?? null;
-const secondaryUpcoming = upcomingEvents.slice(1);
+// The nearest upcoming event headlines the hub (unless manually excluded), the rest form the list.
+const heroEligible = upcomingEvents.filter((e: any) => e.excludeFromHero !== true);
+const featuredEvent = heroEligible[0] ?? null;
+const secondaryUpcoming = upcomingEvents.filter((e: any) => e._id !== featuredEvent?._id);
 ---
 
 <Layout title={title} description={description} preconnect={["https://cdn.sanity.io"]}>

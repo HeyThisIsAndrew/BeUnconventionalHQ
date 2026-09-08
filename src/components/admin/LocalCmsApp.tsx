@@ -19,6 +19,7 @@ type Doc = {
     category?: string;
     featured?: boolean;
     hidden?: boolean;
+  excludeFromHero?: boolean;
     sortWeight?: number;
   };
 
@@ -71,6 +72,7 @@ type Doc = {
   /** Which accordion row this hub appears in on /featured. */
   hubCategory?: string;
   hidden?: boolean;
+  excludeFromHero?: boolean;
   socialLinks?: { platform: string; url: string }[];
   metrics?: {
     snapshots: { date: string; viewCount: number }[];
@@ -1509,6 +1511,17 @@ function EventForm({
       </div>
 
       <div className="mt-10 pt-10 border-t border-white/10">
+        <Field label="Hero Placement">
+          <Toggle
+            label="Exclude from Spotlight Hero"
+            checked={doc.excludeFromHero || false}
+            onChange={(v) => update('excludeFromHero', v)}
+          />
+          <p className="text-xs text-gray-600 mt-1.5">
+            If checked, this event will never be selected as the large Spotlight Hero at the top of the /events page, even if it is the next upcoming event. It will still appear in the standard Upcoming Events list.
+          </p>
+        </Field>
+
         <Field label="Visibility">
           <Toggle
             label="Hide from the live site"

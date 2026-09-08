@@ -105,7 +105,28 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
         <div class="hidden md:inline-block fe-eyebrow mb-1"><EventStatusIndicator event={event} /></div>
       </div>
 
-      {/* Meta Box */}
+  
+    {/* Countdown Timer */}
+    <div class="fe-countdown hidden mt-3 mb-4 flex flex-row gap-5 text-white" data-target-date={event.startDate}>
+      <div class="flex flex-col items-center justify-center bg-black/40 backdrop-blur-md rounded-lg border border-white/10 px-3 py-2 min-w-[60px]">
+        <span class="text-2xl md:text-3xl font-bold font-mono tracking-tighter" data-days>00</span>
+        <span class="text-[9px] md:text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">Days</span>
+      </div>
+      <div class="flex flex-col items-center justify-center bg-black/40 backdrop-blur-md rounded-lg border border-white/10 px-3 py-2 min-w-[60px]">
+        <span class="text-2xl md:text-3xl font-bold font-mono tracking-tighter" data-hours>00</span>
+        <span class="text-[9px] md:text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">Hrs</span>
+      </div>
+      <div class="flex flex-col items-center justify-center bg-black/40 backdrop-blur-md rounded-lg border border-white/10 px-3 py-2 min-w-[60px]">
+        <span class="text-2xl md:text-3xl font-bold font-mono tracking-tighter" data-mins>00</span>
+        <span class="text-[9px] md:text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">Mins</span>
+      </div>
+      <div class="flex flex-col items-center justify-center bg-black/40 backdrop-blur-md rounded-lg border border-white/10 px-3 py-2 min-w-[60px]">
+        <span class="text-2xl md:text-3xl font-bold font-mono tracking-tighter" data-secs>00</span>
+        <span class="text-[9px] md:text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">Secs</span>
+      </div>
+    </div>
+
+    {/* Meta Box */}
       <div class="flex flex-col flex-1 min-w-0 md:w-auto">
         <div class="inline-block md:hidden fe-eyebrow mb-1"><EventStatusIndicator event={event} /></div>
         <p class="fe-meta !mb-0 text-sm md:text-base leading-tight md:leading-normal">
@@ -349,3 +370,55 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
   }
 
 </style>
+
+
+<script>
+  function initCountdowns() {
+    const timers = document.querySelectorAll('.fe-countdown');
+    timers.forEach((timer) => {
+      const targetStr = timer.getAttribute('data-target-date');
+      if (!targetStr) return;
+      
+      const targetDate = new Date(targetStr).getTime();
+      
+      // Run once immediately to avoid 1-second delay
+      updateTimer();
+      
+      const interval = setInterval(updateTimer, 1000);
+      
+      function updateTimer() {
+        const now = new Date().getTime();
+        const distance = targetDate - now;
+        
+        if (distance < 0) {
+          clearInterval(interval);
+          timer.classList.add('hidden');
+          timer.classList.remove('flex');
+          return;
+        }
+        
+        timer.classList.remove('hidden');
+        timer.classList.add('flex');
+        
+        const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+        
+        const updateVal = (selector: string, val: number) => {
+          const el = timer.querySelector(selector);
+          if (el) el.textContent = val.toString().padStart(2, '0');
+        };
+        
+        updateVal('[data-days]', days);
+        updateVal('[data-hours]', hours);
+        updateVal('[data-mins]', minutes);
+        updateVal('[data-secs]', seconds);
+      }
+    });
+  }
+  
+  document.addEventListener('astro:page-load', initCountdowns);
+  // Also run normally for first load if astro:page-load is not fully caught
+  initCountdowns();
+</script>
