@@ -1160,13 +1160,11 @@ function VideoForm({
   updateDoc,
 }: {
   doc: Doc;
-  allDocs: Doc[];
   activeTab: string;
   setActiveTab: (t: string) => void;
   updateDoc: (id: string, field: keyof Doc, value: any) => void;
 }) {
   const update = (field: keyof Doc, value: any) => updateDoc(doc._id, field, value);
-  const brandHubs = allDocs.filter(d => d._type === 'featuredBrand').sort((a,b) => a.title.localeCompare(b.title));
   return (
     <div className={sectionClass}>
       <div className="grid grid-cols-1 @lg:grid-cols-2 gap-4">
@@ -1404,12 +1402,14 @@ function EventForm({
   updateSlug,
   updateLocation,
 }: {
+  allDocs: Doc[];
   doc: Doc;
   updateDoc: (id: string, field: keyof Doc, value: any) => void;
   updateSlug: (id: string, value: string) => void;
   updateLocation: (id: string, field: keyof LocationInfo, value: string) => void;
 }) {
   const update = (field: keyof Doc, value: any) => updateDoc(doc._id, field, value);
+  const brandHubs = allDocs.filter((d: any) => d._type === 'featuredBrand').sort((a: any, b: any) => a.title.localeCompare(b.title));
   return (
     <div className={sectionClass}>
       <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5">
