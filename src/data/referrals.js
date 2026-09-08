@@ -39,6 +39,7 @@
  */
 import { site } from './site.js';
 import mintMobileImg from '../assets/partners/mint-mobile.png';
+import davinciResolveImg from '../assets/partners/davinci-resolve.png';
 
 /**
  * One partner link.
@@ -127,7 +128,7 @@ export const REFERRAL_GROUPS = [
         label: 'DaVinci Resolve',
         href: 'https://www.blackmagicdesign.com/products/davinciresolve',
         blurb: 'Best FREE Editor for creators',
-        icon: 'colorWheel',
+        image: davinciResolveImg,
         /* Blackmagic runs no affiliate programme — this is a straight
            recommendation, and the flag keeps the disclosure truthful. */
         affiliate: false,
