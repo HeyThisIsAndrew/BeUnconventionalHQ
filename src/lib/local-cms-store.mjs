@@ -74,3 +74,43 @@ export function validateStorePayload(raw, storeName) {
 
   return { ok: true, parsed };
 }
+
+/*
+  ─── A STORE ON DISK IS PRETTY-PRINTED, WHATEVER THE CLIENT SENT ────────────
+
+  The middleware used to write the POST body VERBATIM. LocalCmsApp serialises
+  its state with a plain `JSON.stringify(docs)`, so one "Save to videos.json"
+  collapsed all 9,781 lines of the store onto a single line. Nothing broke at
+  runtime — the loaders parse either form — and that is exactly why it went
+  unnoticed until it reached a commit reading "9,782 deletions, 49 insertions".
+
+  Two things depend on the file staying line-per-field, and both fail silently
+  when it does not:
+
+  1. THE MERGE DRIVER. `scripts/setup-git.mjs` registers a sync-json driver so
+     videos.json merges per DOCUMENT instead of conflicting wholesale
+     (CLAUDE.md, Data flow). Line-based git tooling cannot do anything useful
+     with a one-line file, so every concurrent edit becomes a whole-file
+     conflict that a human then has to resolve by hand — against 500 KB on one
+     line.
+  2. REVIEW. A store change is editorial content, and "1 file changed, 1
+     insertion, 1 deletion" tells a reviewer nothing about what an editor
+     actually changed.
+
+  Serialising here rather than trusting the client also means the format is
+  enforced at the only point every write passes through, so a future client —
+  or a curl by hand — cannot reintroduce it.
+
+  Two spaces and a trailing newline is what the file has always been, and what
+  every sync script writes.
+*/
+
+/**
+ * Serialise validated store documents in the repository's canonical format.
+ *
+ * @param {unknown[]} docs  the parsed documents from validateStorePayload
+ * @returns {string}        pretty-printed JSON, newline-terminated
+ */
+export function serializeStore(docs) {
+  return `${JSON.stringify(docs, null, 2)}\n`;
+}

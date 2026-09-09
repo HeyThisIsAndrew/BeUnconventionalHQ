@@ -9,7 +9,7 @@ import { cacheCloudflare } from '@astrojs/cloudflare/cache';
 import react from '@astrojs/react';
 import partytown from '@astrojs/partytown';
 import { createClient } from '@sanity/client';
-import { validateStorePayload } from './src/lib/local-cms-store.mjs';
+import { validateStorePayload, serializeStore } from './src/lib/local-cms-store.mjs';
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -264,8 +264,14 @@ function localCmsMiddleware() {
               res.end(JSON.stringify({ success: false, error: check.error }));
               return;
             }
+            /*
+              The VALIDATED, RE-SERIALISED documents, never the raw body. The
+              CMS client sends minified JSON, and writing that verbatim
+              flattened the whole store onto one line and disabled the
+              per-document merge driver. See serializeStore().
+            */
             const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-            fs.writeFileSync(tmpPath, body, 'utf-8');
+            fs.writeFileSync(tmpPath, serializeStore(check.parsed), 'utf-8');
             fs.renameSync(tmpPath, filePath);
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ success: true }));
