@@ -223,6 +223,7 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   'convention-expo': 'Convention & Expo',
   premiere: 'Premiere',
   screening: 'Screening',
+  showcase: 'Showcase',
   festival: 'Festival',
   'industry-awards': 'Industry Awards',
   'brand-activation': 'Brand Activation',

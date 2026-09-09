@@ -78,6 +78,14 @@ export default defineType({
         `convention-expo` now. `award_show` became `industry-awards`, and
         `brand-activation` is genuinely new.
 
+        `showcase` covers the streamed-presentation format — a Nintendo
+        Direct, a State of Play, an Xbox Games Showcase, Summer Game Fest.
+        It was added because three of the featured hubs run one on a
+        schedule, so it is a recurring beat rather than an accommodation for
+        a single event. Without it those all land on `festival`, which should
+        keep meaning SXSW and film festivals: things with a venue, a badge
+        and attendees.
+
         VALUES ARE THE STORED DATA. Changing one is a migration, not an edit:
         the fourteen events on `convention` were rewritten in the same commit
         that introduced this list, and EVENT_TYPE_LABELS in src/lib/events.ts
@@ -95,6 +103,7 @@ export default defineType({
           { title: 'Convention & Expo', value: 'convention-expo' },
           { title: 'Premiere', value: 'premiere' },
           { title: 'Screening', value: 'screening' },
+          { title: 'Showcase', value: 'showcase' },
           { title: 'Festival', value: 'festival' },
           { title: 'Industry Awards', value: 'industry-awards' },
           { title: 'Brand Activation', value: 'brand-activation' },

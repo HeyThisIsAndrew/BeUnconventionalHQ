@@ -1583,6 +1583,7 @@ function EventForm({
             <option value="convention-expo">Convention &amp; Expo</option>
             <option value="premiere">Premiere</option>
             <option value="screening">Screening</option>
+            <option value="showcase">Showcase</option>
             <option value="festival">Festival</option>
             <option value="industry-awards">Industry Awards</option>
             <option value="brand-activation">Brand Activation</option>
