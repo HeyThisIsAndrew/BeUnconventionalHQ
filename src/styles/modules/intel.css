@@ -143,6 +143,30 @@
   min-width: 0;
 }
 
+/*
+  ─── THE COLUMN DOES NOT NEED FILLING, AND FILLING IT COSTS THE COVER ──────
+
+  Worth recording, because the measurement that prompted this looks damning
+  and is not. The magazine is a grid, so the centre column is stretched to the
+  height of the taller rails: at 1440px the copy finishes at y=1198 inside a
+  column running to y=1482, which reads as "284px of dead space" in any
+  bounding-box measurement.
+
+  Nothing is drawn in it. `.intel-magazine`, `.intel-feature` and
+  `.intel-feature-link` all compute to `rgba(0, 0, 0, 0)` — the column is
+  transparent over the page, so where the copy ends, the page simply
+  continues. There is no panel with a hole in it.
+
+  It was briefly "fixed" by making this a flex column and letting the cover
+  grow into the slack. That produced a 720x728 box — very nearly square — and
+  `object-fit: cover` then cropped roughly 28% off EACH SIDE of a 16:9
+  editorial cover. Verified against a test plate with content at its edges:
+  both edges were gone. Real covers carry their subject and often their title
+  near those edges.
+
+  So: `display: block`, and the cover keeps its 16:9 crop. Do not "fill" this
+  column without first checking that anything is actually painted in it.
+*/
 .intel-feature-link {
   display: block;
   height: 100%;
@@ -200,12 +224,19 @@
   numbers that have to agree for the block to have an even rhythm — and they
   did not. `gap: 0.75rem` (Tailwind's `gap-3`) sets the rhythm once.
 
-  THE MEASURE IS CAPPED. The centre column is ~950px on a desktop, and a line
-  of body copy that long is measurably harder to track back from: the eye
-  loses the start of the next line. 42rem (`max-w-2xl`) is ~67 characters at
-  this page's body size, inside the 45-75 the typographic literature settles
-  on. The IMAGE above still spans the full column — only the text is capped,
-  which is the standard magazine arrangement, not a narrower feature.
+  THE MEASURE IS CAPPED ON THE BODY COPY, NOT ON THE WHOLE BLOCK.
+
+  It was on this container at 42rem, and that is the wrong element. It squeezed
+  the HEADLINE to 474px too, where a 70-character title broke to six lines and
+  stood 243px tall — taller than the standfirst, the kicker and the "Read More"
+  put together. A headline is display type: it is scanned in one movement, not
+  tracked line by line, so the measure argument that governs body copy does not
+  apply to it. Every masthead sets headlines wider than body for this reason.
+
+  So the cap moved to `.intel-feature-excerpt`, which is the only text here
+  that is actually READ. The column itself is already a constraint — 720px at
+  1440, narrower still on a laptop — so the headline has a natural bound
+  without one being invented for it.
 */
 .intel-feature-copy {
   display: flex;
@@ -213,7 +244,6 @@
   align-items: flex-start;
   gap: 0.75rem;
   padding: 2.5rem 2.5rem 3rem;
-  max-width: 42rem;
   text-align: left;
 }
 
@@ -264,8 +294,9 @@
   font-size: 1.15rem; /* Compensate for the 80% root scale */
   line-height: 1.65;
   color: var(--color-white-muted);
-  /* Belt and braces with `.intel-feature-copy`'s 42rem: this keeps the
-     measure honest if the excerpt is ever lifted out of that container. */
+  /* 42rem (`max-w-2xl`) is ~67 characters at this page's body size, inside the
+     45-75 the typographic literature settles on. This is the one element here
+     that is read rather than scanned, so it is the one that carries the cap. */
   max-width: 42rem;
   margin: 0;
 }

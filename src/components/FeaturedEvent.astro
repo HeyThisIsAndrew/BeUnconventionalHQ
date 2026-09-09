@@ -91,7 +91,25 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
       is the alignment the rest of the hero already uses.
     */}
     <div class="fe-lockup flex flex-col items-start gap-4 w-full mb-4">
-      {/* Logo (and, on desktop, the status dot beside it) */}
+      {/*
+        ─── ONE STATUS BADGE, AT THE TOP, AT EVERY WIDTH ──────────────────
+
+        This shipped TWICE — `hidden md:inline-block` beside the logo and
+        `inline-block md:hidden` down in the meta group — because the lockup
+        used to be a row on a phone and a column from md up, so the badge
+        needed a different home in each. The lockup is one column at every
+        width now, so the pair was two renders of one component kept in step
+        by hand for a layout that no longer exists.
+
+        Above the logo rather than beside it: it is an eyebrow, and the hero
+        now reads status, then identity, then countdown, then date and city.
+        That is the same descent the event page's metadata row uses.
+      */}
+      {(event.spotlightBadge !== 'none' && event.spotlightBadge !== 'countdown') && (
+        <div class="fe-eyebrow"><EventStatusIndicator event={event} /></div>
+      )}
+
+      {/* Logo */}
       <div class="flex flex-row items-end gap-4 md:gap-10 w-32 sm:w-40 md:w-auto max-w-full">
         {logo ? (
           <>
@@ -123,9 +141,6 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
           </>
         ) : (
           <h2 class="fe-title">{event.title}</h2>
-        )}
-        {(event.spotlightBadge !== 'none' && event.spotlightBadge !== 'countdown') && (
-          <div class="hidden md:inline-block fe-eyebrow mb-1"><EventStatusIndicator event={event} /></div>
         )}
       </div>
 
@@ -190,9 +205,6 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
         that breaks them onto two lines does not leave a dot hanging.
       */}
       <div class="flex flex-col items-start gap-2 min-w-0 w-full">
-        {(event.spotlightBadge !== 'none' && event.spotlightBadge !== 'countdown') && (
-          <div class="inline-block md:hidden fe-eyebrow"><EventStatusIndicator event={event} /></div>
-        )}
         <p class="fe-meta">
           <span class="fe-dates">{dateLabel}</span>
           {locationLabel && <span class="fe-location">{locationLabel}</span>}

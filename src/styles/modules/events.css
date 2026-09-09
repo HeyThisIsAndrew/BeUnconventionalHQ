@@ -7,9 +7,28 @@
   padding-bottom: 2rem;
 }
 
+/*
+  ─── ONE CARD, ONE SIZE, WHEREVER THE GRID IS ──────────────────────────────
+
+  The track floor was 320px, which is smaller than an EventCard actually wants.
+  It let a full-width container fit FOUR columns, so the same card rendered at
+  333px on /events/archive and 449px on /events, where the grid sits inside the
+  8-of-12 column. A 26% swing in a card built around a logo beside two lines of
+  type: the archive's version had its lockup visibly tighter, and nothing about
+  the content justified the difference.
+
+  420px is measured from the layout that already looked right. At 1389px of
+  full-bleed width it settles on three columns of 447px, against 449px for the
+  two-up inside the narrower column — the same card either way. Four columns
+  would need 1752px, so no current breakpoint reaches back to the old size.
+
+  `min(100%, 420px)` keeps the floor from exceeding the container on a phone,
+  which is what makes this collapse cleanly to one column rather than
+  overflowing.
+*/
 .event-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
   gap: 1rem;
   margin-top: 2rem;
   width: 100%;

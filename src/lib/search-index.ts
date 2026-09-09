@@ -90,6 +90,19 @@ export async function buildSearchIndex(): Promise<SearchEntry[]> {
     { id: 'intel', title: 'Intel', type: 'page', url: '/intel', excludeFromDefault: true },
     { id: 'featured', title: 'Featured Hubs', type: 'page', url: '/featured', excludeFromDefault: true },
     { id: 'events', title: 'Events', type: 'page', url: '/events', excludeFromDefault: true },
+    /*
+      The archive is a separate destination, not a tab of /events: it is the
+      only route that lists every past event, and /events shows six of them
+      behind a link. Without an entry here the palette could reach an
+      individual past event by name but never the page that lists them all.
+    */
+    {
+      id: 'events-archive',
+      title: 'Past Event Archive',
+      type: 'page',
+      url: '/events/archive',
+      excludeFromDefault: true,
+    },
     { id: 'media-kit', title: 'Media Kit', type: 'page', url: '/media-kit', excludeFromDefault: true },
   ];
 
