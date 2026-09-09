@@ -57,6 +57,9 @@ type Doc = {
   slug?: { _type: 'slug'; current: string } | string;
   status?: string;
   eventType?: string;
+  /* The hero's one-line bio. Distinct from `description`, which is the
+     About copy in the page body. */
+  tagline?: string;
   startDate?: string;
   endDate?: string;
   location?: LocationInfo;
@@ -212,6 +215,7 @@ function makeBlankDoc(type: DocType): Doc {
          The dropdown offers "Not set" and the hero renders "Event" for it, so
          an unclassified event is a state the UI already handles. */
       eventType: '',
+      tagline: '',
       isRecurringTemplate: false,
       seriesTemplateSlug: '',
       editionLabel: '',
@@ -1612,8 +1616,35 @@ function EventForm({
         </div>
       </div>
 
-      <Field label="Description">
-        <textarea value={doc.description || ''} onChange={(e) => update('description', e.target.value)} className={textareaClass} placeholder="What this event/brand is about..." />
+      {/*
+        TWO PIECES OF PROSE, AND THEY ARE NOT INTERCHANGEABLE. The tagline is
+        the ONE LINE under the logo in the hero; the About copy is the
+        paragraph in the page body. They used to be the same field, so the
+        hero clamped the About paragraph to five lines and cut it off
+        mid-word, with the full version sitting a screen below.
+      */}
+      <Field label="Short Description (Bio)">
+        <input
+          type="text"
+          value={doc.tagline || ''}
+          onChange={(e) => update('tagline', e.target.value)}
+          className={inputClass}
+          maxLength={120}
+          placeholder={`Defaults to “${doc.title || 'the event name'}”`}
+        />
+        <p className="text-xs text-gray-600 mt-1.5">
+          One short line under the logo in the hero. A handful of words. Leave it empty
+          and the event name is used. Nothing here is ever truncated, so keep it short
+          by choice rather than by limit.
+        </p>
+      </Field>
+
+      <Field label="About (Full Description)">
+        <textarea value={doc.description || ''} onChange={(e) => update('description', e.target.value)} className={textareaClass} placeholder="What this event is about. Shown in the About section of the page body." />
+        <p className="text-xs text-gray-600 mt-1.5">
+          The ABOUT section in the body of the page. Write as much as it needs. This is
+          no longer shown in the hero, so it is never cut off.
+        </p>
       </Field>
 
       <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5">

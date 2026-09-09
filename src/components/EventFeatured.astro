@@ -59,6 +59,35 @@ const stageMarkUrl = event.logo ? urlFor(event.logo).height(520).auto('format').
 const eventTypeLabel = getEventTypeLabel(event);
 const eventDateLabel = formatEventDateRange(event.startDate, event.endDate);
 const locationLabel = formatLocation(event.location);
+
+/*
+  ─── THE HERO LINE IS A TAGLINE, NEVER THE ABOUT COPY ─────────────────────
+
+  This slot used to render `event.description` — the full ABOUT paragraph,
+  which is already the first thing in the article body below — clamped to
+  `max-height: 5em` with a "Read more" button beside it. On an event page that
+  button shipped with the `hidden` attribute and NOTHING ever removed it: the
+  toggle script lives in featured/[slug].astro, not in these components.
+  Measured on the built page: 178px of text in a 52px box, button
+  `display: none`. So the hero cut a sentence off mid-word with no affordance
+  to finish it, and the same paragraph sat in full a screen below.
+
+  A hero line should be a line. `tagline` is a short, optional field an editor
+  writes for exactly this slot; with none written it falls back to the event's
+  own name, which is short by construction and can never need truncating.
+
+  The name is worth stating even under a logo: when `event.logo` exists the
+  <h1> is sr-only, so nothing in the hero says what this is in readable text.
+  A stylised mark a visitor cannot parse, or one that fails to load, otherwise
+  leaves them with nothing.
+
+  NO CLAMP HERE, deliberately. Truncation with no way to expand is the bug
+  being fixed; a long tagline wraps instead, and `max-width` keeps it to a
+  sane measure.
+*/
+const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
+  ? event.tagline.trim()
+  : event.title;
 ---
 
 <Layout
@@ -210,14 +239,7 @@ const locationLabel = formatLocation(event.location);
                 <h1 class="hero-title">{event.title}</h1>
               )}
 
-              {event.description && (
-                <div class="hero-description-wrapper">
-                  <p class="hero-description-text" id="event-about-text">{event.description}</p>
-                  <button class="hero-read-more" id="event-about-toggle" aria-expanded="false" hidden>
-                    Read more
-                  </button>
-                </div>
-              )}
+              <p class="hero-tagline">{taglineText}</p>
 
               {trailerId && (
                 /*
@@ -1906,10 +1928,6 @@ const locationLabel = formatLocation(event.location);
   .hero-identity .hero-logo-wrap {
     margin: 0;
   }
-  .hero-identity .hero-description-wrapper {
-    min-width: 0;
-    margin: 0;
-  }
 
   /* ─── THE RAIL ──────────────────────────────────────────────────────── */
   .hub-rail {
@@ -2309,7 +2327,7 @@ const locationLabel = formatLocation(event.location);
     script measures the full height itself and animates between the two, so
     this number only has to agree with line-height.
   */
-  .hero-description-text {
+  .hero-tagline {
     font-size: 0.95rem;
     font-weight: 500;
     letter-spacing: 0.22em;
@@ -2318,28 +2336,9 @@ const locationLabel = formatLocation(event.location);
     line-height: 1.7;
     max-width: 52ch;
     margin-top: 1.6rem;
-    overflow: hidden;
-    max-height: 5em;
     text-shadow: 0 4px 12px rgba(0, 0, 0, 0.9);
   }
-  .hero-read-more {
-    background: none;
-    border: none;
-    color: white; /* Set to static white to resolve state bugs. See commented-out rules below. */
-    font-weight: 700;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    padding: 0;
-    margin-top: 0.5rem;
-    cursor: pointer;
-    text-decoration: underline;
-  }
 
-  /* TODO: Revisit stateful color logic. Caused color to reset on scroll.
-  .hero-read-more:hover, .hero-read-more:focus-visible {
-    color: var(--color-accent-text);
-  } */
 
   .hero-rsvp-btn {
     display: inline-block;
@@ -2366,9 +2365,9 @@ const locationLabel = formatLocation(event.location);
       align-items: flex-start;
       text-align: left;
     }
-    /* Font size stays 1rem (matching the base) so expand/collapse never resizes
-       the text; only the top margin tightens on mobile. */
-    .hero-description-text {
+    /* Only the top margin tightens on mobile; the size is set once on the
+       base rule. */
+    .hero-tagline {
       margin-top: 1rem;
     }
   }

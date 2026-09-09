@@ -283,14 +283,39 @@ export default defineType({
     }),
 
     // ── Details & Links ─────────────────────────────────────────────────
+    /*
+      TWO PIECES OF PROSE, AND THEY ARE NOT INTERCHANGEABLE.
+
+      `tagline` is the ONE LINE under the logo in the hero. `description` is
+      the ABOUT paragraph in the article body below it. They used to be the
+      same field: the hero rendered `description` clamped to five lines with a
+      "Read more" beside it, so the hero cut a sentence off mid-word and the
+      full paragraph sat a screen below anyway. On an event page the toggle
+      never even appeared — the script that drives it lives in
+      featured/[slug].astro, not in the event components — so the copy was
+      simply truncated with no way to finish it.
+
+      Keeping them separate means neither has to compromise: the tagline can
+      be written for the hero, and the About copy can be as long as it needs.
+    */
+    defineField({
+      name: 'tagline',
+      title: 'Short Description (Bio)',
+      type: 'string',
+      fieldset: 'details',
+      description:
+        'One short line under the logo in the hero. Aim for a handful of words. Leave it empty and the event name is used instead. This is NOT the About copy below, which is the next field.',
+      validation: (rule) =>
+        rule.max(120).warning('A hero line over 120 characters will wrap and stop reading as a tagline.'),
+    }),
     defineField({
       name: 'description',
-      title: 'Short Description',
+      title: 'About (Full Description)',
       type: 'text',
       rows: 4,
       fieldset: 'details',
       description:
-        'A brief blurb shown beneath the hero. Long text collapses behind a "Read more" toggle.',
+        'The ABOUT section in the body of the event page. Write as much as it needs. It is no longer shown in the hero, so nothing here gets truncated.',
     }),
     defineField({
       name: 'location',
