@@ -793,15 +793,24 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     position: relative;
     z-index: 1;
     /*
-      Was 70vh, which read as dominant: the hero took most of the screen with
-      the coverage below it barely announcing itself. 62 is enough to establish
-      the hub without burying what the page is actually for.
+      ─── NO min-height. THE HERO IS AS TALL AS WHAT IS IN IT ──────────────
 
-      `lvh`, not `vh`. On iOS `vh` is the LARGEST viewport, which the page also
-      uses before the URL bar retracts — the unit this project already pins for
-      exactly this reason (scripts/viewport-units.test.mjs).
+      This was `70vh`, then `62lvh`, and the number was always the problem
+      rather than its value. A viewport-relative floor means the hero is sized
+      by the SCREEN instead of by its contents, so a hub with a short line of
+      copy reserves exactly as much room as one with a long one, and the
+      surplus is empty. Side by side with an event page — which dropped its
+      own floor in a9725ad and now shrink-wraps — the hub hero stood roughly
+      twice as tall for the same amount of content.
+
+      The padding below still separates it from the coverage grid, and the
+      backdrop still fills whatever height the content asks for, so nothing
+      that floor was protecting is lost.
+
+      If a minimum ever comes back, it belongs in `lvh` and not `vh`: on iOS
+      `vh` is the LARGEST viewport, which the page also uses before the URL bar
+      retracts (scripts/viewport-units.test.mjs).
     */
-    min-height: 62lvh;
     background: linear-gradient(
       to top,
       rgba(0, 0, 0, 0.97) 0%,

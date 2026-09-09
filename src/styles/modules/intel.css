@@ -144,31 +144,49 @@
 }
 
 /*
-  ─── THE COLUMN DOES NOT NEED FILLING, AND FILLING IT COSTS THE COVER ──────
+  ─── THE CENTRE FILLS ITS COLUMN, AND THE COVER TAKES THE SLACK ────────────
 
-  Worth recording, because the measurement that prompted this looks damning
-  and is not. The magazine is a grid, so the centre column is stretched to the
-  height of the taller rails: at 1440px the copy finishes at y=1198 inside a
-  column running to y=1482, which reads as "284px of dead space" in any
-  bounding-box measurement.
+  The magazine is a grid, so the centre is stretched to the height of the
+  taller rails: 1111px at 1440, against about 790px of content. That left
+  323px empty at the bottom, and it is NOT invisible — `.intel-rail-left` has
+  a `border-right` and `.intel-rail-right` a `border-left`, and both rules run
+  the full height of the row. The empty part of the centre is framed on both
+  sides, so it reads as a hole in the spread rather than as the page simply
+  continuing. (An earlier pass measured the backgrounds, found them all
+  transparent, and concluded there was nothing to fix. The backgrounds are
+  transparent. The frame is not.)
 
-  Nothing is drawn in it. `.intel-magazine`, `.intel-feature` and
-  `.intel-feature-link` all compute to `rgba(0, 0, 0, 0)` — the column is
-  transparent over the page, so where the copy ends, the page simply
-  continues. There is no panel with a hole in it.
+  FILLING IT WITH TEXT DOES NOT WORK, and this was measured rather than
+  assumed: the standfirst's first paragraph is only about three lines of real
+  copy, so raising the clamp from two lines to eight recovered 24px of the
+  323. Restoring every paragraph overshoots instead — the column grows past
+  the rails to 1239px and the empty space simply moves to them.
 
-  It was briefly "fixed" by making this a flex column and letting the cover
-  grow into the slack. That produced a 720x728 box — very nearly square — and
-  `object-fit: cover` then cropped roughly 28% off EACH SIDE of a 16:9
-  editorial cover. Verified against a test plate with content at its edges:
-  both edges were gone. Real covers carry their subject and often their title
-  near those edges.
+  So the cover takes it, which is also what Substack does with its own centre
+  feature: a large lead image, then a short dek. `flex: 1 0 auto` over the
+  16:9 aspect ratio makes 16:9 a FLOOR the image grows from, never a cap.
 
-  So: `display: block`, and the cover keeps its 16:9 crop. Do not "fill" this
-  column without first checking that anything is actually painted in it.
+  THE GROWTH IS CAPPED AT 4:3, IN CONTAINER UNITS. Uncapped, the image
+  reached 720x728 — square — and `object-fit: cover` then cropped about 28%
+  off each side of a 16:9 source; checked against a test plate with content at
+  its edges, both edges were gone. 75cqw is three-quarters of the column's own
+  width, so the cap is 4:3 at EVERY width rather than a pixel value that means
+  4:3 on one monitor and something worse on the next. That is why
+  `.intel-feature` becomes a container.
+
+  Where a cover is smaller than the cap, the copy block takes the remainder
+  and centres itself in it, so the leftover reads as breathing room around the
+  text instead of a gap under it.
 */
+.intel-feature {
+  min-width: 0;
+  /* The query container for the 75cqw cap below. */
+  container-type: inline-size;
+}
+
 .intel-feature-link {
-  display: block;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   text-decoration: none;
 }
@@ -176,7 +194,10 @@
 .intel-feature-image {
   position: relative;
   width: 100%;
+  /* 16/9 is the floor; flex-grow takes it up to the 4:3 cap. */
   aspect-ratio: 16 / 9;
+  flex: 1 0 auto;
+  max-height: 75cqw;
   overflow: hidden;
   background: var(--color-surface);
 }
@@ -242,6 +263,8 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  justify-content: center;
+  flex: 1 0 auto;
   gap: 0.75rem;
   padding: 2.5rem 2.5rem 3rem;
   text-align: left;
