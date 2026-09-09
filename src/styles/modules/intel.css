@@ -263,7 +263,15 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  justify-content: center;
+  /*
+    TOP-ANCHORED, NOT CENTRED. `justify-content: center` split the column's
+    leftover height into TWO gaps, one above the kicker and one below "Read
+    More", so the text floated in the middle of its own block with air on both
+    sides. Two gaps around a text block always read as a mistake; one
+    deliberate gap does not. The standfirst below takes up the slack instead,
+    so in practice there is no gap left to place.
+  */
+  justify-content: flex-start;
   flex: 1 0 auto;
   gap: 0.75rem;
   padding: 2.5rem 2.5rem 3rem;
@@ -285,62 +293,63 @@
 
 /* ── The standfirst ─────────────────────────────────────────────────────────
 
-   TWO LINES, CLAMPED. This block has now been three things, and it is worth
-   knowing why it is this one.
+   IT FILLS WHAT IS LEFT, RATHER THAN LEAVING IT EMPTY.
 
-   It began as a single <p> with `-webkit-line-clamp: 6`, which on a short
-   excerpt never engaged and left a hole under "Read More". It then became the
-   article's full opening paragraphs, unclamped, which fixed the hole and
-   introduced its own problem: on a 950px column the preview ran five or six
-   paragraphs deep, so the CENTRE of the magazine spread was a wall of body
-   copy while the two rails beside it were headline-only tiles. The spread
-   stopped reading as a spread.
+   This block has been three things and each one taught something:
 
-   It is a two-line standfirst now, as asked: enough to say what the piece is
-   about, sized so every item in the spread carries the same weight.
+   1. A single <p> clamped to six lines. On a short excerpt the clamp never
+      engaged and left a hole under "Read More".
+   2. Every paragraph, unclamped. No hole, but on a 950px column it ran five or
+      six paragraphs deep and the centre of the spread became a wall of text
+      while the rails beside it were headline-only tiles.
+   3. Clamped to two lines. Tidy, and it emptied the column: ~300px of real
+      content in a 571px block, which then had to be centred, which put air
+      both above AND below the text. That is what "so much space and it's
+      uneven" was describing, and centring was the wrong answer to it.
 
-   HOW THE CLAMP IS APPLIED, AND WHY NOT ON THE CONTAINER. `-webkit-box` with
-   `-webkit-line-clamp` is only reliable on an element whose children are
-   inline. The pipeline still supplies several paragraphs and the swap script
-   still repaints them as several <p>s (see paint() in IntelMagazine.astro),
-   so the clamp goes on the FIRST paragraph and the rest are taken out of
-   flow. Clamping the container instead produced different results per engine
-   and, in Chromium, silently rendered nothing on some articles.
+   So it FLEXES. `flex: 1 1 auto` with `min-height: 0` makes the standfirst
+   take exactly the height the image and the rest of the copy do not, and
+   `overflow: hidden` clips whatever does not fit. The column is filled by
+   editorial copy — the thing a magazine centre is supposed to be full of —
+   rather than by empty space or by a cover cropped square.
 
-   The remaining paragraphs stay in the DOM deliberately: this copy is
-   indexable, and `display: none` on the tail of an article preview is
-   exactly the pattern that reads as hidden text. `buildPreview` in
-   src/lib/articles-transform.ts is still the place to change how much text
-   the pipeline supplies.
+   THE FADE IS WHAT MAKES THE CLIP DELIBERATE. A mask over the last 2.5rem
+   means a cut paragraph dissolves instead of being guillotined mid-line, and
+   it costs nothing when the text is short: the faded band is simply empty.
+   Unlike the event hero, truncating here is honest — "Read More" sits
+   directly beneath it and is the affordance the hero never had.
+
+   Paragraphs are no longer hidden and no line-clamp is set, so how much shows
+   is decided by the space available rather than by a number that has to be
+   guessed per breakpoint.
 */
 .intel-feature-excerpt {
-  font-size: 1.15rem; /* Compensate for the 80% root scale */
-  line-height: 1.65;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  /* Bigger than it was: this is the only body copy in the spread, and at
+     1.15rem it was losing to the rail headlines beside it. */
+  font-size: 1.3rem;
+  line-height: 1.6;
   color: var(--color-white-muted);
-  /* 42rem (`max-w-2xl`) is ~67 characters at this page's body size, inside the
-     45-75 the typographic literature settles on. This is the one element here
-     that is read rather than scanned, so it is the one that carries the cap. */
   max-width: 42rem;
   margin: 0;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5rem), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5rem), transparent 100%);
 }
 
 .intel-feature-excerpt p {
-  margin: 0;
+  margin: 0 0 1rem;
 }
 
-/* The visible standfirst — the opening paragraph, two lines of it. */
+/* The opening paragraph is the standfirst: brighter, the way a magazine sets
+   its first line apart from the body under it. */
 .intel-feature-excerpt p:first-child {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
   color: rgba(255, 255, 255, 0.86);
 }
 
-/* Everything after it belongs to the article, not to the preview. */
-.intel-feature-excerpt p:first-child ~ p {
-  display: none;
+.intel-feature-excerpt p:last-child {
+  margin-bottom: 0;
 }
 
 /* "Read More" affordance under the excerpt. */
