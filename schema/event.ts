@@ -69,14 +69,35 @@ export default defineType({
       title: 'Event Type',
       type: 'string',
       fieldset: 'core',
+      /*
+        PRESS-GRADE TERMINOLOGY, AND ONE TERM PER THING.
+
+        `convention` and `expo` were two options for a distinction no event on
+        this site actually makes — Anime Expo is a convention, PAX is an expo,
+        and an editor picking between them was guessing. They are one
+        `convention-expo` now. `award_show` became `industry-awards`, and
+        `brand-activation` is genuinely new.
+
+        VALUES ARE THE STORED DATA. Changing one is a migration, not an edit:
+        the fourteen events on `convention` were rewritten in the same commit
+        that introduced this list, and EVENT_TYPE_LABELS in src/lib/events.ts
+        plus the dropdown in LocalCmsApp.tsx carry the identical set. All three
+        must move together or the local CMS offers a value the renderer has no
+        label for, and getEventTypeLabel() falls through to its title-casing
+        fallback instead of the curated wording. scripts/events.test.mjs reads
+        all three files and fails if they drift.
+
+        Kebab-case throughout. The retired `award_show` was the only snake_case
+        value here and it is gone with it.
+      */
       options: {
         list: [
-          { title: 'Convention', value: 'convention' },
+          { title: 'Convention & Expo', value: 'convention-expo' },
           { title: 'Premiere', value: 'premiere' },
           { title: 'Screening', value: 'screening' },
           { title: 'Festival', value: 'festival' },
-          { title: 'Expo', value: 'expo' },
-          { title: 'Award Show', value: 'award_show' },
+          { title: 'Industry Awards', value: 'industry-awards' },
+          { title: 'Brand Activation', value: 'brand-activation' },
           { title: 'Other', value: 'other' },
         ],
         layout: 'dropdown',

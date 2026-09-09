@@ -220,13 +220,37 @@ export function getEventStatus(
  * rendering the word "Other", which tells a visitor nothing.
  */
 export const EVENT_TYPE_LABELS: Record<string, string> = {
-  convention: 'Convention',
+  'convention-expo': 'Convention & Expo',
   premiere: 'Premiere',
   screening: 'Screening',
   festival: 'Festival',
-  expo: 'Expo',
-  award_show: 'Award Show',
+  'industry-awards': 'Industry Awards',
+  'brand-activation': 'Brand Activation',
   other: 'Event',
+};
+
+/*
+  ─── RETIRED VALUES STILL HAVE TO RENDER ──────────────────────────────────
+
+  `convention`, `expo` and `award_show` were replaced by press-grade terms and
+  the documents holding them were migrated in the same commit. These aliases
+  are not that migration's leftovers — they are the safety net for the copies
+  of the store this repository does not control: a Sanity document that was
+  never re-exported, a branch that predates the migration, a JSON file an
+  editor kept locally.
+
+  Without them a stale value falls through to titleCaseToken() and renders
+  "Award Show" — close enough to look correct and wrong enough that nobody
+  would ever notice the migration had missed a document.
+
+  They are DELIBERATELY absent from the dropdowns, so nothing new can be
+  written on them. Safe to delete once you are confident no unmigrated copy of
+  the store exists.
+*/
+const RETIRED_EVENT_TYPE_LABELS: Record<string, string> = {
+  convention: 'Convention & Expo',
+  expo: 'Convention & Expo',
+  award_show: 'Industry Awards',
 };
 
 /**
@@ -243,7 +267,7 @@ export function getEventTypeLabel(event: {
   category?: unknown;
 } | null | undefined): string {
   const type = typeof event?.eventType === 'string' ? event.eventType.trim() : '';
-  if (type) return EVENT_TYPE_LABELS[type] ?? titleCaseToken(type);
+  if (type) return EVENT_TYPE_LABELS[type] ?? RETIRED_EVENT_TYPE_LABELS[type] ?? titleCaseToken(type);
 
   const category = event?.category;
   if (typeof category === 'string' && category.trim()) return titleCaseToken(category.trim());

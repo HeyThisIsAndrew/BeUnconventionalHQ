@@ -207,7 +207,11 @@ function makeBlankDoc(type: DocType): Doc {
       title: 'New Event',
       slug: { _type: 'slug', current: slugify(`new-event-${Date.now()}`) },
       status: 'scheduled',
-      eventType: 'convention',
+      /* Empty, not a guess. 'convention' was seeded here and it is now a
+         retired value, so every new event would have been born holding one.
+         The dropdown offers "Not set" and the hero renders "Event" for it, so
+         an unclassified event is a state the UI already handles. */
+      eventType: '',
       isRecurringTemplate: false,
       seriesTemplateSlug: '',
       editionLabel: '',
@@ -1576,12 +1580,12 @@ function EventForm({
         <Field label="Event Type">
           <select value={doc.eventType || ''} onChange={(e) => update('eventType', e.target.value)} className={inputClass}>
             <option value="">Not set (shows as “Event”)</option>
-            <option value="convention">Convention</option>
+            <option value="convention-expo">Convention &amp; Expo</option>
             <option value="premiere">Premiere</option>
             <option value="screening">Screening</option>
             <option value="festival">Festival</option>
-            <option value="expo">Expo</option>
-            <option value="award_show">Award Show</option>
+            <option value="industry-awards">Industry Awards</option>
+            <option value="brand-activation">Brand Activation</option>
             <option value="other">Other</option>
           </select>
           <p className="text-xs text-gray-600 mt-1.5">
