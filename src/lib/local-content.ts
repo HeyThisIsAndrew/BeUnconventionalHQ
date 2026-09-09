@@ -178,9 +178,38 @@ export function getEventsLocal(): any[] {
   const showHidden = import.meta.env.DEV;
   return (localVideos as any[])
     .filter((d) => d._type === 'event')
+    /*
+      RECURRING TEMPLATES ARE NOT EVENTS.
+
+      A template ("PAX West", no year) is the reusable profile an edition is
+      stamped from — logo, key art, brand colour, venue, sync keywords — and
+      it is not something that happens on a date. It is excluded HERE, at the
+      one function every public surface reads events through, rather than in
+      each caller: a template usually carries the last edition's dates so the
+      editor can see what they are duplicating, which means the
+      `if (!e.startDate) return false` guards on the index would NOT have
+      caught it, and /events/[slug] would have built a real page for a
+      profile with no edition attached. The local CMS reads the JSON file
+      directly through its own middleware, so templates stay editable there.
+    */
+    .filter((d) => d.isRecurringTemplate !== true)
     .filter((d) => showHidden || d.hidden !== true)
     .map(withImageDimensions)
     .sort((a, b) => String(b.startDate ?? '').localeCompare(String(a.startDate ?? '')));
+}
+
+/**
+ * Every recurring-event TEMPLATE in the store — the opposite half of
+ * `getEventsLocal()`'s filter. Templates are editorial furniture, not
+ * schedule entries: they exist so a new edition of PAX West or SDCC can be
+ * stamped out with its artwork, brand colour, venue and sync keywords intact
+ * instead of being rebuilt from a blank document every year.
+ */
+export function getEventTemplatesLocal(): any[] {
+  return (localVideos as any[])
+    .filter((d) => d._type === 'event' && d.isRecurringTemplate === true)
+    .map(withImageDimensions)
+    .sort((a, b) => String(a.title ?? '').localeCompare(String(b.title ?? '')));
 }
 
 /**

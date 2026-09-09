@@ -75,6 +75,14 @@ type Doc = {
   hidden?: boolean;
   forceSpotlightHero?: boolean;
   spotlightBadge?: 'countdown' | 'dot' | 'none';
+  /* Recurring series — see the long note in schema/event.ts. A template is a
+     reusable profile (PAX West) that never renders; an edition points back at
+     one by slug. */
+  isRecurringTemplate?: boolean;
+  seriesTemplateSlug?: string;
+  editionLabel?: string;
+  recurrenceCadence?: string;
+  recurrenceMonth?: string;
   socialLinks?: { platform: string; url: string }[];
   metrics?: {
     snapshots: { date: string; viewCount: number }[];
@@ -172,6 +180,24 @@ function videoDocId(youtubeId: string): string {
   return `youtube-${youtubeId}`;
 }
 
+/* Value/label pairs for the recurring-series "usual month" picker. Values are
+   zero-padded so they sort and compare as the same strings the date fields
+   use. */
+const MONTH_OPTIONS = [
+  { value: '01', label: 'January' },
+  { value: '02', label: 'February' },
+  { value: '03', label: 'March' },
+  { value: '04', label: 'April' },
+  { value: '05', label: 'May' },
+  { value: '06', label: 'June' },
+  { value: '07', label: 'July' },
+  { value: '08', label: 'August' },
+  { value: '09', label: 'September' },
+  { value: '10', label: 'October' },
+  { value: '11', label: 'November' },
+  { value: '12', label: 'December' },
+];
+
 function makeBlankDoc(type: DocType): Doc {
   const now = new Date().toISOString();
   if (type === 'event') {
@@ -182,6 +208,9 @@ function makeBlankDoc(type: DocType): Doc {
       slug: { _type: 'slug', current: slugify(`new-event-${Date.now()}`) },
       status: 'scheduled',
       eventType: 'convention',
+      isRecurringTemplate: false,
+      seriesTemplateSlug: '',
+      editionLabel: '',
       startDate: '',
       endDate: '',
       location: { venue: '', city: '', region: '', country: '' },
@@ -551,6 +580,66 @@ export default function LocalCmsApp() {
     setSearch('');
   };
 
+  /*
+    ─── DUPLICATE AS NEW EDITION ─────────────────────────────────────────
+
+    The mechanism behind the recurring-series model: stamp a new event out of
+    an existing one (usually a series template) instead of rebuilding the
+    profile from a blank document every year.
+
+    WHAT CARRIES OVER is everything that describes the SERIES — artwork,
+    brand colour, layout, venue, organizer, official site, related hub and
+    the YouTube sync keywords, which are the field most often forgotten when
+    an edition is rebuilt by hand and the reason a new edition would silently
+    stop collecting coverage.
+
+    WHAT IS CLEARED is everything that describes one OCCURRENCE: the dates,
+    the ticket link (last year's sales page is worse than none), the edition
+    label, the spotlight overrides, and the template flag itself — a copy of
+    a template is an edition, never a second template. The copy also starts
+    HIDDEN, so a half-filled edition with no dates cannot reach the live site
+    between being created and being finished.
+  */
+  const duplicateAsEdition = (source: Doc) => {
+    const sourceSlug = typeof source.slug === 'string' ? source.slug : source.slug?.current || '';
+    const {
+      _id: _ignoredId,
+      startDate: _ignoredStart,
+      endDate: _ignoredEnd,
+      signUpLink: _ignoredSignUp,
+      editionLabel: _ignoredEdition,
+      isRecurringTemplate: _ignoredTemplate,
+      forceSpotlightHero: _ignoredHero,
+      spotlightBadge: _ignoredBadge,
+      metrics: _ignoredMetrics,
+      ...shared
+    } = source;
+
+    const stamp = Date.now();
+    const edition: Doc = {
+      ...shared,
+      _id: `local-${crypto.randomUUID()}`,
+      _type: 'event',
+      title: `${source.title} (new edition)`,
+      slug: { _type: 'slug', current: slugify(`${source.title}-${stamp}`) },
+      startDate: '',
+      endDate: '',
+      signUpLink: '',
+      editionLabel: '',
+      isRecurringTemplate: false,
+      /* Point the copy at its series: at the template it came from, or at the
+         same template a sibling edition already belongs to. */
+      seriesTemplateSlug: source.isRecurringTemplate ? sourceSlug : source.seriesTemplateSlug || '',
+      hidden: true,
+    };
+
+    setDocs((prev) => [edition, ...prev]);
+    setSelectedId(edition._id);
+    setActiveTab('status');
+    setActiveFilter('Events');
+    setSearch('');
+  };
+
   const deleteDoc = (id: string) => {
     const doc = docs.find((d) => d._id === id);
     if (!doc) return;
@@ -911,7 +1000,7 @@ export default function LocalCmsApp() {
                   <VideoForm doc={selected} activeTab={activeTab} setActiveTab={setActiveTab} updateDoc={updateDoc} />
                 )}
                 {selected._type === 'event' && (
-                  <EventForm doc={selected} allDocs={docs} updateDoc={updateDoc} updateSlug={updateSlug} updateLocation={updateLocation} />
+                  <EventForm doc={selected} allDocs={docs} updateDoc={updateDoc} updateSlug={updateSlug} updateLocation={updateLocation} duplicateAsEdition={duplicateAsEdition} />
                 )}
                 {selected._type === 'featuredBrand' && (
                   <BrandForm doc={selected} updateDoc={updateDoc} updateSlug={updateSlug} />
@@ -1402,15 +1491,22 @@ function EventForm({
   updateDoc,
   updateSlug,
   updateLocation,
+  duplicateAsEdition,
 }: {
   allDocs: Doc[];
   doc: Doc;
   updateDoc: (id: string, field: keyof Doc, value: any) => void;
   updateSlug: (id: string, value: string) => void;
   updateLocation: (id: string, field: keyof LocationInfo, value: string) => void;
+  duplicateAsEdition: (doc: Doc) => void;
 }) {
   const update = (field: keyof Doc, value: any) => updateDoc(doc._id, field, value);
   const brandHubs = allDocs.filter((d: any) => d._type === 'featuredBrand').sort((a: any, b: any) => a.title.localeCompare(b.title));
+  /* Only templates may be picked as a parent series, and a document can never
+     be its own parent. */
+  const seriesTemplates = allDocs
+    .filter((d: any) => d._type === 'event' && d.isRecurringTemplate === true && d._id !== doc._id)
+    .sort((a: any, b: any) => String(a.title).localeCompare(String(b.title)));
   return (
     <div className={sectionClass}>
       <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5">
@@ -1521,6 +1617,110 @@ function EventForm({
         <GalleryArray value={doc.gallery} onChange={(v) => update('gallery', v)} />
         <SponsorsArray value={doc.sponsors} onChange={(v) => update('sponsors', v)} />
         <PressAssetsArray value={doc.pressAssets} onChange={(v) => update('pressAssets', v)} />
+      </div>
+
+      {/*
+        ─── RECURRING SERIES ─────────────────────────────────────────────
+
+        The local half of the template model documented in schema/event.ts.
+        A template is a reusable profile — PAX West's logo, key art, brand
+        colour, venue, organizer and sync keywords — with no dates of its
+        own; getEventsLocal() filters templates out, so one never renders a
+        page, a calendar row or an archive card.
+
+        "Duplicate as new edition" is the point of the whole feature: it
+        stamps a fresh event from this document, carrying every shared field
+        across and clearing only what genuinely changes each time (dates,
+        ticket link, edition label). Editions link back by SLUG rather than
+        by _id, matching relatedBrandSlug — the local store has no reference
+        resolution, and a slug survives a re-export from Sanity.
+      */}
+      <div className="mt-10 pt-10 border-t border-white/10">
+        <h3 className={labelClass}>Recurring Series</h3>
+
+        <Field label="Series Template">
+          <Toggle
+            label="This is a recurring series template"
+            checked={doc.isRecurringTemplate || false}
+            onChange={(v) => update('isRecurringTemplate', v)}
+          />
+          <p className="text-xs text-gray-600 mt-1.5">
+            Turn on for a reusable profile such as “PAX West” or “SDCC”. A template never
+            appears on the site. It exists so each new edition can be duplicated from it
+            with its artwork, venue and sync keywords intact instead of being rebuilt.
+          </p>
+        </Field>
+
+        {doc.isRecurringTemplate ? (
+          <div className="grid grid-cols-1 @lg:grid-cols-2 gap-3 mt-5">
+            <Field label="Cadence">
+              <select
+                value={doc.recurrenceCadence || 'annual'}
+                onChange={(e) => update('recurrenceCadence', e.target.value)}
+                className={inputClass}
+              >
+                <option value="annual">Annual</option>
+                <option value="biannual">Twice a year</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="irregular">Irregular</option>
+              </select>
+            </Field>
+            <Field label="Usual Month">
+              <select
+                value={doc.recurrenceMonth || ''}
+                onChange={(e) => update('recurrenceMonth', e.target.value)}
+                className={inputClass}
+              >
+                <option value="">Not set</option>
+                {MONTH_OPTIONS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 @lg:grid-cols-2 gap-3 mt-5">
+            <Field label="Part of Series">
+              <select
+                value={doc.seriesTemplateSlug || ''}
+                onChange={(e) => update('seriesTemplateSlug', e.target.value)}
+                className={inputClass}
+              >
+                <option value="">Standalone event</option>
+                {seriesTemplates.map((t: any) => (
+                  <option key={t._id} value={typeof t.slug === 'string' ? t.slug : t.slug?.current}>
+                    {t.title}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Edition">
+              <input
+                type="text"
+                value={doc.editionLabel || ''}
+                onChange={(e) => update('editionLabel', e.target.value)}
+                className={inputClass}
+                placeholder="2026"
+              />
+            </Field>
+          </div>
+        )}
+
+        <div className="mt-5">
+          <button
+            type="button"
+            onClick={() => duplicateAsEdition(doc)}
+            className="px-4 py-2 text-xs font-bold uppercase tracking-widest border border-white/20 text-white hover:border-red-500 hover:text-red-400 transition-colors"
+          >
+            Duplicate as new edition
+          </button>
+          <p className="text-xs text-gray-600 mt-1.5">
+            Creates a new event carrying this one’s artwork, brand colour, location,
+            organizer, links and sync keywords. Dates, the ticket link and the edition
+            label are cleared, because those are the only things that actually change
+            between editions.
+          </p>
+        </div>
       </div>
 
       <div className="mt-10 pt-10 border-t border-white/10">

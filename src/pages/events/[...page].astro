@@ -1,7 +1,8 @@
 ---
-import { SECTIONS, META, pageTitle } from '../../data/content.js';
+import { SECTIONS, META, HEADINGS, LABELS, pageTitle } from '../../data/content.js';
 import Layout from '../../layouts/Layout.astro';
 import PageTitle from '../../components/PageTitle.astro';
+import SectionHeading from '../../components/SectionHeading.astro';
 import FeaturedEvent from '../../components/FeaturedEvent.astro';
 import UpcomingEventsList from '../../components/UpcomingEventsList.astro';
 import EventCard from '../../components/EventCard.astro';
@@ -140,12 +141,28 @@ const featuredEvent = featuredProp;
             </div>
           )}
 
-          {/* Past coverage portfolio. */}
+          {/*
+            ─── PAST EVENT ARCHIVE ────────────────────────────────────────
+
+            The six most recent finished events, opened by the same ruled
+            header /intel uses for "Latest From The Channel" — heading left,
+            rule beneath, routing link right — instead of a second full-size
+            <PageTitle>. Two stacked display titles on one page made the
+            archive look like a second page grafted onto the bottom of this
+            one, and the reader had no way through to the rest of it.
+
+            SIX IS A CAP ON WHAT IS *SHOWN*, NOT ON WHAT IS KEPT. The slice
+            happens in getStaticPaths above; /events/archive paginates the
+            full set, and nothing is ever removed from the store.
+          */}
           {pastEvents.length > 0 && (
-            <section class="past-events-section animate-on-scroll">
-              <header class="section-header">
-                <PageTitle as="h2" {...SECTIONS.eventHubs} scale="secondary" />
-              </header>
+            <section class="past-events-section animate-on-scroll" aria-labelledby="past-events-heading">
+              <SectionHeading
+                title={HEADINGS.pastEventArchive}
+                id="past-events-heading"
+                linkLabel={LABELS.allPastEvents}
+                linkHref="/events/archive"
+              />
               <div class="event-grid">
                 {pastEvents.map((event: any, index: number) => (
                   <EventCard event={event} index={index} />
@@ -262,6 +279,12 @@ const featuredEvent = featuredProp;
 
   .past-events-section {
     margin-top: 4.5rem;
+  }
+  /* The ruled header already carries 2rem of clearance beneath it, and
+     `.event-grid` adds another 2rem of its own for the layouts that have no
+     header above them. Two margins for one gap read as a hole in the page. */
+  .past-events-section .event-grid {
+    margin-top: 0;
   }
 
   .press-desk-link {

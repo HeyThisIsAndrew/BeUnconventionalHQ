@@ -67,10 +67,32 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
   <div class="fe-overlay"></div>
 
   <div class="fe-content w-full">
-    {/* Top Row: Logo + Meta (side-by-side on mobile, stacked on desktop) */}
-    <div class="flex flex-row items-center gap-4 md:flex-col md:items-start md:gap-0 w-full mb-4">
-      {/* Logo */}
-      <div class="flex-shrink-0 w-32 sm:w-40 md:w-auto flex flex-row items-end gap-4 md:gap-10 md:mb-4">
+    {/*
+      ─── ONE VERTICAL LOCKUP, NOT THREE THINGS IN A ROW ───────────────────
+
+      This used to be `flex flex-row items-center gap-4 md:flex-col
+      md:items-start md:gap-0`, holding the logo, the countdown and the
+      date/location side by side on a phone and stacked with NO gap from md
+      up. Both halves were wrong, and both were reported:
+
+      PORTRAIT. Three items sharing a 326px row left each of them a column
+      barely 90px wide. The countdown's four cards could not sit in 90px, so
+      they wrapped into a 2x2 block — the "bulky four-quadrant grid" — and
+      the date, squeezed into what was left, broke to "SEP / 12- / 13, /
+      202... / ANA... / CA" and ran off the right edge of the card.
+
+      LANDSCAPE (md and up). `md:gap-0` meant the logo, the countdown and the
+      date had literally zero space between them: the logo's baseline touched
+      the countdown's top border, which touched the date.
+
+      It is one column at every width now with a real `gap-4`, so the order
+      reads logo -> countdown -> date -> location down the card. `items-start`
+      keeps the lockup flush with the description and the CTA below it, which
+      is the alignment the rest of the hero already uses.
+    */}
+    <div class="fe-lockup flex flex-col items-start gap-4 w-full mb-4">
+      {/* Logo (and, on desktop, the status dot beside it) */}
+      <div class="flex flex-row items-end gap-4 md:gap-10 w-32 sm:w-40 md:w-auto max-w-full">
         {logo ? (
           <>
             {/*
@@ -103,54 +125,84 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
           <h2 class="fe-title">{event.title}</h2>
         )}
         {(event.spotlightBadge !== 'none' && event.spotlightBadge !== 'countdown') && (
-          <div class="hidden md:inline-block fe-eyebrow mb-1 mt-2 md:mt-0"><EventStatusIndicator event={event} /></div>
+          <div class="hidden md:inline-block fe-eyebrow mb-1"><EventStatusIndicator event={event} /></div>
         )}
       </div>
 
-  
-    {/* Countdown Timer */}
-    {event.spotlightBadge === 'countdown' && (
-      <div class="fe-countdown hidden mt-3 mb-4 flex-row gap-2 sm:gap-3 md:gap-5 text-white flex-wrap" data-target-date={event.startDate}>
-        <div class="flex flex-col items-center justify-center bg-black/40 backdrop-blur-md rounded-lg border border-white/10 px-2 py-1.5 md:px-3 md:py-2 min-w-[50px] md:min-w-[60px]">
-          <span class="text-xl sm:text-2xl md:text-3xl font-bold font-mono tracking-tighter" data-days>00</span>
-          <span class="text-[8px] md:text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">Days</span>
-        </div>
-        <div class="flex flex-col items-center justify-center bg-black/40 backdrop-blur-md rounded-lg border border-white/10 px-2 py-1.5 md:px-3 md:py-2 min-w-[50px] md:min-w-[60px]">
-          <span class="text-xl sm:text-2xl md:text-3xl font-bold font-mono tracking-tighter" data-hours>00</span>
-          <span class="text-[8px] md:text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">Hrs</span>
-        </div>
-        <div class="flex flex-col items-center justify-center bg-black/40 backdrop-blur-md rounded-lg border border-white/10 px-2 py-1.5 md:px-3 md:py-2 min-w-[50px] md:min-w-[60px]">
-          <span class="text-xl sm:text-2xl md:text-3xl font-bold font-mono tracking-tighter" data-mins>00</span>
-          <span class="text-[8px] md:text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">Mins</span>
-        </div>
-        <div class="flex flex-col items-center justify-center bg-black/40 backdrop-blur-md rounded-lg border border-white/10 px-2 py-1.5 md:px-3 md:py-2 min-w-[50px] md:min-w-[60px]">
-          <span class="text-xl sm:text-2xl md:text-3xl font-bold font-mono tracking-tighter" data-secs>00</span>
-          <span class="text-[8px] md:text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-0.5">Secs</span>
-        </div>
-      </div>
-    )}
+      {/*
+        ─── THE COUNTDOWN IS ONE INLINE STRIP ────────────────────────────
 
+        Four bordered cards became one plate holding "02d : 03h : 48m : 40s".
+        `flex-nowrap` and `whitespace-nowrap` are the point of the exercise:
+        the old version wrapped, and a clock that reflows into a square is
+        not reading as a clock any more. At its widest ("999d : 23h : 59m :
+        59s") it measures well inside the 326px a 390px phone gives the hero,
+        so there is nothing left for it to wrap onto.
 
-    {/* Meta Box */}
-      <div class="flex flex-col flex-1 min-w-0 md:w-auto">
+        The unit is a single letter visually and the whole word to a screen
+        reader, so "02d" is announced as "02 days" without the layout paying
+        for the word. `role="timer"` plus `aria-live="off"` says what this is
+        without asking assistive tech to read it out once a second.
+      */}
+      {event.spotlightBadge === 'countdown' && (
+        <div
+          class="fe-countdown hidden items-center flex-nowrap gap-1.5 sm:gap-2"
+          data-target-date={event.startDate}
+          role="timer"
+          aria-live="off"
+          aria-label={`Countdown to ${event.title}`}
+        >
+          <span class="fe-count-unit">
+            <span class="fe-count-num" data-days>00</span
+            ><span class="fe-count-abbr" aria-hidden="true">d</span
+            ><span class="sr-only"> days</span>
+          </span>
+          <span class="fe-count-sep" aria-hidden="true">:</span>
+          <span class="fe-count-unit">
+            <span class="fe-count-num" data-hours>00</span
+            ><span class="fe-count-abbr" aria-hidden="true">h</span
+            ><span class="sr-only"> hours</span>
+          </span>
+          <span class="fe-count-sep" aria-hidden="true">:</span>
+          <span class="fe-count-unit">
+            <span class="fe-count-num" data-mins>00</span
+            ><span class="fe-count-abbr" aria-hidden="true">m</span
+            ><span class="sr-only"> minutes</span>
+          </span>
+          <span class="fe-count-sep" aria-hidden="true">:</span>
+          <span class="fe-count-unit">
+            <span class="fe-count-num" data-secs>00</span
+            ><span class="fe-count-abbr" aria-hidden="true">s</span
+            ><span class="sr-only"> seconds</span>
+          </span>
+        </div>
+      )}
+
+      {/*
+        Date and location. They were `.fe-meta` at up to 1.1rem in plain white
+        with no tracking of their own on landscape, which read as body copy
+        that had lost its styling. They are metadata now and wear the site's
+        metadata type at every width — the same 0.72rem/0.18em uppercase muted
+        setting the hero eyebrow and the article tags use.
+
+        `flex-wrap` with a gap rather than an inline bullet with margins: the
+        separator is only drawn when the two sit on the same line, so a phone
+        that breaks them onto two lines does not leave a dot hanging.
+      */}
+      <div class="flex flex-col items-start gap-2 min-w-0 w-full">
         {(event.spotlightBadge !== 'none' && event.spotlightBadge !== 'countdown') && (
-          <div class="inline-block md:hidden fe-eyebrow mb-1"><EventStatusIndicator event={event} /></div>
+          <div class="inline-block md:hidden fe-eyebrow"><EventStatusIndicator event={event} /></div>
         )}
-        <p class="fe-meta !mb-0 text-sm md:text-base leading-tight md:leading-normal">
-          <span class="fe-dates block md:inline">{dateLabel}</span>
-          {locationLabel && (
-            <span class="fe-location block md:inline mt-1 md:mt-0">
-              <span class="hidden md:inline mx-2 text-gray-400">•</span>
-              {locationLabel}
-            </span>
-          )}
+        <p class="fe-meta">
+          <span class="fe-dates">{dateLabel}</span>
+          {locationLabel && <span class="fe-location">{locationLabel}</span>}
         </p>
       </div>
     </div>
 
-    {event.description && <p class="fe-desc mt-2">{event.description}</p>}
+    {event.description && <p class="fe-desc">{event.description}</p>}
 
-    <a href={`/events/${slug}`} class="fe-cta mt-2 md:mt-4">
+    <a href={`/events/${slug}`} class="fe-cta">
       Explore Coverage
       <span aria-hidden="true">→</span>
     </a>
@@ -258,6 +310,44 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
     }
   }
 
+  /*
+    ─── PORTRAIT: CLOSE THE DEAD ZONE ABOVE THE LOCKUP ────────────────────
+
+    `.fe-content` is bottom-anchored (`margin-top: auto`), so every pixel of
+    card height the copy does not use becomes empty space above it. The old
+    countdown was a 2x2 block roughly 170px tall, which is what the 420px
+    floor was sized around; the inline strip is ~40px, so on a phone that
+    floor now buys nothing but a gap. 360px keeps the hero art readable as a
+    scene and moves the whole lockup up by the difference.
+  */
+  @media (max-width: 640px) {
+    .fe-card {
+      min-height: 360px;
+    }
+    .fe-content {
+      padding: 1.5rem;
+    }
+  }
+
+  /*
+    ─── LANDSCAPE PHONE: CENTRE IT INSTEAD OF HANGING IT OFF THE BOTTOM ───
+
+    A phone held sideways is ~390px tall. Bottom-anchoring a lockup in a card
+    that tall pins it against the lower edge with the whole upper half empty,
+    which is the "positioning is off in landscape" report. `margin-block:
+    auto` splits the leftover space above and below instead of putting all of
+    it above, so the lockup sits centred in the frame it shares with the art.
+  */
+  @media (orientation: landscape) and (max-height: 520px) {
+    .fe-card {
+      min-height: 320px;
+    }
+    .fe-content {
+      margin-block: auto;
+      padding: 1.5rem 1.75rem;
+    }
+  }
+
   .fe-eyebrow {
     font-size: 0.75rem;
     font-weight: 700;
@@ -288,16 +378,111 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
     text-shadow: 0 6px 30px rgba(0, 0, 0, 0.6);
   }
 
+  /*
+    ─── DATE AND CITY ARE METADATA, AND NOW LOOK LIKE IT ──────────────────
+
+    This was `clamp(0.9rem, …, 1.1rem)` in near-white with 0.1em tracking,
+    and on a landscape phone it landed at ~1rem plain white directly under
+    the countdown, which is why it read as unstyled body copy rather than as
+    a caption. It is the site's metadata setting now, the same one the hero
+    eyebrow and `.article-tag` use, at every viewport — so portrait and
+    landscape stop disagreeing about what this line is.
+  */
   .fe-meta {
-    font-size: clamp(0.9rem, 0.8rem + 0.5vw, 1.1rem);
-    color: #e5e5e5;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.75rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.5;
+    color: var(--color-white-muted, #888);
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.18em;
     margin: 0;
   }
-  .fe-dates,
-  .fe-location {
-    /* controlled by Tailwind classes */
+
+  /* The lead fact of the pair, so it keeps the brighter of the two greys. */
+  .fe-dates {
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  /*
+    THE SEPARATOR IS DRAWN BY THE LAYOUT, NOT TYPED INTO THE MARKUP.
+
+    It used to be a literal <span>•</span> with `mx-2`, hidden below md. A
+    pseudo-element on the second item disappears automatically when flex-wrap
+    puts that item on its own line, so a narrow card never shows a dot
+    dangling at the start of a line — and there is no breakpoint to keep in
+    step with the wrap.
+  */
+  .fe-location::before {
+    content: '';
+    display: inline-block;
+    width: 3px;
+    height: 3px;
+    margin-right: 0.75rem;
+    vertical-align: middle;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.6;
+  }
+
+  /*
+    ─── THE COUNTDOWN STRIP ───────────────────────────────────────────────
+
+    One plate, four numbers, three colons, no wrapping. The `hidden` class
+    ships on the element and the script swaps it for `flex` on the first
+    tick, so a countdown whose target has already passed never flashes
+    "00:00:00:00" before removing itself.
+
+    `font-variant-numeric: tabular-nums` on top of the mono face: the seconds
+    change every tick, and without fixed-width digits the whole strip jitters
+    left and right as 1s and 8s trade places.
+  */
+  .fe-countdown {
+    padding: 0.5rem 0.85rem;
+    background: rgba(0, 0, 0, 0.42);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    color: #fff;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+
+  .fe-count-unit {
+    display: inline-flex;
+    align-items: baseline;
+    white-space: nowrap;
+  }
+
+  .fe-count-num {
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: clamp(1.05rem, 0.9rem + 0.6vw, 1.4rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+
+  /* Deliberately small and muted: the digits are the information, the unit
+     is only there so the digits mean something. */
+  .fe-count-abbr {
+    margin-left: 1px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(255, 255, 255, 0.55);
+  }
+
+  .fe-count-sep {
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+    font-size: clamp(0.9rem, 0.8rem + 0.4vw, 1.15rem);
+    line-height: 1;
+    color: rgba(255, 255, 255, 0.3);
   }
 
   .fe-desc {
@@ -380,52 +565,80 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
 
 
 <script>
+  import { parseEventDateToLocal } from '../lib/events';
+
+  /*
+    ─── HARD RULE 1 APPLIES TO THE COUNTDOWN TOO ─────────────────────────
+
+    This read `new Date(timer.getAttribute('data-target-date'))`, and the
+    attribute is a bare calendar date: "2026-09-12". ECMAScript parses that
+    as midnight UTC, so for every viewer west of Greenwich the countdown was
+    aiming at 5pm on September 11th — it hit zero and removed itself the
+    evening BEFORE the event, on the one page whose job is to say how long is
+    left. parseEventDateToLocal builds the Date from its components, which is
+    the whole reason src/lib/events.ts exists.
+  */
   function initCountdowns() {
-    const timers = document.querySelectorAll('.fe-countdown');
+    const timers = document.querySelectorAll<HTMLElement>('.fe-countdown');
     timers.forEach((timer) => {
+      if (timer.dataset.countdownInit === '1') return;
+      timer.dataset.countdownInit = '1';
+
       const targetStr = timer.getAttribute('data-target-date');
       if (!targetStr) return;
-      
-      const targetDate = new Date(targetStr).getTime();
-      
-      // Run once immediately to avoid 1-second delay
-      updateTimer();
-      
-      const interval = setInterval(updateTimer, 1000);
-      
-      function updateTimer() {
-        const now = new Date().getTime();
-        const distance = targetDate - now;
-        
+
+      const target = parseEventDateToLocal(targetStr).getTime();
+      if (Number.isNaN(target)) return;
+
+      /* Declared before tick() so the first synchronous call can clear it —
+         `const interval` after the call left it in the temporal dead zone,
+         and an event that had already started threw on load. */
+      let interval = 0;
+
+      const setVal = (selector: string, val: number, pad = 2) => {
+        const el = timer.querySelector(selector);
+        if (el) el.textContent = val.toString().padStart(pad, '0');
+      };
+
+      const tick = () => {
+        const distance = target - Date.now();
+
         if (distance < 0) {
-          clearInterval(interval);
+          /*
+            The event has started. Take the strip down rather than leaving
+            four zeros on the hero — `hidden` is the class it ships with, so
+            this is the same state it had before the first tick.
+          */
+          window.clearInterval(interval);
           timer.classList.add('hidden');
           timer.classList.remove('flex');
           return;
         }
-        
+
         timer.classList.remove('hidden');
         timer.classList.add('flex');
-        
-        const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-        
-        const updateVal = (selector: string, val: number) => {
-          const el = timer.querySelector(selector);
-          if (el) el.textContent = val.toString().padStart(2, '0');
-        };
-        
-        updateVal('[data-days]', days);
-        updateVal('[data-hours]', hours);
-        updateVal('[data-mins]', minutes);
-        updateVal('[data-secs]', seconds);
-      }
+
+        const days = Math.floor(distance / 86400000);
+        const hours = Math.floor((distance % 86400000) / 3600000);
+        const minutes = Math.floor((distance % 3600000) / 60000);
+        const seconds = Math.floor((distance % 60000) / 1000);
+
+        /* Days is unpadded past two digits so a year-out event reads "412d"
+           rather than being clipped by a fixed two-character slot. */
+        setVal('[data-days]', days);
+        setVal('[data-hours]', hours);
+        setVal('[data-mins]', minutes);
+        setVal('[data-secs]', seconds);
+      };
+
+      /* Once immediately so the strip is correct on the first painted frame,
+         then every second. */
+      tick();
+      if (!timer.classList.contains('hidden')) interval = window.setInterval(tick, 1000);
     });
   }
-  
+
   document.addEventListener('astro:page-load', initCountdowns);
-  // Also run normally for first load if astro:page-load is not fully caught
+  // Also run on first load, in case astro:page-load has already fired.
   initCountdowns();
 </script>

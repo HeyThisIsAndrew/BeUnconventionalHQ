@@ -200,3 +200,66 @@ export function getEventStatus(
   if (today > end) return 'completed';
   return 'live';
 }
+
+/**
+ * ─── THE EVENT-TYPE TAG ────────────────────────────────────────────────────
+ *
+ * The hero eyebrow on /events/[slug] used to render the literal string
+ * "LIVE EVENT" for any event whose `category` was unset — which is every
+ * event in the store, because `category` is a HUB category (Franchises,
+ * Studios, Streaming, Gaming) belonging to featuredBrand documents, not
+ * something an event document has ever carried. So BlizzCon, a convention
+ * eight months away, announced itself as a LIVE EVENT.
+ *
+ * `eventType` is the field that actually answers "what kind of thing is
+ * this": a dropdown on the Event schema, mirrored in the local CMS. These
+ * labels are the display half of that dropdown and the two lists must stay
+ * in step — schema/event.ts holds the authoritative option values.
+ *
+ * `other` deliberately falls through to the generic "Event" rather than
+ * rendering the word "Other", which tells a visitor nothing.
+ */
+export const EVENT_TYPE_LABELS: Record<string, string> = {
+  convention: 'Convention',
+  premiere: 'Premiere',
+  screening: 'Screening',
+  festival: 'Festival',
+  expo: 'Expo',
+  award_show: 'Award Show',
+  other: 'Event',
+};
+
+/**
+ * The label for an event's type tag.
+ *
+ * Order of preference: the `eventType` dropdown, then a legacy `category`
+ * value (string or Sanity-style object) for documents that predate the
+ * dropdown, then the neutral "Event". Never a hardcoded lifecycle word —
+ * whether an event is live is `getEventStatus()`'s job, and the status
+ * indicator already says so.
+ */
+export function getEventTypeLabel(event: {
+  eventType?: string | null;
+  category?: unknown;
+} | null | undefined): string {
+  const type = typeof event?.eventType === 'string' ? event.eventType.trim() : '';
+  if (type) return EVENT_TYPE_LABELS[type] ?? titleCaseToken(type);
+
+  const category = event?.category;
+  if (typeof category === 'string' && category.trim()) return titleCaseToken(category.trim());
+  if (category && typeof category === 'object') {
+    const named = category as { title?: string; name?: string };
+    const label = named.title || named.name;
+    if (label) return label;
+  }
+  return 'Event';
+}
+
+/** "award_show" / "press-day" -> "Award Show" / "Press Day". */
+function titleCaseToken(value: string): string {
+  return value
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}

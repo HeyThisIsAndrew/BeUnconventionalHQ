@@ -99,10 +99,17 @@ export const SECTIONS = {
     primary: 'Upcoming',
     secondary: 'Events',
   },
-  eventHubs: {
-    kicker: 'Portfolio',
-    primary: 'Coverage',
-    secondary: 'Hubs',
+  /*
+    The /events/archive page title. It replaced `eventHubs` ("Portfolio /
+    Coverage / Hubs"), which named a thing this site does not have: those
+    cards are past events, and calling them a portfolio of hubs sent readers
+    looking for /featured. The ruled heading that opens the six-card strip on
+    /events is HEADINGS.pastEventArchive below.
+  */
+  eventArchive: {
+    kicker: 'Coverage',
+    primary: 'Past Event',
+    secondary: 'Archive',
   },
   featured: {
     kicker: 'Spotlight',
@@ -166,6 +173,17 @@ export const LABELS = {
   subscribe: 'Subscribe',
   subscribeSubstack: 'Subscribe on Substack',
   subscribeYouTube: 'Subscribe on YouTube',
+  allPastEvents: 'All Past Events',
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RULED SECTION HEADINGS
+   The small ruled label that opens a band of content part-way down a page,
+   rendered by <SectionHeading />. Distinct from SECTIONS above, which feeds
+   the big stacked <PageTitle /> at the top of a page.
+   ═══════════════════════════════════════════════════════════════════════════ */
+export const HEADINGS = {
+  pastEventArchive: 'Past Event Archive',
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════

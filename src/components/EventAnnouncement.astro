@@ -8,7 +8,8 @@ import ReferralLinks from './ReferralLinks.astro';
 
 import { getHubTopicKeywords } from '../lib/instagram-topic';
 import { parseVideoId } from '../lib/platforms/youtube';
-import { urlFor, HUB_CATEGORY_LABELS, getFeaturedBrandsLocal } from '../lib/local-content';
+import { urlFor, getFeaturedBrandsLocal } from '../lib/local-content';
+import { formatEventDateRange, formatLocation, getEventTypeLabel } from '../lib/events';
 
 const { event, unifiedContent } = Astro.props;
 
@@ -49,7 +50,17 @@ const hasPlayableVideo =
   heroItems.some((it: any) => it.contentType === 'video' && parseVideoId(it.link || ''));
 
 const stageMarkUrl = event.logo ? urlFor(event.logo).height(520).auto('format').url() : null;
-const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
+
+/*
+  The hero's three metadata tags, resolved once here rather than inline in the
+  markup. `getEventTypeLabel` replaces the hardcoded "LIVE EVENT" fallback and
+  `formatEventDateRange` replaces two hand-built toLocaleDateString() calls —
+  both live in src/lib/events.ts, which is the only place allowed to turn a
+  "YYYY-MM-DD" string into anything (hard rule 1).
+*/
+const eventTypeLabel = getEventTypeLabel(event);
+const eventDateLabel = formatEventDateRange(event.startDate, event.endDate);
+const locationLabel = formatLocation(event.location);
 ---
 
 <Layout
@@ -135,29 +146,36 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
               "Franchises", so the page you land on says so, in the same
               plate the row header uses.
             */}
-            {/* Category & Metadata Badges */}
-            <div class="hero-eyebrow" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
-              <span class="article-tag article-tag-category">
-                {categoryLabel || (typeof event.category === 'object' && event.category !== null ? (event.category.title || event.category.name || 'LIVE EVENT') : event.category) || 'LIVE EVENT'}
-              </span>
-              {event.location && (
-                <Fragment>
-                  <span class="dot">&bull;</span>
-                  <span class="article-tag" style="text-transform: uppercase;">
-                    {typeof event.location === 'string' ? event.location : 
-                     [event.location.city, event.location.region].filter(Boolean).join(', ') || 
-                     event.location.venue || 
-                     event.location.country}
-                  </span>
-                </Fragment>
-              )}
+            {/*
+              ─── THE METADATA ROW ───────────────────────────────────────────
+
+              Three separate tags in a flex row, flush left, each in its own
+              plate. It used to be ONE plate wrapping all three with bullet
+              separators inside it, which rendered as a single 500px strip
+              reading "LIVE EVENT • ANAHEIM, CA • SEP 12, 2026–SEP 13, 2026" and
+              gave the three facts no visual hierarchy at all.
+
+              TAG 1 IS THE EVENT'S TYPE, AND IT IS READ FROM THE DOCUMENT.
+              The string "LIVE EVENT" was hardcoded as the fallback for an
+              unset `category` — and `category` is a HUB category that events
+              never carry, so every event page claimed to be live. It is
+              `eventType` now (the Event schema's dropdown), resolved by
+              getEventTypeLabel(). Whether an event is actually live is a
+              derived question with its own answer: getEventStatus().
+
+              THE DATE IS THE COMPACT RANGE, not two full dates glued
+              together with an en dash: formatEventDateRange() collapses a
+              same-month range to "Sep 12–13, 2026", roughly half the width,
+              and it parses YYYY-MM-DD without ever constructing a Date from
+              the bare string (hard rule 1).
+            */}
+            <div class="hero-eyebrow">
+              <span class="hero-meta-tag hero-meta-tag--type">{eventTypeLabel}</span>
+              {locationLabel && <span class="hero-meta-tag">{locationLabel}</span>}
               {event.startDate && (
-                <Fragment>
-                  <span class="dot">&bull;</span>
-                  <time datetime={event.startDate} class="article-tag" style="text-transform: uppercase;">{
-                    new Date(event.startDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                  }{event.endDate && event.endDate !== event.startDate ? '–' + new Date(event.endDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}</time>
-                </Fragment>
+                <time datetime={event.startDate} class="hero-meta-tag hero-meta-tag--date">
+                  {eventDateLabel}
+                </time>
               )}
             </div>
 
@@ -2196,17 +2214,69 @@ const categoryLabel = (HUB_CATEGORY_LABELS)[event.category || ''] || '';
     accordion headers use, because it is the same object — the label of the row
     you came in through.
   */
+  /*
+    ─── THE METADATA ROW ─────────────────────────────────────────────────
+
+    The plate used to be on THIS element, wrapping all three facts in one
+    long strip with bullet characters between them. It is on the tags now,
+    so each fact is its own object and the row can wrap cleanly on a narrow
+    screen instead of stretching to the width of its longest line.
+
+    Flush left. The hero copy column is left-aligned at every width the
+    split layout applies to; the mobile-portrait override in
+    styles/modules/events.css centres it along with the rest of the lockup.
+  */
   .hero-eyebrow {
-    display: inline-block;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.5rem;
     margin-bottom: 1.4rem;
-    padding: 0.45rem 0.9rem;
-    border-left: 2px solid rgba(var(--brand-rgb, 204, 0, 0), 0.9);
+  }
+
+  /*
+    One tag, one plate — the same construct the hub row label on /featured
+    uses, which is what makes these read as siblings of the franchise tag
+    rather than as loose text: a translucent ground, a hairline, and type at
+    the site's metadata size (0.68rem / 0.2em, uppercase, muted).
+  */
+  .hero-meta-tag {
+    display: inline-block;
+    padding: 0.4rem 0.8rem;
     background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
     font-size: 0.68rem;
     font-weight: 600;
-    letter-spacing: 0.34em;
+    letter-spacing: 0.2em;
+    line-height: 1.2;
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.62);
+    white-space: nowrap;
+  }
+
+  /*
+    THE TYPE TAG LEADS. It carries the brand rule on its left edge and
+    brighter type, so "Convention" reads as the classification and the two
+    beside it read as its particulars. Same 2px brand rule the eyebrow plate
+    used to wear, moved to the tag that earns it.
+  */
+  .hero-meta-tag--type {
+    border-left: 2px solid rgba(var(--brand-rgb, 204, 0, 0), 0.9);
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  /*
+    The date is the widest of the three, so it is the one allowed to wrap
+    rather than force a horizontal scroll on a 320px screen. It is already
+    compact — formatEventDateRange() collapses "Sep 12, 2026–Sep 13, 2026"
+    to "Sep 12–13, 2026" — and the slightly tighter tracking keeps it from
+    dominating the row it shares.
+  */
+  .hero-meta-tag--date {
+    letter-spacing: 0.14em;
+    white-space: normal;
   }
 
   .hero-logo {

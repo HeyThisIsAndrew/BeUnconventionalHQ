@@ -26,6 +26,7 @@ export default defineType({
   // stored document shape or on GROQ queries.
   fieldsets: [
     { name: 'core', title: 'Core' },
+    { name: 'recurring', title: 'Recurring Series', options: { collapsible: true } },
     { name: 'details', title: 'Details & Links', options: { collapsible: true } },
     { name: 'media', title: 'Media', options: { collapsible: true } },
     { name: 'lifecycle', title: 'Lifecycle', options: { collapsible: true } },
@@ -75,6 +76,7 @@ export default defineType({
           { title: 'Screening', value: 'screening' },
           { title: 'Festival', value: 'festival' },
           { title: 'Expo', value: 'expo' },
+          { title: 'Award Show', value: 'award_show' },
           { title: 'Other', value: 'other' },
         ],
         layout: 'dropdown',
@@ -93,8 +95,20 @@ export default defineType({
       type: 'date',
       fieldset: 'core',
       options: { dateFormat: 'YYYY-MM-DD' },
-      description: 'Calendar date only — no time, no timezone. Stored as YYYY-MM-DD.',
-      validation: (rule) => rule.required(),
+      description:
+        'Calendar date only — no time, no timezone. Stored as YYYY-MM-DD. ' +
+        'Optional on a recurring TEMPLATE, which describes a series rather than one occurrence.',
+      /*
+        Conditionally required. A template ("PAX West") has no date of its
+        own — dates belong to its editions — so making this unconditionally
+        required would mean every template needed a fake one, and a fake date
+        is a date the front end will sort and display.
+      */
+      validation: (rule) =>
+        rule.custom((startDate: string | undefined, context: any) => {
+          if (context?.document?.isRecurringTemplate) return true;
+          return startDate ? true : 'Start date is required for a dated event';
+        }),
     }),
     defineField({
       name: 'endDate',
@@ -111,6 +125,131 @@ export default defineType({
           if (!endDate || !start) return true;
           return endDate >= start ? true : 'End date must be on or after the start date';
         }),
+    }),
+
+    // ── Recurring series ────────────────────────────────────────────────
+    /*
+      ═══════════════════════════════════════════════════════════════════════
+       RECURRING EVENTS: ONE PROFILE, MANY EDITIONS
+      ═══════════════════════════════════════════════════════════════════════
+
+      PAX West, D23 and SDCC come round every year, and almost nothing about
+      them changes between editions: the logo, the key art, the brand colour,
+      the venue, the organizer, the official site and the YouTube sync
+      keywords are all the same. Only the dates, the ticket link and the
+      edition label move.
+
+      Before this, a new edition meant a blank document and rebuilding all of
+      it by hand — which is how you get "PAX West 2026" with last year's
+      keywords missing and a slightly different brand red.
+
+      THE MODEL IS TEMPLATE + EDITIONS, NOT A REPEAT RULE.
+
+      A repeating-date rule (RRULE, "every September") was the other option
+      and it is wrong for this domain: these dates are announced, not
+      computed. SDCC is not "the third weekend in July" — it is whatever the
+      organizer says it is, and it moves. So the schema stores a reusable
+      PROFILE and each real occurrence is its own document pointing back at
+      it. Every edition keeps its own page, its own coverage and its own
+      archive entry, which is exactly what /events/archive is for.
+
+      WHAT EACH FIELD IS FOR:
+
+        isRecurringTemplate  Marks this document as the profile, not an
+                             occurrence. Templates are filtered out of every
+                             public surface in getEventsLocal() — they have no
+                             page, no calendar row and no archive card.
+        seriesTemplate       An edition's pointer back to its template. This
+                             is the "single source of truth" link: the
+                             template is where shared detail is corrected
+                             once.
+        editionLabel         What distinguishes this occurrence in a list —
+                             "2026", "Winter 2027". Not derived from the
+                             start date, because an edition is often
+                             announced and named long before it is dated.
+        recurrenceCadence    How often the series comes round. Editorial
+                             planning information; nothing renders from it
+                             yet, and nothing computes a date from it.
+        recurrenceMonth      The month it usually lands in, for the same
+                             reason. "Usually" is the operative word.
+    */
+    defineField({
+      name: 'isRecurringTemplate',
+      title: 'This is a recurring series template',
+      type: 'boolean',
+      fieldset: 'recurring',
+      description:
+        'Turn on for a reusable profile such as "PAX West" or "SDCC". A template never appears on the site: it exists so each new edition can be duplicated from it instead of rebuilt. Leave off for a real, dated event.',
+      initialValue: false,
+    }),
+    defineField({
+      name: 'seriesTemplate',
+      title: 'Part of series',
+      type: 'reference',
+      fieldset: 'recurring',
+      to: [{ type: 'event' }],
+      /*
+        Only templates are offered, and a template cannot be filed under
+        another template — that would be a series of series, which this model
+        has no meaning for.
+      */
+      options: {
+        filter: 'isRecurringTemplate == true && _id != $self',
+        filterParams: { self: '' },
+      },
+      description:
+        'The template this edition was duplicated from. Shared detail (artwork, venue, keywords) is corrected on the template.',
+      hidden: ({ document }: any) => Boolean(document?.isRecurringTemplate),
+    }),
+    defineField({
+      name: 'editionLabel',
+      title: 'Edition',
+      type: 'string',
+      fieldset: 'recurring',
+      description: 'What names this occurrence within the series, e.g. "2026" or "Winter 2027".',
+      hidden: ({ document }: any) => Boolean(document?.isRecurringTemplate),
+    }),
+    defineField({
+      name: 'recurrenceCadence',
+      title: 'Cadence',
+      type: 'string',
+      fieldset: 'recurring',
+      description: 'Planning information only. No date is ever computed from this.',
+      options: {
+        list: [
+          { title: 'Annual', value: 'annual' },
+          { title: 'Twice a year', value: 'biannual' },
+          { title: 'Quarterly', value: 'quarterly' },
+          { title: 'Irregular', value: 'irregular' },
+        ],
+        layout: 'dropdown',
+      },
+      hidden: ({ document }: any) => !document?.isRecurringTemplate,
+    }),
+    defineField({
+      name: 'recurrenceMonth',
+      title: 'Usual month',
+      type: 'string',
+      fieldset: 'recurring',
+      description: 'The month this series normally lands in. "Normally" — announced dates always win.',
+      options: {
+        list: [
+          { title: 'January', value: '01' },
+          { title: 'February', value: '02' },
+          { title: 'March', value: '03' },
+          { title: 'April', value: '04' },
+          { title: 'May', value: '05' },
+          { title: 'June', value: '06' },
+          { title: 'July', value: '07' },
+          { title: 'August', value: '08' },
+          { title: 'September', value: '09' },
+          { title: 'October', value: '10' },
+          { title: 'November', value: '11' },
+          { title: 'December', value: '12' },
+        ],
+        layout: 'dropdown',
+      },
+      hidden: ({ document }: any) => !document?.isRecurringTemplate,
     }),
 
     // ── Details & Links ─────────────────────────────────────────────────
@@ -339,9 +478,21 @@ export default defineType({
     }),
   ],
   preview: {
-    select: { title: 'title', media: 'logo', start: 'startDate' },
-    prepare({ title, media, start }: any) {
-      return { title, subtitle: start || 'No date set', media };
+    select: {
+      title: 'title',
+      media: 'logo',
+      start: 'startDate',
+      isTemplate: 'isRecurringTemplate',
+      edition: 'editionLabel',
+    },
+    prepare({ title, media, start, isTemplate, edition }: any) {
+      /* A template and its editions share a name, so the list has to say
+         which is which — otherwise "PAX West" appears five times. */
+      if (isTemplate) {
+        return { title: `${title} (series template)`, subtitle: 'Reusable profile — not published', media };
+      }
+      const subtitle = [edition, start || 'No date set'].filter(Boolean).join(' · ');
+      return { title, subtitle, media };
     },
   },
 });
