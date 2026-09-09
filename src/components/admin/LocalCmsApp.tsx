@@ -1522,15 +1522,33 @@ function EventForm({
           />
           <p className="text-xs text-gray-600 mt-1.5">/events/{(typeof doc.slug === "string" ? doc.slug : doc.slug?.current) || '…'}</p>
         </Field>
-        <Field label="Status">
-          <select value={doc.status || 'upcoming'} onChange={(e) => update('status', e.target.value)} className={inputClass}>
-            <option value="upcoming">Upcoming</option>
-            <option value="live">Live</option>
-            <option value="completed">Completed</option>
+        {/*
+          ─── STATUS IS AN OVERRIDE, NOT A STATE MACHINE ──────────────────
+
+          This offered Upcoming / Live / Completed / TBD, and NONE of them do
+          anything: getEventStatus() derives those three from the dates and
+          only reads `status` to honour the two EDITORIAL states. So an editor
+          could set "Completed" on a future event, save it, and watch the site
+          keep calling it upcoming, with no way to tell why.
+
+          It was also lying about what was stored. Every event in the store
+          holds `status: "scheduled"`, which was not one of the options above,
+          so React found no match and rendered the first one — all nineteen
+          events showed "Upcoming" in this dropdown while the file said
+          something else entirely. The list matches schema/event.ts now, which
+          is the same three values the store already uses.
+        */}
+        <Field label="Status Override">
+          <select value={doc.status || 'scheduled'} onChange={(e) => update('status', e.target.value)} className={inputClass}>
+            <option value="scheduled">Scheduled (auto by date)</option>
             <option value="cancelled">Cancelled</option>
             <option value="postponed">Postponed</option>
-            <option value="tbd">TBD</option>
           </select>
+          <p className="text-xs text-gray-600 mt-1.5">
+            Upcoming, Live and Completed are worked out from the dates on every build.
+            Only change this to Cancelled or Postponed, which are the two things the
+            dates cannot tell us.
+          </p>
         </Field>
         <Field label="Franchise / Brand Hub">
           <select value={doc.relatedBrandSlug || ''} onChange={(e) => update('relatedBrandSlug', e.target.value)} className={inputClass}>
@@ -1540,15 +1558,36 @@ function EventForm({
             ))}
           </select>
         </Field>
+        {/*
+          ─── A DROPDOWN MUST NEVER SHOW A VALUE THAT IS NOT STORED ───────
+
+          This read `value={doc.eventType || 'convention'}` with no option for
+          "unset", so an event with NO eventType key rendered as "Convention".
+          Thirteen of nineteen events were in that state: the CMS said
+          Convention, the JSON had no field at all, and the hero tag on
+          /events/[slug] — which reads the store — fell back to the generic
+          "EVENT". Worse, the trap was self-sealing: the editor could not fix
+          it by picking Convention, because the dropdown already showed
+          Convention, so no change event ever fired and nothing was written.
+
+          The empty option is the fix. An unset field now says it is unset,
+          and picking any value writes it.
+        */}
         <Field label="Event Type">
-          <select value={doc.eventType || 'convention'} onChange={(e) => update('eventType', e.target.value)} className={inputClass}>
+          <select value={doc.eventType || ''} onChange={(e) => update('eventType', e.target.value)} className={inputClass}>
+            <option value="">Not set (shows as “Event”)</option>
             <option value="convention">Convention</option>
             <option value="premiere">Premiere</option>
             <option value="screening">Screening</option>
             <option value="festival">Festival</option>
             <option value="expo">Expo</option>
+            <option value="award_show">Award Show</option>
             <option value="other">Other</option>
           </select>
+          <p className="text-xs text-gray-600 mt-1.5">
+            Drives the first metadata tag in the event hero. Leave unset and the tag
+            reads “Event”.
+          </p>
         </Field>
         <Field label="Start Date">
           <input type="date" value={doc.startDate || ''} onChange={(e) => update('startDate', e.target.value)} className={inputClass} />
@@ -1655,10 +1694,11 @@ function EventForm({
           <div className="grid grid-cols-1 @lg:grid-cols-2 gap-3 mt-5">
             <Field label="Cadence">
               <select
-                value={doc.recurrenceCadence || 'annual'}
+                value={doc.recurrenceCadence || ''}
                 onChange={(e) => update('recurrenceCadence', e.target.value)}
                 className={inputClass}
               >
+                <option value="">Not set</option>
                 <option value="annual">Annual</option>
                 <option value="biannual">Twice a year</option>
                 <option value="quarterly">Quarterly</option>
