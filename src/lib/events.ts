@@ -220,7 +220,25 @@ export function getEventStatus(
  * rendering the word "Other", which tells a visitor nothing.
  */
 export const EVENT_TYPE_LABELS: Record<string, string> = {
-  'convention-expo': 'Convention & Expo',
+  /*
+    "Convention", not "Convention & Expo".
+
+    The VALUE still says convention-expo, because it is stored data on
+    fourteen documents and renaming it is a migration for no gain. Only the
+    words a reader sees changed, and they changed for two reasons.
+
+    It read as a hedge. The two terms were merged precisely because the
+    distinction was one no event here makes, so naming both was the merge
+    apologising for itself. Every event on this site that holds this value is
+    a convention; even CinemaCon, the obvious candidate for the other half,
+    bills itself as "the official convention of the National Association of
+    Theatre Owners".
+
+    And it was too long for the card. At 393px "Convention & Expo" broke to
+    two lines inside a flex item, which stranded the bullet and the year
+    beside the short one — see the note in EventCard.astro.
+  */
+  'convention-expo': 'Convention',
   premiere: 'Premiere',
   screening: 'Screening',
   showcase: 'Showcase',
@@ -249,8 +267,8 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   the store exists.
 */
 const RETIRED_EVENT_TYPE_LABELS: Record<string, string> = {
-  convention: 'Convention & Expo',
-  expo: 'Convention & Expo',
+  convention: 'Convention',
+  expo: 'Convention',
   award_show: 'Industry Awards',
 };
 

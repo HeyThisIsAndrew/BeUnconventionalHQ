@@ -1584,7 +1584,7 @@ function EventForm({
         <Field label="Event Type">
           <select value={doc.eventType || ''} onChange={(e) => update('eventType', e.target.value)} className={inputClass}>
             <option value="">Not set (shows as “Event”)</option>
-            <option value="convention-expo">Convention &amp; Expo</option>
+            <option value="convention-expo">Convention</option>
             <option value="premiere">Premiere</option>
             <option value="screening">Screening</option>
             <option value="showcase">Showcase</option>

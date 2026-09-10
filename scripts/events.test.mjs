@@ -229,11 +229,33 @@ test('event type: an unset type reads as the neutral "Event", never a lifecycle 
 });
 
 test('event type: retired values still resolve to their replacement label', () => {
-  // Copies of the store that predate the press-grade migration must not fall
-  // through to titleCaseToken() and quietly render the old wording.
-  assert.equal(getEventTypeLabel({ eventType: 'convention' }), 'Convention & Expo');
-  assert.equal(getEventTypeLabel({ eventType: 'expo' }), 'Convention & Expo');
-  assert.equal(getEventTypeLabel({ eventType: 'award_show' }), 'Industry Awards');
+  /*
+    Copies of the store that predate the press-grade migration must not fall
+    through to titleCaseToken() and quietly render the old wording.
+
+    DERIVED, NOT HARDCODED. This asserted the literal 'Convention & Expo' and
+    so failed the moment that label was shortened to 'Convention' — a pure
+    wording change with nothing wrong about it. What actually has to hold is
+    that a retired value renders whatever its REPLACEMENT renders, so that is
+    what it reads now.
+
+    Note `expo` and `award_show` are the two carrying the weight here.
+    titleCaseToken('convention') is "Convention", which is the live label as
+    well, so that one line would pass even with the alias deleted; the other
+    two would not ("Expo", "Award Show").
+  */
+  assert.equal(
+    getEventTypeLabel({ eventType: 'convention' }),
+    EVENT_TYPE_LABELS['convention-expo'],
+  );
+  assert.equal(
+    getEventTypeLabel({ eventType: 'expo' }),
+    EVENT_TYPE_LABELS['convention-expo'],
+  );
+  assert.equal(
+    getEventTypeLabel({ eventType: 'award_show' }),
+    EVENT_TYPE_LABELS['industry-awards'],
+  );
 });
 
 test('event type: retired values are NOT offered by any dropdown', () => {

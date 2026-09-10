@@ -75,7 +75,15 @@ export default defineType({
         `convention` and `expo` were two options for a distinction no event on
         this site actually makes — Anime Expo is a convention, PAX is an expo,
         and an editor picking between them was guessing. They are one
-        `convention-expo` now. `award_show` became `industry-awards`, and
+        `convention-expo` now, and the site owner independently arriving at
+        "I don't even know what an expo is" is the best evidence the merge was
+        right: a label an editor cannot choose confidently carries no
+        information to a reader either.
+
+        It DISPLAYS as plain "Convention". Naming both halves was the merge
+        apologising for itself, and the pair was long enough to wrap on a
+        phone. The value is unchanged — it is stored on fourteen documents and
+        renaming it would be a migration for no gain. `award_show` became `industry-awards`, and
         `brand-activation` is genuinely new.
 
         `showcase` covers the streamed-presentation format — a Nintendo
@@ -100,7 +108,7 @@ export default defineType({
       */
       options: {
         list: [
-          { title: 'Convention & Expo', value: 'convention-expo' },
+          { title: 'Convention', value: 'convention-expo' },
           { title: 'Premiere', value: 'premiere' },
           { title: 'Screening', value: 'screening' },
           { title: 'Showcase', value: 'showcase' },

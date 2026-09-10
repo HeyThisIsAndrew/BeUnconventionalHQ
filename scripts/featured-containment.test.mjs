@@ -10,6 +10,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import assert from 'node:assert/strict';
+import { EVENT_TYPE_LABELS } from '../src/lib/events.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const raw = readFileSync(join(here, '..', 'src', 'pages', 'featured', 'index.astro'), 'utf8');
@@ -640,6 +641,69 @@ test('the hero jump link points at a heading that exists', () => {
     'the two hero controls sit in one flex row');
 });
 
+
+test('the card meta is one line of text, not three flex boxes', () => {
+  /*
+    ─── THE STRANDED BULLET ────────────────────────────────────────────────
+
+    Reported from a phone. The meta row was a flex row of three spans, and a
+    flex item is a BOX: one that wraps internally keeps the width of its
+    LONGEST line. So at 393px "Convention & Expo" broke to "CONVENTION &" /
+    "EXPO", the box stayed 112px wide, and the bullet and year began after
+    that box, vertically centred against its 36px height. Measured: bullet at
+    x=281 against a label box ending at x=275, beside a second line only 12px
+    of which was ink. They read as belonging to nothing.
+
+    It is a single line of metadata, so it flows as text. A long label now
+    wraps mid-phrase and the date follows immediately after it, which is what
+    running text does: "INDUSTRY" / "AWARDS • 2026".
+  */
+  const card = readFileSync(join(here, '..', 'src', 'components', 'EventCard.astro'), 'utf8');
+
+  const meta = /\n  \.past-event-meta \{([^}]*)\}/.exec(card);
+  assert.ok(meta, '.past-event-meta is gone; this test no longer reads what it thinks it does');
+  assert.doesNotMatch(meta[1], /display: flex/,
+    'a flex row makes each part a box, and a box that wraps strands what follows it');
+  assert.match(meta[1], /display: block/, 'the three parts are one line of text');
+
+  /*
+    THE SEPARATOR TRAVELS WITH THE DATE. Otherwise the other bad break is
+    available: a line ending on a dangling bullet.
+  */
+  assert.match(card, /<span class="past-event-meta-date">/,
+    'the bullet and the date must be one unit');
+  assert.match(card, /\.past-event-meta-date \{[^}]*white-space: nowrap/,
+    'that unit must never break internally');
+
+  /*
+    AND ITS GAP IS A MARGIN, not the whitespace between two spans: Astro
+    collapses that at build time and the pair rendered as "Convention• 2026".
+  */
+  assert.match(card, /\.past-event-meta-date \{[^}]*margin-left: 0\.4rem/,
+    'the gap has to survive Astro collapsing markup whitespace');
+});
+
+test('the event type label stays short enough for a card', () => {
+  /*
+    "Convention & Expo" was the longest label by a wide margin and the only
+    one that wrapped at 393px. The structural fix above means a long label
+    degrades gracefully rather than breaking, but the label is also just
+    better short: naming both halves was the convention/expo merge
+    apologising for itself.
+
+    The VALUE is untouched — it is stored on fourteen documents and renaming
+    it would be a migration for no gain.
+  */
+  assert.equal(EVENT_TYPE_LABELS['convention-expo'], 'Convention',
+    'the merged type displays as plain "Convention"');
+  for (const [value, label] of Object.entries(EVENT_TYPE_LABELS)) {
+    assert.ok(
+      label.length <= 16,
+      `"${label}" (${value}) is ${label.length} chars; at 0.2em tracking that is a ` +
+        'second line on a phone card',
+    );
+  }
+});
 test('an event card says what the event is, and promises only what it can keep', () => {
   /*
     ─── THE EYEBROW ──────────────────────────────────────────────────────────

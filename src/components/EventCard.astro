@@ -90,10 +90,26 @@ const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
       collapses and the stacked spacing is byte-for-byte what it was.
     */}
     <div class="past-event-text">
+    {/*
+      ─── ONE LINE OF METADATA, NOT THREE FLEX ITEMS ────────────────────
+
+      This was a flex row of three spans. A flex item is a BOX, and a box
+      that wraps internally keeps the width of its longest line — so at
+      393px "Convention & Expo" broke to "CONVENTION &" / "EXPO", the box
+      stayed 112px wide, and the bullet and year began after that box and
+      centred against its 36px height. They landed beside the short second
+      line with a gap in front of them, reading as though they belonged to
+      nothing.
+
+      It is text, so it flows as text now. The bullet and the year are one
+      nowrap unit, which is what stops the other bad break: a line ending
+      on a dangling separator.
+    */}
     <div class="past-event-meta">
       <span>{typeLabel}</span>
-      <span aria-hidden="true">&bull;</span>
-      <span>{metaDate}</span>
+      <span class="past-event-meta-date">
+        <span aria-hidden="true">&bull;</span> {metaDate}
+      </span>
     </div>
 
     <h3 class="past-event-title">{event.title}</h3>
@@ -244,9 +260,25 @@ const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
     letter-spacing: 0.2em;
     text-transform: uppercase;
     margin-bottom: 0.4rem;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
+    /*
+      Block, not flex. The three parts are a single line of metadata and
+      should wrap like one — see the note on the markup for what the flex
+      row did to a label too long for the card.
+    */
+    display: block;
+    line-height: 1.5;
+  }
+
+  /*
+    The separator belongs to the date, never to the end of a line.
+
+    The gap is a margin, not the whitespace between the two spans: Astro
+    collapses that away at build time, and the pair rendered as
+    "Convention• 2026". 0.4rem is what the flex `gap` used to contribute.
+  */
+  .past-event-meta-date {
+    white-space: nowrap;
+    margin-left: 0.4rem;
   }
 
   .past-event-title {
