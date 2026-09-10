@@ -144,44 +144,24 @@
 }
 
 /*
-  ─── THE CENTRE FILLS ITS COLUMN, AND THE COVER TAKES THE SLACK ────────────
+  ─── THE COVER IS FIXED 16:9. THE COPY TAKES THE SLACK ─────────────────────
 
-  The magazine is a grid, so the centre is stretched to the height of the
-  taller rails: 1111px at 1440, against about 790px of content. That left
-  323px empty at the bottom, and it is NOT invisible — `.intel-rail-left` has
-  a `border-right` and `.intel-rail-right` a `border-left`, and both rules run
-  the full height of the row. The empty part of the centre is framed on both
-  sides, so it reads as a hole in the spread rather than as the page simply
-  continuing. (An earlier pass measured the backgrounds, found them all
-  transparent, and concluded there was nothing to fix. The backgrounds are
-  transparent. The frame is not.)
+  Both the image and the copy block used to be `flex: 1 0 auto`, so the
+  column's leftover height was split between them by the flex algorithm. That
+  is the hidden half of why the standfirst cut at a different line on every
+  article: the budget left for body copy depended not just on how many lines
+  the headline wrapped to, but on how much of the slack the picture had taken
+  first. Measured across six articles and five widths, the excerpt's budget
+  ranged from 17 to 25 lines.
 
-  FILLING IT WITH TEXT DOES NOT WORK, and this was measured rather than
-  assumed: the standfirst's first paragraph is only about three lines of real
-  copy, so raising the clamp from two lines to eight recovered 24px of the
-  323. Restoring every paragraph overshoots instead — the column grows past
-  the rails to 1239px and the empty space simply moves to them.
-
-  So the cover takes it, which is also what Substack does with its own centre
-  feature: a large lead image, then a short dek. `flex: 1 0 auto` over the
-  16:9 aspect ratio makes 16:9 a FLOOR the image grows from, never a cap.
-
-  THE GROWTH IS CAPPED AT 4:3, IN CONTAINER UNITS. Uncapped, the image
-  reached 720x728 — square — and `object-fit: cover` then cropped about 28%
-  off each side of a 16:9 source; checked against a test plate with content at
-  its edges, both edges were gone. 75cqw is three-quarters of the column's own
-  width, so the cap is 4:3 at EVERY width rather than a pixel value that means
-  4:3 on one monitor and something worse on the next. That is why
-  `.intel-feature` becomes a container.
-
-  Where a cover is smaller than the cap, the copy block takes the remainder
-  and centres itself in it, so the leftover reads as breathing room around the
-  text instead of a gap under it.
+  The cover is `flex: 0 0 auto` at a plain 16:9 now. It never grows, so it
+  never crops, and the only variable left in the copy budget is the headline.
+  The copy block absorbs all the remaining height instead, which keeps the
+  column full (`.intel-rail-left` and `.intel-rail-right` carry the rules that
+  frame it, so an unfilled centre reads as a hole).
 */
 .intel-feature {
   min-width: 0;
-  /* The query container for the 75cqw cap below. */
-  container-type: inline-size;
 }
 
 .intel-feature-link {
@@ -194,10 +174,8 @@
 .intel-feature-image {
   position: relative;
   width: 100%;
-  /* 16/9 is the floor; flex-grow takes it up to the 4:3 cap. */
   aspect-ratio: 16 / 9;
-  flex: 1 0 auto;
-  max-height: 75cqw;
+  flex: 0 0 auto;
   overflow: hidden;
   background: var(--color-surface);
 }
@@ -264,14 +242,17 @@
   flex-direction: column;
   align-items: flex-start;
   /*
-    TOP-ANCHORED, NOT CENTRED. `justify-content: center` split the column's
-    leftover height into TWO gaps, one above the kicker and one below "Read
-    More", so the text floated in the middle of its own block with air on both
-    sides. Two gaps around a text block always read as a mistake; one
-    deliberate gap does not. The standfirst below takes up the slack instead,
-    so in practice there is no gap left to place.
+    CENTRED IN THE SPACE IT IS GIVEN, which is what was asked for repeatedly.
+
+    An earlier pass centred this and it looked wrong, so it was changed back.
+    That was treating the symptom. Centring only reads as a mistake when the
+    block is much shorter than its container: with a two-line standfirst the
+    text floated with ~135px of air above and below it. Now that the excerpt
+    is a fixed, nearly-full height (see below), the leftover is 10 to 50px per
+    side and centring reads as what it is, even breathing room around a block
+    that fills its space.
   */
-  justify-content: flex-start;
+  justify-content: center;
   flex: 1 0 auto;
   gap: 0.75rem;
   padding: 2.5rem 2.5rem 3rem;
@@ -293,44 +274,39 @@
 
 /* ── The standfirst ─────────────────────────────────────────────────────────
 
-   IT FILLS WHAT IS LEFT, RATHER THAN LEAVING IT EMPTY.
+   A FIXED NUMBER OF LINES, SO EVERY ARTICLE CUTS AT THE SAME PLACE.
 
-   This block has been three things and each one taught something:
+   This was `flex: 1 1 auto`, which handed it whatever height the headline and
+   the picture had not already taken. The result was a preview that ended
+   mid-sentence at a different depth on every article: 17 lines behind a
+   five-line headline, 25 behind a three-line one. Measured, not guessed.
 
-   1. A single <p> clamped to six lines. On a short excerpt the clamp never
-      engaged and left a hole under "Read More".
-   2. Every paragraph, unclamped. No hole, but on a 950px column it ran five or
-      six paragraphs deep and the centre of the spread became a wall of text
-      while the rails beside it were headline-only tiles.
-   3. Clamped to two lines. Tidy, and it emptied the column: ~300px of real
-      content in a 571px block, which then had to be centred, which put air
-      both above AND below the text. That is what "so much space and it's
-      uneven" was describing, and centring was the wrong answer to it.
+   The height is now `--excerpt-lines` multiplied by the line box, so the cut
+   lands on the same line whatever is above it. 14 is not arbitrary: the
+   tightest budget across every article and every desktop width is ~14.7 lines
+   (a five-line headline at 1512), and the SHORTEST preview any article
+   supplies is 18 lines. So 14 always fits, and is always filled. Both halves
+   matter: a count that overflowed would push "Read More" out of the column,
+   and one the copy could not fill would put the cut in a different place
+   again, which is the bug this fixes.
 
-   So it FLEXES. `flex: 1 1 auto` with `min-height: 0` makes the standfirst
-   take exactly the height the image and the rest of the copy do not, and
-   `overflow: hidden` clips whatever does not fit. The column is filled by
-   editorial copy — the thing a magazine centre is supposed to be full of —
-   rather than by empty space or by a cover cropped square.
+   The mask fades the last 2.5rem so the cut dissolves rather than being
+   guillotined mid-line. "Read More" sits directly beneath it, so truncating
+   here is honest.
 
-   THE FADE IS WHAT MAKES THE CLIP DELIBERATE. A mask over the last 2.5rem
-   means a cut paragraph dissolves instead of being guillotined mid-line, and
-   it costs nothing when the text is short: the faded band is simply empty.
-   Unlike the event hero, truncating here is honest — "Read More" sits
-   directly beneath it and is the affordance the hero never had.
-
-   Paragraphs are no longer hidden and no line-clamp is set, so how much shows
-   is decided by the space available rather than by a number that has to be
-   guessed per breakpoint.
+   If the type scale changes, re-measure. `scripts/e2e-intel-magazine.test.mjs`
+   is the place to catch it.
 */
 .intel-feature-excerpt {
-  flex: 1 1 auto;
-  min-height: 0;
+  --excerpt-lines: 14;
+  --excerpt-leading: 1.6;
+  flex: 0 0 auto;
+  height: calc(var(--excerpt-lines) * var(--excerpt-leading) * 1em);
   overflow: hidden;
   /* Bigger than it was: this is the only body copy in the spread, and at
      1.15rem it was losing to the rail headlines beside it. */
   font-size: 1.3rem;
-  line-height: 1.6;
+  line-height: var(--excerpt-leading);
   color: var(--color-white-muted);
   max-width: 42rem;
   margin: 0;
@@ -488,6 +464,16 @@
   /* Feature first — it is the point of the page. */
   .intel-feature {
     order: -1;
+  }
+
+  /*
+    Stacked, the centre is no longer stretched to match the rails, so there is
+    no column to fill and 14 lines of body copy becomes a wall before the
+    reader reaches the first rail item. Still a FIXED count, so the cut is
+    still identical on every article, just a shorter one.
+  */
+  .intel-feature-excerpt {
+    --excerpt-lines: 7;
   }
 
   /* Rails become a two-up grid so they don't become an endless column. */
