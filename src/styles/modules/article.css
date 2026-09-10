@@ -453,9 +453,32 @@
   padding-right: 4px;
 }
 
+/*
+  ─── THE RAILS SCALE WITH THE VIEWPORT, IN ONE PLACE ───────────────────────
+
+  `html` is set to 80% from 768px up, a deliberate density decision, so 0.7rem
+  resolves to about 9px. That reads fine on a laptop and is genuinely too small
+  on a large monitor, where the rails are the smallest type on the page and hit
+  the floor first.
+
+  The event templates used to fix this for themselves with `!important`
+  font-size bumps at 2560px and 3840px, which is how "On This Page" ended up a
+  different size from the identical "Contents" rail on an article. The scaling
+  belongs HERE, on the shared rules, so both templates move together and
+  neither needs an override.
+
+  FLUID, NOT STEPPED. A 4K panel reports its CSS width according to the
+  operating system's scaling, so a breakpoint at 2560 or 3840 may never fire on
+  the display that needs it. The clamp grows continuously with the viewport
+  instead, and is tuned to sit exactly on its floor at 1512px, so nothing at or
+  below a laptop width changes:
+
+      1512px -> 8.96px (unchanged)   1920px -> 9.7px
+      2560px -> 10.8px               3840px -> 13.0px
+*/
 .article-rail-head {
   font-family: var(--font-display);
-  font-size: 0.7rem;
+  font-size: clamp(0.7rem, 0.495rem + 0.174vw, 1.05rem);
   font-weight: 700;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -482,7 +505,9 @@
 
 .article-toc-list a {
   display: block;
-  font-size: 0.82rem;
+  /* Same curve as `.article-rail-head` above, one step larger: on its floor at
+     1512px, ~11.3px at 1920, ~12.5px at 2560, ~15px at 3840. */
+  font-size: clamp(0.82rem, 0.592rem + 0.193vw, 1.2rem);
   line-height: 1.45;
   color: var(--color-white-muted);
   text-decoration: none;
