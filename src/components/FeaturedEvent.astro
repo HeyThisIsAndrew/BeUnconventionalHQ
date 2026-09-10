@@ -110,28 +110,21 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
       )}
 
       {/*
-        ─── THE LOGO AND THE CLOCK SHARE A CENTRE ────────────────────────
+        ─── ONE LEFT EDGE, ALL THE WAY DOWN ──────────────────────────────
 
-        Both were direct children of a lockup with `items-start`, so both
-        were flush left and their centres never agreed. Measured, with the
-        countdown live:
+        The logo and the countdown were briefly wrapped in a `fit-content`
+        column with `align-items: center`, so the two shared a centre axis.
+        That solved the problem it was asked to solve, and created a worse
+        one: the logo sat 39px inboard of the countdown on a phone, and the
+        countdown 14px inboard of the logo on desktop, while the eyebrow,
+        the date, the city, the description and the button all began at the
+        card's padding edge. One indent in the middle of an otherwise
+        straight column reads as a mistake, whichever element is doing it.
 
-          390px phone     logo 128 wide, countdown 206   logo 39px left of centre
-          844 landscape   logo 160 wide, countdown 194   logo 17px left of centre
-          1440 desktop    logo 231 wide, countdown 202   logo 15px right of centre
-
-        Which one is wider flips with the breakpoint, because the logo is a
-        fixed `w-32`/`w-40` on small screens and its own intrinsic width from
-        md up. So this cannot be solved by centring one inside the other: it
-        needs a box that is as wide as whichever is wider, with both centred
-        in it.
-
-        `width: fit-content` gives exactly that, and `align-items: center`
-        centres both. The box itself is still a flush-left child of the
-        lockup, so the eyebrow, the date and the city keep the left edge they
-        share with the rest of the card. Nothing here centres the hero.
+        So they are ordinary children of `.fe-lockup` again, which is
+        `items-start` — every element in this hero starts on the same
+        vertical line at every width.
       */}
-      <div class="fe-core">
       {/* Logo */}
       <div class="flex flex-row items-end gap-4 md:gap-10 w-32 sm:w-40 md:w-auto max-w-full">
         {logo ? (
@@ -215,7 +208,6 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
           </span>
         </div>
       )}
-      </div>
 
       {/*
         Date and location. They were `.fe-meta` at up to 1.1rem in plain white
@@ -397,9 +389,13 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
 
     `.fe-countdown` ships with Tailwind's `hidden`, so until the first tick it
     is `display: none` and contributes nothing. That was harmless while it was
-    a flush-left sibling. Inside `.fe-core` it decides the width, so revealing
-    it moved the logo: measured at 390px, x=56 with scripting off and x=95
-    with it on, a 39px jolt on the hero after first paint.
+    a flush-left sibling, and it is one again — so the horizontal jolt this
+    first fixed (measured at 390px: the logo at x=56 with scripting off and
+    x=95 with it on) cannot happen now.
+
+    THE RULE STAYS, because the vertical shift is older than that and still
+    real: the strip appearing pushed the date and the city down 49px after
+    first paint. Reserving the box costs nothing and holds the hero still.
 
     So it takes its space immediately and merely cannot be seen. The digits
     ship as "00", which is the width every value below 100 days renders at,
@@ -413,15 +409,6 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
   .fe-countdown:not([data-countdown-init]) {
     display: flex;
     visibility: hidden;
-  }
-
-  .fe-core {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-    width: fit-content;
-    max-width: 100%;
   }
 
   .fe-eyebrow {
