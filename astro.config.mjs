@@ -329,8 +329,15 @@ function localCmsMiddleware() {
               res.end(JSON.stringify({ success: false, error: check.error }));
               return;
             }
+            /*
+              serializeStore, NOT the raw body — the same rule as the videos
+              handler above. This one was missed when that fix went in, and a
+              single CMS save flattened articles.json from 415 lines to one.
+              Every store write goes through one of these two handlers, so
+              BOTH have to re-serialise or the format is only half enforced.
+            */
             const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-            fs.writeFileSync(tmpPath, body, 'utf-8');
+            fs.writeFileSync(tmpPath, serializeStore(check.parsed), 'utf-8');
             fs.renameSync(tmpPath, filePath);
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ success: true }));
