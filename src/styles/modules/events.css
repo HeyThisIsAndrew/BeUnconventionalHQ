@@ -133,10 +133,43 @@
   layout and this block had not yet reordered it.
 */
 @media (max-width: 1200px) {
+  /*
+    ─── THE GAP THAT WAS A GUTTER ──────────────────────────────────────────
+
+    4rem is the horizontal gutter between the reading column and the rail.
+    Stacked, the same number becomes vertical space, and vertical space is
+    read completely differently: 64px between two columns standing side by
+    side is a comfortable gutter, 64px between the end of the details and the
+    next heading is a hole.
+
+    It was not alone. Measured on /events/blizzcon-2026 at 390px, from the
+    last line of the venue to the "Upcoming Events" heading:
+
+      41px   the closing space inside the last .intel-break (its rule and
+             padding, which is real section furniture and stays)
+      48px   that section's own margin-bottom, with nothing after it
+      64px   this gap
+      32px   the rail's first section lead-in
+      ----
+      185px  of nothing, about half a phone screen
+
+    2.5rem here and the trailing margin dropped below takes it to ~113px:
+    still an unmistakable section break, no longer a void.
+  */
   .event-dashboard .article-layout {
     display: flex !important;
     flex-direction: column !important;
-    gap: 4rem !important;
+    gap: 2.5rem !important;
+  }
+
+  /*
+    A margin-bottom on the last section is space before nothing. It exists to
+    separate that section from the NEXT one, and stacked there is no next one
+    inside this column: the layout gap above owns the distance to the rail.
+    Two rules were paying for the same piece of empty space.
+  */
+  .event-dashboard .article-column > *:last-child {
+    margin-bottom: 0 !important;
   }
   .event-dashboard .article-column {
     order: 1 !important;

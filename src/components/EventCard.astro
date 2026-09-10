@@ -122,7 +122,21 @@ const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
     flex-direction: row;
     align-items: center;
     width: 100%;
-    padding: 0; /* Edge to edge */
+    /*
+      ─── THE MARK IS INSET, NOT FLUSH ───────────────────────────────────
+
+      This was `padding: 0` with the note "edge to edge", which the media
+      plate's own `background: #0a0a0a` was presumably meant to justify: a
+      dark panel running into the card's border. On a #111 card that panel is
+      invisible, so what actually reached the page was somebody's logo jammed
+      against a hairline with nothing between them.
+
+      The inline start now matches the body's own padding, so the mark is
+      inset from the left border by the same distance the CTA is inset from
+      the right one. The block edges stay at 0 and the plate still fills the
+      card's full height.
+    */
+    padding: 0 0 0 1.5rem;
     gap: 0;
     background: transparent;
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -179,6 +193,12 @@ const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
   }
 
   @media (max-width: 560px) {
+    /* A 326px card cannot spare 1.5rem on top of a 90px plate and still leave
+       the title a readable measure. */
+    .past-event-card,
+    .past-event-card--wide {
+      padding-left: 1rem;
+    }
     .past-event-media {
       flex: 0 0 90px;
       height: 90px;
@@ -251,6 +271,11 @@ const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
     the text stack stays left against the image, the CTA sits hard right. The
     gap between them is the row, not dead space at the end of it.
   */
+  /* The wide row's body carries 1.75rem, so its mark is inset to match. */
+  .past-event-card--wide {
+    padding-left: 1.75rem;
+  }
+
   .past-event-card--wide .past-event-body {
     flex-direction: row;
     align-items: center;

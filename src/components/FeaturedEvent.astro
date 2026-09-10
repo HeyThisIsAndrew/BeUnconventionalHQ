@@ -109,6 +109,29 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
         <div class="fe-eyebrow"><EventStatusIndicator event={event} /></div>
       )}
 
+      {/*
+        ─── THE LOGO AND THE CLOCK SHARE A CENTRE ────────────────────────
+
+        Both were direct children of a lockup with `items-start`, so both
+        were flush left and their centres never agreed. Measured, with the
+        countdown live:
+
+          390px phone     logo 128 wide, countdown 206   logo 39px left of centre
+          844 landscape   logo 160 wide, countdown 194   logo 17px left of centre
+          1440 desktop    logo 231 wide, countdown 202   logo 15px right of centre
+
+        Which one is wider flips with the breakpoint, because the logo is a
+        fixed `w-32`/`w-40` on small screens and its own intrinsic width from
+        md up. So this cannot be solved by centring one inside the other: it
+        needs a box that is as wide as whichever is wider, with both centred
+        in it.
+
+        `width: fit-content` gives exactly that, and `align-items: center`
+        centres both. The box itself is still a flush-left child of the
+        lockup, so the eyebrow, the date and the city keep the left edge they
+        share with the rest of the card. Nothing here centres the hero.
+      */}
+      <div class="fe-core">
       {/* Logo */}
       <div class="flex flex-row items-end gap-4 md:gap-10 w-32 sm:w-40 md:w-auto max-w-full">
         {logo ? (
@@ -192,6 +215,7 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
           </span>
         </div>
       )}
+      </div>
 
       {/*
         Date and location. They were `.fe-meta` at up to 1.1rem in plain white
@@ -358,6 +382,46 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
       margin-block: auto;
       padding: 1.5rem 1.75rem;
     }
+  }
+
+  /*
+    Sized by its widest child, never by the column, which is why this is
+    `fit-content` and not `w-full`. Full width would centre the pair in the
+    whole card and take the hero with it.
+
+    The 1rem gap repeats `.fe-lockup`'s own `gap-4`, so nesting these two
+    changes the spacing by nothing.
+  */
+  /*
+    ─── THE CLOCK RESERVES ITS BOX BEFORE THE CLOCK EXISTS ─────────────────
+
+    `.fe-countdown` ships with Tailwind's `hidden`, so until the first tick it
+    is `display: none` and contributes nothing. That was harmless while it was
+    a flush-left sibling. Inside `.fe-core` it decides the width, so revealing
+    it moved the logo: measured at 390px, x=56 with scripting off and x=95
+    with it on, a 39px jolt on the hero after first paint.
+
+    So it takes its space immediately and merely cannot be seen. The digits
+    ship as "00", which is the width every value below 100 days renders at,
+    so the box it reserves is the box it ends up with.
+
+    Keyed off `data-countdown-init`, which the script sets on the element the
+    moment it adopts it. That makes this rule strictly the PRE-INIT state:
+    the "event has started" path adds `hidden` after init, and there the strip
+    really should collapse rather than leave a hole.
+  */
+  .fe-countdown:not([data-countdown-init]) {
+    display: flex;
+    visibility: hidden;
+  }
+
+  .fe-core {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    width: fit-content;
+    max-width: 100%;
   }
 
   .fe-eyebrow {
