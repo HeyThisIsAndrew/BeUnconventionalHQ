@@ -181,28 +181,26 @@
     min-width: 0 !important;
     max-width: 100% !important;
   }
-  .event-dashboard .event-hero-content,
-  .event-dashboard .hero-identity,
-  .event-dashboard .hero-info-cta {
-    align-items: center !important;
-    text-align: center !important;
-  }
   /*
-    The eyebrow is a flex row of tags, so `text-align` alone leaves it flush
-    left inside a centred column — which is exactly the "the franchise tag is
-    left-aligned while the logo and the line under it are centred" report.
+    ─── THE MOBILE HERO IS FLUSH LEFT, LIKE PRODUCTION ────────────────────
+
+    This block used to force `align-items: center; text-align: center` onto
+    `.event-hero-content`, `.hero-identity` and `.hero-info-cta`, plus
+    `justify-content: center` on the eyebrow row and the coverage rail.
+
+    That was a misreading of the brief. "Restore the intended centering or
+    structural alignment from the production branch" was taken as centering;
+    production is LEFT ALIGNED, compared directly on a phone — the tag plate,
+    the mark, the line under it and the trailer button all sit flush to the
+    same left edge, and the branch was centring every one of them.
+
+    Nothing replaces those rules, deliberately. The components already align
+    themselves left (`.hero-identity { align-items: flex-start }`, and the
+    eyebrow and the rail are flex rows that start at `flex-start`), so
+    DELETING the override is the fix. Adding a left-aligning override on top
+    would be a second opinion about something the components already state.
+
+    The structural rules above stay: they are what stopped the rail being laid
+    out 482px wide inside a 390px phone, and they are independent of alignment.
   */
-  .event-dashboard .hero-eyebrow {
-    justify-content: center !important;
-  }
-  /*
-    `safe` means: centre the cards while they fit, and fall back to flush-left
-    the moment they do not, instead of centring the overflow and making the
-    first card unreachable at scrollLeft 0. Browsers without `safe` drop the
-    whole declaration and keep the flex default, which is the same flush-left
-    behaviour.
-  */
-  .event-dashboard .hub-rail {
-    justify-content: safe center;
-  }
 }
