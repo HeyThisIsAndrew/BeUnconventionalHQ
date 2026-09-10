@@ -2475,15 +2475,28 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
   }
 
 
-  /* Article Layout additions to ensure mobile stacks correctly */
+  /*
+    ─── ONLY THE SUPPORT RAIL STACKS. THE TOC IS DESKTOP-ONLY ──────────────
+
+    This said `.article-rail { display: block !important }`, which un-hid BOTH
+    rails, and the grid areas then placed "toc" ABOVE the column. Together with
+    the matching block in styles/modules/events.css — two overrides of the same
+    rule, in two files — that is how "On This Page" ended up rendered on a
+    phone, wedged between "Venue" and "Upcoming Events" on a page the reader is
+    already scrolling. A jump-link list belongs beside the text or nowhere.
+
+    article.css hides both rails below 1200px. Nothing here contradicts that
+    for the LEFT rail any more, so the TOC stays hidden; only the support rail
+    is brought back, after the column, because the calendar and the press desk
+    are things a phone reader still wants.
+  */
   @media (max-width: 1200px) {
-    .article-rail {
+    .article-rail-right {
       display: block !important;
       position: static !important;
     }
     .article-layout {
-      grid-template-areas: 
-        "toc"
+      grid-template-areas:
         "column"
         "support";
       grid-template-columns: 1fr;

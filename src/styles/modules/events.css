@@ -113,27 +113,44 @@
 
 
 /* ── Mobile Stacking & Breathing Room (Events Only) ── */
-@media (max-width: 1199px) {
+/*
+  ─── "ON THIS PAGE" IS A DESKTOP RAIL, AND ONLY THE RIGHT RAIL COMES BACK ──
+
+  article.css hides BOTH rails at this breakpoint (`.article-rail { display:
+  none }`). This block used to override that wholesale — `.article-rail {
+  display: block !important }` — and then reorder them underneath the content,
+  which is how a jump-link list ended up wedged between "Venue" and "Upcoming
+  Events", two thirds of the way down a page the reader is already scrolling.
+  A table of contents earns its keep beside the text, not inside it.
+
+  So the TOC is simply left alone: article.css's `display: none` stands, and
+  nothing here re-shows it. Only `.article-rail-right` is brought back, because
+  what it carries — the calendar, the press desk, the partner links — is
+  content a phone reader still wants, just at the end rather than alongside.
+
+  The breakpoint is `1200px` to match article.css exactly. It was 1199px, which
+  left a one-pixel window at 1200 where article.css had already collapsed the
+  layout and this block had not yet reordered it.
+*/
+@media (max-width: 1200px) {
   .event-dashboard .article-layout {
     display: flex !important;
     flex-direction: column !important;
     gap: 4rem !important;
   }
-  .event-dashboard .article-rail {
-    display: block !important;
-    position: static !important;
-  }
   .event-dashboard .article-column {
     order: 1 !important;
     width: 100% !important;
   }
-  .event-dashboard .article-rail-left {
+  .event-dashboard .article-rail-right {
+    display: block !important;
+    position: static !important;
     order: 2 !important;
     width: 100% !important;
   }
-  .event-dashboard .article-rail-right {
-    order: 3 !important;
-    width: 100% !important;
+  /* The sticky wrapper inside it has nothing to stick to once stacked. */
+  .event-dashboard .article-rail-right .article-rail-sticky {
+    position: static !important;
   }
 }
 
