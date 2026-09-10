@@ -263,6 +263,55 @@ test('event type: every event in the store holds a value a dropdown offers', () 
   }
 });
 
+test('the /events display lockup is gone, but the page still has an h1', () => {
+  /*
+    ─── SUNSETTING A HEADER IS NOT THE SAME AS DELETING A HEADING ───────────
+
+    "Coverage / Upcoming / Events" was a full <PageTitle> stacked directly
+    above the spotlight hero, which already carries the event's logo, status,
+    countdown, date and city. Two title treatments before a single event was
+    visible, and the header's own 2.5rem margin pushed the hero further down.
+
+    But it was the ONLY <h1> on /events. Deleting the element outright leaves
+    the route with no heading at all: an empty document outline for a screen
+    reader, and a missing-h1 finding for the SEO audit that runs on every PR.
+    So the heading survives as .sr-only and only the typography goes.
+  */
+  const page = fs.readFileSync(new URL('../src/pages/events/[...page].astro', import.meta.url), 'utf8');
+
+  assert.doesNotMatch(page, /<PageTitle[\s\S]{0,80}SECTIONS\.events/,
+    'the display lockup is back above the /events hero');
+  assert.match(page, /<h1 class="sr-only">/,
+    '/events must still name itself; sunsetting the lockup is a typographic change, not a structural one');
+  /* Built from the same copy the lockup used, so the two cannot drift. */
+  assert.match(page, /\{SECTIONS\.events\.primary\} \{SECTIONS\.events\.secondary\}/,
+    'the heading text must come from SECTIONS.events, not a hardcoded string');
+});
+
+test('sunsetting the /events header did not touch any other route', () => {
+  /*
+    The ask named /events specifically and guarded the homepage, /intel and
+    /feed. Those three plus /events/archive and /collaborations each render
+    their own <PageTitle as="h1">, and a find-and-replace across the repo
+    would have taken all of them.
+  */
+  const KEEP = [
+    ['../src/pages/events/archive/[...page].astro', /<PageTitle as="h1" \{\.\.\.SECTIONS\.eventArchive\}/],
+    ['../src/pages/collaborations.astro', /<PageTitle as="h1" \{\.\.\.SECTIONS\.collaborations\}/],
+    ['../src/pages/404.astro', /<PageTitle as="h1" \{\.\.\.SECTIONS\.notFound\}/],
+    /* /intel and /feed both render through FeedLayout's header. */
+    ['../src/layouts/FeedLayout.astro', /<PageTitle[\s\S]{0,120}as="h1"|as="h1"[\s\S]{0,120}\/>/],
+  ];
+  for (const [rel, re] of KEEP) {
+    const src = fs.readFileSync(new URL(rel, import.meta.url), 'utf8');
+    assert.match(src, re, `${rel} lost its page title; only /events was meant to change`);
+  }
+
+  /* The homepage keeps its own <h1> too, by whatever route it builds it. */
+  const home = fs.readFileSync(new URL('../src/pages/index.astro', import.meta.url), 'utf8');
+  assert.match(home, /Hero|<h1/, 'the homepage must still open with a heading');
+});
+
 console.log(
   process.exitCode ? `FAILED (${passed} passed)` : `All ${passed} tests passed.`,
 );

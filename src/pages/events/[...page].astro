@@ -1,7 +1,6 @@
 ---
 import { SECTIONS, META, HEADINGS, LABELS, pageTitle } from '../../data/content.js';
 import Layout from '../../layouts/Layout.astro';
-import PageTitle from '../../components/PageTitle.astro';
 import SectionHeading from '../../components/SectionHeading.astro';
 import FeaturedEvent from '../../components/FeaturedEvent.astro';
 import UpcomingEventsList from '../../components/UpcomingEventsList.astro';
@@ -78,9 +77,32 @@ const featuredEvent = featuredProp;
         so they span the full .container width as the page's visual anchor. The
         70/30 split begins only below this section. (JSX comment — not shipped.)
       */}
-      <header class="section-header animate-on-scroll" data-nav-anchor style="text-align: center; margin-bottom: 2.5rem;">
-        <PageTitle as="h1" {...SECTIONS.events} />
-      </header>
+      {/*
+        ─── THE DISPLAY LOCKUP IS GONE FROM THIS ROUTE ONLY ────────────────
+
+        "Coverage / Upcoming / Events" was a full display title stacked
+        directly above the spotlight hero, which carries the event's own
+        logo, status, countdown, date and city. On a phone that meant two
+        title treatments competing before a single event was visible, and
+        the header's 2.5rem margin pushed the thing people came for further
+        down still.
+
+        The <h1> STAYS, as .sr-only. It was the only one on the page, and
+        deleting the element outright would have left /events with no
+        heading at all: an empty document outline for a screen reader, and
+        a missing-h1 finding for the SEO audit that runs on every PR. What
+        the ask was about is the typography, and .sr-only removes exactly
+        that while the page keeps its name.
+
+        Text comes from the same SECTIONS.events copy the lockup used, so
+        the two cannot drift apart.
+
+        SCOPED TO THIS FILE. /events/archive, the homepage, /intel and
+        /feed all render their own <PageTitle> and are untouched;
+        `data-nav-anchor` came off with the wrapper and is written in five
+        places and read by no script or stylesheet.
+      */}
+      <h1 class="sr-only">{SECTIONS.events.primary} {SECTIONS.events.secondary}</h1>
       {/* Featured hero: the single nearest upcoming event. */}
           {featuredEvent ? (
             <FeaturedEvent event={featuredEvent} />
