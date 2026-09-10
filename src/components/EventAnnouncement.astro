@@ -528,7 +528,15 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
         {/* LEFT RAIL: Navigation */}
         <aside class="article-rail article-rail-left">
           <nav class="article-toc" aria-label="Event Navigation">
-            <p class="article-rail-head" id="article-toc-head" style="margin-bottom: 1.5rem; text-transform: uppercase;">On This Page</p>
+            {/*
+              No inline styling. `.article-rail-head` in styles/modules/article.css
+              already sets the display font, size, tracking, uppercasing and the
+              rule beneath it — the inline `margin-bottom: 1.5rem` only made this
+              heading sit differently from the identical "Contents" heading on an
+              article, and the `text-transform` merely restated what the class
+              does.
+            */}
+            <p class="article-rail-head" id="article-toc-head">On This Page</p>
             <ul class="article-toc-list">
               <li class="article-toc-item"><a href="#event-description" data-event-toc="event-description">About</a></li>
               <li class="article-toc-item"><a href="#event-details" data-event-toc="event-details">Details</a></li>
@@ -2572,13 +2580,14 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
     .article-column dl {
       font-size: 1.1rem !important;
     }
-    /* TOC sidebar */
-    .article-toc-list a {
-      font-size: 0.95rem !important;
-    }
-    .article-rail-head {
-      font-size: 0.85rem !important;
-    }
+    /*
+      NO TOC RESCALING HERE. This block used to bump `.article-toc-list a` and
+      `.article-rail-head` with `!important`, and the article template does not,
+      so on a QHD or 4K monitor "On This Page" rendered at a different size from
+      the identical "Contents" rail on an article. Both read from the shared
+      rules in styles/modules/article.css now. If the rail should scale up on a
+      large display, it scales there, for both templates at once.
+    */
     /* Right support rail */
     .article-rail-right {
       font-size: 1rem;
@@ -2609,13 +2618,6 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
     }
     .article-column dl {
       font-size: 1.35rem !important;
-    }
-    /* TOC sidebar */
-    .article-toc-list a {
-      font-size: 1.15rem !important;
-    }
-    .article-rail-head {
-      font-size: 1rem !important;
     }
     /* Right support rail */
     .article-rail-right {
