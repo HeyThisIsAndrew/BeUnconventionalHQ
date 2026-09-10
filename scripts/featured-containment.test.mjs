@@ -549,6 +549,97 @@ test('the hub trailer hands over to the first rail tile when it stops', () => {
     'the rail must not hardcode tile 0 active — that is the bug this replaced');
 });
 
+test('the coverage filter cannot reach outside the coverage section', () => {
+  /*
+    ─── THE BUG THIS PINS, WHICH SHIPPED TWICE ───────────────────────────────
+
+    The filter handler used to read the whole document:
+
+      const filterBtns   = Array.from(document.querySelectorAll('.filter-btn'));
+      const contentCards = Array.from(document.querySelectorAll('.content-card'));
+
+    Fine while the coverage grid was the only card grid on a hub page. Then
+    "Upcoming Events" arrived and broke it from both ends at once.
+
+      THE BUTTON. It shipped as `<button class="filter-btn type-btn active">`
+      with no data-filter, purely as a section label. The page-wide query bound
+      it anyway, so: click one, `wasActive` is true, every button deactivates
+      and this one loses its outline; click two, `wasActive` is false, so the
+      handler reads `data-filter || ''` and every .content-card on the page
+      gets display:none. Reported as "on click it hides the tile but then it
+      does nothing on second click". It is a <SectionHeading /> now.
+
+      THE CARDS. <EventCard /> renders `class="content-card past-event-card"`
+      and carries no data-type, so pressing ARTICLES set display:none on every
+      upcoming event above the filter. That one was still live after the button
+      was fixed: a filter for one section emptying another.
+
+    Both are the same mistake, so this guards the cause rather than the two
+    symptoms: the queries must be rooted in the coverage section, and any card
+    grid added to this page later is out of their reach by construction.
+  */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8');
+
+  assert.match(hub, /<section class="content-section" data-coverage>/,
+    'the coverage section must be identifiable, or its filters have nothing to scope to');
+
+  assert.ok(
+    !/const filterBtns = Array\.from\(document\.querySelectorAll/.test(hub) &&
+      !/const contentCards = Array\.from\(document\.querySelectorAll/.test(hub),
+    'the filter reads the whole document again. Every .filter-btn and .content-card on the ' +
+      'page is in range, including sections that have nothing to do with coverage.',
+  );
+  assert.match(hub, /const coverage = document\.querySelector\('\[data-coverage\]'\)/,
+    'the filter must root itself in the coverage section');
+  assert.match(hub, /const filterBtns = Array\.from\(coverage\?\.querySelectorAll/,
+    'buttons come from inside the coverage section');
+  assert.match(hub, /const contentCards = Array\.from\(coverage\?\.querySelectorAll/,
+    'cards come from inside the coverage section');
+
+  /*
+    And the label that started it is a heading, not a button. <SectionHeading />
+    renders an <h2> — nothing a .filter-btn query can pick up.
+  */
+  assert.ok(
+    !/class="filter-btn[^"]*"[^>]*>\s*UPCOMING EVENTS/i.test(hub),
+    'Upcoming Events is a section label. As a .filter-btn it gets bound to the coverage ' +
+      'filter and wipes the grid on its second press.',
+  );
+  assert.match(hub, /<SectionHeading title="Upcoming Events" id="hub-upcoming-heading" \/>/,
+    'the label is a ruled section heading, the same furniture /events uses for Past Event Archive');
+});
+
+test('the hero jump link points at a heading that exists', () => {
+  /*
+    The hero's second control is an ANCHOR to the Upcoming Events heading on
+    the same page, not a button and not a filter. That distinction is the whole
+    fix above. Two things have to stay true or it silently goes nowhere: the
+    href and the id must agree, and the section must actually render.
+
+    No scroll offset is set here on purpose. global-base.css carries
+    `scroll-padding-top: 112px` on html, which is what keeps the heading clear
+    of the fixed header. Measured landing position: 112px from the top.
+  */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8');
+
+  assert.match(hub, /href="#hub-upcoming-heading"/, 'the jump link needs a destination');
+  assert.match(hub, /id="hub-upcoming-heading"/, 'the destination must exist on the page');
+
+  /* Rendered only where the hub HAS an upcoming event. A hub with none would
+     otherwise show a control that scrolls to nothing. */
+  const jumpAt = hub.indexOf('hero-events-jump');
+  assert.ok(jumpAt > 0, 'the jump link is gone');
+  assert.match(hub.slice(0, jumpAt).slice(-1500), /associatedUpcomingEvents\.length > 0 && \(/,
+    'the jump link must be gated on the hub actually having an upcoming event');
+
+  /* Same rectangle as Play trailer. They are peers in one row, so the visual
+     rules live on the shared class and neither can drift from the other. */
+  assert.match(hub, /class="hero-action-btn hero-events-jump"/,
+    'the jump link wears the shared action-button class, so it matches Play trailer exactly');
+  assert.match(hub, /\.hero-actions \{[^}]*display: flex/,
+    'the two hero controls sit in one flex row');
+});
+
 test('the hub trailer can be played again without a reload', () => {
   /*
     The trailer used to play exactly once. `initHubStage` is guarded by
@@ -598,7 +689,11 @@ test('the hub trailer can be played again without a reload', () => {
      a button and that counts as activation. */
   assert.match(hub, /arm\(0[,)]/, 'a replay the visitor asked for starts immediately');
 
-  assert.match(hub, /class="hub-stage-replay"/, 'there must be a control');
+  /* Class LIST, not the whole attribute. The button gained .hero-action-btn
+      when the hero grew a second control beside it (the Upcoming Events jump);
+      .hub-stage-replay is the behaviour hook the click handler and the
+      is-playing rule both key off, and it has to survive that. */
+  assert.match(hub, /class="[^"]*\bhub-stage-replay\b/, 'there must be a control');
 
   /*
     ─── IT MUST NOT LIVE ON THE STAGE ────────────────────────────────────────
@@ -626,7 +721,7 @@ test('the hub trailer can be played again without a reload', () => {
     name comes from content plus an sr-only suffix instead.
   */
   assert.ok(
-    !/class="hub-stage-replay"[^>]*aria-label/.test(hub),
+    !/class="[^"]*\bhub-stage-replay\b[^"]*"[^>]*aria-label/.test(hub),
     'an aria-label here replaces the name built from the visible words. Name it from content.',
   );
   assert.match(hub, /<span class="hub-stage-replay-text">Play trailer<\/span>/,

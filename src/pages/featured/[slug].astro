@@ -6,6 +6,7 @@ import { getEventsLocal, getFeaturedBrandsLocal, getHubBackdrop, urlFor, HUB_CAT
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
 import ContentCard from '../../components/ContentCard.astro';
 import EventCard from '../../components/EventCard.astro';
+import SectionHeading from '../../components/SectionHeading.astro';
 import { toYMD } from '../../lib/events';
 import InstagramFeed from '../../components/InstagramFeed.astro';
 import { getHubTopicKeywords } from '../../lib/instagram-topic';
@@ -343,6 +344,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
                 </div>
               )}
 
+              <div class="hero-actions">
               {trailerId && (
                 /*
                   ─── WATCH IT AGAIN ─────────────────────────────────────────
@@ -390,14 +392,45 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
                   Every hub happens to have a trailer today, which is exactly
                   why this would have shipped unnoticed.
                 */
-                <button type="button" class="hub-stage-replay">
-                  <svg class="hub-stage-replay-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <button type="button" class="hero-action-btn hub-stage-replay">
+                  <svg class="hero-action-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                     <path d="M8 5v14l11-7z" fill="currentColor" />
                   </svg>
                   <span class="hub-stage-replay-text">Play trailer</span>
                   <span class="sr-only"> for {event.title}</span>
                 </button>
               )}
+
+              {associatedUpcomingEvents.length > 0 && (
+                /*
+                  ─── THE HERO JUMP LINK ─────────────────────────────────────
+
+                  Sits beside Play trailer, and only exists when this hub
+                  actually has a future event associated with it. It is an
+                  ANCHOR, not a button: the destination is the "Upcoming
+                  Events" heading further down this same page, and html
+                  already carries `scroll-padding-top: 112px` so the jump
+                  clears the fixed header without any script.
+
+                  Not styled as the primary action. The hero of a hub page is
+                  the hub, and its trailer is what a first-time visitor came
+                  for; this is the same quiet rectangle, second in the row.
+                */
+                <a class="hero-action-btn hero-events-jump" href="#hub-upcoming-heading">
+                  <svg class="hero-action-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path
+                      d="M7 2v3M17 2v3M3.5 8.5h17M5 5h14a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 19 21H5a1.5 1.5 0 0 1-1.5-1.5v-13A1.5 1.5 0 0 1 5 5z"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="square"
+                    />
+                  </svg>
+                  <span>Upcoming events</span>
+                  <span class="sr-only"> for {event.title}</span>
+                </a>
+              )}
+              </div>
             </div>
 
           </div>
@@ -624,12 +657,34 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     
     <div class="container-page content-container">
       {associatedUpcomingEvents.length > 0 && (
-        <section class="content-section">
-          <h2 class="sr-only">Upcoming {event.title} Events</h2>
-          <div class="filter-controls animate-on-scroll" style="margin-bottom: 2rem;">
-            <button class="filter-btn type-btn active" aria-pressed="true">UPCOMING EVENTS</button>
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full animate-on-scroll">
+        /*
+          ─── THIS WAS A FILTER BUTTON PRETENDING TO BE A HEADING ───────────
+
+          "Upcoming Events" shipped as `<button class="filter-btn type-btn
+          active">`, and the coverage filter below binds EVERY `.filter-btn`
+          on the page. It carried no `data-filter`, so the shared handler did
+          this:
+
+            click 1  it ships `active`, so `wasActive` is true, every button
+                     deactivates and this one loses its outline
+            click 2  `wasActive` is now false, so the handler reads
+                     `data-filter || ''` and every `.content-card` in the
+                     COVERAGE grid below gets `display: none`
+
+          A label for one section silently wiping out another, and taking the
+          Articles/Videos state with it. It was also laid out by
+          `.filter-controls`, a centred 600px two-column grid, so the single
+          button floated in the left half of a centred box above a left-aligned
+          card grid.
+
+          It is a heading now, which is what it always was. `<SectionHeading />`
+          is the same ruled header /events uses for "Past Event Archive", so it
+          is left-aligned, full width, and cannot be picked up by a filter
+          query.
+        */
+        <section class="content-section" aria-labelledby="hub-upcoming-heading">
+          <SectionHeading title="Upcoming Events" id="hub-upcoming-heading" />
+          <div class="hub-events-grid animate-on-scroll">
             {associatedUpcomingEvents.map((e: any, index: number) => (
               <EventCard event={e} index={index} />
             ))}
@@ -638,7 +693,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       )}
 
       {unifiedContent.length > 0 ? (
-        <section class="content-section">
+        <section class="content-section" data-coverage>
           <h2 class="sr-only">Event coverage</h2>
 
           <div class="filter-controls animate-on-scroll">
@@ -1086,11 +1141,34 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     overlap to reason about, and nothing to hide it behind. The sound toggle
     now owns its corner alone.
   */
-  .hub-stage-replay {
+  /*
+    THE HERO ACTION ROW.
+
+    Two controls now live under the mark: Play trailer, and (only where the
+    hub has a future event associated with it) a jump to Upcoming Events.
+    They are peers, so the margin-top that used to sit on the button moved
+    out here — otherwise the row would have carried it twice, and a wrap on
+    a narrow viewport would have opened a second gap between the lines.
+  */
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.15rem;
+  }
+
+  /*
+    ONE RECTANGLE, TWO CONTROLS. The visual rules are on .hero-action-btn so
+    the anchor and the button are pixel-identical; .hub-stage-replay stays as
+    the BEHAVIOUR hook (the click handler finds it, and the is-playing rule
+    below hides it) and carries nothing visual of its own.
+  */
+  .hero-action-btn {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
-    margin-top: 0.15rem;
+    text-decoration: none;
     /*
       HARD EDGES. Every other control on /featured is square — the deck nav
       thumbs carry an explicit `border-radius: 0` reset for exactly this
@@ -1113,8 +1191,8 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     transition: border-color 0.25s ease, background 0.25s ease;
   }
 
-  .hub-stage-replay:hover,
-  .hub-stage-replay:focus-visible {
+  .hero-action-btn:hover,
+  .hero-action-btn:focus-visible {
     border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.85);
     background: rgba(0, 0, 0, 0.5);
   }
@@ -1131,7 +1209,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     display: none;
   }
 
-  .hub-stage-replay-glyph {
+  .hero-action-glyph {
     width: 13px;
     height: 13px;
     flex-shrink: 0;
@@ -1139,13 +1217,13 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
 
   /* The readable red, per scripts/a11y-tokens.test.mjs — this ring sits on
      dark artwork and #cc0000 is 3.21:1. */
-  .hub-stage-replay:focus-visible {
+  .hero-action-btn:focus-visible {
     outline: 2px solid var(--color-accent-text, #ef4444);
     outline-offset: 3px;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .hub-stage-replay {
+    .hero-action-btn {
       transition: none;
     }
   }
@@ -1692,6 +1770,19 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
   }
   
   /* Filter Controls */
+  /*
+    The same track floor `.event-grid` uses on /events, so an EventCard is the
+    same size wherever it appears. `auto-fill` with a 420px floor also means a
+    single associated event renders at a sensible width instead of being
+    squeezed into one third of the row by a hardcoded `lg:grid-cols-3`.
+  */
+  .hub-events-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+    gap: 1.5rem;
+    width: 100%;
+  }
+
   .filter-controls {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -2416,8 +2507,28 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
   // astro:page-load fires on the initial load AND after every View Transition
   // navigation, so the filters keep working after client-side nav.
   function initEventInteractions() {
-    const filterBtns = Array.from(document.querySelectorAll('.filter-btn'));
-    const contentCards = Array.from(document.querySelectorAll('.content-card'));
+    /*
+      SCOPED TO THE COVERAGE SECTION, deliberately.
+
+      Both of these used to be page-wide `document.querySelectorAll`, which
+      was fine while the coverage grid was the only card grid on the page.
+      The Upcoming Events section broke that assumption twice over:
+
+        - <EventCard /> renders `class="content-card past-event-card"` and
+          carries no `data-type`, so filtering to ARTICLES set
+          `display: none` on every upcoming event above it. A filter for one
+          section silently emptying another.
+        - anything button-shaped that picks up `.filter-btn` gets bound to
+          this handler whether or not it filters anything, which is exactly
+          how the old "Upcoming Events" button wiped the coverage grid.
+
+      `[data-coverage]` is on the section these controls actually belong to.
+      If it is ever missing the lists come back empty and the filters simply
+      do nothing, which beats hiding content elsewhere on the page.
+    */
+    const coverage = document.querySelector('[data-coverage]');
+    const filterBtns = Array.from(coverage?.querySelectorAll('.filter-btn') ?? []);
+    const contentCards = Array.from(coverage?.querySelectorAll('.content-card') ?? []);
 
     filterBtns.forEach((btn) => {
       if ((btn as HTMLElement).dataset.bound === 'true') return;
