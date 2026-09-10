@@ -5,6 +5,7 @@ import PageTitle from '../../components/PageTitle.astro';
 import SectionHeading from '../../components/SectionHeading.astro';
 import FeaturedEvent from '../../components/FeaturedEvent.astro';
 import UpcomingEventsList from '../../components/UpcomingEventsList.astro';
+import MiniCalendarSidebar from '../../components/MiniCalendarSidebar.astro';
 import EventCard from '../../components/EventCard.astro';
 import ReferralLinks from '../../components/ReferralLinks.astro';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
@@ -44,7 +45,7 @@ export async function getStaticPaths({ paginate }: any) {
   // 4. Paginate ONLY the secondary upcoming events (pageSize 12)
   return paginate(secondaryUpcomingAll, { 
     pageSize: 12,
-    props: { allEvents, today, featuredEvent, pastEvents }
+    props: { allEvents, today, featuredEvent, pastEvents, upcomingEventsAll }
   });
 }
 
@@ -56,9 +57,10 @@ export interface Props {
   today: string;
   featuredEvent: any;
   pastEvents: any[];
+  upcomingEventsAll: any[];
 }
 
-const { page, allEvents, featuredEvent: featuredProp, pastEvents } = Astro.props as Props;
+const { page, allEvents, featuredEvent: featuredProp, pastEvents, upcomingEventsAll } = Astro.props as Props;
 const secondaryUpcoming = page.data;
 
 const title = pageTitle(META.events.title);
@@ -187,6 +189,29 @@ const featuredEvent = featuredProp;
                between sidebar modules so they can never overlap.
           */}
           <div class="flex flex-col gap-8 items-start">
+            {/*
+              ─── THE CALENDAR, RESTORED ─────────────────────────────────────
+
+              This module was dropped when events.astro became
+              events/[...page].astro, and the comment above the mobile "View
+              Full Calendar" button — which says that button is hidden from md
+              up "because its function is replaced by the MiniCalendarSidebar"
+              — was left behind pointing at nothing. The two together meant
+              /events had NO calendar entry point on desktop at all: the CTA
+              was hidden and its replacement was gone.
+
+              First in the rail, as it was on main. It carries its own
+              "Calendar" button, which is what opens <SpanningCalendarModal>,
+              so restoring the module restores the way in.
+
+              It takes every upcoming event rather than the current page's
+              slice — the calendar is a view of the schedule, not of page 2 —
+              and shows the nearest three itself.
+            */}
+            <div class="w-full">
+              <MiniCalendarSidebar events={upcomingEventsAll} />
+            </div>
+
             <div class="w-full">
               <div class="article-rail-related">
               <p class="article-rail-head">Coverage Inquiry</p>
