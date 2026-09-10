@@ -1,7 +1,7 @@
 ---
 import brandMarkImg from '../assets/logo-mark.webp';
 import { getImage } from 'astro:assets';
-import { parseEventDate, formatEventDateRange } from '../lib/events';
+import { parseEventDate, formatEventDateRange, getEventTypeLabel } from '../lib/events';
 import { parseVideoId } from '../lib/platforms/youtube';
 import { buildImageSet } from '../lib/local-content';
 
@@ -28,6 +28,21 @@ import { buildImageSet } from '../lib/local-content';
 const { event, index = 0, wide = false } = Astro.props;
 const brandMarkImgOptimized = await getImage({ src: brandMarkImg, format: 'webp' });
 const trailerId = parseVideoId(event.trailerUrl);
+
+/*
+  ─── THE EYEBROW SAYS WHAT THE EVENT IS ────────────────────────────────────
+
+  This was the literal string "Event" on every card, which is a placeholder
+  wearing the clothes of metadata: the store has carried an `eventType` on all
+  nineteen events since they were classified, and the hero tag on the event's
+  own page has been reading it the whole time. A premiere said EVENT here and
+  PREMIERE one click later.
+
+  `getEventTypeLabel` is the same resolver those pages use, and it already
+  falls back to 'Event' for an unset type. So a card with no type on it renders
+  exactly the string it used to.
+*/
+const typeLabel = getEventTypeLabel(event);
 
 /* Upcoming events are announced by WHEN. Past ones, which is every other
    caller, are filed by year. */
@@ -76,7 +91,7 @@ const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
     */}
     <div class="past-event-text">
     <div class="past-event-meta">
-      <span>Event</span>
+      <span>{typeLabel}</span>
       <span aria-hidden="true">&bull;</span>
       <span>{metaDate}</span>
     </div>
@@ -84,8 +99,18 @@ const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
     <h3 class="past-event-title">{event.title}</h3>
     </div>
 
+    {/*
+      "View Coverage" is a promise, and on an UPCOMING event it is one nobody
+      has made yet. The hub list is the only place this card shows events that
+      have not happened, and whether they get covered is not decided when the
+      card renders. Past events are the opposite case: the coverage is the
+      reason the archive card exists, so it keeps the words it earned.
+
+      "Event Details" is already the site's phrase for this, on the hub hero's
+      own button.
+    */}
     <span class="watch-now-btn">
-      View Coverage <span class="content-card-arrow" aria-hidden="true">&rarr;</span>
+      {wide ? 'Event Details' : 'View Coverage'} <span class="content-card-arrow" aria-hidden="true">&rarr;</span>
       <span class="btn-underline"></span>
     </span>
   </div>

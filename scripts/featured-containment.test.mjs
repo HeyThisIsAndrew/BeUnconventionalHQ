@@ -640,6 +640,46 @@ test('the hero jump link points at a heading that exists', () => {
     'the two hero controls sit in one flex row');
 });
 
+test('an event card says what the event is, and promises only what it can keep', () => {
+  /*
+    ─── THE EYEBROW ──────────────────────────────────────────────────────────
+
+    It was the literal string "Event" on every card. That is a placeholder in
+    the shape of metadata: all nineteen events in the store carry an
+    `eventType`, and the hero tag on the event's own page has been reading it
+    the whole time, so a premiere said EVENT on the card and PREMIERE one click
+    later.
+
+    `getEventTypeLabel` is the resolver those pages already use, and it falls
+    back to 'Event' for an unset type, so a card with no type renders the exact
+    string it used to. Nothing to special-case.
+
+    ─── THE CTA ──────────────────────────────────────────────────────────────
+
+    "View Coverage" is a promise. On an UPCOMING event it is one nobody has
+    made yet: whether it gets covered is not decided when the card renders, and
+    the hub list is the only place this card shows events that have not
+    happened. Past events are the opposite case, and the archive keeps the
+    words it earned.
+  */
+  const card = readFileSync(join(here, '..', 'src', 'components', 'EventCard.astro'), 'utf8');
+  const lib = readFileSync(join(here, '..', 'src', 'lib', 'events.ts'), 'utf8');
+
+  assert.doesNotMatch(card, /<span>Event<\/span>/,
+    'the eyebrow is hardcoded again. The store knows what kind of event this is.');
+  assert.match(card, /getEventTypeLabel/,
+    'the eyebrow must come from the same resolver the event page hero uses, or the two drift');
+  assert.match(card, /<span>\{typeLabel\}<\/span>/, 'the resolved label is what renders');
+
+  /* The fallback is what makes this safe to apply to every caller. If it ever
+     stops returning 'Event' for an unset type, cards with no type go blank. */
+  assert.match(lib, /return 'Event';/,
+    'getEventTypeLabel must still fall back to "Event"; without it an untyped card has no eyebrow');
+
+  assert.match(card, /\{wide \? 'Event Details' : 'View Coverage'\}/,
+    'an upcoming event cannot advertise coverage that has not been committed to; a past one should');
+});
+
 test('the hub events list is a list, and its card is anchored at both ends', () => {
   /*
     ─── WHY THIS IS NOT A GRID ───────────────────────────────────────────────
