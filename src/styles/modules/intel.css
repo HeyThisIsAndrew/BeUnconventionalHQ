@@ -460,14 +460,45 @@
   margin-bottom: 4.5rem;
 }
 
+/*
+  ─── THE TITLE GETS THE WHOLE WIDTH ON A PHONE ────────────────────────────
+
+  This was a row at every width, so on a 393px phone "PAST EVENT ARCHIVE" was
+  laying out inside 168px of a 329px header while "ALL PAST EVENTS" took the
+  rest. Squeezed that hard it wrapped, and `hyphens: auto` below finished the
+  job: the page shipped a heading reading "PAST EVENT AR-CHIVE".
+
+  Both link-bearing headings had it. /intel's "Latest From The Channel" was
+  over two lines at the same width for the same reason; the ones with no link
+  already had the full measure and were fine.
+
+  Stacked below 768px, so the title has the whole width and the link sits
+  under it. 768 rather than the 560 used further down this file because the
+  root font-size drops to 80% at 768 and not before: between 561 and 767 the
+  type is at full size, and the longest pair ("Latest From The Channel" plus
+  "All Videos") needs about 513px there against roughly 496px of header.
+
+  `baseline` stays the desktop alignment. It sits the link's text on the
+  title's baseline, which is the whole point of the arrangement, and nothing
+  about the mobile wrap is a reason to change it.
+*/
 .intel-break-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
   padding-bottom: 1rem;
   margin-bottom: 2rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+@media (min-width: 768px) {
+  .intel-break-head {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+  }
 }
 
 .intel-break-title {
@@ -477,10 +508,22 @@
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--color-white);
-  word-break: break-word;
+  /*
+    NO HYPHENATION, AND NO BREAKING INSIDE A WORD.
+
+    `hyphens: auto` is what put the hyphen in "AR-CHIVE", and
+    `word-break: break-word` would split the word even without one. Neither
+    belongs on a six-word display heading set in uppercase with 0.16em of
+    tracking: hyphenation is a justified-body-copy tool, and a heading that
+    breaks mid-word reads as a rendering fault rather than a line break.
+
+    `overflow-wrap` stays. It only acts on a word that cannot fit its line at
+    all, which is the one case where breaking beats overflowing the header.
+  */
   overflow-wrap: break-word;
-  hyphens: auto;
-  -webkit-hyphens: auto;
+  word-break: normal;
+  hyphens: none;
+  -webkit-hyphens: none;
 }
 
 .intel-break-link {

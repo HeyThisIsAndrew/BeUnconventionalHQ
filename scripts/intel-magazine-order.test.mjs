@@ -184,4 +184,65 @@ test('the excerpt fade only marks text that is actually cut', () => {
   );
 });
 
+test('a section heading never hyphenates or breaks inside a word', () => {
+  /*
+    ─── "PAST EVENT AR-CHIVE" ───────────────────────────────────────────────
+
+    Reported from a phone. <SectionHeading /> was a flex ROW at every width,
+    so on a 393px screen "PAST EVENT ARCHIVE" laid out inside 168px of a 329px
+    header while "ALL PAST EVENTS" took the rest. Squeezed that hard it
+    wrapped, and `hyphens: auto` finished the job.
+
+    Both link-bearing headings had it: /intel's "Latest From The Channel" was
+    over two lines at the same width for the same reason. The ones with no
+    link already had the full measure.
+
+    This lives in intel.css but the component is shared — /events, /intel,
+    /featured and /author all render it — so a change here is a change to
+    every one of them.
+  */
+  /*
+    COMMENTS STRIPPED FIRST. The rules below explain themselves in prose that
+    quotes the very declarations being banned — the note on .intel-break-title
+    names `hyphens: auto` to say why it is gone. Matching the raw file makes
+    the explanation trip the assertion, which is how this test failed on its
+    own first run.
+  */
+  const css = fs
+    .readFileSync(
+      path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'styles', 'modules', 'intel.css'),
+      'utf8',
+    )
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
+  const title = /\.intel-break-title \{([^}]*)\}/.exec(css);
+  assert.ok(title, '.intel-break-title is gone; this test no longer reads what it thinks it does');
+  assert.match(title[1], /hyphens: none/,
+    'hyphens: auto puts a hyphen inside a display heading — this is where AR-CHIVE came from');
+  assert.doesNotMatch(title[1], /hyphens: auto/, 'auto hyphenation is the original bug');
+  assert.match(title[1], /word-break: normal/,
+    'word-break: break-word splits the word even without a hyphen');
+  /* Kept: it only acts on a word that cannot fit its line at all, which is
+     the one case where breaking beats overflowing the header. */
+  assert.match(title[1], /overflow-wrap: break-word/,
+    'a genuinely unbreakable word should still break rather than overflow');
+
+  /*
+    THE ROOT CAUSE IS THE ROW, NOT THE HYPHEN. Turning hyphenation off alone
+    leaves the title wrapping in a third of the width; it just wraps without a
+    hyphen. It needs the whole measure on a phone.
+  */
+  const head = /\.intel-break-head \{([^}]*)\}/.exec(css);
+  assert.ok(head, '.intel-break-head is gone');
+  assert.match(head[1], /flex-direction: column/,
+    'the heading must stack on a phone so the title gets the full width');
+  assert.match(css, /@media \(min-width: 768px\) \{\s*\.intel-break-head \{[^}]*flex-direction: row/,
+    'and go back to a row once there is room for the title and its link side by side');
+  /* 768 and not the 560 used elsewhere in this file: the root font-size drops
+     to 80% at 768 and not before, so between 561 and 767 the type is at full
+     size and the longest pair needs ~513px against ~496px of header. */
+  assert.doesNotMatch(css, /@media \(min-width: 560px\) \{\s*\.intel-break-head/,
+    'stacking must hold to 768px, where the root font-size actually drops');
+});
+
 console.log(`\n${passed} passed\n`);
