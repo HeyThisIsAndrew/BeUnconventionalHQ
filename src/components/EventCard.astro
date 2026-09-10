@@ -1,13 +1,39 @@
 ---
 import brandMarkImg from '../assets/logo-mark.webp';
 import { getImage } from 'astro:assets';
-import { parseEventDate } from '../lib/events';
+import { parseEventDate, formatEventDateRange } from '../lib/events';
 import { parseVideoId } from '../lib/platforms/youtube';
 import { buildImageSet } from '../lib/local-content';
 
-const { event, index = 0 } = Astro.props;
+/*
+  ─── `wide` ────────────────────────────────────────────────────────────────
+
+  This card is a horizontal row, and it was built for a 3-up grid: /events and
+  /events/archive both hand it a `.event-grid` track around 420-450px, where
+  a stacked meta / title / CTA fills the body edge to edge.
+
+  A hub's "Upcoming Events" list is not that. A hub typically has ONE upcoming
+  event, so in the same 3-up grid it rendered a single row card in the left
+  third with two empty tracks beside it. Filling the width instead leaves the
+  opposite problem: a 130px image and a left-hugging text stack with a thousand
+  pixels of nothing after it.
+
+  So `wide` re-anchors the row for full-bleed: meta and title stay left, the
+  CTA moves to the far right, and the card is pinned at both ends. It also
+  swaps the meta's year for the actual date range, which is the fact that
+  matters when the event has not happened yet ("Oct 8-11", not "2026").
+
+  Opt-in on purpose. The two archive grids pass nothing and are untouched.
+*/
+const { event, index = 0, wide = false } = Astro.props;
 const brandMarkImgOptimized = await getImage({ src: brandMarkImg, format: 'webp' });
 const trailerId = parseVideoId(event.trailerUrl);
+
+/* Upcoming events are announced by WHEN. Past ones, which is every other
+   caller, are filed by year. */
+const metaDate = wide
+  ? formatEventDateRange(event.startDate, event.endDate)
+  : (parseEventDate(event.startDate)?.year ?? 'Recent');
 
 const hero = buildImageSet(event.heroImage, { widths: [320, 480, 640, 800], aspect: 16 / 9 });
 const logo = buildImageSet(event.logo, { widths: [96, 160, 240] });
@@ -19,7 +45,7 @@ const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
 
 <a
   href={`/events/${event.slug.current}`}
-  class="content-card past-event-card group animate-on-scroll no-underline"
+  class:list={['content-card', 'past-event-card', 'group', 'animate-on-scroll', 'no-underline', { 'past-event-card--wide': wide }]}
   style={`--index: ${index};`}
 >
   <div class="past-event-media">
@@ -35,15 +61,30 @@ const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
   </div>
 
   <div class="past-event-body">
+    {/*
+      Meta and title are ONE block, deliberately.
+
+      Without this wrapper the wide row's `justify-content: space-between` had
+      three children to distribute, so the title landed dead centre with a gulf
+      on either side of it. That is the orphaned-card problem again, moved
+      inside the card: the most important words on the row, anchored to
+      nothing. Grouped, the row has two ends — identity on the left, action on
+      the right — and the title sits against the logo where it belongs.
+
+      Inert in the narrow layout. Both are flex containers, so no margin
+      collapses and the stacked spacing is byte-for-byte what it was.
+    */}
+    <div class="past-event-text">
     <div class="past-event-meta">
       <span>Event</span>
       <span aria-hidden="true">&bull;</span>
-      <span>{parseEventDate(event.startDate)?.year ?? 'Recent'}</span>
+      <span>{metaDate}</span>
     </div>
 
     <h3 class="past-event-title">{event.title}</h3>
+    </div>
 
-    <span class="watch-now-btn" style="margin-top: 0.6rem;">
+    <span class="watch-now-btn">
       View Coverage <span class="content-card-arrow" aria-hidden="true">&rarr;</span>
       <span class="btn-underline"></span>
     </span>
@@ -145,6 +186,12 @@ const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
     flex: 1;
   }
 
+  .past-event-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
   .past-event-meta {
     color: #a1a1aa;
     font-size: 0.75rem;
@@ -164,5 +211,63 @@ const imageSrcset = logo?.srcset ?? hero?.srcset ?? undefined;
     color: var(--color-white);
     line-height: 1.2;
     margin: 0 0 0.6rem 0;
+  }
+
+  /* Was `style="margin-top: 0.6rem"` on the element. An inline style cannot be
+     overridden by a class, and the wide row needs this gap gone. */
+  .past-event-card .watch-now-btn {
+    margin-top: 0.6rem;
+  }
+
+  /*
+    ─── THE WIDE ROW ────────────────────────────────────────────────────────
+
+    One card across the full content width, so it is anchored at BOTH ends:
+    the text stack stays left against the image, the CTA sits hard right. The
+    gap between them is the row, not dead space at the end of it.
+  */
+  .past-event-card--wide .past-event-body {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    padding: 1.25rem 1.75rem;
+  }
+
+  .past-event-card--wide .past-event-title {
+    margin-bottom: 0;
+  }
+
+  /* Left block hugs the logo and takes what it needs; the CTA keeps its own
+     width and the slack falls between them, which is where slack should go. */
+  .past-event-card--wide .past-event-text {
+    flex: 0 1 auto;
+  }
+
+  .past-event-card--wide .watch-now-btn {
+    margin-top: 0;
+    flex-shrink: 0;
+  }
+
+  /*
+    Below the grid's own breakpoint the row runs out of width for two anchors,
+    so it goes back to the stack it already knows how to be. Left aligned, not
+    centred: the image is still on the left edge of the card, and centred text
+    beside a left-aligned image reads as a mistake.
+  */
+  @media (max-width: 720px) {
+    .past-event-card--wide .past-event-body {
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 0;
+      padding: 1rem 1.25rem;
+    }
+    .past-event-card--wide .past-event-title {
+      margin-bottom: 0.6rem;
+    }
+    .past-event-card--wide .watch-now-btn {
+      margin-top: 0;
+    }
   }
 </style>

@@ -640,6 +640,75 @@ test('the hero jump link points at a heading that exists', () => {
     'the two hero controls sit in one flex row');
 });
 
+test('the hub events list is a list, and its card is anchored at both ends', () => {
+  /*
+    ─── WHY THIS IS NOT A GRID ───────────────────────────────────────────────
+
+    The section shipped with `.event-grid`'s own track rule, copied from
+    /events: `repeat(auto-fill, minmax(min(100%, 420px), 1fr))`. Right there,
+    where the Past Event Archive has dozens of entries and fills every track.
+
+    A hub has one upcoming event, sometimes two. In a 3-up grid that put a
+    single card in the left third with two empty tracks beside it, which reads
+    as an orphan rather than a section. `auto-fit` was the obvious swap and is
+    worse: it lets the COUNT pick the layout, so the same card is full width on
+    a hub with one event and half width on a hub with two.
+
+    One column, always, and <EventCard wide /> to use the width rather than
+    merely span it. Three upcoming events then stack into three rows, which is
+    what a schedule looks like.
+  */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8');
+  const card = readFileSync(join(here, '..', 'src', 'components', 'EventCard.astro'), 'utf8');
+
+  const gridRule = /\.hub-events-grid \{([^}]*)\}/.exec(hub);
+  assert.ok(gridRule, 'the upcoming events container lost its rule');
+  assert.doesNotMatch(gridRule[1], /grid-template-columns/,
+    'the upcoming events list is back to a multi-track grid. With one event that is a card ' +
+      'stranded in the left third; with two it is a different card again.');
+  assert.match(gridRule[1], /flex-direction: column/, 'one full-width row per event');
+
+  assert.match(hub, /<EventCard event=\{e\} index=\{index\} wide \/>/,
+    'the hub list needs the wide variant, or a full-width card hugs the left edge with a ' +
+      'thousand pixels of nothing after it');
+
+  /*
+    ─── TWO ANCHORS, NOT THREE ───────────────────────────────────────────────
+
+    `justify-content: space-between` distributes CHILDREN, so with meta, title
+    and CTA as three siblings the title landed dead centre with a gulf either
+    side — the orphan problem again, moved inside the card. .past-event-text
+    groups the identity so the row has one end and one action.
+  */
+  assert.match(card, /<div class="past-event-text">/,
+    'meta and title must be one block, or space-between strands the title mid-row');
+  assert.match(card, /\.past-event-card--wide \.past-event-body \{[^}]*justify-content: space-between/,
+    'the wide row anchors its two ends');
+
+  /*
+    ─── THE ARCHIVES MUST NOT NOTICE ─────────────────────────────────────────
+
+    /events and /events/archive render this same card and pass nothing. Their
+    grid geometry was measured before and after the wide variant landed and is
+    identical to the pixel; `wide` defaults to false and every rule it adds is
+    behind .past-event-card--wide.
+  */
+  assert.match(card, /const \{ event, index = 0, wide = false \} = Astro\.props;/,
+    'wide must default off, or the two archive grids inherit a layout built for one card');
+  const wideRules = card.match(/^\s*\.past-event-card--wide[^{]*\{/gm) ?? [];
+  assert.ok(wideRules.length >= 3, 'the wide layout should be expressed as its own modifier rules');
+  const bodyRule = /\n  \.past-event-body \{([^}]*)\}/.exec(card);
+  assert.ok(bodyRule, 'the shared body rule is gone');
+  assert.match(bodyRule[1], /flex-direction: column/,
+    'the SHARED body must stay a column. The wide row overrides it behind its own modifier; ' +
+      'changing it here changes /events and /events/archive too.');
+
+  /* An inline style cannot be overridden by a class, which is why the CTA's
+     margin had to come out of the markup for the wide row to close that gap. */
+  assert.doesNotMatch(card, /class="watch-now-btn" style=/,
+    'the CTA margin belongs in CSS; inline, the wide variant cannot reach it');
+});
+
 test('the hub trailer can be played again without a reload', () => {
   /*
     The trailer used to play exactly once. `initHubStage` is guarded by

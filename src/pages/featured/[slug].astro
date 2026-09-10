@@ -686,7 +686,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
           <SectionHeading title="Upcoming Events" id="hub-upcoming-heading" />
           <div class="hub-events-grid animate-on-scroll">
             {associatedUpcomingEvents.map((e: any, index: number) => (
-              <EventCard event={e} index={index} />
+              <EventCard event={e} index={index} wide />
             ))}
           </div>
         </section>
@@ -1776,10 +1776,28 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     single associated event renders at a sensible width instead of being
     squeezed into one third of the row by a hardcoded `lg:grid-cols-3`.
   */
+  /*
+    A LIST, NOT A GRID.
+
+    This started as `repeat(auto-fill, minmax(min(100%, 420px), 1fr))`, copied
+    from `.event-grid` on /events. That is the right shape there: the Past
+    Event Archive has dozens of entries and fills every track.
+
+    A hub has one upcoming event, sometimes two. In a 3-up grid that rendered a
+    single card in the left third with two empty tracks beside it, reading as
+    an orphan rather than a section. `auto-fit` would have collapsed the empty
+    tracks, but then the count decides the layout: one event goes full width,
+    two go half, and the same card gets a different treatment on every hub.
+
+    One column at full width, always. <EventCard wide /> anchors the row at
+    both ends so the width is used rather than merely spanned, and a hub with
+    three upcoming events gets three stacked rows, which is what a schedule
+    looks like.
+  */
   .hub-events-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
-    gap: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
     width: 100%;
   }
 
