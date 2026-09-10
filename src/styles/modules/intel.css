@@ -238,6 +238,13 @@
   without one being invented for it.
 */
 .intel-feature-copy {
+  /*
+    THE MEASURE LIVES HERE, so the standfirst and the "Read More" beneath it
+    cannot drift apart. The excerpt caps its width to it and centres; the CTA
+    offsets itself by half the leftover to land on the same left edge. Change
+    this one value and both follow.
+  */
+  --feature-measure: 42rem;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -321,7 +328,7 @@
   font-size: 1.3rem;
   line-height: var(--excerpt-leading);
   color: var(--color-white-muted);
-  max-width: 42rem;
+  max-width: var(--feature-measure);
   margin: 0;
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5rem), transparent 100%);
   mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5rem), transparent 100%);
@@ -359,6 +366,25 @@
   position: relative;
   width: fit-content;
   padding-bottom: 4px;
+  /*
+    ALIGNED WITH THE STANDFIRST, NOT WITH THE COLUMN.
+
+    The excerpt is centred at `--feature-measure`, so its left edge sits half
+    the leftover width inboard of the column. "Read More" belongs to that block
+    and was still starting at the column's padding edge, which left the two
+    visibly out of step.
+
+    Half the leftover is exactly the excerpt's own offset, and a percentage
+    margin resolves against this container's inline size, so the two track each
+    other at every width with no breakpoint. `max()` clamps it at 0 for
+    containers narrower than the measure, where the excerpt is full width and
+    both are already flush left.
+
+    This is a margin rather than `align-self`, because align-self would centre
+    the CTA itself. It is a short pill, so that would park it mid-column
+    instead of lining its left edge up with the text.
+  */
+  margin-inline-start: max(0px, calc((100% - var(--feature-measure)) / 2));
 }
 
 .intel-feature-cta::after {
