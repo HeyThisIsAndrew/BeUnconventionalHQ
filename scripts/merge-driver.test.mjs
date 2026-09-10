@@ -82,6 +82,107 @@ test('a newer factual value does NOT license overwriting editorial', () => {
   assert.equal(ok, false, 'must refuse regardless of which side is fresher');
 });
 
+/*
+  ─── event AND featuredBrand ARE EDITORIAL ALL THE WAY DOWN ─────────────────
+
+  Not a hypothetical. Merging main into feat/events-overhaul-clean silently
+  reverted five human-authored values across two events, and the driver
+  reported "No editorial field touched" — true by its own list, which named
+  only video fields.
+
+  A video doc is mostly YouTube's and only a short list belongs to a human.
+  These two types are the opposite: they came from the Sanity export and are
+  edited in the local CMS, so every non-system field is somebody's typing.
+*/
+const ev = (slug, over = {}) => ({
+  _id: 'ev-' + slug, _type: 'event', _updatedAt: '2026-01-01',
+  slug: { current: slug }, title: 'An Event', ...over,
+});
+
+test('every non-system field on an event is editorial', () => {
+  const { ok, output } = merge(
+    [ev('sdcc-2026')],
+    [ev('sdcc-2026', { _updatedAt: '2026-09-09', eventType: 'convention-expo', description: 'the rewritten copy' })],
+    [ev('sdcc-2026', { _updatedAt: '2026-09-10', eventType: 'convention', description: 'old copy' })],
+  );
+  assert.ok(!ok, 'a disagreement over eventType or description must refuse the merge');
+  assert.match(output, /eventType/, 'the report must name eventType');
+  assert.match(output, /description/, 'and description; neither is on the video EDITORIAL list');
+  /* The newer side being newer is exactly the trap: main's stamp was later and
+     its copy of these fields was older work. */
+  assert.match(output, /convention-expo/, 'the report shows what would have been lost');
+});
+
+test('a field present on only ONE side still counts as a disagreement', () => {
+  /*
+    d23-2026 carried `tagline` on the branch and nothing on main, and the
+    merge dropped it. Reading the keys of a single copy would miss this, so
+    the driver reads the UNION of both.
+
+    BOTH DIRECTIONS, deliberately. An earlier version of this test only put
+    the extra field on `ours`, and it passed against a driver that read only
+    `ours`' keys — proving nothing. The ours-only case is the one a
+    single-side read gets right by accident; the theirs-only case is the one
+    it silently drops.
+  */
+  for (const [label, oursExtra, theirsExtra] of [
+    ['ours has it', { tagline: 'The Ultimate Disney Fan Event' }, {}],
+    ['theirs has it', {}, { tagline: 'The Ultimate Disney Fan Event' }],
+  ]) {
+    const { ok, output } = merge(
+      [ev('d23-2026')],
+      [ev('d23-2026', { _updatedAt: '2026-09-09', ...oursExtra })],
+      [ev('d23-2026', { _updatedAt: '2026-09-10', ...theirsExtra })],
+    );
+    assert.ok(!ok, `${label}: a field one side has and the other does not is still a human value at risk`);
+    assert.match(output, /tagline/, `${label}: the report must name the field`);
+  }
+});
+
+test('featuredBrand gets the same protection as event', () => {
+  const brand = (over = {}) => ({
+    _id: 'fb-marvel', _type: 'featuredBrand', _updatedAt: '2026-01-01',
+    slug: { current: 'marvel-comics' }, title: 'Marvel', ...over,
+  });
+  const { ok, output } = merge(
+    [brand()],
+    [brand({ _updatedAt: '2026-09-09', hubCategory: 'franchises', description: 'From street-level heroes' })],
+    [brand({ _updatedAt: '2026-09-10', hubCategory: 'studios', description: 'Something else' })],
+  );
+  assert.ok(!ok, 'brand hubs are edited by hand too');
+  assert.match(output, /hubCategory/, 'the report must name the field');
+});
+
+test('system fields are bookkeeping, not editorial', () => {
+  /*
+    Otherwise every event merge would abort on `_rev` or `_updatedAt`, which
+    differ by construction, and the driver would be useless for these types.
+  */
+  const { ok, result } = merge(
+    [ev('pax-west-2026')],
+    [ev('pax-west-2026', { _updatedAt: '2026-09-09', _rev: 'aaa', eventType: 'convention-expo' })],
+    [ev('pax-west-2026', { _updatedAt: '2026-09-10', _rev: 'bbb', eventType: 'convention-expo' })],
+  );
+  assert.ok(ok, 'differing _rev/_updatedAt alone must still auto-resolve');
+  assert.equal(result.length, 1);
+  assert.equal(result[0].eventType, 'convention-expo', 'and the agreed editorial value survives');
+});
+
+test('videos still auto-resolve: the rule is per type, not a blanket freeze', () => {
+  /*
+    The fix must not turn every merge into a manual one. A video's title and
+    counts are YouTube's and the newer side should win, exactly as before.
+  */
+  const { ok, result } = merge(
+    [doc('v1', { title: 'old', views: 10 })],
+    [doc('v1', { title: 'old title', views: 50, _updatedAt: '2026-01-01' })],
+    [doc('v1', { title: 'new title', views: 99, _updatedAt: '2026-02-01' })],
+  );
+  assert.ok(ok, 'a factual disagreement on a video is noise, not a conflict');
+  assert.equal(result[0].title, 'new title', 'the newer sync wins on facts');
+  assert.equal(result[0].views, 99);
+});
+
 test('object-shaped files merge by key and stay objects', () => {
   // article-images.json is an object keyed by source URL, not an array. The
   // first draft handled arrays only and declined on the file most likely to

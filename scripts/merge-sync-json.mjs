@@ -35,11 +35,63 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 const [, , _ancestor, oursPath, theirsPath, realPath = ''] = process.argv;
 
-/** Editorial fields per CLAUDE.md hard rule 5. Never auto-resolved. */
+/**
+  Editorial fields per CLAUDE.md hard rule 5. Never auto-resolved.
+
+  Every name here is a field on a VIDEO document, because videos were the only
+  thing in this store when the driver was written.
+*/
 const EDITORIAL = [
   'featured', 'notes', 'status', 'manualTaxonomyOverride',
   'hubs', 'topics', 'requiresReview', 'hidden', 'order',
 ];
+
+/*
+  ─── DOC TYPES THAT ARE EDITORIAL ALL THE WAY DOWN ─────────────────────────
+
+  `event` and `featuredBrand` have NO synced facts. A video doc is mostly
+  YouTube's: title, description, thumbnails and counts all come back from the
+  API every run, and only the short list above belongs to a human. These two
+  are the opposite — they came from the Sanity export and are edited in the
+  local CMS, so every field on them is somebody's typing.
+
+  The list above never grew to cover them, and the omission was not theoretical.
+  Merging main into feat/events-overhaul-clean reverted, silently:
+
+    sdcc-2026   eventType   "convention-expo" -> "convention"  (a RETIRED value)
+    sdcc-2026   description  the rewritten copy -> the old one
+    d23-2026    eventType   "convention-expo" -> "convention"
+    d23-2026    description  the rewritten copy -> the old one
+    d23-2026    tagline     "The Ultimate Disney Fan Event" -> dropped entirely
+
+  main simply predates the taxonomy work, so its `_updatedAt` had nothing to
+  do with whether its copy of these fields was better. The driver reported
+  "No editorial field touched" and was, by its own list, telling the truth.
+  `scripts/events.test.mjs` caught the retired value; nothing would have
+  caught the descriptions.
+
+  Enumerating thirty field names would fix today and rot tomorrow: the next
+  field added to the CMS would arrive unprotected, exactly as these did. So
+  the rule is by TYPE, and it holds for fields nobody has invented yet.
+  `_`-prefixed keys are Sanity's own system metadata (`_id`, `_rev`,
+  `_updatedAt`), which is bookkeeping rather than editorial.
+*/
+const FULLY_EDITORIAL_TYPES = new Set(['event', 'featuredBrand']);
+
+/*
+  The UNION of both sides' fields, not just one side's. A field present on one
+  copy and absent from the other is exactly the d23 `tagline` case above, and
+  reading the keys of a single side would have skipped it.
+*/
+const editorialFieldsFor = (o, t) => {
+  const fully = FULLY_EDITORIAL_TYPES.has(o?._type) || FULLY_EDITORIAL_TYPES.has(t?._type);
+  if (!fully) return EDITORIAL;
+  const fields = new Set();
+  for (const doc of [o, t]) {
+    for (const k of Object.keys(doc ?? {})) if (!k.startsWith('_')) fields.add(k);
+  }
+  return [...fields];
+};
 
 /*
   Every id field these four files actually use. Verified against the real data
@@ -120,7 +172,7 @@ const clashes = [];
 for (const [id, o] of O) {
   const t = T.get(id);
   if (!t) continue;
-  for (const f of EDITORIAL) {
+  for (const f of editorialFieldsFor(o, t)) {
     if (JSON.stringify(o[f]) !== JSON.stringify(t[f])) {
       clashes.push(`${id}  ${f}:  ours=${JSON.stringify(o[f])}  theirs=${JSON.stringify(t[f])}`);
     }
