@@ -106,4 +106,82 @@ test('the centre feature is still the newest article', () => {
   );
 });
 
+test('the mobile lede reserves exactly as many lines as it renders', () => {
+  /*
+    ─── THE VOID ABOVE "READ MORE" ─────────────────────────────────────────
+
+    Two rules, written apart, disagreeing about one number.
+
+      .intel-feature-excerpt  (<=1100px)  --excerpt-lines: 7, sized with `1em`
+                                          against its own 1.3rem
+      .intel-feature-excerpt p (<=560px)  -webkit-line-clamp: 4 at 1rem
+
+    Measured on a 393px phone: a 233px box holding 102px of text. 131px of
+    the page's lead story was nothing at all, sitting directly above
+    "Read More", and it was `height` rather than `max-height` that held it
+    open.
+
+    Neither rule was wrong alone. The clamp is a deliberate call — the full
+    three-paragraph lede is ~580px of unbroken copy before a phone reader
+    reaches any other article. They were simply never asked to agree.
+
+    So the clamp reads the container's own count, and the container drops to
+    the body size at that width so `1em` in its max-height means the same
+    pixel as a rendered line.
+  */
+  const css = fs.readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'styles', 'modules', 'intel.css'),
+    'utf8',
+  );
+
+  /* A CAP, NOT A RESERVATION. `height` holds the full count open whether or
+     not there is text to fill it, which is what turned a short preview into
+     a void. */
+  assert.match(css, /\.intel-feature-excerpt \{[^}]*max-height: calc\(var\(--excerpt-lines\)/,
+    'the excerpt must CAP its height, not reserve it; `height` re-opens the void ' +
+      'for any preview shorter than the line count');
+  assert.doesNotMatch(css, /\.intel-feature-excerpt \{[^}]*[^-]height: calc\(var\(--excerpt-lines\)/,
+    'a fixed height on the excerpt is the original bug');
+
+  /* ONE NUMBER. The clamp must not hardcode a count of its own. */
+  const mobile = /@media \(max-width: 560px\) \{([\s\S]*?)\n\}/.exec(css);
+  assert.ok(mobile, 'the 560px block is gone; this test no longer reads the file it thinks it does');
+  assert.match(mobile[1], /-webkit-line-clamp: var\(--excerpt-lines\)/,
+    'the mobile clamp must read --excerpt-lines, or it can disagree with the box again');
+  assert.match(mobile[1], /\.intel-feature-excerpt \{[^}]*--excerpt-lines: \d+/,
+    'the 560px block must set the count it clamps to');
+  assert.match(mobile[1], /\.intel-feature-excerpt \{[^}]*font-size: 1rem/,
+    'the container must match the paragraph size at this width, or `1em` in its ' +
+      'max-height is not the height of a rendered line');
+});
+
+test('the excerpt fade only marks text that is actually cut', () => {
+  /*
+    The fade signals truncation. Unconditional, it dimmed the closing words of
+    any preview short enough to finish inside the cap — punctuating a complete
+    sentence as though it had been cut off. Now the component's own script
+    sets `is-clipped` after it rebuilds the element, and the mask hangs off
+    that.
+  */
+  const css = fs.readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'styles', 'modules', 'intel.css'),
+    'utf8',
+  );
+  assert.match(css, /\.intel-feature-excerpt\.is-clipped \{[^}]*mask-image/,
+    'the fade belongs to the clipped state');
+  assert.doesNotMatch(css, /\.intel-feature-excerpt \{[^}]*mask-image/,
+    'an unconditional fade dims the end of complete previews');
+
+  assert.match(source, /function markClipped\(\)/, 'something has to set the clipped state');
+  assert.match(source, /scrollHeight > excerpt\.clientHeight/,
+    'overflow is the only reliable test for "was this cut"');
+  /* Re-asked after every swap: rail articles do not share a paragraph count,
+     and the server-rendered one never goes through paint(). */
+  assert.ok(
+    (source.match(/markClipped\(\)/g) ?? []).length >= 3,
+    'markClipped must run on the server-rendered article AND after each swap, ' +
+      'or the first view is the one view that never gets measured',
+  );
+});
+
 console.log(`\n${passed} passed\n`);

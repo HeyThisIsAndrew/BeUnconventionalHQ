@@ -321,7 +321,28 @@
     the title's by half the leftover width.
   */
   align-self: center;
-  height: calc(var(--excerpt-lines) * var(--excerpt-leading) * 1em);
+  /*
+    ─── A CAP, NOT A RESERVATION ──────────────────────────────────────────
+
+    This was `height`, which holds the full seven lines open whether or not
+    there are seven lines to put in them. Measured at 393px with a one
+    paragraph preview: the box still stood 233px tall and the last line of
+    text ended 141px above "Read More". A void the width of the column, on
+    the page's lead story.
+
+    The fixed height was there for a real reason and it survives: a long
+    excerpt must cut at the SAME line on every article, so the spread does
+    not jump as the reader picks through the rail. `max-height` keeps that
+    cap exactly, and only changes what happens BELOW it — a short preview now
+    ends where its words end.
+
+    It matters because the previews are not fixed content. The article sync
+    reads Substack's live body, so how many paragraphs survive
+    `buildPreview` and how many lines they wrap to changes per article and
+    per sync. A layout that only looks right when the text is long enough is
+    a layout waiting for the next sync.
+  */
+  max-height: calc(var(--excerpt-lines) * var(--excerpt-leading) * 1em);
   overflow: hidden;
   /* Bigger than it was: this is the only body copy in the spread, and at
      1.15rem it was losing to the rail headlines beside it. */
@@ -330,6 +351,19 @@
   color: var(--color-white-muted);
   max-width: var(--feature-measure);
   margin: 0;
+}
+
+/*
+  THE FADE IS A TRUNCATION SIGNAL, so it only belongs on text that is actually
+  truncated. Unconditionally, it dimmed the closing words of any preview short
+  enough to finish inside the cap — punctuating a complete sentence as though
+  it had been cut off. `is-clipped` is set from the component's own script,
+  which already knows when it has just rebuilt this element.
+
+  No class, no mask: a browser that never runs the script shows the text hard
+  cut at the cap, which is legible and honest, rather than faded to nothing.
+*/
+.intel-feature-excerpt.is-clipped {
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5rem), transparent 100%);
   mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5rem), transparent 100%);
 }
@@ -725,9 +759,35 @@
     display: none;
   }
 
+  /*
+    ─── ONE NUMBER, NOT TWO ────────────────────────────────────────────────
+
+    These two rules were written apart and disagreed about how long the mobile
+    lede is. The container carried `--excerpt-lines: 7` from the 1100px block
+    and sized itself with `1em` against its own 1.3rem; the paragraph clamped
+    to 4 lines at 1rem. Measured at 393px: a 233px box holding 102px of text,
+    so 131px of the lead story was nothing at all, sitting directly above
+    "Read More".
+
+    Neither rule was wrong on its own. The clamp is a deliberate, documented
+    call (see the note above), and 7 lines is right for the tablet width the
+    1100px block was written for. They were simply never asked to agree.
+
+    Now the clamp READS the container's own count, and the container drops to
+    the body size at this width, so `1em` in its max-height means the same
+    pixel as a rendered line. Change `--excerpt-lines` here and the box and
+    the text move together; they cannot drift apart again.
+  */
+  .intel-feature-excerpt {
+    --excerpt-lines: 4;
+    /* Only the max-height math reads this: the paragraph sets its own size
+       below. Matching them is what makes `1em` a real line. */
+    font-size: 1rem;
+  }
+
   .intel-feature-excerpt p:first-child {
     display: -webkit-box;
-    -webkit-line-clamp: 4;
+    -webkit-line-clamp: var(--excerpt-lines);
     -webkit-box-orient: vertical;
     overflow: hidden;
     /* Match the body size — the desktop standfirst is set slightly larger,

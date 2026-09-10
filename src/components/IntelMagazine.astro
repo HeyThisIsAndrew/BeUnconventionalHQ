@@ -271,6 +271,25 @@ const activeSlug = feature?.slug ?? '';
     const items = Array.from(document.querySelectorAll<HTMLAnchorElement>('.intel-rail-item'));
     if (!link || items.length === 0) return;
 
+    /*
+      ─── ONLY FADE TEXT THAT IS ACTUALLY CUT ────────────────────────────
+
+      The excerpt is capped at a fixed number of lines so the spread cuts at
+      the same place on every article. A preview shorter than that cap now
+      ends where its words end (see `max-height` in intel.css), and fading
+      the last line of a COMPLETE sentence reads as a rendering fault.
+
+      `scrollHeight > clientHeight` is the only reliable way to ask "did
+      this overflow", and it has to be re-asked after every swap: the rail's
+      articles do not share a paragraph count. One tolerance pixel absorbs
+      sub-pixel line-box rounding, which otherwise reports a one-line
+      overflow on text that fits exactly.
+    */
+    function markClipped() {
+      if (!excerpt) return;
+      excerpt.classList.toggle('is-clipped', excerpt.scrollHeight > excerpt.clientHeight + 1);
+    }
+
     /** Redraw the centre feature from one rail item's data-* attributes. */
     function paint(item: HTMLAnchorElement) {
       const data = item.dataset;
@@ -355,6 +374,10 @@ const activeSlug = feature?.slug ?? '';
       feature!.classList.remove('is-swapping');
       void feature!.offsetWidth;
       feature!.classList.add('is-swapping');
+
+      /* After the new paragraphs are in, never before: the old article's
+         overflow tells us nothing about this one. */
+      markClipped();
     }
 
     /** Mark which rail item is currently in the centre. */
@@ -372,6 +395,17 @@ const activeSlug = feature?.slug ?? '';
       paint(item);
       setActive(item.dataset.slug ?? '');
     }
+
+    /*
+      The article the SERVER rendered never goes through paint(), so without
+      this the first thing the reader sees is the one view that never gets
+      measured. Fonts move the answer — a webfont swapping in after this runs
+      can add or remove a line — so it is asked again once the fonts settle.
+      `document.fonts` is guarded because it is absent in some older
+      WebKit builds, where the initial call still stands.
+    */
+    markClipped();
+    if (document.fonts?.ready) document.fonts.ready.then(markClipped).catch(() => {});
 
     items.forEach((item) => {
       // Guard against binding twice if this runs again after a navigation.
