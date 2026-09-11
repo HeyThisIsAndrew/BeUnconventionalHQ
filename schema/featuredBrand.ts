@@ -62,17 +62,6 @@ export default defineType({
     }),
 
     defineField({
-      name: 'coverageTags',
-      title: 'Coverage Tags',
-      type: 'array',
-      fieldset: 'details',
-      of: [{ type: 'string' }],
-      options: { layout: 'tags' },
-      description:
-        'Article and video tags that count as coverage of this hub, e.g. "Marvel Studios". Read ONLY by the site (src/lib/hub-coverage.ts) — the YouTube sync never sees these, so unlike YouTube Sync Keywords they can be written broadly without pulling videos into the hub.',
-    }),
-
-    defineField({
       name: 'excludeCoverage',
       title: 'Exclude From Coverage',
       type: 'array',

@@ -100,19 +100,26 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   streams are excluded at each CALL SITE, not inside the matcher, so the
   decision stays visible — and so an event page and its overflow feed derive
   the identical list.
-  **`coverageTags` is not `youtubeSyncKeywords`.** `youtubeSyncKeywords` is
-  read by `extractHubSeeds()` during the YouTube sync, so widening it changes
-  what the sync pulls into a hub; on events it holds year-scoped tokens
-  ("sdcc2026") that no writer ever tags an article with. `coverageTags` is
-  purely editorial, read only by the site, and is the field that lets an
-  event match articles. Seed it in the local CMS.
+  **There is ONE tag list per hub: `youtubeSyncKeywords`, labelled "Tags" in
+  the CMS.** There used to be two — a `coverageTags` the site read and a
+  `youtubeSyncKeywords` the sync read — and keeping them in step meant
+  copy-pasting the same list into two boxes, which is how they drifted. They
+  are merged. The one list feeds both `extractHubSeeds()` during the YouTube
+  sync AND `getHubMatchTags()` when the site matches articles, so a tag added
+  for one purpose serves the other. `getHubMatchTags()` still reads a
+  `coverageTags` if it finds one, purely so an un-migrated document does not
+  silently lose its coverage; no document in the store carries the field and
+  `scripts/event-coverage.test.mjs` fails if one reappears.
 - **Tags compare with their spaces closed up** (`compactTag`), so
   "SDCC 2026", "SDCC2026" and "sdcc-2026" are one tag. That is a strict
   widening of exact matching, not a step back toward substrings: "marvel"
   and "marvelstudios" are still different. **The YEAR is what separates one
   edition from the next** — "SDCC 2026" never matches "SDCC 2027" — so every
-  recurring event's tags must name its year. `scripts/event-coverage.test.mjs`
-  fails if a seeded non-premiere event carries a tag without its start year.
+  recurring event's tags must name its year, in either the four-digit form
+  ("pax west 2026") or the two-digit one ("paxwest26") the channel and
+  attendees actually write. `scripts/event-coverage.test.mjs` fails if a
+  seeded non-premiere event carries a tag naming neither, which is what a
+  bare "pax" would be: a tag that claims every edition there has ever been.
 - **`excludeCoverage` is the override**, listing article slugs/guids, YouTube
   ids or `_id`s to drop from a hub whatever the tags say. It exists for the
   one case tagging cannot settle: a retrospective, where a post about SDCC
@@ -222,6 +229,38 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   only, gated identically in JS and CSS. The stage is a **sibling** of the
   clipping backdrop wrapper — hard rule 3 forbids any clipping ancestor.
   `scripts/featured-containment.test.mjs` guards all of this.
+- **The event hero renders a mark in THREE slots, and they are not one asset.**
+  `.hero-logo` (small, top left) is the EVENT's own mark; `.hub-stage-plate`
+  (blurred ghost) and `.hub-stage-mark` (large, right) are the BRAND's, and
+  those two are deliberately one asset because crisp-over-blurred-copy is the
+  lockup /featured uses. All three used to read `logo`, so a hero read as the
+  same event three times, and worse on a series: PAX West, East, Aus and
+  Unplugged all point `logo` at one shared PAX wordmark, so four events were
+  visually identical. **`heroLogo` overrides the LEFT slot only**, falling back
+  to `logo` when unset (the common case). Never point the stage at it.
+- **The hero's "Event Details" button goes to `officialWebsite`**, not
+  `signUpLink`. `signUpLink` is the REGISTRATION link (an Axs listing for The
+  Game Awards, a newsletter form for PAX East) and it still powers the
+  "Tickets / RSVP" button further down the page. The two stay separate.
+- **The metadata row's vertical position must not depend on the event.** It
+  used to move twice over: the copy column was `align-self: end`, so it sized
+  to its own content with its BOTTOM pinned, and a taller logo pushed the tags
+  up while `.has-cta` (which adds a grid row, shortening the 1fr row above it)
+  moved the edge they were pinned to. Measured at 1440x900: 18px of drift
+  across logo heights, 32px between an event with a CTA and one without. The
+  column stretches now and `.hero-identity` takes `margin-top: auto`, so the
+  eyebrow sits at the top of the grid and the lockup stays bottom-anchored.
+  `scripts/event-hero-lockup.test.mjs` guards all three of these.
+- **Image fields accept two shapes.** The local CMS writes a bare ref string
+  (`"image-<hash>-WxH-ext"`); the original frozen Sanity export wrote
+  `{_type:'image', asset:{_ref}}`. `urlFor()` and the dimension parser both
+  handle either, and the CMS reads through `refOf()` rather than a bare
+  `typeof === 'string'` — which used to show D23 and SDCC 2027 as having no
+  logo, whose only remedy was re-uploading an asset that was already there.
+  The store itself is all strings now. The CMS's **Reuse** button opens a
+  picker over every ref in `videos.json` (`collectAssetLibrary()` walks
+  documents, not a fixed field list), so referencing an existing logo between
+  pages never means uploading it twice.
 - **Local CMS:** `/local-cms` (dev-only route, `src/components/admin/LocalCmsApp.tsx`)
   — master/detail editor over `src/data/videos.json`, backed by a dev-server-only
   Vite middleware (`localCmsMiddleware` in `astro.config.mjs`) at

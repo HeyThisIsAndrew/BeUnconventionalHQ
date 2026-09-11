@@ -72,7 +72,7 @@ type Doc = {
   heroImage?: any;
   backdrops?: any[];
   youtubeSyncKeywords?: string[];
-  coverageTags?: string[];
+  heroLogo?: string;
   excludeCoverage?: string[];
   pinnedCoverage?: string[];
   brandColor?: { hex?: string };
@@ -317,9 +317,165 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function ImageUploadField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+/**
+ * Every image already in the store, so a mark that exists can be REUSED
+ * instead of uploaded again.
+ *
+ * ─── WHY THIS EXISTS ──────────────────────────────────────────────────────
+ * Asked for directly: "I need the ability to reference existing logos and
+ * images between cms pages like a dropdown so I don't have to keep uploading
+ * new assets." Before this, the only way to put the PAX wordmark on a fourth
+ * PAX edition was to upload the same file a fourth time, which is four copies
+ * on the CDN and four chances for them to drift apart.
+ *
+ * Walks the whole document set rather than a fixed list of fields, because
+ * images live in several shapes here: a bare ref string on `logo`, an array
+ * on `backdrops`, an object with `asset._ref` on older frozen-export docs.
+ * Anything that looks like an asset ref counts, wherever it is.
+ */
+function collectAssetLibrary(docs: any[]): { ref: string; usedBy: string[] }[] {
+  const REF = /^image-[0-9a-f]{20,}-\d+x\d+-[a-z]+$/i;
+  const found = new Map<string, Set<string>>();
+
+  const walk = (value: any, label: string) => {
+    if (!value) return;
+    if (typeof value === 'string') {
+      if (REF.test(value)) {
+        if (!found.has(value)) found.set(value, new Set());
+        found.get(value)!.add(label);
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const v of value) walk(v, label);
+      return;
+    }
+    if (typeof value === 'object') {
+      for (const v of Object.values(value)) walk(v, label);
+    }
+  };
+
+  for (const doc of docs ?? []) {
+    const label = doc?.title || doc?.slug?.current || doc?._id || 'untitled';
+    walk(doc, label);
+  }
+
+  return [...found.entries()]
+    .map(([ref, usedBy]) => ({ ref, usedBy: [...usedBy].sort() }))
+    .sort((a, b) => a.usedBy[0].localeCompare(b.usedBy[0]));
+}
+
+/*
+  ONE FIELD, TWO SHAPES.
+
+  The local CMS writes a bare ref string. The original frozen Sanity export
+  wrote `{_type:'image', asset:{_ref}}`, and a handful of documents still
+  carried that shape — D23 and SDCC 2027 among them. Reading the field with a
+  bare `typeof === 'string'` showed those as having NO logo, so the editor's
+  only move was to upload a duplicate of an asset that was already there.
+
+  `urlFor()` and the dimension parser both accept either shape, so nothing was
+  broken on the site; this was a CMS-only blind spot. Saving through the form
+  normalises the field to a string, which is why the store is all strings now.
+*/
+function refOf(value: any): string {
+  if (typeof value === 'string') return value;
+  const ref = value?.asset?._ref ?? value?._ref;
+  return typeof ref === 'string' ? ref : '';
+}
+
+/** "image-<hash>-3000x1022-png" -> "3000x1022". Shown so a wordmark and a
+ *  square mark are told apart at a glance in the picker. */
+function refDimensions(ref: string): string {
+  const m = /-(\d+)x(\d+)-/.exec(ref || '');
+  return m ? `${m[1]}x${m[2]}` : '';
+}
+
+function AssetPicker({
+  library,
+  onPick,
+  onClose,
+}: {
+  library: { ref: string; usedBy: string[] }[];
+  onPick: (ref: string) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const shown = q
+    ? library.filter((a) => a.usedBy.some((u) => u.toLowerCase().includes(q)))
+    : library;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-3xl max-h-[80vh] overflow-y-auto rounded-lg border border-white/10 bg-[#111214] p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h3 className="text-sm font-bold uppercase tracking-widest text-gray-300">
+            Use an image already in the store
+          </h3>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-white text-sm">
+            Close
+          </button>
+        </div>
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Filter by the document it is used on..."
+          className={`${inputClass} mb-4`}
+        />
+        {shown.length === 0 ? (
+          <p className="text-sm text-gray-500">Nothing matches that.</p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {shown.map((asset) => (
+              <button
+                key={asset.ref}
+                type="button"
+                onClick={() => {
+                  onPick(asset.ref);
+                  onClose();
+                }}
+                className="text-left rounded-md border border-white/10 bg-black/40 p-2 hover:border-red-500/60 hover:bg-white/5 transition-colors"
+              >
+                <img
+                  src={urlFor(asset.ref).width(320).url()}
+                  alt=""
+                  className="h-20 w-full object-contain rounded bg-black/50"
+                  loading="lazy"
+                />
+                <p className="mt-2 text-[11px] leading-tight text-gray-300 line-clamp-2">
+                  {asset.usedBy.join(', ')}
+                </p>
+                <p className="text-[10px] text-gray-500">{refDimensions(asset.ref)}</p>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ImageUploadField({
+  label,
+  value,
+  onChange,
+  hint,
+  library = [],
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  hint?: string;
+  library?: { ref: string; usedBy: string[] }[];
+}) {
   const [uploading, setUploading] = useState(false);
-  
+  const [picking, setPicking] = useState(false);
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -354,19 +510,36 @@ function ImageUploadField({ label, value, onChange }: { label: string; value: st
     }
   };
 
+  const btn =
+    'flex-none flex items-center justify-center px-3 py-2 text-xs font-bold rounded-lg border transition-colors';
+
   return (
     <Field label={label}>
       <div className="flex gap-2">
-        <input type="text" value={value || ''} onChange={(e) => onChange(e.target.value)} className={`${inputClass} flex-1`} placeholder="https://... or Upload below" />
-        <label className={`flex-none flex items-center justify-center px-3 py-2 text-xs font-bold rounded-lg border transition-colors ${uploading ? 'text-gray-500 border-white/5 bg-white/5 cursor-wait' : 'text-gray-300 border-white/10 bg-white/5 hover:text-white hover:border-white/20 hover:bg-white/10 cursor-pointer'}`}>
+        <input type="text" value={value || ''} onChange={(e) => onChange(e.target.value)} className={`${inputClass} flex-1`} placeholder="https://... or Upload / Reuse" />
+        {library.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            className={`${btn} text-gray-300 border-white/10 bg-white/5 hover:text-white hover:border-white/20 hover:bg-white/10`}
+          >
+            Reuse
+          </button>
+        )}
+        <label className={`${btn} ${uploading ? 'text-gray-500 border-white/5 bg-white/5 cursor-wait' : 'text-gray-300 border-white/10 bg-white/5 hover:text-white hover:border-white/20 hover:bg-white/10 cursor-pointer'}`}>
           {uploading ? 'Uploading...' : 'Upload'}
           <input type="file" accept="image/*" onChange={handleUpload} className="hidden" disabled={uploading} />
         </label>
       </div>
+      {hint && <p className="text-xs text-gray-500 mt-1.5">{hint}</p>}
       {value && typeof value === 'string' && (
-        <div className="mt-2">
+        <div className="mt-2 flex items-center gap-3">
           <img src={urlFor(value).width(400).url()} alt="Preview" className="h-20 object-contain rounded-md bg-black/50 border border-white/10 p-1" />
+          <span className="text-[11px] text-gray-500">{refDimensions(value)}</span>
         </div>
+      )}
+      {picking && (
+        <AssetPicker library={library} onPick={onChange} onClose={() => setPicking(false)} />
       )}
     </Field>
   );
@@ -1014,7 +1187,7 @@ export default function LocalCmsApp() {
                   <EventForm doc={selected} allDocs={docs} updateDoc={updateDoc} updateSlug={updateSlug} updateLocation={updateLocation} duplicateAsEdition={duplicateAsEdition} />
                 )}
                 {selected._type === 'featuredBrand' && (
-                  <BrandForm doc={selected} updateDoc={updateDoc} updateSlug={updateSlug} />
+                  <BrandForm allDocs={docs} doc={selected} updateDoc={updateDoc} updateSlug={updateSlug} />
                 )}
                 {selected._type === 'article' && (
                   <ArticleForm doc={selected} updateDoc={updateDoc} />
@@ -1512,6 +1685,9 @@ function EventForm({
   duplicateAsEdition: (doc: Doc) => void;
 }) {
   const update = (field: keyof Doc, value: any) => updateDoc(doc._id, field, value);
+  /* Every image already in the store, so an existing mark can be reused
+     instead of uploaded again. See collectAssetLibrary. */
+  const assetLibrary = useMemo(() => collectAssetLibrary(allDocs), [allDocs]);
   const brandHubs = allDocs.filter((d: any) => d._type === 'featuredBrand').sort((a: any, b: any) => a.title.localeCompare(b.title));
   /* Only templates may be picked as a parent series, and a document can never
      be its own parent. */
@@ -1666,15 +1842,26 @@ function EventForm({
         <Field label="Brand Color (Hex)">
           <input type="text" value={doc.brandColor?.hex || ''} onChange={(e) => update('brandColor', { hex: e.target.value })} className={inputClass} placeholder="#FF0000" />
         </Field>
-        <ImageUploadField 
-          label="Logo URL" 
-          value={typeof doc.logo === 'string' ? doc.logo : ''} 
-          onChange={(v) => update('logo', v)} 
+        <ImageUploadField
+          label="Logo"
+          value={refOf(doc.logo)}
+          onChange={(v) => update('logo', v)}
+          library={assetLibrary}
+          hint="The brand mark. Shown large on the right of the hero, and again blurred behind it. Shared across editions is fine: all four PAX events use one PAX wordmark here."
         />
-        <ImageUploadField 
-          label="Hero Image URL" 
-          value={typeof doc.heroImage === 'string' ? doc.heroImage : ''} 
-          onChange={(v) => update('heroImage', v)} 
+        <ImageUploadField
+          label="Hero Logo (optional)"
+          value={refOf(doc.heroLogo)}
+          onChange={(v) => update('heroLogo', v)}
+          library={assetLibrary}
+          hint="Only the small mark at the TOP LEFT of the hero. Leave empty and it uses the Logo above. Set it when the brand mark is not specific enough: PAX West and PAX East share a logo, so without this their heroes look like the same event."
+        />
+        <ImageUploadField
+          label="Hero Image"
+          value={refOf(doc.heroImage)}
+          onChange={(v) => update('heroImage', v)}
+          library={assetLibrary}
+          hint="Key art behind the whole hero, and the social share card."
         />
       </div>
 
@@ -1685,14 +1872,24 @@ function EventForm({
         />
       </div>
 
-      <div className="mt-5">
-        <TagsInput label="YouTube Sync Keywords (hub auto-tagging)" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
-        <p className="text-xs text-gray-400 mt-1.5">Matched against YouTube tags by the sync. Keep these narrow and year-scoped: anything here can pull a video into this hub.</p>
-      </div>
+      {/*
+        ONE tag list, not two.
 
+        This was split into "YouTube Sync Keywords" and "Coverage Tags"
+        because the sync reads one of them and only the site reads the other,
+        so widening the sync list has consequences the site list does not.
+        That distinction was real and it was still the wrong shape: in
+        practice a YouTube video and a Substack post about SDCC 2026 get
+        tagged the same words, so the split only ever meant typing the same
+        list twice and watching the two drift.
+
+        The existing values were merged into this one field, and every reader
+        (the site matcher, the YouTube sync's hub dictionary, search, the
+        Instagram topic filter) now sees the same list.
+      */}
       <div className="mt-5">
-        <TagsInput label="Coverage Tags (articles &amp; site matching)" value={doc.coverageTags} onChange={(v) => update('coverageTags', v)} />
-        <p className="text-xs text-gray-400 mt-1.5">Article and video tags that count as coverage of this hub, e.g. "Marvel Studios", "SDCC 2026". The YouTube sync never reads these, so they are safe to write broadly. Spacing and punctuation do not matter ("SDCC 2026", "SDCC2026" and "sdcc-2026" are one tag), but the year does: "SDCC 2026" never matches "SDCC 2027". Tag event posts with the year and each edition keeps its own coverage.</p>
+        <TagsInput label="Tags" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
+        <p className="text-xs text-gray-400 mt-1.5">One list, used everywhere: it matches YouTube videos during the sync AND articles and videos on the site. Spacing and punctuation do not matter ("SDCC 2026", "SDCC2026" and "sdcc-2026" are one tag). The YEAR does: "SDCC 2026" never matches "SDCC 2027", which is what keeps each edition's coverage its own. Tag broadly enough to catch your posts, narrowly enough that the sync does not pull in someone else's event.</p>
       </div>
 
       <div className="mt-5">
@@ -1876,15 +2073,20 @@ const HUB_CATEGORIES = [
 ];
 
 function BrandForm({
+  allDocs,
   doc,
   updateDoc,
   updateSlug,
 }: {
+  allDocs: Doc[];
   doc: Doc;
   updateDoc: (id: string, field: keyof Doc, value: any) => void;
   updateSlug: (id: string, value: string) => void;
 }) {
   const update = (field: keyof Doc, value: any) => updateDoc(doc._id, field, value);
+  /* Every image already in the store, so an existing mark can be reused
+     instead of uploaded again. See collectAssetLibrary. */
+  const assetLibrary = useMemo(() => collectAssetLibrary(allDocs), [allDocs]);
   return (
     <div className={sectionClass}>
       <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5">
@@ -1903,15 +2105,17 @@ function BrandForm({
         <Field label="Trailer URL">
           <input type="text" value={doc.trailerUrl || ''} onChange={(e) => update('trailerUrl', e.target.value)} className={inputClass} placeholder="https://youtube.com/watch?v=…" />
         </Field>
-        <ImageUploadField 
-          label="Logo URL" 
-          value={typeof doc.logo === 'string' ? doc.logo : ''} 
-          onChange={(v) => update('logo', v)} 
+        <ImageUploadField
+          label="Logo"
+          value={refOf(doc.logo)}
+          onChange={(v) => update('logo', v)}
+          library={assetLibrary}
         />
-        <ImageUploadField 
-          label="Hero Image URL" 
-          value={typeof doc.heroImage === 'string' ? doc.heroImage : ''} 
-          onChange={(v) => update('heroImage', v)} 
+        <ImageUploadField
+          label="Hero Image"
+          value={refOf(doc.heroImage)}
+          onChange={(v) => update('heroImage', v)}
+          library={assetLibrary}
         />
       </div>
 
@@ -1978,14 +2182,24 @@ function BrandForm({
         <BackdropsField value={doc.backdrops} onChange={(v) => update('backdrops', v)} />
       </div>
 
-      <div className="mt-5">
-        <TagsInput label="YouTube Sync Keywords (hub auto-tagging)" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
-        <p className="text-xs text-gray-400 mt-1.5">Matched against YouTube tags by the sync. Keep these narrow and year-scoped: anything here can pull a video into this hub.</p>
-      </div>
+      {/*
+        ONE tag list, not two.
 
+        This was split into "YouTube Sync Keywords" and "Coverage Tags"
+        because the sync reads one of them and only the site reads the other,
+        so widening the sync list has consequences the site list does not.
+        That distinction was real and it was still the wrong shape: in
+        practice a YouTube video and a Substack post about SDCC 2026 get
+        tagged the same words, so the split only ever meant typing the same
+        list twice and watching the two drift.
+
+        The existing values were merged into this one field, and every reader
+        (the site matcher, the YouTube sync's hub dictionary, search, the
+        Instagram topic filter) now sees the same list.
+      */}
       <div className="mt-5">
-        <TagsInput label="Coverage Tags (articles &amp; site matching)" value={doc.coverageTags} onChange={(v) => update('coverageTags', v)} />
-        <p className="text-xs text-gray-400 mt-1.5">Article and video tags that count as coverage of this hub, e.g. "Marvel Studios", "SDCC 2026". The YouTube sync never reads these, so they are safe to write broadly. Spacing and punctuation do not matter ("SDCC 2026", "SDCC2026" and "sdcc-2026" are one tag), but the year does: "SDCC 2026" never matches "SDCC 2027". Tag event posts with the year and each edition keeps its own coverage.</p>
+        <TagsInput label="Tags" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
+        <p className="text-xs text-gray-400 mt-1.5">One list, used everywhere: it matches YouTube videos during the sync AND articles and videos on the site. Spacing and punctuation do not matter ("SDCC 2026", "SDCC2026" and "sdcc-2026" are one tag). The YEAR does: "SDCC 2026" never matches "SDCC 2027", which is what keeps each edition's coverage its own. Tag broadly enough to catch your posts, narrowly enough that the sync does not pull in someone else's event.</p>
       </div>
 
       <div className="mt-5">

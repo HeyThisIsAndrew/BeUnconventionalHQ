@@ -97,6 +97,47 @@ const fallbackGradient = `linear-gradient(135deg, rgba(${brandRgb}, 0.28) 0%, #0
 const trailerUrl = event.trailerUrl;
 const trailerId = parseVideoId(trailerUrl);
 
+/*
+  ─── THREE SLOTS, AND THEY ARE NOT ALL THE SAME MARK ──────────────────────
+
+  The hero renders a mark in three places:
+
+    .hero-logo        small, top left      the EVENT'S own mark
+    .hub-stage-plate  blurred ghost        the brand mark
+    .hub-stage-mark   large, crisp, right  the brand mark
+
+  The ghost and the stage mark are one asset on purpose: crisp over a
+  blown-up blurred copy of itself is the same lockup /featured uses.
+
+  The LEFT one was also that same asset, and that is what made a hero read as
+  the same event three times over. Worse on a recurring series: PAX West,
+  East, Aus and Unplugged all pointed `logo` at one shared PAX wordmark, so
+  four different events were visually identical.
+
+  `heroLogo` is the override for the left slot only. Unset (the common case)
+  it falls back to `logo` and nothing changes.
+*/
+const heroLockupLogo = event.heroLogo || event.logo;
+
+/*
+  ─── WHERE "EVENT DETAILS" GOES ───────────────────────────────────────────
+
+  It pointed at `signUpLink`, which is the REGISTRATION link: the Axs ticket
+  listing for The Game Awards, a Leap Events checkout for L.A. Comic Con, a
+  newsletter sign-up form for PAX East. A button labelled "Event Details"
+  that lands on a shopping cart is a broken promise, and the details the
+  label offers are on the event's own site.
+
+  So: `officialWebsite` first, `signUpLink` only as the fallback for a
+  document that somehow has the second without the first.
+
+  This also settles the eyebrow's placement below. Every seeded event carries
+  an officialWebsite, so the CTA row now renders on all of them rather than
+  only on the ones with tickets on sale — but the CSS no longer depends on
+  that being true. See `.hero-eyebrow` in the split layout.
+*/
+const heroCtaHref = event.officialWebsite || event.signUpLink || null;
+
 const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format').url() : null;
 
 const HERO_ITEM_LIMIT = 5;
@@ -240,7 +281,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
             '2xl:!grid-cols-[1fr_1.2fr]',
             '3xl:!max-w-[2400px]',
             '3xl:!grid-cols-[1fr_1.4fr]',
-            { 'has-trailer': !!trailerId, 'has-cta': !!event.signUpLink },
+            { 'has-trailer': !!trailerId, 'has-cta': !!heroCtaHref },
           ]}
         >
           <div class="event-hero-content hero-copy animate-on-scroll">
@@ -309,11 +350,11 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
               lockup and give the trailer below room to matter.
             */}
             <div class="hero-identity">
-              {event.logo ? (
+              {heroLockupLogo ? (
                 <>
                   <h1 class="sr-only">{event.title}</h1>
                   <span class="hero-logo-wrap" aria-hidden="true">
-                    <img src={urlFor(event.logo).height(320).auto('format').url()} alt="" class="hero-logo" />
+                    <img src={urlFor(heroLockupLogo).height(320).auto('format').url()} alt="" class="hero-logo" />
                   </span>
                 </>
               ) : (
@@ -589,9 +630,9 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
 
           {/* Placed after the trailer in the DOM so mobile stacks copy →
               trailer → button; grid-areas restore the desktop layout. */}
-          {event.signUpLink && (
+          {heroCtaHref && (
             <div class="hero-info-cta">
-              <a href={event.signUpLink} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn">
+              <a href={heroCtaHref} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn">
                 Event Details
               </a>
             </div>
@@ -1742,14 +1783,39 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
       Stretching one cell gives the copy the row's full height to work with and
       leaves the stage sizing itself.
     */
+    /*
+      ─── THE METADATA ROW DOES NOT MOVE ───────────────────────────────────
+
+      It used to. This column was `align-self: end`, so it was only ever as
+      tall as its own content and its BOTTOM edge was pinned to the bottom of
+      the 1fr row. Two things then dragged the eyebrow around:
+
+        1. THE LOGO'S HEIGHT. A tall mark made the column taller, and since
+           the bottom was fixed, the extra height came off the top: the tags
+           slid upward. Two events differing only in how their logo was
+           cropped showed the tags at two different heights.
+        2. WHETHER THERE WAS A CTA. `.has-cta` adds a grid row, which makes
+           the 1fr row shorter, which moved the bottom edge the column was
+           pinned to. So an event with no `signUpLink` (Oscars, Anime Expo,
+           Summer Game Fest, SDCC 2027) put its tags somewhere else again.
+
+      Now the column STRETCHES to the row and the eyebrow sits at its top,
+      which is the top of the grid and does not depend on anything inside the
+      column. `.hero-identity` takes `margin-top: auto` so the lockup stays
+      bottom-anchored exactly where it was, and the 1.4rem under the eyebrow
+      survives as the minimum gap rather than being eaten by an auto margin.
+    */
     .hero-grid-container.has-trailer .hero-copy {
-      align-self: end;
+      align-self: stretch;
       /* Same reason as the rail's: a grid item defaults to a min-content
          floor, and this column holds one. */
       min-width: 0;
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      justify-content: flex-start;
+    }
+    .hero-grid-container.has-trailer .hero-copy > .hero-identity {
+      margin-top: auto;
     }
     .hero-grid-container.has-trailer .hub-rail {
       grid-area: rail;

@@ -414,6 +414,16 @@ export default defineType({
       description: 'Transparent PNG. Becomes the visible identity element in the hero.',
     }),
     defineField({
+      name: 'heroLogo',
+      title: 'Hero Logo (optional)',
+      type: 'image',
+      fieldset: 'media',
+      options: { hotspot: true },
+      description:
+        'Overrides ONLY the small mark at the top left of the hero. Empty falls back to Logo. The hero shows a mark three times (small left, blurred ghost, large right) and the last two are deliberately one asset. Set this where the brand mark is not edition-specific: PAX West, East, Aus and Unplugged share one PAX wordmark, so without it their heroes are indistinguishable.',
+    }),
+
+    defineField({
       name: 'trailerUrl',
       title: 'Hero Trailer URL',
       type: 'url',
@@ -511,24 +521,13 @@ export default defineType({
     // ── Content matching ────────────────────────────────────────────────
     defineField({
       name: 'youtubeSyncKeywords',
-      title: 'YouTube Sync Keywords (Tier 3)',
+      title: 'Tags',
       type: 'array',
       fieldset: 'details',
       of: [{ type: 'string' }],
       options: { layout: 'tags' },
       description:
-        'YouTube tags that auto-assign a video to this event hub (case/punctuation-insensitive exact match), e.g. "san diego comic-con". Set once — epic #34.',
-    }),
-
-    defineField({
-      name: 'coverageTags',
-      title: 'Coverage Tags',
-      type: 'array',
-      fieldset: 'details',
-      of: [{ type: 'string' }],
-      options: { layout: 'tags' },
-      description:
-        'Article and video tags that count as coverage of this hub, e.g. "Marvel Studios". Read ONLY by the site (src/lib/hub-coverage.ts) — the YouTube sync never sees these, so unlike YouTube Sync Keywords they can be written broadly without pulling videos into the hub.',
+        'ONE tag list, read by everything: the YouTube sync\u2019s hub dictionary, the site\u2019s article and video matching, search, and the Instagram topic filter. Was split into sync keywords and coverage tags; in practice a video and a post about the same event carry the same words, so the split only meant typing the list twice. Case and punctuation are ignored ("SDCC 2026" = "sdcc-2026"), the YEAR is not.',
     }),
 
     defineField({

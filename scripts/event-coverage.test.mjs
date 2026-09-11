@@ -236,25 +236,22 @@ test('every item is labelled with what it is, or the filter has nothing to read'
   assert.equal(videoCount, 1);
 });
 
-test('the shipped event store still needs coverageTags, and one event proves it', () => {
+test('one tag list, and it is wired to something', () => {
   /*
-    ─── THE MEASUREMENT THAT JUSTIFIES THE FIELD ───────────────────────────
+    ─── WHY THERE IS ONE FIELD AND NOT TWO ─────────────────────────────────
 
-    `youtubeSyncKeywords` on an event is year-scoped sync tokens —
-    ["sdcc 2026", "sdcc-2026", "sdcc2026"] — because its one job is matching
-    YouTube tags during the sync. No writer tags an article "sdcc2026", so
-    an event matching on that field alone matches no articles at all. On a
-    brand hub the same field happens to hold brand names ("marvel", "mcu"),
-    which IS what a writer tags a post with, which is why hub pages appeared
-    to work and event pages did not.
+    This was `youtubeSyncKeywords` (read by the sync) plus `coverageTags`
+    (read only by the site). The split was real: widening the sync list
+    changes what the YouTube sync pulls into a hub, and widening the site
+    list does not.
 
-    Widening youtubeSyncKeywords instead would be worse than the bug:
-    extractHubSeeds() in scripts/sync-youtube.mjs reads it, so "marvel
-    studios" on the Doomsday premiere would hub-tag every Marvel video on
-    the channel to one red-carpet night.
+    It was still the wrong shape. In practice a video and a post about
+    SDCC 2026 get tagged the same words, so two fields only ever meant
+    typing the same list twice and watching the two drift. They are merged.
 
-    This asserts the measurement both ways: an event with no coverageTags
-    still matches nothing, and the one event that has them matches something.
+    What still has to hold: the one list must actually match something, or
+    it is shipped dead the same way the old event-page matcher was, with
+    nothing on any page to say so.
   */
   const docs = JSON.parse(readSrc('src', 'data', 'videos.json'));
   const rawArticles = JSON.parse(readSrc('src', 'data', 'articles.json'));
@@ -262,35 +259,59 @@ test('the shipped event store still needs coverageTags, and one event proves it'
   const events = docs.filter((d) => d._type === 'event');
   assert.ok(events.length > 0, 'the event store must not be empty');
 
-  for (const event of events) {
-    if (Array.isArray(event.coverageTags) && event.coverageTags.length > 0) continue;
-    const syncOnly = matchArticlesByTags(articles, getHubMatchTags(event));
-    assert.equal(syncOnly.length, 0,
-      `${event.slug?.current} matched an article from youtubeSyncKeywords alone. If sync ` +
-        'keywords have become broad enough to match prose tags, they are now feeding ' +
-        'extractHubSeeds() the same breadth — check what that pulls into the hub.');
+  for (const doc of [...events, ...docs.filter((d) => d._type === 'featuredBrand')]) {
+    assert.equal(doc.coverageTags, undefined,
+      `${doc.slug?.current} still carries coverageTags. The two lists were merged into ` +
+        'youtubeSyncKeywords; a second one reintroduces the drift.');
   }
 
-  const seeded = events.filter((e) => Array.isArray(e.coverageTags) && e.coverageTags.length > 0);
-  assert.ok(seeded.length > 0,
-    'no event carries coverageTags, so no event page can show an article. Seed at least one, ' +
-      'or the field is shipped dead.');
+  const tagged = events.filter((e) => getHubMatchTags(e).length > 0);
+  assert.equal(tagged.length, events.length,
+    'every event needs a tag list, or its page can never show coverage');
 
-  /*
-    At least one seeded event must actually match, or the field is shipped
-    dead in a subtler way: present on every document and wired to nothing.
-
-    NOT every seeded event — most are future conventions with no coverage
-    written yet, and an empty SDCC 2027 page is correct. Asserting all of
-    them would fail the moment an event is added, which trains people to
-    ignore this file.
-  */
-  const matching = seeded.filter((e) => matchArticlesByTags(articles, getHubMatchTags(e)).length > 0);
+  const matching = events.filter((e) => matchArticlesByTags(articles, getHubMatchTags(e)).length > 0);
   assert.ok(matching.length > 0,
-    `${seeded.length} events carry coverageTags and not one of them matches an article. Tags are ` +
-      'compared exactly after normalizing and closing up spaces — check them against the article ' +
-      'tags actually in the store.');
+    `none of the ${events.length} events matches an article. Tags are compared exactly after ` +
+      'normalizing and closing up spaces, so check them against the article tags in the store.');
 });
+
+test('every recurring event names its year, now that the sync reads this list', () => {
+  /*
+    This mattered before and it matters more now. The merged list feeds
+    extractHubSeeds(), so a tag without a year does not just pull every
+    edition's ARTICLES onto one page, it pulls every edition's VIDEOS into
+    one hub during the next sync.
+
+    Premieres are exempt: they happen once, so "AVENGERS DOOMSDAY" is
+    already unambiguous and a year would only make it harder to tag.
+
+    TWO-DIGIT EDITIONS COUNT. Attendees and the channel both write "lacc26"
+    and "paxwest26", not "lacc2026", and a short year separates one edition
+    from the next exactly as well as a long one does: "paxwest26" and
+    "paxwest27" are still two different tags to the matcher. What this guard
+    is actually hunting is the tag with NO edition in it at all — a bare
+    "pax", which claims every PAX that has ever happened.
+
+    The short form has to sit on its own, though. `26` inside `2026` is not a
+    second opinion, and a tag like "top 260 games" is not an edition, so the
+    two-digit form only counts where it is not glued to another digit.
+  */
+  const docs = JSON.parse(readSrc('src', 'data', 'videos.json'));
+  for (const event of docs.filter((d) => d._type === 'event')) {
+    const tags = Array.isArray(event.youtubeSyncKeywords) ? event.youtubeSyncKeywords : [];
+    if (tags.length === 0 || event.eventType === 'premiere') continue;
+    const year = String(event.startDate ?? '').slice(0, 4);
+    assert.match(year, /^\d{4}$/, `${event.slug?.current} has no usable start year`);
+    const shortYear = new RegExp(`(?<!\\d)${year.slice(2)}(?!\\d)`);
+    for (const tag of tags) {
+      const text = String(tag);
+      assert.ok(text.includes(year) || shortYear.test(text),
+        `${event.slug?.current}: tag "${tag}" names neither ${year} nor ${year.slice(2)}, so it ` +
+          'will claim other editions of the same event, on the site AND in the next YouTube sync');
+    }
+  }
+});
+
 
 test('a named item can be dropped from a hub whatever its tags say', () => {
   /*
@@ -312,7 +333,7 @@ test('a named item can be dropped from a hub whatever its tags say', () => {
   */
   const hub = {
     slug: { current: 'sdcc-2026' },
-    coverageTags: ['SDCC'],
+    youtubeSyncKeywords: ['SDCC'],
     excludeCoverage: ['retrospective-post'],
   };
   const keep = article({ title: 'keep', tags: ['SDCC'], slug: 'preview-post' });
@@ -323,7 +344,7 @@ test('a named item can be dropped from a hub whatever its tags say', () => {
 
   /* Without the list, both are coverage — so the list is what did the work. */
   const unfiltered = collectHubCoverage({
-    hub: { slug: { current: 'sdcc-2026' }, coverageTags: ['SDCC'] },
+    hub: { slug: { current: 'sdcc-2026' }, youtubeSyncKeywords: ['SDCC'] },
     videos: [],
     articles: [keep, drop],
   });
@@ -338,7 +359,7 @@ test('the override reaches hub-TAGGED videos too, not just matched ones', () => 
   */
   const hub = {
     slug: { current: 'sdcc-2026' },
-    coverageTags: ['SDCC'],
+    youtubeSyncKeywords: ['SDCC'],
     excludeCoverage: ['MOCKID123'],
   };
   const tagged = video({ title: 'hand-picked', hubs: ['sdcc-2026'], youtubeId: 'mockid123' });
@@ -352,33 +373,6 @@ test('an item can be named by any of the handles an editor might be looking at',
   assert.deepEqual(coverageIdentity({ guid: 'G1', youtubeId: 'Y1', _id: 'D1' }), ['g1', 'y1', 'd1']);
   assert.deepEqual(coverageIdentity({}), []);
   assert.deepEqual(coverageIdentity({ slug: '   ' }), [], 'whitespace is not an identity');
-});
-
-test('every seeded event carries a YEAR-scoped vocabulary', () => {
-  /*
-    The whole edition-separation story rests on this. An event whose tags do
-    not name its year will collect every edition's coverage forever, and it
-    will look like it is working.
-
-    Premieres are exempt: they happen once, so "AVENGERS DOOMSDAY" is already
-    unambiguous and appending a year to it would only make it harder to tag.
-  */
-  const docs = JSON.parse(readSrc('src', 'data', 'videos.json'));
-  const events = docs.filter((d) => d._type === 'event');
-
-  for (const event of events) {
-    const tags = Array.isArray(event.coverageTags) ? event.coverageTags : [];
-    if (tags.length === 0) continue;
-    if (event.eventType === 'premiere') continue;
-
-    const year = String(event.startDate ?? '').slice(0, 4);
-    assert.match(year, /^\d{4}$/, `${event.slug?.current} has no usable start year`);
-    for (const tag of tags) {
-      assert.ok(String(tag).includes(year),
-        `${event.slug?.current}: coverage tag "${tag}" does not name ${year}, so it will also ` +
-          'claim other editions of the same event');
-    }
-  }
 });
 
 test('an article finds the hub it is most ABOUT, not the first one that matches', () => {
@@ -396,8 +390,8 @@ test('an article finds the hub it is most ABOUT, not the first one that matches'
     first-match would hand it to whichever hub happened to sort first in the
     store. Counting matched tags picks the one the piece is most about.
   */
-  const marvel = { slug: { current: 'marvel-comics' }, coverageTags: ['Marvel', 'MCU', 'Marvel Studios'] };
-  const sony = { slug: { current: 'sony-pictures' }, coverageTags: ['Sony Pictures'] };
+  const marvel = { slug: { current: 'marvel-comics' }, youtubeSyncKeywords: ['Marvel', 'MCU', 'Marvel Studios'] };
+  const sony = { slug: { current: 'sony-pictures' }, youtubeSyncKeywords: ['Sony Pictures'] };
 
   const spiderMan = article({ tags: ['Marvel Studios', 'MCU', 'Marvel', 'Sony Pictures'] });
   assert.equal(findHubForItem(spiderMan, [sony, marvel])?.slug.current, 'marvel-comics');
@@ -424,8 +418,8 @@ test('a pin beats the score, which is the whole point of it', () => {
     Tuning the scoring would trade this case for a different one. Naming the
     piece on the hub you want cannot be outvoted by anything.
   */
-  const netflix = { slug: { current: 'netflix' }, coverageTags: ['Netflix', 'Netflix Film', 'Netflix Movie'] };
-  const playstation = { slug: { current: 'playstation' }, coverageTags: ['PlayStation'], pinnedCoverage: ['gta-piece'] };
+  const netflix = { slug: { current: 'netflix' }, youtubeSyncKeywords: ['Netflix', 'Netflix Film', 'Netflix Movie'] };
+  const playstation = { slug: { current: 'playstation' }, youtubeSyncKeywords: ['PlayStation'], pinnedCoverage: ['gta-piece'] };
   const piece = article({ slug: 'gta-piece', tags: ['Netflix', 'Netflix Film', 'Netflix Movie', 'PlayStation'] });
 
   assert.equal(findHubForItem(piece, [netflix, playstation])?.slug.current, 'playstation',
@@ -434,7 +428,7 @@ test('a pin beats the score, which is the whole point of it', () => {
     'and must not depend on the order the hubs arrive in');
 
   /* Without the pin, the scoring answer stands. */
-  const unpinned = { slug: { current: 'playstation' }, coverageTags: ['PlayStation'] };
+  const unpinned = { slug: { current: 'playstation' }, youtubeSyncKeywords: ['PlayStation'] };
   assert.equal(findHubForItem(piece, [netflix, unpinned])?.slug.current, 'netflix');
 });
 
@@ -444,7 +438,7 @@ test('a pin puts the item in that hub\'s coverage too', () => {
     override is half an answer: the card would appear on the article while
     the article stayed missing from the hub it points at.
   */
-  const hub = { slug: { current: 'playstation' }, coverageTags: ['PlayStation'], pinnedCoverage: ['gta-piece'] };
+  const hub = { slug: { current: 'playstation' }, youtubeSyncKeywords: ['PlayStation'], pinnedCoverage: ['gta-piece'] };
   const piece = article({ slug: 'gta-piece', title: 'pinned', tags: ['Netflix'] });
   const onTags = article({ slug: 'other', title: 'tagged', tags: ['PlayStation'] });
 
@@ -460,7 +454,7 @@ test('a pin puts the item in that hub\'s coverage too', () => {
 test('exclude beats pin, because exclude is how you undo a mistake', () => {
   const hub = {
     slug: { current: 'playstation' },
-    coverageTags: ['PlayStation'],
+    youtubeSyncKeywords: ['PlayStation'],
     pinnedCoverage: ['gta-piece'],
     excludeCoverage: ['gta-piece'],
   };
@@ -473,8 +467,8 @@ test('a tie breaks the same way on every build', () => {
     A build that reorders a card between runs for no reason is its own bug,
     and it is the kind that only shows up as a mystery diff.
   */
-  const a = { slug: { current: 'aaa' }, coverageTags: ['Shared'] };
-  const z = { slug: { current: 'zzz' }, coverageTags: ['Shared'] };
+  const a = { slug: { current: 'aaa' }, youtubeSyncKeywords: ['Shared'] };
+  const z = { slug: { current: 'zzz' }, youtubeSyncKeywords: ['Shared'] };
   const item = article({ tags: ['Shared'] });
   assert.equal(findHubForItem(item, [a, z])?.slug.current, 'aaa');
   assert.equal(findHubForItem(item, [z, a])?.slug.current, 'aaa');
@@ -482,16 +476,20 @@ test('a tie breaks the same way on every build', () => {
 
 test('a hub cannot win by listing the same keyword twice', () => {
   /*
-    getHubMatchTags already dedupes across coverageTags and
-    youtubeSyncKeywords, and the score is built from that deduped list, so
-    padding one field with the other's contents buys nothing.
+    getHubMatchTags dedupes case- and punctuation-insensitively, and the
+    score is built from that deduped list, so a hub that writes "Netflix",
+    "netflix" and "NETFLIX" into its one box still counts Netflix once.
+
+    This guarded against padding ACROSS the two fields when there were two.
+    There is one now, but the property it asserts is the one that made
+    merging them safe in the first place, so it stays: a hub wins on how
+    much of the piece it matches, never on how long its list is.
   */
   const padded = {
     slug: { current: 'padded' },
-    coverageTags: ['Netflix', 'netflix', 'NETFLIX'],
-    youtubeSyncKeywords: ['Netflix', 'netflix'],
+    youtubeSyncKeywords: ['Netflix', 'netflix', 'NETFLIX', 'net-flix'],
   };
-  const honest = { slug: { current: 'honest' }, coverageTags: ['Netflix', 'Netflix Film'] };
+  const honest = { slug: { current: 'honest' }, youtubeSyncKeywords: ['Netflix', 'Netflix Film'] };
   const item = article({ tags: ['Netflix', 'Netflix Film'] });
   assert.equal(findHubForItem(item, [padded, honest])?.slug.current, 'honest');
 });
