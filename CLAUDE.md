@@ -272,10 +272,23 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   1520 for 2x of the 760px stage, with real `sizes` so a phone does not fetch
   a viewport-wide image for a 343px box. D23 (768x432) and SDCC 2027
   (1024x576) are the only key art too small to fill it at 2x.
-- **The hero's "Event Details" button goes to `officialWebsite`**, not
-  `signUpLink`. `signUpLink` is the REGISTRATION link (an Axs listing for The
-  Game Awards, a newsletter form for PAX East) and it still powers the
-  "Tickets / RSVP" button further down the page. The two stay separate.
+- **The hero's "Event Details" button goes to `#event-details`, on this
+  page.** It was outbound, through two wrong destinations: `signUpLink` (an
+  Axs ticket listing for The Game Awards, a newsletter form for PAX East),
+  then `officialWebsite`, which fixed the destination without questioning the
+  direction. The direction was the bug, reported as "a friend of mine clicked
+  it and then they left the site". The page has a section headed DETAILS at
+  that anchor carrying the dates, venue, Tickets/RSVP and the official site,
+  and the button's label is the same words as that heading. The outbound
+  links are REPOSITIONED, not deleted: `officialWebsite` is the Website row
+  and `signUpLink` is Tickets/RSVP, both inside that section, which is the
+  right place in the funnel (after the coverage, not in front of it). It
+  matters most on a phone: `.article-rail-left`, the TOC that also links
+  there, is hidden below 1200px, so the button is the only thing in a mobile
+  hero saying anything exists below it. The CTA row is UNCONDITIONAL now,
+  which is load-bearing rather than tidy: while it was gated on a URL a
+  document might not have, four events rendered a different grid from the
+  rest, and that is half of what moved the metadata row around.
 - **The metadata row's vertical position must not depend on the event.** It
   used to move twice over: the copy column was `align-self: end`, so it sized
   to its own content with its BOTTOM pinned, and a taller logo pushed the tags

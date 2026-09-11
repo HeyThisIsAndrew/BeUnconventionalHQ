@@ -120,23 +120,35 @@ const trailerId = parseVideoId(trailerUrl);
 const heroLockupLogo = event.heroLogo || event.logo;
 
 /*
-  ─── WHERE "EVENT DETAILS" GOES ───────────────────────────────────────────
+  ─── "EVENT DETAILS" POINTS AT THIS PAGE ──────────────────────────────────
 
-  It pointed at `signUpLink`, which is the REGISTRATION link: the Axs ticket
-  listing for The Game Awards, a Leap Events checkout for L.A. Comic Con, a
-  newsletter sign-up form for PAX East. A button labelled "Event Details"
-  that lands on a shopping cart is a broken promise, and the details the
-  label offers are on the event's own site.
+  It was an outbound link, and it went through two wrong destinations before
+  the question got asked properly. First `signUpLink`, the REGISTRATION link:
+  an Axs ticket listing for The Game Awards, a Leap Events checkout for
+  L.A. Comic Con, a newsletter form for PAX East. A button reading "Event
+  Details" landing on a shopping cart is a broken promise, so it was moved to
+  `officialWebsite`. That fixed the destination without questioning the
+  direction, and the direction was the bug: a reader clicked it and left the
+  site, which is exactly what it was built to do.
 
-  So: `officialWebsite` first, `signUpLink` only as the fallback for a
-  document that somehow has the second without the first.
+  This page HAS an event-details section. `#event-details` is headed DETAILS
+  and carries the dates, the venue, Tickets/RSVP, and the official website as
+  a link. The button's label and that section's heading are the same words,
+  so the button goes there.
 
-  This also settles the eyebrow's placement below. Every seeded event carries
-  an officialWebsite, so the CTA row now renders on all of them rather than
-  only on the ones with tickets on sale — but the CSS no longer depends on
-  that being true. See `.hero-eyebrow` in the split layout.
+  THE OUTBOUND LINK IS NOT LOST, it is repositioned. It stays in that
+  section, which is the right place in the funnel: after the coverage rather
+  than in front of it, and where somebody who has read the page and now wants
+  tickets will look.
+
+  IT MATTERS MOST ON A PHONE. `.article-rail-left` — the TOC that also links
+  to #event-details — is hidden below 1200px, so on mobile this button is the
+  only thing in the hero that says there is anything below it at all.
+
+  No `data-event-toc`: that attribute opts an element into the rail's
+  scroll-spy highlighting, and this is not part of the rail.
 */
-const heroCtaHref = event.officialWebsite || event.signUpLink || null;
+const heroCtaHref = '#event-details';
 
 /*
   ─── WHAT THE STAGE SHOWS WHEN NOTHING IS PLAYING ─────────────────────────
@@ -357,7 +369,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
             '2xl:!grid-cols-[1fr_1.2fr]',
             '3xl:!max-w-[2400px]',
             '3xl:!grid-cols-[1fr_1.4fr]',
-            { 'has-trailer': !!trailerId, 'has-cta': !!heroCtaHref },
+            { 'has-trailer': !!trailerId, 'has-cta': true },
           ]}
         >
           <div class="event-hero-content hero-copy animate-on-scroll">
@@ -779,13 +791,20 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
 
           {/* Placed after the trailer in the DOM so mobile stacks copy →
               trailer → button; grid-areas restore the desktop layout. */}
-          {heroCtaHref && (
-            <div class="hero-info-cta">
-              <a href={heroCtaHref} target="_blank" rel="noopener noreferrer" class="hero-rsvp-btn">
-                Event Details
-              </a>
-            </div>
-          )}
+          {/*
+            UNCONDITIONAL NOW, and that is load-bearing rather than tidy. The
+            row it sits in changes the grid's track sizing, and while it was
+            gated on a URL a document might not have, four events rendered a
+            different grid from the rest — which is half of what moved the
+            metadata row around. An in-page target always exists.
+
+            No target="_blank" and no rel: this scrolls, it does not navigate.
+          */}
+          <div class="hero-info-cta">
+            <a href={heroCtaHref} class="hero-rsvp-btn">
+              Event Details
+            </a>
+          </div>
         </div>
       </div>
     </section>

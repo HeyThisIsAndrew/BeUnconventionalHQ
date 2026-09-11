@@ -292,26 +292,63 @@ test('the hero states the event\'s name once', () => {
   }
 });
 
-test('"Event Details" goes to the official website, not the ticket checkout', () => {
+test('"Event Details" points at this page, not off it', () => {
+  /*
+    ─── TWO WRONG DESTINATIONS, THEN THE RIGHT DIRECTION ───────────────────
+
+    It was `signUpLink` — an Axs ticket listing for The Game Awards, a
+    newsletter form for PAX East — so it was moved to `officialWebsite`. That
+    fixed the destination without questioning the direction, and the
+    direction was the bug: "a friend of mine clicked it and then they left
+    the site." It did exactly what it was built to do.
+
+    The page has an #event-details section headed DETAILS, carrying the
+    dates, the venue, Tickets/RSVP and the official website as a link. The
+    button's label and that heading are the same words.
+  */
   for (const rel of HERO_COMPONENTS) {
     const code = heroSource(rel);
 
-    assert.match(code, /const heroCtaHref = event\.officialWebsite \|\| event\.signUpLink \|\| null;/,
-      `${rel} must resolve the hero CTA from officialWebsite first`);
+    assert.match(code, /const heroCtaHref = '#event-details';/,
+      `${rel}: the hero CTA must be an in-page anchor`);
+    assert.match(code, /<section id="event-details"/,
+      `${rel}: and the section it names has to exist in this same template, or it scrolls nowhere`);
 
-    assert.match(code, /href=\{heroCtaHref\}[\s\S]{0,200}Event Details/,
-      `${rel}: the "Event Details" button must use the resolved href. It used to use ` +
-        'signUpLink, which is an Axs listing for The Game Awards and a newsletter form ' +
-        'for PAX East.');
+    const cta = code.match(/<a href=\{heroCtaHref\}[^>]*>/);
+    assert.ok(cta, `${rel}: could not find the "Event Details" anchor`);
+    assert.doesNotMatch(cta[0], /target="_blank"/,
+      `${rel}: an in-page scroll must not open a tab`);
+    assert.doesNotMatch(cta[0], /rel="noopener/,
+      `${rel}: rel=noopener on a fragment link is a leftover of the outbound version`);
+    assert.doesNotMatch(cta[0], /data-event-toc/,
+      `${rel}: that attribute opts an element into the rail's scroll-spy, and this is not the rail`);
 
     /*
-      THE TWO LINKS STAY DIFFERENT THINGS. signUpLink is not dead — it is
-      what the "Tickets / RSVP" button further down the page is for, and
-      collapsing the two would make the hero button a checkout again by a
-      different route.
+      THE OUTBOUND LINK IS REPOSITIONED, NOT DELETED. It has to survive in
+      the details section, or "point it at the page instead" quietly became
+      "remove the way to reach the official site".
     */
+    assert.match(code, /href=\{event\.officialWebsite\}[\s\S]{0,200}press-desk-link/,
+      `${rel}: the official website must still be linked from the details section`);
     assert.match(code, /href=\{event\.signUpLink\}[\s\S]{0,200}Tickets \/ RSVP/,
-      `${rel}: signUpLink must still power the Tickets / RSVP button`);
+      `${rel}: and Tickets / RSVP must still be there too`);
+  }
+});
+
+test('the CTA row renders for every event, whatever its data says', () => {
+  /*
+    The row changes the grid's track sizing. While it was gated on a URL a
+    document might not have, four events (Oscars, Anime Expo, Summer Game
+    Fest, SDCC 2027) rendered a different grid from the rest, and that is
+    half of what moved the metadata row around. An in-page target always
+    exists, so the gate is gone rather than merely satisfied.
+  */
+  for (const rel of HERO_COMPONENTS) {
+    const code = heroSource(rel);
+    assert.match(code, /'has-cta': true/,
+      `${rel}: the CTA row must not depend on document data any more`);
+    assert.doesNotMatch(code, /\{heroCtaHref && \(/,
+      `${rel}: nor may the button itself be conditional`);
   }
 });
 
@@ -338,38 +375,20 @@ test('the metadata row does not move with the logo or the CTA', () => {
   }
 });
 
-test('the CTA row is keyed on the link the button will actually use', () => {
+test('every event can still be reached at its source', () => {
   /*
-    `.has-cta` adds a grid row. Keying it on signUpLink while the button
-    rendered on officialWebsite would reserve the row for the wrong set of
-    events: the four with no signUpLink would draw a button into a row the
-    grid never made.
-  */
-  for (const rel of HERO_COMPONENTS) {
-    const code = heroSource(rel);
-    assert.match(code, /'has-cta': !!heroCtaHref/,
-      `${rel}: has-cta must follow heroCtaHref`);
-    assert.doesNotMatch(code, /'has-cta': !!event\.signUpLink/,
-      `${rel}: has-cta must not be keyed on signUpLink any more`);
-  }
-});
-
-test('every shipped event can actually render that button', () => {
-  /*
-    The placement fix above no longer DEPENDS on this — the eyebrow is pinned
-    to the grid, not to the CTA row — but an event with no destination still
-    ships a hero with nothing to click, so it is worth knowing.
+    Not about the hero button any more — that is an anchor now. This is about
+    the Website row in the details section, which is where the outbound link
+    moved to. An event with no officialWebsite renders that section with no
+    way out to the event itself.
   */
   const docs = JSON.parse(readSrc('src', 'data', 'videos.json'));
   const events = docs.filter((d) => d._type === 'event');
   assert.ok(events.length > 0, 'the event store must not be empty');
 
-  const linkless = events
-    .filter((e) => !e.officialWebsite && !e.signUpLink)
-    .map((e) => e.slug?.current);
+  const linkless = events.filter((e) => !e.officialWebsite).map((e) => e.slug?.current);
   assert.deepEqual(linkless, [],
-    `these events have neither an officialWebsite nor a signUpLink, so their hero CTA cannot ` +
-      `render: ${linkless.join(', ')}`);
+    `these events have no officialWebsite, so their details section cannot link out: ${linkless.join(', ')}`);
 });
 
 console.log(failed === 0 ? `\n✅ ${passed} passed, 0 failed.` : `\n❌ ${passed} passed, ${failed} failed.`);
