@@ -21,6 +21,8 @@ import { dirname, join } from 'node:path';
 import assert from 'node:assert/strict';
 import {
   normalizeTag,
+  compactTag,
+  coverageIdentity,
   getHubMatchTags,
   matchArticlesByTags,
   matchVideosByTags,
@@ -86,6 +88,44 @@ test('a substring is NOT a match', () => {
     'prose is not a tag; matching it is what leaked');
   assert.equal(matchArticlesByTags([article({ tags: ['DC'] })], tags).length, 1,
     'the exact tag still matches');
+});
+
+test('spacing and punctuation do not split one tag in two, but the year does', () => {
+  /*
+    ─── THE OWNER'S TAGGING RULE, AS AN ASSERTION ──────────────────────────
+
+    "I will make sure when I tag things for events that I actually put
+    SDCC 2026, with or without a space."
+
+    Both spellings have to land on the same event, so matching compares the
+    tag with its spaces closed up. Ten of the nineteen events had no keyword
+    vocabulary at all until it was hand-seeded, which means each one's
+    spelling was typed exactly once: requiring the hub to list every variant
+    is a rule that holds until the first time somebody types one of them.
+
+    This is a strict WIDENING of exact matching. The things it must NOT do
+    are the two below it: collapse two editions of the same event into one,
+    or let a shorter tag swallow a longer one.
+  */
+  assert.equal(compactTag('SDCC 2026'), 'sdcc2026');
+  assert.equal(compactTag('sdcc-2026'), 'sdcc2026');
+  assert.equal(compactTag('SDCC2026'), 'sdcc2026');
+  assert.equal(compactTag(undefined), '');
+
+  const matches = (hubTag, articleTag) =>
+    matchArticlesByTags([article({ tags: [articleTag] })], getHubMatchTags({ coverageTags: [hubTag] })).length === 1;
+
+  assert.ok(matches('SDCC 2026', 'SDCC2026'), 'a missing space must not lose the match');
+  assert.ok(matches('SDCC2026', 'SDCC 2026'), 'nor an added one');
+  assert.ok(matches('SDCC 2026', 'sdcc-2026'), 'nor a hyphen');
+
+  assert.ok(!matches('SDCC 2026', 'SDCC 2027'),
+    'the YEAR is what separates one edition from the next. If this ever passes, every ' +
+    'SDCC post lands on every SDCC page.');
+  assert.ok(!matches('Marvel', 'Marvel Studios'),
+    'closing up spaces must not become substring matching: "marvel" and "marvelstudios" ' +
+    'are still different tags');
+  assert.ok(!matches('Oscars 2027', 'Oscars'), 'an untagged year cannot pick an edition for itself');
 });
 
 test('an article matches on its tags or its category', () => {
@@ -234,11 +274,109 @@ test('the shipped event store still needs coverageTags, and one event proves it'
   assert.ok(seeded.length > 0,
     'no event carries coverageTags, so no event page can show an article. Seed at least one, ' +
       'or the field is shipped dead.');
-  for (const event of seeded) {
-    const matched = matchArticlesByTags(articles, getHubMatchTags(event));
-    assert.ok(matched.length > 0,
-      `${event.slug?.current} has coverageTags that match nothing. Tags are compared exactly ` +
-        'after normalizing — check them against the article tags actually in the store.');
+
+  /*
+    At least one seeded event must actually match, or the field is shipped
+    dead in a subtler way: present on every document and wired to nothing.
+
+    NOT every seeded event — most are future conventions with no coverage
+    written yet, and an empty SDCC 2027 page is correct. Asserting all of
+    them would fail the moment an event is added, which trains people to
+    ignore this file.
+  */
+  const matching = seeded.filter((e) => matchArticlesByTags(articles, getHubMatchTags(e)).length > 0);
+  assert.ok(matching.length > 0,
+    `${seeded.length} events carry coverageTags and not one of them matches an article. Tags are ` +
+      'compared exactly after normalizing and closing up spaces — check them against the article ' +
+      'tags actually in the store.');
+});
+
+test('a named item can be dropped from a hub whatever its tags say', () => {
+  /*
+    ─── WHY AN OVERRIDE EXISTS AT ALL ──────────────────────────────────────
+
+    Tagging with the year settles almost everything: a post tagged
+    "SDCC 2026" belongs to SDCC 2026 and to nothing else. The case it cannot
+    settle is a retrospective. A post about SDCC written in 2027, tagged just
+    "SDCC", might be about either edition, and nothing in the data says
+    which.
+
+    Inferring the edition from the publish date was considered and rejected.
+    It reads plausibly (a post before the event is probably a preview) and
+    then gets retrospectives backwards, SILENTLY. Wrong coverage on an event
+    page is worse than none, because nobody notices it is wrong.
+
+    So the edition comes from the tag, and when a loose tag pulls in
+    something it should not, the item is named here.
+  */
+  const hub = {
+    slug: { current: 'sdcc-2026' },
+    coverageTags: ['SDCC'],
+    excludeCoverage: ['retrospective-post'],
+  };
+  const keep = article({ title: 'keep', tags: ['SDCC'], slug: 'preview-post' });
+  const drop = article({ title: 'drop', tags: ['SDCC'], slug: 'retrospective-post' });
+
+  const { items } = collectHubCoverage({ hub, videos: [], articles: [keep, drop] });
+  assert.deepEqual(items.map((i) => i.title), ['keep']);
+
+  /* Without the list, both are coverage — so the list is what did the work. */
+  const unfiltered = collectHubCoverage({
+    hub: { slug: { current: 'sdcc-2026' }, coverageTags: ['SDCC'] },
+    videos: [],
+    articles: [keep, drop],
+  });
+  assert.equal(unfiltered.items.length, 2);
+});
+
+test('the override reaches hub-TAGGED videos too, not just matched ones', () => {
+  /*
+    A curated list carries a mistake as easily as a heuristic does, and an
+    editor reaching for the override should not have to know which code path
+    put the item on the page.
+  */
+  const hub = {
+    slug: { current: 'sdcc-2026' },
+    coverageTags: ['SDCC'],
+    excludeCoverage: ['MOCKID123'],
+  };
+  const tagged = video({ title: 'hand-picked', hubs: ['sdcc-2026'], youtubeId: 'mockid123' });
+  const { items } = collectHubCoverage({ hub, videos: [tagged], articles: [] });
+  assert.equal(items.length, 0, 'a hub-tagged video must still be droppable, and case must not matter');
+});
+
+test('an item can be named by any of the handles an editor might be looking at', () => {
+  assert.deepEqual(coverageIdentity({ slug: 'a-post' }), ['a-post']);
+  assert.deepEqual(coverageIdentity({ slug: { current: 'a-video' } }), ['a-video']);
+  assert.deepEqual(coverageIdentity({ guid: 'G1', youtubeId: 'Y1', _id: 'D1' }), ['g1', 'y1', 'd1']);
+  assert.deepEqual(coverageIdentity({}), []);
+  assert.deepEqual(coverageIdentity({ slug: '   ' }), [], 'whitespace is not an identity');
+});
+
+test('every seeded event carries a YEAR-scoped vocabulary', () => {
+  /*
+    The whole edition-separation story rests on this. An event whose tags do
+    not name its year will collect every edition's coverage forever, and it
+    will look like it is working.
+
+    Premieres are exempt: they happen once, so "AVENGERS DOOMSDAY" is already
+    unambiguous and appending a year to it would only make it harder to tag.
+  */
+  const docs = JSON.parse(readSrc('src', 'data', 'videos.json'));
+  const events = docs.filter((d) => d._type === 'event');
+
+  for (const event of events) {
+    const tags = Array.isArray(event.coverageTags) ? event.coverageTags : [];
+    if (tags.length === 0) continue;
+    if (event.eventType === 'premiere') continue;
+
+    const year = String(event.startDate ?? '').slice(0, 4);
+    assert.match(year, /^\d{4}$/, `${event.slug?.current} has no usable start year`);
+    for (const tag of tags) {
+      assert.ok(String(tag).includes(year),
+        `${event.slug?.current}: coverage tag "${tag}" does not name ${year}, so it will also ` +
+          'claim other editions of the same event');
+    }
   }
 });
 

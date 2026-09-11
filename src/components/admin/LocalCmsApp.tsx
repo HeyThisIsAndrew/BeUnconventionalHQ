@@ -73,6 +73,7 @@ type Doc = {
   backdrops?: any[];
   youtubeSyncKeywords?: string[];
   coverageTags?: string[];
+  excludeCoverage?: string[];
   brandColor?: { hex?: string };
   /** Which accordion row this hub appears in on /featured. */
   hubCategory?: string;
@@ -1690,7 +1691,12 @@ function EventForm({
 
       <div className="mt-5">
         <TagsInput label="Coverage Tags (articles &amp; site matching)" value={doc.coverageTags} onChange={(v) => update('coverageTags', v)} />
-        <p className="text-xs text-gray-400 mt-1.5">Article and video tags that count as coverage of this hub, e.g. "Marvel Studios", "Doomsday". The YouTube sync never reads these, so they are safe to write broadly. Without them an event matches no articles at all: no writer tags a post "sdcc2026".</p>
+        <p className="text-xs text-gray-400 mt-1.5">Article and video tags that count as coverage of this hub, e.g. "Marvel Studios", "SDCC 2026". The YouTube sync never reads these, so they are safe to write broadly. Spacing and punctuation do not matter ("SDCC 2026", "SDCC2026" and "sdcc-2026" are one tag), but the year does: "SDCC 2026" never matches "SDCC 2027". Tag event posts with the year and each edition keeps its own coverage.</p>
+      </div>
+
+      <div className="mt-5">
+        <TagsInput label="Exclude From Coverage" value={doc.excludeCoverage} onChange={(v) => update('excludeCoverage', v)} />
+        <p className="text-xs text-gray-400 mt-1.5">Article slugs, guids, YouTube ids or document _ids to drop from this hub whatever the tags say. Use it for a retrospective: a post about SDCC written in 2027 could be about either edition, and only you know which.</p>
       </div>
 
       <div className="mt-10 pt-10 border-t border-white/10 space-y-8">
@@ -1973,7 +1979,12 @@ function BrandForm({
 
       <div className="mt-5">
         <TagsInput label="Coverage Tags (articles &amp; site matching)" value={doc.coverageTags} onChange={(v) => update('coverageTags', v)} />
-        <p className="text-xs text-gray-400 mt-1.5">Article and video tags that count as coverage of this hub, e.g. "Marvel Studios", "Doomsday". The YouTube sync never reads these, so they are safe to write broadly. Without them an event matches no articles at all: no writer tags a post "sdcc2026".</p>
+        <p className="text-xs text-gray-400 mt-1.5">Article and video tags that count as coverage of this hub, e.g. "Marvel Studios", "SDCC 2026". The YouTube sync never reads these, so they are safe to write broadly. Spacing and punctuation do not matter ("SDCC 2026", "SDCC2026" and "sdcc-2026" are one tag), but the year does: "SDCC 2026" never matches "SDCC 2027". Tag event posts with the year and each edition keeps its own coverage.</p>
+      </div>
+
+      <div className="mt-5">
+        <TagsInput label="Exclude From Coverage" value={doc.excludeCoverage} onChange={(v) => update('excludeCoverage', v)} />
+        <p className="text-xs text-gray-400 mt-1.5">Article slugs, guids, YouTube ids or document _ids to drop from this hub whatever the tags say. Use it for a retrospective: a post about SDCC written in 2027 could be about either edition, and only you know which.</p>
       </div>
     </div>
   );

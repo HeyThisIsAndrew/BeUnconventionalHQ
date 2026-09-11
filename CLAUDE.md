@@ -106,6 +106,21 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   ("sdcc2026") that no writer ever tags an article with. `coverageTags` is
   purely editorial, read only by the site, and is the field that lets an
   event match articles. Seed it in the local CMS.
+- **Tags compare with their spaces closed up** (`compactTag`), so
+  "SDCC 2026", "SDCC2026" and "sdcc-2026" are one tag. That is a strict
+  widening of exact matching, not a step back toward substrings: "marvel"
+  and "marvelstudios" are still different. **The YEAR is what separates one
+  edition from the next** — "SDCC 2026" never matches "SDCC 2027" — so every
+  recurring event's tags must name its year. `scripts/event-coverage.test.mjs`
+  fails if a seeded non-premiere event carries a tag without its start year.
+- **`excludeCoverage` is the override**, listing article slugs/guids, YouTube
+  ids or `_id`s to drop from a hub whatever the tags say. It exists for the
+  one case tagging cannot settle: a retrospective, where a post about SDCC
+  written in 2027 could be about either edition. **Do not infer the edition
+  from the publish date.** It reads plausibly and gets retrospectives
+  backwards silently, and wrong coverage on an event page is worse than none
+  because nobody notices it. Exclusions apply to hub-TAGGED videos too, so an
+  editor never has to know which code path put an item on the page.
 - **Event pages cap coverage at six** (`COVERAGE_PAGE_LIMIT`) and overflow to
   `/events/<slug>/coverage`, paginated at 12 — the same display-cap-plus-
   overflow-route pattern "Past Event Archive" uses on `/events`. The overflow

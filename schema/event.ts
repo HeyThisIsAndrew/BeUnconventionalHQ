@@ -531,6 +531,17 @@ export default defineType({
         'Article and video tags that count as coverage of this hub, e.g. "Marvel Studios". Read ONLY by the site (src/lib/hub-coverage.ts) — the YouTube sync never sees these, so unlike YouTube Sync Keywords they can be written broadly without pulling videos into the hub.',
     }),
 
+    defineField({
+      name: 'excludeCoverage',
+      title: 'Exclude From Coverage',
+      type: 'array',
+      fieldset: 'details',
+      of: [{ type: 'string' }],
+      options: { layout: 'tags' },
+      description:
+        'Article slugs, article guids, YouTube ids or document _ids to drop from this hub no matter what the tags say. The override for a retrospective: a post about SDCC published in 2027 might be about either edition, and nothing in the data says which, so the edition comes from the tag and anything a loose tag wrongly pulls in gets named here.',
+    }),
+
     // Legacy fields — retained so existing documents aren't orphaned. Content is
     // now pulled via `tags` matching against the global feed, so these are no
     // longer the primary mechanism. Safe to remove once no document uses them.

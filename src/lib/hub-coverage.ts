@@ -73,13 +73,85 @@ export function getHubMatchTags(hub: any): string[] {
   return out;
 }
 
-/** True when any of `candidates` normalizes to a tag in `tags`. */
+/**
+ * The same tag with its spaces closed up: "sdcc 2026" and "sdcc2026" are one
+ * thing, and a person typing a tag on a phone will produce either.
+ *
+ * ─── WHY MATCHING COMPARES THIS FORM ───────────────────────────────────────
+ * The site owner's rule for tagging event coverage is "SDCC 2026, with or
+ * without a space". Both spellings therefore have to land on the same event
+ * page, and requiring the hub to list every spelling is the kind of thing
+ * that works until the one time somebody types only one of them. Ten of the
+ * nineteen shipped events carry no keywords at all, so their whole
+ * vocabulary will be hand-typed exactly once.
+ *
+ * This is a strict WIDENING of exact matching and nothing more: two tags
+ * with equal normalized forms always have equal compact forms, so every
+ * match that held before still holds, and the only new matches are
+ * space-variants of one another. It does NOT reintroduce substring
+ * matching — "marvel" still compacts to "marvel" and "marvel studios" to
+ * "marvelstudios", which are still different tags.
+ */
+export function compactTag(value: unknown): string {
+  return normalizeTag(value).replace(/\s+/g, '');
+}
+
+/** True when any of `candidates` is the same tag as one in `tags`. */
 function hasAnyTag(candidates: unknown[], tags: string[]): boolean {
+  const wanted = new Set(tags.map(compactTag).filter(Boolean));
+  if (wanted.size === 0) return false;
   for (const candidate of candidates) {
-    const normalized = normalizeTag(candidate);
-    if (normalized && tags.includes(normalized)) return true;
+    const compact = compactTag(candidate);
+    if (compact && wanted.has(compact)) return true;
   }
   return false;
+}
+
+/**
+ * Every string that identifies one piece of coverage, for the exclude list
+ * below. Articles and videos are different shapes and neither has a single
+ * stable id across both stores, so all the plausible handles are accepted
+ * and an editor can paste whichever one they are looking at.
+ */
+export function coverageIdentity(item: any): string[] {
+  const candidates = [
+    item?.slug?.current,
+    typeof item?.slug === 'string' ? item.slug : undefined,
+    item?.guid,
+    item?.youtubeId,
+    item?._id,
+  ];
+  return candidates
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .map((value) => value.trim().toLowerCase());
+}
+
+/**
+ * ─── THE OVERRIDE ──────────────────────────────────────────────────────────
+ *
+ * `excludeCoverage` on a hub document drops named items from its coverage,
+ * whatever the tags say. It is the escape hatch for the one case tagging
+ * cannot solve on its own: a retrospective.
+ *
+ * A post about SDCC published in 2026 is almost certainly about SDCC 2026.
+ * A post about SDCC published in 2027 might be about either, and nothing in
+ * the data says which. Inferring the edition from the publish date would get
+ * that wrong SILENTLY, and wrong coverage on an event page is worse than
+ * none: nobody notices it. So the edition comes from the tag, and when a
+ * loose tag pulls in something it should not, the item is named here.
+ *
+ * Paste an article slug, an article guid, a YouTube id, or a document _id.
+ */
+function applyExclusions(items: any[], hub: any): any[] {
+  const raw = Array.isArray(hub?.excludeCoverage) ? hub.excludeCoverage : [];
+  const excluded = new Set(
+    raw
+      .filter((value: unknown): value is string => typeof value === 'string')
+      .map((value: string) => value.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  if (excluded.size === 0) return items;
+  return items.filter((item) => !coverageIdentity(item).some((id) => excluded.has(id)));
 }
 
 export function matchArticlesByTags(articles: any[], tags: string[]): any[] {
@@ -137,8 +209,17 @@ export function collectHubCoverage({ hub, videos, articles }: CoverageInput): Co
   const hubTagged = (videos ?? [])
     .filter((v: any) => slug && Array.isArray(v?.hubs) && v.hubs.includes(slug));
 
-  const matchedVideos = hubTagged.length > 0 ? hubTagged : matchVideosByTags(videos ?? [], tags);
-  const matchedArticles = matchArticlesByTags(articles ?? [], tags);
+  /*
+    Exclusions apply to hub-TAGGED videos too, not only to tag-matched ones.
+    A curated list can carry a mistake as easily as a heuristic can, and an
+    editor reaching for the override should not have to know which path put
+    the item on the page.
+  */
+  const matchedVideos = applyExclusions(
+    hubTagged.length > 0 ? hubTagged : matchVideosByTags(videos ?? [], tags),
+    hub,
+  );
+  const matchedArticles = applyExclusions(matchArticlesByTags(articles ?? [], tags), hub);
 
   const items: CoverageItem[] = [
     ...matchedArticles.map((a: any) => ({ ...a, contentType: 'article' as const })),
