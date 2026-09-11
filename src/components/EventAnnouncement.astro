@@ -11,6 +11,8 @@ import { getHubTopicKeywords } from '../lib/instagram-topic';
 import { parseVideoId } from '../lib/platforms/youtube';
 import { urlFor, getFeaturedBrandsLocal } from '../lib/local-content';
 import { formatEventDateRange, formatLocation, getEventTypeLabel } from '../lib/events';
+import { buildEventDescription, buildEventTitleName, buildEventSchema } from '../lib/event-seo';
+import { pageTitle } from '../data/content.js';
 
 const {
   event,
@@ -27,6 +29,45 @@ const {
 } = Astro.props;
 
 const relatedBrand = event.relatedBrandSlug ? getFeaturedBrandsLocal().find((b: any) => (typeof b.slug === 'string' ? b.slug : b.slug?.current) === event.relatedBrandSlug) : null;
+
+
+/*
+  ─── WHAT THIS PAGE TELLS GOOGLE AND A SOCIAL CARD ────────────────────────
+
+  Four things were missing, and none of them show on the page, which is why
+  they survived:
+
+    NO OG IMAGE. Layout defaults `image` to site.image, so every event on the
+    site shared one generic card. The event has key art; use it.
+
+    NO BRAND IN THE TITLE. Layout renders `<title>` verbatim and appends
+    nothing, and this passed `event.title` alone. Every other route goes
+    through pageTitle(). Now so does this one, which also means nobody has to
+    remember the site is called "Be Unconventional HQ" and not
+    "Be Unconventional".
+
+    A 26-CHARACTER DESCRIPTION. "Coverage of BlizzCon" is under the length
+    Google will use for anything.
+
+    NO EVENT SCHEMA. An event page is the one page type schema.org has a
+    dedicated node for.
+
+  The logic is in lib/event-seo.ts so this file and EventFeatured.astro
+  cannot drift, which is how the hub card heading went wrong.
+*/
+const ogImage = event.heroImage
+  ? urlFor(event.heroImage).width(1200).height(630).fit('crop').auto('format').url()
+  : undefined;
+const seoDescription = buildEventDescription(event);
+const seoTitle = pageTitle(buildEventTitleName(event));
+const canonicalEventUrl = event.slug?.current
+  ? new URL(`/events/${event.slug.current}`, Astro.site ?? 'https://beunconventionalhq.com').href
+  : undefined;
+const eventSchema = buildEventSchema(event, {
+  url: canonicalEventUrl,
+  imageUrl: ogImage,
+  description: seoDescription,
+});
 
 const brandColor = (typeof event.brandColor === 'string' ? event.brandColor : event.brandColor?.hex) || '#CC0000';
 
@@ -106,12 +147,31 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
 ---
 
 <Layout
-  title={event.title}
-  description={`Coverage of ${event.title}`}
+  title={seoTitle}
+  description={seoDescription}
+  image={ogImage}
+  type="article"
   preloadImage={heroBackdropMobileUrl || undefined}
   preloadImageSrcset={heroBackdropSrcset || undefined}
   preloadImageSizes={event.heroImage ? heroBackdropSizes : undefined}
 >
+  {/*
+    schema.org/Event, into Layout's named head slot.
+
+    `is:inline` and the `<` escape match the site's other JSON-LD blocks: an
+    unescaped "<" inside a JSON string can close the script element early.
+    Renders nothing when the document has no name or start date, because a
+    partial Event node is reported as an error against the page rather than
+    ignored.
+  */}
+  {eventSchema && (
+    <script
+      slot="head"
+      type="application/ld+json"
+      is:inline
+      set:html={JSON.stringify(eventSchema).replace(/</g, '\\u003c')}
+    />
+  )}
   <main class="event-dashboard" style={`--brand-color: ${brandColor}; --brand-rgb: ${brandRgb};`} data-trailer={trailerId}>
     
     {/* 1. TOP HALF: Featured Hub Hero Layout (e.g. DC Page) */}

@@ -148,6 +148,25 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   "belongs to this hub" has to mean both. **Precedence is
   `excludeCoverage` > `pinnedCoverage` > tags**, since exclude is what an
   editor reaches for to undo a mistake.
+- **Event page metadata is `src/lib/event-seo.ts`**, shared by both event
+  templates so they cannot drift: the og:image (a 1200x630 crop of the hero,
+  not the site default), the `<title>` via the site-wide `pageTitle()` helper
+  (Layout appends NOTHING to `<title>`, so a page that does not call it ships
+  brandless), a 120-160 character description built from the event's own kind,
+  place and dates, and `schema.org/Event` into Layout's `<slot name="head">`.
+  Dates go in as the stored `YYYY-MM-DD` strings (hard rule 1) and an event
+  missing a name or a start date emits NO node, because Search Console reports
+  a partial one as an error.
+- **`script-src` must never allow `data:`.** A QA swarm reported the CSP
+  blocking a `data:application/javascript` script on `/featured/*` and
+  recommended allowing it, attributing it to a tracking script. It is Astro
+  ClientRouter's own EMPTY flush script (the URI ends at the comma), no
+  analytics vendor is involved, and blocking it was measured to break nothing:
+  served under the real policy, 23 module scripts still executed after a
+  client-side navigation and the hub filters still bound and toggled.
+  Allowing `data:` there is an XSS amplifier bought with a console warning.
+  `scripts/headers-integrity.test.mjs` guards it, reading the POLICY LINE and
+  not the file, because "script-src" also appears in a comment above it.
 - **The article support rail STACKS below 1200px, it does not vanish.**
   `article.css` used to hide `.article-rail` outright, so a phone reader got
   no hub card, no editorial desk and no Support The HQ. Now only
