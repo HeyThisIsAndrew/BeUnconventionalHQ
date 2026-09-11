@@ -16,7 +16,7 @@
  * `/events/[slug]` keeps every event page. Do not add an `archive` slug to an
  * event document — it would build to a URL this route already owns.
  */
-import { META, SECTIONS, pageTitle } from '../../../data/content.js';
+import { SECTIONS, pageTitle } from '../../../data/content.js';
 import Layout from '../../../layouts/Layout.astro';
 import PageTitle from '../../../components/PageTitle.astro';
 import EventCard from '../../../components/EventCard.astro';
@@ -59,7 +59,18 @@ export interface Props {
 const { page, allEvents } = Astro.props as Props;
 
 const title = pageTitle('Past Event Archive', page.currentPage);
-const description = `Every event ${META.events.title.toLowerCase()} coverage has followed, newest first.`;
+/*
+  WRITTEN OUT, NOT INTERPOLATED. This was
+  `Every event ${META.events.title.toLowerCase()} coverage has followed` and
+  META.events.title is the word "Events", so the shipped description read
+  "Every event events coverage has followed, newest first." A template that
+  reads correctly in source and nonsense once resolved is the worst kind,
+  because nothing in the file looks wrong. Length is aimed at the same
+  120-160 window event pages are held to in lib/event-seo.ts.
+*/
+const description =
+  'Every event Be Unconventional HQ has covered, newest first: conventions, premieres, ' +
+  'awards nights and showcases, with the coverage published for each.';
 ---
 
 <Layout title={title} description={description} preconnect={["https://cdn.sanity.io"]}>
