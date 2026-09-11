@@ -229,6 +229,16 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   only, gated identically in JS and CSS. The stage is a **sibling** of the
   clipping backdrop wrapper — hard rule 3 forbids any clipping ancestor.
   `scripts/featured-containment.test.mjs` guards all of this.
+- **BOTH heroes — event AND hub — have THREE mark slots and THREE logo
+  fields.** `/featured/[slug].astro` is where the event hero was lifted from
+  and it had all three of the same problems, so `heroLogo`, `stageLogo` and
+  `stageShowMark` exist on `featuredBrand` too and mean exactly the same
+  things. The hub stage's art comes through `getHubBackdrop()`, NOT straight
+  off `heroImage`: that function is the one place that decides what a hub
+  looks like (`backdrops[0]` first, key art second) and going around it is how
+  the stage and the backdrop come to disagree about the same hub. Both heroes
+  are guarded by `scripts/event-hero-lockup.test.mjs` — deliberately one file,
+  because they drift apart the moment a fix lands in only one of them.
 - **The event hero has THREE mark slots and THREE logo fields.** `.hero-logo`
   (small, top left) reads `heroLogo || logo`; `.hub-stage-mark` (large, in the
   frame the trailer plays in) reads `stageLogo || logo`; `.hub-stage-plate`

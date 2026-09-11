@@ -1536,9 +1536,23 @@ test('the hub hero is the deck page\'s stage, and keeps its own height', () => {
   assert.match(rail, /frame\.src = 'about:blank'/,
     'a hidden iframe still holds its document, its script and its connections');
 
-  // Identity appears exactly once: the mark carries it, or the copy does.
-  assert.match(hub, /event\.logo \?[\s\S]{0,120}sr-only/,
-    'with a logo the h1 is sr-only — the mark on the stage is the visible name');
+  /*
+    Identity appears exactly once, and the element that carries it IS the
+    heading.
+
+    This used to assert an `sr-only` <h1> beside an `aria-hidden` <img alt="">.
+    That satisfied the outline, but a mark that failed to load left blank
+    space with nothing saying what the page was. The <h1> wraps the mark now
+    and the name is the image's alt, so a broken image paints the name in the
+    mark's own place and assistive tech reads it once rather than once per
+    element. Same invariant, answered where the question is.
+  */
+  assert.match(hub, /<h1 class="hero-title-lockup">[\s\S]{0,400}?alt=\{event\.title\}/,
+    'the mark must BE the heading, and carry the hub name as its alt');
+  assert.doesNotMatch(hub, /<h1 class="sr-only">\{event\.title\}<\/h1>/,
+    'the sr-only twin is gone; two elements naming the page is what was announced twice');
+  assert.doesNotMatch(hub, /class="hero-logo-wrap" aria-hidden="true"/,
+    'the wrapper must not be hidden from assistive tech now that it holds the heading');
 });
 
 test('every category row is reachable and operable from the keyboard', () => {

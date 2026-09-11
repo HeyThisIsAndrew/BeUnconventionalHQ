@@ -46,6 +46,31 @@ export default defineType({
       description: 'A transparent PNG logo to overlay on the cinematic header.',
     }),
     defineField({
+      name: 'heroLogo',
+      title: 'Hero Logo (optional)',
+      type: 'image',
+      options: { hotspot: true },
+      description:
+        'Overrides ONLY the small mark at the top left of the hub page. Empty falls back to Brand Logo. The hub hero shows a mark three times (small left, blurred ghost, large in the trailer frame) and this is the one slot that can differ.',
+    }),
+    defineField({
+      name: 'stageLogo',
+      title: 'Stage Logo (optional)',
+      type: 'image',
+      options: { hotspot: true },
+      description:
+        'The third mark. Overrides ONLY the large mark in the trailer frame, and only while "Show a logo on the stage" is on. Empty falls back to Brand Logo.',
+    }),
+    defineField({
+      name: 'stageShowMark',
+      title: 'Show a logo on the stage',
+      type: 'boolean',
+      initialValue: false,
+      description:
+        'Off (the default) fills the frame where the trailer plays with the hub art, from Backdrops if set and Hero Image otherwise. On puts a mark there instead. The hero already shows a mark at the top left, so a mark here states the same identity twice on one screen: turn this on only where the stage logo is a different thing from the hero one.',
+    }),
+
+    defineField({
       name: 'trailerUrl',
       title: 'YouTube Trailer URL',
       type: 'url',

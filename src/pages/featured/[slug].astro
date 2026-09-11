@@ -196,8 +196,67 @@ const hasPlayableVideo =
   !!trailerId ||
   heroItems.some((it: any) => it.contentType === 'video' && parseVideoId(it.link || ''));
 
-const stageMarkUrl = event.logo ? urlFor(event.logo).height(520).auto('format').url() : null;
-const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format').url() : null;
+/*
+  ─── THREE MARK SLOTS, THREE LOGO FIELDS ──────────────────────────────────
+
+  Lifted from the event hero, because this page has the same three slots and
+  had the same problem in all three:
+
+    .hero-logo        small, top left      `heroLogo || logo`
+    .hub-stage-mark   large, in the frame  `stageLogo || logo`
+    .hub-stage-plate  the blurred ghost    whatever is in front of it
+
+  All three read `logo` alone, so a hub page stated its identity three times
+  down one screen. Reported the same way the event pages were: "there's a lot
+  of repetition over there as well."
+
+  Each override touches ONE slot. `heroLogo` must never reach the stage, or
+  the asset is back in two places, which is the thing it exists to undo.
+*/
+const heroLockupLogo = event.heroLogo || event.logo;
+
+/*
+  ─── WHAT THE STAGE SHOWS WHEN NOTHING IS PLAYING ─────────────────────────
+
+  The mark, at 520px, on a page whose top left already carries it. The default
+  is the hub's own art instead, and `stageShowMark` puts a mark back for a hub
+  that genuinely wants one.
+
+  The art comes from getHubBackdrop(), NOT straight from `heroImage`: that
+  function is the one place that decides what a hub looks like (its
+  `backdrops[0]` override first, its key art second), and going around it is
+  how the stage and the backdrop would come to disagree about the same hub.
+
+  THE GHOST FOLLOWS WHATEVER IS IN FRONT OF IT. Crisp over a blown-up blurred
+  copy of itself is this page's own lockup, so in mark mode the ghost is that
+  mark. In art mode it is the art: a logo-shaped glow around a frame with no
+  logo in it is a leftover of a lockup that is not there, and it was one more
+  appearance of the mark.
+*/
+const stageShowsMark = event.stageShowMark === true;
+const stageMarkLogo = event.stageLogo || event.logo;
+const stageMarkUrl = stageShowsMark && stageMarkLogo
+  ? urlFor(stageMarkLogo).height(520).auto('format').url()
+  : null;
+
+/*
+  Crisp, so the ladder is built from the box rather than from the
+  small-request convention a BLURRED plate uses: the stage is 760 CSS px at
+  its widest and 600 stacked, so it tops out at 1520 for a 2x screen.
+*/
+const STAGE_WIDTHS = [600, 760, 1200, 1520];
+const stageArtAt = (w: number) =>
+  heroBackdrop ? urlFor(heroBackdrop.ref).width(w).auto('format').url() : '';
+const stageArtUrl = !stageMarkUrl && heroBackdrop ? stageArtAt(900) : null;
+const stageArtSrcset = stageArtUrl ? STAGE_WIDTHS.map((w) => `${stageArtAt(w)} ${w}w`).join(', ') : '';
+const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw';
+
+const stageGhostSource = stageMarkUrl
+  ? stageMarkLogo
+  : (stageArtUrl && heroBackdrop ? heroBackdrop.ref : null);
+const stageGhostUrl = stageGhostSource
+  ? urlFor(stageGhostSource).height(300).auto('format').url()
+  : null;
 ---
 
 <Layout
@@ -256,7 +315,10 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       */}
       {stageGhostUrl && (
         <div class="hub-stage-bg" aria-hidden="true">
-          <div class="hub-stage-plate" style={`background-image: url('${stageGhostUrl}');`}></div>
+          <div
+            class:list={['hub-stage-plate', { 'hub-stage-plate--art': !stageMarkUrl }]}
+            style={`background-image: url('${stageGhostUrl}');`}
+          ></div>
         </div>
       )}
       <div class="hub-stage-wash" aria-hidden="true"></div>
@@ -310,13 +372,28 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
               lockup and give the trailer below room to matter.
             */}
             <div class="hero-identity">
-              {event.logo ? (
-                <>
-                  <h1 class="sr-only">{event.title}</h1>
-                  <span class="hero-logo-wrap" aria-hidden="true">
-                    <img src={urlFor(event.logo).height(320).auto('format').url()} alt="" class="hero-logo" />
+              {/*
+                THE MARK IS THE HEADING. It was an `aria-hidden` <img alt="">
+                beside an `sr-only` <h1>, which gave the outline but left a
+                failed image as blank space with nothing saying what the page
+                was. Naming the image and wrapping it in the <h1> puts the
+                answer where the question is: the alt renders in the mark's
+                own place if the image never arrives, and it is announced once
+                rather than once per element.
+
+                `.hero-logo-wrap` keeps its own element because HARD RULE 6
+                puts the glow on the WRAPPER and never on the <img>.
+              */}
+              {heroLockupLogo ? (
+                <h1 class="hero-title-lockup">
+                  <span class="hero-logo-wrap">
+                    <img
+                      src={urlFor(heroLockupLogo).height(320).auto('format').url()}
+                      alt={event.title}
+                      class="hero-logo"
+                    />
                   </span>
-                </>
+                </h1>
               ) : (
                 <h1 class="hero-title">{event.title}</h1>
               )}
@@ -440,10 +517,54 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
             style="animation-delay: 0.2s;"
             data-trailer={trailerId ?? undefined}
           >
-            <div class="hub-stage-mark" aria-hidden="true">
+            {/*
+              ONE LAYER, THREE POSSIBLE CONTENTS — not three layers. Every
+              state this stage has (`is-playing` fades it to 0.28 behind the
+              video, `is-item` takes it to 0, reduced-motion drops its
+              transition) is written against `.hub-stage-mark`, so changing
+              WHAT it holds costs no new state rules and cannot leave one
+              behind.
+
+              The wordmark is the last resort, for a hub with neither art nor
+              a logo. It is what keeps the stage from being an empty box.
+            */}
+            <div
+              class:list={['hub-stage-mark', { 'hub-stage-mark--art': !!stageArtUrl }]}
+              aria-hidden="true"
+            >
               {stageMarkUrl ? (
                 /* HARD RULE 6: no filter on the <img>. The glow is on the wrapper. */
                 <img src={stageMarkUrl} alt="" class="hub-stage-mark-img" />
+              ) : stageArtUrl ? (
+                /*
+                  TWO COPIES OF ONE FILE, same src and srcset, so the browser
+                  fetches once and paints twice. The back one COVERS and is
+                  blurred, visible only in the gutters the front one leaves;
+                  the front one CONTAINS, which is what guarantees the whole
+                  image is on screen with nothing cropped away. A hub's art is
+                  an editor's upload, so its shape cannot be assumed.
+                */
+                <>
+                  <img
+                    src={stageArtUrl}
+                    srcset={stageArtSrcset}
+                    sizes={stageArtSizes}
+                    alt=""
+                    aria-hidden="true"
+                    class="hub-stage-art-fill"
+                    loading="eager"
+                    decoding="async"
+                  />
+                  <img
+                    src={stageArtUrl}
+                    srcset={stageArtSrcset}
+                    sizes={stageArtSizes}
+                    alt=""
+                    class="hub-stage-art-img"
+                    loading="eager"
+                    decoding="async"
+                  />
+                </>
               ) : (
                 <span class="hub-stage-wordmark">{event.title}</span>
               )}
@@ -1073,6 +1194,20 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
        weak edge out past the scrims. Nothing here moves. */
   }
 
+  /*
+    `contain` fits a mark inside the box and leaves its aspect alone. Key art
+    is photographic, so it covers instead, and sits back further: a full-frame
+    image at the mark's brightness washed the copy column's side of the
+    feather.
+  */
+  .hub-stage-plate--art {
+    background-size: cover;
+    background-position: center 30%;
+    opacity: 0.38;
+    filter: blur(30px) saturate(1.15) brightness(1.05);
+    -webkit-filter: blur(30px) saturate(1.15) brightness(1.05);
+  }
+
   /* Lit without needing a single asset, so a hub with no logo still reads. */
   .hub-stage-wash {
     position: absolute;
@@ -1114,6 +1249,63 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
             drop-shadow(0 16px 40px rgba(0,0,0,0.8));
     transition: opacity 0.9s ease, transform 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
     opacity: 0.97;
+  }
+
+  /*
+    ─── ART MODE ───────────────────────────────────────────────────────────
+
+    The same layer, holding the hub's art instead of its mark.
+
+    NO FILTER: the base rule's drop-shadow glow is shaped for a mark floating
+    in transparency, and on a full-bleed rectangle it is just a shadow, which
+    `box-shadow` draws without a filter's repaint cost. That shadow is the
+    video's own, so the idle frame and the playing one are one object.
+
+    It CLIPS, which is safe HERE and only here: `.hub-stage-mark` is a SIBLING
+    of `.hub-stage-video`, never its ancestor, so hard rule 3 is not in play.
+    The stage itself still never clips.
+  */
+  .hub-stage-mark--art {
+    filter: none;
+    -webkit-filter: none;
+    opacity: 1;
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.85);
+    overflow: hidden;
+  }
+
+  /*
+    CONTAIN, so the whole image is on screen whatever shape an editor
+    uploaded. `cover` was tried on the event pages and cut two events' key art
+    in half, taking the first and last letters of their own names with it.
+  */
+  .hub-stage-art-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+    display: block;
+  }
+
+  /*
+    THE GUTTERS ARE FILLED, NOT LEFT EMPTY. Letterbox bars in the frame a
+    trailer is about to play in read as a broken image. A blurred, darkened
+    copy of the same file costs no extra request: identical src and srcset, so
+    one decode painted twice. `scale()` goes on the IMAGE, never on the
+    clipping box — scaling a clip is what leaked light on the deck page.
+  */
+  .hub-stage-art-fill {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+    transform: scale(1.12);
+    filter: blur(22px) saturate(1.1) brightness(0.62);
+    -webkit-filter: blur(22px) saturate(1.1) brightness(0.62);
   }
 
   /*
@@ -1333,6 +1525,22 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
   }
   .hero-identity .hero-logo-wrap {
     margin: 0;
+  }
+
+  /*
+    A HEADING THAT IS PURELY A CONTAINER. The <h1> around the mark must not
+    bring a heading's own margin, size or weight with it: the alt text only
+    paints if the image fails, and it should land where the mark would have
+    rather than shove the column down as a browser-default 2em block.
+  */
+  .hero-title-lockup {
+    display: block;
+    margin: 0;
+    padding: 0;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
   }
   .hero-identity .hero-description-wrapper {
     min-width: 0;

@@ -391,5 +391,83 @@ test('every event can still be reached at its source', () => {
     `these events have no officialWebsite, so their details section cannot link out: ${linkless.join(', ')}`);
 });
 
+console.log('\nthe hub hero, same decisions');
+
+/*
+  ─── WHY THIS LIVES IN THE EVENT FILE ─────────────────────────────────────
+
+  /featured/[slug].astro is where the event hero was lifted FROM, and it had
+  all three of the same problems: one logo field feeding three mark slots, a
+  520px mark on a page whose top left already carries one, and an sr-only <h1>
+  beside an aria-hidden image. Reported the same way: "there's a lot of
+  repetition over there as well."
+
+  Asserting it beside the event rules is deliberate. The two heroes drift
+  apart the moment a fix lands in one of them, and a separate file is how
+  nobody notices.
+*/
+const hubHero = stripComments(readSrc('src', 'pages', 'featured', '[slug].astro'));
+
+test('the hub hero has the same three logo fields', () => {
+  assert.match(hubHero, /const heroLockupLogo = event\.heroLogo \|\| event\.logo;/,
+    'the top-left mark must be overridable on a hub too');
+  assert.match(hubHero, /const stageMarkLogo = event\.stageLogo \|\| event\.logo;/,
+    "the stage's mark is stageLogo, never the hero lockup's");
+  assert.match(hubHero, /const stageShowsMark = event\.stageShowMark === true;/,
+    'and it is OFF unless a hub turns it on');
+
+  const heroLogoUses = hubHero.match(/event\.heroLogo/g) || [];
+  assert.equal(heroLogoUses.length, 1,
+    'heroLogo must be read exactly once, by heroLockupLogo');
+});
+
+test('the hub stage idles on the hub art, through getHubBackdrop', () => {
+  /*
+    NOT straight off `heroImage`. getHubBackdrop() is the one place that
+    decides what a hub looks like — its `backdrops[0]` override first, its key
+    art second — and going around it is how the stage and the backdrop would
+    come to disagree about the same hub.
+  */
+  assert.match(hubHero, /const stageArtUrl = !stageMarkUrl && heroBackdrop \? stageArtAt\(900\) : null;/,
+    'with no mark asked for, the stage fills with the hub art');
+  assert.match(hubHero, /urlFor\(heroBackdrop\.ref\)/,
+    'the art must come through getHubBackdrop, not a second reading of heroImage');
+  assert.doesNotMatch(hubHero, /stageArtAt = \(w: number\) =>\s*\n?\s*event\.heroImage/,
+    'reading heroImage directly bypasses the backdrops[0] override');
+
+  assert.match(hubHero, /class:list=\{\['hub-stage-mark', \{ 'hub-stage-mark--art': !!stageArtUrl \}\]\}/,
+    'art mode is a modifier on the existing idle layer, not a second layer');
+  assert.match(hubHero, /const stageGhostSource = stageMarkUrl/,
+    'the ghost must follow whatever is in front of it');
+});
+
+test('the hub placeholder is never cropped either', () => {
+  const artRule = hubHero.match(/\.hub-stage-art-img \{[^}]*\}/);
+  assert.ok(artRule, 'the hub stage art needs a rule of its own');
+  assert.match(artRule[0], /object-fit: contain;/,
+    'cover crops, and a hub\'s art is an editor upload whose shape cannot be assumed');
+  assert.match(artRule[0], /inset: 0;/, 'no overscan: that is a zoom');
+
+  const fillRule = hubHero.match(/\.hub-stage-art-fill \{[^}]*\}/);
+  assert.ok(fillRule, 'contain without a fill leaves letterbox bars');
+  assert.match(fillRule[0], /object-fit: cover;/, 'the fill is the copy that covers');
+  assert.match(fillRule[0], /transform: scale\(/, 'and it overscans, so its weak blur edge is clipped away');
+
+  const fills = hubHero.match(/srcset=\{stageArtSrcset\}/g) || [];
+  assert.equal(fills.length, 2, 'both copies read one srcset, so it is one fetch painted twice');
+
+  assert.doesNotMatch(hubHero, /\.hero-trailer\.hub-stage \{[^}]*overflow: hidden;/,
+    'HARD RULE 3 — the stage holds the iframe and must never clip');
+});
+
+test('the hub mark is the heading', () => {
+  assert.match(hubHero, /<h1 class="hero-title-lockup">[\s\S]{0,400}?alt=\{event\.title\}/,
+    'the mark must BE the heading and carry the hub name as its alt');
+  assert.doesNotMatch(hubHero, /<h1 class="sr-only">\{event\.title\}<\/h1>/,
+    'the sr-only twin is what got the name announced twice');
+  assert.match(hubHero, /\.hero-title-lockup \{[^}]*margin: 0;[^}]*\}/,
+    'a heading element brings a default margin the alt would shove the column down with');
+});
+
 console.log(failed === 0 ? `\n✅ ${passed} passed, 0 failed.` : `\n❌ ${passed} passed, ${failed} failed.`);
 process.exit(failed === 0 ? 0 : 1);

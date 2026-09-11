@@ -2316,13 +2316,44 @@ function BrandForm({
           onChange={(v) => update('logo', v)}
           library={assetLibrary}
           onForgetAsset={onForgetAsset}
+          hint="The brand mark, and the fallback for both overrides below."
         />
+        <ImageUploadField
+          label="Hero Logo (optional)"
+          value={refOf(doc.heroLogo)}
+          onChange={(v) => update('heroLogo', v)}
+          library={assetLibrary}
+          onForgetAsset={onForgetAsset}
+          hint="Only the small mark at the TOP LEFT of the hub page. Leave empty and it uses the Logo above."
+        />
+        <ImageUploadField
+          label="Stage Logo (optional)"
+          value={refOf(doc.stageLogo)}
+          onChange={(v) => update('stageLogo', v)}
+          library={assetLibrary}
+          onForgetAsset={onForgetAsset}
+          hint="The third mark. Only the LARGE one in the trailer frame, and only while the switch below is on. Leave empty and it uses the Logo above."
+        />
+        <Field label="Stage">
+          <Toggle
+            label="Show a logo on the stage"
+            checked={doc.stageShowMark === true}
+            onChange={(v) => update('stageShowMark', v)}
+          />
+          <p className="mt-1 text-[11px] leading-snug text-neutral-500">
+            Off, the frame where the trailer plays holds this hub's art, from Backdrops if set and
+            Hero Image otherwise. On, it holds a mark. The hero already shows one at the top left,
+            so a mark here states the same identity twice on one screen. Turn it on where the stage
+            logo is genuinely a different thing.
+          </p>
+        </Field>
         <ImageUploadField
           label="Hero Image"
           value={refOf(doc.heroImage)}
           onChange={(v) => update('heroImage', v)}
           library={assetLibrary}
           onForgetAsset={onForgetAsset}
+          hint="Key art behind the whole hub page, the /featured deck card, and the nav thumbnail."
         />
       </div>
 
