@@ -72,6 +72,7 @@ type Doc = {
   heroImage?: any;
   backdrops?: any[];
   youtubeSyncKeywords?: string[];
+  coverageTags?: string[];
   brandColor?: { hex?: string };
   /** Which accordion row this hub appears in on /featured. */
   hubCategory?: string;
@@ -1684,6 +1685,12 @@ function EventForm({
 
       <div className="mt-5">
         <TagsInput label="YouTube Sync Keywords (hub auto-tagging)" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
+        <p className="text-xs text-gray-400 mt-1.5">Matched against YouTube tags by the sync. Keep these narrow and year-scoped: anything here can pull a video into this hub.</p>
+      </div>
+
+      <div className="mt-5">
+        <TagsInput label="Coverage Tags (articles &amp; site matching)" value={doc.coverageTags} onChange={(v) => update('coverageTags', v)} />
+        <p className="text-xs text-gray-400 mt-1.5">Article and video tags that count as coverage of this hub, e.g. "Marvel Studios", "Doomsday". The YouTube sync never reads these, so they are safe to write broadly. Without them an event matches no articles at all: no writer tags a post "sdcc2026".</p>
       </div>
 
       <div className="mt-10 pt-10 border-t border-white/10 space-y-8">
@@ -1961,6 +1968,12 @@ function BrandForm({
 
       <div className="mt-5">
         <TagsInput label="YouTube Sync Keywords (hub auto-tagging)" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
+        <p className="text-xs text-gray-400 mt-1.5">Matched against YouTube tags by the sync. Keep these narrow and year-scoped: anything here can pull a video into this hub.</p>
+      </div>
+
+      <div className="mt-5">
+        <TagsInput label="Coverage Tags (articles &amp; site matching)" value={doc.coverageTags} onChange={(v) => update('coverageTags', v)} />
+        <p className="text-xs text-gray-400 mt-1.5">Article and video tags that count as coverage of this hub, e.g. "Marvel Studios", "Doomsday". The YouTube sync never reads these, so they are safe to write broadly. Without them an event matches no articles at all: no writer tags a post "sdcc2026".</p>
       </div>
     </div>
   );

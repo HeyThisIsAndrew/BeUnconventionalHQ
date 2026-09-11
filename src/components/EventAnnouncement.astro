@@ -11,7 +11,19 @@ import { parseVideoId } from '../lib/platforms/youtube';
 import { urlFor, getFeaturedBrandsLocal } from '../lib/local-content';
 import { formatEventDateRange, formatLocation, getEventTypeLabel } from '../lib/events';
 
-const { event, unifiedContent } = Astro.props;
+const {
+  event,
+  unifiedContent,
+  /*
+    Coverage is capped at six by src/pages/events/[slug].astro; these three
+    describe what was left behind and whether the visible six are mixed
+    enough to be worth filtering. Defaults keep the component renderable on
+    its own (tests, and any caller that has not been updated).
+  */
+  coverageTotal = unifiedContent?.length ?? 0,
+  coverageHref = `/events/${event?.slug?.current ?? ''}/coverage`,
+  showCoverageFilters = false,
+} = Astro.props;
 
 const relatedBrand = event.relatedBrandSlug ? getFeaturedBrandsLocal().find((b: any) => (typeof b.slug === 'string' ? b.slug : b.slug?.current) === event.relatedBrandSlug) : null;
 
@@ -627,17 +639,40 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
             </div>
           </section>
           
-          {/* Section: Coverage Grid */}
+          {/*
+            Section: Coverage Grid
+
+            `data-coverage` is the scope the filter handler binds inside, and
+            it is load-bearing, not decorative. A page-wide
+            `document.querySelectorAll('.content-card')` is exactly how the
+            old event-page filter emptied the hub page it leaked onto.
+          */}
           {unifiedContent.length > 0 && (
-            <section id="event-coverage" class="scroll-mt-32 intel-break">
+            <section id="event-coverage" class="scroll-mt-32 intel-break" data-coverage="event">
               <div class="intel-break-head">
                 <h3 class="intel-break-title">COVERAGE</h3>
               </div>
-              <div class="card-grid">
+
+              {showCoverageFilters && (
+                <div class="filter-controls coverage-filters">
+                  <button type="button" class="filter-btn type-btn" data-filter="article" aria-pressed="false">ARTICLES</button>
+                  <button type="button" class="filter-btn type-btn" data-filter="video" aria-pressed="false">VIDEOS</button>
+                </div>
+              )}
+
+              <div class="card-grid" aria-live="polite">
                 {unifiedContent.map((item: any, index: number) => (
                   <ContentCard item={item} index={index} />
                 ))}
               </div>
+
+              {coverageTotal > unifiedContent.length && (
+                <div class="coverage-more">
+                  <a class="coverage-more-link" href={coverageHref}>
+                    All coverage ({coverageTotal}) &rarr;
+                  </a>
+                </div>
+              )}
             </section>
           )}
 
@@ -741,20 +776,17 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
 
   
   /*
-    ─── initEventFilters IS GONE, AND IT WAS NEVER THIS PAGE'S ─────────────
+    ─── WHY THIS HANDLER IS SCOPED, AND WHY IT TOGGLES ────────────────────
 
-    An event page renders NO filter buttons. There is one COVERAGE grid here
-    and nothing to filter it with, so this function had nothing to bind on
-    its own page. It was pure dead code — locally.
+    Its predecessor, `initEventFilters`, did neither, and both omissions were
+    reported as bugs by the same tap.
 
-    It was not dead globally. Astro's ClientRouter does not unload a page's
-    module when you navigate away, so this component's `astro:page-load`
-    listener kept firing on WHATEVER page came next. Deep-linking from an
-    event to its franchise hub (Avengers: Doomsday -> Marvel) therefore ran
-    it against the HUB's filter buttons, which it found because it queried
-    `document` rather than its own section.
-
-    Two things then broke, and both were reported:
+    Astro's ClientRouter does not unload a page's module when you navigate
+    away, so this component's `astro:page-load` listener keeps firing on
+    WHATEVER page comes next. Deep-linking from an event to its franchise hub
+    (Avengers: Doomsday -> Marvel) ran the old handler against the HUB's
+    filter buttons, which it found because it queried `document` rather than
+    its own section. Two things broke:
 
       THE TILES VANISHED. It hid every `.content-card` on the page, and the
       hub's "Upcoming Events" card is a .content-card. The heading stayed
@@ -765,11 +797,50 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
       which does toggle, the two fought over the same class on one click.
 
     It also re-bound on every `astro:page-load` — it set `data-bound` and
-    never read it — so the listeners accumulated with each navigation.
+    never read it — so listeners accumulated with each navigation.
 
-    The hub page owns the only filter UI on the site, its handler is scoped
-    to `[data-coverage]`, and it toggles correctly. That one stays.
+    So: query inside `[data-coverage="event"]`, never `document`; the VALUE
+    matters too, because /featured/[slug] carries `data-coverage="hub"` and
+    both modules stay alive across a navigation between the two. Toggle off
+    when the
+    pressed button is pressed again; honour `data-bound`. If the scope
+    element is ever missing, the lists come back empty and the filters do
+    nothing, which beats hiding content elsewhere on the page. This is the
+    same handler /featured/[slug] runs, for the same reason.
   */
+  function initCoverageFilters() {
+    const coverage = document.querySelector('[data-coverage="event"]');
+    if (!coverage) return;
+
+    const filterBtns = Array.from(coverage.querySelectorAll<HTMLElement>('.filter-btn'));
+    const contentCards = Array.from(coverage.querySelectorAll<HTMLElement>('.content-card'));
+    if (!filterBtns.length) return;
+
+    filterBtns.forEach((btn) => {
+      if (btn.dataset.bound === 'true') return;
+      btn.dataset.bound = 'true';
+      btn.addEventListener('click', () => {
+        const wasActive = btn.classList.contains('active');
+        filterBtns.forEach((b) => {
+          b.classList.remove('active');
+          b.setAttribute('aria-pressed', 'false');
+        });
+
+        let activeFilter = 'all';
+        if (!wasActive) {
+          btn.classList.add('active');
+          btn.setAttribute('aria-pressed', 'true');
+          activeFilter = btn.getAttribute('data-filter') || 'all';
+        }
+
+        contentCards.forEach((card) => {
+          const show = activeFilter === 'all' || card.getAttribute('data-type') === activeFilter;
+          /* '' restores the stylesheet's own display for the card variant. */
+          card.style.display = show ? '' : 'none';
+        });
+      });
+    });
+  }
 
   function initHubStage() {
     const stage = document.querySelector<HTMLElement>('.hub-stage');
@@ -1375,10 +1446,12 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
   initHubStage();
   initHubRail();
   initHubSound();
+  initCoverageFilters();
   document.addEventListener('astro:page-load', () => {
     initHubStage();
     initHubRail();
     initHubSound();
+    initCoverageFilters();
   });
 </script>
 </Layout>
@@ -2494,6 +2567,48 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
     }
   }
   
+  /*
+    The coverage filter row sits inside the article column, under a ruled
+    section head, not centred on the full page like the hub's. `max-width`
+    and `margin: auto` from `.filter-controls` are therefore unwound here.
+  */
+  .filter-controls.coverage-filters {
+    max-width: none;
+    margin: 0 0 1.75rem 0;
+  }
+
+  /*
+    "All coverage" is the seventh-item door, the same one "All Past Events"
+    is on /events. It renders only when something is actually behind it, so
+    it never reads as a link to an empty page.
+  */
+  .coverage-more {
+    margin-top: 2rem;
+  }
+  .coverage-more-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-display, 'Inter', sans-serif);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--color-accent-text, #ef4444);
+    text-decoration: none;
+    padding: 0.7rem 1.1rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(10, 10, 10, 0.45);
+    transition: border-color 0.25s ease, color 0.25s ease;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .coverage-more-link:hover,
+    .coverage-more-link:focus-visible {
+      border-color: var(--color-accent-text, #ef4444);
+      color: #fff;
+    }
+  }
+
   .empty-state {
     text-align: center;
     padding: 4rem;

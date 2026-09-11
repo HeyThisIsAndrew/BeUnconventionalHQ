@@ -90,6 +90,32 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   `video.hubs` (slugs) against `event.slug.current` / `brand.slug.current` — hubs
   are slugs in the local sync, not Sanity `_id` references, so this replaces the
   old `references($hubId)` GROQ query, it isn't a shortcut around it.
+- **Coverage matching is ONE function**, `collectHubCoverage()` in
+  `src/lib/hub-coverage.ts`, shared by `/featured/[slug]` and `/events/[slug]`.
+  Videos come from `video.hubs` when anything is hub-tagged, and fall back to
+  exact NORMALIZED tag matching otherwise; articles have no `hubs` field (they
+  sync from Substack) so they are always tag-matched. Never substring-match:
+  the event page used to, and it returned zero articles for all 19 events
+  while looking like the events simply had no coverage. Shorts and live
+  streams are excluded at each CALL SITE, not inside the matcher, so the
+  decision stays visible — and so an event page and its overflow feed derive
+  the identical list.
+  **`coverageTags` is not `youtubeSyncKeywords`.** `youtubeSyncKeywords` is
+  read by `extractHubSeeds()` during the YouTube sync, so widening it changes
+  what the sync pulls into a hub; on events it holds year-scoped tokens
+  ("sdcc2026") that no writer ever tags an article with. `coverageTags` is
+  purely editorial, read only by the site, and is the field that lets an
+  event match articles. Seed it in the local CMS.
+- **Event pages cap coverage at six** (`COVERAGE_PAGE_LIMIT`) and overflow to
+  `/events/<slug>/coverage`, paginated at 12 — the same display-cap-plus-
+  overflow-route pattern "Past Event Archive" uses on `/events`. The overflow
+  route builds only for events that have coverage.
+- **ARTICLES/VIDEOS filters are scoped BY NAME**: `data-coverage="hub"` on the
+  hub page, `data-coverage="event"` on event pages, each handler querying its
+  own. Astro's ClientRouter keeps both modules alive across a navigation
+  between the two, so a bare `[data-coverage]` on both reunites them and
+  reproduces the original deep-link bug. The row renders only when both
+  content kinds are actually on screen.
   LocalCmsApp creates *and* edits `event`/`featuredBrand` docs (the "New
   Featured" / "New event" buttons) — the old "no local flow to create one"
   gap is closed. Hubs still carry Sanity asset refs for `logo`/`heroImage`

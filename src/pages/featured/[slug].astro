@@ -11,6 +11,7 @@ import { toYMD } from '../../lib/events';
 import InstagramFeed from '../../components/InstagramFeed.astro';
 import { getHubTopicKeywords } from '../../lib/instagram-topic';
 import { parseVideoId } from '../../lib/platforms/youtube';
+import { collectHubCoverage } from '../../lib/hub-coverage';
 
 export async function getStaticPaths() {
   // `defined(slug.current)` filtering happens in getFeaturedBrandsLocal, so a
@@ -44,59 +45,22 @@ const associatedUpcomingEvents = allLocalEvents
 const allVideos = await getVideosUnified();
 const allArticles = getArticleItems();
 
-// 1b. Phase C1 (epic #25): deterministic, editor-controlled coverage — videos
-// whose hubs[] reference THIS brand doc (by slug - see sync-youtube.mjs's
-// taxonomy dictionary, which keys hub matches off event/featuredBrand
-// slugs). Empty until editors/sync hub-tag published docs; the tag-match
-// fallback below keeps behavior unchanged until then.
-const hubCoverage = allVideos
-  .filter((v: any) => !v.isShort && !v.isLive && (v.hubs || []).includes(event.slug?.current))
-  .sort((a: any, b: any) => new Date(b.publishedAt ?? 0).getTime() - new Date(a.publishedAt ?? 0).getTime());
+/*
+  ─── ONE MATCHER, SHARED WITH /events/[slug] ───────────────────────────────
 
-// 2. Fallback: filter global data against hub tags (legacy heuristic; removed
-// in Phase C2 once hub-tagging covers the catalog)
-const eventTags = (event.youtubeSyncKeywords || []).filter((t: any) => typeof t === 'string');
+  This block used to be sixty lines of hub-tag lookup plus normalized tag
+  matching, hand-written here, and a DIFFERENT, substring-based version of
+  the same idea hand-written on the event page. The event one matched zero
+  articles for all nineteen events. They are now one function,
+  src/lib/hub-coverage.ts, which is where the reasoning lives.
 
-const filteredVideos = hubCoverage.length > 0 ? hubCoverage : allVideos.filter((v: any) => {
-
-
-  // STRICT FILTERING: Query against the actual YouTube Tags synced directly from 
-  // YouTube Studio metadata into Sanity (`v.youtubeTags`). 
-  // We use EXACT matching on normalized tags, avoiding all regex and substring data leaks.
-  return eventTags.some((tag: string) => {
-    const normalize = (s: string) => s.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
-    const t = normalize(tag);
-    if (!t) return false;
-    
-    // Exact match on normalized strings (e.g. "marvel studios" === "marvel studios")
-    const hasYouTubeTag = v.youtubeTags?.some((yt: string) => normalize(yt) === t);
-    
-    // Also include videos where the editor manually assigned the topic in Sanity
-    const hasTopic = v.tags?.some((vt: string) => normalize(vt) === t);
-    const hasCategory = v.category ? normalize(v.category) === t : false;
-    
-    return hasYouTubeTag || hasTopic || hasCategory;
-  });
-});
-
-const filteredArticles = allArticles.filter((a: any) => {
-  return eventTags.some((tag: string) => {
-    const normalize = (s: string) => s.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
-    const t = normalize(tag);
-    if (!t) return false;
-    
-    // Exact match on normalized strings
-    const hasTopic = a.tags?.some((at: string) => normalize(at) === t);
-    const hasCategory = a.category ? normalize(a.category) === t : false;
-    return hasTopic || hasCategory;
-  });
-});
-
-// Merge and sort all content
-const unifiedContent = [
-  ...filteredArticles.map((a: any) => ({ ...a, contentType: 'article' })),
-  ...filteredVideos.map((v: any) => ({ ...v, contentType: 'video' }))
-].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  Shorts and live streams are filtered out BEFORE the call, not inside it:
+  the coverage grid is the long-form reading list, and the exclusion has to
+  be visible at the call site because it is a decision, not a detail.
+*/
+const longFormVideos = allVideos.filter((v: any) => !v.isShort && !v.isLive);
+const coverage = collectHubCoverage({ hub: event, videos: longFormVideos, articles: allArticles });
+const unifiedContent = coverage.items;
 
 /*
   ─── A FILTER FOR CONTENT THE HUB DOES NOT HAVE ────────────────────────────
@@ -118,9 +82,7 @@ const unifiedContent = [
   either show everything or hide everything is not a filter, it is the phantom
   "Upcoming Events" button again in a different costume.
 */
-const hasArticles = unifiedContent.some((item: any) => item.contentType === 'article');
-const hasVideos = unifiedContent.some((item: any) => item.contentType === 'video');
-const showFilters = hasArticles && hasVideos;
+const showFilters = coverage.showFilters;
 
 // YouTube IDs are extracted via the shared parseVideoId (src/lib/platforms/youtube).
 
@@ -717,7 +679,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       )}
 
       {unifiedContent.length > 0 ? (
-        <section class="content-section" data-coverage>
+        <section class="content-section" data-coverage="hub">
           <h2 class="sr-only">Event coverage</h2>
 
           {showFilters && (
@@ -2566,11 +2528,17 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
           this handler whether or not it filters anything, which is exactly
           how the old "Upcoming Events" button wiped the coverage grid.
 
-      `[data-coverage]` is on the section these controls actually belong to.
+      `[data-coverage="hub"]` is on the section these controls actually
+      belong to. The VALUE matters as much as the attribute: /events/[slug]
+      now renders its own coverage filters behind `data-coverage="event"`,
+      and ClientRouter keeps both modules alive across a navigation between
+      the two. Naming the scope is what stops each page's handler from
+      finding the other's buttons.
+
       If it is ever missing the lists come back empty and the filters simply
       do nothing, which beats hiding content elsewhere on the page.
     */
-    const coverage = document.querySelector('[data-coverage]');
+    const coverage = document.querySelector('[data-coverage="hub"]');
     const filterBtns = Array.from(coverage?.querySelectorAll('.filter-btn') ?? []);
     const contentCards = Array.from(coverage?.querySelectorAll('.content-card') ?? []);
 
@@ -2593,7 +2561,10 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
 
         contentCards.forEach((card) => {
           const show = activeFilter === 'all' || card.getAttribute('data-type') === activeFilter;
-          (card as HTMLElement).style.display = show ? 'flex' : 'none';
+          /* '' restores the stylesheet's own display, whatever the card's
+             variant sets it to. A hardcoded 'flex' pins every card to one
+             layout mode on the way back from a filter. */
+          (card as HTMLElement).style.display = show ? '' : 'none';
         });
       });
     });

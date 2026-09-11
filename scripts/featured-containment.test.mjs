@@ -11,6 +11,19 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import assert from 'node:assert/strict';
 import { EVENT_TYPE_LABELS } from '../src/lib/events.ts';
+import { collectHubCoverage } from '../src/lib/hub-coverage.ts';
+
+/*
+  Several guards below read OTHER files (the hub page, the two event
+  components). They need the same comment-stripping `src` gets, or a negative
+  assertion finds this repository's own explanation of the bug and reports it
+  as the bug. That has happened here before.
+*/
+const stripComments = (text) =>
+  text
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
 
 const here = dirname(fileURLToPath(import.meta.url));
 const raw = readFileSync(join(here, '..', 'src', 'pages', 'featured', 'index.astro'), 'utf8');
@@ -571,16 +584,43 @@ test('a hub never offers a filter for content it does not have', () => {
     only show everything or hide everything is not a filter — that is the
     phantom "Upcoming Events" button again in a different costume.
   */
-  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8');
+  const hub = stripComments(
+    readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8'),
+  );
 
-  assert.match(hub, /const hasArticles = unifiedContent\.some/,
-    'the page must know whether it has articles before offering to filter for them');
-  assert.match(hub, /const hasVideos = unifiedContent\.some/,
-    'and whether it has videos');
-  assert.match(hub, /const showFilters = hasArticles && hasVideos;/,
-    'filtering is only meaningful when there are two kinds to choose between');
+  assert.match(hub, /const showFilters = coverage\.showFilters;/,
+    'the page must take the decision from the matcher, not re-derive it');
   assert.match(hub, /\{showFilters && \(\s*<div class="filter-controls/,
     'the filter row must be gated on that, not rendered unconditionally');
+
+  /*
+    And the decision itself, exercised rather than pattern-matched. These are
+    the four shapes above, in the same order, plus the mixed case that SHOULD
+    offer the row.
+  */
+  const article = (tags) => ({ tags, date: '2026-01-01' });
+  const video = (tags) => ({ youtubeTags: tags, publishedAt: '2026-01-01' });
+  const hubDoc = { slug: { current: 'probe' }, coverageTags: ['Marvel Studios'] };
+
+  const videoOnly = collectHubCoverage({
+    hub: hubDoc, videos: [video(['Marvel Studios'])], articles: [],
+  });
+  assert.equal(videoOnly.showFilters, false, 'a hub with no articles must not offer ARTICLES');
+
+  const articleOnly = collectHubCoverage({
+    hub: hubDoc, videos: [], articles: [article(['Marvel Studios'])],
+  });
+  assert.equal(articleOnly.showFilters, false, 'a hub with no videos must not offer VIDEOS');
+
+  const empty = collectHubCoverage({ hub: hubDoc, videos: [], articles: [] });
+  assert.equal(empty.showFilters, false, 'an empty hub offers nothing at all');
+
+  const mixed = collectHubCoverage({
+    hub: hubDoc,
+    videos: [video(['Marvel Studios'])],
+    articles: [article(['Marvel Studios'])],
+  });
+  assert.equal(mixed.showFilters, true, 'both kinds present is the one case the row is for');
 });
 
 test('no page-wide filter handler survives a client-side navigation', () => {
@@ -592,44 +632,77 @@ test('no page-wide filter handler survives a client-side navigation', () => {
     Upcoming Events tile vanished and the buttons could not be deselected.
 
     Both event components carried an `initEventFilters` that queried
-    `document` for `.filter-btn` and `.content-card`. An event page renders
-    NO filter buttons, so on its own page it was dead code — but Astro's
-    ClientRouter does not unload a page's module when you navigate away, so
-    its `astro:page-load` listener kept firing on whatever came next and
-    found the HUB's buttons.
+    `document` for `.filter-btn` and `.content-card`. Astro's ClientRouter
+    does not unload a page's module when you navigate away, so its
+    `astro:page-load` listener kept firing on whatever came next and found
+    the HUB's buttons.
 
-    It then hid every `.content-card` on the page (the hub's Upcoming Events
-    tile is one), and it only ever ADDED `active` with no toggle-off branch,
-    so running beside the hub's own handler the two fought over one class.
-    It re-bound on every navigation too: it wrote `data-bound` and never
-    read it.
+    It hid every `.content-card` on the page (the hub's Upcoming Events tile
+    is one), and it only ever ADDED `active` with no toggle-off branch, so
+    running beside the hub's own handler the two fought over one class. It
+    re-bound on every navigation too: it wrote `data-bound` and never read it.
 
-    The hub page owns the only filter UI on the site. Its handler is scoped
-    to `[data-coverage]` and toggles correctly.
+    ─── THE EVENT PAGE HAS FILTERS AGAIN, AND THAT IS FINE ─────────────────
+
+    What made the old handler dangerous was never that it existed, it was
+    that it read the whole document. Event pages now render their own
+    ARTICLES/VIDEOS row, so three things carry the fix instead:
+
+      the scope is NAMED. The hub section is `data-coverage="hub"`, the
+      event section `data-coverage="event"`, and each handler asks for its
+      own. A bare `[data-coverage]` on both would reunite them the moment
+      ClientRouter kept two modules alive across one navigation — which is
+      the original bug wearing the fix as a costume.
+
+      it TOGGLES. `wasActive` is read before anything is cleared.
+
+      it BINDS ONCE. `data-bound` is read, not merely written.
   */
-  for (const rel of ['EventAnnouncement.astro', 'EventFeatured.astro']) {
-    const src = readFileSync(join(here, '..', 'src', 'components', rel), 'utf8');
+  const scopes = [
+    ['EventAnnouncement.astro', 'event', join(here, '..', 'src', 'components', 'EventAnnouncement.astro')],
+    ['EventFeatured.astro', 'event', join(here, '..', 'src', 'components', 'EventFeatured.astro')],
+    ['featured/[slug].astro', 'hub', join(here, '..', 'src', 'pages', 'featured', '[slug].astro')],
+  ];
+
+  for (const [label, scope, path] of scopes) {
+    const code = stripComments(readFileSync(path, 'utf8'));
+
     assert.ok(
-      !/function initEventFilters/.test(src),
-      `${rel} has a filter handler again. It has no filter buttons of its own, and under ` +
-        'ClientRouter its astro:page-load listener runs on whatever page comes next.',
+      !/document\.querySelectorAll\('\.filter-btn'\)/.test(code),
+      `${label} queries .filter-btn page-wide; after a navigation that reaches another page's buttons`,
     );
     assert.ok(
-      !/document\.querySelectorAll\('\.filter-btn'\)/.test(src),
-      `${rel} queries .filter-btn page-wide; after a navigation that reaches another page's buttons`,
+      !/document\.querySelectorAll\('\.content-card'\)/.test(code),
+      `${label} queries .content-card page-wide; that is what hid the hub's Upcoming Events tile`,
     );
+    /*
+      Narrow on purpose. A page-wide query is not itself the bug — the TOC
+      scrollspy legitimately reads `[data-event-toc]` across the document,
+      and that selector exists on event pages only. The bug is building the
+      FILTER's two lists from the document, so that is what is named here.
+    */
     assert.ok(
-      !/document\.querySelectorAll\('\.content-card'\)/.test(src),
-      `${rel} queries .content-card page-wide; that is what hid the hub's Upcoming Events tile`,
+      !/const (?:filterBtns|contentCards) = Array\.from\(document\./.test(code),
+      `${label} builds a filter list from the whole document again`,
     );
+
+    assert.ok(
+      code.includes(`document.querySelector('[data-coverage="${scope}"]')`),
+      `${label} must scope its filter to [data-coverage="${scope}"], not to a bare [data-coverage] ` +
+        'that both page types would answer',
+    );
+    assert.match(code, /const wasActive = btn\.classList\.contains\('active'\)/,
+      `${label} must keep the toggle-off branch, or a filter can be set but never cleared`);
+    assert.match(code, /dataset\.bound === 'true'/,
+      `${label} must READ data-bound, not only write it, or listeners stack up per navigation`);
   }
 
-  /* And the surviving handler stays scoped and deselectable. */
-  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8');
-  assert.match(hub, /const coverage = document\.querySelector\('\[data-coverage\]'\)/,
-    'the one real filter handler must stay scoped to its own section');
-  assert.match(hub, /const wasActive = btn\.classList\.contains\('active'\)/,
-    'and must keep the toggle-off branch, or a filter can be set but never cleared');
+  /*
+    The two scope names must actually differ. Written as one assertion so a
+    later "tidy-up" that unifies them fails here rather than on a phone.
+  */
+  const names = new Set(scopes.map(([, scope]) => scope));
+  assert.equal(names.size, 2, 'the hub and the event page must not share one filter scope');
 });
 
 test('the coverage filter cannot reach outside the coverage section', () => {
@@ -661,9 +734,11 @@ test('the coverage filter cannot reach outside the coverage section', () => {
     symptoms: the queries must be rooted in the coverage section, and any card
     grid added to this page later is out of their reach by construction.
   */
-  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8');
+  const hub = stripComments(
+    readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8'),
+  );
 
-  assert.match(hub, /<section class="content-section" data-coverage>/,
+  assert.match(hub, /<section class="content-section" data-coverage="hub">/,
     'the coverage section must be identifiable, or its filters have nothing to scope to');
 
   assert.ok(
@@ -672,8 +747,10 @@ test('the coverage filter cannot reach outside the coverage section', () => {
     'the filter reads the whole document again. Every .filter-btn and .content-card on the ' +
       'page is in range, including sections that have nothing to do with coverage.',
   );
-  assert.match(hub, /const coverage = document\.querySelector\('\[data-coverage\]'\)/,
-    'the filter must root itself in the coverage section');
+  assert.ok(
+    hub.includes('const coverage = document.querySelector(\'[data-coverage="hub"]\')'),
+    'the filter must root itself in the coverage section, by name',
+  );
   assert.match(hub, /const filterBtns = Array\.from\(coverage\?\.querySelectorAll/,
     'buttons come from inside the coverage section');
   assert.match(hub, /const contentCards = Array\.from\(coverage\?\.querySelectorAll/,

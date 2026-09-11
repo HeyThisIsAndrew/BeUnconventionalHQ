@@ -1,7 +1,8 @@
 ---
 import { getArticleItems } from '../../lib/feed-items';
-import { getVideosUnified, getShortsUnified, getLiveStreamsUnified } from '../../lib/videos-source';
+import { getVideosUnified } from '../../lib/videos-source';
 import { getEventsLocal } from '../../lib/local-content';
+import { collectHubCoverage, COVERAGE_PAGE_LIMIT } from '../../lib/hub-coverage';
 import EventAnnouncement from '../../components/EventAnnouncement.astro';
 import EventFeatured from '../../components/EventFeatured.astro';
 import SpanningCalendarModal from '../../components/SpanningCalendarModal.astro';
@@ -20,32 +21,41 @@ const { event } = Astro.props;
 const allVideos = await getVideosUnified();
 const allArticles = getArticleItems();
 
-const [shortsForHubs, liveForHubs] = await Promise.all([getShortsUnified(), getLiveStreamsUnified()]);
-const hubCoverage = [...allVideos, ...shortsForHubs, ...liveForHubs]
-  .filter((v: any) => (v.hubs || []).includes(event.slug?.current))
-  .sort((a: any, b: any) => new Date(b.publishedAt ?? 0).getTime() - new Date(a.publishedAt ?? 0).getTime());
+/*
+  ─── COVERAGE IS MATCHED THE SAME WAY A HUB PAGE MATCHES IT ────────────────
 
-const eventTags = (event.youtubeSyncKeywords || []).filter((t: any) => typeof t === 'string');
+  This used to be its own substring matcher over article titles/excerpts and
+  video titles/descriptions. It matched nothing: measured against the shipped
+  store it returned ZERO articles for all 19 events, because it was searching
+  prose for sync tokens like "sdcc-2026". See src/lib/hub-coverage.ts for the
+  full account, including why events need `coverageTags` and brands do not.
 
-const filteredVideos = hubCoverage.length > 0 ? hubCoverage : allVideos.filter((v: any) => {
-  return eventTags.some((tag: string) =>
-    v.title?.toLowerCase().includes(tag.toLowerCase()) ||
-    v.description?.toLowerCase().includes(tag.toLowerCase())
-  );
-});
+  Shorts and live streams are no longer merged in here. /featured/[slug] has
+  always excluded them and this page included them, and one of the two had to
+  give; the coverage grid is the long-form reading list.
+*/
+const longFormVideos = allVideos.filter((v: any) => !v.isShort && !v.isLive);
+const coverage = collectHubCoverage({ hub: event, videos: longFormVideos, articles: allArticles });
 
-const filteredArticles = allArticles.filter((a: any) => {
-  return eventTags.some((tag: string) => 
-    a.title?.toLowerCase().includes(tag.toLowerCase()) || 
-    a.excerpt?.toLowerCase().includes(tag.toLowerCase())
-  );
-});
+/*
+  Six, then the rest moves to /events/<slug>/coverage — the same display cap
+  plus overflow route that "Past Event Archive" uses on /events. Nothing is
+  hidden, only paged: `coverageTotal` drives the "All coverage" link, which is
+  rendered only when there is actually a seventh item behind it.
+*/
+const unifiedContent = coverage.items.slice(0, COVERAGE_PAGE_LIMIT);
+const coverageTotal = coverage.items.length;
+const coverageHref = `/events/${event.slug?.current}/coverage`;
 
-// Merge and sort all content
-const unifiedContent = [
-  ...filteredArticles.map((a: any) => ({ ...a, contentType: 'article' })),
-  ...filteredVideos.map((v: any) => ({ ...v, contentType: 'video' }))
-].sort((a, b) => new Date(b.date || b.publishedAt).getTime() - new Date(a.date || a.publishedAt).getTime());
+/*
+  The ARTICLES/VIDEOS row is offered only when BOTH kinds are present in what
+  is actually on screen. A filter that can only show everything or empty the
+  grid is not a filter (the phantom "Upcoming Events" button, again), and the
+  visible six can be all one kind even when the full set is mixed.
+*/
+const visibleArticles = unifiedContent.some((item: any) => item.contentType === 'article');
+const visibleVideos = unifiedContent.some((item: any) => item.contentType === 'video');
+const showCoverageFilters = visibleArticles && visibleVideos;
 
 // Determine the layout mode. The Sanity field `layoutMode` should dictate this.
 // Fallback to 'announcement' if undefined.
@@ -59,9 +69,9 @@ const allEvents = getEventsLocal();
 
 <>
   {isFeatured ? (
-    <EventFeatured event={event} unifiedContent={unifiedContent} allEvents={allEvents} />
+    <EventFeatured event={event} unifiedContent={unifiedContent} allEvents={allEvents} coverageTotal={coverageTotal} coverageHref={coverageHref} showCoverageFilters={showCoverageFilters} />
   ) : (
-    <EventAnnouncement event={event} unifiedContent={unifiedContent} allEvents={allEvents} />
+    <EventAnnouncement event={event} unifiedContent={unifiedContent} allEvents={allEvents} coverageTotal={coverageTotal} coverageHref={coverageHref} showCoverageFilters={showCoverageFilters} />
   )}
   <SpanningCalendarModal events={allEvents} />
 </>

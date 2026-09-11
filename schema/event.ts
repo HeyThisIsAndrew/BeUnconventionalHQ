@@ -520,6 +520,17 @@ export default defineType({
         'YouTube tags that auto-assign a video to this event hub (case/punctuation-insensitive exact match), e.g. "san diego comic-con". Set once — epic #34.',
     }),
 
+    defineField({
+      name: 'coverageTags',
+      title: 'Coverage Tags',
+      type: 'array',
+      fieldset: 'details',
+      of: [{ type: 'string' }],
+      options: { layout: 'tags' },
+      description:
+        'Article and video tags that count as coverage of this hub, e.g. "Marvel Studios". Read ONLY by the site (src/lib/hub-coverage.ts) — the YouTube sync never sees these, so unlike YouTube Sync Keywords they can be written broadly without pulling videos into the hub.',
+    }),
+
     // Legacy fields — retained so existing documents aren't orphaned. Content is
     // now pulled via `tags` matching against the global feed, so these are no
     // longer the primary mechanism. Safe to remove once no document uses them.
