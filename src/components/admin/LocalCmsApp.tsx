@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { urlFor } from '../../lib/local-content.ts';
 
 type DocType = 'video' | 'short' | 'live' | 'event' | 'featuredBrand' | 'topic' | 'article';
@@ -335,6 +335,71 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
  * on `backdrops`, an object with `asset._ref` on older frozen-export docs.
  * Anything that looks like an asset ref counts, wherever it is.
  */
+/*
+  ─── THE LIBRARY REMEMBERS ────────────────────────────────────────────────
+
+  `collectAssetLibrary` below answers "which assets are IN USE right now", and
+  for a while that was also the picker's whole contents. It made the picker
+  unusable for the one job it exists for.
+
+  Swapping two images between fields is: open Reuse on field A, pick B's
+  image. The instant that lands, A's old image is referenced by nothing, so it
+  vanishes from the picker — before you can open field B and put it there.
+  Reported as "the one that got replaced would be missing if it wasn't visible
+  anywhere".
+
+  So the picker is fed a REMEMBERED set that only ever grows. Every ref the
+  store has ever shown this browser stays offerable, whether or not a document
+  currently points at it, and an asset leaves only when somebody deliberately
+  forgets it. Nothing here reads or writes `videos.json`: forgetting an asset
+  removes it from this list, never from the store or from any document.
+
+  localStorage, so it survives a reload of a dev-only page. A browser that
+  refuses it (private window, blocked site data) degrades to the old
+  in-use-only behaviour rather than throwing, which is why every access is
+  wrapped.
+*/
+const ASSET_MEMORY_KEY = 'bu-local-cms-known-assets';
+const ASSET_REF = /^image-[0-9a-f]{20,}-\d+x\d+-[a-z]+$/i;
+
+function readRememberedAssets(): string[] {
+  try {
+    const raw = localStorage.getItem(ASSET_MEMORY_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((r) => typeof r === 'string' && ASSET_REF.test(r)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeRememberedAssets(refs: string[]) {
+  try {
+    localStorage.setItem(ASSET_MEMORY_KEY, JSON.stringify(refs));
+  } catch {
+    /* Private window or blocked site data. The session still works. */
+  }
+}
+
+export type AssetEntry = { ref: string; usedBy: string[] };
+
+/**
+ * The picker's contents: everything remembered, each labelled with the
+ * documents that currently point at it. An entry with an empty `usedBy` is
+ * not an error — it is an asset waiting to be placed, which is exactly what
+ * the middle of a swap looks like.
+ */
+function buildAssetLibrary(docs: any[], remembered: string[]): AssetEntry[] {
+  const inUse = new Map(collectAssetLibrary(docs).map((a) => [a.ref, a.usedBy]));
+  const refs = Array.from(new Set([...remembered, ...inUse.keys()]));
+  return refs
+    .map((ref) => ({ ref, usedBy: inUse.get(ref) ?? [] }))
+    /* In use first, then alphabetically, so the list is stable across edits. */
+    .sort((a, b) => {
+      if (!a.usedBy.length !== !b.usedBy.length) return a.usedBy.length ? -1 : 1;
+      return (a.usedBy[0] ?? a.ref).localeCompare(b.usedBy[0] ?? b.ref);
+    });
+}
+
 function collectAssetLibrary(docs: any[]): { ref: string; usedBy: string[] }[] {
   const REF = /^image-[0-9a-f]{20,}-\d+x\d+-[a-z]+$/i;
   const found = new Map<string, Set<string>>();
@@ -397,66 +462,141 @@ function AssetPicker({
   library,
   onPick,
   onClose,
+  onForget,
 }: {
-  library: { ref: string; usedBy: string[] }[];
+  library: AssetEntry[];
   onPick: (ref: string) => void;
   onClose: () => void;
+  onForget?: (ref: string) => void;
 }) {
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
+  /*
+    Matches the documents an asset is on, its dimensions, AND its ref. It used
+    to match `usedBy` alone, which meant an asset nothing currently points at
+    could not be found by typing anything at all — and after the library
+    started remembering unused assets, those are precisely the ones somebody
+    is hunting for mid-swap.
+  */
   const shown = q
-    ? library.filter((a) => a.usedBy.some((u) => u.toLowerCase().includes(q)))
+    ? library.filter(
+        (a) =>
+          a.usedBy.some((u) => u.toLowerCase().includes(q)) ||
+          refDimensions(a.ref).includes(q) ||
+          a.ref.toLowerCase().includes(q),
+      )
     : library;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={onClose}>
+    /*
+      z-index 300, set inline rather than as `z-50`.
+
+      The navbar is `z-index: 100` and `.safe-area-blackout` is 110
+      (styles/modules/navbar.css, responsive-mobile.css), and this page renders
+      inside the site's own <Layout>. At Tailwind's z-50 the navbar painted
+      over the top of this panel, which put the site header on top of the
+      Close button. 300 is the value styles/modules/modal.css already uses,
+      with the comment "High z-index to be above navbar" - same problem, same
+      answer, so the two agree rather than leapfrogging each other.
+
+      Inline, because this exact page has a recorded history of Tailwind's JIT
+      not emitting rules for classes used here (see the note in
+      dev-routes/local-cms.astro). A z-index that silently fails to generate
+      reintroduces the bug invisibly.
+    */
+    <div
+      className="fixed inset-0 flex items-center justify-center bg-black/80 p-4"
+      style={{ zIndex: 300 }}
+      onClick={onClose}
+    >
       <div
-        className="w-full max-w-3xl max-h-[80vh] overflow-y-auto rounded-lg border border-white/10 bg-[#111214] p-5"
+        className="w-full max-w-3xl max-h-[80vh] flex flex-col rounded-lg border border-white/10 bg-[#111214]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <h3 className="text-sm font-bold uppercase tracking-widest text-gray-300">
-            Use an image already in the store
-          </h3>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-white text-sm">
+        {/* The header is OUTSIDE the scroll area, so Close stays reachable
+            however far down the grid somebody has scrolled. */}
+        <div className="flex-none flex items-center justify-between gap-3 border-b border-white/10 p-5 pb-4">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-widest text-gray-300">
+              Use an image already in the store
+            </h3>
+            <p className="mt-1 text-[11px] text-gray-500">
+              Everything this browser has seen, in use or not. Picking one here only fills the
+              field; nothing is written to videos.json until you save.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-none rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-gray-300 hover:border-white/20 hover:bg-white/10 hover:text-white transition-colors"
+          >
             Close
           </button>
         </div>
-        <input
-          autoFocus
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Filter by the document it is used on..."
-          className={`${inputClass} mb-4`}
-        />
-        {shown.length === 0 ? (
-          <p className="text-sm text-gray-500">Nothing matches that.</p>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {shown.map((asset) => (
-              <button
-                key={asset.ref}
-                type="button"
-                onClick={() => {
-                  onPick(asset.ref);
-                  onClose();
-                }}
-                className="text-left rounded-md border border-white/10 bg-black/40 p-2 hover:border-red-500/60 hover:bg-white/5 transition-colors"
-              >
-                <img
-                  src={urlFor(asset.ref).width(320).url()}
-                  alt=""
-                  className="h-20 w-full object-contain rounded bg-black/50"
-                  loading="lazy"
-                />
-                <p className="mt-2 text-[11px] leading-tight text-gray-300 line-clamp-2">
-                  {asset.usedBy.join(', ')}
-                </p>
-                <p className="text-[10px] text-gray-500">{refDimensions(asset.ref)}</p>
-              </button>
-            ))}
-          </div>
-        )}
+
+        <div className="flex-1 min-h-0 overflow-y-auto p-5 pt-4">
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filter by document, size or ref..."
+            className={`${inputClass} mb-4`}
+          />
+          {shown.length === 0 ? (
+            <p className="text-sm text-gray-500">Nothing matches that.</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {shown.map((asset) => {
+                const unused = asset.usedBy.length === 0;
+                return (
+                  <div key={asset.ref} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onPick(asset.ref);
+                        onClose();
+                      }}
+                      className="w-full text-left rounded-md border border-white/10 bg-black/40 p-2 hover:border-red-500/60 hover:bg-white/5 transition-colors"
+                    >
+                      <img
+                        src={urlFor(asset.ref).width(320).url()}
+                        alt=""
+                        className="h-20 w-full object-contain rounded bg-black/50"
+                        loading="lazy"
+                      />
+                      <p
+                        className={`mt-2 text-[11px] leading-tight line-clamp-2 ${
+                          unused ? 'text-gray-500 italic' : 'text-gray-300'
+                        }`}
+                      >
+                        {unused ? 'Not on any document yet' : asset.usedBy.join(', ')}
+                      </p>
+                      <p className="text-[10px] text-gray-500">{refDimensions(asset.ref)}</p>
+                    </button>
+                    {/*
+                      Forgetting is DELIBERATE and it is not a delete. It drops
+                      the asset from this browser's picker list and touches
+                      neither videos.json nor the uploaded file, so an asset a
+                      document still points at keeps rendering. Offered only on
+                      unused entries, so the swap workflow cannot lose the
+                      image it is halfway through moving.
+                    */}
+                    {unused && onForget && (
+                      <button
+                        type="button"
+                        title="Remove from this list. Does not delete the image."
+                        onClick={() => onForget(asset.ref)}
+                        className="absolute top-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-gray-400 hover:bg-black hover:text-white transition-colors"
+                      >
+                        Forget
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -468,12 +608,14 @@ function ImageUploadField({
   onChange,
   hint,
   library = [],
+  onForgetAsset,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   hint?: string;
-  library?: { ref: string; usedBy: string[] }[];
+  library?: AssetEntry[];
+  onForgetAsset?: (ref: string) => void;
 }) {
   const [uploading, setUploading] = useState(false);
   const [picking, setPicking] = useState(false);
@@ -541,7 +683,7 @@ function ImageUploadField({
         </div>
       )}
       {picking && (
-        <AssetPicker library={library} onPick={onChange} onClose={() => setPicking(false)} />
+        <AssetPicker library={library} onPick={onChange} onClose={() => setPicking(false)} onForget={onForgetAsset} />
       )}
     </Field>
   );
@@ -645,6 +787,40 @@ export default function LocalCmsApp() {
   const [activeTab, setActiveTab] = useState('status');
   const [activeFilter, setActiveFilter] = useState<Filter | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+
+  /*
+    Seeded from localStorage so a reload does not lose an asset mid-swap, then
+    unioned with whatever the loaded store references. Only ever grows here;
+    the single place it shrinks is `forgetAsset`, which a person has to click.
+  */
+  const [rememberedAssets, setRememberedAssets] = useState<string[]>(() => readRememberedAssets());
+
+  useEffect(() => {
+    const live = collectAssetLibrary(docs).map((a) => a.ref);
+    if (!live.length) return;
+    setRememberedAssets((prev) => {
+      const next = Array.from(new Set([...prev, ...live]));
+      /* Length is a sufficient guard because this branch only ever ADDS.
+         Returning `prev` unchanged is what stops the effect re-triggering
+         itself through the state it just set. */
+      if (next.length === prev.length) return prev;
+      writeRememberedAssets(next);
+      return next;
+    });
+  }, [docs]);
+
+  const forgetAsset = useCallback((ref: string) => {
+    setRememberedAssets((prev) => {
+      const next = prev.filter((r) => r !== ref);
+      writeRememberedAssets(next);
+      return next;
+    });
+  }, []);
+
+  const assetLibrary = useMemo(
+    () => buildAssetLibrary(docs, rememberedAssets),
+    [docs, rememberedAssets],
+  );
 
   useEffect(() => {
     Promise.all([
@@ -1186,10 +1362,10 @@ export default function LocalCmsApp() {
                   <VideoForm doc={selected} activeTab={activeTab} setActiveTab={setActiveTab} updateDoc={updateDoc} />
                 )}
                 {selected._type === 'event' && (
-                  <EventForm doc={selected} allDocs={docs} updateDoc={updateDoc} updateSlug={updateSlug} updateLocation={updateLocation} duplicateAsEdition={duplicateAsEdition} />
+                  <EventForm doc={selected} allDocs={docs} assetLibrary={assetLibrary} onForgetAsset={forgetAsset} updateDoc={updateDoc} updateSlug={updateSlug} updateLocation={updateLocation} duplicateAsEdition={duplicateAsEdition} />
                 )}
                 {selected._type === 'featuredBrand' && (
-                  <BrandForm allDocs={docs} doc={selected} updateDoc={updateDoc} updateSlug={updateSlug} />
+                  <BrandForm assetLibrary={assetLibrary} onForgetAsset={forgetAsset} doc={selected} updateDoc={updateDoc} updateSlug={updateSlug} />
                 )}
                 {selected._type === 'article' && (
                   <ArticleForm doc={selected} updateDoc={updateDoc} />
@@ -1674,6 +1850,8 @@ function VideoForm({
 function EventForm({
   allDocs,
   doc,
+  assetLibrary,
+  onForgetAsset,
   updateDoc,
   updateSlug,
   updateLocation,
@@ -1681,15 +1859,17 @@ function EventForm({
 }: {
   allDocs: Doc[];
   doc: Doc;
+  /* Built ONCE at the top of the app, not derived here. Two forms deriving it
+     separately is how one of them would have kept the old in-use-only
+     behaviour after the other was fixed. */
+  assetLibrary: AssetEntry[];
+  onForgetAsset: (ref: string) => void;
   updateDoc: (id: string, field: keyof Doc, value: any) => void;
   updateSlug: (id: string, value: string) => void;
   updateLocation: (id: string, field: keyof LocationInfo, value: string) => void;
   duplicateAsEdition: (doc: Doc) => void;
 }) {
   const update = (field: keyof Doc, value: any) => updateDoc(doc._id, field, value);
-  /* Every image already in the store, so an existing mark can be reused
-     instead of uploaded again. See collectAssetLibrary. */
-  const assetLibrary = useMemo(() => collectAssetLibrary(allDocs), [allDocs]);
   const brandHubs = allDocs.filter((d: any) => d._type === 'featuredBrand').sort((a: any, b: any) => a.title.localeCompare(b.title));
   /* Only templates may be picked as a parent series, and a document can never
      be its own parent. */
@@ -1849,6 +2029,7 @@ function EventForm({
           value={refOf(doc.logo)}
           onChange={(v) => update('logo', v)}
           library={assetLibrary}
+          onForgetAsset={onForgetAsset}
           hint="The brand mark, and the fallback for both overrides below. Shared across editions is fine: all four PAX events use one PAX wordmark here."
         />
         <ImageUploadField
@@ -1856,6 +2037,7 @@ function EventForm({
           value={refOf(doc.heroLogo)}
           onChange={(v) => update('heroLogo', v)}
           library={assetLibrary}
+          onForgetAsset={onForgetAsset}
           hint="Only the small mark at the TOP LEFT of the hero. Leave empty and it uses the Logo above. Set it when the brand mark is not specific enough: PAX West and PAX East share a logo, so without this their heroes look like the same event."
         />
         <ImageUploadField
@@ -1863,6 +2045,7 @@ function EventForm({
           value={refOf(doc.stageLogo)}
           onChange={(v) => update('stageLogo', v)}
           library={assetLibrary}
+          onForgetAsset={onForgetAsset}
           hint="The third mark. Only the LARGE one on the stage, and only while the switch below is on. Leave empty and it uses the Logo above."
         />
         <Field label="Stage">
@@ -1883,6 +2066,7 @@ function EventForm({
           value={refOf(doc.heroImage)}
           onChange={(v) => update('heroImage', v)}
           library={assetLibrary}
+          onForgetAsset={onForgetAsset}
           hint="Key art behind the whole hero, and the social share card."
         />
       </div>
@@ -2095,20 +2279,19 @@ const HUB_CATEGORIES = [
 ];
 
 function BrandForm({
-  allDocs,
   doc,
+  assetLibrary,
+  onForgetAsset,
   updateDoc,
   updateSlug,
 }: {
-  allDocs: Doc[];
   doc: Doc;
+  assetLibrary: AssetEntry[];
+  onForgetAsset: (ref: string) => void;
   updateDoc: (id: string, field: keyof Doc, value: any) => void;
   updateSlug: (id: string, value: string) => void;
 }) {
   const update = (field: keyof Doc, value: any) => updateDoc(doc._id, field, value);
-  /* Every image already in the store, so an existing mark can be reused
-     instead of uploaded again. See collectAssetLibrary. */
-  const assetLibrary = useMemo(() => collectAssetLibrary(allDocs), [allDocs]);
   return (
     <div className={sectionClass}>
       <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5">
@@ -2132,12 +2315,14 @@ function BrandForm({
           value={refOf(doc.logo)}
           onChange={(v) => update('logo', v)}
           library={assetLibrary}
+          onForgetAsset={onForgetAsset}
         />
         <ImageUploadField
           label="Hero Image"
           value={refOf(doc.heroImage)}
           onChange={(v) => update('heroImage', v)}
           library={assetLibrary}
+          onForgetAsset={onForgetAsset}
         />
       </div>
 
