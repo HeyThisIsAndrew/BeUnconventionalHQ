@@ -15,6 +15,26 @@
  */
 import { formatEventDateRange, formatLocation, getEventTypeLabel } from './events.ts';
 
+/**
+ * Values an editor types to mean "not filled in yet".
+ *
+ * ─── WHY METADATA FILTERS THEM AND THE PAGE DOES NOT ───────────────────────
+ * "Venue: TBD" is useful ON the page: it tells a reader the venue genuinely
+ * is not announced, which is different from the site not knowing. In a meta
+ * description or a schema.org node it is neither useful nor true, and it is
+ * the version that gets crawled, cached and shown in a result.
+ *
+ * The Doomsday premiere shipped a description reading "Premiere at TBD, Los
+ * Angeles, CA." Without this it reads "Premiere in Los Angeles, CA", which
+ * is correct and says the same amount.
+ */
+const PLACEHOLDER_VALUE = /^(tbd|tba|tbc|n\/?a|none|unknown|to be (announced|confirmed|determined)|coming soon)\.?$/i;
+
+/** True when a field holds an editor's "not yet" marker rather than a fact. */
+export function isPlaceholderValue(value: unknown): boolean {
+  return typeof value === 'string' && PLACEHOLDER_VALUE.test(value.trim());
+}
+
 /** Google truncates a description around 160 characters and ignores very short ones. */
 export const DESCRIPTION_MIN = 120;
 export const DESCRIPTION_MAX = 160;
@@ -39,9 +59,14 @@ export function buildEventDescription(event: any, siteName = 'Be Unconventional 
     what the document has, so the preposition is chosen from which one came
     back rather than hardcoded.
   */
-  const venue =
+  const rawVenue =
     event?.location && typeof event.location === 'object' ? String(event.location.venue ?? '') : '';
-  const place = formatLocation(event?.location, { includeVenue: true });
+  const venue = isPlaceholderValue(rawVenue) ? '' : rawVenue;
+  /*
+    `includeVenue` only when the venue is a real one. A placeholder drops out
+    and formatLocation falls back to "City, Region" on its own.
+  */
+  const place = formatLocation(event?.location, { includeVenue: Boolean(venue) });
   const at = venue && place.startsWith(venue);
 
   /*
@@ -160,7 +185,7 @@ export function buildEventSchema(
         : 'https://schema.org/EventScheduled';
 
   const location = event?.location;
-  if (typeof location === 'string' && location.trim()) {
+  if (typeof location === 'string' && location.trim() && !isPlaceholderValue(location)) {
     schema.location = { '@type': 'Place', name: location.trim(), address: location.trim() };
   } else if (location && typeof location === 'object') {
     const address: Record<string, any> = { '@type': 'PostalAddress' };
@@ -168,7 +193,9 @@ export function buildEventSchema(
     if (location.region) address.addressRegion = location.region;
     if (location.country) address.addressCountry = location.country;
 
-    const placeName = location.venue || formatLocation(location) || undefined;
+    const placeName = (!isPlaceholderValue(location.venue) && location.venue)
+      || formatLocation(location)
+      || undefined;
     if (placeName || Object.keys(address).length > 1) {
       schema.location = { '@type': 'Place' };
       if (placeName) schema.location.name = placeName;

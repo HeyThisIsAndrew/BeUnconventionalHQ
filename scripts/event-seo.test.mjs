@@ -21,6 +21,7 @@ import {
   buildEventSchema,
   DESCRIPTION_MIN,
   DESCRIPTION_MAX,
+  isPlaceholderValue,
 } from '../src/lib/event-seo.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -118,6 +119,60 @@ test('a document missing its place or its dates still reads as a sentence', () =
   assert.ok(bare.length >= DESCRIPTION_MIN && bare.length <= DESCRIPTION_MAX, `${bare.length}: ${bare}`);
   assert.ok(!/undefined|null|NaN|\s\./.test(bare), `leaked an empty clause: ${bare}`);
   assert.match(bare, /Mystery Event/);
+});
+
+test('an editor\'s "not filled in yet" never reaches Google', () => {
+  /*
+    ─── THE ONE PLACEHOLDER THAT WAS ACTUALLY LEAKING ──────────────────────
+
+    The Doomsday premiere has `venue: "TBD"`, which is honest ON the page:
+    it tells a reader the venue is genuinely unannounced, which is different
+    from the site not knowing. In a meta description it is neither useful nor
+    true, and it is the version that gets crawled and cached:
+
+      "Premiere at TBD, Los Angeles, CA."
+
+    Filtered out of the METADATA only. The page still says TBD.
+  */
+  for (const v of ['TBD', 'tba', ' TBC ', 'N/A', 'na', 'To Be Announced', 'coming soon', 'Unknown', 'none']) {
+    assert.ok(isPlaceholderValue(v), `"${v}" should count as a placeholder`);
+  }
+  for (const v of ['Dolby Theatre', 'Javits Center', '', undefined, 'Tokyo Big Sight', 'NA Convention Hall']) {
+    assert.ok(!isPlaceholderValue(v), `"${v}" is a real value and must survive`);
+  }
+
+  const tbd = {
+    title: 'A Premiere',
+    eventType: 'premiere',
+    startDate: '2026-12-14',
+    location: { venue: 'TBD', city: 'Los Angeles', region: 'CA', country: 'USA' },
+  };
+  const d = buildEventDescription(tbd);
+  assert.ok(!/\bTBD\b/i.test(d), `TBD leaked into the description:\n      ${d}`);
+  assert.match(d, /in Los Angeles, CA/, 'and it must fall back to the city, not drop the place');
+
+  const schema = buildEventSchema(tbd, {});
+  assert.ok(!JSON.stringify(schema).includes('TBD'), 'TBD leaked into the Event schema');
+  assert.equal(schema.location.address.addressLocality, 'Los Angeles',
+    'the real address parts must survive the filter');
+
+  /* And a genuine venue is untouched. */
+  const real = { ...tbd, location: { ...tbd.location, venue: 'Dolby Theatre' } };
+  assert.match(buildEventDescription(real), /at Dolby Theatre/);
+  assert.equal(buildEventSchema(real, {}).location.name, 'Dolby Theatre');
+});
+
+test('no shipped event leaks a placeholder into its metadata', () => {
+  for (const event of events) {
+    const d = buildEventDescription(event);
+    const schema = JSON.stringify(buildEventSchema(event, { description: d }) ?? {});
+    for (const marker of ['TBD', 'TBA', 'To Be Announced', 'Coming Soon']) {
+      assert.ok(!new RegExp(`\\b${marker}\\b`, 'i').test(d),
+        `${event.slug?.current}: "${marker}" in the description\n      ${d}`);
+      assert.ok(!new RegExp(`\\b${marker}\\b`, 'i').test(schema),
+        `${event.slug?.current}: "${marker}" in the Event schema`);
+    }
+  }
 });
 
 console.log('\nevent titles');
