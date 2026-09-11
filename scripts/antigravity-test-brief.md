@@ -125,6 +125,26 @@ or accepted trade-offs, documented in `CLAUDE.md`.
    copy only.
 10. **The 3-column editorial layout on event pages.** It is built and
     correct. Do not propose rebuilding it.
+11. **"Official Gaming Hub" rather than "Official Game Hub".** PlayStation,
+    Xbox and Nintendo are platforms. The label is deliberate and there is a
+    test pinning it.
+12. **A hub card heading of plain "Official Hub".** That is the fallback for
+    a hub whose `hubCategory` is unset. If you see one, report it as an
+    OBSERVATION naming the hub, not as a defect: it is a data gap the
+    fallback is designed to make visible.
+13. **An article with no hub card.** Some articles are about the industry
+    rather than a brand, and get no card. Correct, and expected on roughly
+    one page in ten.
+14. **"More From Intel" missing below 1200px.** Deliberate. The article
+    column already renders "Suggested Reading" below the body at every
+    width, and showing the rail's copy too would print the same links twice
+    in a row.
+15. **The "Contents" / "On This Page" rail missing below 1200px.**
+    Deliberate. A jump-link list belongs beside the text or nowhere.
+16. **A hub logo that fails to load.** The marks are served from
+    `cdn.sanity.io`. If your environment cannot reach it, the `<img>` is
+    still correct in the HTML. Check the `src` attribute before reporting,
+    and report a network failure under `third_party_failures`.
 
 # CURRENT DATA STATE — measured, so you do not mistake it for a defect
 
@@ -136,8 +156,25 @@ file anything about a missing control.**
 |---|---|---|---|---|
 | `/featured/marvel-comics` | 6 | 1 (an Upcoming Events card) | 2 | none |
 | `/featured/dc-comics` | 6 | 0 | 2 | none |
+| `/featured/a24` | 1 | 0 | 0 | none |
+| `/featured/xbox` | 1 | 0 | 0 | none |
 | `/events/new-event-1788829064723` | 1 | 0 | 0 | none |
 | `/events/sdcc-2026` | 2 | 0 | 0 | none |
+| `/events/blizzcon-2026` | 0 | 0 | 0 | none |
+
+And on the article side, across all eleven `/intel/<slug>` pages:
+
+| Hub card heading | how many articles |
+|---|---|
+| Official Franchise Hub | 4 |
+| Official Streamer Hub | 4 |
+| Official Studio Hub | 2 |
+| no hub card at all | 1 (a piece about physical media, which is about no brand) |
+
+Only two per-event coverage feeds are built, because only two events have any
+coverage: `/events/new-event-1788829064723/coverage` and
+`/events/sdcc-2026/coverage` return 200. Every other
+`/events/<slug>/coverage` returns 404 BY DESIGN.
 
 Consequences you must accept rather than report:
 
@@ -160,7 +197,7 @@ A number being HIGHER than 6 in the first column is always a finding.
 
 # SWARM ASSIGNMENTS
 
-Six agents. Scopes do not overlap. Do not let an agent wander outside its
+Seven agents. Scopes do not overlap. Do not let an agent wander outside its
 scope — if it notices something elsewhere, it reports it under
 `out_of_scope_observations`, not as a finding.
 
@@ -362,6 +399,92 @@ Routes: `/events/new-event-1788829064723`, `/featured/marvel-comics`,
 
 ---
 
+## AGENT 7 — The hub card and the article support rail
+
+The newest work, and the least covered by anything else here.
+
+Routes: every `/intel/<slug>` page (get the list from the links on `/intel`,
+do not type them from memory), plus `/events/new-event-1788829064723` for the
+event-side version of the same card.
+
+Viewports: 390x844, 844x390, 768x1024, 1024x768, 1440x900. All five. The
+whole point of this section is that the rail used to exist only on desktop.
+
+**Part A — the heading is a property of the HUB, not of the page.**
+
+1. On each article page, read
+   `document.querySelector('.rail-hub .article-rail-head')?.textContent`.
+   **Expected: one of exactly these four strings**, or no card at all:
+   `Official Franchise Hub`, `Official Streamer Hub`, `Official Studio Hub`,
+   `Official Gaming Hub`. Anything else is a finding. `Official Hub` is the
+   documented fallback: report it as an observation naming the route, per
+   item 12 above.
+2. Read the card's link: `.rail-hub-card` href. **Expected: it starts with
+   `/featured/` and returns 200.** Follow it and confirm.
+3. **Cross-check the heading against the hub it links to.** Open the
+   `/featured/<slug>` page it points at and read the row label the hub page
+   shows for itself. It will be one of `Franchises`, `Streamers`, `Studios`,
+   `Games`. **Expected: the pair matches this table exactly.**
+
+   | card heading on the article | row label on the hub page |
+   |---|---|
+   | Official Franchise Hub | Franchises |
+   | Official Streamer Hub | Streamers |
+   | Official Studio Hub | Studios |
+   | Official Gaming Hub | Games |
+
+   A card headed "Official Streamer Hub" linking to a hub in the Studios row
+   is exactly the bug this section exists for, and it is a MAJOR finding.
+   Report both strings and both routes. Note the fourth row: the singular of
+   the "Games" row is "Gaming", NOT "Game". That pairing is correct and is
+   item 11 on the cannot-be-a-bug list.
+4. Tally the four headings across all eleven articles and compare with the
+   table above. A tally that differs is an observation, not a finding, but
+   report the numbers you measured.
+
+   **No article currently resolves to a gaming hub**, so you will probably
+   never see "Official Gaming Hub" in the wild. Do not report the label as
+   missing or broken on that basis. If you want to see it exercised, the
+   assertion lives in `scripts/hub-card.test.mjs`, which you may RUN
+   (`node scripts/hub-card.test.mjs`) but must not edit.
+
+**Part B — the rail is not desktop-only any more.**
+
+For each viewport, on an article page that HAS a hub card:
+
+1. Is `.article-rail-right` visible (`getBoundingClientRect().height > 0`)?
+   **Expected: yes at every one of the five viewports.** This is the whole
+   fix. A `height` of 0 below 1200px is a BLOCKER.
+2. Are all three of `.rail-hub`, `.article-rail-desk` and `.referral-block`
+   visible? **Expected: yes, at every viewport.**
+3. At 1200px and below only:
+   - `.article-rail-left` **must NOT be visible** (the TOC stays desktop-only)
+   - `.article-rail-more` **must NOT be visible** (it would duplicate
+     "Suggested Reading")
+   - `.article-related` (in the column) **must be visible** — that is the
+     copy that survives
+   - `getComputedStyle(rail).position` **must not be `sticky`**
+   - the rail's `getBoundingClientRect().top` must be **greater than or
+     equal to** `.article-column`'s `getBoundingClientRect().bottom`, give or
+     take 2px. The rail goes AFTER the article, never before it.
+4. Measure the vertical gap:
+   `.rail-hub` top minus `.article-column` last child's bottom.
+   **Expected: between 70 and 130 pixels.** It was 144 and that was judged a
+   hole; below ~60 the section break stops reading. Report the number you
+   measure at each viewport whatever it is.
+5. `document.documentElement.scrollWidth` vs `window.innerWidth` on these
+   pages at every viewport. **Expected: no more than 1px difference.**
+
+**Part C — the event side still works.**
+
+On `/events/new-event-1788829064723`, confirm the card is present, its
+heading is `Official Franchise Hub` (Marvel is a franchise, so this one IS
+correct), and it links to `/featured/marvel-comics`. The card markup moved
+into a shared component recently; this is the check that the move did not
+drop it.
+
+---
+
 # OUTPUT CONTRACT
 
 Return ONE JSON object. No prose before or after it. No markdown fence around
@@ -435,6 +558,9 @@ Answer each of these to yourself and fix anything that fails:
    `out_of_scope_observations`.
 6. For Part B of Agent 2 — did I CLICK the link, or did I navigate to it? If
    I navigated, that step is `NOT_RUN`, not `PASS`.
-7. Is my output valid JSON that parses?
+7. For Agent 7 — did I run Part B at ALL FIVE viewports, or only the ones
+   that were convenient? The rail being desktop-only is the bug it replaces,
+   so a run that skipped the phone viewports has tested nothing.
+8. Is my output valid JSON that parses?
 
 === END PROMPT ===
