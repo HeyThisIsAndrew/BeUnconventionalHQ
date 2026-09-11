@@ -552,22 +552,42 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
                 <img src={stageMarkUrl} alt="" class="hub-stage-mark-img" />
               ) : stageArtUrl ? (
                 /*
-                  An <img>, not a painted box. This started as a
-                  background-image because it was overscanned past a clip to
-                  hide a blur's weak edge; with no blur there is nothing to
-                  hide and nothing to overscan, and a real element is what
-                  gets a srcset. HARD RULE 6 is satisfied by `filter: none` on
-                  the wrapper: there is no drop-shadow anywhere near this one.
+                  TWO COPIES OF ONE FILE. Same src, same srcset, so the
+                  browser fetches once and paints it twice.
+
+                  The back one COVERS and is blurred, and it is only ever
+                  visible in the gutters the front one leaves. The front one
+                  CONTAINS, which is what guarantees the whole image is on
+                  screen with nothing cut off.
+
+                  An <img>, not a painted box: this started as a
+                  background-image so it could be overscanned past a clip, and
+                  a real element is what carries a srcset. HARD RULE 6 is
+                  satisfied by `filter: none` on the wrapper — the only filter
+                  here is a blur on the fill, and there is no drop-shadow
+                  anywhere near either of them.
                 */
-                <img
-                  src={stageArtUrl}
-                  srcset={stageArtSrcset}
-                  sizes={stageArtSizes}
-                  alt=""
-                  class="hub-stage-art-img"
-                  loading="eager"
-                  decoding="async"
-                />
+                <>
+                  <img
+                    src={stageArtUrl}
+                    srcset={stageArtSrcset}
+                    sizes={stageArtSizes}
+                    alt=""
+                    aria-hidden="true"
+                    class="hub-stage-art-fill"
+                    loading="eager"
+                    decoding="async"
+                  />
+                  <img
+                    src={stageArtUrl}
+                    srcset={stageArtSrcset}
+                    sizes={stageArtSizes}
+                    alt=""
+                    class="hub-stage-art-img"
+                    loading="eager"
+                    decoding="async"
+                  />
+                </>
               ) : (
                 <span class="hub-stage-wordmark">{event.title}</span>
               )}
@@ -2212,39 +2232,78 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
   */
   .hub-stage-mark--art {
     /*
-      NO CLIP AND NO FILTER. The art fills the frame exactly, so nothing
-      overflows to clip, and the base rule's drop-shadow glow is shaped for a
-      mark floating in transparency — on a full-bleed rectangle it is just a
+      NO FILTER. The base rule's drop-shadow glow is shaped for a mark
+      floating in transparency; on a full-bleed rectangle it is just a
       shadow, which `box-shadow` draws without a filter's repaint cost. That
-      shadow is the video's own, so the idle frame and the playing one are the
-      same object rather than two boxes that happen to share a position.
+      shadow is the video's own, so the idle frame and the playing one are
+      the same object rather than two boxes that share a position.
     */
     filter: none;
     -webkit-filter: none;
     opacity: 1;
     box-shadow: 0 30px 70px rgba(0, 0, 0, 0.85);
+    /*
+      Clips the blurred fill behind the art. Safe HERE and only here:
+      `.hub-stage-mark` is a SIBLING of `.hub-stage-video`, never its
+      ancestor, so hard rule 3 is not in play. The stage itself still never
+      clips.
+    */
+    overflow: hidden;
   }
 
   /*
-    ─── THE PLACEHOLDER IS THE PICTURE, NOT AN EFFECT ──────────────────────
+    ─── THE PLACEHOLDER IS THE PICTURE, AND ALL OF IT ──────────────────────
 
-    It shipped blurred and overscanned, which was wrong twice over: it was
-    still an effect applied to the event's art rather than the art, and the
-    overscan zoomed in on it. Asked for plainly: "it should just be the full
-    image that is used for the hero but in the location of the trailer at the
-    trailer's size displayed until the trailer shows."
+    It shipped blurred and overscanned, borrowing the treatment every other
+    plate on this page uses. That was wrong twice: it was an effect applied to
+    the event's art rather than the art, and the overscan zoomed it. Asked for
+    plainly: "it should just be the full image that is used for the hero but
+    in the location of the trailer at the trailer's size."
 
-    So: `inset: 0`, no filter, no transform. `cover` rather than `contain`
-    because the frame is 16/9 and so is all but two of the events' key art —
-    for those it is an exact fit with nothing cropped, and for the two
-    cinemascope ones it trims the sides evenly instead of letterboxing a
-    trailer frame, which is what `contain` would do and would read as broken.
+    Then it was `cover`, and that cut L.A. Comic Con's key art in half. The
+    frame is 16/9 and 17 of the 19 events' art is exactly 16:9, so cover was
+    an exact fit almost everywhere and the exceptions were the whole problem:
+    L.A. Comic Con is 2.35:1 and SXSW is 2.70:1, and cover trimmed 24% and
+    34% off their sides. Both have their NAME set across the full width of
+    the artwork, so what cover removed was the first and last letters of the
+    event's own title. Reported, correctly, as "cut off".
 
-    Losing the blur means resolution is now visible. See STAGE_WIDTHS in the
-    frontmatter: the ladder is built from this box's real size, not from the
-    small-request convention that blurred plates use.
+    So the front copy CONTAINS: the whole image, never cropped, whatever
+    shape it is. `contain` alone would leave bars, which is why there are two
+    copies — see the fill below. On the 17 events whose art is already 16:9,
+    contain and cover are the same fit and the fill is never visible at all.
   */
   .hub-stage-art-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+    display: block;
+  }
+
+  /*
+    THE GUTTERS ARE FILLED, NOT LEFT EMPTY.
+
+    Letterbox bars in the frame a trailer is about to play in read as a
+    broken image, and a flat black bar reads as a rendering fault. A blurred,
+    darkened copy of the same file behind the art is the standard answer, and
+    it costs no extra request: identical src and srcset, so the browser
+    paints one decode twice.
+
+    It is DARKENED as well as blurred, deliberately. The gutter has to recede
+    or it competes with the picture it is framing, and this page has a
+    recorded failure in the other direction: the hero was once a black
+    rectangle because a dark image was blurred and then dimmed. That applied
+    to the thing carrying the scene. This is the margin around it.
+
+    `scale(1.12)` on the IMAGE, never on the clipping box. A CSS blur samples
+    the transparent pixels outside its element and goes weak at its own
+    edges, so the fill is pushed past the clip where that band is never seen.
+    Scaling the clip instead is what caused the light leak on the deck page.
+  */
+  .hub-stage-art-fill {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -2252,6 +2311,9 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
     object-fit: cover;
     object-position: center;
     display: block;
+    transform: scale(1.12);
+    filter: blur(22px) saturate(1.1) brightness(0.62);
+    -webkit-filter: blur(22px) saturate(1.1) brightness(0.62);
   }
 
   .hub-stage-wordmark {

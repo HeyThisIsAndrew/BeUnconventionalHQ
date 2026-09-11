@@ -251,13 +251,21 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   state the stage has (`is-playing` → 0.28, `is-item` → 0, reduced-motion)
   is written against that one element, so a new layer would need all three
   rewritten and would silently miss one. The stage never clips (hard rule 3).
-  **The placeholder is the picture, not an effect on it.** It shipped once
+  **The placeholder is the picture, all of it, unblurred.** It shipped once
   blurred and overscanned, borrowing the treatment every other plate on this
   page uses, and that was wrong twice: still an effect applied to the art
-  rather than the art, and the overscan zoomed it. It is `inset: 0`,
-  `object-fit: cover`, no filter — cover because the frame is 16/9 and so is
-  all but two events' key art, and because `contain` would letterbox a
-  trailer frame. **Losing the blur inverts the request-size convention**: a
+  rather than the art, and the overscan zoomed it. Then it was `cover`, which
+  was an exact fit on the 17 events whose art is 16:9 and cut the other two
+  in half: L.A. Comic Con is 2.35:1 and SXSW is 2.70:1, and both set the
+  event's NAME across the full width of the artwork, so cover removed the
+  first and last letters of its own title. **Two copies of one file**: the
+  front one `contain`s (the whole image, never cropped, whatever shape an
+  editor uploads) and the back one `cover`s, blurred and darkened, visible
+  only in the gutters the front one leaves. Same `src` and `srcset`, so it is
+  one fetch painted twice, and on 16:9 art the fill is never visible at all.
+  The fill is overscanned with `transform: scale()` on the IMAGE and the
+  layer clips — scaling the clipping box is what leaked light on the deck
+  page. **Losing the blur inverts the request-size convention**: a
   blurred plate is deliberately asked for small (640px on /featured, 900px on
   a hub page) because the blur destroys more than the upsample costs, but a
   crisp still needs a ladder built from the box — `STAGE_WIDTHS` tops out at

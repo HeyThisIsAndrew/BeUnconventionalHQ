@@ -144,17 +144,66 @@ test('the placeholder is the picture, not an effect on it', () => {
     assert.ok(artRule, `${rel}: the stage art needs a rule of its own`);
     assert.match(artRule[0], /inset: 0;/,
       `${rel}: the art sits at the frame's edges. An overscan is the zoom that was reported.`);
-    assert.match(artRule[0], /object-fit: cover;/,
-      `${rel}: cover fills the 16/9 frame — contain would letterbox a trailer box`);
     assert.doesNotMatch(artRule[0], /blur\(|filter:/,
-      `${rel}: the placeholder must not be blurred`);
+      `${rel}: the placeholder itself must never be blurred`);
 
     const wrapRule = code.match(/\.hub-stage-mark--art \{[^}]*\}/);
     assert.ok(wrapRule, `${rel}: art mode needs its wrapper rule`);
     assert.match(wrapRule[0], /filter: none;/,
       `${rel}: the base rule's drop-shadow glow is shaped for a mark, not a full-bleed frame`);
-    assert.doesNotMatch(wrapRule[0], /overflow: hidden;/,
-      `${rel}: nothing overflows now, so nothing needs clipping`);
+  }
+});
+
+test('nothing is ever cropped out of the placeholder', () => {
+  /*
+    ─── WHAT `cover` DID ───────────────────────────────────────────────────
+
+    The frame is 16/9 and 17 of the 19 events' key art is exactly 16:9, so
+    cover was an exact fit almost everywhere — and the two exceptions were
+    the entire problem. L.A. Comic Con's art is 2.35:1 and SXSW's is 2.70:1,
+    so cover trimmed 24% and 34% off their sides. Both set the event's NAME
+    across the full width of the artwork, so what came off was the first and
+    last letters of its own title. Reported as "cut off", and it was.
+
+    `contain` is the only fit that promises the whole image whatever shape it
+    arrives in, which is the promise this frame has to make: it is fed an
+    editor's upload, not a controlled asset.
+  */
+  for (const rel of HERO_COMPONENTS) {
+    const code = heroSource(rel);
+
+    const artRule = code.match(/\.hub-stage-art-img \{[^}]*\}/);
+    assert.match(artRule[0], /object-fit: contain;/,
+      `${rel}: cover crops, and the two cinemascope events lose their own name to it`);
+
+    /*
+      Contain alone leaves bars, and a bar in the frame a trailer is about to
+      play in reads as a broken image. The fill is what makes contain
+      shippable, so the two are asserted together.
+    */
+    const fillRule = code.match(/\.hub-stage-art-fill \{[^}]*\}/);
+    assert.ok(fillRule, `${rel}: contain without a fill leaves letterbox bars`);
+    assert.match(fillRule[0], /object-fit: cover;/,
+      `${rel}: the fill is the copy that covers — it is what the gutters show`);
+    assert.match(fillRule[0], /blur\(/,
+      `${rel}: an unblurred fill is just the image twice at two sizes`);
+    assert.match(fillRule[0], /transform: scale\(/,
+      `${rel}: the fill must overscan, or its own weak blur edge lands in the gutter`);
+
+    /* One file, one fetch, two paints. */
+    const fills = code.match(/srcset=\{stageArtSrcset\}/g) || [];
+    assert.equal(fills.length, 2,
+      `${rel}: both copies must read the same srcset, or the fill is a second download`);
+
+    /*
+      The clip is what hides the overscanned fill. Safe on THIS element and
+      only this one: it is a sibling of the iframe, never an ancestor.
+    */
+    const wrapRule = code.match(/\.hub-stage-mark--art \{[^}]*\}/);
+    assert.match(wrapRule[0], /overflow: hidden;/,
+      `${rel}: the overscanned fill needs its layer to clip`);
+    assert.doesNotMatch(code, /\.hero-trailer\.hub-stage \{[^}]*overflow: hidden;/,
+      `${rel}: HARD RULE 3 — the stage holds the iframe and must never clip`);
   }
 });
 
