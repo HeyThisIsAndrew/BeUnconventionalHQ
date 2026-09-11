@@ -2155,11 +2155,24 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
   }
 
   /*
-    Blurred harder than the hero backdrop behind it (9px), because this frame
-    is roughly half that element's width and blur is measured in absolute
-    pixels: matched numbers would read as two different softnesses. Brightened
-    a touch so the frame is legible as an object against the scrim, which
-    clears toward this side of the hero.
+    ─── THE TWO DIALS ──────────────────────────────────────────────────────
+
+    BLUR sets how far this reads from the key art it is made of. Higher is
+    softer and less like a second copy of the backdrop; too high and the frame
+    is a gradient with nothing in it. 14px against the backdrop's 9px is not
+    a matched number and must not become one: this frame is roughly half that
+    element's width and blur is measured in absolute pixels, so equal numbers
+    would read as two different softnesses.
+
+    BRIGHTNESS is the one that can fail outright, and it has before. The
+    backdrop's own note records it: trailer stills are dark to begin with, and
+    blurring a dark image and then dimming it is how this hero was once a
+    black rectangle. That is why the backdrop brightens to 1.16 rather than
+    dimming. This plate sits ON TOP of that region, inside a frame ringed by
+    the video's own heavy drop shadow, so anything at or below the backdrop's
+    level reads as a hole punched in the hero rather than as a panel. It goes
+    ABOVE it, deliberately: softer than its surroundings and lighter, which is
+    a lit frosted panel. Softer and darker is a smudge.
 
     STATIC, like `.hub-stage-plate`. Animating a clipping box's transform is
     what dragged the blur's weak edge out past the scrims on the deck page.
@@ -2170,8 +2183,8 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
     background-size: cover;
     background-position: center 28%;
     background-repeat: no-repeat;
-    filter: blur(14px) saturate(1.12) brightness(1.06);
-    -webkit-filter: blur(14px) saturate(1.12) brightness(1.06);
+    filter: blur(14px) saturate(1.22) brightness(1.26);
+    -webkit-filter: blur(14px) saturate(1.22) brightness(1.26);
   }
 
   .hub-stage-wordmark {
