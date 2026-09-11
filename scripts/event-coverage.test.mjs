@@ -411,6 +411,63 @@ test('an article finds the hub it is most ABOUT, not the first one that matches'
     'a piece about the industry rather than a brand has no hub, and the card just does not render');
 });
 
+test('a pin beats the score, which is the whole point of it', () => {
+  /*
+    ─── THE CASE SCORING GETS WRONG BY DESIGN ──────────────────────────────
+
+    "A Generational Leap: Did Rockstar and Netflix Just Set a New Industry
+    Standard?" is tagged Netflix, Gaming, PlayStation, GTA VI, Video Games,
+    Xbox. It scores to Netflix, because Netflix's vocabulary lists five
+    variants and PlayStation's four: Netflix wins on the SIZE of its keyword
+    list, not on being what the piece is about.
+
+    Tuning the scoring would trade this case for a different one. Naming the
+    piece on the hub you want cannot be outvoted by anything.
+  */
+  const netflix = { slug: { current: 'netflix' }, coverageTags: ['Netflix', 'Netflix Film', 'Netflix Movie'] };
+  const playstation = { slug: { current: 'playstation' }, coverageTags: ['PlayStation'], pinnedCoverage: ['gta-piece'] };
+  const piece = article({ slug: 'gta-piece', tags: ['Netflix', 'Netflix Film', 'Netflix Movie', 'PlayStation'] });
+
+  assert.equal(findHubForItem(piece, [netflix, playstation])?.slug.current, 'playstation',
+    'a pin must beat a hub that matched three times as many tags');
+  assert.equal(findHubForItem(piece, [playstation, netflix])?.slug.current, 'playstation',
+    'and must not depend on the order the hubs arrive in');
+
+  /* Without the pin, the scoring answer stands. */
+  const unpinned = { slug: { current: 'playstation' }, coverageTags: ['PlayStation'] };
+  assert.equal(findHubForItem(piece, [netflix, unpinned])?.slug.current, 'netflix');
+});
+
+test('a pin puts the item in that hub\'s coverage too', () => {
+  /*
+    "This article belongs to this hub" has to mean both things, or the
+    override is half an answer: the card would appear on the article while
+    the article stayed missing from the hub it points at.
+  */
+  const hub = { slug: { current: 'playstation' }, coverageTags: ['PlayStation'], pinnedCoverage: ['gta-piece'] };
+  const piece = article({ slug: 'gta-piece', title: 'pinned', tags: ['Netflix'] });
+  const onTags = article({ slug: 'other', title: 'tagged', tags: ['PlayStation'] });
+
+  const { items } = collectHubCoverage({ hub, videos: [], articles: [piece, onTags] });
+  assert.deepEqual(items.map((i) => i.title).sort(), ['pinned', 'tagged']);
+
+  /* And it is not double-counted when it ALSO matches on tags. */
+  const both = article({ slug: 'gta-piece', title: 'pinned', tags: ['PlayStation'] });
+  const dedup = collectHubCoverage({ hub, videos: [], articles: [both] });
+  assert.equal(dedup.items.length, 1, 'an item that is pinned AND tagged appears once');
+});
+
+test('exclude beats pin, because exclude is how you undo a mistake', () => {
+  const hub = {
+    slug: { current: 'playstation' },
+    coverageTags: ['PlayStation'],
+    pinnedCoverage: ['gta-piece'],
+    excludeCoverage: ['gta-piece'],
+  };
+  const piece = article({ slug: 'gta-piece', tags: ['Netflix'] });
+  assert.equal(collectHubCoverage({ hub, videos: [], articles: [piece] }).items.length, 0);
+});
+
 test('a tie breaks the same way on every build', () => {
   /*
     A build that reorders a card between runs for no reason is its own bug,

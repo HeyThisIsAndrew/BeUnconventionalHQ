@@ -83,5 +83,16 @@ export default defineType({
         'Article slugs, article guids, YouTube ids or document _ids to drop from this hub no matter what the tags say. The override for a retrospective: a post about SDCC published in 2027 might be about either edition, and nothing in the data says which, so the edition comes from the tag and anything a loose tag wrongly pulls in gets named here.',
     }),
 
+    defineField({
+      name: 'pinnedCoverage',
+      title: 'Pin To This Hub',
+      type: 'array',
+      fieldset: 'details',
+      of: [{ type: 'string' }],
+      options: { layout: 'tags' },
+      description:
+        'Article slugs, article guids, YouTube ids or document _ids this hub owns whatever the tags say. A pin beats tag matching outright, so it both adds the item to this hub\u2019s coverage and makes an article page show THIS hub on its card. Use it when the tags point somewhere defensible but wrong, e.g. a GTA piece that mentions Netflix in passing. An item named in Exclude From Coverage stays excluded even if it is pinned.',
+    }),
+
   ],
 });

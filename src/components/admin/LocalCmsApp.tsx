@@ -74,6 +74,7 @@ type Doc = {
   youtubeSyncKeywords?: string[];
   coverageTags?: string[];
   excludeCoverage?: string[];
+  pinnedCoverage?: string[];
   brandColor?: { hex?: string };
   /** Which accordion row this hub appears in on /featured. */
   hubCategory?: string;
@@ -1695,8 +1696,13 @@ function EventForm({
       </div>
 
       <div className="mt-5">
+        <TagsInput label="Pin To This Hub" value={doc.pinnedCoverage} onChange={(v) => update('pinnedCoverage', v)} />
+        <p className="text-xs text-gray-400 mt-1.5">Article slugs, guids, YouTube ids or document _ids this hub owns whatever the tags say. A pin beats tag matching outright: it adds the item here AND makes that article&rsquo;s page show this hub on its card. Reach for it when the tags point somewhere defensible but wrong, like a GTA piece that mentions Netflix in passing.</p>
+      </div>
+
+      <div className="mt-5">
         <TagsInput label="Exclude From Coverage" value={doc.excludeCoverage} onChange={(v) => update('excludeCoverage', v)} />
-        <p className="text-xs text-gray-400 mt-1.5">Article slugs, guids, YouTube ids or document _ids to drop from this hub whatever the tags say. Use it for a retrospective: a post about SDCC written in 2027 could be about either edition, and only you know which.</p>
+        <p className="text-xs text-gray-400 mt-1.5">Article slugs, guids, YouTube ids or document _ids to drop from this hub whatever the tags say. Use it for a retrospective: a post about SDCC written in 2027 could be about either edition, and only you know which. Exclude beats Pin.</p>
       </div>
 
       <div className="mt-10 pt-10 border-t border-white/10 space-y-8">
@@ -1983,8 +1989,13 @@ function BrandForm({
       </div>
 
       <div className="mt-5">
+        <TagsInput label="Pin To This Hub" value={doc.pinnedCoverage} onChange={(v) => update('pinnedCoverage', v)} />
+        <p className="text-xs text-gray-400 mt-1.5">Article slugs, guids, YouTube ids or document _ids this hub owns whatever the tags say. A pin beats tag matching outright: it adds the item here AND makes that article&rsquo;s page show this hub on its card. Reach for it when the tags point somewhere defensible but wrong, like a GTA piece that mentions Netflix in passing.</p>
+      </div>
+
+      <div className="mt-5">
         <TagsInput label="Exclude From Coverage" value={doc.excludeCoverage} onChange={(v) => update('excludeCoverage', v)} />
-        <p className="text-xs text-gray-400 mt-1.5">Article slugs, guids, YouTube ids or document _ids to drop from this hub whatever the tags say. Use it for a retrospective: a post about SDCC written in 2027 could be about either edition, and only you know which.</p>
+        <p className="text-xs text-gray-400 mt-1.5">Article slugs, guids, YouTube ids or document _ids to drop from this hub whatever the tags say. Use it for a retrospective: a post about SDCC written in 2027 could be about either edition, and only you know which. Exclude beats Pin.</p>
       </div>
     </div>
   );

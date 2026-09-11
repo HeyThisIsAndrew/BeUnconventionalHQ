@@ -215,11 +215,34 @@ export function collectHubCoverage({ hub, videos, articles }: CoverageInput): Co
     editor reaching for the override should not have to know which path put
     the item on the page.
   */
-  const matchedVideos = applyExclusions(
-    hubTagged.length > 0 ? hubTagged : matchVideosByTags(videos ?? [], tags),
-    hub,
+  /*
+    A pinned item is coverage too. "This article belongs to this hub" has to
+    mean both things or the override is half an answer: the card appears on
+    the article but the article is missing from the hub it points at.
+
+    Exclusions still run afterwards, so a pin and an exclusion on the same
+    item resolves to excluded. That ordering is deliberate: the exclusion is
+    the more specific instruction ("not this one"), and it is also the one an
+    editor reaches for to undo a mistake.
+  */
+  const pinnedIds = new Set(
+    (Array.isArray(hub?.pinnedCoverage) ? hub.pinnedCoverage : [])
+      .filter((v: unknown): v is string => typeof v === 'string')
+      .map((v: string) => v.trim().toLowerCase())
+      .filter(Boolean),
   );
-  const matchedArticles = applyExclusions(matchArticlesByTags(articles ?? [], tags), hub);
+  const isPinned = (item: any) => coverageIdentity(item).some((id) => pinnedIds.has(id));
+
+  const baseVideos = hubTagged.length > 0 ? hubTagged : matchVideosByTags(videos ?? [], tags);
+  const pinnedVideos = pinnedIds.size
+    ? (videos ?? []).filter((v: any) => isPinned(v) && !baseVideos.includes(v))
+    : [];
+  const matchedVideos = applyExclusions([...baseVideos, ...pinnedVideos], hub);
+  const taggedArticles = matchArticlesByTags(articles ?? [], tags);
+  const pinnedArticles = pinnedIds.size
+    ? (articles ?? []).filter((a: any) => isPinned(a) && !taggedArticles.includes(a))
+    : [];
+  const matchedArticles = applyExclusions([...taggedArticles, ...pinnedArticles], hub);
 
   const items: CoverageItem[] = [
     ...matchedArticles.map((a: any) => ({ ...a, contentType: 'article' as const })),
@@ -272,6 +295,42 @@ export const COVERAGE_FEED_PAGE_SIZE = 12;
  * the card simply does not render.
  */
 export function findHubForItem(item: any, hubs: any[]): any | null {
+  /*
+    ─── THE OVERRIDE WINS OUTRIGHT ──────────────────────────────────────────
+
+    `pinnedCoverage` on a hub names items that hub owns, whatever the tags
+    say. It is the answer to the one case scoring gets wrong by design:
+
+      "A Generational Leap: Did Rockstar and Netflix Just Set a New Industry
+      Standard?" is tagged Netflix, Gaming, PlayStation, GTA VI, Video Games
+      and Xbox. It resolves to Netflix, because Netflix's vocabulary lists
+      five variants and PlayStation's four. Netflix wins on the SIZE of its
+      keyword list, not on being what the piece is about.
+
+    Rather than tune the scoring, which would trade this case for a
+    different one, the editor can name the piece on the hub they want. Pins
+    are checked before any scoring happens, so nothing can outvote one.
+
+    Two hubs pinning the same item is an editorial mistake, not a crash: the
+    lower slug wins, so the build stays deterministic either way.
+  */
+  const pinned = (hubs ?? [])
+    .filter((hub) => {
+      if (!hub?.slug?.current) return false;
+      const list = Array.isArray(hub.pinnedCoverage) ? hub.pinnedCoverage : [];
+      if (list.length === 0) return false;
+      const wanted = new Set(
+        list
+          .filter((v: unknown): v is string => typeof v === 'string')
+          .map((v: string) => v.trim().toLowerCase())
+          .filter(Boolean),
+      );
+      return coverageIdentity(item).some((id) => wanted.has(id));
+    })
+    .sort((a, b) => String(a.slug.current).localeCompare(String(b.slug.current)));
+
+  if (pinned.length > 0) return pinned[0];
+
   let best: any = null;
   let bestScore = 0;
 

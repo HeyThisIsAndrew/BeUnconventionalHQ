@@ -141,7 +141,13 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   each hub by how many of its tags the piece carries and returns the best.
   Scoring, not first-match: the Spider-Man review is tagged for Marvel
   Studios, the MCU, Marvel AND Sony Pictures. Ties break on slug so builds
-  are deterministic.
+  are deterministic. Known limit, accepted: scoring rewards the hub with the
+  LONGEST keyword list, so a GTA piece that mentions Netflix lands on
+  Netflix. **`pinnedCoverage`** on a hub doc is the override and beats
+  scoring outright; it also adds the item to that hub's coverage, because
+  "belongs to this hub" has to mean both. **Precedence is
+  `excludeCoverage` > `pinnedCoverage` > tags**, since exclude is what an
+  editor reaches for to undo a mistake.
 - **The article support rail STACKS below 1200px, it does not vanish.**
   `article.css` used to hide `.article-rail` outright, so a phone reader got
   no hub card, no editorial desk and no Support The HQ. Now only
