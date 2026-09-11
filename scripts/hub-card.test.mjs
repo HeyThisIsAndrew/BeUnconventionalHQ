@@ -109,8 +109,15 @@ test('no template hardcodes the heading any more', () => {
 console.log('\nthe rail on a phone');
 
 test('the card and the rail are one component, used by both page types', () => {
+  /*
+    EventFeatured is on this list even though no event uses
+    `layoutMode: 'featured'` today. That is exactly why it was missing the
+    card: the gap was invisible, and would have surfaced as a card that
+    simply was not there on the first event switched to that layout.
+  */
   for (const rel of [
     join('src', 'components', 'EventAnnouncement.astro'),
+    join('src', 'components', 'EventFeatured.astro'),
     join('src', 'components', 'ArticleSupportRail.astro'),
   ]) {
     const code = stripComments(readSrc(rel));

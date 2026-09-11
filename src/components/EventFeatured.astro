@@ -5,10 +5,11 @@ import SubscribeCTA from './SubscribeCTA.astro';
 import ContentCard from './ContentCard.astro';
 import MiniCalendarSidebar from './MiniCalendarSidebar.astro';
 import ReferralLinks from './ReferralLinks.astro';
+import HubCard from './HubCard.astro';
 
 import { getHubTopicKeywords } from '../lib/instagram-topic';
 import { parseVideoId } from '../lib/platforms/youtube';
-import { urlFor } from '../lib/local-content';
+import { urlFor, getFeaturedBrandsLocal } from '../lib/local-content';
 import { formatEventDateRange, formatLocation, getEventTypeLabel } from '../lib/events';
 
 const {
@@ -24,6 +25,14 @@ const {
   coverageHref = `/events/${event?.slug?.current ?? ''}/coverage`,
   showCoverageFilters = false,
 } = Astro.props;
+
+/*
+  The hub this event belongs to, if its author named one. Resolved exactly as
+  EventAnnouncement resolves it, tolerating both shapes of `slug` because both
+  are in the store: older documents carry a plain string, newer ones the
+  Sanity {_type:'slug', current} object.
+*/
+const relatedBrand = event.relatedBrandSlug ? getFeaturedBrandsLocal().find((b: any) => (typeof b.slug === 'string' ? b.slug : b.slug?.current) === event.relatedBrandSlug) : null;
 
 const brandColor = (typeof event.brandColor === 'string' ? event.brandColor : event.brandColor?.hex) || '#CC0000';
 
@@ -685,6 +694,19 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
               <p class="article-rail-head" id="article-support-head">Upcoming Events</p>
               <MiniCalendarSidebar events={Astro.props.allEvents?.filter((e: any) => (e.endDate || e.startDate).slice(0, 10) >= new Date().toISOString().split('T')[0]).sort((a: any, b: any) => a.startDate.localeCompare(b.startDate)) || []} />
             </div>
+
+            {/*
+              The franchise hub card. This template did not have one at all,
+              which made it the odd one out: EventAnnouncement carries it and
+              so does the article rail. No event uses `layoutMode: 'featured'`
+              today, so the gap was invisible and would have shown up as a
+              missing card on the first event switched to this layout.
+
+              <HubCard /> takes its heading from the hub's own hubCategory, so
+              this says "Official Streamer Hub" for Netflix rather than
+              calling everything a franchise.
+            */}
+            <HubCard brand={relatedBrand} />
 
             {/* Coverage Inquiry */}
             <div class="article-rail-related" style="margin-top: 3.5rem;">
