@@ -132,7 +132,45 @@ const heroLockupLogo = event.heroLogo || event.logo;
 */
 const heroCtaHref = event.officialWebsite || event.signUpLink || null;
 
-const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format').url() : null;
+/*
+  ─── WHAT THE STAGE SHOWS WHEN NOTHING IS PLAYING ─────────────────────────
+
+  It showed the brand mark, large and crisp, over a blown-up blurred copy of
+  itself. On a page whose hero ALREADY carries that mark at the top left, and
+  whose tagline falls back to the event's own name, that made three or four
+  statements of the same identity stacked down one screen. Reported against
+  the Doomsday premiere: "there is repeating everywhere. It's too repetitive."
+
+  So the default idle state is the event's own KEY ART, blurred. It is the
+  same image the hero backdrop uses, which is the point: blurred, it reads as
+  the scene continuing through the frame rather than as a second copy of
+  anything, and the frame stops being a slot that announces the event twice.
+
+  `stageShowMark` puts the mark back for an event that wants it, and
+  `stageLogo` is the third optional mark — the stage's own, where neither the
+  brand logo nor the hero lockup is the right thing to blow up to 520px.
+
+  THE GHOST FOLLOWS WHATEVER IS IN FRONT OF IT. Crisp-over-a-blurred-copy-of-
+  itself is the lockup /featured uses, so in mark mode the ghost is that mark.
+  In art mode it is the key art, NOT the logo: a logo-shaped glow around a
+  frame with no logo in it is a leftover of a lockup that is not there any
+  more, and it was one more appearance of the mark. Feathering the right half
+  is what makes this read as one scene instead of two columns, so the ghost
+  stays in both modes; only its source changes.
+*/
+const stageShowsMark = event.stageShowMark === true;
+const stageMarkLogo = event.stageLogo || event.logo;
+const stageMarkUrl = stageShowsMark && stageMarkLogo
+  ? urlFor(stageMarkLogo).height(520).auto('format').url()
+  : null;
+/* Blurred past any detail, so it is always requested small. */
+const stageArtUrl = !stageMarkUrl && event.heroImage
+  ? urlFor(event.heroImage).width(900).auto('format').url()
+  : null;
+const stageGhostSource = stageMarkUrl ? stageMarkLogo : (stageArtUrl ? event.heroImage : null);
+const stageGhostUrl = stageGhostSource
+  ? urlFor(stageGhostSource).height(300).auto('format').url()
+  : null;
 
 const HERO_ITEM_LIMIT = 5;
 function pickHeroItems(items: any[]) {
@@ -144,7 +182,6 @@ const hasPlayableVideo =
   !!trailerId ||
   heroItems.some((it: any) => it.contentType === 'video' && parseVideoId(it.link || ''));
 
-const stageMarkUrl = event.logo ? urlFor(event.logo).height(520).auto('format').url() : null;
 
 /*
   The hero's three metadata tags, resolved once here rather than inline in the
@@ -259,7 +296,10 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
       */}
       {stageGhostUrl && (
         <div class="hub-stage-bg" aria-hidden="true">
-          <div class="hub-stage-plate" style={`background-image: url('${stageGhostUrl}');`}></div>
+          <div
+          class:list={['hub-stage-plate', { 'hub-stage-plate--art': !stageMarkUrl }]}
+          style={`background-image: url('${stageGhostUrl}');`}
+        ></div>
         </div>
       )}
       <div class="hub-stage-wash" aria-hidden="true"></div>
@@ -435,10 +475,35 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
             style="animation-delay: 0.2s;"
             data-trailer={trailerId ?? undefined}
           >
-            <div class="hub-stage-mark" aria-hidden="true">
+            {/*
+              ONE LAYER, THREE POSSIBLE CONTENTS — deliberately not three
+              layers. Every state this stage has (`is-playing` fades it to
+              0.28 behind the video, `is-item` takes it to 0, reduced-motion
+              drops its transition) is already written against
+              `.hub-stage-mark`, so changing WHAT it holds costs no new state
+              rules and cannot leave one of them behind.
+
+              The wordmark is the last resort, for an event with neither key
+              art nor a logo. It is not reachable for anything in the store
+              today, and it is what keeps the stage from being an empty box
+              if one ships that way.
+            */}
+            <div
+              class:list={['hub-stage-mark', { 'hub-stage-mark--art': !!stageArtUrl }]}
+              aria-hidden="true"
+            >
               {stageMarkUrl ? (
                 /* HARD RULE 6: no filter on the <img>. The glow is on the wrapper. */
                 <img src={stageMarkUrl} alt="" class="hub-stage-mark-img" />
+              ) : stageArtUrl ? (
+                /*
+                  A background-image on a <span>, not an <img>, for the same
+                  reason `.hub-stage-plate` is one: it is overscanned past a
+                  clip so the blur's weak edge falls outside, and that is
+                  simpler to express as a painted box than as a replaced
+                  element with object-fit.
+                */
+                <span class="hub-stage-art-plate" style={`background-image: url('${stageArtUrl}');`}></span>
               ) : (
                 <span class="hub-stage-wordmark">{event.title}</span>
               )}
@@ -1923,6 +1988,20 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
        weak edge out past the scrims. Nothing here moves. */
   }
 
+  /*
+    `contain` fits a mark inside the box and leaves its aspect alone. Key art
+    is photographic and 16:9, so it covers instead, and sits back further: a
+    full-frame image at the mark's brightness washed the copy column's side of
+    the feather.
+  */
+  .hub-stage-plate--art {
+    background-size: cover;
+    background-position: center 30%;
+    opacity: 0.38;
+    filter: blur(30px) saturate(1.15) brightness(1.05);
+    -webkit-filter: blur(30px) saturate(1.15) brightness(1.05);
+  }
+
   /* Lit without needing a single asset, so a hub with no logo still reads. */
   .hub-stage-wash {
     position: absolute;
@@ -2048,6 +2127,51 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
     max-height: 78%;
     height: auto;
     object-fit: contain;
+  }
+
+  /*
+    ─── ART MODE ───────────────────────────────────────────────────────────
+
+    The same layer, holding the key art instead of a mark.
+
+    It CLIPS, and that is safe HERE and only here: `.hub-stage-mark` is a
+    SIBLING of `.hub-stage-video`, never its ancestor, so hard rule 3 is not
+    in play. The plate inside overscans past the clip because a CSS blur goes
+    weak at its own edges — the outermost band is the least blurred part — and
+    left flush, that near-sharp band is exactly the edge of the frame, where
+    it would read as a sharp picture with a soft middle.
+
+    `filter: none` because the base rule's drop-shadow glow is shaped for a
+    mark with transparent surroundings. On a full-bleed rectangle it is just a
+    shadow, and `box-shadow` draws the same thing without a filter's repaint
+    cost. It is the video's own shadow, so idle and playing sit in one frame.
+  */
+  .hub-stage-mark--art {
+    overflow: hidden;
+    filter: none;
+    -webkit-filter: none;
+    opacity: 1;
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.85);
+  }
+
+  /*
+    Blurred harder than the hero backdrop behind it (9px), because this frame
+    is roughly half that element's width and blur is measured in absolute
+    pixels: matched numbers would read as two different softnesses. Brightened
+    a touch so the frame is legible as an object against the scrim, which
+    clears toward this side of the hero.
+
+    STATIC, like `.hub-stage-plate`. Animating a clipping box's transform is
+    what dragged the blur's weak edge out past the scrims on the deck page.
+  */
+  .hub-stage-art-plate {
+    position: absolute;
+    inset: -14%;
+    background-size: cover;
+    background-position: center 28%;
+    background-repeat: no-repeat;
+    filter: blur(14px) saturate(1.12) brightness(1.06);
+    -webkit-filter: blur(14px) saturate(1.12) brightness(1.06);
   }
 
   .hub-stage-wordmark {

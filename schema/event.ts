@@ -424,6 +424,25 @@ export default defineType({
     }),
 
     defineField({
+      name: 'stageLogo',
+      title: 'Stage Logo (optional)',
+      type: 'image',
+      fieldset: 'media',
+      options: { hotspot: true },
+      description:
+        'The third mark. Overrides ONLY the large mark on the hero stage, and only when "Show a logo on the stage" is on. Empty falls back to Logo.',
+    }),
+    defineField({
+      name: 'stageShowMark',
+      title: 'Show a logo on the stage',
+      type: 'boolean',
+      fieldset: 'media',
+      initialValue: false,
+      description:
+        'Off (the default) fills the frame where the trailer plays with the key art, blurred. On puts a mark there instead. The hero already shows a mark at the top left, so a mark here states the same identity twice on one screen: turn this on only where the stage logo is a different thing from the hero one.',
+    }),
+
+    defineField({
       name: 'trailerUrl',
       title: 'Hero Trailer URL',
       type: 'url',

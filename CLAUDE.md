@@ -229,15 +229,31 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   only, gated identically in JS and CSS. The stage is a **sibling** of the
   clipping backdrop wrapper — hard rule 3 forbids any clipping ancestor.
   `scripts/featured-containment.test.mjs` guards all of this.
-- **The event hero renders a mark in THREE slots, and they are not one asset.**
-  `.hero-logo` (small, top left) is the EVENT's own mark; `.hub-stage-plate`
-  (blurred ghost) and `.hub-stage-mark` (large, right) are the BRAND's, and
-  those two are deliberately one asset because crisp-over-blurred-copy is the
-  lockup /featured uses. All three used to read `logo`, so a hero read as the
-  same event three times, and worse on a series: PAX West, East, Aus and
-  Unplugged all point `logo` at one shared PAX wordmark, so four events were
-  visually identical. **`heroLogo` overrides the LEFT slot only**, falling back
-  to `logo` when unset (the common case). Never point the stage at it.
+- **The event hero has THREE mark slots and THREE logo fields.** `.hero-logo`
+  (small, top left) reads `heroLogo || logo`; `.hub-stage-mark` (large, in the
+  frame the trailer plays in) reads `stageLogo || logo`; `.hub-stage-plate`
+  (the blurred ghost feathering the right half) reads whatever is in front of
+  it. All three used to read `logo` alone, so a hero read as the same event
+  three times over, and worse on a series: PAX West, East, Aus and Unplugged
+  all point `logo` at one shared PAX wordmark, so four events were visually
+  identical. Each override touches ONE slot; `heroLogo` must never reach the
+  stage, or the asset is back in two places.
+- **The stage's idle state is KEY ART, not a mark.** The hero already states
+  the identity at the top left and the tagline falls back to the event's own
+  name directly under it, so a 520px mark in the frame was the same thing a
+  third time on one screen. Measured on the Doomsday premiere: the logo asset
+  appeared 3 times in the hero markup, now 1. `stageShowMark` (default OFF)
+  puts a mark back for an event that genuinely wants one. The ghost follows
+  whatever is in front of it — the mark in mark mode, the key art in art mode
+  — because a logo-shaped glow around a frame with no logo in it is a leftover
+  of a lockup that is not there, and it was one more appearance of the mark.
+  **Art mode is a MODIFIER on `.hub-stage-mark`, never a second layer**: every
+  state the stage has (`is-playing` → 0.28, `is-item` → 0, reduced-motion)
+  is written against that one element, so a new layer would need all three
+  rewritten and would silently miss one. The art plate overscans past a clip
+  for the usual reason (a CSS blur is weakest at its own edges) and clipping
+  is safe on that layer ONLY because it is a SIBLING of the iframe, never an
+  ancestor. The stage itself still never clips (hard rule 3).
 - **The hero's "Event Details" button goes to `officialWebsite`**, not
   `signUpLink`. `signUpLink` is the REGISTRATION link (an Axs listing for The
   Game Awards, a newsletter form for PAX East) and it still powers the

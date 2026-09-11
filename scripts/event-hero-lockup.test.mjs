@@ -69,15 +69,84 @@ test('the left mark can be overridden without touching the stage', () => {
       `${rel}: the small top-left mark must render the RESOLVED lockup logo, not event.logo`);
 
     /*
-      And the stage keeps the BRAND mark. The ghost plate and the big right
-      mark are one asset on purpose — crisp over a blown-up blurred copy of
-      itself — so pointing them at the override would break that lockup and
-      leave nothing showing the brand.
+      And the hero lockup's override reaches NOTHING else. `heroLogo` naming
+      the stage would put the same asset back in two slots, which is the bug
+      the field exists to undo.
     */
-    assert.match(code, /const stageGhostUrl = event\.logo \? urlFor\(event\.logo\)/,
-      `${rel}: the blurred stage ghost stays on event.logo`);
-    assert.match(code, /const stageMarkUrl = event\.logo \? urlFor\(event\.logo\)/,
-      `${rel}: the large stage mark stays on event.logo`);
+    const heroLogoUses = code.match(/event\.heroLogo/g) || [];
+    assert.equal(heroLogoUses.length, 1,
+      `${rel}: heroLogo must be read exactly once, by heroLockupLogo. It is the override for ` +
+        'the top-left slot alone.');
+  }
+});
+
+test('the stage has its own mark, and its own switch', () => {
+  for (const rel of HERO_COMPONENTS) {
+    const code = heroSource(rel);
+
+    assert.match(code, /const stageMarkLogo = event\.stageLogo \|\| event\.logo;/,
+      `${rel}: the stage's mark is stageLogo, falling back to logo — never the hero lockup's`);
+    assert.match(code, /const stageShowsMark = event\.stageShowMark === true;/,
+      `${rel}: the stage mark must be OFF unless a document turns it on. A default-on toggle ` +
+        'reintroduces the repetition for every event that never touches the field.');
+    assert.match(code, /const stageMarkUrl = stageShowsMark && stageMarkLogo/,
+      `${rel}: the mark renders only when the switch is on`);
+  }
+});
+
+test('the idle stage is key art, not a second copy of the logo', () => {
+  /*
+    ─── WHY THE DEFAULT CHANGED ────────────────────────────────────────────
+
+    The hero states the event's identity at the top left, the tagline falls
+    back to the event's own name directly under it, and the stage put the
+    same mark on screen a third time at 520px. Reported against the Doomsday
+    premiere: "there is repeating everywhere. It's too repetitive."
+  */
+  for (const rel of HERO_COMPONENTS) {
+    const code = heroSource(rel);
+
+    assert.match(code, /const stageArtUrl = !stageMarkUrl && event\.heroImage/,
+      `${rel}: with no mark asked for, the stage fills with the event's key art`);
+
+    /*
+      ONE LAYER, NOT TWO. Every state the stage has is written against
+      `.hub-stage-mark` — is-playing fades it to 0.28, is-item takes it to 0,
+      reduced-motion drops its transition — so the art has to live in that
+      same element or it is left behind by all three.
+    */
+    assert.match(code, /class:list=\{\['hub-stage-mark', \{ 'hub-stage-mark--art': !!stageArtUrl \}\]\}/,
+      `${rel}: art mode must be a modifier on the existing idle layer, not a new layer`);
+    assert.doesNotMatch(code, /class="hub-stage-art"/,
+      `${rel}: a separate art layer would need every state rule written a second time`);
+
+    /*
+      HARD RULE 3 is not in play for this clip — `.hub-stage-mark` is a
+      SIBLING of `.hub-stage-video`, never its ancestor — but the stage
+      itself must still never clip.
+    */
+    assert.match(code, /\.hub-stage-mark--art \{[^}]*overflow: hidden;/,
+      `${rel}: the art plate overscans, so its layer has to clip`);
+    assert.doesNotMatch(code, /\.hero-trailer\.hub-stage \{[^}]*overflow: hidden;/,
+      `${rel}: HARD RULE 3 — the stage holds the iframe and must never clip`);
+  }
+});
+
+test('the ghost follows whatever is in front of it', () => {
+  /*
+    Crisp over a blown-up blurred copy of ITSELF is the lockup /featured uses.
+    In art mode there is no mark in front, so a logo-shaped glow around the
+    frame is a leftover of a lockup that is not there — and one more
+    appearance of the mark, which is the thing being removed.
+  */
+  for (const rel of HERO_COMPONENTS) {
+    const code = heroSource(rel);
+    assert.match(code, /const stageGhostSource = stageMarkUrl \? stageMarkLogo : \(stageArtUrl \? event\.heroImage : null\);/,
+      `${rel}: the ghost's source must follow the stage's`);
+    assert.match(code, /'hub-stage-plate--art': !stageMarkUrl/,
+      `${rel}: and key art has to cover rather than contain, so it needs the modifier`);
+    assert.doesNotMatch(code, /const stageGhostUrl = event\.logo/,
+      `${rel}: the ghost must not be pinned to the logo any more`);
   }
 });
 

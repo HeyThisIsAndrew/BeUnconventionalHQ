@@ -73,6 +73,8 @@ type Doc = {
   backdrops?: any[];
   youtubeSyncKeywords?: string[];
   heroLogo?: string;
+  stageLogo?: string;
+  stageShowMark?: boolean;
   excludeCoverage?: string[];
   pinnedCoverage?: string[];
   brandColor?: { hex?: string };
@@ -1847,7 +1849,7 @@ function EventForm({
           value={refOf(doc.logo)}
           onChange={(v) => update('logo', v)}
           library={assetLibrary}
-          hint="The brand mark. Shown large on the right of the hero, and again blurred behind it. Shared across editions is fine: all four PAX events use one PAX wordmark here."
+          hint="The brand mark, and the fallback for both overrides below. Shared across editions is fine: all four PAX events use one PAX wordmark here."
         />
         <ImageUploadField
           label="Hero Logo (optional)"
@@ -1856,6 +1858,26 @@ function EventForm({
           library={assetLibrary}
           hint="Only the small mark at the TOP LEFT of the hero. Leave empty and it uses the Logo above. Set it when the brand mark is not specific enough: PAX West and PAX East share a logo, so without this their heroes look like the same event."
         />
+        <ImageUploadField
+          label="Stage Logo (optional)"
+          value={refOf(doc.stageLogo)}
+          onChange={(v) => update('stageLogo', v)}
+          library={assetLibrary}
+          hint="The third mark. Only the LARGE one on the stage, and only while the switch below is on. Leave empty and it uses the Logo above."
+        />
+        <Field label="Stage">
+          <Toggle
+            label="Show a logo on the stage"
+            checked={doc.stageShowMark === true}
+            onChange={(v) => update('stageShowMark', v)}
+          />
+          <p className="mt-1 text-[11px] leading-snug text-neutral-500">
+            Off, the frame where the trailer plays holds the key art, blurred. On, it holds a
+            mark. The hero already shows one at the top left and the tagline repeats the name
+            under it, so a mark here is the same identity three times down one screen. Turn it
+            on where the stage logo is genuinely a different thing.
+          </p>
+        </Field>
         <ImageUploadField
           label="Hero Image"
           value={refOf(doc.heroImage)}
