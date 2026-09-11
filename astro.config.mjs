@@ -174,6 +174,21 @@ function buildArticleLastmod() {
 
 const ARTICLE_LASTMOD = buildArticleLastmod();
 
+try {
+  const rawVideos = fs.readFileSync(path.resolve(process.cwd(), 'src/data/videos.json'), 'utf-8');
+  for (const record of JSON.parse(rawVideos)) {
+    if (record && record._type === 'event' && record.slug?.current) {
+      const stamp = record._updatedAt || record._createdAt || record.isoDate;
+      if (stamp) {
+        ARTICLE_LASTMOD.set(`/events/${record.slug.current}`, new Date(stamp).toISOString());
+      }
+    }
+  }
+} catch (err) {
+  // Graceful degradation: sitemap just ships without event lastmods
+}
+
+
 /**
  * Article-section categories that currently have NOTHING in them.
  *
