@@ -235,9 +235,29 @@ const locationLabel = formatLocation(event.location);
   being fixed; a long tagline wraps instead, and `max-width: 46ch` keeps it to
   a sane measure.
 */
+/*
+  ─── AND IT DOES NOT FALL BACK TO THE NAME ────────────────────────────────
+
+  It used to. With 18 of the 19 seeded events carrying no tagline, that put
+  the event's own name in type directly under its own mark on all but one
+  page, which is the last of the "repeating everywhere" the hero was reported
+  for. D23 was the only clean one, and only because somebody wrote it a real
+  tagline.
+
+  THE FALLBACK'S REASON IS NOW SERVED BETTER, NOT DROPPED. It existed because
+  the <h1> goes sr-only when a logo renders, so a stylised mark a visitor
+  cannot parse — or one that fails to load — otherwise left nothing readable.
+  The lockup below answers that where the problem actually is: the <h1> wraps
+  the logo and the name moves to the image's `alt`, so a broken image renders
+  the name as text in the mark's own place, and assistive technology reads it
+  once rather than twice.
+
+  Null, not a string, so the paragraph does not render at all. An empty <p>
+  still takes its line-height and its margin.
+*/
 const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
   ? event.tagline.trim()
-  : event.title;
+  : null;
 ---
 
 <Layout
@@ -400,18 +420,37 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
               lockup and give the trailer below room to matter.
             */}
             <div class="hero-identity">
+              {/*
+                THE MARK IS THE HEADING, not a decorative image beside a
+                hidden one. It was an `aria-hidden` <img alt=""> next to an
+                `sr-only` <h1>, which gave the page its outline but left a
+                failed image as a blank space with nothing to say what the
+                page was — the very case the tagline's old name-fallback was
+                there to cover, covered a screen lower down and in the wrong
+                place. Naming the image and wrapping it in the <h1> puts the
+                answer where the question is: the alt renders in the mark's
+                own position if the image never arrives, and it is announced
+                once rather than once per element.
+
+                `.hero-logo-wrap` keeps its own element because HARD RULE 6
+                means the glow is a filter on the WRAPPER and never on the
+                <img>; the <h1> only replaces the sr-only twin.
+              */}
               {heroLockupLogo ? (
-                <>
-                  <h1 class="sr-only">{event.title}</h1>
-                  <span class="hero-logo-wrap" aria-hidden="true">
-                    <img src={urlFor(heroLockupLogo).height(320).auto('format').url()} alt="" class="hero-logo" />
+                <h1 class="hero-title-lockup">
+                  <span class="hero-logo-wrap">
+                    <img
+                      src={urlFor(heroLockupLogo).height(320).auto('format').url()}
+                      alt={event.title}
+                      class="hero-logo"
+                    />
                   </span>
-                </>
+                </h1>
               ) : (
                 <h1 class="hero-title">{event.title}</h1>
               )}
 
-              <p class="hero-tagline">{taglineText}</p>
+              {taglineText && <p class="hero-tagline">{taglineText}</p>}
 
               {trailerId && (
                 /*
@@ -2325,6 +2364,22 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
   }
   .hero-identity .hero-logo-wrap {
     margin: 0;
+  }
+
+  /*
+    A HEADING THAT IS PURELY A CONTAINER. The <h1> around the mark must not
+    bring a heading's own margin, size or weight with it — the alt text only
+    ever paints if the image fails, and it should land where the mark would
+    have, not as a browser-default 2em block that moves everything under it.
+  */
+  .hero-title-lockup {
+    display: block;
+    margin: 0;
+    padding: 0;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
   }
 
   /* ─── THE RAIL ──────────────────────────────────────────────────────── */

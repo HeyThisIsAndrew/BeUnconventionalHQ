@@ -198,6 +198,51 @@ test('the ghost follows whatever is in front of it', () => {
   }
 });
 
+test('the hero states the event\'s name once', () => {
+  /*
+    ─── THE LAST OF THE REPETITION ─────────────────────────────────────────
+
+    18 of the 19 seeded events carry no tagline, and the tagline fell back to
+    `event.title`, so all but one page printed the event's own name in type
+    directly under its own mark. D23 was the only clean one, and only because
+    somebody had written it a real tagline.
+
+    The fallback was not wrong to exist. The <h1> goes sr-only when a logo
+    renders, so a stylised mark a visitor cannot parse — or one that fails to
+    load — left nothing readable. That reason is now served where the problem
+    is: the <h1> WRAPS the mark and the name is the image's alt, so a broken
+    image paints the name in the mark's own place, and assistive technology
+    reads it once instead of once per element.
+  */
+  for (const rel of HERO_COMPONENTS) {
+    const code = heroSource(rel);
+
+    assert.doesNotMatch(code, /\? event\.tagline\.trim\(\)\s*\n?\s*: event\.title;/,
+      `${rel}: the tagline must not fall back to the title — that is the duplicate`);
+    assert.match(code, /\? event\.tagline\.trim\(\)\s*\n?\s*: null;/,
+      `${rel}: null, not an empty string. An empty <p> still takes its line-height.`);
+    assert.match(code, /\{taglineText && <p class="hero-tagline">\{taglineText\}<\/p>\}/,
+      `${rel}: the paragraph must not render at all when there is no tagline`);
+
+    assert.match(code, /<h1 class="hero-title-lockup">[\s\S]{0,400}?alt=\{event\.title\}/,
+      `${rel}: the mark must BE the heading, and carry the name as its alt`);
+    assert.doesNotMatch(code, /<h1 class="sr-only">\{event\.title\}<\/h1>/,
+      `${rel}: the sr-only twin is gone; two elements naming the page is what was announced twice`);
+    assert.doesNotMatch(code, /class="hero-logo-wrap" aria-hidden="true"/,
+      `${rel}: the wrapper must not be hidden from assistive tech now that it holds the heading`);
+
+    /*
+      A heading element brings a browser-default 2em size and margin. The alt
+      only paints when the image fails, and it has to land where the mark
+      would have, not shove everything under it down the page.
+    */
+    assert.match(code, /\.hero-title-lockup \{[^}]*margin: 0;[^}]*\}/,
+      `${rel}: the lockup heading must carry no margin of its own`);
+    assert.match(code, /\.hero-title-lockup \{[^}]*font-size: inherit;[^}]*\}/,
+      `${rel}: nor a heading's font size`);
+  }
+});
+
 test('"Event Details" goes to the official website, not the ticket checkout', () => {
   for (const rel of HERO_COMPONENTS) {
     const code = heroSource(rel);
