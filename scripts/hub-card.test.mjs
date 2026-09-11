@@ -218,6 +218,33 @@ test('the narrow rail keeps the small stacked card', () => {
     'and the default shape stays stacked');
 });
 
+test('the mark box holds its place before the mark loads', () => {
+  /*
+    The mark is `loading="lazy"` with no width/height attributes, so it
+    measures 0x0 until it decodes. Every shape of this card must reserve the
+    space, or the card's contents jump when the logo arrives.
+
+    The two wider shapes set an explicit `height` and always did. The stacked
+    one set nothing, so the desktop rail shifted by 34px on every article
+    page. Found while re-checking a QA report whose own measurements were all
+    "height 0" for an unrelated reason.
+  */
+  const card = readSrc('src', 'components', 'HubCard.astro');
+  const styles = card.slice(card.indexOf('<style>'));
+  const base = styles.slice(0, styles.indexOf('@container'));
+
+  assert.match(base, /\.rail-hub-mark\s*\{[^}]*min-height:/,
+    'the stacked mark box reserves no height, so it collapses until the lazy logo loads');
+
+  for (const [label, shape] of [
+    ['two-column', styles.slice(styles.indexOf('@container hubcard (min-width: 300px)'), styles.indexOf('@container hubcard (min-width: 560px)'))],
+    ['banner', styles.slice(styles.indexOf('@container hubcard (min-width: 560px)'))],
+  ]) {
+    assert.match(shape, /\.rail-hub-mark\s*\{[^}]*height:/,
+      `the ${label} mark box must keep its explicit height`);
+  }
+});
+
 test('the brand name is text, not only a picture', () => {
   /*
     The mark is alt="", so it contributes nothing to the link's accessible

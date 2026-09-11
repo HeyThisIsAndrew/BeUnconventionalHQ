@@ -83,6 +83,13 @@ Every finding you file must contain all five fields, or it is discarded:
 If you cannot fill `expected` from this brief, you are reporting an opinion.
 Do not file it.
 
+**A FINDING THAT REPEATS IDENTICALLY IS ONE FINDING, AND PROBABLY YOURS.**
+If the same `observed` value appears on every route at every viewport, stop.
+That is the signature of a broken selector or an unloaded asset in YOUR
+harness, not of a defect on every page of the site. Before filing more than
+five findings that share an `observed` value, verify the selector resolves
+on one page by hand and say in `out_of_scope_observations` that you did.
+
 **Reproduce before filing.** Run the failing step a second time from a fresh
 page load. If it does not reproduce, mark it `FLAKY` and say so. Do not
 silently drop it and do not file it as confirmed.
@@ -448,6 +455,43 @@ whole point of this section is that the rail used to exist only on desktop.
    assertion lives in `scripts/hub-card.test.mjs`, which you may RUN
    (`node scripts/hub-card.test.mjs`) but must not edit.
 
+**THE EXACT SELECTORS. Do not guess these.**
+
+A previous run invented `img.hub-card-logo` and `.rail-hub-logo img`.
+Neither exists: the `<img>` IS `.rail-hub-logo`, it is not inside it. Both
+queries returned null, the harness's own fallback substituted
+`logoH: 0, leftOfText: false`, and it filed 120 MAJOR findings that were all
+one wrong selector. Use these and nothing else:
+
+| what | selector |
+|---|---|
+| the whole card (the link) | `.rail-hub-card` |
+| the box the mark sits in | `.rail-hub-mark` |
+| **the mark itself** | `.rail-hub-logo` (an `<img>`, NOT a wrapper) |
+| the copy block beside it | `.rail-hub-text` |
+| the call to action | `.rail-hub-cta` |
+| the heading above the card | `.rail-hub .article-rail-head` |
+
+If any of these returns null, that is itself the finding. Report the null.
+Do NOT substitute a default value and measure it.
+
+**THE MARK IS LAZY-LOADED AND BELOW THE FOLD.** It has `loading="lazy"` and
+no width/height attributes, so it measures 0x0 until it is on screen AND
+decoded. Before measuring anything, on every page and every viewport:
+
+```js
+document.querySelector('.rail-hub').scrollIntoView({block:'center', behavior:'instant'});
+// then, in the page:
+const img = document.querySelector('.rail-hub-logo');
+if (img && !img.complete) await new Promise(r => { img.onload = r; img.onerror = r; });
+```
+
+**THE MARKS COME FROM cdn.sanity.io.** If your environment cannot reach it,
+every mark measures 0 and none of the size assertions mean anything. Check
+`document.querySelector('.rail-hub-logo').naturalWidth` first: if it is 0,
+the image never loaded. That is a `third_party_failures` entry, NOT a
+layout finding, and you must mark the size steps `NOT_RUN`.
+
 **Part B — the rail is not desktop-only any more.**
 
 For each viewport, on an article page that HAS a hub card:
@@ -474,6 +518,23 @@ For each viewport, on an article page that HAS a hub card:
    measure at each viewport whatever it is.
 5. `document.documentElement.scrollWidth` vs `window.innerWidth` on these
    pages at every viewport. **Expected: no more than 1px difference.**
+
+**Part D — touch feedback, checked the only way that works.**
+
+`.rail-hub-card` and `.referral-item` each have an `:active` rule. Two
+things have made this check give a false answer before:
+
+  ASTRO SCOPES THE SELECTOR. It ships as
+  `.rail-hub-card[data-astro-cid-XXXXXXX]:active`, so a substring test for
+  `".rail-hub-card:active"` never matches. Match with a regex that allows
+  the attribute: `/\.rail-hub-card(\[[^\]]*\])?:active/`.
+
+  THE CSS IS PER PAGE. These styles ship only on pages that render the
+  component. Checking `document.styleSheets` on `/` finds nothing, because
+  the homepage has no hub card and no referral rail. Run the check on an
+  `/intel/<slug>` page that HAS a hub card.
+
+Report PRESENT or MISSING for each, with the matched selector text.
 
 **Part C — the event side still works.**
 
@@ -551,16 +612,20 @@ Answer each of these to yourself and fix anything that fails:
 
 1. Does every finding have all five evidence fields filled with real values?
 2. Did I actually run every step I claim a result for?
-3. Is any finding on the "CANNOT BE A BUG" list? Remove it.
-4. Is any finding phrased as a preference rather than a measurement? Remove
+3. Does any agent report `result: "PASS"` with `steps_run: 0`? An agent that
+   ran nothing did not pass. Set it to `"NOT_RUN"` and put the reason in
+   `not_run`. A previous run reported agents 5 and 6 as PASS having executed
+   zero steps, which reads as two clean areas that were never tested.
+4. Is any finding on the "CANNOT BE A BUG" list? Remove it.
+5. Is any finding phrased as a preference rather than a measurement? Remove
    it.
-5. Did I modify any file? If yes, revert it and say so loudly at the top of
+6. Did I modify any file? If yes, revert it and say so loudly at the top of
    `out_of_scope_observations`.
-6. For Part B of Agent 2 — did I CLICK the link, or did I navigate to it? If
+7. For Part B of Agent 2 — did I CLICK the link, or did I navigate to it? If
    I navigated, that step is `NOT_RUN`, not `PASS`.
-7. For Agent 7 — did I run Part B at ALL FIVE viewports, or only the ones
+8. For Agent 7 — did I run Part B at ALL FIVE viewports, or only the ones
    that were convenient? The rail being desktop-only is the bug it replaces,
    so a run that skipped the phone viewports has tested nothing.
-8. Is my output valid JSON that parses?
+9. Is my output valid JSON that parses?
 
 === END PROMPT ===

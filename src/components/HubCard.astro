@@ -206,10 +206,22 @@ const slug = brand?.slug?.current;
     occupy the same footprint. `object-fit: contain` centres whichever shape
     inside it. See the header for why both axes are capped.
   */
+  /*
+    `min-height` matches the logo's own cap, so the box holds its place
+    before the mark arrives.
+
+    The mark is `loading="lazy"` and carries no width/height attributes, so
+    until it loads it measures 0x0. The two wider shapes below already give
+    this box an explicit height and were never affected; the STACKED shape
+    had none, so on every desktop article page the card's top jumped from
+    0 to 34px the moment the logo decoded. Small, but it is layout shift on
+    a page whose whole job is reading.
+  */
   .rail-hub-mark {
     display: flex;
     align-items: center;
     justify-content: flex-start;
+    min-height: 34px;
     margin-bottom: 1rem;
   }
 
