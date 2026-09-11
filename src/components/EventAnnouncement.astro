@@ -740,32 +740,36 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
   const HUB_RUN_MS = 42000;
 
   
-  function initEventFilters() {
-    const filterBtns = Array.from(document.querySelectorAll('.filter-btn'));
-    if (!filterBtns.length) return;
+  /*
+    ─── initEventFilters IS GONE, AND IT WAS NEVER THIS PAGE'S ─────────────
 
-    filterBtns.forEach((btn) => { btn.setAttribute("data-bound", "true");
-      btn.addEventListener('click', () => {
-        filterBtns.forEach((b) => {
-          b.classList.remove('active');
-          b.setAttribute('aria-pressed', 'false');
-        });
-        btn.classList.add('active');
-        btn.setAttribute('aria-pressed', 'true');
+    An event page renders NO filter buttons. There is one COVERAGE grid here
+    and nothing to filter it with, so this function had nothing to bind on
+    its own page. It was pure dead code — locally.
 
-        let activeFilter = 'all';
-        if (btn.classList.contains('type-btn')) {
-          activeFilter = btn.getAttribute('data-filter') || '';
-        }
+    It was not dead globally. Astro's ClientRouter does not unload a page's
+    module when you navigate away, so this component's `astro:page-load`
+    listener kept firing on WHATEVER page came next. Deep-linking from an
+    event to its franchise hub (Avengers: Doomsday -> Marvel) therefore ran
+    it against the HUB's filter buttons, which it found because it queried
+    `document` rather than its own section.
 
-        const cards = document.querySelectorAll('.content-card');
-        cards.forEach((card) => {
-          const show = activeFilter === 'all' || card.getAttribute('data-type') === activeFilter;
-          (card as HTMLElement).style.display = show ? 'block' : 'none';
-        });
-      });
-    });
-  }
+    Two things then broke, and both were reported:
+
+      THE TILES VANISHED. It hid every `.content-card` on the page, and the
+      hub's "Upcoming Events" card is a .content-card. The heading stayed
+      with an empty void under it.
+
+      THE BUTTONS WOULD NOT DESELECT. It only ever ADDED `active`; there was
+      no toggle-off branch at all. Running alongside the hub's own handler,
+      which does toggle, the two fought over the same class on one click.
+
+    It also re-bound on every `astro:page-load` — it set `data-bound` and
+    never read it — so the listeners accumulated with each navigation.
+
+    The hub page owns the only filter UI on the site, its handler is scoped
+    to `[data-coverage]`, and it toggles correctly. That one stays.
+  */
 
   function initHubStage() {
     const stage = document.querySelector<HTMLElement>('.hub-stage');
@@ -1369,12 +1373,10 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
   }
 
   initHubStage();
-  initEventFilters();
   initHubRail();
   initHubSound();
   document.addEventListener('astro:page-load', () => {
     initHubStage();
-  initEventFilters();
     initHubRail();
     initHubSound();
   });

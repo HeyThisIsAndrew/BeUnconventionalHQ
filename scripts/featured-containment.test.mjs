@@ -550,6 +550,55 @@ test('the hub trailer hands over to the first rail tile when it stops', () => {
     'the rail must not hardcode tile 0 active — that is the bug this replaced');
 });
 
+test('no page-wide filter handler survives a client-side navigation', () => {
+  /*
+    ─── THE DEEP-LINK BUG ──────────────────────────────────────────────────
+
+    Reported from a phone: open an event, tap its "Official Franchise Hub"
+    card through to the hub, scroll to the filters, tap ARTICLES. The
+    Upcoming Events tile vanished and the buttons could not be deselected.
+
+    Both event components carried an `initEventFilters` that queried
+    `document` for `.filter-btn` and `.content-card`. An event page renders
+    NO filter buttons, so on its own page it was dead code — but Astro's
+    ClientRouter does not unload a page's module when you navigate away, so
+    its `astro:page-load` listener kept firing on whatever came next and
+    found the HUB's buttons.
+
+    It then hid every `.content-card` on the page (the hub's Upcoming Events
+    tile is one), and it only ever ADDED `active` with no toggle-off branch,
+    so running beside the hub's own handler the two fought over one class.
+    It re-bound on every navigation too: it wrote `data-bound` and never
+    read it.
+
+    The hub page owns the only filter UI on the site. Its handler is scoped
+    to `[data-coverage]` and toggles correctly.
+  */
+  for (const rel of ['EventAnnouncement.astro', 'EventFeatured.astro']) {
+    const src = readFileSync(join(here, '..', 'src', 'components', rel), 'utf8');
+    assert.ok(
+      !/function initEventFilters/.test(src),
+      `${rel} has a filter handler again. It has no filter buttons of its own, and under ` +
+        'ClientRouter its astro:page-load listener runs on whatever page comes next.',
+    );
+    assert.ok(
+      !/document\.querySelectorAll\('\.filter-btn'\)/.test(src),
+      `${rel} queries .filter-btn page-wide; after a navigation that reaches another page's buttons`,
+    );
+    assert.ok(
+      !/document\.querySelectorAll\('\.content-card'\)/.test(src),
+      `${rel} queries .content-card page-wide; that is what hid the hub's Upcoming Events tile`,
+    );
+  }
+
+  /* And the surviving handler stays scoped and deselectable. */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8');
+  assert.match(hub, /const coverage = document\.querySelector\('\[data-coverage\]'\)/,
+    'the one real filter handler must stay scoped to its own section');
+  assert.match(hub, /const wasActive = btn\.classList\.contains\('active'\)/,
+    'and must keep the toggle-off branch, or a filter can be set but never cleared');
+});
+
 test('the coverage filter cannot reach outside the coverage section', () => {
   /*
     ─── THE BUG THIS PINS, WHICH SHIPPED TWICE ───────────────────────────────
