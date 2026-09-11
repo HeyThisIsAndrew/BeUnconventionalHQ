@@ -169,10 +169,26 @@ const stageMarkLogo = event.stageLogo || event.logo;
 const stageMarkUrl = stageShowsMark && stageMarkLogo
   ? urlFor(stageMarkLogo).height(520).auto('format').url()
   : null;
-/* Blurred past any detail, so it is always requested small. */
-const stageArtUrl = !stageMarkUrl && event.heroImage
-  ? urlFor(event.heroImage).width(900).auto('format').url()
-  : null;
+/*
+  NOT A BLURRED BACKDROP, so it is not requested like one.
+
+  The convention elsewhere on this site is to ask for a blurred plate SMALL
+  (640px on /featured, 900px on a hub page) because a blur destroys more
+  detail than any upsample ever costs. This is the opposite: a crisp still
+  sitting in the frame the video will play in, at that frame's exact size,
+  so every pixel is on show and the request has to match the box.
+
+  The box is 760 CSS px at its widest (the split layout's stage) and 600 when
+  the hero stacks, so the ladder tops out at 1520 for a 2x screen on the
+  larger of the two. `sizes` names the real widths rather than 100vw, which
+  would have a phone fetch a viewport-wide image for a 343px box.
+*/
+const STAGE_WIDTHS = [600, 760, 1200, 1520];
+const stageArtAt = (w: number) =>
+  event.heroImage ? urlFor(event.heroImage).width(w).auto('format').url() : '';
+const stageArtUrl = !stageMarkUrl && event.heroImage ? stageArtAt(900) : null;
+const stageArtSrcset = stageArtUrl ? STAGE_WIDTHS.map((w) => `${stageArtAt(w)} ${w}w`).join(', ') : '';
+const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw';
 const stageGhostSource = stageMarkUrl ? stageMarkLogo : (stageArtUrl ? event.heroImage : null);
 const stageGhostUrl = stageGhostSource
   ? urlFor(stageGhostSource).height(300).auto('format').url()
@@ -503,13 +519,22 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
                 <img src={stageMarkUrl} alt="" class="hub-stage-mark-img" />
               ) : stageArtUrl ? (
                 /*
-                  A background-image on a <span>, not an <img>, for the same
-                  reason `.hub-stage-plate` is one: it is overscanned past a
-                  clip so the blur's weak edge falls outside, and that is
-                  simpler to express as a painted box than as a replaced
-                  element with object-fit.
+                  An <img>, not a painted box. This started as a
+                  background-image because it was overscanned past a clip to
+                  hide a blur's weak edge; with no blur there is nothing to
+                  hide and nothing to overscan, and a real element is what
+                  gets a srcset. HARD RULE 6 is satisfied by `filter: none` on
+                  the wrapper: there is no drop-shadow anywhere near this one.
                 */
-                <span class="hub-stage-art-plate" style={`background-image: url('${stageArtUrl}');`}></span>
+                <img
+                  src={stageArtUrl}
+                  srcset={stageArtSrcset}
+                  sizes={stageArtSizes}
+                  alt=""
+                  class="hub-stage-art-img"
+                  loading="eager"
+                  decoding="async"
+                />
               ) : (
                 <span class="hub-stage-wordmark">{event.title}</span>
               )}
@@ -2145,7 +2170,14 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
     cost. It is the video's own shadow, so idle and playing sit in one frame.
   */
   .hub-stage-mark--art {
-    overflow: hidden;
+    /*
+      NO CLIP AND NO FILTER. The art fills the frame exactly, so nothing
+      overflows to clip, and the base rule's drop-shadow glow is shaped for a
+      mark floating in transparency — on a full-bleed rectangle it is just a
+      shadow, which `box-shadow` draws without a filter's repaint cost. That
+      shadow is the video's own, so the idle frame and the playing one are the
+      same object rather than two boxes that happen to share a position.
+    */
     filter: none;
     -webkit-filter: none;
     opacity: 1;
@@ -2153,36 +2185,32 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
   }
 
   /*
-    ─── THE TWO DIALS ──────────────────────────────────────────────────────
+    ─── THE PLACEHOLDER IS THE PICTURE, NOT AN EFFECT ──────────────────────
 
-    BLUR sets how far this reads from the key art it is made of. Higher is
-    softer and less like a second copy of the backdrop; too high and the frame
-    is a gradient with nothing in it. 14px against the backdrop's 9px is not
-    a matched number and must not become one: this frame is roughly half that
-    element's width and blur is measured in absolute pixels, so equal numbers
-    would read as two different softnesses.
+    It shipped blurred and overscanned, which was wrong twice over: it was
+    still an effect applied to the event's art rather than the art, and the
+    overscan zoomed in on it. Asked for plainly: "it should just be the full
+    image that is used for the hero but in the location of the trailer at the
+    trailer's size displayed until the trailer shows."
 
-    BRIGHTNESS is the one that can fail outright, and it has before. The
-    backdrop's own note records it: trailer stills are dark to begin with, and
-    blurring a dark image and then dimming it is how this hero was once a
-    black rectangle. That is why the backdrop brightens to 1.16 rather than
-    dimming. This plate sits ON TOP of that region, inside a frame ringed by
-    the video's own heavy drop shadow, so anything at or below the backdrop's
-    level reads as a hole punched in the hero rather than as a panel. It goes
-    ABOVE it, deliberately: softer than its surroundings and lighter, which is
-    a lit frosted panel. Softer and darker is a smudge.
+    So: `inset: 0`, no filter, no transform. `cover` rather than `contain`
+    because the frame is 16/9 and so is all but two of the events' key art —
+    for those it is an exact fit with nothing cropped, and for the two
+    cinemascope ones it trims the sides evenly instead of letterboxing a
+    trailer frame, which is what `contain` would do and would read as broken.
 
-    STATIC, like `.hub-stage-plate`. Animating a clipping box's transform is
-    what dragged the blur's weak edge out past the scrims on the deck page.
+    Losing the blur means resolution is now visible. See STAGE_WIDTHS in the
+    frontmatter: the ladder is built from this box's real size, not from the
+    small-request convention that blurred plates use.
   */
-  .hub-stage-art-plate {
+  .hub-stage-art-img {
     position: absolute;
-    inset: -14%;
-    background-size: cover;
-    background-position: center 28%;
-    background-repeat: no-repeat;
-    filter: blur(14px) saturate(1.22) brightness(1.26);
-    -webkit-filter: blur(14px) saturate(1.22) brightness(1.26);
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
   }
 
   .hub-stage-wordmark {

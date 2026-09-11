@@ -250,10 +250,20 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   **Art mode is a MODIFIER on `.hub-stage-mark`, never a second layer**: every
   state the stage has (`is-playing` → 0.28, `is-item` → 0, reduced-motion)
   is written against that one element, so a new layer would need all three
-  rewritten and would silently miss one. The art plate overscans past a clip
-  for the usual reason (a CSS blur is weakest at its own edges) and clipping
-  is safe on that layer ONLY because it is a SIBLING of the iframe, never an
-  ancestor. The stage itself still never clips (hard rule 3).
+  rewritten and would silently miss one. The stage never clips (hard rule 3).
+  **The placeholder is the picture, not an effect on it.** It shipped once
+  blurred and overscanned, borrowing the treatment every other plate on this
+  page uses, and that was wrong twice: still an effect applied to the art
+  rather than the art, and the overscan zoomed it. It is `inset: 0`,
+  `object-fit: cover`, no filter — cover because the frame is 16/9 and so is
+  all but two events' key art, and because `contain` would letterbox a
+  trailer frame. **Losing the blur inverts the request-size convention**: a
+  blurred plate is deliberately asked for small (640px on /featured, 900px on
+  a hub page) because the blur destroys more than the upsample costs, but a
+  crisp still needs a ladder built from the box — `STAGE_WIDTHS` tops out at
+  1520 for 2x of the 760px stage, with real `sizes` so a phone does not fetch
+  a viewport-wide image for a 343px box. D23 (768x432) and SDCC 2027
+  (1024x576) are the only key art too small to fill it at 2x.
 - **The hero's "Event Details" button goes to `officialWebsite`**, not
   `signUpLink`. `signUpLink` is the REGISTRATION link (an Axs listing for The
   Game Awards, a newsletter form for PAX East) and it still powers the

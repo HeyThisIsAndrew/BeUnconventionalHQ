@@ -120,15 +120,63 @@ test('the idle stage is key art, not a second copy of the logo', () => {
     assert.doesNotMatch(code, /class="hub-stage-art"/,
       `${rel}: a separate art layer would need every state rule written a second time`);
 
-    /*
-      HARD RULE 3 is not in play for this clip — `.hub-stage-mark` is a
-      SIBLING of `.hub-stage-video`, never its ancestor — but the stage
-      itself must still never clip.
-    */
-    assert.match(code, /\.hub-stage-mark--art \{[^}]*overflow: hidden;/,
-      `${rel}: the art plate overscans, so its layer has to clip`);
     assert.doesNotMatch(code, /\.hero-trailer\.hub-stage \{[^}]*overflow: hidden;/,
       `${rel}: HARD RULE 3 — the stage holds the iframe and must never clip`);
+  }
+});
+
+test('the placeholder is the picture, not an effect on it', () => {
+  /*
+    ─── WHAT THIS REPLACED ─────────────────────────────────────────────────
+
+    The first version of art mode blurred the key art and overscanned it past
+    a clip, borrowing the treatment every OTHER plate on this page uses. Both
+    halves of that were wrong here: it was still an effect applied to the
+    event's art rather than the art, and the overscan zoomed in on it. Asked
+    for plainly: "it should just be the full image that is used for the hero
+    but in the location of the trailer at the trailer's size displayed until
+    the trailer shows."
+  */
+  for (const rel of HERO_COMPONENTS) {
+    const code = heroSource(rel);
+
+    const artRule = code.match(/\.hub-stage-art-img \{[^}]*\}/);
+    assert.ok(artRule, `${rel}: the stage art needs a rule of its own`);
+    assert.match(artRule[0], /inset: 0;/,
+      `${rel}: the art sits at the frame's edges. An overscan is the zoom that was reported.`);
+    assert.match(artRule[0], /object-fit: cover;/,
+      `${rel}: cover fills the 16/9 frame — contain would letterbox a trailer box`);
+    assert.doesNotMatch(artRule[0], /blur\(|filter:/,
+      `${rel}: the placeholder must not be blurred`);
+
+    const wrapRule = code.match(/\.hub-stage-mark--art \{[^}]*\}/);
+    assert.ok(wrapRule, `${rel}: art mode needs its wrapper rule`);
+    assert.match(wrapRule[0], /filter: none;/,
+      `${rel}: the base rule's drop-shadow glow is shaped for a mark, not a full-bleed frame`);
+    assert.doesNotMatch(wrapRule[0], /overflow: hidden;/,
+      `${rel}: nothing overflows now, so nothing needs clipping`);
+  }
+});
+
+test('losing the blur means the request has to match the box', () => {
+  /*
+    A blurred plate is deliberately requested SMALL — 640px on /featured,
+    900px on a hub page — because the blur destroys more detail than the
+    upsample costs. Crisp, that reasoning inverts: 900px into a 760px frame
+    on a 2x screen is 0.6x density and visibly soft, which is exactly what
+    "the image is not sized properly" would look like.
+  */
+  for (const rel of HERO_COMPONENTS) {
+    const code = heroSource(rel);
+
+    assert.match(code, /const STAGE_WIDTHS = \[600, 760, 1200, 1520\];/,
+      `${rel}: the ladder must reach 2x of the widest stage (760 CSS px)`);
+    assert.match(code, /srcset=\{stageArtSrcset\}/,
+      `${rel}: the stage art needs a srcset now that nothing hides its resolution`);
+    assert.match(code, /sizes=\{stageArtSizes\}/,
+      `${rel}: and sizes, or the browser assumes 100vw and picks the largest every time`);
+    assert.doesNotMatch(code, /stageArtSizes = '100vw'/,
+      `${rel}: 100vw would have a phone fetch a viewport-wide image for a 343px box`);
   }
 });
 
