@@ -158,7 +158,7 @@ file anything about a missing control.**
 | `/featured/dc-comics` | 6 | 0 | 2 | none |
 | `/featured/a24` | 1 | 0 | 0 | none |
 | `/featured/xbox` | 1 | 0 | 0 | none |
-| `/events/new-event-1788829064723` | 1 | 0 | 0 | none |
+| `/events/avengers-doomsday-premiere` | 1 | 0 | 0 | none |
 | `/events/sdcc-2026` | 2 | 0 | 0 | none |
 | `/events/blizzcon-2026` | 0 | 0 | 0 | none |
 
@@ -172,7 +172,7 @@ And on the article side, across all eleven `/intel/<slug>` pages:
 | no hub card at all | 1 (a piece about physical media, which is about no brand) |
 
 Only two per-event coverage feeds are built, because only two events have any
-coverage: `/events/new-event-1788829064723/coverage` and
+coverage: `/events/avengers-doomsday-premiere/coverage` and
 `/events/sdcc-2026/coverage` return 200. Every other
 `/events/<slug>/coverage` returns 404 BY DESIGN.
 
@@ -188,7 +188,7 @@ Consequences you must accept rather than report:
   kind of content. The row is gated on both kinds being present. Its absence
   on these two routes is CORRECT. Test the filter behaviour on the hub
   routes, which do have it.
-- `/events/new-event-1788829064723` holds exactly one article. One tile is
+- `/events/avengers-doomsday-premiere` holds exactly one article. One tile is
   the complete, correct coverage for that event right now.
 
 If any of these numbers differs when you run, report the difference as an
@@ -206,9 +206,9 @@ scope — if it notices something elsewhere, it reports it under
 ## AGENT 1 — Event coverage: the cap and the overflow feed
 
 Routes:
-- `/events/new-event-1788829064723` (Avengers: Doomsday Premiere)
+- `/events/avengers-doomsday-premiere` (Avengers: Doomsday Premiere)
 - `/events/sdcc-2026`
-- `/events/new-event-1788829064723/coverage`
+- `/events/avengers-doomsday-premiere/coverage`
 - `/events/sdcc-2026/coverage`
 
 Viewports: 390x844, 768x1024, 1440x900.
@@ -249,7 +249,7 @@ whole section before starting.
 Routes:
 - `/featured/marvel-comics`
 - `/featured/dc-comics`
-- `/events/new-event-1788829064723`
+- `/events/avengers-doomsday-premiere`
 
 Viewports: 390x844 (do this one first, the bug was reported on a phone) and
 1440x900.
@@ -281,7 +281,7 @@ For each route that has `.filter-btn` elements inside its coverage scope
 **Part B — the deep link. This is the reported bug. Do not skip it and do
 not substitute a page load for the click.**
 
-1. `page.goto('/events/new-event-1788829064723')`.
+1. `page.goto('/events/avengers-doomsday-premiere')`.
 2. Find the link to the franchise hub:
    `document.querySelector('a[href^="/featured/"]')`. **Expected: it exists
    and points at `/featured/marvel-comics`.**
@@ -305,8 +305,8 @@ not substitute a page load for the click.**
 
 ## AGENT 3 — Responsive layout and horizontal overflow
 
-Routes: `/`, `/events`, `/events/new-event-1788829064723`, `/events/sdcc-2026`,
-`/events/archive`, `/events/new-event-1788829064723/coverage`, `/featured`,
+Routes: `/`, `/events`, `/events/avengers-doomsday-premiere`, `/events/sdcc-2026`,
+`/events/archive`, `/events/avengers-doomsday-premiere/coverage`, `/featured`,
 `/featured/marvel-comics`, `/intel`, `/feed`.
 
 Viewports: 320x568, 390x844, 414x896, 844x390 (landscape), 768x1024,
@@ -345,7 +345,7 @@ numbers.
    rendered link returning 404 is a confirmed finding. Report the source
    route, the href, and the status.
 2. Confirm the two coverage routes that SHOULD exist do
-   (`/events/new-event-1788829064723/coverage`, `/events/sdcc-2026/coverage`
+   (`/events/avengers-doomsday-premiere/coverage`, `/events/sdcc-2026/coverage`
    — both 200) and that a coverage route for an event with no coverage does
    NOT (`/events/blizzcon-2026/coverage` — 404, which is a PASS).
 3. For each route, report `<title>`, the meta description, and whether a
@@ -382,8 +382,8 @@ For every route listed for Agent 3, at 390x844 and 1440x900:
 
 ## AGENT 6 — Keyboard and assistive technology
 
-Routes: `/events/new-event-1788829064723`, `/featured/marvel-comics`,
-`/events/new-event-1788829064723/coverage`.
+Routes: `/events/avengers-doomsday-premiere`, `/featured/marvel-comics`,
+`/events/avengers-doomsday-premiere/coverage`.
 
 1. Tab through the whole page. Record the focus order as a list of
    selectors. **Expected: no focus trap, and no element that receives focus
@@ -404,7 +404,7 @@ Routes: `/events/new-event-1788829064723`, `/featured/marvel-comics`,
 The newest work, and the least covered by anything else here.
 
 Routes: every `/intel/<slug>` page (get the list from the links on `/intel`,
-do not type them from memory), plus `/events/new-event-1788829064723` for the
+do not type them from memory), plus `/events/avengers-doomsday-premiere` for the
 event-side version of the same card.
 
 Viewports: 390x844, 844x390, 768x1024, 1024x768, 1440x900. All five. The
@@ -477,7 +477,7 @@ For each viewport, on an article page that HAS a hub card:
 
 **Part C — the event side still works.**
 
-On `/events/new-event-1788829064723`, confirm the card is present, its
+On `/events/avengers-doomsday-premiere`, confirm the card is present, its
 heading is `Official Franchise Hub` (Marvel is a franchise, so this one IS
 correct), and it links to `/featured/marvel-comics`. The card markup moved
 into a shared component recently; this is the check that the move did not

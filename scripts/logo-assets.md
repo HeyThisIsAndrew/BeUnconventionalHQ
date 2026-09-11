@@ -105,7 +105,7 @@ for (const t of ["event","featuredBrand"]) d.filter(x=>x._type===t).forEach(e=>{
 
 - `l-a-comic-con-2026` — 300x133
 - `the-game-awards-2026` — 354x484
-- `new-event-1788829064723` (Avengers: Doomsday) — 420x180
+- `avengers-doomsday-premiere` (Avengers: Doomsday) — 420x180
 - `sdcc-2026` — 500x618
 - `sdcc-2027` — 500x618
 - `twitchcon-san-diego-2026` — 1140x381 (height only)
