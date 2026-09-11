@@ -55,6 +55,8 @@ import { stripCoverImageFromBody } from '../../lib/article-media';
 import { localArticleImage, localiseBodyImages } from '../../lib/article-images.ts';
 import { parseImageDimensions, labelImageLinks } from '../../lib/article-images-transform.ts';
 import { getCardImageSources, isSubstackFetchUrl } from '../../lib/card-images.ts';
+import { getFeaturedBrandsLocal } from '../../lib/local-content';
+import { findHubForItem } from '../../lib/hub-coverage';
 import logoImage from '../../assets/logo.webp';
 
 /*
@@ -171,6 +173,24 @@ const { entries: tocEntries, html: bodyHtml } = buildToc(bodyWithLocalImages);
 
 const nextArticle = getNextArticle(article.slug);
 const related = getRelatedArticles(article.slug, article.category, 4);
+
+/*
+  ─── THE HUB THIS PIECE BELONGS TO ─────────────────────────────────────────
+
+  Event pages carry an "Official <X> Hub" card because an event document
+  names its brand outright. An article has no such field: it syncs from
+  Substack, which knows nothing about this site's hubs. So the association is
+  INFERRED from the tag vocabulary the hubs themselves define, scored by how
+  many of a hub's tags the piece carries.
+
+  That scoring matters. The Spider-Man review is tagged for Marvel Studios,
+  the MCU, Marvel AND Sony Pictures; first-match would hand it to whichever
+  hub sorted first in the store. See findHubForItem in lib/hub-coverage.ts.
+
+  Returns null often, and should: a piece about the industry rather than
+  about a brand has no hub, and the card simply does not render.
+*/
+const articleHub = findHubForItem(article, getFeaturedBrandsLocal());
 
 /*
   Fallback anchors for a post with too few headings to index — see the note in
@@ -472,7 +492,7 @@ const breadcrumbSchema = {
           )}
         </article>
 
-        <ArticleSupportRail related={related.slice(0, 2)} />
+        <ArticleSupportRail related={related.slice(0, 2)} brand={articleHub} />
       </div>
     </div>
 

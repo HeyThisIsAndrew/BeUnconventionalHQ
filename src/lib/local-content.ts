@@ -316,42 +316,10 @@ export function getHubBackdrop(slug: string): HubBackdrop | null {
   return null;
 }
 
-/**
- * The four rows on /featured, and what each is called.
- *
- * Shared rather than declared twice, because a hub page now shows the row it
- * was reached from — and a label that disagrees with the row you just clicked
- * is worse than no label. Adding a hub is a data change; adding a CATEGORY is
- * a design decision, which is why this stays in code.
- */
-export const HUB_CATEGORY_LABELS: Record<string, string> = {
-  /*
-    THE KEY STAYS `universes`. ONLY THE LABEL CHANGES.
-
-    "The Multiverse" was inaccurate for half of what it labelled: the row is
-    DC, Marvel, Star Wars and Harry Potter, and two of those are not
-    multiverses in any sense. "Franchises" is true of all four and is the
-    term the trade press uses.
-
-    Renaming the KEY would mean rewriting `hubCategory` on every brand in
-    videos.json for nothing a reader can see, so it stays. The keys are
-    internal — they are a field on the document, never a route segment — so
-    nothing about this rename touches a URL.
-  */
-  universes: 'Franchises',
-  streaming: 'Streamers',
-  studios: 'Studios',
-
-  /*
-    `gaming` follows the same rule for the same reason: the key is a document
-    field, so it stays, and only the label moved to "Games".
-
-    Do not read that as "the Games rename touched nothing." It is the HUB
-    taxonomy that costs nothing here. The site-wide CONTENT category of the
-    same name is a different taxonomy that happens to share the word, and it
-    IS a route segment: /category/gaming had to be 301'd to /category/games,
-    and /intel/topic/gaming with it. Both redirects are in astro.config.mjs.
-    See issue #146.
-  */
-  gaming: 'Games',
-};
+/*
+  The hub taxonomy labels moved to ./hub-labels.ts so the offline suites can
+  import them: this file statically imports videos.json, and plain `node`
+  refuses a JSON import without a type attribute. Re-exported here so every
+  existing `from '../lib/local-content'` keeps working.
+*/
+export { HUB_CATEGORY_LABELS, HUB_KIND_LABELS, getHubKindHeading } from './hub-labels.ts';

@@ -1,0 +1,152 @@
+---
+/**
+ * HubCard — the "Official <X> Hub" block: a hub's mark, a line of copy and
+ * one link into its page.
+ *
+ * ─── WHY IT IS A COMPONENT ────────────────────────────────────────────────
+ * It was written out twice, identically, in EventAnnouncement.astro and
+ * EventFeatured.astro, with the heading hardcoded to "Official Franchise
+ * Hub". That called Netflix a franchise on every event it backed, in two
+ * places, and article pages could not have it at all without a third copy.
+ *
+ * The heading now comes from the hub's own `hubCategory` via
+ * getHubKindHeading() — Streamer, Studio, Gaming, Franchise — so adding a
+ * category changes one map, not three templates.
+ *
+ * ─── THE WHOLE CARD IS THE LINK ───────────────────────────────────────────
+ * The mark, the copy and "Explore Hub" are one target rather than a panel
+ * with a small link buried in it. Same ground, blur and hairline as the
+ * blocks it sits beside, and no border-radius, because nothing else in these
+ * columns has one.
+ *
+ * ─── COLOUR ───────────────────────────────────────────────────────────────
+ * The hover tint reads `--brand-rgb`. On an event or hub page an ancestor
+ * already publishes that, and this sets it again from the hub's OWN
+ * brandColor so the card is correct anywhere it is used: an article page has
+ * no such ancestor, and without this the Netflix card would glow event-red.
+ */
+import { urlFor } from '../lib/local-content';
+import { getHubKindHeading } from '../lib/hub-labels';
+
+interface Props {
+  /** A featuredBrand document. Render nothing if absent. */
+  brand: any;
+  /** Heading level for the block label. The rails use a <p>; a section may want a real heading. */
+  headingId?: string;
+}
+
+const { brand, headingId } = Astro.props;
+
+/*
+  `brandColor` is an OBJECT on a featuredBrand doc, {hex: '#E23636'}, but was
+  a plain string on older documents. Both are accepted here because both are
+  in the store, and a mistake either way stringifies to "[object Object]" in
+  a style attribute and silently paints nothing.
+*/
+const brandHex =
+  (typeof brand?.brandColor === 'string' ? brand.brandColor : brand?.brandColor?.hex) || '#CC0000';
+
+function hexToRgbTriple(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim());
+  if (!m) return '204, 0, 0';
+  const int = parseInt(m[1], 16);
+  return `${(int >> 16) & 255}, ${(int >> 8) & 255}, ${int & 255}`;
+}
+
+const brandRgb = hexToRgbTriple(brandHex);
+const heading = getHubKindHeading(brand);
+const slug = brand?.slug?.current;
+---
+
+{brand && slug && (
+  <div class="article-rail-related rail-hub" style={`--brand-rgb: ${brandRgb};`}>
+    <p class="article-rail-head" id={headingId}>{heading}</p>
+    <a class="rail-hub-card" href={`/featured/${slug}`}>
+      {brand.logo && (
+        /* HARD RULE 6: no filter on the <img>. */
+        <img
+          src={urlFor(brand.logo).height(120).auto('format').url()}
+          alt=""
+          class="rail-hub-logo"
+          loading="lazy"
+          decoding="async"
+        />
+      )}
+      <p class="rail-hub-copy">
+        Explore all our coverage, videos, and intel for {brand.title}.
+      </p>
+      <span class="rail-hub-cta">Explore Hub &rarr;</span>
+    </a>
+  </div>
+)}
+
+<style>
+  /*
+    Symmetric separation from whatever sits above, matching the rhythm the
+    event rail already uses between its blocks. It lives HERE rather than in
+    the parent because Astro scopes styles to the template that renders the
+    markup: a `.rail-hub` rule in a parent no longer matches once the element
+    is a child component's.
+  */
+  .rail-hub {
+    margin-top: 3.5rem;
+  }
+
+  .rail-hub-card {
+    display: block;
+    padding: 1.25rem;
+    background: rgba(15, 15, 15, 0.8);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-decoration: none;
+    transition:
+      border-color 0.3s ease,
+      background-color 0.3s ease;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .rail-hub-card:hover {
+      border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.55);
+      background: rgba(var(--brand-rgb, 204, 0, 0), 0.06);
+    }
+    .rail-hub-card:hover .rail-hub-cta {
+      color: var(--color-accent-text);
+    }
+  }
+
+  .rail-hub-card:focus-visible {
+    outline: 2px solid var(--color-white);
+    outline-offset: 2px;
+  }
+
+  /* Left-aligned like the rest of the rail. Height-capped rather than
+     width-capped so wordmarks and square marks read at the same weight. */
+  .rail-hub-logo {
+    display: block;
+    max-height: 34px;
+    max-width: 70%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    margin-bottom: 1rem;
+  }
+
+  .rail-hub-copy {
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: var(--color-white-muted);
+    margin: 0 0 1rem;
+  }
+
+  .rail-hub-cta {
+    display: inline-block;
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-white);
+    transition: color 0.3s ease;
+  }
+</style>

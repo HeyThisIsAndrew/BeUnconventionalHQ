@@ -125,6 +125,32 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   `/events/<slug>/coverage`, paginated at 12 — the same display-cap-plus-
   overflow-route pattern "Past Event Archive" uses on `/events`. The overflow
   route builds only for events that have coverage.
+- **The "Official <X> Hub" card is `HubCard.astro`**, used by the event
+  template AND the article rail. Its heading comes from the hub's own
+  `hubCategory` via `getHubKindHeading()` in `src/lib/hub-labels.ts`
+  (Franchise / Streamer / Studio / Gaming, falling back to a bare "Official
+  Hub"). It was hardcoded as "Official Franchise Hub", which called Netflix a
+  franchise. `gaming` is **"Gaming"**, not "Game": the labels are written out
+  rather than de-pluralised because that is the one case chopping an "s"
+  gets wrong. `hub-labels.ts` is separate from `local-content.ts` because the
+  latter statically imports `videos.json`, which plain `node` refuses without
+  a type attribute, so the labels were untestable there.
+- **An event is TOLD its hub, an article infers one.** Events carry
+  `relatedBrandSlug` (editorial, set in the CMS). Articles sync from Substack
+  and have no such field, so `findHubForItem()` (`hub-coverage.ts`) scores
+  each hub by how many of its tags the piece carries and returns the best.
+  Scoring, not first-match: the Spider-Man review is tagged for Marvel
+  Studios, the MCU, Marvel AND Sony Pictures. Ties break on slug so builds
+  are deterministic.
+- **The article support rail STACKS below 1200px, it does not vanish.**
+  `article.css` used to hide `.article-rail` outright, so a phone reader got
+  no hub card, no editorial desk and no Support The HQ. Now only
+  `.article-rail-left` (the TOC) is hidden, plus `.article-rail-more`, because
+  the column already renders "Suggested Reading" at every width and the rail's
+  copy would print it twice. The stacked gap is paid for ONCE: `row-gap` on
+  the layout, and the first visible rail block drops its own margin (reach it
+  as `.article-rail-more + *`, since `display: none` does not stop
+  `:first-child` matching the hidden element).
 - **ARTICLES/VIDEOS filters are scoped BY NAME**: `data-coverage="hub"` on the
   hub page, `data-coverage="event"` on event pages, each handler querying its
   own. Astro's ClientRouter keeps both modules alive across a navigation

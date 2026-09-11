@@ -116,17 +116,25 @@
 /*
   ─── "ON THIS PAGE" IS A DESKTOP RAIL, AND ONLY THE RIGHT RAIL COMES BACK ──
 
-  article.css hides BOTH rails at this breakpoint (`.article-rail { display:
-  none }`). This block used to override that wholesale — `.article-rail {
-  display: block !important }` — and then reorder them underneath the content,
-  which is how a jump-link list ended up wedged between "Venue" and "Upcoming
-  Events", two thirds of the way down a page the reader is already scrolling.
-  A table of contents earns its keep beside the text, not inside it.
+  article.css used to hide BOTH rails at this breakpoint (`.article-rail {
+  display: none }`). This block used to override that wholesale —
+  `.article-rail { display: block !important }` — and then reorder them
+  underneath the content, which is how a jump-link list ended up wedged
+  between "Venue" and "Upcoming Events", two thirds of the way down a page the
+  reader is already scrolling. A table of contents earns its keep beside the
+  text, not inside it.
 
-  So the TOC is simply left alone: article.css's `display: none` stands, and
-  nothing here re-shows it. Only `.article-rail-right` is brought back, because
-  what it carries — the calendar, the press desk, the partner links — is
-  content a phone reader still wants, just at the end rather than alongside.
+  article.css now does the same thing this block does, for the same reason:
+  it hides `.article-rail-left` only, and stacks the right rail after the
+  column. Article pages needed it too, and were dropping their hub card,
+  editorial desk and Support The HQ block entirely on every phone.
+
+  So the TOC is still simply left alone, and nothing here re-shows it. What
+  remains below is the EVENT-specific half: flex instead of grid, the explicit
+  ordering, and the stacked-gap tuning measured on a 390px phone. The
+  `display: block` is now redundant with article.css and is kept because these
+  rules are `!important` as a set and splitting them would be a bigger change
+  than it looks.
 
   The breakpoint is `1200px` to match article.css exactly. It was 1199px, which
   left a one-pixel window at 1200 where article.css had already collapsed the

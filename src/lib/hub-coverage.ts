@@ -244,3 +244,55 @@ export const COVERAGE_PAGE_LIMIT = 6;
 
 /** Page size for the overflow feed. 12 matches /intel, /feed and /events/archive. */
 export const COVERAGE_FEED_PAGE_SIZE = 12;
+
+/**
+ * ─── THE SAME QUESTION, ASKED BACKWARDS ────────────────────────────────────
+ *
+ * collectHubCoverage answers "what belongs to this hub". An article page
+ * needs the inverse: "which hub does this belong to", so it can offer the
+ * reader the Official Streamer / Studio / Franchise Hub card that event
+ * pages carry.
+ *
+ * An EVENT does not need this. It has `relatedBrandSlug`, an editorial
+ * choice someone made in the CMS. Articles sync from Substack and have no
+ * such field and never will, so the association is inferred from the
+ * vocabulary the hubs already define.
+ *
+ * ─── WHY STRENGTH, NOT FIRST MATCH ─────────────────────────────────────────
+ * Pieces routinely match more than one hub. The Spider-Man review is tagged
+ * "Marvel Studios", "MCU", "Marvel" AND "Sony Pictures", and first-match
+ * would hand it to whichever hub happened to sort first in the store.
+ *
+ * Counting matched tags picks the hub the piece is most ABOUT: four hits for
+ * Marvel against one for Sony. Ties break on slug so the build is
+ * deterministic; a build that reorders cards between runs for no reason is
+ * its own bug.
+ *
+ * Returns null when nothing matches, which is the common case and is fine:
+ * the card simply does not render.
+ */
+export function findHubForItem(item: any, hubs: any[]): any | null {
+  let best: any = null;
+  let bestScore = 0;
+
+  for (const hub of hubs ?? []) {
+    if (!hub?.slug?.current) continue;
+    const tags = getHubMatchTags(hub);
+    if (!tags.length) continue;
+
+    /* One point per DISTINCT hub tag the item carries, so a hub cannot win
+       by listing the same keyword in both coverageTags and sync keywords. */
+    const score = tags.filter((tag) => matchArticlesByTags([item], [tag]).length > 0).length;
+    if (score === 0) continue;
+
+    if (
+      score > bestScore ||
+      (score === bestScore && best && hub.slug.current < best.slug.current)
+    ) {
+      best = hub;
+      bestScore = score;
+    }
+  }
+
+  return best;
+}

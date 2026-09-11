@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import assert from 'node:assert/strict';
 import {
+  findHubForItem,
   normalizeTag,
   compactTag,
   coverageIdentity,
@@ -378,6 +379,77 @@ test('every seeded event carries a YEAR-scoped vocabulary', () => {
           'claim other editions of the same event');
     }
   }
+});
+
+test('an article finds the hub it is most ABOUT, not the first one that matches', () => {
+  /*
+    ─── THE INVERSE QUESTION ───────────────────────────────────────────────
+
+    collectHubCoverage answers "what belongs to this hub". An article page
+    needs "which hub does this belong to", so it can show the Official
+    Streamer / Studio / Franchise Hub card that event pages carry. An event
+    is TOLD which brand it belongs to (relatedBrandSlug, set in the CMS); an
+    article syncs from Substack and has no such field, so it is inferred.
+
+    Pieces routinely match more than one hub. The shipped Spider-Man review
+    carries "Marvel Studios", "MCU", "Marvel" AND "Sony Pictures", and
+    first-match would hand it to whichever hub happened to sort first in the
+    store. Counting matched tags picks the one the piece is most about.
+  */
+  const marvel = { slug: { current: 'marvel-comics' }, coverageTags: ['Marvel', 'MCU', 'Marvel Studios'] };
+  const sony = { slug: { current: 'sony-pictures' }, coverageTags: ['Sony Pictures'] };
+
+  const spiderMan = article({ tags: ['Marvel Studios', 'MCU', 'Marvel', 'Sony Pictures'] });
+  assert.equal(findHubForItem(spiderMan, [sony, marvel])?.slug.current, 'marvel-comics');
+  assert.equal(findHubForItem(spiderMan, [marvel, sony])?.slug.current, 'marvel-comics',
+    'and the answer must not depend on the order the hubs arrive in');
+
+  const sonyOnly = article({ tags: ['Sony Pictures'] });
+  assert.equal(findHubForItem(sonyOnly, [sony, marvel])?.slug.current, 'sony-pictures');
+
+  assert.equal(findHubForItem(article({ tags: ['Consumer Rights'] }), [sony, marvel]), null,
+    'a piece about the industry rather than a brand has no hub, and the card just does not render');
+});
+
+test('a tie breaks the same way on every build', () => {
+  /*
+    A build that reorders a card between runs for no reason is its own bug,
+    and it is the kind that only shows up as a mystery diff.
+  */
+  const a = { slug: { current: 'aaa' }, coverageTags: ['Shared'] };
+  const z = { slug: { current: 'zzz' }, coverageTags: ['Shared'] };
+  const item = article({ tags: ['Shared'] });
+  assert.equal(findHubForItem(item, [a, z])?.slug.current, 'aaa');
+  assert.equal(findHubForItem(item, [z, a])?.slug.current, 'aaa');
+});
+
+test('a hub cannot win by listing the same keyword twice', () => {
+  /*
+    getHubMatchTags already dedupes across coverageTags and
+    youtubeSyncKeywords, and the score is built from that deduped list, so
+    padding one field with the other's contents buys nothing.
+  */
+  const padded = {
+    slug: { current: 'padded' },
+    coverageTags: ['Netflix', 'netflix', 'NETFLIX'],
+    youtubeSyncKeywords: ['Netflix', 'netflix'],
+  };
+  const honest = { slug: { current: 'honest' }, coverageTags: ['Netflix', 'Netflix Film'] };
+  const item = article({ tags: ['Netflix', 'Netflix Film'] });
+  assert.equal(findHubForItem(item, [padded, honest])?.slug.current, 'honest');
+});
+
+test('every shipped article resolves to at most one hub, and most resolve to one', () => {
+  const docs = JSON.parse(readSrc('src', 'data', 'videos.json'));
+  const brands = docs.filter((d) => d._type === 'featuredBrand');
+  const raw = JSON.parse(readSrc('src', 'data', 'articles.json'));
+  const articles = raw.articles || raw.items || raw;
+
+  const matched = articles.filter((a) => findHubForItem(a, brands) !== null);
+  assert.ok(matched.length > articles.length / 2,
+    `only ${matched.length} of ${articles.length} articles resolve to a hub. The card is the ` +
+      'main reason an article page links onward, so a sharp drop here means the brand ' +
+      'vocabularies have drifted from how posts are actually tagged.');
 });
 
 console.log('\nthe six-item cap and its overflow feed');

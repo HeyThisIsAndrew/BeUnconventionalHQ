@@ -430,14 +430,80 @@
   grid-area: support;
 }
 
+/*
+  ─── BELOW 1200px: THE TOC GOES, THE SUPPORT RAIL STACKS ───────────────────
+
+  Both rails used to be hidden here, which meant a phone or tablet reader saw
+  no hub card, no editorial desk and no Support The HQ block at all. The event
+  templates already solved this for themselves, so an event page stacked its
+  rail under the column on a phone and an article page simply dropped it.
+
+  Only the SUPPORT rail comes back, and it comes back after the column:
+
+    - The TOC stays hidden. A jump-link list belongs beside the text or
+      nowhere; rendered inline it is furniture the reader scrolls past on a
+      page they are already scrolling. (That exact thing shipped once on the
+      event templates.)
+    - "More From Intel" stays hidden with it, because the article column
+      already renders "Suggested Reading" below the body at every width.
+      Without this the same related articles print twice, back to back.
+    - The rail loses `position: sticky`. A sticky element in a single-column
+      flow pins itself to the viewport as you scroll past, which reads as a
+      rendering fault rather than a feature.
+*/
 @media (max-width: 1200px) {
   .article-layout {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "column";
+    grid-template-areas:
+      "column"
+      "support";
   }
 
-  .article-rail {
+  .article-rail-left {
     display: none;
+  }
+
+  .article-layout > .article-rail-right {
+    display: block;
+    position: static;
+  }
+
+  .article-rail-right .article-rail-more {
+    display: none;
+  }
+
+  /*
+    ─── THE GAP THAT WAS A GUTTER ──────────────────────────────────────────
+
+    Same trap events.css documents, arrived at the same way. Measured at
+    390px between the last line of "Suggested Reading" and the hub card
+    heading, before this:
+
+      32px   the layout's own 2rem gap, which is a horizontal GUTTER when
+             the three tracks stand side by side and becomes vertical space
+             the moment they stack
+      56px   a 3.5rem top margin on the rail
+      56px   the hub card's own 3.5rem, which exists to separate it from a
+             sibling ABOVE it inside the rail. Stacked, and with "More From
+             Intel" hidden, it has no sibling above it: the two margins were
+             paying for the same emptiness.
+      ----
+      144px
+
+    The row gap now carries the separation on its own, and the first block in
+    the rail gives up its margin. 112px, which is what the event templates
+    landed on after the same measurement. `.article-rail-more + *` covers the
+    hidden-sibling case: display:none does not stop :first-child matching it,
+    so the hub card is never the first CHILD even when it is the first thing
+    you can see.
+  */
+  .article-layout {
+    row-gap: 3.5rem;
+  }
+
+  .article-rail-right .article-rail-sticky > :first-child,
+  .article-rail-right .article-rail-more + * {
+    margin-top: 0;
   }
 }
 
