@@ -98,6 +98,30 @@ const unifiedContent = [
   ...filteredVideos.map((v: any) => ({ ...v, contentType: 'video' }))
 ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+/*
+  ─── A FILTER FOR CONTENT THE HUB DOES NOT HAVE ────────────────────────────
+
+  ARTICLES and VIDEOS were hardcoded, so every hub offered both whatever it
+  actually held. Four of eighteen hold only one kind, and on those, tapping the
+  other button emptied the grid completely with nothing to explain it:
+
+    disney-plus   0 articles, 1 video   -> ARTICLES wiped the page
+    a24           0 articles, 1 video   -> ARTICLES wiped the page
+    universal     0 articles, 2 videos  -> ARTICLES wiped the page
+    xbox          1 article,  0 videos  -> VIDEOS   wiped the page
+
+  Reported as "the featured page filters are just broken", and from the
+  visitor's side that is exactly what it looks like.
+
+  A control is offered only when it has something to do. When a hub holds one
+  kind of thing, the whole filter row goes: a single button that can only
+  either show everything or hide everything is not a filter, it is the phantom
+  "Upcoming Events" button again in a different costume.
+*/
+const hasArticles = unifiedContent.some((item: any) => item.contentType === 'article');
+const hasVideos = unifiedContent.some((item: any) => item.contentType === 'video');
+const showFilters = hasArticles && hasVideos;
+
 // YouTube IDs are extracted via the shared parseVideoId (src/lib/platforms/youtube).
 
 /*
@@ -696,10 +720,12 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
         <section class="content-section" data-coverage>
           <h2 class="sr-only">Event coverage</h2>
 
-          <div class="filter-controls animate-on-scroll">
-            <button class="filter-btn type-btn" data-filter="article" aria-pressed="false">ARTICLES</button>
-            <button class="filter-btn type-btn" data-filter="video" aria-pressed="false">VIDEOS</button>
-          </div>
+          {showFilters && (
+            <div class="filter-controls animate-on-scroll">
+              <button class="filter-btn type-btn" data-filter="article" aria-pressed="false">ARTICLES</button>
+              <button class="filter-btn type-btn" data-filter="video" aria-pressed="false">VIDEOS</button>
+            </div>
+          )}
 
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full" aria-live="polite">
             {unifiedContent.map((item, index) => (

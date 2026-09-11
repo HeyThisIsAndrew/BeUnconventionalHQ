@@ -550,6 +550,39 @@ test('the hub trailer hands over to the first rail tile when it stops', () => {
     'the rail must not hardcode tile 0 active — that is the bug this replaced');
 });
 
+test('a hub never offers a filter for content it does not have', () => {
+  /*
+    ─── THE GRID THAT EMPTIED ITSELF ───────────────────────────────────────
+
+    ARTICLES and VIDEOS were hardcoded, so every hub offered both regardless
+    of what it held. Four of eighteen hold only one kind, and tapping the
+    other button emptied the grid with nothing to explain it:
+
+      disney-plus   0 articles, 1 video   -> ARTICLES wiped the page
+      a24           0 articles, 1 video   -> ARTICLES wiped the page
+      universal     0 articles, 2 videos  -> ARTICLES wiped the page
+      xbox          1 article,  0 videos  -> VIDEOS   wiped the page
+
+    Reported as "the featured page filters are just broken", reproduced by
+    navigating straight to a hub. From the visitor's side that is exactly
+    what an empty grid looks like.
+
+    The row renders only when BOTH kinds are present. One button that can
+    only show everything or hide everything is not a filter — that is the
+    phantom "Upcoming Events" button again in a different costume.
+  */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8');
+
+  assert.match(hub, /const hasArticles = unifiedContent\.some/,
+    'the page must know whether it has articles before offering to filter for them');
+  assert.match(hub, /const hasVideos = unifiedContent\.some/,
+    'and whether it has videos');
+  assert.match(hub, /const showFilters = hasArticles && hasVideos;/,
+    'filtering is only meaningful when there are two kinds to choose between');
+  assert.match(hub, /\{showFilters && \(\s*<div class="filter-controls/,
+    'the filter row must be gated on that, not rendered unconditionally');
+});
+
 test('no page-wide filter handler survives a client-side navigation', () => {
   /*
     ─── THE DEEP-LINK BUG ──────────────────────────────────────────────────
