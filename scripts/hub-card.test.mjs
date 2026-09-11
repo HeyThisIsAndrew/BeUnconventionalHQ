@@ -30,6 +30,50 @@ const stripComments = (text) =>
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '');
 
+
+/**
+ * Remove every `@media (hover: hover) …` and `@media (prefers-reduced-motion
+ * …)` block, braces balanced, so what is left is the styling EVERY device
+ * gets.
+ *
+ * Both have to go. The first attempt stripped only the hover blocks, and the
+ * assertion built on it could not fail: the reduced-motion block also
+ * mentions `:active` (to cancel the transform), so a `:active` rule moved
+ * inside the hover query still left a match behind and the guard passed.
+ *
+ * Written by counting rather than by pattern. CSS nesting is not a regular
+ * language, and the regex version of this quietly stripped nothing at all.
+ */
+function stripConditionalBlocks(css) {
+  let out = '';
+  let i = 0;
+  while (i < css.length) {
+    const at = css.indexOf('@media', i);
+    if (at === -1) return out + css.slice(i);
+
+    const open = css.indexOf('{', at);
+    const prelude = open === -1 ? '' : css.slice(at, open);
+    if (open === -1 || !/hover:\s*hover|prefers-reduced-motion/.test(prelude)) {
+      out += css.slice(i, at + 6);
+      i = at + 6;
+      continue;
+    }
+
+    out += css.slice(i, at);
+    let depth = 0;
+    let j = open;
+    for (; j < css.length; j += 1) {
+      if (css[j] === '{') depth += 1;
+      else if (css[j] === '}') {
+        depth -= 1;
+        if (depth === 0) { j += 1; break; }
+      }
+    }
+    i = j;
+  }
+  return out;
+}
+
 let passed = 0;
 let failed = 0;
 function test(name, fn) {
@@ -104,6 +148,129 @@ test('no template hardcodes the heading any more', () => {
   const card = readSrc('src', 'components', 'HubCard.astro');
   assert.match(card, /getHubKindHeading\(brand\)/,
     'HubCard must take its heading from the hub document');
+});
+
+console.log('\nthe card reshapes to the space it gets');
+
+test('it is sized by its own width, not the window\'s', () => {
+  /*
+    ─── WHY A CONTAINER QUERY AND NOT A MEDIA QUERY ────────────────────────
+
+    Measured widths of this exact card:
+
+      desktop 1440   239px   (it is in the 19rem rail)
+      phone   320    276px
+      phone   390    346px
+      tablet  768    710px
+      phone landscape 844    782px
+      tablet landscape 1024  953px
+
+    The window and the card run in OPPOSITE directions: the biggest window
+    gives the card its narrowest box. A media query would have made the
+    desktop rail wide and the phone card narrow, which is backwards.
+  */
+  const card = readSrc('src', 'components', 'HubCard.astro');
+  assert.match(card, /container-type: inline-size/,
+    'the card must establish a query container, or the rules below never fire');
+  assert.match(card, /@container hubcard \(min-width: 300px\)/,
+    'the two-column shape starts where the card clears the desktop rail (239px) and a 320px phone (276px)');
+  assert.match(card, /@container hubcard \(min-width: 560px\)/,
+    'the banner shape starts below the smallest stacked width (710px)');
+  assert.ok(
+    !/@media[^{]*max-width[^{]*\{[^}]*rail-hub-card/s.test(card),
+    'the card is being sized by the viewport again, which gets it exactly backwards',
+  );
+});
+
+test('the mark is capped in BOTH axes', () => {
+  /*
+    16 of the 18 hubs have a square mark; Marvel (2.21:1) and Disney+
+    (1.83:1) are wide wordmarks. Cap height alone and those two run away with
+    the row. Cap width alone and the 16 square ones shrink to nothing.
+
+    Measured with both caps, in the same box:
+      DC     (1:1)     88x88 on a phone, 104x104 on a tablet
+      Marvel (2.21:1)  96x43 on a phone, 140x63  on a tablet
+
+    Same footprint, same row height, neither dominates.
+  */
+  const card = readSrc('src', 'components', 'HubCard.astro');
+  const styles = card.slice(card.indexOf('<style>'));
+  const logoRules = [...styles.matchAll(/\.rail-hub-logo\s*\{([^}]*)\}/g)].map((m) => m[1]);
+  assert.ok(logoRules.length >= 2, 'the mark must be resized for the wider shapes');
+  for (const rule of logoRules) {
+    assert.match(rule, /max-height:/, 'every mark rule needs a height cap');
+    assert.match(rule, /max-width:/,
+      'and a width cap, or a 2.21:1 wordmark takes the row while square marks stay small');
+  }
+});
+
+test('the narrow rail keeps the small stacked card', () => {
+  /*
+    The desktop rail is 239px. Nothing about widening the stacked card may
+    reach it: a 104px mark in a 239px rail is most of the rail.
+  */
+  const card = readSrc('src', 'components', 'HubCard.astro');
+  const base = card.slice(card.indexOf('<style>'), card.indexOf('@container'));
+  assert.match(base, /\.rail-hub-logo\s*\{[^}]*max-height: 34px/,
+    'the default (narrow) mark stays small');
+  assert.match(base, /\.rail-hub-card\s*\{[^}]*display: block/,
+    'and the default shape stays stacked');
+});
+
+test('the brand name is text, not only a picture', () => {
+  /*
+    The mark is alt="", so it contributes nothing to the link's accessible
+    name. Remove the words and a screen reader hears "Explore Hub" with no
+    indication of WHICH hub. That is the reason the copy stays even though
+    the box is visually obvious.
+  */
+  const card = readSrc('src', 'components', 'HubCard.astro');
+  assert.match(card, /alt=""/, 'the mark is decorative');
+  assert.match(card, /Explore all our coverage, videos, and intel for \{brand\.title\}/,
+    'so the brand name must appear in the link text');
+});
+
+console.log('\npress feedback');
+
+test('every tappable tile responds to a touch, not only to a mouse', () => {
+  /*
+    ─── HOVER IS NOT AVAILABLE ON A TOUCHSCREEN ────────────────────────────
+
+    Both of these correctly gate their hover styling behind
+    `(hover: hover) and (pointer: fine)` — without it, a tap on a phone
+    leaves the tile stuck in its hover state until you touch something else.
+
+    But nothing replaced hover there, so on a phone and an iPad a tap did
+    nothing visible at all until the next page began to paint. `:active` is
+    the branch touch actually gets, and it must live OUTSIDE that media
+    query.
+  */
+  const targets = [
+    ['HubCard.astro', join('src', 'components', 'HubCard.astro'), '.rail-hub-card'],
+    ['referrals.css', join('src', 'styles', 'modules', 'referrals.css'), '.referral-item'],
+  ];
+
+  for (const [label, rel, sel] of targets) {
+    const code = readSrc(rel);
+    const escaped = sel.replace('.', '\\.');
+
+    assert.match(code, new RegExp(`${escaped}:active`),
+      `${label}: ${sel} has no :active state, so a touch device gets no feedback at all`);
+
+    /*
+      And it must not be nested inside the hover query, which would put it
+      right back out of reach of the devices that need it. Every
+      conditional block is cut out and the :active rule has to survive the
+      cut. See stripConditionalBlocks: both the hover query and the
+      reduced-motion query have to go, and the first version of this guard
+      could not fail because it only removed the first of them.
+    */
+    assert.match(stripConditionalBlocks(code), new RegExp(`${escaped}:active`),
+      `${label}: the :active rule only exists inside a media query. Inside the hover query it ` +
+        'is out of reach of touch, which is exactly what it is for; inside reduced-motion it ' +
+        'only cancels a transform.');
+  }
 });
 
 console.log('\nthe rail on a phone');

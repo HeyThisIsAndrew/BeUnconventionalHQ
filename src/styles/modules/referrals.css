@@ -101,6 +101,47 @@
   }
 }
 
+/*
+  ─── PRESS FEEDBACK, BECAUSE HOVER IS NOT AVAILABLE ON A TOUCHSCREEN ───────
+
+  The hover block above is correctly gated behind `(hover: hover) and
+  (pointer: fine)`: without that, a tap on a phone leaves the row stuck in its
+  hover state until you touch something else. But nothing replaced it there,
+  so tapping a partner row did nothing visible until the next page began to
+  load. Reported as "the tiles lack a hover state or an interaction when I
+  click them", on an iPhone and an iPad.
+
+  `:active` is deliberately OUTSIDE that media query. It is the branch a
+  touchscreen actually gets, and on a pointer device it doubles as the
+  mouse-down state.
+
+  It translates rather than scales: these rows are full-width, and scaling a
+  full-width row moves both its edges, which reads as the layout shifting.
+  `translateX` matches the direction the hover state already moves in.
+*/
+.referral-item:active {
+  border-color: rgba(204, 0, 0, 0.7);
+  background: rgba(204, 0, 0, 0.1);
+  transform: translateX(2px);
+}
+
+.referral-item:active .referral-icon {
+  color: var(--color-accent-text);
+}
+
+.referral-item:active .referral-label {
+  color: var(--color-white);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .referral-item {
+    transition: border-color 0.3s ease, background-color 0.3s ease;
+  }
+  .referral-item:active {
+    transform: none;
+  }
+}
+
 .referral-item:focus-visible {
   outline: 2px solid var(--color-white);
   outline-offset: 2px;
