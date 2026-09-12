@@ -87,12 +87,27 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
     rather than only at the very top edge.
   */
   let currentObserver: IntersectionObserver | null = null;
+  let teardownScroll: (() => void) | null = null;
   
-  function initArticleToc() {
+  /*
+    Tear down BEFORE the early returns below, not only on swap. initArticleToc
+    returns early on a page with no TOC, and the same mistake in FeedGrid is
+    already recorded there as "Memory leak fix: Cleanup old hashchange listener
+    before early returns on new pages".
+  */
+  function releaseArticleToc() {
     if (currentObserver) {
       currentObserver.disconnect();
       currentObserver = null;
     }
+    if (teardownScroll) {
+      teardownScroll();
+      teardownScroll = null;
+    }
+  }
+
+  function initArticleToc() {
+    releaseArticleToc();
     
     const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-toc-link]'));
     if (links.length === 0) return;
@@ -136,7 +151,30 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
 
         /*
           ─── NOTHING IN THE ZONE IS A POSITION, NOT A NON-EVENT ─────────────
-          This used to do nothing at all when the set emptied...
+
+          This used to do nothing at all when the set emptied, which left
+          whatever was highlighted last still highlighted. Reported as: read to
+          the end of an article, click the wordmark to jump to the top, and the
+          contents rail still points at the final section.
+
+          The set empties at BOTH ends of the article, and they are different
+          answers:
+
+            above the first heading  the masthead and hero fill the zone, so
+                                     nothing is in it. The reader is at the
+                                     start — highlight the FIRST entry.
+            below the last heading   every heading has scrolled past the
+                                     detection line. The reader is in the
+                                     footer — keep the LAST entry.
+
+          So the position is resolved from the headings themselves rather than
+          assumed. `ZONE_TOP` in syncFallback() is the same 80px the rootMargin
+          below uses; the two must agree or the rail disagrees with its own
+          detection line.
+
+          Doing this only when the set is empty keeps the normal scrolling path
+          untouched — that is still pure IntersectionObserver, no geometry read
+          per frame.
         */
         syncFallback();
       },
@@ -158,28 +196,35 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
       the boolean state didn't change! This debounced scroll listener catches 
       those teleports gracefully without polling layout geometry every frame.
     */
-    let scrollTimeout: ReturnType<typeof setTimeout>;
+    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
     const onScroll = () => {
       if (activeHeadings.size > 0) return;
-      clearTimeout(scrollTimeout);
+      if (scrollTimeout) clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(syncFallback, 50);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
-    const _win = window as any;
-    _win.__hqTocScrollHandler = onScroll;
+
+    /*
+      MODULE SCOPE, NOT `window`. This was stored as
+      `(window as any).__hqTocScrollHandler`, which works only while init and
+      teardown alternate perfectly: a second init without a swap between
+      overwrites the global and orphans the first listener, with no handle left
+      to remove it. `currentObserver` right above is already module-scoped for
+      exactly this reason, so the two now tear down the same way — and the cast
+      that was needed to satisfy strict TS goes away with the global.
+
+      The pending timer is cleared too. A scroll inside the last 50ms before a
+      ClientRouter swap otherwise leaves a callback holding the OLD page's
+      heading and link nodes until it fires.
+    */
+    teardownScroll = () => {
+      window.removeEventListener('scroll', onScroll);
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+      scrollTimeout = null;
+    };
   }
 
   document.addEventListener('astro:page-load', initArticleToc);
   
-  document.addEventListener('astro:before-swap', () => {
-    if (currentObserver) {
-      currentObserver.disconnect();
-      currentObserver = null;
-    }
-    const _win = window as any;
-    if (_win.__hqTocScrollHandler) {
-      window.removeEventListener('scroll', _win.__hqTocScrollHandler);
-      delete _win.__hqTocScrollHandler;
-    }
-  });
+  document.addEventListener('astro:before-swap', releaseArticleToc);
 </script>

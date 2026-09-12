@@ -343,13 +343,38 @@ test('below 1200px the support rail stacks instead of vanishing', () => {
   );
   assert.match(block, /\.desktop-only-toc \{\s*display: none/,
     'the TOC stays desktop-only: a jump-link list belongs beside the text or nowhere (but the rest of the rail stacks)');
-  assert.match(block, /grid-template-areas:[\s\S]*?"column"[\s\S]*?"support"[\s\S]*?"toc"/,
-    'the rail must stack AFTER the article, not before it');
+  /*
+    ONE DECLARATION, NOT THREE SIGHTINGS. This was
+    `/grid-template-areas:[\s\S]*?"column"[\s\S]*?"support"[\s\S]*?"toc"/`, and
+    `block` is everything from the media query to the END OF THE FILE, so the
+    lazy spans let it match `grid-template-areas:` in one rule and pick up
+    "toc" from some unrelated rule far below. Anchored to a single declaration
+    now: the areas must appear in that order inside one `grid-template-areas`.
+  */
+  const areas = block.match(/grid-template-areas:\s*((?:\s*"[^"]*")+)\s*;/);
+  assert.ok(areas, 'the stacked layout must declare grid-template-areas');
+  const order = [...areas[1].matchAll(/"([^"]*)"/g)].map((m) => m[1].trim());
+  assert.deepEqual(order, ['column', 'support', 'toc'],
+    'the rails must stack AFTER the article, not before it, and both of them must stack');
+
   assert.match(block, /\.article-rail-right \.article-rail-more \{\s*display: none/,
     '"More From Intel" must stay hidden when stacked, or it prints the same related ' +
       'articles the column already shows directly under them');
-  assert.match(block, /position: static/,
-    'a sticky element in a single-column flow pins itself to the viewport as you scroll past');
+
+  /*
+    BOTH rails, each asserted BY NAME. `position: static` unanchored passed on
+    the right rail's rule alone, so reverting the left rail to `display: none`
+    — the exact regression this test is named for — went green.
+  */
+  for (const side of ['left', 'right']) {
+    const rule = block.match(new RegExp(`\\.article-layout > \\.article-rail-${side} \\{([^}]*)\\}`));
+    assert.ok(rule, `the ${side} rail needs its own stacked rule, scoped under .article-layout ` +
+      'so it beats the global `.article-rail { position: sticky }` further down the file');
+    assert.match(rule[1], /display: block/,
+      `the ${side} rail must still RENDER when stacked; display:none is what took it off every phone`);
+    assert.match(rule[1], /position: static/,
+      `a sticky ${side} rail in a single-column flow pins itself to the viewport as you scroll past`);
+  }
 });
 
 test('the stacked gap is paid for once, not twice', () => {

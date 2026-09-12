@@ -522,9 +522,27 @@
   padding-right: 4px;
 }
 
-/* Ensure that whatever element ends up being the first visible block in a rail 
-   (e.g. if the TOC is empty) never has a top margin pushing it down. */
-.article-rail-sticky > :first-child {
+/*
+  SCOPED TO THE LEFT RAIL, and the reason is blast radius rather than tidiness.
+
+  This exists for one case: ArticleToc renders NOTHING when an article has
+  fewer than two headings, so "Stay Updated" becomes the first child and its
+  4rem top margin would open a gap at the top of the rail.
+
+  It shipped unscoped and `!important`, which reached every `.article-rail-
+  sticky` on the site — the intel right rail and both event templates — at
+  every viewport, where nothing may override it. Measured across those four
+  components at 1440 and 500: every first child already computed to
+  `margin-top: 0`, so it changed nothing today. It was a rule waiting to win an
+  argument nobody had had yet.
+
+  `!important` stays only because the margin it has to beat is an inline style
+  on the element itself. The right rail keeps its own scoped pair inside the
+  1200px media query above, including the `.article-rail-more + *` companion
+  for the case this selector cannot see: `display: none` does not stop
+  `:first-child` matching a hidden element.
+*/
+.article-rail-left .article-rail-sticky > :first-child {
   margin-top: 0 !important;
 }
 
