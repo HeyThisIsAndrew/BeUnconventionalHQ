@@ -220,7 +220,14 @@ test('both strings ship and CSS hides one with display', () => {
 });
 
 test('the swap is inside a mobile media query and guarded on has-compact-copy', () => {
-  const mobile = layout.slice(layout.indexOf('@media (max-width: 768px)'));
+  /*
+    520px, not 768px, and the number is measured: the longest full string needs
+    256px and the column is 293px at 520px wide. Swapping at the tablet
+    breakpoint meant a tablet read "Free Editor" with 163px of its column
+    empty. How the row is SPACED still changes at 768px; how long its copy can
+    be is a different question with a different answer.
+  */
+  const mobile = layout.slice(layout.indexOf('@media (max-width: 520px)'));
   assert.match(
     mobile,
     /\.yt-banner-text\.has-compact-copy\s+\.banner-copy-full\s*\{\s*display:\s*none;/,

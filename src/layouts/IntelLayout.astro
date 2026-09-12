@@ -585,20 +585,25 @@ const isEmpty = !hasMagazine && !hasArchive;
     */
     .yt-subscribe-banner {
       grid-template-columns:
-        clamp(44px, 13vw, 78px)
+        clamp(36px, 12vw, 78px)
         minmax(0, 1fr)
         clamp(16px, 5vw, 24px);
-      padding: 1.5rem clamp(0.75rem, 3.5vw, 1.5rem);
-      gap: clamp(0.5rem, 2.5vw, 1rem);
+      padding: 1.5rem clamp(1rem, 5.5vw, 1.75rem);
+      gap: clamp(0.625rem, 3.5vw, 1.25rem);
     }
 
     .yt-banner-logo {
-      height: clamp(26px, 8vw, 36px);
-      max-width: clamp(44px, 13vw, 78px);
+      height: clamp(24px, 8vw, 36px);
+      max-width: clamp(36px, 12vw, 78px);
     }
 
+    /*
+      The floor is lower than it looks because it is only reached by a 320px
+      screen, where the alternative is not bigger type, it is truncated type.
+      Everything from roughly 360px up reads at 11.5px or more.
+    */
     .yt-banner-text {
-      font-size: clamp(0.7rem, 3.4vw, 0.85rem);
+      font-size: clamp(0.64rem, 3.2vw, 0.85rem);
       letter-spacing: 0.05em;
     }
 
@@ -850,13 +855,23 @@ const isEmpty = !hasMagazine && !hasArchive;
     transform: translateX(4px);
   }
 
-  @media (max-width: 768px) {
-    /*
-      THE SWAP. Guarded on `has-compact-copy`: a partner with no compact string
-      keeps showing its full one here, because hiding it would leave the slide
-      with no text at all. Amazon is deliberately in that group — "Shop the HQ"
-      fits the narrowest phone as it is.
-    */
+  /*
+    THE SWAP, AND WHY ITS BREAKPOINT IS NOT 768px.
+
+    Guarded on `has-compact-copy`: a partner with no compact string keeps
+    showing its full one here, because hiding it would leave the slide with no
+    text at all. Amazon is deliberately in that group, since "Shop the HQ"
+    fits the narrowest phone as it is.
+
+    520px is measured, not the tablet breakpoint the rest of this sheet uses.
+    The longest full string, "Edit with DaVinci Resolve", needs 256px and the
+    text column is 293px at 520px wide, so everything above that fits with
+    room. Swapping at 768px instead meant a tablet was reading "Free Editor"
+    with 163px of the column sitting empty, which is not a fix, it is copy
+    thrown away. The chrome below still changes at 768px: how the row is
+    spaced and how long its copy can be are two different questions.
+  */
+  @media (max-width: 520px) {
     .yt-banner-text.has-compact-copy .banner-copy-full {
       display: none;
     }
@@ -864,7 +879,9 @@ const isEmpty = !hasMagazine && !hasArchive;
     .yt-banner-text.has-compact-copy .banner-copy-compact {
       display: block;
     }
+  }
 
+  @media (max-width: 768px) {
     .banner-metadata-row {
       justify-content: center;
       padding-left: 0;
