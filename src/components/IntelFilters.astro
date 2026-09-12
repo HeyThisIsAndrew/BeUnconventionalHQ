@@ -48,6 +48,7 @@
 import CategoryOverlay from './CategoryOverlay.astro';
 import { CATEGORIES } from '../data/constants.js';
 import { ARTICLE_SECTION } from '../data/sections.js';
+import { topicPath } from '../lib/articles';
 
 interface Props {
   /** The active category label, or null when nothing is filtered. */
@@ -66,7 +67,7 @@ const filterCategories = CATEGORIES.filter((category) => category !== 'General')
    behaviour as the desktop row. */
 const overlayItems = filterCategories.map((category) => {
   const slug = category.toLowerCase();
-  const hrefTarget = slug === 'events' ? '/events' : `/feed#${slug}`;
+  const hrefTarget = slug === 'events' ? '/events' : topicPath(category);
   return {
     label: category.toUpperCase(),
     href: active === category ? ARTICLE_SECTION.path : hrefTarget,
@@ -91,7 +92,7 @@ const overlayItems = filterCategories.map((category) => {
           again clears the filter. This is what replaces an "All" button.
         */
         const slug = category.toLowerCase();
-        const hrefTarget = slug === 'events' ? '/events' : `/feed#${slug}`;
+        const hrefTarget = slug === 'events' ? '/events' : topicPath(category);
         const href = isActive ? ARTICLE_SECTION.path : hrefTarget;
 
         return (

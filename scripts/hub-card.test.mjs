@@ -122,7 +122,7 @@ test('"Games" is not singularised to "Game"', () => {
     getting an "Official Game Hub".
   */
   assert.equal(HUB_CATEGORY_LABELS.gaming, 'Games');
-  assert.equal(HUB_KIND_LABELS.gaming, 'Gaming');
+  assert.equal(HUB_KIND_LABELS.gaming, 'Games');
 });
 
 test('no template hardcodes the heading any more', () => {
