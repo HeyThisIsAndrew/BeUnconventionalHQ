@@ -519,28 +519,40 @@ const isEmpty = !hasMagazine && !hasArchive;
     justify-self: end;
   }
 
-  /* HOVER STATES: Red border, box shadow glow, red text */
+  /*
+    ── HOVER: DELIBERATELY QUIET ────────────────────────────────────────────
+    This was a red border, a red glow and red text. The progress outline is
+    already drawing a red stroke along these exact edges, so hovering put two
+    reds within a pixel or two of each other and it read as a rendering fault
+    rather than a state. Reported as "the double overlapped red highlight".
+
+    Keyboard focus is NOT affected by any of this: the global `:focus-visible`
+    ring in styles/modules/a11y.css is imported last and wins the cascade, so
+    the white outline is what a keyboard user gets either way. That is why
+    quieting hover here costs no visibility, and why hover was never the right
+    place for the loud treatment.
+
+    What is left is a lift rather than a highlight: the plate brightens a
+    touch, the neutral border comes up, the copy's own underline draws in (the
+    site-wide red link cue, one pixel, inside the box and not on its edge) and
+    the arrow leans toward where it is going. The one red left on the edges is
+    the outline that means something.
+  */
   .yt-subscribe-banner:hover {
-    border-color: var(--color-accent);
-    background: #0a0a0a;
-    box-shadow: 0 0 24px rgba(204, 0, 0, 0.25);
+    border-color: rgba(255, 255, 255, 0.3);
+    background: #0d0d0d;
   }
 
   .yt-subscribe-banner:hover .yt-banner-logo {
     opacity: 1;
   }
 
-  .yt-subscribe-banner:hover .yt-banner-text {
-    color: var(--color-accent-text, #ff3333);
-    text-shadow: 0 0 12px rgba(204, 0, 0, 0.4);
-  }
-  
   .yt-subscribe-banner:hover .yt-banner-text::after {
     width: 100%;
   }
 
   .yt-subscribe-banner:hover .yt-banner-icon {
-    transform: scale(1.1);
+    transform: scale(1.05);
   }
 
   /* ── MOBILE ──────────────────────────────────────────────────────────────
@@ -792,14 +804,31 @@ const isEmpty = !hasMagazine && !hasArchive;
     scripts/ad-rotator-copy.test.mjs is what stops that reaching a phone.
   */
   .yt-banner-text--ad {
-    overflow: hidden;
-    text-overflow: ellipsis;
     display: block;
     min-width: 0; /* lets the grid column actually shrink below its content */
     max-width: 100%;
   }
 
+  /*
+    The backstop lives on the element that HOLDS the text, not on its parent.
+    On the parent, `overflow: hidden` also clipped the hover underline, which
+    sits at `bottom: -4px` — so the one hover cue the quiet treatment leaves
+    was invisible on every ad slide while rendering fine on the YouTube one.
+    Ellipsis on a parent never applied to an overflowing child block anyway,
+    which is why the copy used to be cut mid-letter instead of trailing off.
+  */
+  .yt-banner-text--ad .banner-copy-full,
+  .yt-banner-text--ad .banner-copy-compact {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
   /* Desktop: the full line, and the compact one is not in the page at all. */
+  .banner-copy-full {
+    display: block;
+  }
+
   .banner-copy-compact {
     display: none;
   }
@@ -815,8 +844,10 @@ const isEmpty = !hasMagazine && !hasArchive;
     transition: color 0.3s ease, transform 0.3s ease;
   }
   
+  /* The text arrow leans rather than changing colour: the colour change was
+     one more red arriving at the same moment as the others. */
   .yt-subscribe-banner:hover .yt-banner-icon--ad {
-    color: var(--color-accent-text);
+    transform: translateX(4px);
   }
 
   @media (max-width: 768px) {

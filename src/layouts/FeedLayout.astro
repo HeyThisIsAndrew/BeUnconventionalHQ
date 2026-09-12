@@ -28,11 +28,7 @@ import QuadrantFilter from '../components/QuadrantFilter.astro';
 interface Props {
   title: string;
   description: string;
-  /**
-   * The page's own heading. Rendered sr-only so card <h3>s don't skip a level
-   * (axe: heading-order) — and, when `hideHero` drops the visible lockup, as
-   * the page's <h1>. See the note at the <h1>/<h2> below.
-   */
+  /** sr-only <h2> so card <h3>s don't skip a level (axe: heading-order). */
   headingLabel: string;
   page: { url: { prev?: string; next?: string } };
   /** QuadrantFilter's nav mode — on for the top-level feeds, off for category pages. */
@@ -66,6 +62,10 @@ interface Props {
    * .sr-only, because deleting it leaves the page with no heading at all,
    * which is an empty document outline for a screen reader and a missing-h1
    * finding for the SEO audit. See the note in src/pages/events/[...page].astro.
+   *
+   * The prototype this came from dropped the element outright, so /intel —
+   * the section whose entire point is search visibility — shipped with no h1
+   * and a document outline that started at h2.
    */
   hideHero?: boolean;
 }
@@ -102,13 +102,21 @@ const {
       </slot>
 
       {/*
-        One heading, two typographies. With the lockup shown, <PageTitle> is
-        the <h1> and this is the sr-only <h2> that keeps card <h3>s from
-        skipping a level. With the lockup hidden there is no other heading on
-        the page, so this element IS the <h1> — the level moves, the text does
-        not. Never let both branches render an h2: that is a page with no h1.
+        The page's <h1> when the lockup is hidden. Text is <PageTitle>'s own
+        words, so the visible and hidden paths name the page identically.
+
+        It is a SEPARATE element from the sr-only <h2> below rather than that
+        element promoted to an h1, which was the first attempt and traded one
+        finding for another: with a single sr-only h1 here the card <h3>s skip
+        a level straight from h1 (axe: heading-order). Both are needed, and
+        CLAUDE.md says so directly: a card grid under an h1 gets a structural
+        sr-only h2.
       */}
-      {hideHero ? <h1 class="sr-only">{headingLabel}</h1> : <h2 class="sr-only">{headingLabel}</h2>}
+      {hideHero && <h1 class="sr-only">{titlePrimary} {titleSecondary}</h1>}
+
+      {/* Structural, and sr-only in BOTH paths: with the lockup shown the h1
+          is <PageTitle> above, with it hidden the h1 is the line above this. */}
+      <h2 class="sr-only">{headingLabel}</h2>
 
       <slot />
     </div>
