@@ -389,6 +389,27 @@ test('the stacked gap is paid for once, not twice', () => {
   assert.match(block, /\.article-rail-right \.article-rail-more \+ \*,?\s*\{?[\s\S]{0,80}margin-top: 0/,
     'and the first VISIBLE block gives up its own margin. `display: none` does not stop ' +
       ':first-child matching, so the hidden "More From Intel" must be reached as a sibling.');
+
+  /*
+    BOTH RAILS, because the left one repeated the mistake. PR #225 put "Stay
+    Updated" in the left rail with an inline `margin-top: 4rem` to clear the
+    Table of Contents above it — and below 1200px that TOC is `display: none`,
+    so the 4rem cleared nothing and simply added to the row-gap. Measured at
+    390px: 120px above the block against 56px for every other stacked gap.
+  */
+  assert.match(block, /\.article-rail-left \.article-rail-stay \{\s*margin-top: 0/,
+    'the left rail must give up its margin when stacked too, or the gap is paid twice');
+
+  /*
+    And it must be a CLASS, not an inline style. Inline can only be beaten
+    with `!important`, which is how that rule ended up unscoped and reaching
+    every rail on the site.
+  */
+  const page = readSrc('src', 'pages', 'intel', '[slug].astro');
+  assert.doesNotMatch(page, /style="margin-top: 4rem;?"/,
+    'the Stay Updated margin belongs in article.css as .article-rail-stay, not inline');
+  assert.match(page, /class="article-rail-desk article-rail-stay/,
+    'and the block has to carry the class the stylesheet targets');
 });
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);
