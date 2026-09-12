@@ -20,7 +20,7 @@ import IntelLayout from '../../../../layouts/IntelLayout.astro';
 import { site } from '../../../../data/site.js';
 import { ARTICLE_SECTION, MAGAZINE_SIZE } from '../../../../data/sections.js';
 import { MESSAGES } from '../../../../data/content.js';
-import { CATEGORIES } from '../../../../data/constants.js';
+import { CATEGORIES, tagMatchesCategory } from '../../../../data/constants.js';
 import { getArticleFeedItems } from '../../../../lib/articles';
 import { getVideoItems } from '../../../../lib/feed-items';
 import type { GetStaticPathsOptions } from 'astro';
@@ -48,7 +48,11 @@ export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
     and we need one flat list of them all.
   */
   return CATEGORIES.filter((c) => c !== 'General').flatMap((category) => {
-    const inCategory = allArticles.filter((article) => article.category === category);
+    const slug = category.toLowerCase();
+    const inCategory = allArticles.filter((article) => {
+      const itemTags = Array.isArray(article.tags) ? article.tags : [article.category || 'general'];
+      return itemTags.some((t: any) => tagMatchesCategory(slug, t));
+    });
 
     return paginate(inCategory.slice(MAGAZINE_SIZE), {
       // `params` fills the [category] slot in this file's path.
