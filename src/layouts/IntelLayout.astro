@@ -244,7 +244,29 @@ const isEmpty = !hasMagazine && !hasArchive;
       };
 
       restartProgress();
-      (window as any).__bannerRotatorInterval = setInterval(goToNextSlide, holdDuration);
+      
+      const startRotation = () => {
+        if (!(window as any).__bannerRotatorInterval) {
+          (window as any).__bannerRotatorInterval = setInterval(goToNextSlide, holdDuration);
+        }
+      };
+
+      const stopRotation = () => {
+        if ((window as any).__bannerRotatorInterval) {
+          clearInterval((window as any).__bannerRotatorInterval);
+          (window as any).__bannerRotatorInterval = null;
+        }
+      };
+
+      startRotation();
+
+      const bannerWrapper = document.querySelector('.yt-banner-wrapper');
+      if (bannerWrapper) {
+        bannerWrapper.addEventListener('mouseenter', stopRotation);
+        bannerWrapper.addEventListener('mouseleave', startRotation);
+        bannerWrapper.addEventListener('focusin', stopRotation);
+        bannerWrapper.addEventListener('focusout', startRotation);
+      }
     });
   </script>
 
@@ -524,6 +546,11 @@ const isEmpty = !hasMagazine && !hasArchive;
     stroke-dashoffset: 100;
     opacity: 0; /* Let keyframes handle the opacity entirely */
     animation: perimeterFill 8s linear forwards;
+  }
+
+  .yt-banner-wrapper:hover #banner-progress-rect,
+  .yt-banner-wrapper:focus-within #banner-progress-rect {
+    animation-play-state: paused;
   }
 
   @keyframes perimeterFill {
