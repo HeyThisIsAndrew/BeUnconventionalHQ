@@ -617,7 +617,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
                   class="hub-stage-iframe"
                   src="about:blank"
                   data-src={`https://www.youtube-nocookie.com/embed/${trailerId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&disablekb=1&iv_load_policy=3&cc_load_policy=0&controls=0&enablejsapi=1`}
-                  title=""
+                  title={event.title ? `${event.title} Trailer` : "Event Trailer"}
                   aria-hidden="true"
                   tabindex="-1"
                   loading="lazy"
@@ -761,7 +761,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
                 to be a plain block comment rather than a JSX one, because this
                 is a JS expression, not JSX children. Both were tried.
               */
-              <div class="hub-rail" role="group" aria-label={`Recent ${event.title} coverage`}>
+              <div class="hub-rail" role="group" aria-label={`Recent ${event.title || 'event'} coverage`}>
                 {heroItems.map((item: any, i: number) => (
                   <button
                     type="button"
@@ -851,7 +851,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
                         {' — '}
                       </Fragment>
                     )}
-                    three unforgettable days of showcases, sneak peeks, exclusive shopping, and once-in-a-lifetime experiences.
+                    Join us for an incredible experience. Check back soon for more details about the schedule, programming, and exclusive announcements.
                   </p>
                 </Fragment>
               )}
@@ -1746,8 +1746,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
        the description expands — an accepted trade for full coverage. */
     object-fit: cover;
     object-position: center 22%;
-    width: 100%;
-    height: 100%;
+    /* Width and height removed so it respects inset sizing (fixing the -12% cut-off) */
     /* translateZ(0) promotes this layer to its own compositor layer. Without
        it, the overlay's backdrop-filter blur stops the animated transform from
        repainting (issue #22 root cause) — keep it in the base AND in every
@@ -2732,7 +2731,15 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
   @media (max-width: 639px) {
     /* On a small stage the word is what gets cut. The glyph still says it. */
     .hub-stage-sound-label { display: none; }
-    .hub-stage-sound { padding: 0.4rem; }
+    .hub-stage-sound { 
+      padding: 0.4rem; 
+      min-height: 44px; 
+      min-width: 44px;
+      justify-content: center;
+    }
+    .hub-stage-replay {
+      min-height: 44px;
+    }
   }
 
   .hero-trailer {
@@ -2788,6 +2795,9 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.62);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 
   /*
@@ -3094,6 +3104,14 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
     padding-bottom: 2px;
     transition: color 0.3s ease, background-size 0.3s ease;
     display: inline-block;
+    overflow-wrap: anywhere;
+    word-break: break-all;
+  }
+  @media (max-width: 639px) {
+    .press-desk-link {
+      padding: 0.5rem 0;
+      background-position: 0 calc(100% - 0.4rem);
+    }
   }
   .press-desk-link:hover,
   .press-desk-link:focus-visible {
