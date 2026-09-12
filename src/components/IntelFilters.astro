@@ -2,8 +2,8 @@
 /**
  * IntelFilters — the category filter row on /intel.
  *
- * ─── IT MUST MATCH THE FEED ───────────────────────────────────────────────
- * Same four buttons, same look, same behaviour:
+ * ─── IT MUST BEHAVE LIKE THE FEED ─────────────────────────────────────────
+ * Same four buttons, same control, same behaviour:
  *
  *   • The four canonical categories are ALWAYS shown — FILM, TV, GAMES,
  *     EVENTS — even when a category has no articles yet. A filter row that
@@ -18,6 +18,20 @@
  *   • The buttons are the Feed's own control (`.quadrant-btn .cat-btn`,
  *     defined in styles/modules/filters.css), so hover, focus and the red
  *     active glow are identical by construction, not by copying.
+ *
+ * ─── WHERE IT DELIBERATELY LOOKS DIFFERENT ────────────────────────────────
+ * This row is SLIMMER than the Feed's: /intel puts it above a magazine
+ * spread rather than under a full-height title, and at the Feed's size it
+ * was the loudest thing on the page. `.intel-filter-grid` narrows and
+ * re-gaps the row and `.intel-compact-btn` takes the buttons down a size.
+ *
+ * Both are MODIFIERS on the shared classes, never replacements. The columns
+ * still come from `.filter-grid` in filters.css and the button skin still
+ * comes from `.quadrant-btn`/`.cat-btn` — re-declaring
+ * `grid-template-columns` here is precisely how this row and the Feed's
+ * drifted apart the first time. A local flex row also loses what the shared
+ * grid gives for free: add a fifth category to CATEGORIES and the grid wraps,
+ * where a nowrap row would have squeezed or overflowed it.
  *
  * ─── HOW IT DIFFERS FROM THE FEED UNDER THE HOOD ──────────────────────────
  * The Feed filters client-side using a URL hash. These are real links to real
@@ -64,7 +78,7 @@ const overlayItems = filterCategories.map((category) => ({
 <CategoryOverlay items={overlayItems} />
 
 <div class="intel-filter-nav" role="navigation" aria-label={`${ARTICLE_SECTION.name} categories`}>
-  <div class="filter-grid">
+  <div class="filter-grid intel-filter-grid">
     {
       filterCategories.map((category) => {
         const isActive = active === category;
@@ -78,7 +92,7 @@ const overlayItems = filterCategories.map((category) => ({
         return (
           <a
             href={href}
-            class:list={['quadrant-btn', 'cat-btn', { active: isActive }]}
+            class:list={['quadrant-btn', 'cat-btn', 'intel-compact-btn', { active: isActive }]}
             data-category={category.toLowerCase()}
             aria-current={isActive ? 'true' : undefined}
           >
@@ -91,16 +105,34 @@ const overlayItems = filterCategories.map((category) => ({
 </div>
 
 <style>
-  /*
-    Spacing only. The grid itself (columns AND the 1rem gap between buttons)
-    comes from the shared `.filter-grid` rule in styles/modules/filters.css,
-    which the Feed uses too — so the two rows are identical by construction.
-    Do NOT re-declare grid-template-columns or gap here; that is exactly how
-    they drifted apart the first time.
-  */
   .intel-filter-nav {
     width: 100%;
-    margin-bottom: 3.5rem;
+    margin-top: 1rem;
+    margin-bottom: 2.5rem;
+  }
+
+  /*
+    A MODIFIER on .filter-grid (styles/modules/filters.css), which is where the
+    columns come from — `repeat(auto-fit, minmax(140px, 1fr))`, so the buttons
+    are already equal widths and already wrap if the category list grows. All
+    this adds is the narrower measure /intel wants and a tighter gap. Do not
+    re-declare grid-template-columns here.
+  */
+  .intel-filter-grid {
+    gap: 0.75rem;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  /*
+    Same control, one size down. Colour, hover, focus ring and the square
+    edges all still come from .quadrant-btn/.cat-btn; only the metrics that
+    make it slim are local.
+  */
+  .intel-compact-btn {
+    padding: 0.85rem 0.5rem;
+    font-size: 0.85rem;
+    letter-spacing: 0.1em;
   }
 
   /* Below 768px the inline row is replaced by <CategoryOverlay />'s single

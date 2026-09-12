@@ -52,6 +52,22 @@ interface Props {
    * See the matching sitemap exclusion in astro.config.mjs.
    */
   noindex?: boolean;
+  /**
+   * Drop the big <PageTitle> lockup. /intel sets it: its magazine spread is
+   * the opening statement, so a full-height title above it was a screen of
+   * furniture before any content.
+   *
+   * It does NOT drop the page's heading — only its typography. Same call
+   * /events made when it was asked for the same thing: the <h1> stays as
+   * .sr-only, because deleting it leaves the page with no heading at all,
+   * which is an empty document outline for a screen reader and a missing-h1
+   * finding for the SEO audit. See the note in src/pages/events/[...page].astro.
+   *
+   * The prototype this came from dropped the element outright, so /intel —
+   * the section whose entire point is search visibility — shipped with no h1
+   * and a document outline that started at h2.
+   */
+  hideHero?: boolean;
 }
 
 const {
@@ -68,20 +84,38 @@ const {
   preloadImageSrcset = null,
   preloadImageSizes = null,
   noindex = false,
+  hideHero = false,
 } = Astro.props;
 ---
 
 <Layout title={title} description={description} prevUrl={page.url.prev} nextUrl={page.url.next} preloadImage={preloadImage} preloadImageSrcset={preloadImageSrcset} preloadImageSizes={preloadImageSizes} noindex={noindex}>
   <main class:list={['feed-page', 'flex-1', 'flex', 'flex-col', 'w-full', mainClass]}>
     <div class="container-page flex-1 flex flex-col">
-      <header class="section-header animate-on-scroll" data-nav-anchor>
-        <PageTitle as="h1" kicker={kicker} primary={titlePrimary} secondary={titleSecondary} />
-      </header>
+      {!hideHero && (
+        <header class="section-header animate-on-scroll" data-nav-anchor>
+          <PageTitle as="h1" kicker={kicker} primary={titlePrimary} secondary={titleSecondary} />
+        </header>
+      )}
 
       <slot name="filters">
         <QuadrantFilter showTypes={true} isNavMode={isNavMode} />
       </slot>
 
+      {/*
+        The page's <h1> when the lockup is hidden. Text is <PageTitle>'s own
+        words, so the visible and hidden paths name the page identically.
+
+        It is a SEPARATE element from the sr-only <h2> below rather than that
+        element promoted to an h1, which was the first attempt and traded one
+        finding for another: with a single sr-only h1 here the card <h3>s skip
+        a level straight from h1 (axe: heading-order). Both are needed, and
+        CLAUDE.md says so directly: a card grid under an h1 gets a structural
+        sr-only h2.
+      */}
+      {hideHero && <h1 class="sr-only">{titlePrimary} {titleSecondary}</h1>}
+
+      {/* Structural, and sr-only in BOTH paths: with the lockup shown the h1
+          is <PageTitle> above, with it hidden the h1 is the line above this. */}
       <h2 class="sr-only">{headingLabel}</h2>
 
       <slot />

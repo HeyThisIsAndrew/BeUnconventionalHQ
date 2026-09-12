@@ -35,7 +35,7 @@ import { createTwitchClient } from '../../lib/platforms/twitch';
 
 export const prerender = false;
 
-/** Be Unconventional HQ — same channel content-source.js syncs from. */
+/** Be Unconventional HQ — same channel scripts/sync-youtube.mjs syncs from. */
 const DEFAULT_CHANNEL_ID = 'UCXqU6781pQgYXDExLvMw2Og';
 
 function json(body: LiveStatusResult, cacheControl: string): Response {

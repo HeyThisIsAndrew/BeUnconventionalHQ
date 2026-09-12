@@ -24,7 +24,21 @@
  *             rail.
  *   href      the tagged referral / affiliate URL.
  *   blurb     one line on why it is here. Write it honestly; every one of
- *             these is something actually in use.
+ *             these is something actually in use. This is the RAIL's copy, a
+ *             sentence in a column that can wrap. The /intel rotator does NOT
+ *             read it -- see `bannerText`.
+ *   bannerText        the line the /intel ad rotator shows. That banner is one
+ *             strict grid row (logo | text | arrow) that never wraps, so this
+ *             is a short CTA, not a sentence. Falls back to `label` when unset.
+ *             Kept separate from `blurb` on purpose: the two surfaces have
+ *             nothing like the same amount of room, and writing one line for
+ *             both is how the rail ended up captioned with CTA fragments.
+ *   bannerTextCompact OPTIONAL. `bannerText` shortened for narrow screens
+ *             (<=768px), where the banner's text column is roughly half as
+ *             wide. Both strings ship in the markup and CSS shows exactly one,
+ *             so leaving this off means `bannerText` is what a phone gets --
+ *             only omit it when that genuinely fits. Budget: about 20
+ *             characters, guarded by scripts/ad-rotator-copy.test.mjs.
  *   icon      a key from BRAND_ICONS (src/data/icons.js).
  *   offer     OPTIONAL. A concrete incentive for the reader ("$15 renewal
  *             credit"). Rendered as a highlighted tag, so use it only when
@@ -52,6 +66,8 @@ import davinciResolveImg from '../assets/partners/davinci-resolve.png';
  * @property {string}  label      short display name
  * @property {string}  href       the tagged referral / affiliate URL
  * @property {string}  blurb      one honest line on why it is here
+ * @property {string}  [bannerText]        short CTA for the /intel rotator
+ * @property {string}  [bannerTextCompact] `bannerText` for narrow screens
  * @property {string}  [icon]     a key from BRAND_ICONS (src/data/icons.js)
  * @property {any}      [image]    an imported image asset for the partner
  * @property {string}  [offer]    concrete reader incentive, e.g. "$15 credit"
@@ -87,6 +103,9 @@ export const REFERRAL_GROUPS = [
            footer's social row already links to the same value. */
         href: site.socials.amazon,
         blurb: 'Desk upgrades, 4K Blu-rays and the lore books worth owning.',
+        /* Short enough for the narrowest phone as it is, so it carries no
+           compact variant: one string at every width. */
+        bannerText: 'Shop the HQ',
         icon: 'amazon',
       },
     ],
@@ -100,6 +119,8 @@ export const REFERRAL_GROUPS = [
         label: 'Mint Mobile',
         href: 'https://my.mintmobile.com/refer/pHvGFQz',
         blurb: 'The wireless plan that keeps on-location coverage affordable.',
+        bannerText: 'Switch to Mint Mobile',
+        bannerTextCompact: 'Switch Cell Service',
         offer: '$15 renewal credit',
         image: mintMobileImg,
       },
@@ -109,15 +130,21 @@ export const REFERRAL_GROUPS = [
     id: 'gear',
     title: 'Cinematic Filming Gear',
     note: 'The exact kit behind the deep dives.',
-    items: [
-      {
-        label: 'Gear Shop',
-        href: 'https://a.co/d/0aczEbZw',
-        blurb: 'Behind the desk All The Camera Gear.',
-        icon: 'aperture',
-        affiliate: true,
-      }
-    ],
+    /*
+      EMPTY ON PURPOSE, AND NOT A STUB WAITING TO BE FILLED.
+
+      There was a "Gear Shop" entry here pointing at https://a.co/d/0aczEbZw.
+      That is the same Amazon influencer storefront as "Amazon Storefront" in
+      The HQ Launchpad above, so it was a second door onto one destination:
+      two rows in the rail, two slides in the /intel rotator, one place to
+      land. It was removed for being redundant, not for being unfinished.
+
+      getReferralGroups() drops a group with no usable items, so this group
+      renders nowhere and costs nothing. Do not re-add a link here unless the
+      gear list gets a destination of its own that the storefront does not
+      already cover.
+    */
+    items: [],
   },
   {
     id: 'software',
@@ -128,6 +155,8 @@ export const REFERRAL_GROUPS = [
         label: 'DaVinci Resolve',
         href: 'https://www.blackmagicdesign.com/products/davinciresolve',
         blurb: 'Best FREE Editor for creators',
+        bannerText: 'Edit with DaVinci Resolve',
+        bannerTextCompact: 'Free Editor',
         image: davinciResolveImg,
         /* Blackmagic runs no affiliate programme — this is a straight
            recommendation, and the flag keeps the disclosure truthful. */

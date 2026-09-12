@@ -1,7 +1,9 @@
 /**
  * Canonical content categories. These exact labels are produced by
- * `scripts/fetch-feeds.mjs` (the `categorize()` helper) and used for filtering
- * across the Videos and Articles pages.
+ * `categorize()` in src/data/categorize.js and used for filtering across the
+ * Videos and Articles pages. That function's SIGNALS keys must stay in step
+ * with this list: a label there with no entry here is a category nothing can
+ * filter by.
  */
 export const CATEGORIES = ['Film', 'TV', 'Games', 'Events', 'General'];
 

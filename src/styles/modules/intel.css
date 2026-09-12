@@ -14,7 +14,14 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 2.15fr) minmax(0, 1fr);
   gap: 0;
-  margin-bottom: var(--space-section);
+  /* Deliberately 0, at every width. The spread's bottom border now runs
+     straight into the ad rotator's own 4rem of padding, and a section margin
+     on top of that opened a gap the borders made obvious. The rotator owns the
+     space between them — see .yt-banner-wrapper in layouts/IntelLayout.astro.
+     The two responsive overrides that used to re-add 3.5rem/2.5rem here are
+     gone for the same reason; do not put them back without taking the
+     rotator's padding out first. */
+  margin-bottom: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.09);
   border-bottom: 1px solid rgba(255, 255, 255, 0.09);
 }
@@ -619,10 +626,6 @@
   .intel-rail-item {
     padding: 1.5rem 1.25rem;
   }
-
-  .intel-magazine {
-    margin-bottom: 3.5rem;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -844,10 +847,6 @@
   }
 
   /* Tighter rhythm for what remains. */
-  .intel-magazine {
-    margin-bottom: 2.5rem;
-  }
-
   .intel-break {
     margin-bottom: 3rem;
   }
