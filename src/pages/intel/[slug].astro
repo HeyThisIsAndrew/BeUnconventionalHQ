@@ -35,6 +35,9 @@ import ArticleSupportRail from '../../components/ArticleSupportRail.astro';
 import ArticleAuthorBlock from '../../components/ArticleAuthorBlock.astro';
 import SubstackGallery from '../../components/SubstackGallery.astro';
 import YouTubeEmbed from '../../components/YouTubeEmbed.astro';
+import ReferralLinks from '../../components/ReferralLinks.astro';
+import GooglePreferredSourceDeeplink from '@puralex/astro-google-preferred-source/components/GooglePreferredSourceDeeplink.astro';
+import { REFERRAL_HEADING } from '../../data/referrals.js';
 import { site } from '../../data/site.js';
 import { LABELS } from '../../data/content.js';
 import {
@@ -368,7 +371,24 @@ const breadcrumbSchema = {
       {/* Three columns on desktop; the rails drop away below 1200px and the
           reading column becomes the page. */}
       <div class="article-layout">
-        <ArticleToc entries={tocEntries} landmarks={tocLandmarks} />
+        <aside class="article-rail article-rail-left" aria-labelledby="article-toc-head">
+          <div class="article-rail-sticky">
+            <div class="desktop-only-toc">
+              <ArticleToc entries={tocEntries} landmarks={tocLandmarks} />
+            </div>
+
+            <div class="article-rail-desk pb-2 mt-14">
+              <p class="article-rail-head">Stay Updated</p>
+              <div class="flex justify-start py-2">
+                <GooglePreferredSourceDeeplink url="beunconventionalhq.com" variant="glow" theme="dark" label="Follow on Google Search" />
+              </div>
+            </div>
+
+            <div class="article-rail-support mt-14">
+              <ReferralLinks compact heading={REFERRAL_HEADING} />
+            </div>
+          </div>
+        </aside>
 
         <article class="article-column">
           <nav aria-label="Breadcrumb" class="article-breadcrumbs">

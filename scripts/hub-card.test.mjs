@@ -341,9 +341,9 @@ test('below 1200px the support rail stacks instead of vanishing', () => {
     'article.css hides BOTH rails again. That takes the hub card, the editorial desk and ' +
       'Support The HQ off every phone and tablet.',
   );
-  assert.match(block, /\.article-rail-left \{\s*display: none/,
-    'the TOC stays desktop-only: a jump-link list belongs beside the text or nowhere');
-  assert.match(block, /grid-template-areas:\s*\n?\s*"column"\s*\n?\s*"support"/,
+  assert.match(block, /\.desktop-only-toc \{\s*display: none/,
+    'the TOC stays desktop-only: a jump-link list belongs beside the text or nowhere (but the rest of the rail stacks)');
+  assert.match(block, /grid-template-areas:[\s\S]*?"column"[\s\S]*?"support"[\s\S]*?"toc"/,
     'the rail must stack AFTER the article, not before it');
   assert.match(block, /\.article-rail-right \.article-rail-more \{\s*display: none/,
     '"More From Intel" must stay hidden when stacked, or it prints the same related ' +
