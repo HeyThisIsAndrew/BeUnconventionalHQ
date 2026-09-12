@@ -75,7 +75,7 @@ export const HUB_KIND_LABELS: Record<string, string> = {
   universes: 'Franchise',
   streaming: 'Streamer',
   studios: 'Studio',
-  gaming: 'Gaming',
+  gaming: 'Games',
 };
 
 /**

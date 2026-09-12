@@ -22,11 +22,12 @@ const currentPath = Astro.url.pathname;
 const overlayItems = categories.map((c) => {
   const slug = c.toLowerCase();
   const isFeedContext = currentPath.startsWith('/feed');
+  const isActive = !isFeedContext && currentPath.startsWith(`/category/${slug}`);
   return {
     label: c.toUpperCase(),
-    href: isFeedContext ? `#${slug}` : `/category/${slug}`,
+    href: isFeedContext ? `#${slug}` : (isActive ? '/feed' : `/category/${slug}`),
     slug,
-    active: !isFeedContext && currentPath.startsWith(`/category/${slug}`),
+    active: isActive,
   };
 });
 ---
@@ -124,7 +125,7 @@ const overlayItems = categories.map((c) => {
           const isActive = !isFeedContext && currentPath.startsWith(`/category/${slug}`);
           const className = `quadrant-btn cat-btn ${isActive ? 'active' : ''}`;
           
-          const hrefTarget = isFeedContext ? `#${slug}` : expectedHubPath;
+          const hrefTarget = isFeedContext ? `#${slug}` : (isActive ? '/feed' : expectedHubPath);
 
           return (
             <a href={hrefTarget} class={className} data-category={slug} aria-current={isActive ? 'true' : undefined}>
