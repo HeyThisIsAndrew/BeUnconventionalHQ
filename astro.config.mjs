@@ -688,7 +688,7 @@ export default defineConfig({
       },
     }),
     react(),
-    googlePreferredSource(),
+    googlePreferredSource({ injectScript: false }),
     {
       name: 'dev-only-routes',
       hooks: {
