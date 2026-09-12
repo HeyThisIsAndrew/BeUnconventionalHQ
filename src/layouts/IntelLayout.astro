@@ -165,10 +165,8 @@ const isEmpty = !hasMagazine && !hasArchive;
         </a>
       ))}
 
-      {/* PERIMETER FLIP PROGRESS INDICATOR */}
-      <svg class="banner-perimeter-svg" id="banner-progress">
-        <rect id="banner-progress-rect" x="0" y="0" width="100%" height="100%" fill="none" pathLength="100"></rect>
-      </svg>
+      {/* BOTTOM EDGE PROGRESS INDICATOR */}
+      <div class="banner-progress-bar" id="banner-progress"></div>
     </div>
 
     {/* METADATA DISCLOSURE ROW */}
@@ -205,11 +203,11 @@ const isEmpty = !hasMagazine && !hasArchive;
       });
 
       const restartProgress = () => {
-        const oldSvg = document.getElementById('banner-progress');
-        if (!oldSvg) return;
-        const newSvg = oldSvg.cloneNode(true);
-        if (oldSvg.parentNode) {
-          oldSvg.parentNode.replaceChild(newSvg, oldSvg);
+        const oldBar = document.getElementById('banner-progress');
+        if (!oldBar) return;
+        const newBar = oldBar.cloneNode(true);
+        if (oldBar.parentNode) {
+          oldBar.parentNode.replaceChild(newBar, oldBar);
         }
       };
 
@@ -528,36 +526,32 @@ const isEmpty = !hasMagazine && !hasArchive;
     z-index: 1;
   }
 
-  /* PERIMETER PROGRESS INDICATOR */
-  .banner-perimeter-svg {
+  /* BOTTOM EDGE PROGRESS INDICATOR */
+  .banner-progress-bar {
     grid-column: 1 / 2;
     grid-row: 1 / 2;
+    align-self: end;
     width: 100%;
-    height: 100%;
+    height: 2px;
+    background: var(--color-accent, #ff3333);
     pointer-events: none;
     z-index: 10;
-    overflow: visible; /* Allows the stroke to perfectly trace the outside edge */
+    transform-origin: left;
+    transform: scaleX(0);
+    opacity: 0;
+    animation: progressFill 8s linear forwards;
   }
 
-  #banner-progress-rect {
-    stroke: var(--color-accent, #ff3333);
-    stroke-width: 2px;
-    stroke-dasharray: 100;
-    stroke-dashoffset: 100;
-    opacity: 0; /* Let keyframes handle the opacity entirely */
-    animation: perimeterFill 8s linear forwards;
-  }
-
-  .yt-banner-wrapper:hover #banner-progress-rect,
-  .yt-banner-wrapper:focus-within #banner-progress-rect {
+  .yt-banner-wrapper:hover .banner-progress-bar,
+  .yt-banner-wrapper:focus-within .banner-progress-bar {
     animation-play-state: paused;
   }
 
-  @keyframes perimeterFill {
-    0% { stroke-dashoffset: 100; opacity: 0; }
-    5% { opacity: 0.8; }
-    85% { opacity: 0.8; }
-    100% { stroke-dashoffset: 0; opacity: 0; }
+  @keyframes progressFill {
+    0% { transform: scaleX(0); opacity: 0; }
+    5% { opacity: 1; }
+    85% { opacity: 1; }
+    100% { transform: scaleX(1); opacity: 0; }
   }
 
   /* METADATA DISCLOSURE ROW */
