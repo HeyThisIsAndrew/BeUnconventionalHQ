@@ -262,15 +262,13 @@ const { items, buttonLabel = LABELS.categories } = Astro.props;
     FeedGrid's chunk, and /category/[category] does not load that chunk, so
     the label quietly stopped updating there.
 
-    Guarded on the desktop row EXISTING rather than on finding an active
-    button in it. /intel renders this overlay from IntelFilters, which has no
-    `.desktop-category-row` at all; without the guard the handler would run
-    there and overwrite whatever `buttonLabel` that surface asked for with a
-    hardcoded default.
+    Guarded on a known desktop row EXISTING (either the Feed's or the Intel page's)
+    rather than on finding an active button in it. This ensures we don't accidentally
+    overwrite button labels on pages where this overlay might be used differently.
   */
   document.addEventListener('astro:page-load', () => {
     const openBtn = document.getElementById('open-categories-btn');
-    const desktopRow = document.querySelector('.desktop-category-row');
+    const desktopRow = document.querySelector('.desktop-category-row, .intel-filter-nav');
     if (!openBtn || !desktopRow) return;
 
     const activeCat = desktopRow.querySelector('.cat-btn.active');

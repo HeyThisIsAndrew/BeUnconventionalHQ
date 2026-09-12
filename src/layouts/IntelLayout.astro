@@ -43,6 +43,18 @@ import GooglePreferredSourceDeeplink from '@puralex/astro-google-preferred-sourc
 import { ARTICLE_SECTION } from '../data/sections.js';
 import { LABELS } from '../data/content.js';
 import { getCardImageSources } from '../lib/card-images.js';
+import { Image } from 'astro:assets';
+import logoImage from '../assets/logo-mark.webp';
+import { getReferralItems, referralRel } from '../data/referrals.js';
+import { BRAND_ICONS } from '../data/icons.js';
+
+const adItems = getReferralItems();
+
+const getAdMeta = (item: any) => {
+  if (item.offer) return 'REFERRAL';
+  if (item.affiliate === false) return 'TOOLS';
+  return 'AFFILIATE';
+};
 
 interface Props {
   /** Browser tab / SEO title. */
@@ -130,11 +142,117 @@ const isEmpty = !hasMagazine && !hasArchive;
 
   {hasMagazine && <IntelMagazine articles={magazineArticles} />}
 
+  {/* BANNER PLACEMENT (YOUTUBE CTA / ADVERTISEMENT ROTATOR) */}
+  <div class="yt-banner-wrapper">
+    <div class="banner-rotator-grid" id="banner-rotator">
+      {/* 1. YOUTUBE SUBSCRIBE BANNER (Always First) */}
+      <a href="https://youtube.com/@BeUnconventionalHQ?sub_confirmation=1" target="_blank" rel="noopener noreferrer" class="yt-subscribe-banner banner-slide" data-state="active" data-meta="YOUTUBE">
+        <Image src={logoImage} alt="Be Unconventional" class="yt-banner-logo" />
+        <span class="yt-banner-text">Subscribe on YouTube</span>
+        <svg viewBox="0 0 24 24" class="yt-banner-icon"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+      </a>
+
+      {/* 2..N. ADVERTISEMENT PLACEMENTS (Dynamic from Support HQ) */}
+      {adItems.map((item) => (
+        <a href={item.href} target="_blank" rel={referralRel(item)} class="yt-subscribe-banner banner-slide" data-state="hidden-prev" data-meta={getAdMeta(item)}>
+          {item.image ? (
+            <Image src={item.image} alt={item.label} class="yt-banner-logo yt-banner-logo--square" />
+          ) : (
+            <div class="yt-banner-logo yt-banner-logo--fallback" set:html={item.icon ? (BRAND_ICONS[item.icon as keyof typeof BRAND_ICONS] ?? BRAND_ICONS.storefront) : BRAND_ICONS.storefront} />
+          )}
+          <span class="yt-banner-text yt-banner-text--ad">{item.blurb}</span>
+          <svg viewBox="0 0 24 24" class="yt-banner-icon yt-banner-icon--ad" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+        </a>
+      ))}
+
+      {/* PERIMETER FLIP PROGRESS INDICATOR */}
+      <svg class="banner-perimeter-svg" id="banner-progress">
+        <rect id="banner-progress-rect" x="0" y="0" width="100%" height="100%" fill="none" pathLength="100"></rect>
+      </svg>
+    </div>
+
+    {/* METADATA DISCLOSURE ROW */}
+    <div class="banner-metadata-row">
+      <span class="banner-meta-text" id="banner-meta">YOUTUBE</span>
+    </div>
+  </div>
+
+  <script>
+    /* 
+      Advanced N-Item Continuous 3D Flip Engine.
+      Automatically loops through items seamlessly with synchronized progress indication.
+    */
+    document.addEventListener('astro:page-load', () => {
+      const rotator = document.getElementById('banner-rotator');
+      const metaLabel = document.getElementById('banner-meta');
+      if (!rotator || !metaLabel) return;
+
+      const slides = Array.from(rotator.querySelectorAll('.banner-slide')) as HTMLElement[];
+      if (slides.length <= 1) return;
+
+      if ((window as any).__bannerRotatorInterval) {
+        clearInterval((window as any).__bannerRotatorInterval);
+      }
+
+      const transitionDuration = 800; // Match CSS
+      const holdDuration = 8000; // 8 Seconds for reading ads comfortably
+      let currentIndex = 0;
+      let isAnimating = false;
+
+      // Reset states
+      slides.forEach((slide, idx) => {
+        slide.setAttribute('data-state', idx === 0 ? 'active' : 'hidden-prev');
+      });
+
+      const restartProgress = () => {
+        const oldSvg = document.getElementById('banner-progress');
+        if (!oldSvg) return;
+        const newSvg = oldSvg.cloneNode(true);
+        if (oldSvg.parentNode) {
+          oldSvg.parentNode.replaceChild(newSvg, oldSvg);
+        }
+      };
+
+      const goToNextSlide = () => {
+        if (isAnimating) return;
+        isAnimating = true;
+
+        const nextIndex = (currentIndex + 1) % slides.length;
+        const currentSlide = slides[currentIndex];
+        const nextSlide = slides[nextIndex];
+
+        // current -> floor, next (from ceiling) -> active
+        nextSlide.style.transition = 'none';
+        nextSlide.setAttribute('data-state', 'hidden-prev'); // snap to ceiling
+        void nextSlide.offsetWidth;
+        nextSlide.style.transition = '';
+
+        currentSlide.setAttribute('data-state', 'hidden-next'); // flop to floor
+        nextSlide.setAttribute('data-state', 'active');         // flop from ceiling to view
+
+        currentIndex = nextIndex;
+        
+        // Update the metadata row underneath the banner
+        const newMetaText = nextSlide.getAttribute('data-meta') || 'YOUTUBE';
+        metaLabel.textContent = newMetaText;
+        
+        restartProgress();
+
+        setTimeout(() => {
+          isAnimating = false;
+        }, transitionDuration);
+      };
+
+      restartProgress();
+      (window as any).__bannerRotatorInterval = setInterval(goToNextSlide, holdDuration);
+    });
+  </script>
+
   {
     hasVideos && (
       /* aria-labelledby points at the heading's id so screen readers announce
          this region by name rather than as an anonymous "section". */
-      <section class="intel-break border-t border-white/10 pt-16 mt-16" aria-labelledby="intel-video-head">
+      <section class="intel-break pt-16" aria-labelledby="intel-video-head">
         <SectionHeading
           title="Latest From The Channel"
           id="intel-video-head"
@@ -152,7 +270,7 @@ const isEmpty = !hasMagazine && !hasArchive;
 
   {
     hasArchive && (
-      <section class="intel-archive border-t border-white/10 pt-16 mt-16" aria-labelledby="intel-archive-head">
+      <section class="intel-archive pt-16 mt-16" aria-labelledby="intel-archive-head">
         <SectionHeading title={archiveHeading} id="intel-archive-head" />
         <CardGrid>
           {page.data.map((item: any, index: number) => (
@@ -186,3 +304,323 @@ const isEmpty = !hasMagazine && !hasArchive;
     )
   }
 </FeedLayout>
+
+<style>
+  /* Neutralize the global Magazine margin so the YouTube CTA can be perfectly mathematically centered */
+  .feed-page :global(.intel-magazine) {
+    margin-bottom: 0 !important;
+  }
+</style>
+
+<style>
+  /* 
+    ========================================================================
+    YOUTUBE BANNER (SLIM & PERFECTLY CENTERED)
+    ========================================================================
+  */
+  
+  .yt-banner-wrapper {
+    position: relative;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 4rem 0; /* Fully flushed with the container edges */
+  }
+
+  .yt-subscribe-banner {
+    display: grid;
+    grid-template-columns: 105px 1fr 44px; /* Strict 3-column lock: Logo, Text, Icon */
+    align-items: center;
+    gap: 1.5rem;
+    width: 100%;
+    background: #080808;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 0; /* Squared edges as requested */
+    padding: 2.5rem 3rem; /* Taller without expanding wrapper */
+    text-decoration: none;
+    transition: all 0.3s ease;
+  }
+
+  .yt-banner-logo {
+    height: 48px; /* Greatly increased legibility */
+    width: auto;
+    max-width: 105px; /* Matches the new wide column */
+    justify-self: start;
+    object-fit: contain;
+    object-position: left center;
+    opacity: 0.9;
+    transition: opacity 0.3s ease;
+  }
+
+  .yt-banner-text {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-white);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    white-space: nowrap; /* GUARANTEES NO WRAPPING */
+    text-align: left; /* Locks text position perfectly */
+    transition: all 0.3s ease;
+    position: relative;
+    justify-self: start;
+  }
+
+  /* Red underline hover effect matching standard interactive states */
+  .yt-banner-text::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 0;
+    width: 0;
+    height: 1px;
+    background: var(--color-accent);
+    transition: width 0.3s ease;
+  }
+
+  .yt-banner-icon {
+    width: 44px; /* Scaled up YouTube logo */
+    height: 44px;
+    color: var(--color-accent-text); /* Passes WCAG AA contrast */
+    fill: currentColor;
+    transition: transform 0.3s ease;
+    justify-self: end;
+  }
+
+  /* HOVER STATES: Red border, box shadow glow, red text */
+  .yt-subscribe-banner:hover {
+    border-color: var(--color-accent);
+    background: #0a0a0a;
+    box-shadow: 0 0 24px rgba(204, 0, 0, 0.25);
+  }
+
+  .yt-subscribe-banner:hover .yt-banner-logo {
+    opacity: 1;
+  }
+
+  .yt-subscribe-banner:hover .yt-banner-text {
+    color: var(--color-accent-text, #ff3333);
+    text-shadow: 0 0 12px rgba(204, 0, 0, 0.4);
+  }
+  
+  .yt-subscribe-banner:hover .yt-banner-text::after {
+    width: 100%;
+  }
+
+  .yt-subscribe-banner:hover .yt-banner-icon {
+    transform: scale(1.1);
+  }
+
+  /* MOBILE OPTIMIZATION (PORTRAIT & LANDSCAPE FIX) */
+  /* MOBILE OPTIMIZATION (PORTRAIT FIX - FORCED INLINE) */
+  /* MOBILE OPTIMIZATION (PORTRAIT FIX - FORCED INLINE) */
+  @media (max-width: 768px) {
+    .yt-banner-wrapper {
+      padding: 4rem 0;
+      margin: 0 -0.5rem; /* Extends the width of the box slightly on mobile */
+      width: calc(100% + 1rem);
+    }
+    
+    .yt-subscribe-banner {
+      grid-template-columns: 78px 1fr 24px; /* Strict mobile column lock */
+      padding: 1.75rem 1.5rem; /* Better side padding since we aren't centering */
+      gap: 1rem;
+    }
+    
+    .yt-banner-logo {
+      height: 36px;
+      max-width: 78px;
+    }
+    
+    .yt-banner-text {
+      font-size: 0.85rem; /* Perfectly tuned to fit one line */
+      letter-spacing: 0.05em;
+    }
+    
+    .yt-banner-icon {
+      width: 24px;
+      height: 24px;
+    }
+  }
+
+  /* Ultra-small screens (e.g. iPhone SE / old devices) */
+  @media (max-width: 380px) {
+    .yt-subscribe-banner {
+      grid-template-columns: 61px 1fr 20px;
+      padding: 1.5rem 1rem;
+      gap: 0.5rem;
+    }
+    .yt-banner-text {
+      font-size: 0.75rem;
+    }
+    .yt-banner-icon {
+      width: 20px;
+      height: 20px;
+    }
+    .yt-banner-logo {
+      height: 28px;
+      max-width: 61px;
+    }
+  }
+
+  /* BANNER ROTATOR GRID (Continuous One-Directional 3D Flip) */
+  .banner-rotator-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    width: 100%;
+    perspective: 1200px;
+    transform-style: preserve-3d;
+  }
+
+  .banner-slide {
+    grid-column: 1 / 2;
+    grid-row: 1 / 2;
+    transition: transform 0.8s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.8s ease;
+    backface-visibility: hidden;
+    transform-origin: center center;
+    will-change: transform, opacity;
+  }
+
+  /* Active: Visible and forward-facing */
+  .banner-slide[data-state="active"] {
+    transform: rotateX(0deg);
+    opacity: 1;
+    pointer-events: auto;
+    z-index: 2;
+  }
+
+  /* Hidden Next: Flips DOWN and AWAY (into the floor) */
+  .banner-slide[data-state="hidden-next"] {
+    transform: rotateX(-90deg);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* Hidden Prev: Waits at the TOP (in the ceiling), ready to flip down */
+  .banner-slide[data-state="hidden-prev"] {
+    transform: rotateX(90deg);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* PERIMETER PROGRESS INDICATOR */
+  .banner-perimeter-svg {
+    grid-column: 1 / 2;
+    grid-row: 1 / 2;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+    overflow: visible; /* Allows the stroke to perfectly trace the outside edge */
+  }
+
+  #banner-progress-rect {
+    stroke: var(--color-accent, #ff3333);
+    stroke-width: 2px;
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    opacity: 0; /* Let keyframes handle the opacity entirely */
+    animation: perimeterFill 8s linear forwards;
+  }
+
+  @keyframes perimeterFill {
+    0% { stroke-dashoffset: 100; opacity: 0; }
+    5% { opacity: 0.8; }
+    85% { opacity: 0.8; }
+    100% { stroke-dashoffset: 0; opacity: 0; }
+  }
+
+  /* METADATA DISCLOSURE ROW */
+  .banner-metadata-row {
+    display: flex;
+    justify-content: flex-start; /* Align left */
+    padding-left: 3rem; /* Match the banner's internal padding */
+    margin-top: 1rem;
+    pointer-events: none; /* purely decorative/disclosure */
+  }
+  .banner-meta-text {
+    font-family: var(--font-display);
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 0.35em;
+    color: var(--color-white-muted);
+    text-transform: uppercase;
+    opacity: 0.35;
+    transition: opacity 0.3s ease;
+  }
+  .yt-banner-wrapper:hover .banner-meta-text {
+    opacity: 0.55;
+  }
+
+  /* AD MODIFIERS (Adapting the YouTube banner perfectly for dynamic items) */
+  .yt-banner-logo--square {
+    object-fit: contain;
+    border-radius: 4px;
+    background: transparent;
+    padding: 0;
+  }
+  .yt-banner-logo--fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border-radius: 4px;
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: var(--color-white);
+    width: 48px;
+    height: 48px;
+  }
+  .yt-banner-logo--fallback svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .yt-banner-cta--ad {
+    min-width: 0; /* Allows children to truncate if they get too long */
+    max-width: calc(100vw - 8rem); /* Force truncation before hitting screen edge on mobile */
+    /* Remove flex: 1 to preserve exact justify-content: center behavior */
+  }
+  .yt-banner-text--ad {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    max-width: 100%;
+  }
+  .yt-banner-icon--ad {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    color: var(--color-white);
+    transition: color 0.3s ease, transform 0.3s ease;
+  }
+  
+  .yt-subscribe-banner:hover .yt-banner-icon--ad {
+    color: var(--color-accent-text);
+  }
+
+  @media (max-width: 768px) {
+    .banner-metadata-row {
+      justify-content: center;
+      padding-left: 0;
+    }
+    .yt-banner-logo--fallback {
+      width: 36px;
+      height: 36px;
+    }
+    .yt-banner-cta--ad {
+      gap: 0.5rem;
+    }
+  }
+
+  /* Ultra-small screens */
+  @media (max-width: 380px) {
+    .yt-banner-logo--fallback {
+      width: 28px;
+      height: 28px;
+    }
+  }
+</style>

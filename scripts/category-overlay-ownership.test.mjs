@@ -152,7 +152,7 @@ check('the label handler leaves surfaces without a desktop row alone', () => {
      `.desktop-category-row`. Guarding on the row EXISTING (not on finding an
      active button in it) stops the handler overwriting that surface's own
      `buttonLabel` with a hardcoded default. */
-  assert.match(overlay, /const desktopRow = document\.querySelector\('\.desktop-category-row'\)/);
+  assert.match(overlay, /const desktopRow = document\.querySelector\('\.desktop-category-row, \.intel-filter-nav'\)/);
   assert.match(overlay, /if \(!openBtn \|\| !desktopRow\) return;/);
 });
 

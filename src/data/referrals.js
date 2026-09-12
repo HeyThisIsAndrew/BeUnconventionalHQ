@@ -86,7 +86,7 @@ export const REFERRAL_GROUPS = [
         /* Read from site.js so the storefront URL has exactly one home — the
            footer's social row already links to the same value. */
         href: site.socials.amazon,
-        blurb: 'Desk upgrades, 4K Blu-rays and the lore books worth owning.',
+        blurb: 'Shop the HQ Setup',
         icon: 'amazon',
       },
     ],
@@ -99,7 +99,7 @@ export const REFERRAL_GROUPS = [
       {
         label: 'Mint Mobile',
         href: 'https://my.mintmobile.com/refer/pHvGFQz',
-        blurb: 'The wireless plan that keeps on-location coverage affordable.',
+        blurb: 'Switch to Mint Mobile',
         offer: '$15 renewal credit',
         image: mintMobileImg,
       },
@@ -110,6 +110,7 @@ export const REFERRAL_GROUPS = [
     title: 'Cinematic Filming Gear',
     note: 'The exact kit behind the deep dives.',
     items: [
+      /*
       {
         label: 'Gear Shop',
         href: 'https://a.co/d/0aczEbZw',
@@ -117,6 +118,7 @@ export const REFERRAL_GROUPS = [
         icon: 'aperture',
         affiliate: true,
       }
+      */
     ],
   },
   {
@@ -127,7 +129,7 @@ export const REFERRAL_GROUPS = [
       {
         label: 'DaVinci Resolve',
         href: 'https://www.blackmagicdesign.com/products/davinciresolve',
-        blurb: 'Best FREE Editor for creators',
+        blurb: 'Edit with DaVinci Resolve',
         image: davinciResolveImg,
         /* Blackmagic runs no affiliate programme — this is a straight
            recommendation, and the flag keeps the disclosure truthful. */

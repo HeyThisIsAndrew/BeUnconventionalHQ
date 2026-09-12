@@ -52,6 +52,8 @@ interface Props {
    * See the matching sitemap exclusion in astro.config.mjs.
    */
   noindex?: boolean;
+  /** Hide the massive PageTitle hero section */
+  hideHero?: boolean;
 }
 
 const {
@@ -68,15 +70,18 @@ const {
   preloadImageSrcset = null,
   preloadImageSizes = null,
   noindex = false,
+  hideHero = false,
 } = Astro.props;
 ---
 
 <Layout title={title} description={description} prevUrl={page.url.prev} nextUrl={page.url.next} preloadImage={preloadImage} preloadImageSrcset={preloadImageSrcset} preloadImageSizes={preloadImageSizes} noindex={noindex}>
   <main class:list={['feed-page', 'flex-1', 'flex', 'flex-col', 'w-full', mainClass]}>
     <div class="container-page flex-1 flex flex-col">
-      <header class="section-header animate-on-scroll" data-nav-anchor>
-        <PageTitle as="h1" kicker={kicker} primary={titlePrimary} secondary={titleSecondary} />
-      </header>
+      {!hideHero && (
+        <header class="section-header animate-on-scroll" data-nav-anchor>
+          <PageTitle as="h1" kicker={kicker} primary={titlePrimary} secondary={titleSecondary} />
+        </header>
+      )}
 
       <slot name="filters">
         <QuadrantFilter showTypes={true} isNavMode={isNavMode} />
