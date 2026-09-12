@@ -28,7 +28,11 @@ import QuadrantFilter from '../components/QuadrantFilter.astro';
 interface Props {
   title: string;
   description: string;
-  /** sr-only <h2> so card <h3>s don't skip a level (axe: heading-order). */
+  /**
+   * The page's own heading. Rendered sr-only so card <h3>s don't skip a level
+   * (axe: heading-order) — and, when `hideHero` drops the visible lockup, as
+   * the page's <h1>. See the note at the <h1>/<h2> below.
+   */
   headingLabel: string;
   page: { url: { prev?: string; next?: string } };
   /** QuadrantFilter's nav mode — on for the top-level feeds, off for category pages. */
@@ -52,7 +56,17 @@ interface Props {
    * See the matching sitemap exclusion in astro.config.mjs.
    */
   noindex?: boolean;
-  /** Hide the massive PageTitle hero section */
+  /**
+   * Drop the big <PageTitle> lockup. /intel sets it: its magazine spread is
+   * the opening statement, so a full-height title above it was a screen of
+   * furniture before any content.
+   *
+   * It does NOT drop the page's heading — only its typography. Same call
+   * /events made when it was asked for the same thing: the <h1> stays as
+   * .sr-only, because deleting it leaves the page with no heading at all,
+   * which is an empty document outline for a screen reader and a missing-h1
+   * finding for the SEO audit. See the note in src/pages/events/[...page].astro.
+   */
   hideHero?: boolean;
 }
 
@@ -87,7 +101,14 @@ const {
         <QuadrantFilter showTypes={true} isNavMode={isNavMode} />
       </slot>
 
-      <h2 class="sr-only">{headingLabel}</h2>
+      {/*
+        One heading, two typographies. With the lockup shown, <PageTitle> is
+        the <h1> and this is the sr-only <h2> that keeps card <h3>s from
+        skipping a level. With the lockup hidden there is no other heading on
+        the page, so this element IS the <h1> — the level moves, the text does
+        not. Never let both branches render an h2: that is a page with no h1.
+      */}
+      {hideHero ? <h1 class="sr-only">{headingLabel}</h1> : <h2 class="sr-only">{headingLabel}</h2>}
 
       <slot />
     </div>

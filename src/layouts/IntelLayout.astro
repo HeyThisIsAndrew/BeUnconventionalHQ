@@ -46,15 +46,44 @@ import { getCardImageSources } from '../lib/card-images.js';
 import { Image } from 'astro:assets';
 import logoImage from '../assets/logo-mark.webp';
 import { getReferralItems, referralRel } from '../data/referrals.js';
+/** @see src/data/referrals.js — the JSDoc typedef is the shape of a partner. */
+type ReferralItem = ReturnType<typeof getReferralItems>[number];
 import { BRAND_ICONS } from '../data/icons.js';
 
+/* The rotator's slides after the YouTube one. getReferralItems() is what
+   guarantees a partner parked with an empty href can never reach the banner,
+   so never read REFERRAL_GROUPS here. */
 const adItems = getReferralItems();
 
-const getAdMeta = (item: any) => {
-  if (item.offer) return 'REFERRAL';
-  if (item.affiliate === false) return 'TOOLS';
-  return 'AFFILIATE';
+/**
+ * What the disclosure line under the banner says for a slide.
+ *
+ * This is a DISCLOSURE, not a label: US FTC guidance asks for the commercial
+ * relationship to be stated clearly and near the link, and referrals.js says
+ * the same thing in capitals. So each string names the actual relationship,
+ * and a link that pays us nothing says so rather than borrowing a word that
+ * implies it does. Keep them truthful before tidy.
+ */
+const getAdMeta = (item: ReferralItem) => {
+  if (item.offer) return 'REFERRAL LINK';
+  if (item.affiliate === false) return 'RECOMMENDATION';
+  return 'AFFILIATE LINK';
 };
+
+/**
+ * The banner's own copy, never `blurb`.
+ *
+ * `blurb` is the article rail's sentence, in a column that wraps. This row
+ * does not wrap, and reusing one string for both is how the rail ended up
+ * captioned with CTA fragments. `label` is the fallback so a partner added
+ * without banner copy still renders something honest.
+ */
+const getBannerCopy = (item: ReferralItem) => ({
+  full: item.bannerText ?? item.label,
+  /* Optional by design: no compact string means `full` is what a phone gets,
+     so only leave it off when `full` genuinely fits there. */
+  compact: item.bannerTextCompact ?? null,
+});
 
 interface Props {
   /** Browser tab / SEO title. */
@@ -142,129 +171,213 @@ const isEmpty = !hasMagazine && !hasArchive;
 
   {hasMagazine && <IntelMagazine articles={magazineArticles} />}
 
-  {/* BANNER PLACEMENT (YOUTUBE CTA / ADVERTISEMENT ROTATOR) */}
+  {/*
+    BANNER ROTATOR — the channel CTA plus one slide per live referral link.
+
+    ─── EVERY SLIDE IS A LINK, SO ONLY ONE MAY BE REACHABLE ──────────────────
+    The slides are stacked in one grid cell and the hidden ones are turned away
+    in 3D, which hides them from the eye and from nothing else: an invisible
+    <a> is still in the tab order and still read out. So a hidden slide is
+    `inert` (unfocusable AND out of the accessibility tree) and the markup
+    ships that way, which is also the correct no-JS state — with no script
+    there is no rotation, so the YouTube slide is the only one that exists.
+    The script flips it on every advance.
+
+    ─── ONE CLOCK ────────────────────────────────────────────────────────────
+    The perimeter outline is not a picture of the timer, it IS the timer: the
+    script advances on its `animationend`. That is why hover-to-pause cannot
+    drift — see the script below.
+  */}
   <div class="yt-banner-wrapper">
     <div class="banner-rotator-grid" id="banner-rotator">
-      {/* 1. YOUTUBE SUBSCRIBE BANNER (Always First) */}
+      {/* 1. The channel CTA. Always first, always the one that renders without JS. */}
       <a href="https://youtube.com/@BeUnconventionalHQ?sub_confirmation=1" target="_blank" rel="noopener noreferrer" class="yt-subscribe-banner banner-slide" data-state="active" data-meta="YOUTUBE">
         <Image src={logoImage} alt="Be Unconventional" class="yt-banner-logo" />
-        <span class="yt-banner-text">Subscribe on YouTube</span>
-        <svg viewBox="0 0 24 24" class="yt-banner-icon"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+        {/*
+          Same responsive swap as the ad slides, and for the same reason:
+          measured at 320px, "Subscribe on YouTube" rendered 187px wide into a
+          187px column. It did not clip, it just had nothing left — one font
+          fallback or one narrower phone and it would. The short form keeps the
+          verb, and the YouTube mark next to it says the rest.
+        */}
+        <span class="yt-banner-text has-compact-copy">
+          <span class="banner-copy-full">Subscribe on YouTube</span>
+          <span class="banner-copy-compact">Subscribe</span>
+        </span>
+        <svg viewBox="0 0 24 24" class="yt-banner-icon" aria-hidden="true" focusable="false"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
       </a>
 
-      {/* 2..N. ADVERTISEMENT PLACEMENTS (Dynamic from Support HQ) */}
-      {adItems.map((item) => (
-        <a href={item.href} target="_blank" rel={referralRel(item)} class="yt-subscribe-banner banner-slide" data-state="hidden-prev" data-meta={getAdMeta(item)}>
-          {item.image ? (
-            <Image src={item.image} alt={item.label} class="yt-banner-logo yt-banner-logo--square" />
-          ) : (
-            <div class="yt-banner-logo yt-banner-logo--fallback" set:html={item.icon ? (BRAND_ICONS[item.icon as keyof typeof BRAND_ICONS] ?? BRAND_ICONS.storefront) : BRAND_ICONS.storefront} />
-          )}
-          <span class="yt-banner-text yt-banner-text--ad">{item.blurb}</span>
-          <span class="yt-banner-icon yt-banner-icon--ad" aria-hidden="true">&rarr;</span>
-        </a>
-      ))}
+      {/* 2..N. One slide per live referral link, straight from referrals.js. */}
+      {adItems.map((item) => {
+        const copy = getBannerCopy(item);
 
-      {/* BOTTOM EDGE PROGRESS INDICATOR */}
-      <div class="banner-progress-bar" id="banner-progress"></div>
+        return (
+          <a href={item.href} target="_blank" rel={referralRel(item)} class="yt-subscribe-banner banner-slide" data-state="hidden-prev" data-meta={getAdMeta(item)} inert aria-hidden="true">
+            {item.image ? (
+              <Image src={item.image} alt={item.label} class="yt-banner-logo yt-banner-logo--square" />
+            ) : (
+              <div class="yt-banner-logo yt-banner-logo--fallback" set:html={item.icon ? (BRAND_ICONS[item.icon as keyof typeof BRAND_ICONS] ?? BRAND_ICONS.storefront) : BRAND_ICONS.storefront} />
+            )}
+
+            {/*
+              RESPONSIVE COPY SWAP. Both strings ship; CSS shows exactly one,
+              with `display: none` rather than a width or a clip, so the hidden
+              one leaves the accessibility tree too and the line is never read
+              or announced twice. The `has-compact-copy` class is the guard:
+              without it the mobile rule would hide the full string on a
+              partner that has no compact one and the slide would go blank.
+            */}
+            <span class:list={['yt-banner-text', 'yt-banner-text--ad', { 'has-compact-copy': copy.compact !== null }]}>
+              <span class="banner-copy-full">{copy.full}</span>
+              {copy.compact && <span class="banner-copy-compact">{copy.compact}</span>}
+            </span>
+
+            <span class="yt-banner-icon yt-banner-icon--ad" aria-hidden="true">&rarr;</span>
+          </a>
+        );
+      })}
+
+      {/*
+        PERIMETER PROGRESS INDICATOR. An SVG <rect> traced by its own stroke:
+        a rect's path starts at its top-left corner and runs clockwise, so
+        drawing the dash in draws the outline the way the box reads.
+
+        `pathLength="100"` normalizes the perimeter to 100 units whatever the
+        banner's real size, so one 100-unit dash is exactly one lap and the
+        timing never needs measuring in JS or fixing after a reflow.
+      */}
+      <svg class="banner-perimeter" aria-hidden="true" focusable="false">
+        <rect class="banner-perimeter-rect" id="banner-progress" x="0" y="0" width="100%" height="100%" fill="none" pathLength="100" />
+      </svg>
     </div>
 
-    {/* METADATA DISCLOSURE ROW */}
+    {/*
+      DISCLOSURE ROW. Names the commercial relationship of the slide on screen,
+      next to it, in a colour that clears AA against the surface. It used to be
+      one 8.8px word at 35% opacity, which computes to 1.67:1 — a disclosure
+      nobody can read is not a disclosure.
+    */}
     <div class="banner-metadata-row">
       <span class="banner-meta-text" id="banner-meta">YOUTUBE</span>
+
+      {/*
+        Pause control. Hover and focus already pause the rotation, but neither
+        exists on a touch screen, and WCAG 2.2.2 asks for a real mechanism to
+        stop anything that auto-updates for more than five seconds. Ships
+        `hidden` and the script reveals it: with no JS nothing rotates, so
+        there would be nothing for it to stop.
+      */}
+      <button type="button" class="banner-pause-btn" id="banner-pause" hidden>
+        <span class="banner-pause-glyph" aria-hidden="true">&#10073;&#10073;</span>
+        <span class="sr-only" id="banner-pause-label">Pause the rotating links</span>
+      </button>
     </div>
   </div>
 
   <script>
-    /* 
-      Advanced N-Item Continuous 3D Flip Engine.
-      Automatically loops through items seamlessly with synchronized progress indication.
+    /*
+      AD ROTATOR — one clock, not two.
+      ─────────────────────────────────────────────────────────────────────────
+      There is no timer in here. The perimeter outline's CSS animation IS the
+      clock: this advances the slides on its `animationend`, and pausing is a
+      class the stylesheet reads, so a paused outline is a paused rotation by
+      construction.
+
+      That is the fix for a specific bug. The first version ran a
+      `setInterval(8000)` alongside a CSS animation that `:hover` paused. Mouse
+      out with the outline 90% round and the two disagreed: the outline closed
+      in 0.8s and then the banner sat there for the 7.2s still owed to an
+      interval that had restarted from zero. Anything with two clocks has that
+      bug somewhere in it; the only reliable fix is to keep one.
     */
     document.addEventListener('astro:page-load', () => {
+      const wrapper = document.querySelector<HTMLElement>('.yt-banner-wrapper');
       const rotator = document.getElementById('banner-rotator');
       const metaLabel = document.getElementById('banner-meta');
-      if (!rotator || !metaLabel) return;
+      const progress = document.getElementById('banner-progress');
+      if (!wrapper || !rotator || !metaLabel || !progress) return;
 
-      const slides = Array.from(rotator.querySelectorAll('.banner-slide')) as HTMLElement[];
+      /* ClientRouter replaces the document on a navigation, so these elements
+         are new every time and there is nothing to tear down. The flag is for
+         the case where this module's listener runs twice against one DOM. */
+      if (rotator.dataset.rotatorBound === 'true') return;
+      rotator.dataset.rotatorBound = 'true';
+
+      const slides = Array.from(rotator.querySelectorAll<HTMLElement>('.banner-slide'));
+      /* One live link means nothing to rotate: leave the CTA up, never start
+         the outline, and leave the pause button hidden. */
       if (slides.length <= 1) return;
 
-      if ((window as any).__bannerRotatorInterval) {
-        clearInterval((window as any).__bannerRotatorInterval);
+      let index = 0;
+
+      /* Hidden slides are links that must not be reachable. `inert` covers
+         focus and the accessibility tree in one attribute; aria-hidden is
+         belt-and-braces for the browsers that shipped it late. */
+      const setSlideHidden = (slide: HTMLElement, hidden: boolean) => {
+        slide.inert = hidden;
+        if (hidden) slide.setAttribute('aria-hidden', 'true');
+        else slide.removeAttribute('aria-hidden');
+      };
+
+      /* Restart the lap. Removing the class, forcing a style flush and adding
+         it back is what makes the animation begin again — without the flush
+         the two changes coalesce into no change at all and the outline stays
+         where it stopped. */
+      const startLap = () => {
+        progress.classList.remove('is-counting');
+        void progress.getBoundingClientRect();
+        progress.classList.add('is-counting');
+      };
+
+      const advance = () => {
+        const nextIndex = (index + 1) % slides.length;
+        const current = slides[index];
+        const next = slides[nextIndex];
+
+        /* Snap the incoming slide to the ceiling with its transition off, so it
+           flips DOWN into view instead of rising back out of the floor it was
+           left on. */
+        next.style.transition = 'none';
+        next.dataset.state = 'hidden-prev';
+        void next.offsetWidth;
+        next.style.transition = '';
+
+        current.dataset.state = 'hidden-next';
+        next.dataset.state = 'active';
+        setSlideHidden(current, true);
+        setSlideHidden(next, false);
+
+        index = nextIndex;
+        metaLabel.textContent = next.dataset.meta ?? metaLabel.textContent;
+        startLap();
+      };
+
+      progress.addEventListener('animationend', advance);
+
+      /* The pause control. It only toggles a class: the stylesheet stops the
+         outline, and the outline is the clock. */
+      const pauseBtn = document.getElementById('banner-pause');
+      const pauseLabel = document.getElementById('banner-pause-label');
+      const pauseGlyph = pauseBtn?.querySelector('.banner-pause-glyph');
+
+      const setPaused = (paused: boolean) => {
+        wrapper.classList.toggle('is-paused', paused);
+        if (pauseLabel) {
+          pauseLabel.textContent = paused
+            ? 'Resume the rotating links'
+            : 'Pause the rotating links';
+        }
+        if (pauseGlyph) pauseGlyph.textContent = paused ? '\u25B6' : '\u2759\u2759';
+      };
+
+      if (pauseBtn) {
+        pauseBtn.hidden = false;
+        pauseBtn.addEventListener('click', () => {
+          setPaused(!wrapper.classList.contains('is-paused'));
+        });
       }
 
-      const transitionDuration = 800; // Match CSS
-      const holdDuration = 8000; // 8 Seconds for reading ads comfortably
-      let currentIndex = 0;
-      let isAnimating = false;
-
-      // Reset states
-      slides.forEach((slide, idx) => {
-        slide.setAttribute('data-state', idx === 0 ? 'active' : 'hidden-prev');
-      });
-
-      const restartProgress = () => {
-        const oldBar = document.getElementById('banner-progress');
-        if (!oldBar) return;
-        const newBar = oldBar.cloneNode(true);
-        if (oldBar.parentNode) {
-          oldBar.parentNode.replaceChild(newBar, oldBar);
-        }
-      };
-
-      const goToNextSlide = () => {
-        if (isAnimating) return;
-        isAnimating = true;
-
-        const nextIndex = (currentIndex + 1) % slides.length;
-        const currentSlide = slides[currentIndex];
-        const nextSlide = slides[nextIndex];
-
-        // current -> floor, next (from ceiling) -> active
-        nextSlide.style.transition = 'none';
-        nextSlide.setAttribute('data-state', 'hidden-prev'); // snap to ceiling
-        void nextSlide.offsetWidth;
-        nextSlide.style.transition = '';
-
-        currentSlide.setAttribute('data-state', 'hidden-next'); // flop to floor
-        nextSlide.setAttribute('data-state', 'active');         // flop from ceiling to view
-
-        currentIndex = nextIndex;
-        
-        // Update the metadata row underneath the banner
-        const newMetaText = nextSlide.getAttribute('data-meta') || 'YOUTUBE';
-        metaLabel.textContent = newMetaText;
-        
-        restartProgress();
-
-        setTimeout(() => {
-          isAnimating = false;
-        }, transitionDuration);
-      };
-
-      restartProgress();
-      
-      const startRotation = () => {
-        if (!(window as any).__bannerRotatorInterval) {
-          (window as any).__bannerRotatorInterval = setInterval(goToNextSlide, holdDuration);
-        }
-      };
-
-      const stopRotation = () => {
-        if ((window as any).__bannerRotatorInterval) {
-          clearInterval((window as any).__bannerRotatorInterval);
-          (window as any).__bannerRotatorInterval = null;
-        }
-      };
-
-      startRotation();
-
-      const bannerWrapper = document.querySelector('.yt-banner-wrapper');
-      if (bannerWrapper) {
-        bannerWrapper.addEventListener('mouseenter', stopRotation);
-        bannerWrapper.addEventListener('mouseleave', startRotation);
-        bannerWrapper.addEventListener('focusin', stopRotation);
-        bannerWrapper.addEventListener('focusout', startRotation);
-      }
+      startLap();
     });
   </script>
 
@@ -326,13 +439,6 @@ const isEmpty = !hasMagazine && !hasArchive;
 </FeedLayout>
 
 <style>
-  /* Neutralize the global Magazine margin so the YouTube CTA can be perfectly mathematically centered */
-  .feed-page :global(.intel-magazine) {
-    margin-bottom: 0 !important;
-  }
-</style>
-
-<style>
   /* 
     ========================================================================
     YOUTUBE BANNER (SLIM & PERFECTLY CENTERED)
@@ -340,6 +446,12 @@ const isEmpty = !hasMagazine && !hasArchive;
   */
   
   .yt-banner-wrapper {
+    /* How long a slide holds. It is declared ONCE, here, because it is also
+       the rotation interval: the script advances when the outline below
+       finishes its lap, so there is no second copy of this number in JS to
+       fall out of step with. */
+    --banner-hold: 8s;
+
     position: relative;
     width: 100%;
     display: flex;
@@ -431,55 +543,56 @@ const isEmpty = !hasMagazine && !hasArchive;
     transform: scale(1.1);
   }
 
-  /* MOBILE OPTIMIZATION (PORTRAIT & LANDSCAPE FIX) */
-  /* MOBILE OPTIMIZATION (PORTRAIT FIX - FORCED INLINE) */
-  /* MOBILE OPTIMIZATION (PORTRAIT FIX - FORCED INLINE) */
+  /* ── MOBILE ──────────────────────────────────────────────────────────────
+     The text column is roughly half its desktop width here, which is what
+     `bannerTextCompact` in src/data/referrals.js exists for: the swap rules
+     are at the bottom of this sheet, next to the rest of the ad modifiers. */
   @media (max-width: 768px) {
     .yt-banner-wrapper {
       padding: 4rem 0;
-      margin: 0 -0.5rem; /* Extends the width of the box slightly on mobile */
+      margin: 0 -0.5rem; /* buys back a little of the page gutter */
       width: calc(100% + 1rem);
     }
-    
+
+    /*
+      FLUID CHROME, NOT STEPPED TIERS.
+
+      This was two fixed sets of numbers, at 768px and 380px, and both were
+      measured against the wrong width: `.container-page` keeps a 2rem gutter
+      at every size, so a 320px phone gives this row 272px and a fixed 78px
+      logo column plus 3rem of padding left 141px for the copy. Nineteen
+      tracked capitals need 172px. The copy was clipped before it was ever
+      swapped, and a stepped tier only moves the width where that happens to
+      just above its own breakpoint.
+
+      So every fixed part of the row scales with the viewport between a floor
+      and the desktop value, in the same clamp() idiom `.container` uses for
+      the page gutter. The text column is whatever is left
+      (`minmax(0, 1fr)` — the `0` is what lets it shrink at all), and
+      scripts/ad-rotator-copy.test.mjs holds the copy inside it.
+    */
     .yt-subscribe-banner {
-      grid-template-columns: 78px 1fr 24px; /* Strict mobile column lock */
-      padding: 1.75rem 1.5rem; /* Better side padding since we aren't centering */
-      gap: 1rem;
+      grid-template-columns:
+        clamp(44px, 13vw, 78px)
+        minmax(0, 1fr)
+        clamp(16px, 5vw, 24px);
+      padding: 1.5rem clamp(0.75rem, 3.5vw, 1.5rem);
+      gap: clamp(0.5rem, 2.5vw, 1rem);
     }
-    
+
     .yt-banner-logo {
-      height: 36px;
-      max-width: 78px;
+      height: clamp(26px, 8vw, 36px);
+      max-width: clamp(44px, 13vw, 78px);
     }
-    
+
     .yt-banner-text {
-      font-size: 0.85rem; /* Perfectly tuned to fit one line */
+      font-size: clamp(0.7rem, 3.4vw, 0.85rem);
       letter-spacing: 0.05em;
     }
-    
-    .yt-banner-icon {
-      width: 24px;
-      height: 24px;
-    }
-  }
 
-  /* Ultra-small screens (e.g. iPhone SE / old devices) */
-  @media (max-width: 380px) {
-    .yt-subscribe-banner {
-      grid-template-columns: 61px 1fr 20px;
-      padding: 1.5rem 1rem;
-      gap: 0.5rem;
-    }
-    .yt-banner-text {
-      font-size: 0.75rem;
-    }
     .yt-banner-icon {
-      width: 20px;
-      height: 20px;
-    }
-    .yt-banner-logo {
-      height: 28px;
-      max-width: 61px;
+      width: clamp(16px, 5vw, 24px);
+      height: clamp(16px, 5vw, 24px);
     }
   }
 
@@ -526,54 +639,116 @@ const isEmpty = !hasMagazine && !hasArchive;
     z-index: 1;
   }
 
-  /* BOTTOM EDGE PROGRESS INDICATOR */
-  .banner-progress-bar {
+  /* ── PERIMETER PROGRESS INDICATOR ────────────────────────────────────────
+     The outline travels the box clockwise from the top left corner, then the
+     slide flips. It is the rotation's clock, not a decoration of it: the
+     script listens for this animation ending. Three consequences worth
+     knowing before editing it:
+
+       • the three pause rules below stop the rotation as well as the outline,
+         which is the point. Nothing else pauses anything;
+       • `forwards` is load-bearing. Without it the stroke snaps back to empty
+         before `animationend` lands and the outline flickers at every flip;
+       • remove the animation and the banner stops rotating entirely, so a
+         reduced-motion rule cannot simply switch it off. See that block. */
+  .banner-perimeter {
     grid-column: 1 / 2;
     grid-row: 1 / 2;
-    align-self: end;
     width: 100%;
-    height: 2px;
-    background: var(--color-accent, #ff3333);
+    height: 100%;
     pointer-events: none;
     z-index: 10;
-    transform-origin: left;
-    transform: scaleX(0);
-    opacity: 0;
-    animation: progressFill 8s linear forwards;
+    overflow: visible; /* lets the stroke sit on the edge, not inside it */
   }
 
-  .yt-banner-wrapper:hover .banner-progress-bar,
-  .yt-banner-wrapper:focus-within .banner-progress-bar {
+  .banner-perimeter-rect {
+    stroke: var(--color-accent, #ff3333);
+    stroke-width: 2px;
+    /* pathLength="100" on the element normalizes the perimeter to 100 units,
+       so one dash of 100 is exactly one lap at any banner size. */
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    opacity: 0; /* the keyframes own the fade in and out */
+  }
+
+  /* Added by the script, so the outline never runs without something to
+     listen for it finishing. */
+  .banner-perimeter-rect.is-counting {
+    animation: perimeterFill var(--banner-hold) linear forwards;
+  }
+
+  /*
+    Auto-pause is scoped to the ROTATOR, not the whole wrapper, so it stops at
+    the disclosure row. With it on the wrapper the pause button sat inside its
+    own hover zone: pressing it changed nothing visible, because hover was
+    already holding the outline, and a keyboard user had it worse — focusing
+    the button pauses via :focus-within, so the toggle looked dead in both
+    directions. The explicit control lives outside the implicit one now.
+  */
+  .banner-rotator-grid:hover .banner-perimeter-rect,
+  .banner-rotator-grid:focus-within .banner-perimeter-rect,
+  .yt-banner-wrapper.is-paused .banner-perimeter-rect {
     animation-play-state: paused;
   }
 
-  @keyframes progressFill {
-    0% { transform: scaleX(0); opacity: 0; }
-    5% { opacity: 1; }
-    85% { opacity: 1; }
-    100% { transform: scaleX(1); opacity: 0; }
+  @keyframes perimeterFill {
+    0% { stroke-dashoffset: 100; opacity: 0; }
+    5% { opacity: 0.8; }
+    85% { opacity: 0.8; }
+    100% { stroke-dashoffset: 0; opacity: 0; }
   }
 
-  /* METADATA DISCLOSURE ROW */
+  /* ── DISCLOSURE ROW ──────────────────────────────────────────────────────
+     Carries the disclosure for the slide on screen and the pause control.
+     NOT `pointer-events: none` as a whole any more — that made the button
+     unclickable. The text keeps it, since there is nothing to click in it. */
   .banner-metadata-row {
     display: flex;
-    justify-content: flex-start; /* Align left */
-    padding-left: 3rem; /* Match the banner's internal padding */
+    align-items: center;
+    justify-content: flex-start;
+    gap: 1rem;
+    padding-left: 3rem; /* lines up with the banner's own side padding */
     margin-top: 1rem;
-    pointer-events: none; /* purely decorative/disclosure */
   }
+
+  /* No opacity. --color-white-muted is 5.33:1 on the surface and clears AA;
+     the 0.35 this used to carry took it to 1.67:1, and a disclosure has to be
+     readable to be one. Size is up from 0.55rem for the same reason. */
   .banner-meta-text {
     font-family: var(--font-display);
-    font-size: 0.55rem;
+    font-size: 0.65rem;
     font-weight: 600;
-    letter-spacing: 0.35em;
+    letter-spacing: 0.3em;
     color: var(--color-white-muted);
     text-transform: uppercase;
-    opacity: 0.35;
-    transition: opacity 0.3s ease;
+    pointer-events: none;
   }
-  .yt-banner-wrapper:hover .banner-meta-text {
-    opacity: 0.55;
+
+  .banner-pause-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: var(--color-white-muted);
+    font-size: 0.5rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.3s ease, border-color 0.3s ease;
+  }
+
+  .banner-pause-btn:hover,
+  .banner-pause-btn:focus-visible {
+    color: var(--color-white);
+    border-color: var(--color-accent);
+  }
+
+  .banner-pause-glyph {
+    display: block;
+    transform: translateY(-0.5px); /* optical centring of the glyph */
   }
 
   /* AD MODIFIERS (Adapting the YouTube banner perfectly for dynamic items) */
@@ -600,16 +775,33 @@ const isEmpty = !hasMagazine && !hasArchive;
     height: 100%;
     display: block;
   }
-  .yt-banner-cta--ad {
-    min-width: 0; /* Allows children to truncate if they get too long */
-    max-width: calc(100vw - 8rem); /* Force truncation before hitting screen edge on mobile */
-    /* Remove flex: 1 to preserve exact justify-content: center behavior */
-  }
+  /*
+    ── RESPONSIVE COPY SWAP ───────────────────────────────────────────────────
+    The row is `white-space: nowrap` by design (a two-line CTA in a 3-column
+    lock would push the logo and arrow out of line), so copy that does not fit
+    gets clipped. The fix is shorter copy on small screens, not a marquee and
+    not an ellipsis: both strings ship in the markup and exactly one of them is
+    `display: none`.
+
+    `display` specifically. A clip, a zero width or `visibility: hidden` all
+    leave the other string in the accessibility tree, and the slide would be
+    read out twice.
+
+    The ellipsis below is a backstop, not the mechanism. It only ever shows if
+    someone adds a partner whose copy overruns even the compact column, and
+    scripts/ad-rotator-copy.test.mjs is what stops that reaching a phone.
+  */
   .yt-banner-text--ad {
     overflow: hidden;
     text-overflow: ellipsis;
     display: block;
+    min-width: 0; /* lets the grid column actually shrink below its content */
     max-width: 100%;
+  }
+
+  /* Desktop: the full line, and the compact one is not in the page at all. */
+  .banner-copy-compact {
+    display: none;
   }
   .yt-banner-icon--ad {
     display: flex;
@@ -628,30 +820,60 @@ const isEmpty = !hasMagazine && !hasArchive;
   }
 
   @media (max-width: 768px) {
+    /*
+      THE SWAP. Guarded on `has-compact-copy`: a partner with no compact string
+      keeps showing its full one here, because hiding it would leave the slide
+      with no text at all. Amazon is deliberately in that group — "Shop the HQ"
+      fits the narrowest phone as it is.
+    */
+    .yt-banner-text.has-compact-copy .banner-copy-full {
+      display: none;
+    }
+
+    .yt-banner-text.has-compact-copy .banner-copy-compact {
+      display: block;
+    }
+
     .banner-metadata-row {
       justify-content: center;
       padding-left: 0;
     }
+
     .yt-banner-logo--fallback {
-      width: 36px;
-      height: 36px;
+      width: clamp(26px, 8vw, 36px);
+      height: clamp(26px, 8vw, 36px);
     }
-    .yt-banner-cta--ad {
-      gap: 0.5rem;
-    }
+
     .yt-banner-icon--ad {
-      font-size: 1.1rem;
+      font-size: clamp(0.95rem, 4vw, 1.1rem);
     }
   }
 
-  /* Ultra-small screens */
-  @media (max-width: 380px) {
-    .yt-banner-logo--fallback {
-      width: 28px;
-      height: 28px;
+  /*
+    ── REDUCED MOTION ────────────────────────────────────────────────────────
+    The rotation STAYS. Every slide after the first is a link that exists
+    nowhere else on this page, so switching the rotation off would hide content
+    from the people who asked for less movement, and the outline that drives it
+    is the clock (see the perimeter block). What goes is the part that actually
+    moves: the 3D flip becomes a cross fade in place.
+
+    The script sets `transition` inline for one frame while it snaps the
+    incoming slide to the ceiling, then clears it, which restores whatever this
+    block says rather than the desktop default.
+  */
+  @media (prefers-reduced-motion: reduce) {
+    .banner-rotator-grid {
+      perspective: none;
     }
-    .yt-banner-icon--ad {
-      font-size: 0.95rem;
+
+    .banner-slide {
+      transition: opacity 0.4s ease;
+    }
+
+    .banner-slide[data-state="active"],
+    .banner-slide[data-state="hidden-next"],
+    .banner-slide[data-state="hidden-prev"] {
+      transform: none;
     }
   }
 </style>
