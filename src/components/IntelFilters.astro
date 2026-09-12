@@ -65,16 +65,12 @@ const filterCategories = CATEGORIES.filter((category) => category !== 'General')
    (which uses #hash links and filters client-side) these are real routes, so
    the active one links back to the unfiltered section — same click-to-toggle
    behaviour as the desktop row. */
-const overlayItems = filterCategories.map((category) => {
-  const slug = category.toLowerCase();
-  const hrefTarget = slug === 'events' ? '/events' : topicPath(category);
-  return {
-    label: category.toUpperCase(),
-    href: active === category ? ARTICLE_SECTION.path : hrefTarget,
-    slug,
-    active: active === category,
-  };
-});
+const overlayItems = filterCategories.map((category) => ({
+  label: category.toUpperCase(),
+  href: active === category ? ARTICLE_SECTION.path : topicPath(category),
+  slug: category.toLowerCase(),
+  active: active === category,
+}));
 ---
 
 {/* Mobile: one "Categories" button + full-screen menu — the exact control
@@ -91,15 +87,13 @@ const overlayItems = filterCategories.map((category) => {
           active one links back to the unfiltered section, so clicking it
           again clears the filter. This is what replaces an "All" button.
         */
-        const slug = category.toLowerCase();
-        const hrefTarget = slug === 'events' ? '/events' : topicPath(category);
-        const href = isActive ? ARTICLE_SECTION.path : hrefTarget;
+        const href = isActive ? ARTICLE_SECTION.path : topicPath(category);
 
         return (
           <a
             href={href}
             class:list={['quadrant-btn', 'cat-btn', 'intel-compact-btn', { active: isActive }]}
-            data-category={slug}
+            data-category={category.toLowerCase()}
             aria-current={isActive ? 'true' : undefined}
           >
             {category.toUpperCase()}
