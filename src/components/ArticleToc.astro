@@ -61,18 +61,16 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
 
 {
   show && (
-    <aside class="article-rail article-rail-left" aria-labelledby="article-toc-head">
-      <nav class="article-toc">
-        <p class="article-rail-head" id="article-toc-head">{heading}</p>
-        <ul class="article-toc-list">
-          {items.map((entry) => (
-            <li class:list={['article-toc-item', { 'is-sub': entry.level >= 3 }]}>
-              <a href={`#${entry.id}`} data-toc-link={entry.id}>{entry.text}</a>
-            </li>
-          ))}
-        </ul>
-      </nav>
-    </aside>
+    <nav class="article-toc desktop-only-toc">
+      <p class="article-rail-head" id="article-toc-head">{heading}</p>
+      <ul class="article-toc-list" style="max-height: calc(100vh - 22rem); overflow-y: auto;">
+        {items.map((entry) => (
+          <li class:list={['article-toc-item', { 'is-sub': entry.level >= 3 }]}>
+            <a href={`#${entry.id}`} data-toc-link={entry.id}>{entry.text}</a>
+          </li>
+        ))}
+      </ul>
+    </nav>
   )
 }
 
@@ -89,12 +87,27 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
     rather than only at the very top edge.
   */
   let currentObserver: IntersectionObserver | null = null;
+  let teardownScroll: (() => void) | null = null;
   
-  function initArticleToc() {
+  /*
+    Tear down BEFORE the early returns below, not only on swap. initArticleToc
+    returns early on a page with no TOC, and the same mistake in FeedGrid is
+    already recorded there as "Memory leak fix: Cleanup old hashchange listener
+    before early returns on new pages".
+  */
+  function releaseArticleToc() {
     if (currentObserver) {
       currentObserver.disconnect();
       currentObserver = null;
     }
+    if (teardownScroll) {
+      teardownScroll();
+      teardownScroll = null;
+    }
+  }
+
+  function initArticleToc() {
+    releaseArticleToc();
     
     const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-toc-link]'));
     if (links.length === 0) return;
@@ -111,6 +124,13 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
         if (isActive) link.setAttribute('aria-current', 'true');
         else link.removeAttribute('aria-current');
       });
+    };
+
+    const syncFallback = () => {
+      const ZONE_TOP = 80;
+      const passed = headings.filter((h) => h.getBoundingClientRect().top < ZONE_TOP);
+      const fallback = passed.length > 0 ? passed[passed.length - 1] : headings[0];
+      if (fallback?.id) setActive(fallback.id);
     };
 
     const activeHeadings = new Set<Element>();
@@ -148,17 +168,15 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
                                      footer — keep the LAST entry.
 
           So the position is resolved from the headings themselves rather than
-          assumed. `ZONE_TOP` is the same 80px the rootMargin below uses; the
-          two must agree or the rail disagrees with its own detection line.
+          assumed. `ZONE_TOP` in syncFallback() is the same 80px the rootMargin
+          below uses; the two must agree or the rail disagrees with its own
+          detection line.
 
           Doing this only when the set is empty keeps the normal scrolling path
           untouched — that is still pure IntersectionObserver, no geometry read
           per frame.
         */
-        const ZONE_TOP = 80;
-        const passed = headings.filter((h) => h.getBoundingClientRect().top < ZONE_TOP);
-        const fallback = passed.length > 0 ? passed[passed.length - 1] : headings[0];
-        if (fallback?.id) setActive(fallback.id);
+        syncFallback();
       },
       // Active zone: from 80px below the top of the viewport, down to 50% of the viewport.
       { rootMargin: '-80px 0px -50% 0px', threshold: 0 },
@@ -168,14 +186,45 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
     setActive(headings[0].id);
     
     currentObserver = observer;
+
+    /*
+      ─── TELEPORTATION BUG PROTECTION ───────────────────────────────────────
+      If the user jumps across the entire active zone instantly (e.g. clicking 
+      "BE UNCONVENTIONAL HQ" to scroll to top, or dragging the scrollbar very 
+      fast), the headings go from 'not intersecting' (below) to 'not intersecting' 
+      (above) in a single frame. The IntersectionObserver never fires because 
+      the boolean state didn't change! This debounced scroll listener catches 
+      those teleports gracefully without polling layout geometry every frame.
+    */
+    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
+    const onScroll = () => {
+      if (activeHeadings.size > 0) return;
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(syncFallback, 50);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    /*
+      MODULE SCOPE, NOT `window`. This was stored as
+      `(window as any).__hqTocScrollHandler`, which works only while init and
+      teardown alternate perfectly: a second init without a swap between
+      overwrites the global and orphans the first listener, with no handle left
+      to remove it. `currentObserver` right above is already module-scoped for
+      exactly this reason, so the two now tear down the same way — and the cast
+      that was needed to satisfy strict TS goes away with the global.
+
+      The pending timer is cleared too. A scroll inside the last 50ms before a
+      ClientRouter swap otherwise leaves a callback holding the OLD page's
+      heading and link nodes until it fires.
+    */
+    teardownScroll = () => {
+      window.removeEventListener('scroll', onScroll);
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+      scrollTimeout = null;
+    };
   }
 
   document.addEventListener('astro:page-load', initArticleToc);
   
-  document.addEventListener('astro:before-swap', () => {
-    if (currentObserver) {
-      currentObserver.disconnect();
-      currentObserver = null;
-    }
-  });
+  document.addEventListener('astro:before-swap', releaseArticleToc);
 </script>

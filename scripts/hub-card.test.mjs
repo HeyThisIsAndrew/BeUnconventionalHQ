@@ -341,15 +341,40 @@ test('below 1200px the support rail stacks instead of vanishing', () => {
     'article.css hides BOTH rails again. That takes the hub card, the editorial desk and ' +
       'Support The HQ off every phone and tablet.',
   );
-  assert.match(block, /\.article-rail-left \{\s*display: none/,
-    'the TOC stays desktop-only: a jump-link list belongs beside the text or nowhere');
-  assert.match(block, /grid-template-areas:\s*\n?\s*"column"\s*\n?\s*"support"/,
-    'the rail must stack AFTER the article, not before it');
+  assert.match(block, /\.desktop-only-toc \{\s*display: none/,
+    'the TOC stays desktop-only: a jump-link list belongs beside the text or nowhere (but the rest of the rail stacks)');
+  /*
+    ONE DECLARATION, NOT THREE SIGHTINGS. This was
+    `/grid-template-areas:[\s\S]*?"column"[\s\S]*?"support"[\s\S]*?"toc"/`, and
+    `block` is everything from the media query to the END OF THE FILE, so the
+    lazy spans let it match `grid-template-areas:` in one rule and pick up
+    "toc" from some unrelated rule far below. Anchored to a single declaration
+    now: the areas must appear in that order inside one `grid-template-areas`.
+  */
+  const areas = block.match(/grid-template-areas:\s*((?:\s*"[^"]*")+)\s*;/);
+  assert.ok(areas, 'the stacked layout must declare grid-template-areas');
+  const order = [...areas[1].matchAll(/"([^"]*)"/g)].map((m) => m[1].trim());
+  assert.deepEqual(order, ['column', 'support', 'toc'],
+    'the rails must stack AFTER the article, not before it, and both of them must stack');
+
   assert.match(block, /\.article-rail-right \.article-rail-more \{\s*display: none/,
     '"More From Intel" must stay hidden when stacked, or it prints the same related ' +
       'articles the column already shows directly under them');
-  assert.match(block, /position: static/,
-    'a sticky element in a single-column flow pins itself to the viewport as you scroll past');
+
+  /*
+    BOTH rails, each asserted BY NAME. `position: static` unanchored passed on
+    the right rail's rule alone, so reverting the left rail to `display: none`
+    — the exact regression this test is named for — went green.
+  */
+  for (const side of ['left', 'right']) {
+    const rule = block.match(new RegExp(`\\.article-layout > \\.article-rail-${side} \\{([^}]*)\\}`));
+    assert.ok(rule, `the ${side} rail needs its own stacked rule, scoped under .article-layout ` +
+      'so it beats the global `.article-rail { position: sticky }` further down the file');
+    assert.match(rule[1], /display: block/,
+      `the ${side} rail must still RENDER when stacked; display:none is what took it off every phone`);
+    assert.match(rule[1], /position: static/,
+      `a sticky ${side} rail in a single-column flow pins itself to the viewport as you scroll past`);
+  }
 });
 
 test('the stacked gap is paid for once, not twice', () => {
@@ -364,6 +389,27 @@ test('the stacked gap is paid for once, not twice', () => {
   assert.match(block, /\.article-rail-right \.article-rail-more \+ \*,?\s*\{?[\s\S]{0,80}margin-top: 0/,
     'and the first VISIBLE block gives up its own margin. `display: none` does not stop ' +
       ':first-child matching, so the hidden "More From Intel" must be reached as a sibling.');
+
+  /*
+    BOTH RAILS, because the left one repeated the mistake. PR #225 put "Stay
+    Updated" in the left rail with an inline `margin-top: 4rem` to clear the
+    Table of Contents above it — and below 1200px that TOC is `display: none`,
+    so the 4rem cleared nothing and simply added to the row-gap. Measured at
+    390px: 120px above the block against 56px for every other stacked gap.
+  */
+  assert.match(block, /\.article-rail-left \.article-rail-stay \{\s*margin-top: 0/,
+    'the left rail must give up its margin when stacked too, or the gap is paid twice');
+
+  /*
+    And it must be a CLASS, not an inline style. Inline can only be beaten
+    with `!important`, which is how that rule ended up unscoped and reaching
+    every rail on the site.
+  */
+  const page = readSrc('src', 'pages', 'intel', '[slug].astro');
+  assert.doesNotMatch(page, /style="margin-top: 4rem;?"/,
+    'the Stay Updated margin belongs in article.css as .article-rail-stay, not inline');
+  assert.match(page, /class="article-rail-desk article-rail-stay/,
+    'and the block has to carry the class the stylesheet targets');
 });
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);

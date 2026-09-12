@@ -8,6 +8,7 @@ import cloudflare from '@astrojs/cloudflare';
 import { cacheCloudflare } from '@astrojs/cloudflare/cache';
 import react from '@astrojs/react';
 import partytown from '@astrojs/partytown';
+import googlePreferredSource from '@puralex/astro-google-preferred-source';
 import { createClient } from '@sanity/client';
 import { validateStorePayload, serializeStore } from './src/lib/local-cms-store.mjs';
 
@@ -687,6 +688,7 @@ export default defineConfig({
       },
     }),
     react(),
+    googlePreferredSource({ injectScript: false }),
     {
       name: 'dev-only-routes',
       hooks: {

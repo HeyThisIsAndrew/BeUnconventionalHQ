@@ -80,6 +80,17 @@
   # and the inline island scripts require it), so script-src was not acting as
   # a strict XSS barrier before this. If the pixels are ever moved off
   # Partytown onto the main thread, REMOVE this — it exists only for Partytown.
+  #
+  # THE GOOGLE PREFERRED SOURCE BUTTON NEEDS NOTHING HERE. PR #225 added
+  # news.google.com and accounts.google.com to script-src, frame-src AND
+  # connect-src for it. Measured against the build: both origins appear ZERO
+  # times in the whole site. The component renders a plain <a href> to
+  # https://www.google.com/preferences/source, and CSP governs what a page
+  # LOADS, not where a link navigates. The integration is configured
+  # `injectScript: false` in astro.config.mjs, so its publisher.js is never
+  # added either. If that flag is ever flipped to true, publisher.js is served
+  # FROM news.google.com and script-src will genuinely need it - add it then,
+  # with a build to point at.
   Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://challenges.cloudflare.com https://static.cloudflareinsights.com https://connect.facebook.net https://*.facebook.net https://analytics.tiktok.com https://*.tiktok.com https://*.tiktokcdn.com https://*.tiktokw.us https://www.clarity.ms https://*.clarity.ms https://www.youtube.com https://s.ytimg.com; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://www.googletagmanager.com https://challenges.cloudflare.com https://www.facebook.com; connect-src 'self' https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://static.cloudflareinsights.com https://cloudflareinsights.com https://connect.facebook.net https://*.facebook.com https://analytics.tiktok.com https://*.tiktok.com https://*.tiktokw.us https://www.clarity.ms https://*.clarity.ms https://c.clarity.ms
 
 # The embedded Sanity Studio (/admin, injected by @sanity/astro's
