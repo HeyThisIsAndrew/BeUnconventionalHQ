@@ -1,4 +1,4 @@
-import { categorize } from '../data/content-source.js';
+import { categorize } from '../data/categorize.js';
 import { getUnifiedVideos, type UnifiedVideo } from './videos.ts';
 import localVideos from '../data/videos.json';
 

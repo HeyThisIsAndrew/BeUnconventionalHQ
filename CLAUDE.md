@@ -16,7 +16,9 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
   proves compilation.)
 - `npx astro check` — type check. The bar is: introduce zero NEW errors (baseline
   is 0/0/0 as of the Astro 7 migration — CI will show any new count directly).
-- `npm run dev` — refreshes the content cache, then dev server.
+- `npm run dev` — dev server. It no longer refreshes a content cache first:
+  the legacy RSS/scrape cache and its `refresh-content` script are deleted
+  (see "Data flow"). Content comes from `npm run sync` and is committed.
 - `npm run deploy` — wrangler deploy of the built worker (`dist/server`).
   Production target is **Cloudflare Workers** (git-connected Workers Builds),
   NOT Pages — Pages serves only `dist/client` and 404s every `/api/*` route
@@ -69,9 +71,18 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
 - **Videos/shorts/live:** pages call `getVideosUnified()` / `getShortsUnified()` /
   `getLiveStreamsUnified()` (`src/lib/videos-source.ts`) — filters
   `src/data/videos.json` through the same merge logic (`src/lib/videos.ts`) that
-  used to run against Sanity. The legacy RSS/scrape cache
-  (`src/data/cache/videos.json`, refreshed by `scripts/fetch-feeds.mjs`) is no
-  longer part of this merge.
+  used to run against Sanity. **The legacy RSS/scrape cache is GONE, not just
+  unused.** `src/data/cache/videos.json`, `src/data/cache/articles.json`,
+  their only reader (`src/data/feeds.js`, which nothing imported), both
+  writers (`scripts/fetch-feeds.mjs` and the orphaned `scripts/fetch-rss.mjs`)
+  and the `refresh-content` / `build:live` / `start:full` npm scripts were all
+  deleted together. Every one of them was dead, and the cost of leaving them
+  was not theoretical: `npm run dev` re-fetched the YouTube RSS on every run
+  and rewrote a file nothing read, so a retitled video would show up as an
+  unrelated diff in whatever PR was open. `src/data/cache/` still exists for
+  `channel-stats.json` and `social-stats.json`, which `/media-kit` does read.
+  Video categorisation (`categorize()`) survived that module as
+  `src/data/categorize.js`.
 - **Articles:** Substack's internal `/api/v1/posts` JSON endpoint via
   `scripts/sync-articles.mjs` (no Sanity schema ever). Replaced the public `/feed`
   RSS source because RSS's `<category>` element drops most of a post's tags —

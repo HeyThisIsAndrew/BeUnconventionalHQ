@@ -23,11 +23,15 @@ imported by `src/pages/media-kit.astro`. It is populated by
 `node scripts/fetch-channel-stats.mjs` (`npm run refresh-analytics`), which
 hits the YouTube Data API (public stats) and, if OAuth creds are present, the
 YouTube Analytics API (retention, demographics, geos, impressions). This is
-**deliberately not chained into `refresh-content`** (which `dev`/`build:live`/
-`start:full` all run) — it used to be, and that combined with Cloudflare
-Workers Build's auto-build-on-every-push meant the OAuth flow was firing on
-nearly every git push during active iteration. If you ever see `refresh-content`
-touching `fetch-channel-stats.mjs` again, that regression came back — undo it.
+**deliberately not chained into `dev` or `build`** — it used to be chained
+into `refresh-content`, which `dev`/`build:live`/`start:full` all ran, and that
+combined with Cloudflare Workers Build's auto-build-on-every-push meant the
+OAuth flow was firing on nearly every git push during active iteration.
+`refresh-content` and its two wrapper scripts have since been deleted outright
+(the cache they refreshed had no readers), so the hook they provided is gone
+with them. The lesson stands: if you ever see `fetch-channel-stats.mjs` wired
+into a command that runs on every dev start or every build, that regression
+came back — undo it.
 
 **The downloadable PDF**: `public/downloads/be-unconventional-hq-media-kit.pdf`
 is a committed, pre-generated file — not created by a visitor's browser.

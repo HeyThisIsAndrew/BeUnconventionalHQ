@@ -359,6 +359,49 @@ test('auto-pause is scoped to the rotator, not the whole wrapper', () => {
   );
 });
 
+test('the rotator stops while it is off screen', () => {
+  /*
+    The outline is the one animation on this page Lighthouse flags as
+    non-composited ("Unsupported CSS Property: stroke-dashoffset"), so every
+    frame is main-thread work. Off screen it was doing that for a box nobody
+    could see, and because the animation is also the clock, slides were
+    advancing unseen.
+
+    `is-offscreen` and `is-paused` are separate classes deliberately: either
+    holds the outline, and scrolling back into view must not resume a rotation
+    the visitor stopped on purpose.
+  */
+  assert.match(
+    layout,
+    /\.yt-banner-wrapper\.is-offscreen \.banner-perimeter-rect \{\s*animation-play-state: paused;/,
+    'an off-screen banner must pause the outline, which is also the rotation clock',
+  );
+  assert.match(
+    layout,
+    /new IntersectionObserver\(/,
+    'visibility must be observed rather than polled',
+  );
+  assert.match(
+    layout,
+    /wrapper\.classList\.toggle\('is-offscreen', !entry\.isIntersecting\)/,
+    'the class must follow intersection directly',
+  );
+  assert.ok(
+    !/classList\.remove\('is-paused'\)/.test(layout),
+    'nothing in the visibility path may clear a user pause',
+  );
+  assert.match(
+    layout,
+    /astro:before-swap', \(\) => visibility\.disconnect\(\)/,
+    'the observer must be dropped on navigation, not left bound to a detached element',
+  );
+  assert.match(
+    layout,
+    /if \('IntersectionObserver' in window\)/,
+    'guard the API: without it the banner should simply keep running',
+  );
+});
+
 test('there is a real pause control, revealed by script', () => {
   assert.match(layout, /id="banner-pause"[^>]*hidden/, 'the control must ship hidden: no JS, no rotation, nothing to pause');
   assert.match(layout, /pauseBtn\.hidden = false/, 'the script must reveal it');

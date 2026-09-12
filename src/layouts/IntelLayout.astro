@@ -377,6 +377,32 @@ const isEmpty = !hasMagazine && !hasArchive;
         });
       }
 
+      /*
+        Pause while off screen. `threshold: 0` means any sliver counts as
+        visible, so the outline is only held when the banner is genuinely
+        gone from the viewport.
+
+        Guarded rather than assumed: without IntersectionObserver the banner
+        simply keeps running, which is the behaviour this replaces.
+      */
+      if ('IntersectionObserver' in window) {
+        const visibility = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              wrapper.classList.toggle('is-offscreen', !entry.isIntersecting);
+            }
+          },
+          { threshold: 0 },
+        );
+        visibility.observe(rotator);
+
+        /* ClientRouter replaces the document, so drop the observer with it
+           rather than leaving one bound to a detached element. */
+        document.addEventListener('astro:before-swap', () => visibility.disconnect(), {
+          once: true,
+        });
+      }
+
       startLap();
     });
   </script>
@@ -704,9 +730,27 @@ const isEmpty = !hasMagazine && !hasArchive;
   */
   .banner-rotator-grid:hover .banner-perimeter-rect,
   .banner-rotator-grid:focus-within .banner-perimeter-rect,
-  .yt-banner-wrapper.is-paused .banner-perimeter-rect {
+  .yt-banner-wrapper.is-paused .banner-perimeter-rect,
+  .yt-banner-wrapper.is-offscreen .banner-perimeter-rect {
     animation-play-state: paused;
   }
+
+  /*
+    `is-offscreen` is set by an IntersectionObserver when the banner scrolls
+    out of view. It pays for itself twice:
+
+      • this animation is the one thing on the page Lighthouse flags as
+        non-composited ("Unsupported CSS Property: stroke-dashoffset"), which
+        means every frame is main-thread work. Off screen it was still doing
+        that work for a box nobody can see;
+      • because the animation is also the clock, pausing it stops the slides
+        advancing unseen. Scroll back and you get a full lap of whatever is
+        showing rather than landing halfway through a slide you never saw.
+
+    A user pause and an off-screen pause are separate classes on purpose:
+    either one holds the outline, and coming back into view cannot resume a
+    rotation the visitor deliberately stopped.
+  */
 
   @keyframes perimeterFill {
     0% { stroke-dashoffset: 100; opacity: 0; }
