@@ -16,9 +16,11 @@
  *   1. FeedLayout        page chrome — nav, big title, footer
  *   2. IntelFilters      ALL / FILM / TV / GAMES / EVENTS
  *   3. IntelMagazine     3-column spread (page 1 only)
- *   4. video strip       "Latest From The Channel" (page 1 of /intel only)
- *   5. CardGrid          the paginated archive
- *   6. Pagination        numbered pages
+ *      ...or EmptyState  when there are no articles at all, in the SAME slot
+ *   4. ad rotator        channel CTA + one slide per live referral link
+ *   5. video strip       "Latest From The Channel" (page 1 of /intel only)
+ *   6. CardGrid          the paginated archive
+ *   7. Pagination        numbered pages
  *
  * ─── WHY THE MAGAZINE ONLY APPEARS ON PAGE 1 ──────────────────────────────
  * The spread is an opening statement. Repeating it on page 2, 3, 4 would push
@@ -170,6 +172,35 @@ const isEmpty = !hasMagazine && !hasArchive;
   <IntelFilters slot="filters" active={activeCategory} />
 
   {hasMagazine && <IntelMagazine articles={magazineArticles} />}
+
+  {/*
+    THE EMPTY STATE GOES WHERE THE MAGAZINE WOULD HAVE BEEN, and that position
+    is the whole point of it.
+
+    It used to render after the video strip and the archive section, which put
+    it below the fold: filtering to a category with no articles yet gave you a
+    filter row, an ad banner, four videos, and then a screen of nothing before
+    the words "no items found" appeared. Reported as "I had to scroll down to
+    see that". The message answering "where did the articles go?" has to be
+    where the articles would have been.
+
+    `isEmpty` is `!hasMagazine && !hasArchive`, so this and the spread above can
+    never both render. That is what makes this a swap rather than an insertion.
+
+    Keep it ABOVE the rotator. Below it, the ad is the first thing a visitor
+    meets on a page that has told them nothing yet.
+  */}
+  {
+    isEmpty && (
+      /* Same wording and same way out as the Feed: "Clear Filters" returns
+         to the unfiltered section. */
+      <EmptyState
+        message={emptyMessage}
+        actionLabel={activeCategory ? LABELS.clearFilters : undefined}
+        actionHref={activeCategory ? ARTICLE_SECTION.path : undefined}
+      />
+    )
+  }
 
   {/*
     BANNER ROTATOR — the channel CTA plus one slide per live referral link.
@@ -437,18 +468,6 @@ const isEmpty = !hasMagazine && !hasArchive;
           ))}
         </CardGrid>
       </section>
-    )
-  }
-
-  {
-    isEmpty && (
-      /* Same wording and same way out as the Feed: "Clear Filters" returns
-         to the unfiltered section. */
-      <EmptyState
-        message={emptyMessage}
-        actionLabel={activeCategory ? LABELS.clearFilters : undefined}
-        actionHref={activeCategory ? ARTICLE_SECTION.path : undefined}
-      />
     )
   }
 

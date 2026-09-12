@@ -279,6 +279,43 @@ test('mobile chrome scales with the viewport instead of stepping', () => {
   );
 });
 
+console.log('\nWhat sits above the rotator\n');
+
+test('the empty state renders in the magazine slot, above the rotator', () => {
+  /*
+    Reported as "I had to scroll down to see that": filtering /intel to a
+    category with no articles rendered the filter row, the ad banner, four
+    videos and then a screen of nothing before "no items found" appeared,
+    because the empty state was emitted after the video and archive sections.
+
+    The message answering "where did the articles go?" belongs where the
+    articles would have been, which is the magazine's slot. `isEmpty` is
+    `!hasMagazine && !hasArchive`, so the spread and the empty state can never
+    both render and this is a swap, not an insertion.
+  */
+  const magazine = layout.indexOf('{hasMagazine && <IntelMagazine');
+  const emptyState = layout.indexOf('<EmptyState');
+  const rotator = layout.indexOf('<div class="yt-banner-wrapper">');
+  const videoStrip = layout.indexOf('id="intel-video-head"');
+
+  assert.ok(magazine > 0 && emptyState > 0 && rotator > 0 && videoStrip > 0,
+    'expected the magazine, empty state, rotator and video strip all to be present');
+  assert.ok(
+    emptyState > magazine,
+    'the empty state must sit in the magazine slot, directly after the spread',
+  );
+  assert.ok(
+    emptyState < rotator,
+    'the empty state must come BEFORE the ad rotator: below it, the ad is the ' +
+      'first thing a visitor meets on a page that has told them nothing yet',
+  );
+  assert.ok(
+    emptyState < videoStrip,
+    'the empty state must come before the video strip, which is what pushed it ' +
+      'below the fold in the first place',
+  );
+});
+
 console.log('\nOne clock\n');
 
 test('nothing in the rotator runs on a timer', () => {
