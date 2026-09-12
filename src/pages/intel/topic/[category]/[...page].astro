@@ -22,6 +22,7 @@ import { ARTICLE_SECTION, MAGAZINE_SIZE } from '../../../../data/sections.js';
 import { MESSAGES } from '../../../../data/content.js';
 import { CATEGORIES } from '../../../../data/constants.js';
 import { getArticleFeedItems } from '../../../../lib/articles';
+import { getVideoItems } from '../../../../lib/feed-items';
 import type { GetStaticPathsOptions } from 'astro';
 
 /**
@@ -67,6 +68,7 @@ const { page, categoryLabel, magazine } = Astro.props;
 
 const isFirstPage = page.currentPage === 1;
 const magazineArticles = isFirstPage ? magazine : [];
+const videos = isFirstPage ? (await getVideoItems()).slice(0, 4) : [];
 
 const pageSuffix = page.currentPage > 1 ? ` - Page ${page.currentPage}` : '';
 ---
@@ -78,6 +80,7 @@ const pageSuffix = page.currentPage > 1 ? ` - Page ${page.currentPage}` : '';
   page={page}
   activeCategory={categoryLabel}
   magazineArticles={magazineArticles}
+  videos={videos}
   archiveHeading={`More ${categoryLabel}`}
   emptyMessage={MESSAGES.noFilterMatch}
 />

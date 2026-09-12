@@ -114,6 +114,7 @@ const isEmpty = !hasMagazine && !hasArchive;
 
 <FeedLayout
   noindex={isEmpty}
+  hideHero={true}
   title={title}
   description={description}
   headingLabel={headingLabel}
@@ -124,7 +125,7 @@ const isEmpty = !hasMagazine && !hasArchive;
   titleSecondary={ARTICLE_SECTION.titleSecondary}
   mainClass="pb-16 md:pb-24"
 >
-  {/* `slot="filters"` replaces the Feed's own filter bar with ours. */}
+  {/* Render the category filters at the top of the page */}
   <IntelFilters slot="filters" active={activeCategory} />
 
   {hasMagazine && <IntelMagazine articles={magazineArticles} />}
@@ -133,7 +134,7 @@ const isEmpty = !hasMagazine && !hasArchive;
     hasVideos && (
       /* aria-labelledby points at the heading's id so screen readers announce
          this region by name rather than as an anonymous "section". */
-      <section class="intel-break" aria-labelledby="intel-video-head">
+      <section class="intel-break border-t border-white/10 pt-16 mt-16" aria-labelledby="intel-video-head">
         <SectionHeading
           title="Latest From The Channel"
           id="intel-video-head"
@@ -151,7 +152,7 @@ const isEmpty = !hasMagazine && !hasArchive;
 
   {
     hasArchive && (
-      <section class="intel-archive" aria-labelledby="intel-archive-head">
+      <section class="intel-archive border-t border-white/10 pt-16 mt-16" aria-labelledby="intel-archive-head">
         <SectionHeading title={archiveHeading} id="intel-archive-head" />
         <CardGrid>
           {page.data.map((item: any, index: number) => (
