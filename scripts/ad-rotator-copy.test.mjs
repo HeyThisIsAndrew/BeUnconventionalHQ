@@ -115,7 +115,7 @@ const live = items.filter((item) => item.href !== '');
 console.log('\nAd rotator copy\n');
 
 test('referrals.js still parses into the partners we expect', () => {
-  assert.ok(items.length >= 4, `found only ${items.length} partner blocks`);
+  assert.ok(items.length >= 3, `found only ${items.length} partner blocks`);
   assert.ok(
     live.length >= 3,
     `expected at least 3 live partners, found ${live.length} (${live.map((i) => i.label).join(', ')})`,

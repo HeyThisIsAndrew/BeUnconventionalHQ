@@ -130,20 +130,21 @@ export const REFERRAL_GROUPS = [
     id: 'gear',
     title: 'Cinematic Filming Gear',
     note: 'The exact kit behind the deep dives.',
-    items: [
-      {
-        label: 'Gear Shop',
-        /* Parked, not deleted. An empty href is the documented way to hold a
-           partner back (see HOW TO ADD A PARTNER above) -- getReferralGroups()
-           drops the item and then the whole empty group, so nothing renders,
-           and the entry stays readable instead of sitting in a comment. */
-        href: '',
-        blurb: 'Behind the desk All The Camera Gear.',
-        bannerText: 'Shop the Camera Gear',
-        icon: 'aperture',
-        affiliate: true,
-      },
-    ],
+    /*
+      EMPTY ON PURPOSE, AND NOT A STUB WAITING TO BE FILLED.
+
+      There was a "Gear Shop" entry here pointing at https://a.co/d/0aczEbZw.
+      That is the same Amazon influencer storefront as "Amazon Storefront" in
+      The HQ Launchpad above, so it was a second door onto one destination:
+      two rows in the rail, two slides in the /intel rotator, one place to
+      land. It was removed for being redundant, not for being unfinished.
+
+      getReferralGroups() drops a group with no usable items, so this group
+      renders nowhere and costs nothing. Do not re-add a link here unless the
+      gear list gets a destination of its own that the storefront does not
+      already cover.
+    */
+    items: [],
   },
   {
     id: 'software',
