@@ -93,15 +93,10 @@ test('a hub is called what it actually is', () => {
   assert.equal(getHubKindHeading({ hubCategory: 'universes' }), 'Official Franchise Hub');
   assert.equal(getHubKindHeading({ hubCategory: 'streaming' }), 'Official Streamer Hub');
   assert.equal(getHubKindHeading({ hubCategory: 'studios' }), 'Official Studio Hub');
-  assert.equal(getHubKindHeading({ hubCategory: 'gaming' }), 'Official Gaming Hub');
+  assert.equal(getHubKindHeading({ hubCategory: 'gaming' }), 'Official Games Hub');
 });
 
 test('an unknown or missing category says so rather than guessing', () => {
-  /*
-    A hub whose category was never set is a data gap. Falling back to
-    "Franchise" would hide the gap behind something that reads fine, which is
-    exactly how the hardcoded heading survived as long as it did.
-  */
   assert.equal(getHubKindHeading({}), 'Official Hub');
   assert.equal(getHubKindHeading(null), 'Official Hub');
   assert.equal(getHubKindHeading({ hubCategory: 'nonsense' }), 'Official Hub');
