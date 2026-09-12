@@ -1,70 +1,91 @@
 ---
-// Clean, scannable vertical list of the secondary upcoming events (everything
-// after the featured one). Semantic <ul>/<li> with a single link per row for
-// accessibility and SEO; thumbnails are decorative (alt="") because the title
-// is adjacent text. Date/location come from the shared helpers — no date logic
-// lives here.
-// @ts-ignore - sanity:client is a virtual module resolved by @sanity/astro
-import { sanityClient } from '../lib/sanity.ts';
-import { createImageUrlBuilder } from '@sanity/image-url';
-import { formatEventDateRange, formatLocation } from '../lib/events';
-import EventStatusIndicator from './EventStatusIndicator.astro';
-
-const builder = createImageUrlBuilder(sanityClient);
-const urlFor = (source: any) => builder.image(source);
+import { formatLocation } from '../lib/events';
 
 const { events = [] } = Astro.props;
+
+const currentYear = new Date().getFullYear();
+
+// Group events by year
+const groupedEvents = events.reduce((acc: any, event: any) => {
+  let year = currentYear;
+  if (event?.startDate) {
+    // Use UTC to prevent off-by-one errors from local timezone
+    const d = new Date(event.startDate + 'T00:00:00Z');
+    if (!isNaN(d.getTime())) {
+      year = d.getUTCFullYear();
+    }
+  }
+  
+  if (!acc[year]) acc[year] = [];
+  acc[year].push(event);
+  return acc;
+}, {});
+
+const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number(b));
 ---
 
-<ul class="uel-list" role="list">
-  {events.map((event: any) => {
-    const slug = event?.slug?.current ?? '';
-    const thumb = event?.heroImage
-      ? urlFor(event.heroImage).width(320).height(180).auto('format').url()
-      : '';
-    const logoUrl = event?.logo ? urlFor(event.logo).height(44).url() : '';
-    const dateLabel = formatEventDateRange(event?.startDate, event?.endDate, { year: false });
-    const locationLabel = formatLocation(event?.location);
+<div class="uel-container">
+  {sortedYears.map((yearStr) => {
+    const yearNum = Number(yearStr);
+    const showHeader = yearNum !== currentYear;
+    const yearEvents = groupedEvents[yearStr];
 
     return (
-      <li class="uel-item">
-        <a href={`/events/${slug}`} class="uel-link">
-          <div class="uel-thumb-wrap">
-            {thumb ? (
-              <img src={thumb} alt="" loading="lazy" decoding="async" class="uel-thumb" />
-            ) : (
-              <div class="uel-thumb uel-thumb--empty" aria-hidden="true"></div>
-            )}
+      <div class="uel-year-group">
+        {showHeader && (
+          <div class="intel-break-head w-full animate-on-scroll" style="margin-top: 3rem; margin-bottom: 2rem;">
+            <h2 class="intel-break-title">{yearNum}</h2>
           </div>
+        )}
+        <ul class="uel-list" role="list">
+          {yearEvents.map((event: any) => {
+            const slug = event?.slug?.current ?? '';
+            const locationLabel = formatLocation(event?.location);
+            
+            let month = '';
+            let day = '';
+            if (event?.startDate) {
+              const d = new Date(event.startDate + 'T00:00:00Z');
+              if (!isNaN(d.getTime())) {
+                month = d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }).toUpperCase();
+                day = d.toLocaleDateString('en-US', { day: 'numeric', timeZone: 'UTC' });
+              }
+            }
 
-          <div class="uel-body">
-            {logoUrl ? (
-              <>
-                <img src={logoUrl} alt={`${event.title} logo`} loading="lazy" class="uel-logo" />
-                {/* Heading kept for structure even when the logo is the identity
-                    (mirrors FeaturedEvent's sr-only heading). */}
-                <h3 class="uel-sr-title">{event.title}</h3>
-              </>
-            ) : (
-              <h3 class="uel-title">{event.title}</h3>
-            )}
-            <p class="uel-meta">
-              {/* Dot-only for plain upcoming (label would be redundant in an
-                  upcoming list); label shows for LIVE / Cancelled / Postponed. */}
-              <EventStatusIndicator event={event} size="sm" showLabelFor={['live', 'cancelled', 'postponed']} />
-              <span class="uel-date">{dateLabel}</span>
-              {locationLabel && <span class="uel-location"> • {locationLabel}</span>}
-            </p>
-          </div>
+            return (
+              <li class="uel-item">
+                <a href={`/events/${slug}`} class="uel-link">
+                  <div class="uel-date-badge">
+                    <span class="uel-badge-month">{month}</span>
+                    <span class="uel-badge-day">{day}</span>
+                  </div>
 
-          <span class="uel-arrow" aria-hidden="true">→</span>
-        </a>
-      </li>
+                  <div class="uel-body">
+                    <h3 class="uel-title">{event.title}</h3>
+                    {locationLabel && <span class="uel-location-pill">{locationLabel}</span>}
+                  </div>
+
+                  <span class="uel-arrow" aria-hidden="true">&rarr;</span>
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     );
   })}
-</ul>
+</div>
 
 <style>
+  .uel-container {
+    display: flex;
+    flex-direction: column;
+  }
+  .uel-year-group {
+    display: flex;
+    flex-direction: column;
+  }
+
   .uel-list {
     list-style: none;
     margin: 0;
@@ -77,104 +98,114 @@ const { events = [] } = Astro.props;
   .uel-link {
     display: flex;
     align-items: center;
-    gap: 1.25rem;
-    min-height: 44px; /* comfortable touch target */
-    padding: 1rem;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    gap: 1.5rem;
+    min-height: 80px; 
+    padding: 1.2rem 1.5rem;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
     text-decoration: none;
     color: #fff;
-    /* Add box-shadow to the transition for the cinematic glow effect. */
-    transition: background 0.25s ease, border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+    transition: background 0.3s ease, border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
   }
-  /* On hover/focus, apply the brand's cinematic glow and accent color to
-     maintain visual consistency with other interactive elements. */
+  
   .uel-link:hover,
   .uel-link:focus-visible {
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.03);
     border-color: var(--color-accent, #cc0000);
-    box-shadow: 0 0 20px rgba(204, 0, 0, 0.4);
-    transform: translateX(4px);
+    box-shadow: 0 8px 40px rgba(204, 0, 0, 0.15);
+    transform: translateY(-4px);
     outline: none;
   }
 
-  .uel-thumb-wrap {
+  .uel-date-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 85px;
     flex-shrink: 0;
-    width: 120px;
-    aspect-ratio: 16 / 9;
-    overflow: hidden;
-    background: #0d0d0d;
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    padding-right: 1.5rem;
   }
-  .uel-thumb {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+
+  .uel-badge-month {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--color-accent-text, #ef4444);
+    margin-bottom: 0.1rem;
   }
-  .uel-thumb--empty {
-    background: linear-gradient(135deg, #1a1a1a, #0d0d0d);
+
+  .uel-badge-day {
+    font-family: var(--font-display, 'Syne Variable', sans-serif);
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+    color: #fff;
   }
 
   .uel-body {
     flex: 1 1 auto;
-    min-width: 0; /* let the title truncate instead of overflowing the row */
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
   }
-  .uel-logo {
-    max-height: 22px;
-    width: auto;
-    object-fit: contain;
-    margin-bottom: 0.35rem;
-    display: block;
-  }
+
   .uel-title {
     font-family: var(--font-display, 'Syne Variable', sans-serif);
-    font-size: 1.15rem;
+    font-size: 1.3rem;
     font-weight: 700;
-    margin: 0 0 0.25rem;
-    line-height: 1.25;
-  }
-  /* Visually-hidden heading — keeps a per-item heading when the logo is shown. */
-  .uel-sr-title {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-  .uel-meta {
     margin: 0;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    font-size: 0.85rem;
-    color: #9a9a9a;
+    line-height: 1.2;
+    transition: color 0.3s ease;
+  }
+
+  .uel-link:hover .uel-title {
+    color: #fff;
+  }
+
+  .uel-location-pill {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.08em;
+    color: #999;
+    background: rgba(255,255,255,0.05);
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
   }
 
   .uel-arrow {
     flex-shrink: 0;
-    font-size: 1.25rem;
-    color: white;
-    transition: transform 0.25s ease;
+    font-size: 1.5rem;
+    color: rgba(255, 255, 255, 0.3);
+    transition: color 0.3s ease, transform 0.3s ease;
   }
+  
   .uel-link:hover .uel-arrow,
   .uel-link:focus-visible .uel-arrow {
     transform: translateX(4px);
-    /* An arrow glyph is an icon, and the rule covers icons too. */
     color: var(--color-accent-text, #ef4444);
   }
 
   @media (max-width: 560px) {
-    .uel-thumb-wrap {
-      width: 84px;
+    .uel-link {
+      gap: 1rem;
+      padding: 1rem;
+    }
+    .uel-date-badge {
+      padding-right: 1rem;
+      width: 70px;
     }
     .uel-title {
-      font-size: 1rem;
+      font-size: 1.1rem;
+    }
+    .uel-badge-day {
+      font-size: 1.6rem;
     }
     .uel-arrow {
       display: none;

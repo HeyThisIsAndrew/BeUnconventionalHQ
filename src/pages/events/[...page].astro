@@ -1,0 +1,358 @@
+---
+import { SECTIONS, META, HEADINGS, LABELS, pageTitle } from '../../data/content.js';
+import Layout from '../../layouts/Layout.astro';
+import SectionHeading from '../../components/SectionHeading.astro';
+import FeaturedEvent from '../../components/FeaturedEvent.astro';
+import UpcomingEventsList from '../../components/UpcomingEventsList.astro';
+import MiniCalendarSidebar from '../../components/MiniCalendarSidebar.astro';
+import EventCard from '../../components/EventCard.astro';
+import ReferralLinks from '../../components/ReferralLinks.astro';
+import SubscribeCTA from '../../components/SubscribeCTA.astro';
+import SpanningCalendarModal from '../../components/SpanningCalendarModal.astro';
+import Pagination from '../../components/Pagination.astro';
+import { getEventsLocal } from '../../lib/local-content';
+import { toYMD } from '../../lib/events';
+
+export async function getStaticPaths({ paginate }: any) {
+  const allEvents = getEventsLocal();
+  const today = toYMD();
+  
+  // 1. Compute upcoming events
+  const upcomingEventsAll = allEvents
+    .filter((e: any) => {
+      if (!e.startDate) return false;
+      const end = (e.endDate || e.startDate).slice(0, 10);
+      return end >= today;
+    })
+    .sort((a: any, b: any) => a.startDate.localeCompare(b.startDate));
+
+  // 2. Identify featured hero
+  const forcedHero = upcomingEventsAll.find((e: any) => e.forceSpotlightHero === true);
+  const featuredEvent = forcedHero || upcomingEventsAll[0] || null;
+  const secondaryUpcomingAll = upcomingEventsAll.filter((e: any) => e._id !== featuredEvent?._id);
+
+  // 3. Compute static past events (max 6, no pagination)
+  const pastEvents = allEvents
+    .filter((e: any) => {
+      if (!e.startDate) return false;
+      const end = (e.endDate || e.startDate).slice(0, 10);
+      return end < today;
+    })
+    .sort((a: any, b: any) => b.startDate.localeCompare(a.startDate))
+    .slice(0, 6); // Hard cap at 6!
+
+  // 4. Paginate ONLY the secondary upcoming events (pageSize 12)
+  return paginate(secondaryUpcomingAll, { 
+    pageSize: 12,
+    props: { allEvents, today, featuredEvent, pastEvents, upcomingEventsAll }
+  });
+}
+
+import type { Page } from 'astro';
+
+export interface Props {
+  page: Page<any>;
+  allEvents: any[];
+  today: string;
+  featuredEvent: any;
+  pastEvents: any[];
+  upcomingEventsAll: any[];
+}
+
+const { page, allEvents, featuredEvent: featuredProp, pastEvents, upcomingEventsAll } = Astro.props as Props;
+const secondaryUpcoming = page.data;
+
+const title = pageTitle(META.events.title);
+const description = META.events.description;
+
+// Always show the massive hero on all pages of the events dashboard
+const featuredEvent = featuredProp;
+---
+
+<Layout title={title} description={description} preconnect={["https://cdn.sanity.io"]}>
+  <main class="events-page flex-1 flex flex-col w-full">
+    <div class="container-page">
+      {/*
+        FULL-WIDTH HERO: header + FeaturedEvent sit outside/above the 12-col grid
+        so they span the full .container width as the page's visual anchor. The
+        70/30 split begins only below this section. (JSX comment — not shipped.)
+      */}
+      {/*
+        ─── THE DISPLAY LOCKUP IS GONE FROM THIS ROUTE ONLY ────────────────
+
+        "Coverage / Upcoming / Events" was a full display title stacked
+        directly above the spotlight hero, which carries the event's own
+        logo, status, countdown, date and city. On a phone that meant two
+        title treatments competing before a single event was visible, and
+        the header's 2.5rem margin pushed the thing people came for further
+        down still.
+
+        The <h1> STAYS, as .sr-only. It was the only one on the page, and
+        deleting the element outright would have left /events with no
+        heading at all: an empty document outline for a screen reader, and
+        a missing-h1 finding for the SEO audit that runs on every PR. What
+        the ask was about is the typography, and .sr-only removes exactly
+        that while the page keeps its name.
+
+        Text comes from the same SECTIONS.events copy the lockup used, so
+        the two cannot drift apart.
+
+        SCOPED TO THIS FILE. /events/archive, the homepage, /intel and
+        /feed all render their own <PageTitle> and are untouched;
+        `data-nav-anchor` came off with the wrapper and is written in five
+        places and read by no script or stylesheet.
+      */}
+      <h1 class="sr-only">{SECTIONS.events.primary} {SECTIONS.events.secondary}</h1>
+      {/* Featured hero: the single nearest upcoming event. */}
+          {featuredEvent ? (
+            <FeaturedEvent event={featuredEvent} />
+          ) : (
+            <p class="events-none">
+              {/*
+                Two sentences, each on its own line and centred. Split with
+                <span>s rather than a <br>: the line break is a presentational
+                choice, so it belongs to layout, and a screen reader reads two
+                sentences either way without announcing a stray break.
+              */}
+              <span>No upcoming events on the schedule right now.</span>
+              <span>Explore our past coverage below.</span>
+            </p>
+          )}
+
+      {/*
+        70/30 ASYMMETRICAL GRID:
+        - grid-cols-1     mobile portrait stacks in one column.
+        - md:grid-cols-12 the 8/4 split engages at md (768px), not lg, so tablets
+                          and landscape phones also get the two-column view.
+        - lg:items-start  keeps the shorter sidebar column from stretching to the
+                          feed's height, which would break position:sticky. Only
+                          matters at lg, where sticky is active.
+      */}
+      {secondaryUpcoming.length > 0 && (
+        <div class="intel-break-head w-full animate-on-scroll" style="margin-top: 3.5rem; margin-bottom: 2.5rem;">
+          <h2 id="more-upcoming-heading" class="intel-break-title">UPCOMING EVENTS</h2>
+        </div>
+      )}
+      <div class="grid grid-cols-1 md:grid-cols-12 md:gap-8 lg:items-start w-full" style={secondaryUpcoming.length === 0 ? "margin-top: 3.5rem;" : ""}>
+        {/*
+          OVERFLOW GUARDRAIL (min-w-0): grid/flex children default to
+          min-width:auto and refuse to shrink below their intrinsic content, so a
+          long unbreakable string or wide image can blow out the grid and cause
+          horizontal scroll. min-w-0 lets the column shrink, surviving extreme
+          content and high zoom (e.g. 300% on a 360px viewport).
+        */}
+        <section class="md:col-span-8 min-w-0">
+          
+          {/* Secondary upcoming events as a clean vertical list. */}
+          {secondaryUpcoming.length > 0 && (
+            <section class="upcoming-section animate-on-scroll" aria-labelledby="more-upcoming-heading">
+              <UpcomingEventsList events={secondaryUpcoming} />
+            </section>
+            <Pagination page={page} />
+          )}
+
+          {/*
+            ARCHITECTURAL LEDGER: MOBILE-ONLY CALENDAR CTA
+            This button is the primary entry point to the full calendar modal on
+            mobile devices. It is explicitly hidden on medium (`md`) viewports
+            and larger because its function is replaced by the MiniCalendarSidebar
+            component, which becomes visible at that breakpoint. This prevents
+            duplicate calendar navigation UI on desktop and tablet.
+          */}
+          {allEvents.length > 0 && (
+            <div class="calendar-cta-row animate-on-scroll md:hidden">
+              <button class="open-full-calendar-btn" type="button">View Full Calendar</button>
+            </div>
+          )}
+
+          {/*
+            ─── PAST EVENT ARCHIVE ────────────────────────────────────────
+
+            The six most recent finished events, opened by the same ruled
+            header /intel uses for "Latest From The Channel" — heading left,
+            rule beneath, routing link right — instead of a second full-size
+            <PageTitle>. Two stacked display titles on one page made the
+            archive look like a second page grafted onto the bottom of this
+            one, and the reader had no way through to the rest of it.
+
+            SIX IS A CAP ON WHAT IS *SHOWN*, NOT ON WHAT IS KEPT. The slice
+            happens in getStaticPaths above; /events/archive paginates the
+            full set, and nothing is ever removed from the store.
+          */}
+          {pastEvents.length > 0 && (
+            <section class="past-events-section animate-on-scroll" aria-labelledby="past-events-heading">
+              <SectionHeading
+                title={HEADINGS.pastEventArchive}
+                id="past-events-heading"
+                linkLabel={LABELS.allPastEvents}
+                linkHref="/events/archive"
+              />
+              <div class="event-grid">
+                {pastEvents.map((event: any, index: number) => (
+                  <EventCard event={event} index={index} />
+                ))}
+              </div>
+            </section>
+          )}
+        </section>
+
+        {/*
+          MOBILE KILL-SWITCH: sidebar is `hidden` by default and only `md:block`
+          — portrait mobile stays a clean single column; the sidebar would just
+          push primary content down and add noise on small screens.
+        */}
+        <aside class="hidden md:block md:col-span-4 lg:sticky lg:top-28" aria-label="Upcoming events at a glance">
+          {/*
+            DESKTOP-ONLY STICKY PHYSICS & FLEXBOX FLOW
+            1. lg:sticky — sticky only at lg (1024px). At md (landscape mobile) a
+               sticky sidebar would consume the short viewport and trap scrolling,
+               so it's reserved for tall desktop viewports.
+            2. flex flex-col gap-8 — enforces vertical flow with fixed spacing
+               between sidebar modules so they can never overlap.
+          */}
+          <div class="flex flex-col gap-8 items-start">
+            {/*
+              ─── THE CALENDAR, RESTORED ─────────────────────────────────────
+
+              This module was dropped when events.astro became
+              events/[...page].astro, and the comment above the mobile "View
+              Full Calendar" button — which says that button is hidden from md
+              up "because its function is replaced by the MiniCalendarSidebar"
+              — was left behind pointing at nothing. The two together meant
+              /events had NO calendar entry point on desktop at all: the CTA
+              was hidden and its replacement was gone.
+
+              First in the rail, as it was on main. It carries its own
+              "Calendar" button, which is what opens <SpanningCalendarModal>,
+              so restoring the module restores the way in.
+
+              It takes every upcoming event rather than the current page's
+              slice — the calendar is a view of the schedule, not of page 2 —
+              and shows the nearest three itself.
+            */}
+            <div class="w-full">
+              <MiniCalendarSidebar events={upcomingEventsAll} />
+            </div>
+
+            <div class="w-full">
+              <div class="article-rail-related">
+              <p class="article-rail-head">Coverage Inquiry</p>
+              <p class="text-sm text-gray-400 leading-relaxed" style="margin-bottom: 1.5rem;">
+                BE Unconventional HQ provides premium editorial coverage for events, including live photography, video interviews, and written features.
+              </p>
+              <a href="mailto:press@beunconventionalhq.com?subject=Coverage%20Inquiry" class="press-desk-link">Contact Press Desk &rarr;</a>
+            </div>
+            
+            {/* Affiliate / Support Cards */}
+            <div class="article-rail-support mt-10 w-full">
+              <ReferralLinks compact />
+            </div>
+
+            </div>
+
+            {/*
+              SIDEBAR DISCOVERY MODULE [FUTURE]: this slot is reserved for a
+              <DiscoverySidebar /> powered by Sanity queries (latest videos /
+              articles) to boost in-ecosystem engagement. Tracked on a separate
+              ticket to avoid scope creep during Events Hub stabilization. The old
+              third-party ad placeholder was removed — owned content is preferred.
+            */}
+
+          </div>
+        </aside>
+      </div>
+    </div>
+  </main>
+
+  <SubscribeCTA />
+  <SpanningCalendarModal events={allEvents} />
+</Layout>
+
+<style>
+  /* Page width wrapper now shared: `.container-page` in modules/layout.css */
+
+  .events-none {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.35rem;
+    color: #999;
+    font-size: 1.05rem;
+    margin: 2rem auto 3rem;
+    max-width: 560px;
+  }
+
+  .upcoming-section {
+    /* Spacing is now handled by the grid container's margin-top */
+  }
+  .upcoming-heading {
+    font-family: var(--font-display, 'Syne Variable', sans-serif);
+    font-size: 1.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #fff;
+    margin: 0 0 1.5rem;
+    text-align: left;
+  }
+
+  .calendar-cta-row {
+    text-align: center;
+    margin: 3rem 0;
+  }
+  .open-full-calendar-btn {
+    width: 100%;
+    max-width: 320px;
+    min-height: 52px;
+    padding: 1rem 1.5rem;
+    background: transparent;
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  .open-full-calendar-btn:hover,
+  .open-full-calendar-btn:focus-visible {
+    background: rgba(204, 0, 0, 0.1);
+    border-color: var(--color-accent, #cc0000);
+    color: white;
+    box-shadow: 0 0 20px rgba(204, 0, 0, 0.5);
+    outline: none;
+  }
+
+  .past-events-section {
+    margin-top: 4.5rem;
+  }
+  /* The ruled header already carries 2rem of clearance beneath it, and
+     `.event-grid` adds another 2rem of its own for the layouts that have no
+     header above them. Two margins for one gap read as a hole in the page. */
+  .past-events-section .event-grid {
+    margin-top: 0;
+  }
+
+  .press-desk-link {
+    font-family: var(--font-display, 'Syne Variable', sans-serif);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-white, #fff);
+    background-image: linear-gradient(var(--color-accent, #cc0000), var(--color-accent, #cc0000));
+    background-repeat: no-repeat;
+    background-position: 0 100%;
+    background-size: 0% 2px;
+    padding-bottom: 2px;
+    transition: color 0.3s ease, background-size 0.3s ease;
+    display: inline-block;
+  }
+  .press-desk-link:hover,
+  .press-desk-link:focus-visible {
+    color: var(--color-accent-text, #ef4444);
+    background-size: 100% 2px;
+  }
+  
+</style>

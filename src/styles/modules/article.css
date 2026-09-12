@@ -407,7 +407,7 @@
      the rails sit exactly halfway between the screen edge and the article.
      The three tracks plus their gaps come to ~1114px, so they still fit
      inside the 1200px breakpoint below, where this collapses to one column. */
-  grid-template-columns: 16rem minmax(0, 53rem) 16rem;
+  grid-template-columns: 14rem minmax(0, 53rem) 19rem;
   grid-template-areas: "toc column support";
   justify-content: space-evenly;
   gap: 2rem; /* Fallback gap if screen gets tight right before the 1200px breakpoint */
@@ -430,14 +430,80 @@
   grid-area: support;
 }
 
+/*
+  ─── BELOW 1200px: THE TOC GOES, THE SUPPORT RAIL STACKS ───────────────────
+
+  Both rails used to be hidden here, which meant a phone or tablet reader saw
+  no hub card, no editorial desk and no Support The HQ block at all. The event
+  templates already solved this for themselves, so an event page stacked its
+  rail under the column on a phone and an article page simply dropped it.
+
+  Only the SUPPORT rail comes back, and it comes back after the column:
+
+    - The TOC stays hidden. A jump-link list belongs beside the text or
+      nowhere; rendered inline it is furniture the reader scrolls past on a
+      page they are already scrolling. (That exact thing shipped once on the
+      event templates.)
+    - "More From Intel" stays hidden with it, because the article column
+      already renders "Suggested Reading" below the body at every width.
+      Without this the same related articles print twice, back to back.
+    - The rail loses `position: sticky`. A sticky element in a single-column
+      flow pins itself to the viewport as you scroll past, which reads as a
+      rendering fault rather than a feature.
+*/
 @media (max-width: 1200px) {
   .article-layout {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "column";
+    grid-template-areas:
+      "column"
+      "support";
   }
 
-  .article-rail {
+  .article-rail-left {
     display: none;
+  }
+
+  .article-layout > .article-rail-right {
+    display: block;
+    position: static;
+  }
+
+  .article-rail-right .article-rail-more {
+    display: none;
+  }
+
+  /*
+    ─── THE GAP THAT WAS A GUTTER ──────────────────────────────────────────
+
+    Same trap events.css documents, arrived at the same way. Measured at
+    390px between the last line of "Suggested Reading" and the hub card
+    heading, before this:
+
+      32px   the layout's own 2rem gap, which is a horizontal GUTTER when
+             the three tracks stand side by side and becomes vertical space
+             the moment they stack
+      56px   a 3.5rem top margin on the rail
+      56px   the hub card's own 3.5rem, which exists to separate it from a
+             sibling ABOVE it inside the rail. Stacked, and with "More From
+             Intel" hidden, it has no sibling above it: the two margins were
+             paying for the same emptiness.
+      ----
+      144px
+
+    The row gap now carries the separation on its own, and the first block in
+    the rail gives up its margin. 112px, which is what the event templates
+    landed on after the same measurement. `.article-rail-more + *` covers the
+    hidden-sibling case: display:none does not stop :first-child matching it,
+    so the hub card is never the first CHILD even when it is the first thing
+    you can see.
+  */
+  .article-layout {
+    row-gap: 3.5rem;
+  }
+
+  .article-rail-right .article-rail-sticky > :first-child,
+  .article-rail-right .article-rail-more + * {
+    margin-top: 0;
   }
 }
 
@@ -453,9 +519,32 @@
   padding-right: 4px;
 }
 
+/*
+  ─── THE RAILS SCALE WITH THE VIEWPORT, IN ONE PLACE ───────────────────────
+
+  `html` is set to 80% from 768px up, a deliberate density decision, so 0.7rem
+  resolves to about 9px. That reads fine on a laptop and is genuinely too small
+  on a large monitor, where the rails are the smallest type on the page and hit
+  the floor first.
+
+  The event templates used to fix this for themselves with `!important`
+  font-size bumps at 2560px and 3840px, which is how "On This Page" ended up a
+  different size from the identical "Contents" rail on an article. The scaling
+  belongs HERE, on the shared rules, so both templates move together and
+  neither needs an override.
+
+  FLUID, NOT STEPPED. A 4K panel reports its CSS width according to the
+  operating system's scaling, so a breakpoint at 2560 or 3840 may never fire on
+  the display that needs it. The clamp grows continuously with the viewport
+  instead, and is tuned to sit exactly on its floor at 1512px, so nothing at or
+  below a laptop width changes:
+
+      1512px -> 8.96px (unchanged)   1920px -> 9.7px
+      2560px -> 10.8px               3840px -> 13.0px
+*/
 .article-rail-head {
   font-family: var(--font-display);
-  font-size: 0.7rem;
+  font-size: clamp(0.7rem, 0.495rem + 0.174vw, 1.05rem);
   font-weight: 700;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -482,7 +571,9 @@
 
 .article-toc-list a {
   display: block;
-  font-size: 0.82rem;
+  /* Same curve as `.article-rail-head` above, one step larger: on its floor at
+     1512px, ~11.3px at 1920, ~12.5px at 2560, ~15px at 3840. */
+  font-size: clamp(0.82rem, 0.592rem + 0.193vw, 1.2rem);
   line-height: 1.45;
   color: var(--color-white-muted);
   text-decoration: none;

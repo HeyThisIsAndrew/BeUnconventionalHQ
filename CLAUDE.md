@@ -55,8 +55,6 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    duplicated per-breakpoint markup.**
 8. **See `scripts/astro-declined-features.md`** for why incremental builds, LQIP placeholders, and the Sanity content loader are explicitly declined. Do not re-propose them.
 
-> **[HANDOFF TO CLAUDE]**: Next time you read this file, please do a to-do cross-reference review on `scripts/astro-declined-features.md`. Review the rationale, make any additional changes or commentary on it if needed, and if everything looks good, you may delete this handoff note block.
-
 ## Data flow
 
 **Architecture pivot (in progress):** video/short/live/event/featuredBrand content
@@ -92,6 +90,105 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   `video.hubs` (slugs) against `event.slug.current` / `brand.slug.current` — hubs
   are slugs in the local sync, not Sanity `_id` references, so this replaces the
   old `references($hubId)` GROQ query, it isn't a shortcut around it.
+- **Coverage matching is ONE function**, `collectHubCoverage()` in
+  `src/lib/hub-coverage.ts`, shared by `/featured/[slug]` and `/events/[slug]`.
+  Videos come from `video.hubs` when anything is hub-tagged, and fall back to
+  exact NORMALIZED tag matching otherwise; articles have no `hubs` field (they
+  sync from Substack) so they are always tag-matched. Never substring-match:
+  the event page used to, and it returned zero articles for all 19 events
+  while looking like the events simply had no coverage. Shorts and live
+  streams are excluded at each CALL SITE, not inside the matcher, so the
+  decision stays visible — and so an event page and its overflow feed derive
+  the identical list.
+  **There is ONE tag list per hub: `youtubeSyncKeywords`, labelled "Tags" in
+  the CMS.** There used to be two — a `coverageTags` the site read and a
+  `youtubeSyncKeywords` the sync read — and keeping them in step meant
+  copy-pasting the same list into two boxes, which is how they drifted. They
+  are merged. The one list feeds both `extractHubSeeds()` during the YouTube
+  sync AND `getHubMatchTags()` when the site matches articles, so a tag added
+  for one purpose serves the other. `getHubMatchTags()` still reads a
+  `coverageTags` if it finds one, purely so an un-migrated document does not
+  silently lose its coverage; no document in the store carries the field and
+  `scripts/event-coverage.test.mjs` fails if one reappears.
+- **Tags compare with their spaces closed up** (`compactTag`), so
+  "SDCC 2026", "SDCC2026" and "sdcc-2026" are one tag. That is a strict
+  widening of exact matching, not a step back toward substrings: "marvel"
+  and "marvelstudios" are still different. **The YEAR is what separates one
+  edition from the next** — "SDCC 2026" never matches "SDCC 2027" — so every
+  recurring event's tags must name its year, in either the four-digit form
+  ("pax west 2026") or the two-digit one ("paxwest26") the channel and
+  attendees actually write. `scripts/event-coverage.test.mjs` fails if a
+  seeded non-premiere event carries a tag naming neither, which is what a
+  bare "pax" would be: a tag that claims every edition there has ever been.
+- **`excludeCoverage` is the override**, listing article slugs/guids, YouTube
+  ids or `_id`s to drop from a hub whatever the tags say. It exists for the
+  one case tagging cannot settle: a retrospective, where a post about SDCC
+  written in 2027 could be about either edition. **Do not infer the edition
+  from the publish date.** It reads plausibly and gets retrospectives
+  backwards silently, and wrong coverage on an event page is worse than none
+  because nobody notices it. Exclusions apply to hub-TAGGED videos too, so an
+  editor never has to know which code path put an item on the page.
+- **Event pages cap coverage at six** (`COVERAGE_PAGE_LIMIT`) and overflow to
+  `/events/<slug>/coverage`, paginated at 12 — the same display-cap-plus-
+  overflow-route pattern "Past Event Archive" uses on `/events`. The overflow
+  route builds only for events that have coverage.
+- **The "Official <X> Hub" card is `HubCard.astro`**, used by the event
+  template AND the article rail. Its heading comes from the hub's own
+  `hubCategory` via `getHubKindHeading()` in `src/lib/hub-labels.ts`
+  (Franchise / Streamer / Studio / Gaming, falling back to a bare "Official
+  Hub"). It was hardcoded as "Official Franchise Hub", which called Netflix a
+  franchise. `gaming` is **"Gaming"**, not "Game": the labels are written out
+  rather than de-pluralised because that is the one case chopping an "s"
+  gets wrong. `hub-labels.ts` is separate from `local-content.ts` because the
+  latter statically imports `videos.json`, which plain `node` refuses without
+  a type attribute, so the labels were untestable there.
+- **An event is TOLD its hub, an article infers one.** Events carry
+  `relatedBrandSlug` (editorial, set in the CMS). Articles sync from Substack
+  and have no such field, so `findHubForItem()` (`hub-coverage.ts`) scores
+  each hub by how many of its tags the piece carries and returns the best.
+  Scoring, not first-match: the Spider-Man review is tagged for Marvel
+  Studios, the MCU, Marvel AND Sony Pictures. Ties break on slug so builds
+  are deterministic. Known limit, accepted: scoring rewards the hub with the
+  LONGEST keyword list, so a GTA piece that mentions Netflix lands on
+  Netflix. **`pinnedCoverage`** on a hub doc is the override and beats
+  scoring outright; it also adds the item to that hub's coverage, because
+  "belongs to this hub" has to mean both. **Precedence is
+  `excludeCoverage` > `pinnedCoverage` > tags**, since exclude is what an
+  editor reaches for to undo a mistake.
+- **Event page metadata is `src/lib/event-seo.ts`**, shared by both event
+  templates so they cannot drift: the og:image (a 1200x630 crop of the hero,
+  not the site default), the `<title>` via the site-wide `pageTitle()` helper
+  (Layout appends NOTHING to `<title>`, so a page that does not call it ships
+  brandless), a 120-160 character description built from the event's own kind,
+  place and dates, and `schema.org/Event` into Layout's `<slot name="head">`.
+  Dates go in as the stored `YYYY-MM-DD` strings (hard rule 1) and an event
+  missing a name or a start date emits NO node, because Search Console reports
+  a partial one as an error.
+- **`script-src` must never allow `data:`.** A QA swarm reported the CSP
+  blocking a `data:application/javascript` script on `/featured/*` and
+  recommended allowing it, attributing it to a tracking script. It is Astro
+  ClientRouter's own EMPTY flush script (the URI ends at the comma), no
+  analytics vendor is involved, and blocking it was measured to break nothing:
+  served under the real policy, 23 module scripts still executed after a
+  client-side navigation and the hub filters still bound and toggled.
+  Allowing `data:` there is an XSS amplifier bought with a console warning.
+  `scripts/headers-integrity.test.mjs` guards it, reading the POLICY LINE and
+  not the file, because "script-src" also appears in a comment above it.
+- **The article support rail STACKS below 1200px, it does not vanish.**
+  `article.css` used to hide `.article-rail` outright, so a phone reader got
+  no hub card, no editorial desk and no Support The HQ. Now only
+  `.article-rail-left` (the TOC) is hidden, plus `.article-rail-more`, because
+  the column already renders "Suggested Reading" at every width and the rail's
+  copy would print it twice. The stacked gap is paid for ONCE: `row-gap` on
+  the layout, and the first visible rail block drops its own margin (reach it
+  as `.article-rail-more + *`, since `display: none` does not stop
+  `:first-child` matching the hidden element).
+- **ARTICLES/VIDEOS filters are scoped BY NAME**: `data-coverage="hub"` on the
+  hub page, `data-coverage="event"` on event pages, each handler querying its
+  own. Astro's ClientRouter keeps both modules alive across a navigation
+  between the two, so a bare `[data-coverage]` on both reunites them and
+  reproduces the original deep-link bug. The row renders only when both
+  content kinds are actually on screen.
   LocalCmsApp creates *and* edits `event`/`featuredBrand` docs (the "New
   Featured" / "New event" buttons) — the old "no local flow to create one"
   gap is closed. Hubs still carry Sanity asset refs for `logo`/`heroImage`
@@ -132,6 +229,95 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   only, gated identically in JS and CSS. The stage is a **sibling** of the
   clipping backdrop wrapper — hard rule 3 forbids any clipping ancestor.
   `scripts/featured-containment.test.mjs` guards all of this.
+- **BOTH heroes — event AND hub — have THREE mark slots and THREE logo
+  fields.** `/featured/[slug].astro` is where the event hero was lifted from
+  and it had all three of the same problems, so `heroLogo`, `stageLogo` and
+  `stageShowMark` exist on `featuredBrand` too and mean exactly the same
+  things. The hub stage's art comes through `getHubBackdrop()`, NOT straight
+  off `heroImage`: that function is the one place that decides what a hub
+  looks like (`backdrops[0]` first, key art second) and going around it is how
+  the stage and the backdrop come to disagree about the same hub. Both heroes
+  are guarded by `scripts/event-hero-lockup.test.mjs` — deliberately one file,
+  because they drift apart the moment a fix lands in only one of them.
+- **The event hero has THREE mark slots and THREE logo fields.** `.hero-logo`
+  (small, top left) reads `heroLogo || logo`; `.hub-stage-mark` (large, in the
+  frame the trailer plays in) reads `stageLogo || logo`; `.hub-stage-plate`
+  (the blurred ghost feathering the right half) reads whatever is in front of
+  it. All three used to read `logo` alone, so a hero read as the same event
+  three times over, and worse on a series: PAX West, East, Aus and Unplugged
+  all point `logo` at one shared PAX wordmark, so four events were visually
+  identical. Each override touches ONE slot; `heroLogo` must never reach the
+  stage, or the asset is back in two places.
+- **The stage's idle state is KEY ART, not a mark.** The hero already states
+  the identity at the top left and the tagline falls back to the event's own
+  name directly under it, so a 520px mark in the frame was the same thing a
+  third time on one screen. Measured on the Doomsday premiere: the logo asset
+  appeared 3 times in the hero markup, now 1. `stageShowMark` (default OFF)
+  puts a mark back for an event that genuinely wants one. The ghost follows
+  whatever is in front of it — the mark in mark mode, the key art in art mode
+  — because a logo-shaped glow around a frame with no logo in it is a leftover
+  of a lockup that is not there, and it was one more appearance of the mark.
+  **Art mode is a MODIFIER on `.hub-stage-mark`, never a second layer**: every
+  state the stage has (`is-playing` → 0.28, `is-item` → 0, reduced-motion)
+  is written against that one element, so a new layer would need all three
+  rewritten and would silently miss one. The stage never clips (hard rule 3).
+  **The placeholder is the picture, all of it, unblurred.** It shipped once
+  blurred and overscanned, borrowing the treatment every other plate on this
+  page uses, and that was wrong twice: still an effect applied to the art
+  rather than the art, and the overscan zoomed it. Then it was `cover`, which
+  was an exact fit on the 17 events whose art is 16:9 and cut the other two
+  in half: L.A. Comic Con is 2.35:1 and SXSW is 2.70:1, and both set the
+  event's NAME across the full width of the artwork, so cover removed the
+  first and last letters of its own title. **Two copies of one file**: the
+  front one `contain`s (the whole image, never cropped, whatever shape an
+  editor uploads) and the back one `cover`s, blurred and darkened, visible
+  only in the gutters the front one leaves. Same `src` and `srcset`, so it is
+  one fetch painted twice, and on 16:9 art the fill is never visible at all.
+  The fill is overscanned with `transform: scale()` on the IMAGE and the
+  layer clips — scaling the clipping box is what leaked light on the deck
+  page. **Losing the blur inverts the request-size convention**: a
+  blurred plate is deliberately asked for small (640px on /featured, 900px on
+  a hub page) because the blur destroys more than the upsample costs, but a
+  crisp still needs a ladder built from the box — `STAGE_WIDTHS` tops out at
+  1520 for 2x of the 760px stage, with real `sizes` so a phone does not fetch
+  a viewport-wide image for a 343px box. D23 (768x432) and SDCC 2027
+  (1024x576) are the only key art too small to fill it at 2x.
+- **The hero's "Event Details" button goes to `#event-details`, on this
+  page.** It was outbound, through two wrong destinations: `signUpLink` (an
+  Axs ticket listing for The Game Awards, a newsletter form for PAX East),
+  then `officialWebsite`, which fixed the destination without questioning the
+  direction. The direction was the bug, reported as "a friend of mine clicked
+  it and then they left the site". The page has a section headed DETAILS at
+  that anchor carrying the dates, venue, Tickets/RSVP and the official site,
+  and the button's label is the same words as that heading. The outbound
+  links are REPOSITIONED, not deleted: `officialWebsite` is the Website row
+  and `signUpLink` is Tickets/RSVP, both inside that section, which is the
+  right place in the funnel (after the coverage, not in front of it). It
+  matters most on a phone: `.article-rail-left`, the TOC that also links
+  there, is hidden below 1200px, so the button is the only thing in a mobile
+  hero saying anything exists below it. The CTA row is UNCONDITIONAL now,
+  which is load-bearing rather than tidy: while it was gated on a URL a
+  document might not have, four events rendered a different grid from the
+  rest, and that is half of what moved the metadata row around.
+- **The metadata row's vertical position must not depend on the event.** It
+  used to move twice over: the copy column was `align-self: end`, so it sized
+  to its own content with its BOTTOM pinned, and a taller logo pushed the tags
+  up while `.has-cta` (which adds a grid row, shortening the 1fr row above it)
+  moved the edge they were pinned to. Measured at 1440x900: 18px of drift
+  across logo heights, 32px between an event with a CTA and one without. The
+  column stretches now and `.hero-identity` takes `margin-top: auto`, so the
+  eyebrow sits at the top of the grid and the lockup stays bottom-anchored.
+  `scripts/event-hero-lockup.test.mjs` guards all three of these.
+- **Image fields accept two shapes.** The local CMS writes a bare ref string
+  (`"image-<hash>-WxH-ext"`); the original frozen Sanity export wrote
+  `{_type:'image', asset:{_ref}}`. `urlFor()` and the dimension parser both
+  handle either, and the CMS reads through `refOf()` rather than a bare
+  `typeof === 'string'` — which used to show D23 and SDCC 2027 as having no
+  logo, whose only remedy was re-uploading an asset that was already there.
+  The store itself is all strings now. The CMS's **Reuse** button opens a
+  picker over every ref in `videos.json` (`collectAssetLibrary()` walks
+  documents, not a fixed field list), so referencing an existing logo between
+  pages never means uploading it twice.
 - **Local CMS:** `/local-cms` (dev-only route, `src/components/admin/LocalCmsApp.tsx`)
   — master/detail editor over `src/data/videos.json`, backed by a dev-server-only
   Vite middleware (`localCmsMiddleware` in `astro.config.mjs`) at

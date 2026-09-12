@@ -10,6 +10,20 @@ import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import assert from 'node:assert/strict';
+import { EVENT_TYPE_LABELS } from '../src/lib/events.ts';
+import { collectHubCoverage } from '../src/lib/hub-coverage.ts';
+
+/*
+  Several guards below read OTHER files (the hub page, the two event
+  components). They need the same comment-stripping `src` gets, or a negative
+  assertion finds this repository's own explanation of the bug and reports it
+  as the bug. That has happened here before.
+*/
+const stripComments = (text) =>
+  text
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
 
 const here = dirname(fileURLToPath(import.meta.url));
 const raw = readFileSync(join(here, '..', 'src', 'pages', 'featured', 'index.astro'), 'utf8');
@@ -549,6 +563,415 @@ test('the hub trailer hands over to the first rail tile when it stops', () => {
     'the rail must not hardcode tile 0 active — that is the bug this replaced');
 });
 
+test('a hub never offers a filter for content it does not have', () => {
+  /*
+    ─── THE GRID THAT EMPTIED ITSELF ───────────────────────────────────────
+
+    ARTICLES and VIDEOS were hardcoded, so every hub offered both regardless
+    of what it held. Four of eighteen hold only one kind, and tapping the
+    other button emptied the grid with nothing to explain it:
+
+      disney-plus   0 articles, 1 video   -> ARTICLES wiped the page
+      a24           0 articles, 1 video   -> ARTICLES wiped the page
+      universal     0 articles, 2 videos  -> ARTICLES wiped the page
+      xbox          1 article,  0 videos  -> VIDEOS   wiped the page
+
+    Reported as "the featured page filters are just broken", reproduced by
+    navigating straight to a hub. From the visitor's side that is exactly
+    what an empty grid looks like.
+
+    The row renders only when BOTH kinds are present. One button that can
+    only show everything or hide everything is not a filter — that is the
+    phantom "Upcoming Events" button again in a different costume.
+  */
+  const hub = stripComments(
+    readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8'),
+  );
+
+  assert.match(hub, /const showFilters = coverage\.showFilters;/,
+    'the page must take the decision from the matcher, not re-derive it');
+  assert.match(hub, /\{showFilters && \(\s*<div class="filter-controls/,
+    'the filter row must be gated on that, not rendered unconditionally');
+
+  /*
+    And the decision itself, exercised rather than pattern-matched. These are
+    the four shapes above, in the same order, plus the mixed case that SHOULD
+    offer the row.
+  */
+  const article = (tags) => ({ tags, date: '2026-01-01' });
+  const video = (tags) => ({ youtubeTags: tags, publishedAt: '2026-01-01' });
+  const hubDoc = { slug: { current: 'probe' }, coverageTags: ['Marvel Studios'] };
+
+  const videoOnly = collectHubCoverage({
+    hub: hubDoc, videos: [video(['Marvel Studios'])], articles: [],
+  });
+  assert.equal(videoOnly.showFilters, false, 'a hub with no articles must not offer ARTICLES');
+
+  const articleOnly = collectHubCoverage({
+    hub: hubDoc, videos: [], articles: [article(['Marvel Studios'])],
+  });
+  assert.equal(articleOnly.showFilters, false, 'a hub with no videos must not offer VIDEOS');
+
+  const empty = collectHubCoverage({ hub: hubDoc, videos: [], articles: [] });
+  assert.equal(empty.showFilters, false, 'an empty hub offers nothing at all');
+
+  const mixed = collectHubCoverage({
+    hub: hubDoc,
+    videos: [video(['Marvel Studios'])],
+    articles: [article(['Marvel Studios'])],
+  });
+  assert.equal(mixed.showFilters, true, 'both kinds present is the one case the row is for');
+});
+
+test('no page-wide filter handler survives a client-side navigation', () => {
+  /*
+    ─── THE DEEP-LINK BUG ──────────────────────────────────────────────────
+
+    Reported from a phone: open an event, tap its "Official Franchise Hub"
+    card through to the hub, scroll to the filters, tap ARTICLES. The
+    Upcoming Events tile vanished and the buttons could not be deselected.
+
+    Both event components carried an `initEventFilters` that queried
+    `document` for `.filter-btn` and `.content-card`. Astro's ClientRouter
+    does not unload a page's module when you navigate away, so its
+    `astro:page-load` listener kept firing on whatever came next and found
+    the HUB's buttons.
+
+    It hid every `.content-card` on the page (the hub's Upcoming Events tile
+    is one), and it only ever ADDED `active` with no toggle-off branch, so
+    running beside the hub's own handler the two fought over one class. It
+    re-bound on every navigation too: it wrote `data-bound` and never read it.
+
+    ─── THE EVENT PAGE HAS FILTERS AGAIN, AND THAT IS FINE ─────────────────
+
+    What made the old handler dangerous was never that it existed, it was
+    that it read the whole document. Event pages now render their own
+    ARTICLES/VIDEOS row, so three things carry the fix instead:
+
+      the scope is NAMED. The hub section is `data-coverage="hub"`, the
+      event section `data-coverage="event"`, and each handler asks for its
+      own. A bare `[data-coverage]` on both would reunite them the moment
+      ClientRouter kept two modules alive across one navigation — which is
+      the original bug wearing the fix as a costume.
+
+      it TOGGLES. `wasActive` is read before anything is cleared.
+
+      it BINDS ONCE. `data-bound` is read, not merely written.
+  */
+  const scopes = [
+    ['EventAnnouncement.astro', 'event', join(here, '..', 'src', 'components', 'EventAnnouncement.astro')],
+    ['EventFeatured.astro', 'event', join(here, '..', 'src', 'components', 'EventFeatured.astro')],
+    ['featured/[slug].astro', 'hub', join(here, '..', 'src', 'pages', 'featured', '[slug].astro')],
+  ];
+
+  for (const [label, scope, path] of scopes) {
+    const code = stripComments(readFileSync(path, 'utf8'));
+
+    assert.ok(
+      !/document\.querySelectorAll\('\.filter-btn'\)/.test(code),
+      `${label} queries .filter-btn page-wide; after a navigation that reaches another page's buttons`,
+    );
+    assert.ok(
+      !/document\.querySelectorAll\('\.content-card'\)/.test(code),
+      `${label} queries .content-card page-wide; that is what hid the hub's Upcoming Events tile`,
+    );
+    /*
+      Narrow on purpose. A page-wide query is not itself the bug — the TOC
+      scrollspy legitimately reads `[data-event-toc]` across the document,
+      and that selector exists on event pages only. The bug is building the
+      FILTER's two lists from the document, so that is what is named here.
+    */
+    assert.ok(
+      !/const (?:filterBtns|contentCards) = Array\.from\(document\./.test(code),
+      `${label} builds a filter list from the whole document again`,
+    );
+
+    assert.ok(
+      code.includes(`document.querySelector('[data-coverage="${scope}"]')`),
+      `${label} must scope its filter to [data-coverage="${scope}"], not to a bare [data-coverage] ` +
+        'that both page types would answer',
+    );
+    assert.match(code, /const wasActive = btn\.classList\.contains\('active'\)/,
+      `${label} must keep the toggle-off branch, or a filter can be set but never cleared`);
+    assert.match(code, /dataset\.bound === 'true'/,
+      `${label} must READ data-bound, not only write it, or listeners stack up per navigation`);
+  }
+
+  /*
+    The two scope names must actually differ. Written as one assertion so a
+    later "tidy-up" that unifies them fails here rather than on a phone.
+  */
+  const names = new Set(scopes.map(([, scope]) => scope));
+  assert.equal(names.size, 2, 'the hub and the event page must not share one filter scope');
+});
+
+test('the coverage filter cannot reach outside the coverage section', () => {
+  /*
+    ─── THE BUG THIS PINS, WHICH SHIPPED TWICE ───────────────────────────────
+
+    The filter handler used to read the whole document:
+
+      const filterBtns   = Array.from(document.querySelectorAll('.filter-btn'));
+      const contentCards = Array.from(document.querySelectorAll('.content-card'));
+
+    Fine while the coverage grid was the only card grid on a hub page. Then
+    "Upcoming Events" arrived and broke it from both ends at once.
+
+      THE BUTTON. It shipped as `<button class="filter-btn type-btn active">`
+      with no data-filter, purely as a section label. The page-wide query bound
+      it anyway, so: click one, `wasActive` is true, every button deactivates
+      and this one loses its outline; click two, `wasActive` is false, so the
+      handler reads `data-filter || ''` and every .content-card on the page
+      gets display:none. Reported as "on click it hides the tile but then it
+      does nothing on second click". It is a <SectionHeading /> now.
+
+      THE CARDS. <EventCard /> renders `class="content-card past-event-card"`
+      and carries no data-type, so pressing ARTICLES set display:none on every
+      upcoming event above the filter. That one was still live after the button
+      was fixed: a filter for one section emptying another.
+
+    Both are the same mistake, so this guards the cause rather than the two
+    symptoms: the queries must be rooted in the coverage section, and any card
+    grid added to this page later is out of their reach by construction.
+  */
+  const hub = stripComments(
+    readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8'),
+  );
+
+  assert.match(hub, /<section class="content-section" data-coverage="hub">/,
+    'the coverage section must be identifiable, or its filters have nothing to scope to');
+
+  assert.ok(
+    !/const filterBtns = Array\.from\(document\.querySelectorAll/.test(hub) &&
+      !/const contentCards = Array\.from\(document\.querySelectorAll/.test(hub),
+    'the filter reads the whole document again. Every .filter-btn and .content-card on the ' +
+      'page is in range, including sections that have nothing to do with coverage.',
+  );
+  assert.ok(
+    hub.includes('const coverage = document.querySelector(\'[data-coverage="hub"]\')'),
+    'the filter must root itself in the coverage section, by name',
+  );
+  assert.match(hub, /const filterBtns = Array\.from\(coverage\?\.querySelectorAll/,
+    'buttons come from inside the coverage section');
+  assert.match(hub, /const contentCards = Array\.from\(coverage\?\.querySelectorAll/,
+    'cards come from inside the coverage section');
+
+  /*
+    And the label that started it is a heading, not a button. <SectionHeading />
+    renders an <h2> — nothing a .filter-btn query can pick up.
+  */
+  assert.ok(
+    !/class="filter-btn[^"]*"[^>]*>\s*UPCOMING EVENTS/i.test(hub),
+    'Upcoming Events is a section label. As a .filter-btn it gets bound to the coverage ' +
+      'filter and wipes the grid on its second press.',
+  );
+  assert.match(hub, /<SectionHeading title="Upcoming Events" id="hub-upcoming-heading" \/>/,
+    'the label is a ruled section heading, the same furniture /events uses for Past Event Archive');
+});
+
+test('the hero jump link points at a heading that exists', () => {
+  /*
+    The hero's second control is an ANCHOR to the Upcoming Events heading on
+    the same page, not a button and not a filter. That distinction is the whole
+    fix above. Two things have to stay true or it silently goes nowhere: the
+    href and the id must agree, and the section must actually render.
+
+    No scroll offset is set here on purpose. global-base.css carries
+    `scroll-padding-top: 112px` on html, which is what keeps the heading clear
+    of the fixed header. Measured landing position: 112px from the top.
+  */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8');
+
+  assert.match(hub, /href="#hub-upcoming-heading"/, 'the jump link needs a destination');
+  assert.match(hub, /id="hub-upcoming-heading"/, 'the destination must exist on the page');
+
+  /* Rendered only where the hub HAS an upcoming event. A hub with none would
+     otherwise show a control that scrolls to nothing. */
+  const jumpAt = hub.indexOf('hero-events-jump');
+  assert.ok(jumpAt > 0, 'the jump link is gone');
+  assert.match(hub.slice(0, jumpAt).slice(-1500), /associatedUpcomingEvents\.length > 0 && \(/,
+    'the jump link must be gated on the hub actually having an upcoming event');
+
+  /* Same rectangle as Play trailer. They are peers in one row, so the visual
+     rules live on the shared class and neither can drift from the other. */
+  assert.match(hub, /class="hero-action-btn hero-events-jump"/,
+    'the jump link wears the shared action-button class, so it matches Play trailer exactly');
+  assert.match(hub, /\.hero-actions \{[^}]*display: flex/,
+    'the two hero controls sit in one flex row');
+});
+
+
+test('the card meta is one line of text, not three flex boxes', () => {
+  /*
+    ─── THE STRANDED BULLET ────────────────────────────────────────────────
+
+    Reported from a phone. The meta row was a flex row of three spans, and a
+    flex item is a BOX: one that wraps internally keeps the width of its
+    LONGEST line. So at 393px "Convention & Expo" broke to "CONVENTION &" /
+    "EXPO", the box stayed 112px wide, and the bullet and year began after
+    that box, vertically centred against its 36px height. Measured: bullet at
+    x=281 against a label box ending at x=275, beside a second line only 12px
+    of which was ink. They read as belonging to nothing.
+
+    It is a single line of metadata, so it flows as text. A long label now
+    wraps mid-phrase and the date follows immediately after it, which is what
+    running text does: "INDUSTRY" / "AWARDS • 2026".
+  */
+  const card = readFileSync(join(here, '..', 'src', 'components', 'EventCard.astro'), 'utf8');
+
+  const meta = /\n  \.past-event-meta \{([^}]*)\}/.exec(card);
+  assert.ok(meta, '.past-event-meta is gone; this test no longer reads what it thinks it does');
+  assert.doesNotMatch(meta[1], /display: flex/,
+    'a flex row makes each part a box, and a box that wraps strands what follows it');
+  assert.match(meta[1], /display: block/, 'the three parts are one line of text');
+
+  /*
+    THE SEPARATOR TRAVELS WITH THE DATE. Otherwise the other bad break is
+    available: a line ending on a dangling bullet.
+  */
+  assert.match(card, /<span class="past-event-meta-date">/,
+    'the bullet and the date must be one unit');
+  assert.match(card, /\.past-event-meta-date \{[^}]*white-space: nowrap/,
+    'that unit must never break internally');
+
+  /*
+    AND ITS GAP IS A MARGIN, not the whitespace between two spans: Astro
+    collapses that at build time and the pair rendered as "Convention• 2026".
+  */
+  assert.match(card, /\.past-event-meta-date \{[^}]*margin-left: 0\.4rem/,
+    'the gap has to survive Astro collapsing markup whitespace');
+});
+
+test('the event type label stays short enough for a card', () => {
+  /*
+    "Convention & Expo" was the longest label by a wide margin and the only
+    one that wrapped at 393px. The structural fix above means a long label
+    degrades gracefully rather than breaking, but the label is also just
+    better short: naming both halves was the convention/expo merge
+    apologising for itself.
+
+    The VALUE is untouched — it is stored on fourteen documents and renaming
+    it would be a migration for no gain.
+  */
+  assert.equal(EVENT_TYPE_LABELS['convention-expo'], 'Convention',
+    'the merged type displays as plain "Convention"');
+  for (const [value, label] of Object.entries(EVENT_TYPE_LABELS)) {
+    assert.ok(
+      label.length <= 16,
+      `"${label}" (${value}) is ${label.length} chars; at 0.2em tracking that is a ` +
+        'second line on a phone card',
+    );
+  }
+});
+test('an event card says what the event is, and promises only what it can keep', () => {
+  /*
+    ─── THE EYEBROW ──────────────────────────────────────────────────────────
+
+    It was the literal string "Event" on every card. That is a placeholder in
+    the shape of metadata: all nineteen events in the store carry an
+    `eventType`, and the hero tag on the event's own page has been reading it
+    the whole time, so a premiere said EVENT on the card and PREMIERE one click
+    later.
+
+    `getEventTypeLabel` is the resolver those pages already use, and it falls
+    back to 'Event' for an unset type, so a card with no type renders the exact
+    string it used to. Nothing to special-case.
+
+    ─── THE CTA ──────────────────────────────────────────────────────────────
+
+    "View Coverage" is a promise. On an UPCOMING event it is one nobody has
+    made yet: whether it gets covered is not decided when the card renders, and
+    the hub list is the only place this card shows events that have not
+    happened. Past events are the opposite case, and the archive keeps the
+    words it earned.
+  */
+  const card = readFileSync(join(here, '..', 'src', 'components', 'EventCard.astro'), 'utf8');
+  const lib = readFileSync(join(here, '..', 'src', 'lib', 'events.ts'), 'utf8');
+
+  assert.doesNotMatch(card, /<span>Event<\/span>/,
+    'the eyebrow is hardcoded again. The store knows what kind of event this is.');
+  assert.match(card, /getEventTypeLabel/,
+    'the eyebrow must come from the same resolver the event page hero uses, or the two drift');
+  assert.match(card, /<span>\{typeLabel\}<\/span>/, 'the resolved label is what renders');
+
+  /* The fallback is what makes this safe to apply to every caller. If it ever
+     stops returning 'Event' for an unset type, cards with no type go blank. */
+  assert.match(lib, /return 'Event';/,
+    'getEventTypeLabel must still fall back to "Event"; without it an untyped card has no eyebrow');
+
+  assert.match(card, /\{wide \? 'Event Details' : 'View Coverage'\}/,
+    'an upcoming event cannot advertise coverage that has not been committed to; a past one should');
+});
+
+test('the hub events list is a list, and its card is anchored at both ends', () => {
+  /*
+    ─── WHY THIS IS NOT A GRID ───────────────────────────────────────────────
+
+    The section shipped with `.event-grid`'s own track rule, copied from
+    /events: `repeat(auto-fill, minmax(min(100%, 420px), 1fr))`. Right there,
+    where the Past Event Archive has dozens of entries and fills every track.
+
+    A hub has one upcoming event, sometimes two. In a 3-up grid that put a
+    single card in the left third with two empty tracks beside it, which reads
+    as an orphan rather than a section. `auto-fit` was the obvious swap and is
+    worse: it lets the COUNT pick the layout, so the same card is full width on
+    a hub with one event and half width on a hub with two.
+
+    One column, always, and <EventCard wide /> to use the width rather than
+    merely span it. Three upcoming events then stack into three rows, which is
+    what a schedule looks like.
+  */
+  const hub = readFileSync(join(here, '..', 'src', 'pages', 'featured', '[slug].astro'), 'utf8');
+  const card = readFileSync(join(here, '..', 'src', 'components', 'EventCard.astro'), 'utf8');
+
+  const gridRule = /\.hub-events-grid \{([^}]*)\}/.exec(hub);
+  assert.ok(gridRule, 'the upcoming events container lost its rule');
+  assert.doesNotMatch(gridRule[1], /grid-template-columns/,
+    'the upcoming events list is back to a multi-track grid. With one event that is a card ' +
+      'stranded in the left third; with two it is a different card again.');
+  assert.match(gridRule[1], /flex-direction: column/, 'one full-width row per event');
+
+  assert.match(hub, /<EventCard event=\{e\} index=\{index\} wide \/>/,
+    'the hub list needs the wide variant, or a full-width card hugs the left edge with a ' +
+      'thousand pixels of nothing after it');
+
+  /*
+    ─── TWO ANCHORS, NOT THREE ───────────────────────────────────────────────
+
+    `justify-content: space-between` distributes CHILDREN, so with meta, title
+    and CTA as three siblings the title landed dead centre with a gulf either
+    side — the orphan problem again, moved inside the card. .past-event-text
+    groups the identity so the row has one end and one action.
+  */
+  assert.match(card, /<div class="past-event-text">/,
+    'meta and title must be one block, or space-between strands the title mid-row');
+  assert.match(card, /\.past-event-card--wide \.past-event-body \{[^}]*justify-content: space-between/,
+    'the wide row anchors its two ends');
+
+  /*
+    ─── THE ARCHIVES MUST NOT NOTICE ─────────────────────────────────────────
+
+    /events and /events/archive render this same card and pass nothing. Their
+    grid geometry was measured before and after the wide variant landed and is
+    identical to the pixel; `wide` defaults to false and every rule it adds is
+    behind .past-event-card--wide.
+  */
+  assert.match(card, /const \{ event, index = 0, wide = false \} = Astro\.props;/,
+    'wide must default off, or the two archive grids inherit a layout built for one card');
+  const wideRules = card.match(/^\s*\.past-event-card--wide[^{]*\{/gm) ?? [];
+  assert.ok(wideRules.length >= 3, 'the wide layout should be expressed as its own modifier rules');
+  const bodyRule = /\n  \.past-event-body \{([^}]*)\}/.exec(card);
+  assert.ok(bodyRule, 'the shared body rule is gone');
+  assert.match(bodyRule[1], /flex-direction: column/,
+    'the SHARED body must stay a column. The wide row overrides it behind its own modifier; ' +
+      'changing it here changes /events and /events/archive too.');
+
+  /* An inline style cannot be overridden by a class, which is why the CTA's
+     margin had to come out of the markup for the wide row to close that gap. */
+  assert.doesNotMatch(card, /class="watch-now-btn" style=/,
+    'the CTA margin belongs in CSS; inline, the wide variant cannot reach it');
+});
+
 test('the hub trailer can be played again without a reload', () => {
   /*
     The trailer used to play exactly once. `initHubStage` is guarded by
@@ -598,7 +1021,11 @@ test('the hub trailer can be played again without a reload', () => {
      a button and that counts as activation. */
   assert.match(hub, /arm\(0[,)]/, 'a replay the visitor asked for starts immediately');
 
-  assert.match(hub, /class="hub-stage-replay"/, 'there must be a control');
+  /* Class LIST, not the whole attribute. The button gained .hero-action-btn
+      when the hero grew a second control beside it (the Upcoming Events jump);
+      .hub-stage-replay is the behaviour hook the click handler and the
+      is-playing rule both key off, and it has to survive that. */
+  assert.match(hub, /class="[^"]*\bhub-stage-replay\b/, 'there must be a control');
 
   /*
     ─── IT MUST NOT LIVE ON THE STAGE ────────────────────────────────────────
@@ -626,7 +1053,7 @@ test('the hub trailer can be played again without a reload', () => {
     name comes from content plus an sr-only suffix instead.
   */
   assert.ok(
-    !/class="hub-stage-replay"[^>]*aria-label/.test(hub),
+    !/class="[^"]*\bhub-stage-replay\b[^"]*"[^>]*aria-label/.test(hub),
     'an aria-label here replaces the name built from the visible words. Name it from content.',
   );
   assert.match(hub, /<span class="hub-stage-replay-text">Play trailer<\/span>/,
@@ -1109,9 +1536,23 @@ test('the hub hero is the deck page\'s stage, and keeps its own height', () => {
   assert.match(rail, /frame\.src = 'about:blank'/,
     'a hidden iframe still holds its document, its script and its connections');
 
-  // Identity appears exactly once: the mark carries it, or the copy does.
-  assert.match(hub, /event\.logo \?[\s\S]{0,120}sr-only/,
-    'with a logo the h1 is sr-only — the mark on the stage is the visible name');
+  /*
+    Identity appears exactly once, and the element that carries it IS the
+    heading.
+
+    This used to assert an `sr-only` <h1> beside an `aria-hidden` <img alt="">.
+    That satisfied the outline, but a mark that failed to load left blank
+    space with nothing saying what the page was. The <h1> wraps the mark now
+    and the name is the image's alt, so a broken image paints the name in the
+    mark's own place and assistive tech reads it once rather than once per
+    element. Same invariant, answered where the question is.
+  */
+  assert.match(hub, /<h1 class="hero-title-lockup">[\s\S]{0,400}?alt=\{event\.title\}/,
+    'the mark must BE the heading, and carry the hub name as its alt');
+  assert.doesNotMatch(hub, /<h1 class="sr-only">\{event\.title\}<\/h1>/,
+    'the sr-only twin is gone; two elements naming the page is what was announced twice');
+  assert.doesNotMatch(hub, /class="hero-logo-wrap" aria-hidden="true"/,
+    'the wrapper must not be hidden from assistive tech now that it holds the heading');
 });
 
 test('every category row is reachable and operable from the keyboard', () => {

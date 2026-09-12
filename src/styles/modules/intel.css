@@ -95,14 +95,24 @@
 }
 
 .intel-rail-meta,
+/*
+  The kicker above the headline: small, wide-tracked, uppercase, muted — the
+  same setting `.article-tag` and `.intel-break-title` use, so the three read
+  as one metadata voice. Tailwind shorthand for this line is
+  `text-xs tracking-widest uppercase text-[color:var(--color-white-muted)]`;
+  0.16em rather than Tailwind's 0.1em because 0.16em is this site's metadata
+  tracking everywhere else.
+
+  No `margin-bottom` any more — `.intel-feature-copy` is a flex column with a
+  gap, so spacing between the three blocks is set in exactly one place.
+*/
 .intel-feature-meta {
   display: block;
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--color-white-muted);
-  margin-bottom: 0.6rem;
 }
 
 .intel-rail-meta .dot,
@@ -133,8 +143,30 @@
   min-width: 0;
 }
 
+/*
+  ─── THE COVER IS FIXED 16:9. THE COPY TAKES THE SLACK ─────────────────────
+
+  Both the image and the copy block used to be `flex: 1 0 auto`, so the
+  column's leftover height was split between them by the flex algorithm. That
+  is the hidden half of why the standfirst cut at a different line on every
+  article: the budget left for body copy depended not just on how many lines
+  the headline wrapped to, but on how much of the slack the picture had taken
+  first. Measured across six articles and five widths, the excerpt's budget
+  ranged from 17 to 25 lines.
+
+  The cover is `flex: 0 0 auto` at a plain 16:9 now. It never grows, so it
+  never crops, and the only variable left in the copy budget is the headline.
+  The copy block absorbs all the remaining height instead, which keeps the
+  column full (`.intel-rail-left` and `.intel-rail-right` carry the rules that
+  frame it, so an unfilled centre reads as a hole).
+*/
+.intel-feature {
+  min-width: 0;
+}
+
 .intel-feature-link {
-  display: block;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   text-decoration: none;
 }
@@ -143,6 +175,7 @@
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
+  flex: 0 0 auto;
   overflow: hidden;
   background: var(--color-surface);
 }
@@ -176,59 +209,172 @@
   outline-offset: -2px;
 }
 
-/* Left-aligned, not centred. Centred headlines and body copy read as a
-   marketing splash; every editorial outlet (Deadline, Collider, IGN) sets
-   article furniture flush left because it is what the eye tracks down. */
+/*
+  ─── THE CENTRE PREVIEW'S TEXT BLOCK ──────────────────────────────────────
+
+  Left-aligned, not centred. Centred headlines and body copy read as a
+  marketing splash; every editorial outlet (Deadline, Collider, IGN) sets
+  article furniture flush left because it is what the eye tracks down.
+  `text-align: left` is stated explicitly rather than inherited, because this
+  block sits inside a hero whose ancestors are centred on more than one route.
+
+  A FLEX COLUMN WITH ONE GAP, not four margins. Kicker, headline, standfirst
+  and "Read More" used to each carry their own `margin-bottom`, which is four
+  numbers that have to agree for the block to have an even rhythm — and they
+  did not. `gap: 0.75rem` (Tailwind's `gap-3`) sets the rhythm once.
+
+  THE MEASURE IS CAPPED ON THE BODY COPY, NOT ON THE WHOLE BLOCK.
+
+  It was on this container at 42rem, and that is the wrong element. It squeezed
+  the HEADLINE to 474px too, where a 70-character title broke to six lines and
+  stood 243px tall — taller than the standfirst, the kicker and the "Read More"
+  put together. A headline is display type: it is scanned in one movement, not
+  tracked line by line, so the measure argument that governs body copy does not
+  apply to it. Every masthead sets headlines wider than body for this reason.
+
+  So the cap moved to `.intel-feature-excerpt`, which is the only text here
+  that is actually READ. The column itself is already a constraint — 720px at
+  1440, narrower still on a laptop — so the headline has a natural bound
+  without one being invented for it.
+*/
 .intel-feature-copy {
+  /*
+    THE MEASURE LIVES HERE, so the standfirst and the "Read More" beneath it
+    cannot drift apart. The excerpt caps its width to it and centres; the CTA
+    offsets itself by half the leftover to land on the same left edge. Change
+    this one value and both follow.
+  */
+  --feature-measure: 42rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  /*
+    CENTRED IN THE SPACE IT IS GIVEN, which is what was asked for repeatedly.
+
+    An earlier pass centred this and it looked wrong, so it was changed back.
+    That was treating the symptom. Centring only reads as a mistake when the
+    block is much shorter than its container: with a two-line standfirst the
+    text floated with ~135px of air above and below it. Now that the excerpt
+    is a fixed, nearly-full height (see below), the leftover is 10 to 50px per
+    side and centring reads as what it is, even breathing room around a block
+    that fills its space.
+  */
+  justify-content: center;
+  flex: 1 0 auto;
+  gap: 0.75rem;
   padding: 2.5rem 2.5rem 3rem;
   text-align: left;
 }
 
+/* Syne (var(--font-display)) at a tight leading — `leading-tight` — so a
+   three-line headline still reads as one object. Margin removed: the flex
+   gap on `.intel-feature-copy` owns the spacing now. */
 .intel-feature-title {
   font-family: var(--font-display);
   font-size: clamp(1.6rem, calc(1rem + 1.9vw), 2.75rem);
   font-weight: 800;
-  line-height: 1.12;
+  line-height: 1.15;
   letter-spacing: -0.01em;
   color: var(--color-white);
-  margin-bottom: 1rem;
   overflow-wrap: break-word;
 }
 
-/* ── The lede ───────────────────────────────────────────────────────────────
+/* ── The standfirst ─────────────────────────────────────────────────────────
 
-   NOT clamped, and NOT a single paragraph.
+   A FIXED NUMBER OF LINES, SO EVERY ARTICLE CUTS AT THE SAME PLACE.
 
-   This used to be one <p> with `-webkit-line-clamp: 6`. Two problems, both
-   visible on the live page: with a short excerpt the clamp never engaged and
-   the block rendered one line, leaving a large empty area under the "Read
-   More" link; and the clamp meant more text could never fix it.
+   This was `flex: 1 1 auto`, which handed it whatever height the headline and
+   the picture had not already taken. The result was a preview that ended
+   mid-sentence at a different depth on every article: 17 lines behind a
+   five-line headline, 25 behind a three-line one. Measured, not guessed.
 
-   Now the pipeline supplies the article's opening paragraphs (buildPreview in
-   src/lib/articles-transform.ts) and this block renders all of them, so the
-   feature column carries real editorial weight beside the rails.
+   The height is now `--excerpt-lines` multiplied by the line box, so the cut
+   lands on the same line whatever is above it. 14 is not arbitrary: the
+   tightest budget across every article and every desktop width is ~14.7 lines
+   (a five-line headline at 1512), and the SHORTEST preview any article
+   supplies is 18 lines. So 14 always fits, and is always filled. Both halves
+   matter: a count that overflowed would push "Read More" out of the column,
+   and one the copy could not fill would put the cut in a different place
+   again, which is the bug this fixes.
 
-   To make the lede shorter or longer, change `limit` / `maxParagraphs` in
-   buildPreview — not a clamp here. That way the HTML and the visible text stay
-   the same thing, which matters because this copy is indexable.
+   The mask fades the last 2.5rem so the cut dissolves rather than being
+   guillotined mid-line. "Read More" sits directly beneath it, so truncating
+   here is honest.
+
+   If the type scale changes, re-measure. `scripts/e2e-intel-magazine.test.mjs`
+   is the place to catch it.
 */
 .intel-feature-excerpt {
-  font-size: 1.25rem; /* Compensate for 80% scale */
-  line-height: 1.7;
+  --excerpt-lines: 14;
+  --excerpt-leading: 1.6;
+  flex: 0 0 auto;
+  /*
+    THE BLOCK IS CENTRED. THE TEXT INSIDE IT IS NOT.
+
+    `align-self` acts on the CROSS axis of this column flex container, which is
+    the horizontal one, so it centres the 42rem measure between the column's
+    padding edges while `text-align: left` (inherited from
+    `.intel-feature-copy`) keeps every line starting at the same reading edge.
+
+    Note this deliberately breaks alignment with the headline above, which runs
+    the full width of the column: the standfirst's left edge sits inboard of
+    the title's by half the leftover width.
+  */
+  align-self: center;
+  /*
+    ─── A CAP, NOT A RESERVATION ──────────────────────────────────────────
+
+    This was `height`, which holds the full seven lines open whether or not
+    there are seven lines to put in them. Measured at 393px with a one
+    paragraph preview: the box still stood 233px tall and the last line of
+    text ended 141px above "Read More". A void the width of the column, on
+    the page's lead story.
+
+    The fixed height was there for a real reason and it survives: a long
+    excerpt must cut at the SAME line on every article, so the spread does
+    not jump as the reader picks through the rail. `max-height` keeps that
+    cap exactly, and only changes what happens BELOW it — a short preview now
+    ends where its words end.
+
+    It matters because the previews are not fixed content. The article sync
+    reads Substack's live body, so how many paragraphs survive
+    `buildPreview` and how many lines they wrap to changes per article and
+    per sync. A layout that only looks right when the text is long enough is
+    a layout waiting for the next sync.
+  */
+  max-height: calc(var(--excerpt-lines) * var(--excerpt-leading) * 1em);
+  overflow: hidden;
+  /* Bigger than it was: this is the only body copy in the spread, and at
+     1.15rem it was losing to the rail headlines beside it. */
+  font-size: 1.3rem;
+  line-height: var(--excerpt-leading);
   color: var(--color-white-muted);
-  /* ~68ch is the comfortable measure for reading; flush left, not centred. */
-  max-width: 68ch;
-  margin: 0 0 1.75rem;
+  max-width: var(--feature-measure);
+  margin: 0;
+}
+
+/*
+  THE FADE IS A TRUNCATION SIGNAL, so it only belongs on text that is actually
+  truncated. Unconditionally, it dimmed the closing words of any preview short
+  enough to finish inside the cap — punctuating a complete sentence as though
+  it had been cut off. `is-clipped` is set from the component's own script,
+  which already knows when it has just rebuilt this element.
+
+  No class, no mask: a browser that never runs the script shows the text hard
+  cut at the cap, which is legible and honest, rather than faded to nothing.
+*/
+.intel-feature-excerpt.is-clipped {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5rem), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 2.5rem), transparent 100%);
 }
 
 .intel-feature-excerpt p {
-  margin: 0 0 1.15rem;
+  margin: 0 0 1rem;
 }
 
-/* The first paragraph is the standfirst — slightly larger and brighter, the
-   way a magazine sets its opening line apart from the body beneath it. */
+/* The opening paragraph is the standfirst: brighter, the way a magazine sets
+   its first line apart from the body under it. */
 .intel-feature-excerpt p:first-child {
-  font-size: 1.35rem; /* Compensate for 80% scale */
   color: rgba(255, 255, 255, 0.86);
 }
 
@@ -254,6 +400,25 @@
   position: relative;
   width: fit-content;
   padding-bottom: 4px;
+  /*
+    ALIGNED WITH THE STANDFIRST, NOT WITH THE COLUMN.
+
+    The excerpt is centred at `--feature-measure`, so its left edge sits half
+    the leftover width inboard of the column. "Read More" belongs to that block
+    and was still starting at the column's padding edge, which left the two
+    visibly out of step.
+
+    Half the leftover is exactly the excerpt's own offset, and a percentage
+    margin resolves against this container's inline size, so the two track each
+    other at every width with no breakpoint. `max()` clamps it at 0 for
+    containers narrower than the measure, where the excerpt is full width and
+    both are already flush left.
+
+    This is a margin rather than `align-self`, because align-self would centre
+    the CTA itself. It is a short pill, so that would park it mid-column
+    instead of lining its left edge up with the text.
+  */
+  margin-inline-start: max(0px, calc((100% - var(--feature-measure)) / 2));
 }
 
 .intel-feature-cta::after {
@@ -295,14 +460,45 @@
   margin-bottom: 4.5rem;
 }
 
+/*
+  ─── THE TITLE GETS THE WHOLE WIDTH ON A PHONE ────────────────────────────
+
+  This was a row at every width, so on a 393px phone "PAST EVENT ARCHIVE" was
+  laying out inside 168px of a 329px header while "ALL PAST EVENTS" took the
+  rest. Squeezed that hard it wrapped, and `hyphens: auto` below finished the
+  job: the page shipped a heading reading "PAST EVENT AR-CHIVE".
+
+  Both link-bearing headings had it. /intel's "Latest From The Channel" was
+  over two lines at the same width for the same reason; the ones with no link
+  already had the full measure and were fine.
+
+  Stacked below 768px, so the title has the whole width and the link sits
+  under it. 768 rather than the 560 used further down this file because the
+  root font-size drops to 80% at 768 and not before: between 561 and 767 the
+  type is at full size, and the longest pair ("Latest From The Channel" plus
+  "All Videos") needs about 513px there against roughly 496px of header.
+
+  `baseline` stays the desktop alignment. It sits the link's text on the
+  title's baseline, which is the whole point of the arrangement, and nothing
+  about the mobile wrap is a reason to change it.
+*/
 .intel-break-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
   padding-bottom: 1rem;
   margin-bottom: 2rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+@media (min-width: 768px) {
+  .intel-break-head {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+  }
 }
 
 .intel-break-title {
@@ -312,10 +508,22 @@
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--color-white);
-  word-break: break-word;
+  /*
+    NO HYPHENATION, AND NO BREAKING INSIDE A WORD.
+
+    `hyphens: auto` is what put the hyphen in "AR-CHIVE", and
+    `word-break: break-word` would split the word even without one. Neither
+    belongs on a six-word display heading set in uppercase with 0.16em of
+    tracking: hyphenation is a justified-body-copy tool, and a heading that
+    breaks mid-word reads as a rendering fault rather than a line break.
+
+    `overflow-wrap` stays. It only acts on a word that cannot fit its line at
+    all, which is the one case where breaking beats overflowing the header.
+  */
   overflow-wrap: break-word;
-  hyphens: auto;
-  -webkit-hyphens: auto;
+  word-break: normal;
+  hyphens: none;
+  -webkit-hyphens: none;
 }
 
 .intel-break-link {
@@ -372,6 +580,16 @@
   /* Feature first — it is the point of the page. */
   .intel-feature {
     order: -1;
+  }
+
+  /*
+    Stacked, the centre is no longer stretched to match the rails, so there is
+    no column to fill and 14 lines of body copy becomes a wall before the
+    reader reaches the first rail item. Still a FIXED count, so the cut is
+    still identical on every article, just a shorter one.
+  */
+  .intel-feature-excerpt {
+    --excerpt-lines: 7;
   }
 
   /* Rails become a two-up grid so they don't become an endless column. */
@@ -584,9 +802,35 @@
     display: none;
   }
 
+  /*
+    ─── ONE NUMBER, NOT TWO ────────────────────────────────────────────────
+
+    These two rules were written apart and disagreed about how long the mobile
+    lede is. The container carried `--excerpt-lines: 7` from the 1100px block
+    and sized itself with `1em` against its own 1.3rem; the paragraph clamped
+    to 4 lines at 1rem. Measured at 393px: a 233px box holding 102px of text,
+    so 131px of the lead story was nothing at all, sitting directly above
+    "Read More".
+
+    Neither rule was wrong on its own. The clamp is a deliberate, documented
+    call (see the note above), and 7 lines is right for the tablet width the
+    1100px block was written for. They were simply never asked to agree.
+
+    Now the clamp READS the container's own count, and the container drops to
+    the body size at this width, so `1em` in its max-height means the same
+    pixel as a rendered line. Change `--excerpt-lines` here and the box and
+    the text move together; they cannot drift apart again.
+  */
+  .intel-feature-excerpt {
+    --excerpt-lines: 4;
+    /* Only the max-height math reads this: the paragraph sets its own size
+       below. Matching them is what makes `1em` a real line. */
+    font-size: 1rem;
+  }
+
   .intel-feature-excerpt p:first-child {
     display: -webkit-box;
-    -webkit-line-clamp: 4;
+    -webkit-line-clamp: var(--excerpt-lines);
     -webkit-box-orient: vertical;
     overflow: hidden;
     /* Match the body size — the desktop standfirst is set slightly larger,

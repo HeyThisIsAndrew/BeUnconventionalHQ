@@ -200,3 +200,109 @@ export function getEventStatus(
   if (today > end) return 'completed';
   return 'live';
 }
+
+/**
+ * ─── THE EVENT-TYPE TAG ────────────────────────────────────────────────────
+ *
+ * The hero eyebrow on /events/[slug] used to render the literal string
+ * "LIVE EVENT" for any event whose `category` was unset — which is every
+ * event in the store, because `category` is a HUB category (Franchises,
+ * Studios, Streaming, Gaming) belonging to featuredBrand documents, not
+ * something an event document has ever carried. So BlizzCon, a convention
+ * eight months away, announced itself as a LIVE EVENT.
+ *
+ * `eventType` is the field that actually answers "what kind of thing is
+ * this": a dropdown on the Event schema, mirrored in the local CMS. These
+ * labels are the display half of that dropdown and the two lists must stay
+ * in step — schema/event.ts holds the authoritative option values.
+ *
+ * `other` deliberately falls through to the generic "Event" rather than
+ * rendering the word "Other", which tells a visitor nothing.
+ */
+export const EVENT_TYPE_LABELS: Record<string, string> = {
+  /*
+    "Convention", not "Convention & Expo".
+
+    The VALUE still says convention-expo, because it is stored data on
+    fourteen documents and renaming it is a migration for no gain. Only the
+    words a reader sees changed, and they changed for two reasons.
+
+    It read as a hedge. The two terms were merged precisely because the
+    distinction was one no event here makes, so naming both was the merge
+    apologising for itself. Every event on this site that holds this value is
+    a convention; even CinemaCon, the obvious candidate for the other half,
+    bills itself as "the official convention of the National Association of
+    Theatre Owners".
+
+    And it was too long for the card. At 393px "Convention & Expo" broke to
+    two lines inside a flex item, which stranded the bullet and the year
+    beside the short one — see the note in EventCard.astro.
+  */
+  'convention-expo': 'Convention',
+  premiere: 'Premiere',
+  screening: 'Screening',
+  showcase: 'Showcase',
+  festival: 'Festival',
+  'industry-awards': 'Industry Awards',
+  'brand-activation': 'Brand Activation',
+  other: 'Event',
+};
+
+/*
+  ─── RETIRED VALUES STILL HAVE TO RENDER ──────────────────────────────────
+
+  `convention`, `expo` and `award_show` were replaced by press-grade terms and
+  the documents holding them were migrated in the same commit. These aliases
+  are not that migration's leftovers — they are the safety net for the copies
+  of the store this repository does not control: a Sanity document that was
+  never re-exported, a branch that predates the migration, a JSON file an
+  editor kept locally.
+
+  Without them a stale value falls through to titleCaseToken() and renders
+  "Award Show" — close enough to look correct and wrong enough that nobody
+  would ever notice the migration had missed a document.
+
+  They are DELIBERATELY absent from the dropdowns, so nothing new can be
+  written on them. Safe to delete once you are confident no unmigrated copy of
+  the store exists.
+*/
+const RETIRED_EVENT_TYPE_LABELS: Record<string, string> = {
+  convention: 'Convention',
+  expo: 'Convention',
+  award_show: 'Industry Awards',
+};
+
+/**
+ * The label for an event's type tag.
+ *
+ * Order of preference: the `eventType` dropdown, then a legacy `category`
+ * value (string or Sanity-style object) for documents that predate the
+ * dropdown, then the neutral "Event". Never a hardcoded lifecycle word —
+ * whether an event is live is `getEventStatus()`'s job, and the status
+ * indicator already says so.
+ */
+export function getEventTypeLabel(event: {
+  eventType?: string | null;
+  category?: unknown;
+} | null | undefined): string {
+  const type = typeof event?.eventType === 'string' ? event.eventType.trim() : '';
+  if (type) return EVENT_TYPE_LABELS[type] ?? RETIRED_EVENT_TYPE_LABELS[type] ?? titleCaseToken(type);
+
+  const category = event?.category;
+  if (typeof category === 'string' && category.trim()) return titleCaseToken(category.trim());
+  if (category && typeof category === 'object') {
+    const named = category as { title?: string; name?: string };
+    const label = named.title || named.name;
+    if (label) return label;
+  }
+  return 'Event';
+}
+
+/** "award_show" / "press-day" -> "Award Show" / "Press Day". */
+function titleCaseToken(value: string): string {
+  return value
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}

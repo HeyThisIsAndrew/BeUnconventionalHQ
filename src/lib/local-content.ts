@@ -175,10 +175,41 @@ function withImageDimensions<T extends { logo?: any; heroImage?: any }>(doc: T):
 
 /** Equivalent to `*[_type == "event"] | order(startDate desc)`. */
 export function getEventsLocal(): any[] {
+  const showHidden = import.meta.env.DEV;
   return (localVideos as any[])
     .filter((d) => d._type === 'event')
+    /*
+      RECURRING TEMPLATES ARE NOT EVENTS.
+
+      A template ("PAX West", no year) is the reusable profile an edition is
+      stamped from — logo, key art, brand colour, venue, sync keywords — and
+      it is not something that happens on a date. It is excluded HERE, at the
+      one function every public surface reads events through, rather than in
+      each caller: a template usually carries the last edition's dates so the
+      editor can see what they are duplicating, which means the
+      `if (!e.startDate) return false` guards on the index would NOT have
+      caught it, and /events/[slug] would have built a real page for a
+      profile with no edition attached. The local CMS reads the JSON file
+      directly through its own middleware, so templates stay editable there.
+    */
+    .filter((d) => d.isRecurringTemplate !== true)
+    .filter((d) => showHidden || d.hidden !== true)
     .map(withImageDimensions)
     .sort((a, b) => String(b.startDate ?? '').localeCompare(String(a.startDate ?? '')));
+}
+
+/**
+ * Every recurring-event TEMPLATE in the store — the opposite half of
+ * `getEventsLocal()`'s filter. Templates are editorial furniture, not
+ * schedule entries: they exist so a new edition of PAX West or SDCC can be
+ * stamped out with its artwork, brand colour, venue and sync keywords intact
+ * instead of being rebuilt from a blank document every year.
+ */
+export function getEventTemplatesLocal(): any[] {
+  return (localVideos as any[])
+    .filter((d) => d._type === 'event' && d.isRecurringTemplate === true)
+    .map(withImageDimensions)
+    .sort((a, b) => String(a.title ?? '').localeCompare(String(b.title ?? '')));
 }
 
 /**
@@ -285,42 +316,10 @@ export function getHubBackdrop(slug: string): HubBackdrop | null {
   return null;
 }
 
-/**
- * The four rows on /featured, and what each is called.
- *
- * Shared rather than declared twice, because a hub page now shows the row it
- * was reached from — and a label that disagrees with the row you just clicked
- * is worse than no label. Adding a hub is a data change; adding a CATEGORY is
- * a design decision, which is why this stays in code.
- */
-export const HUB_CATEGORY_LABELS: Record<string, string> = {
-  /*
-    THE KEY STAYS `universes`. ONLY THE LABEL CHANGES.
-
-    "The Multiverse" was inaccurate for half of what it labelled: the row is
-    DC, Marvel, Star Wars and Harry Potter, and two of those are not
-    multiverses in any sense. "Franchises" is true of all four and is the
-    term the trade press uses.
-
-    Renaming the KEY would mean rewriting `hubCategory` on every brand in
-    videos.json for nothing a reader can see, so it stays. The keys are
-    internal — they are a field on the document, never a route segment — so
-    nothing about this rename touches a URL.
-  */
-  universes: 'Franchises',
-  streaming: 'Streamers',
-  studios: 'Studios',
-
-  /*
-    `gaming` follows the same rule for the same reason: the key is a document
-    field, so it stays, and only the label moved to "Games".
-
-    Do not read that as "the Games rename touched nothing." It is the HUB
-    taxonomy that costs nothing here. The site-wide CONTENT category of the
-    same name is a different taxonomy that happens to share the word, and it
-    IS a route segment: /category/gaming had to be 301'd to /category/games,
-    and /intel/topic/gaming with it. Both redirects are in astro.config.mjs.
-    See issue #146.
-  */
-  gaming: 'Games',
-};
+/*
+  The hub taxonomy labels moved to ./hub-labels.ts so the offline suites can
+  import them: this file statically imports videos.json, and plain `node`
+  refuses a JSON import without a type attribute. Re-exported here so every
+  existing `from '../lib/local-content'` keeps working.
+*/
+export { HUB_CATEGORY_LABELS, HUB_KIND_LABELS, getHubKindHeading } from './hub-labels.ts';

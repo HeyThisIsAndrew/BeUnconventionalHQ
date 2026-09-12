@@ -9,7 +9,7 @@ import { cacheCloudflare } from '@astrojs/cloudflare/cache';
 import react from '@astrojs/react';
 import partytown from '@astrojs/partytown';
 import { createClient } from '@sanity/client';
-import { validateStorePayload } from './src/lib/local-cms-store.mjs';
+import { validateStorePayload, serializeStore } from './src/lib/local-cms-store.mjs';
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -174,6 +174,21 @@ function buildArticleLastmod() {
 
 const ARTICLE_LASTMOD = buildArticleLastmod();
 
+try {
+  const rawVideos = fs.readFileSync(path.resolve(process.cwd(), 'src/data/videos.json'), 'utf-8');
+  for (const record of JSON.parse(rawVideos)) {
+    if (record && record._type === 'event' && record.slug?.current) {
+      const stamp = record._updatedAt || record._createdAt || record.isoDate;
+      if (stamp) {
+        ARTICLE_LASTMOD.set(`/events/${record.slug.current}`, new Date(stamp).toISOString());
+      }
+    }
+  }
+} catch (err) {
+  // Graceful degradation: sitemap just ships without event lastmods
+}
+
+
 /**
  * Article-section categories that currently have NOTHING in them.
  *
@@ -264,8 +279,14 @@ function localCmsMiddleware() {
               res.end(JSON.stringify({ success: false, error: check.error }));
               return;
             }
+            /*
+              The VALIDATED, RE-SERIALISED documents, never the raw body. The
+              CMS client sends minified JSON, and writing that verbatim
+              flattened the whole store onto one line and disabled the
+              per-document merge driver. See serializeStore().
+            */
             const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-            fs.writeFileSync(tmpPath, body, 'utf-8');
+            fs.writeFileSync(tmpPath, serializeStore(check.parsed), 'utf-8');
             fs.renameSync(tmpPath, filePath);
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ success: true }));
@@ -323,8 +344,15 @@ function localCmsMiddleware() {
               res.end(JSON.stringify({ success: false, error: check.error }));
               return;
             }
+            /*
+              serializeStore, NOT the raw body — the same rule as the videos
+              handler above. This one was missed when that fix went in, and a
+              single CMS save flattened articles.json from 415 lines to one.
+              Every store write goes through one of these two handlers, so
+              BOTH have to re-serialise or the format is only half enforced.
+            */
             const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-            fs.writeFileSync(tmpPath, body, 'utf-8');
+            fs.writeFileSync(tmpPath, serializeStore(check.parsed), 'utf-8');
             fs.renameSync(tmpPath, filePath);
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ success: true }));

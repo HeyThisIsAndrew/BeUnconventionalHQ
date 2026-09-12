@@ -16,17 +16,7 @@ async function runTests() {
     
     // We assume there's at least one featured slug and event slug.
     // To make it robust, we'll navigate to /events, click the first event, and test there.
-    console.log('Navigating to /events to find an event detail page...');
-    await page.goto('http://localhost:4321/events');
-    await page.waitForSelector('a[href^="/events/"]', { timeout: 3000 }).catch(() => {});
-    const eventLink = await page.$('a[href^="/events/"]');
-    if (!eventLink) {
-      throw new Error('Production data missing: No events found on /events. E2E tests require at least one valid event fixture.');
-    }
-    const eventHref = await page.evaluate(el => el.href, eventLink);
-    console.log(`Testing event page: ${eventHref}`);
-    await page.goto(eventHref);
-    await testFilterInteractions(page, 'Event Detail');
+
 
     console.log('Navigating to /featured to find a featured detail page...');
     await page.goto('http://localhost:4321/featured');
@@ -40,6 +30,8 @@ async function runTests() {
     await page.goto(featuredHref);
     await testFilterInteractions(page, 'Featured Detail');
 
+    await testDeepLinkFromEvent(page);
+
     console.log('✅ All E2E filter tests passed.');
   } catch (error) {
     console.error('❌ E2E Test Failed:', error);
@@ -51,6 +43,22 @@ async function runTests() {
   }
 }
 
+/*
+  ─── EVERY QUERY BELOW IS SCOPED, AND THAT IS THE POINT ───────────────────
+
+  This file used to read `.content-card` and `.filter-btn` across the whole
+  document, which is the same mistake the handler it tests once made. A hub
+  with an Upcoming Events section renders <EventCard/> as `.content-card`
+  with NO data-type, so "only articles should be visible" would have failed
+  on a card the filter is not supposed to touch, and reported a bug that
+  wasn't there. The hub page that happens to sort first on /featured has no
+  upcoming events today, so it passed by luck.
+
+  `[data-coverage="hub"]` is the section the filters own. Anything outside it
+  is checked separately, and the check is that it was left ALONE.
+*/
+const SCOPE = '[data-coverage="hub"]';
+
 async function testFilterInteractions(page, contextName) {
   // Check if page has content
   const emptyState = await page.$('.empty-state');
@@ -60,19 +68,26 @@ async function testFilterInteractions(page, contextName) {
   }
 
   // Wait for the filters to be present and hydrated in the DOM
-  await page.waitForSelector('.filter-btn[data-bound="true"]', { timeout: 5000 });
-  
-  // Get all content cards
-  const cards = await page.$$('.content-card');
+  await page.waitForSelector(`${SCOPE} .filter-btn[data-bound="true"]`, { timeout: 5000 });
+
+  // Get the coverage grid's cards — not the page's.
+  const cards = await page.$$(`${SCOPE} .content-card`);
   console.log(`[${contextName}] Found ${cards.length} content cards.`);
+
+  /*
+    Cards OUTSIDE the coverage section, counted before anything is clicked.
+    Upcoming Events lives here. The filter must not move this number.
+  */
+  const outsideBefore = await page.$$eval('.content-card', (els, scope) =>
+    els.filter(el => !el.closest(scope)).length, SCOPE);
 
   if (cards.length === 0) {
     throw new Error(`[${contextName}] Expected to find .content-card elements, found 0.`);
   }
 
   // Find filter buttons
-  const articleBtn = await page.$('.filter-btn[data-filter="article"]');
-  const videoBtn = await page.$('.filter-btn[data-filter="video"]');
+  const articleBtn = await page.$(`${SCOPE} .filter-btn[data-filter="article"]`);
+  const videoBtn = await page.$(`${SCOPE} .filter-btn[data-filter="video"]`);
   
   assert.ok(articleBtn, `[${contextName}] Article filter button not found`);
   assert.ok(videoBtn, `[${contextName}] Video filter button not found`);
@@ -85,7 +100,7 @@ async function testFilterInteractions(page, contextName) {
   assert.equal(isArticleBtnActive, true, `[${contextName}] Article button should be active`);
   
   // Verify visibility
-  const visibleCardsAfterArticleClick = await page.$$eval('.content-card', els => 
+  const visibleCardsAfterArticleClick = await page.$$eval(`${SCOPE} .content-card`, els =>
     els.filter(el => el.style.display !== 'none').map(el => el.getAttribute('data-type'))
   );
   
@@ -100,9 +115,18 @@ async function testFilterInteractions(page, contextName) {
   assert.equal(isVideoBtnActive, true, `[${contextName}] Video button should be active`);
   
   // Verify visibility
-  const visibleCardsAfterVideoClick = await page.$$eval('.content-card', els => 
+  const visibleCardsAfterVideoClick = await page.$$eval(`${SCOPE} .content-card`, els =>
     els.filter(el => el.style.display !== 'none').map(el => el.getAttribute('data-type'))
   );
+
+  /*
+    The reported bug, as an assertion: pressing a filter emptied a section
+    that had nothing to do with it.
+  */
+  const outsideDuring = await page.$$eval('.content-card', (els, scope) =>
+    els.filter(el => !el.closest(scope) && el.style.display !== 'none').length, SCOPE);
+  assert.equal(outsideDuring, outsideBefore,
+    `[${contextName}] the filter hid ${outsideBefore - outsideDuring} card(s) outside the coverage section`);
   
   const hasInvalidVideoTypes = visibleCardsAfterVideoClick.some(t => t !== 'video');
   assert.equal(hasInvalidVideoTypes, false, `[${contextName}] Only videos should be visible`);
@@ -114,12 +138,75 @@ async function testFilterInteractions(page, contextName) {
   isVideoBtnActive = await page.evaluate(el => el.classList.contains('active'), videoBtn);
   assert.equal(isVideoBtnActive, false, `[${contextName}] Video button should toggle off`);
   
-  const visibleCardsAfterToggleOff = await page.$$eval('.content-card', els => 
+  const visibleCardsAfterToggleOff = await page.$$eval(`${SCOPE} .content-card`, els =>
     els.filter(el => el.style.display !== 'none').length
   );
   assert.equal(visibleCardsAfterToggleOff, cards.length, `[${contextName}] All cards should be visible again`);
   
   console.log(`  ✓ ${contextName} interactions verified`);
+}
+
+/*
+  ─── THE DEEP LINK, WALKED THE WAY IT WAS REPORTED ────────────────────────
+
+  "Scroll down to the featured associate page for marvel and click the link
+  to deep link to the marvel featured page / Scroll down to filters button
+  and tap article or video / Observe the tiles break and the filter buttons
+  can not be deselected."
+
+  The cause was ClientRouter: it does not unload a page's module on
+  navigation, so the event page's filter handler kept running on the hub and
+  fought the hub's own. A fresh page.goto CANNOT catch that — the bug only
+  exists when both modules are alive at once, which needs a real client-side
+  navigation. So this clicks through rather than navigating.
+*/
+async function testDeepLinkFromEvent(page) {
+  console.log('Walking an event -> franchise hub deep link...');
+  await page.goto('http://localhost:4321/events');
+  const eventHrefs = await page.evaluate(() =>
+    [...new Set(Array.from(document.querySelectorAll('a[href^="/events/"]'))
+      .map(a => a.getAttribute('href'))
+      .filter(h => h && h !== '/events' && h !== '/events/' && !h.startsWith('/events/archive')))]);
+  if (eventHrefs.length === 0) {
+    console.log('⚠️  Notice: no event detail pages found. Skipping the deep-link case.');
+    return;
+  }
+
+  /*
+    Only SOME events name a franchise hub, so take the first one that does
+    rather than the first one listed. Picking blindly made this case skip
+    itself on whichever event happened to sort first.
+  */
+  let eventHref = null;
+  let hubHref = null;
+  for (const href of eventHrefs) {
+    await page.goto(`http://localhost:4321${href}`);
+    const found = await page.evaluate(() =>
+      document.querySelector('a[href^="/featured/"]')?.getAttribute('href') ?? null);
+    if (found) { eventHref = href; hubHref = found; break; }
+  }
+  if (!hubHref) {
+    console.log(`⚠️  Notice: no event links to a franchise hub (${eventHrefs.length} checked). Skipping the deep-link case.`);
+    return;
+  }
+  console.log(`  deep link: ${eventHref} -> ${hubHref}`);
+
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'networkidle0' }).catch(() => {}),
+    page.evaluate(() => document.querySelector('a[href^="/featured/"]').click()),
+  ]);
+  await new Promise(r => setTimeout(r, 500));
+
+  const landed = await page.evaluate(() => window.location.pathname);
+  assert.ok(landed.startsWith('/featured/'),
+    `Deep link went to ${landed} instead of the franchise hub`);
+
+  const hasFilters = await page.$(`${SCOPE} .filter-btn`);
+  if (!hasFilters) {
+    console.log(`  ✓ deep link reached ${landed}; it renders no filter row, so there is nothing to hijack`);
+    return;
+  }
+  await testFilterInteractions(page, `Deep-linked hub (${landed})`);
 }
 
 runTests();

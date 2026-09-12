@@ -101,18 +101,71 @@
   }
 }
 
+/*
+  ─── PRESS FEEDBACK, BECAUSE HOVER IS NOT AVAILABLE ON A TOUCHSCREEN ───────
+
+  The hover block above is correctly gated behind `(hover: hover) and
+  (pointer: fine)`: without that, a tap on a phone leaves the row stuck in its
+  hover state until you touch something else. But nothing replaced it there,
+  so tapping a partner row did nothing visible until the next page began to
+  load. Reported as "the tiles lack a hover state or an interaction when I
+  click them", on an iPhone and an iPad.
+
+  `:active` is deliberately OUTSIDE that media query. It is the branch a
+  touchscreen actually gets, and on a pointer device it doubles as the
+  mouse-down state.
+
+  It translates rather than scales: these rows are full-width, and scaling a
+  full-width row moves both its edges, which reads as the layout shifting.
+  `translateX` matches the direction the hover state already moves in.
+*/
+.referral-item:active {
+  border-color: rgba(204, 0, 0, 0.7);
+  background: rgba(204, 0, 0, 0.1);
+  transform: translateX(2px);
+}
+
+.referral-item:active .referral-icon {
+  color: var(--color-accent-text);
+}
+
+.referral-item:active .referral-label {
+  color: var(--color-white);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .referral-item {
+    transition: border-color 0.3s ease, background-color 0.3s ease;
+  }
+  .referral-item:active {
+    transform: none;
+  }
+}
+
 .referral-item:focus-visible {
   outline: 2px solid var(--color-white);
   outline-offset: 2px;
 }
 
-/* Fixed box so every row's copy starts at the same x, whatever the glyph. */
+/*
+  Fixed box so every row's copy starts at the same x, whatever the glyph.
+
+  ─── WHY THE BOX GREW ─────────────────────────────────────────────────────
+
+  It was 26px holding a 17px mark, and the partner logos were illegible on a
+  large display: the site scales `html` to 80% from 768px up, so the type
+  around these shrinks on a big screen while the icons, sized in px, stayed
+  put — small to begin with and smaller in proportion to everything else.
+  34px with more of it used is enough to read a logo and still nothing like a
+  thumbnail. If it goes further the row stops being a list and starts being
+  a card grid.
+*/
 .referral-icon {
   display: grid;
   place-items: center;
-  flex: 0 0 26px;
-  width: 26px;
-  height: 26px;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
   color: var(--color-white-muted);
   transition: color 0.3s ease;
 }
@@ -120,8 +173,8 @@
 /* Sizing lives here, not on the SVG — see the rules at the top of
    src/data/icons.js for why the icons carry no width/height of their own. */
 .referral-icon svg {
-  width: 17px;
-  height: 17px;
+  width: 21px;
+  height: 21px;
 }
 
 .referral-copy {
@@ -171,9 +224,25 @@
 }
 
 .referral-block.is-compact .referral-item {
-  padding: 0.6rem 0.65rem;
+  padding: 0.7rem 0.7rem;
 }
 
 .referral-block.is-compact .referral-label {
   font-size: 0.75rem;
+}
+
+/*
+  A PARTNER LOGO GETS MORE OF THE BOX THAN A GLYPH DOES, ON PURPOSE.
+
+  The SVGs are single-colour brand marks that read at any size. Mint Mobile's
+  mark and the DaVinci Resolve wheel are full-colour artwork with real
+  internal detail, and detail is what disappears first. Matching them at 21px
+  would be equal in MEASUREMENT and unequal in legibility, which is the wrong
+  kind of consistency: 28px is optical sizing, and the fixed 34px box keeps
+  every row's copy starting at the same x regardless.
+*/
+.referral-icon img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
 }

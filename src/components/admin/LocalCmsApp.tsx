@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { urlFor } from '../../lib/local-content.ts';
 
 type DocType = 'video' | 'short' | 'live' | 'event' | 'featuredBrand' | 'topic' | 'article';
@@ -19,6 +19,7 @@ type Doc = {
     category?: string;
     featured?: boolean;
     hidden?: boolean;
+  forceSpotlightHero?: boolean;
     sortWeight?: number;
   };
 
@@ -56,21 +57,40 @@ type Doc = {
   slug?: { _type: 'slug'; current: string } | string;
   status?: string;
   eventType?: string;
+  /* The hero's one-line bio. Distinct from `description`, which is the
+     About copy in the page body. */
+  tagline?: string;
   startDate?: string;
   endDate?: string;
   location?: LocationInfo;
   organizer?: string;
   officialWebsite?: string;
+  relatedBrandSlug?: string;
   signUpLink?: string;
   trailerUrl?: string;
   logo?: any;
   heroImage?: any;
   backdrops?: any[];
   youtubeSyncKeywords?: string[];
+  heroLogo?: string;
+  stageLogo?: string;
+  stageShowMark?: boolean;
+  excludeCoverage?: string[];
+  pinnedCoverage?: string[];
   brandColor?: { hex?: string };
   /** Which accordion row this hub appears in on /featured. */
   hubCategory?: string;
   hidden?: boolean;
+  forceSpotlightHero?: boolean;
+  spotlightBadge?: 'countdown' | 'dot' | 'none';
+  /* Recurring series — see the long note in schema/event.ts. A template is a
+     reusable profile (PAX West) that never renders; an edition points back at
+     one by slug. */
+  isRecurringTemplate?: boolean;
+  seriesTemplateSlug?: string;
+  editionLabel?: string;
+  recurrenceCadence?: string;
+  recurrenceMonth?: string;
   socialLinks?: { platform: string; url: string }[];
   metrics?: {
     snapshots: { date: string; viewCount: number }[];
@@ -168,6 +188,24 @@ function videoDocId(youtubeId: string): string {
   return `youtube-${youtubeId}`;
 }
 
+/* Value/label pairs for the recurring-series "usual month" picker. Values are
+   zero-padded so they sort and compare as the same strings the date fields
+   use. */
+const MONTH_OPTIONS = [
+  { value: '01', label: 'January' },
+  { value: '02', label: 'February' },
+  { value: '03', label: 'March' },
+  { value: '04', label: 'April' },
+  { value: '05', label: 'May' },
+  { value: '06', label: 'June' },
+  { value: '07', label: 'July' },
+  { value: '08', label: 'August' },
+  { value: '09', label: 'September' },
+  { value: '10', label: 'October' },
+  { value: '11', label: 'November' },
+  { value: '12', label: 'December' },
+];
+
 function makeBlankDoc(type: DocType): Doc {
   const now = new Date().toISOString();
   if (type === 'event') {
@@ -177,7 +215,15 @@ function makeBlankDoc(type: DocType): Doc {
       title: 'New Event',
       slug: { _type: 'slug', current: slugify(`new-event-${Date.now()}`) },
       status: 'scheduled',
-      eventType: 'convention',
+      /* Empty, not a guess. 'convention' was seeded here and it is now a
+         retired value, so every new event would have been born holding one.
+         The dropdown offers "Not set" and the hero renders "Event" for it, so
+         an unclassified event is a state the UI already handles. */
+      eventType: '',
+      tagline: '',
+      isRecurringTemplate: false,
+      seriesTemplateSlug: '',
+      editionLabel: '',
       startDate: '',
       endDate: '',
       location: { venue: '', city: '', region: '', country: '' },
@@ -273,9 +319,307 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function ImageUploadField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+/**
+ * Every image already in the store, so a mark that exists can be REUSED
+ * instead of uploaded again.
+ *
+ * ─── WHY THIS EXISTS ──────────────────────────────────────────────────────
+ * Asked for directly: "I need the ability to reference existing logos and
+ * images between cms pages like a dropdown so I don't have to keep uploading
+ * new assets." Before this, the only way to put the PAX wordmark on a fourth
+ * PAX edition was to upload the same file a fourth time, which is four copies
+ * on the CDN and four chances for them to drift apart.
+ *
+ * Walks the whole document set rather than a fixed list of fields, because
+ * images live in several shapes here: a bare ref string on `logo`, an array
+ * on `backdrops`, an object with `asset._ref` on older frozen-export docs.
+ * Anything that looks like an asset ref counts, wherever it is.
+ */
+/*
+  ─── THE LIBRARY REMEMBERS ────────────────────────────────────────────────
+
+  `collectAssetLibrary` below answers "which assets are IN USE right now", and
+  for a while that was also the picker's whole contents. It made the picker
+  unusable for the one job it exists for.
+
+  Swapping two images between fields is: open Reuse on field A, pick B's
+  image. The instant that lands, A's old image is referenced by nothing, so it
+  vanishes from the picker — before you can open field B and put it there.
+  Reported as "the one that got replaced would be missing if it wasn't visible
+  anywhere".
+
+  So the picker is fed a REMEMBERED set that only ever grows. Every ref the
+  store has ever shown this browser stays offerable, whether or not a document
+  currently points at it, and an asset leaves only when somebody deliberately
+  forgets it. Nothing here reads or writes `videos.json`: forgetting an asset
+  removes it from this list, never from the store or from any document.
+
+  localStorage, so it survives a reload of a dev-only page. A browser that
+  refuses it (private window, blocked site data) degrades to the old
+  in-use-only behaviour rather than throwing, which is why every access is
+  wrapped.
+*/
+const ASSET_MEMORY_KEY = 'bu-local-cms-known-assets';
+const ASSET_REF = /^image-[0-9a-f]{20,}-\d+x\d+-[a-z]+$/i;
+
+function readRememberedAssets(): string[] {
+  try {
+    const raw = localStorage.getItem(ASSET_MEMORY_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((r) => typeof r === 'string' && ASSET_REF.test(r)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeRememberedAssets(refs: string[]) {
+  try {
+    localStorage.setItem(ASSET_MEMORY_KEY, JSON.stringify(refs));
+  } catch {
+    /* Private window or blocked site data. The session still works. */
+  }
+}
+
+export type AssetEntry = { ref: string; usedBy: string[] };
+
+/**
+ * The picker's contents: everything remembered, each labelled with the
+ * documents that currently point at it. An entry with an empty `usedBy` is
+ * not an error — it is an asset waiting to be placed, which is exactly what
+ * the middle of a swap looks like.
+ */
+function buildAssetLibrary(docs: any[], remembered: string[]): AssetEntry[] {
+  const inUse = new Map(collectAssetLibrary(docs).map((a) => [a.ref, a.usedBy]));
+  const refs = Array.from(new Set([...remembered, ...inUse.keys()]));
+  return refs
+    .map((ref) => ({ ref, usedBy: inUse.get(ref) ?? [] }))
+    /* In use first, then alphabetically, so the list is stable across edits. */
+    .sort((a, b) => {
+      if (!a.usedBy.length !== !b.usedBy.length) return a.usedBy.length ? -1 : 1;
+      return (a.usedBy[0] ?? a.ref).localeCompare(b.usedBy[0] ?? b.ref);
+    });
+}
+
+function collectAssetLibrary(docs: any[]): { ref: string; usedBy: string[] }[] {
+  const REF = /^image-[0-9a-f]{20,}-\d+x\d+-[a-z]+$/i;
+  const found = new Map<string, Set<string>>();
+
+  const walk = (value: any, label: string) => {
+    if (!value) return;
+    if (typeof value === 'string') {
+      if (REF.test(value)) {
+        if (!found.has(value)) found.set(value, new Set());
+        found.get(value)!.add(label);
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const v of value) walk(v, label);
+      return;
+    }
+    if (typeof value === 'object') {
+      for (const v of Object.values(value)) walk(v, label);
+    }
+  };
+
+  for (const doc of docs ?? []) {
+    const label = doc?.title || doc?.slug?.current || doc?._id || 'untitled';
+    walk(doc, label);
+  }
+
+  return [...found.entries()]
+    .map(([ref, usedBy]) => ({ ref, usedBy: [...usedBy].sort() }))
+    .sort((a, b) => a.usedBy[0].localeCompare(b.usedBy[0]));
+}
+
+/*
+  ONE FIELD, TWO SHAPES.
+
+  The local CMS writes a bare ref string. The original frozen Sanity export
+  wrote `{_type:'image', asset:{_ref}}`, and a handful of documents still
+  carried that shape — D23 and SDCC 2027 among them. Reading the field with a
+  bare `typeof === 'string'` showed those as having NO logo, so the editor's
+  only move was to upload a duplicate of an asset that was already there.
+
+  `urlFor()` and the dimension parser both accept either shape, so nothing was
+  broken on the site; this was a CMS-only blind spot. Saving through the form
+  normalises the field to a string, which is why the store is all strings now.
+*/
+function refOf(value: any): string {
+  if (typeof value === 'string') return value;
+  const ref = value?.asset?._ref ?? value?._ref;
+  return typeof ref === 'string' ? ref : '';
+}
+
+/** "image-<hash>-3000x1022-png" -> "3000x1022". Shown so a wordmark and a
+ *  square mark are told apart at a glance in the picker. */
+function refDimensions(ref: string): string {
+  const m = /-(\d+)x(\d+)-/.exec(ref || '');
+  return m ? `${m[1]}x${m[2]}` : '';
+}
+
+function AssetPicker({
+  library,
+  onPick,
+  onClose,
+  onForget,
+}: {
+  library: AssetEntry[];
+  onPick: (ref: string) => void;
+  onClose: () => void;
+  onForget?: (ref: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  /*
+    Matches the documents an asset is on, its dimensions, AND its ref. It used
+    to match `usedBy` alone, which meant an asset nothing currently points at
+    could not be found by typing anything at all — and after the library
+    started remembering unused assets, those are precisely the ones somebody
+    is hunting for mid-swap.
+  */
+  const shown = q
+    ? library.filter(
+        (a) =>
+          a.usedBy.some((u) => u.toLowerCase().includes(q)) ||
+          refDimensions(a.ref).includes(q) ||
+          a.ref.toLowerCase().includes(q),
+      )
+    : library;
+
+  return (
+    /*
+      z-index 300, set inline rather than as `z-50`.
+
+      The navbar is `z-index: 100` and `.safe-area-blackout` is 110
+      (styles/modules/navbar.css, responsive-mobile.css), and this page renders
+      inside the site's own <Layout>. At Tailwind's z-50 the navbar painted
+      over the top of this panel, which put the site header on top of the
+      Close button. 300 is the value styles/modules/modal.css already uses,
+      with the comment "High z-index to be above navbar" - same problem, same
+      answer, so the two agree rather than leapfrogging each other.
+
+      Inline, because this exact page has a recorded history of Tailwind's JIT
+      not emitting rules for classes used here (see the note in
+      dev-routes/local-cms.astro). A z-index that silently fails to generate
+      reintroduces the bug invisibly.
+    */
+    <div
+      className="fixed inset-0 flex items-center justify-center bg-black/80 p-4"
+      style={{ zIndex: 300 }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-3xl max-h-[80vh] flex flex-col rounded-lg border border-white/10 bg-[#111214]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* The header is OUTSIDE the scroll area, so Close stays reachable
+            however far down the grid somebody has scrolled. */}
+        <div className="flex-none flex items-center justify-between gap-3 border-b border-white/10 p-5 pb-4">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-widest text-gray-300">
+              Use an image already in the store
+            </h3>
+            <p className="mt-1 text-[11px] text-gray-500">
+              Everything this browser has seen, in use or not. Picking one here only fills the
+              field; nothing is written to videos.json until you save.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-none rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-gray-300 hover:border-white/20 hover:bg-white/10 hover:text-white transition-colors"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto p-5 pt-4">
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filter by document, size or ref..."
+            className={`${inputClass} mb-4`}
+          />
+          {shown.length === 0 ? (
+            <p className="text-sm text-gray-500">Nothing matches that.</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {shown.map((asset) => {
+                const unused = asset.usedBy.length === 0;
+                return (
+                  <div key={asset.ref} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onPick(asset.ref);
+                        onClose();
+                      }}
+                      className="w-full text-left rounded-md border border-white/10 bg-black/40 p-2 hover:border-red-500/60 hover:bg-white/5 transition-colors"
+                    >
+                      <img
+                        src={urlFor(asset.ref).width(320).url()}
+                        alt=""
+                        className="h-20 w-full object-contain rounded bg-black/50"
+                        loading="lazy"
+                      />
+                      <p
+                        className={`mt-2 text-[11px] leading-tight line-clamp-2 ${
+                          unused ? 'text-gray-500 italic' : 'text-gray-300'
+                        }`}
+                      >
+                        {unused ? 'Not on any document yet' : asset.usedBy.join(', ')}
+                      </p>
+                      <p className="text-[10px] text-gray-500">{refDimensions(asset.ref)}</p>
+                    </button>
+                    {/*
+                      Forgetting is DELIBERATE and it is not a delete. It drops
+                      the asset from this browser's picker list and touches
+                      neither videos.json nor the uploaded file, so an asset a
+                      document still points at keeps rendering. Offered only on
+                      unused entries, so the swap workflow cannot lose the
+                      image it is halfway through moving.
+                    */}
+                    {unused && onForget && (
+                      <button
+                        type="button"
+                        title="Remove from this list. Does not delete the image."
+                        onClick={() => onForget(asset.ref)}
+                        className="absolute top-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-gray-400 hover:bg-black hover:text-white transition-colors"
+                      >
+                        Forget
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ImageUploadField({
+  label,
+  value,
+  onChange,
+  hint,
+  library = [],
+  onForgetAsset,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  hint?: string;
+  library?: AssetEntry[];
+  onForgetAsset?: (ref: string) => void;
+}) {
   const [uploading, setUploading] = useState(false);
-  
+  const [picking, setPicking] = useState(false);
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -310,19 +654,36 @@ function ImageUploadField({ label, value, onChange }: { label: string; value: st
     }
   };
 
+  const btn =
+    'flex-none flex items-center justify-center px-3 py-2 text-xs font-bold rounded-lg border transition-colors';
+
   return (
     <Field label={label}>
       <div className="flex gap-2">
-        <input type="text" value={value || ''} onChange={(e) => onChange(e.target.value)} className={`${inputClass} flex-1`} placeholder="https://... or Upload below" />
-        <label className={`flex-none flex items-center justify-center px-3 py-2 text-xs font-bold rounded-lg border transition-colors ${uploading ? 'text-gray-500 border-white/5 bg-white/5 cursor-wait' : 'text-gray-300 border-white/10 bg-white/5 hover:text-white hover:border-white/20 hover:bg-white/10 cursor-pointer'}`}>
+        <input type="text" value={value || ''} onChange={(e) => onChange(e.target.value)} className={`${inputClass} flex-1`} placeholder="https://... or Upload / Reuse" />
+        {library.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            className={`${btn} text-gray-300 border-white/10 bg-white/5 hover:text-white hover:border-white/20 hover:bg-white/10`}
+          >
+            Reuse
+          </button>
+        )}
+        <label className={`${btn} ${uploading ? 'text-gray-500 border-white/5 bg-white/5 cursor-wait' : 'text-gray-300 border-white/10 bg-white/5 hover:text-white hover:border-white/20 hover:bg-white/10 cursor-pointer'}`}>
           {uploading ? 'Uploading...' : 'Upload'}
           <input type="file" accept="image/*" onChange={handleUpload} className="hidden" disabled={uploading} />
         </label>
       </div>
+      {hint && <p className="text-xs text-gray-500 mt-1.5">{hint}</p>}
       {value && typeof value === 'string' && (
-        <div className="mt-2">
+        <div className="mt-2 flex items-center gap-3">
           <img src={urlFor(value).width(400).url()} alt="Preview" className="h-20 object-contain rounded-md bg-black/50 border border-white/10 p-1" />
+          <span className="text-[11px] text-gray-500">{refDimensions(value)}</span>
         </div>
+      )}
+      {picking && (
+        <AssetPicker library={library} onPick={onChange} onClose={() => setPicking(false)} onForget={onForgetAsset} />
       )}
     </Field>
   );
@@ -426,6 +787,40 @@ export default function LocalCmsApp() {
   const [activeTab, setActiveTab] = useState('status');
   const [activeFilter, setActiveFilter] = useState<Filter | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+
+  /*
+    Seeded from localStorage so a reload does not lose an asset mid-swap, then
+    unioned with whatever the loaded store references. Only ever grows here;
+    the single place it shrinks is `forgetAsset`, which a person has to click.
+  */
+  const [rememberedAssets, setRememberedAssets] = useState<string[]>(() => readRememberedAssets());
+
+  useEffect(() => {
+    const live = collectAssetLibrary(docs).map((a) => a.ref);
+    if (!live.length) return;
+    setRememberedAssets((prev) => {
+      const next = Array.from(new Set([...prev, ...live]));
+      /* Length is a sufficient guard because this branch only ever ADDS.
+         Returning `prev` unchanged is what stops the effect re-triggering
+         itself through the state it just set. */
+      if (next.length === prev.length) return prev;
+      writeRememberedAssets(next);
+      return next;
+    });
+  }, [docs]);
+
+  const forgetAsset = useCallback((ref: string) => {
+    setRememberedAssets((prev) => {
+      const next = prev.filter((r) => r !== ref);
+      writeRememberedAssets(next);
+      return next;
+    });
+  }, []);
+
+  const assetLibrary = useMemo(
+    () => buildAssetLibrary(docs, rememberedAssets),
+    [docs, rememberedAssets],
+  );
 
   useEffect(() => {
     Promise.all([
@@ -544,6 +939,66 @@ export default function LocalCmsApp() {
               ? 'Live'
               : 'Videos',
     );
+    setSearch('');
+  };
+
+  /*
+    ─── DUPLICATE AS NEW EDITION ─────────────────────────────────────────
+
+    The mechanism behind the recurring-series model: stamp a new event out of
+    an existing one (usually a series template) instead of rebuilding the
+    profile from a blank document every year.
+
+    WHAT CARRIES OVER is everything that describes the SERIES — artwork,
+    brand colour, layout, venue, organizer, official site, related hub and
+    the YouTube sync keywords, which are the field most often forgotten when
+    an edition is rebuilt by hand and the reason a new edition would silently
+    stop collecting coverage.
+
+    WHAT IS CLEARED is everything that describes one OCCURRENCE: the dates,
+    the ticket link (last year's sales page is worse than none), the edition
+    label, the spotlight overrides, and the template flag itself — a copy of
+    a template is an edition, never a second template. The copy also starts
+    HIDDEN, so a half-filled edition with no dates cannot reach the live site
+    between being created and being finished.
+  */
+  const duplicateAsEdition = (source: Doc) => {
+    const sourceSlug = typeof source.slug === 'string' ? source.slug : source.slug?.current || '';
+    const {
+      _id: _ignoredId,
+      startDate: _ignoredStart,
+      endDate: _ignoredEnd,
+      signUpLink: _ignoredSignUp,
+      editionLabel: _ignoredEdition,
+      isRecurringTemplate: _ignoredTemplate,
+      forceSpotlightHero: _ignoredHero,
+      spotlightBadge: _ignoredBadge,
+      metrics: _ignoredMetrics,
+      ...shared
+    } = source;
+
+    const stamp = Date.now();
+    const edition: Doc = {
+      ...shared,
+      _id: `local-${crypto.randomUUID()}`,
+      _type: 'event',
+      title: `${source.title} (new edition)`,
+      slug: { _type: 'slug', current: slugify(`${source.title}-${stamp}`) },
+      startDate: '',
+      endDate: '',
+      signUpLink: '',
+      editionLabel: '',
+      isRecurringTemplate: false,
+      /* Point the copy at its series: at the template it came from, or at the
+         same template a sibling edition already belongs to. */
+      seriesTemplateSlug: source.isRecurringTemplate ? sourceSlug : source.seriesTemplateSlug || '',
+      hidden: true,
+    };
+
+    setDocs((prev) => [edition, ...prev]);
+    setSelectedId(edition._id);
+    setActiveTab('status');
+    setActiveFilter('Events');
     setSearch('');
   };
 
@@ -907,10 +1362,10 @@ export default function LocalCmsApp() {
                   <VideoForm doc={selected} activeTab={activeTab} setActiveTab={setActiveTab} updateDoc={updateDoc} />
                 )}
                 {selected._type === 'event' && (
-                  <EventForm doc={selected} updateDoc={updateDoc} updateSlug={updateSlug} updateLocation={updateLocation} />
+                  <EventForm doc={selected} allDocs={docs} assetLibrary={assetLibrary} onForgetAsset={forgetAsset} updateDoc={updateDoc} updateSlug={updateSlug} updateLocation={updateLocation} duplicateAsEdition={duplicateAsEdition} />
                 )}
                 {selected._type === 'featuredBrand' && (
-                  <BrandForm doc={selected} updateDoc={updateDoc} updateSlug={updateSlug} />
+                  <BrandForm assetLibrary={assetLibrary} onForgetAsset={forgetAsset} doc={selected} updateDoc={updateDoc} updateSlug={updateSlug} />
                 )}
                 {selected._type === 'article' && (
                   <ArticleForm doc={selected} updateDoc={updateDoc} />
@@ -1393,17 +1848,34 @@ function VideoForm({
 }
 
 function EventForm({
+  allDocs,
   doc,
+  assetLibrary,
+  onForgetAsset,
   updateDoc,
   updateSlug,
   updateLocation,
+  duplicateAsEdition,
 }: {
+  allDocs: Doc[];
   doc: Doc;
+  /* Built ONCE at the top of the app, not derived here. Two forms deriving it
+     separately is how one of them would have kept the old in-use-only
+     behaviour after the other was fixed. */
+  assetLibrary: AssetEntry[];
+  onForgetAsset: (ref: string) => void;
   updateDoc: (id: string, field: keyof Doc, value: any) => void;
   updateSlug: (id: string, value: string) => void;
   updateLocation: (id: string, field: keyof LocationInfo, value: string) => void;
+  duplicateAsEdition: (doc: Doc) => void;
 }) {
   const update = (field: keyof Doc, value: any) => updateDoc(doc._id, field, value);
+  const brandHubs = allDocs.filter((d: any) => d._type === 'featuredBrand').sort((a: any, b: any) => a.title.localeCompare(b.title));
+  /* Only templates may be picked as a parent series, and a document can never
+     be its own parent. */
+  const seriesTemplates = allDocs
+    .filter((d: any) => d._type === 'event' && d.isRecurringTemplate === true && d._id !== doc._id)
+    .sort((a: any, b: any) => String(a.title).localeCompare(String(b.title)));
   return (
     <div className={sectionClass}>
       <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5">
@@ -1419,25 +1891,73 @@ function EventForm({
           />
           <p className="text-xs text-gray-600 mt-1.5">/events/{(typeof doc.slug === "string" ? doc.slug : doc.slug?.current) || '…'}</p>
         </Field>
-        <Field label="Status">
-          <select value={doc.status || 'upcoming'} onChange={(e) => update('status', e.target.value)} className={inputClass}>
-            <option value="upcoming">Upcoming</option>
-            <option value="live">Live</option>
-            <option value="completed">Completed</option>
+        {/*
+          ─── STATUS IS AN OVERRIDE, NOT A STATE MACHINE ──────────────────
+
+          This offered Upcoming / Live / Completed / TBD, and NONE of them do
+          anything: getEventStatus() derives those three from the dates and
+          only reads `status` to honour the two EDITORIAL states. So an editor
+          could set "Completed" on a future event, save it, and watch the site
+          keep calling it upcoming, with no way to tell why.
+
+          It was also lying about what was stored. Every event in the store
+          holds `status: "scheduled"`, which was not one of the options above,
+          so React found no match and rendered the first one — all nineteen
+          events showed "Upcoming" in this dropdown while the file said
+          something else entirely. The list matches schema/event.ts now, which
+          is the same three values the store already uses.
+        */}
+        <Field label="Status Override">
+          <select value={doc.status || 'scheduled'} onChange={(e) => update('status', e.target.value)} className={inputClass}>
+            <option value="scheduled">Scheduled (auto by date)</option>
             <option value="cancelled">Cancelled</option>
             <option value="postponed">Postponed</option>
-            <option value="tbd">TBD</option>
+          </select>
+          <p className="text-xs text-gray-600 mt-1.5">
+            Upcoming, Live and Completed are worked out from the dates on every build.
+            Only change this to Cancelled or Postponed, which are the two things the
+            dates cannot tell us.
+          </p>
+        </Field>
+        <Field label="Franchise / Brand Hub">
+          <select value={doc.relatedBrandSlug || ''} onChange={(e) => update('relatedBrandSlug', e.target.value)} className={inputClass}>
+            <option value="">None</option>
+            {brandHubs.map(b => (
+              <option key={b._id} value={typeof b.slug === 'string' ? b.slug : b.slug?.current}>{b.title}</option>
+            ))}
           </select>
         </Field>
+        {/*
+          ─── A DROPDOWN MUST NEVER SHOW A VALUE THAT IS NOT STORED ───────
+
+          This read `value={doc.eventType || 'convention'}` with no option for
+          "unset", so an event with NO eventType key rendered as "Convention".
+          Thirteen of nineteen events were in that state: the CMS said
+          Convention, the JSON had no field at all, and the hero tag on
+          /events/[slug] — which reads the store — fell back to the generic
+          "EVENT". Worse, the trap was self-sealing: the editor could not fix
+          it by picking Convention, because the dropdown already showed
+          Convention, so no change event ever fired and nothing was written.
+
+          The empty option is the fix. An unset field now says it is unset,
+          and picking any value writes it.
+        */}
         <Field label="Event Type">
-          <select value={doc.eventType || 'convention'} onChange={(e) => update('eventType', e.target.value)} className={inputClass}>
-            <option value="convention">Convention</option>
+          <select value={doc.eventType || ''} onChange={(e) => update('eventType', e.target.value)} className={inputClass}>
+            <option value="">Not set (shows as “Event”)</option>
+            <option value="convention-expo">Convention</option>
             <option value="premiere">Premiere</option>
             <option value="screening">Screening</option>
+            <option value="showcase">Showcase</option>
             <option value="festival">Festival</option>
-            <option value="expo">Expo</option>
+            <option value="industry-awards">Industry Awards</option>
+            <option value="brand-activation">Brand Activation</option>
             <option value="other">Other</option>
           </select>
+          <p className="text-xs text-gray-600 mt-1.5">
+            Drives the first metadata tag in the event hero. Leave unset and the tag
+            reads “Event”.
+          </p>
         </Field>
         <Field label="Start Date">
           <input type="date" value={doc.startDate || ''} onChange={(e) => update('startDate', e.target.value)} className={inputClass} />
@@ -1457,8 +1977,35 @@ function EventForm({
         </div>
       </div>
 
-      <Field label="Description">
-        <textarea value={doc.description || ''} onChange={(e) => update('description', e.target.value)} className={textareaClass} placeholder="What this event/brand is about..." />
+      {/*
+        TWO PIECES OF PROSE, AND THEY ARE NOT INTERCHANGEABLE. The tagline is
+        the ONE LINE under the logo in the hero; the About copy is the
+        paragraph in the page body. They used to be the same field, so the
+        hero clamped the About paragraph to five lines and cut it off
+        mid-word, with the full version sitting a screen below.
+      */}
+      <Field label="Short Description (Bio)">
+        <input
+          type="text"
+          value={doc.tagline || ''}
+          onChange={(e) => update('tagline', e.target.value)}
+          className={inputClass}
+          maxLength={120}
+          placeholder={`Defaults to “${doc.title || 'the event name'}”`}
+        />
+        <p className="text-xs text-gray-600 mt-1.5">
+          One short line under the logo in the hero. A handful of words. Leave it empty
+          and the event name is used. Nothing here is ever truncated, so keep it short
+          by choice rather than by limit.
+        </p>
+      </Field>
+
+      <Field label="About (Full Description)">
+        <textarea value={doc.description || ''} onChange={(e) => update('description', e.target.value)} className={textareaClass} placeholder="What this event is about. Shown in the About section of the page body." />
+        <p className="text-xs text-gray-600 mt-1.5">
+          The ABOUT section in the body of the page. Write as much as it needs. This is
+          no longer shown in the hero, so it is never cut off.
+        </p>
       </Field>
 
       <div className="grid grid-cols-1 @lg:grid-cols-2 gap-5">
@@ -1477,15 +2024,50 @@ function EventForm({
         <Field label="Brand Color (Hex)">
           <input type="text" value={doc.brandColor?.hex || ''} onChange={(e) => update('brandColor', { hex: e.target.value })} className={inputClass} placeholder="#FF0000" />
         </Field>
-        <ImageUploadField 
-          label="Logo URL" 
-          value={typeof doc.logo === 'string' ? doc.logo : ''} 
-          onChange={(v) => update('logo', v)} 
+        <ImageUploadField
+          label="Logo"
+          value={refOf(doc.logo)}
+          onChange={(v) => update('logo', v)}
+          library={assetLibrary}
+          onForgetAsset={onForgetAsset}
+          hint="The brand mark, and the fallback for both overrides below. Shared across editions is fine: all four PAX events use one PAX wordmark here."
         />
-        <ImageUploadField 
-          label="Hero Image URL" 
-          value={typeof doc.heroImage === 'string' ? doc.heroImage : ''} 
-          onChange={(v) => update('heroImage', v)} 
+        <ImageUploadField
+          label="Hero Logo (optional)"
+          value={refOf(doc.heroLogo)}
+          onChange={(v) => update('heroLogo', v)}
+          library={assetLibrary}
+          onForgetAsset={onForgetAsset}
+          hint="Only the small mark at the TOP LEFT of the hero. Leave empty and it uses the Logo above. Set it when the brand mark is not specific enough: PAX West and PAX East share a logo, so without this their heroes look like the same event."
+        />
+        <ImageUploadField
+          label="Stage Logo (optional)"
+          value={refOf(doc.stageLogo)}
+          onChange={(v) => update('stageLogo', v)}
+          library={assetLibrary}
+          onForgetAsset={onForgetAsset}
+          hint="The third mark. Only the LARGE one on the stage, and only while the switch below is on. Leave empty and it uses the Logo above."
+        />
+        <Field label="Stage">
+          <Toggle
+            label="Show a logo on the stage"
+            checked={doc.stageShowMark === true}
+            onChange={(v) => update('stageShowMark', v)}
+          />
+          <p className="mt-1 text-[11px] leading-snug text-neutral-500">
+            Off, the frame where the trailer plays holds the key art, blurred. On, it holds a
+            mark. The hero already shows one at the top left and the tagline repeats the name
+            under it, so a mark here is the same identity three times down one screen. Turn it
+            on where the stage logo is genuinely a different thing.
+          </p>
+        </Field>
+        <ImageUploadField
+          label="Hero Image"
+          value={refOf(doc.heroImage)}
+          onChange={(v) => update('heroImage', v)}
+          library={assetLibrary}
+          onForgetAsset={onForgetAsset}
+          hint="Key art behind the whole hero, and the social share card."
         />
       </div>
 
@@ -1496,8 +2078,34 @@ function EventForm({
         />
       </div>
 
+      {/*
+        ONE tag list, not two.
+
+        This was split into "YouTube Sync Keywords" and "Coverage Tags"
+        because the sync reads one of them and only the site reads the other,
+        so widening the sync list has consequences the site list does not.
+        That distinction was real and it was still the wrong shape: in
+        practice a YouTube video and a Substack post about SDCC 2026 get
+        tagged the same words, so the split only ever meant typing the same
+        list twice and watching the two drift.
+
+        The existing values were merged into this one field, and every reader
+        (the site matcher, the YouTube sync's hub dictionary, search, the
+        Instagram topic filter) now sees the same list.
+      */}
       <div className="mt-5">
-        <TagsInput label="YouTube Sync Keywords (hub auto-tagging)" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
+        <TagsInput label="Tags" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
+        <p className="text-xs text-gray-400 mt-1.5">One list, used everywhere: it matches YouTube videos during the sync AND articles and videos on the site. Spacing and punctuation do not matter ("SDCC 2026", "SDCC2026" and "sdcc-2026" are one tag). The YEAR does: "SDCC 2026" never matches "SDCC 2027", which is what keeps each edition's coverage its own. Tag broadly enough to catch your posts, narrowly enough that the sync does not pull in someone else's event.</p>
+      </div>
+
+      <div className="mt-5">
+        <TagsInput label="Pin To This Hub" value={doc.pinnedCoverage} onChange={(v) => update('pinnedCoverage', v)} />
+        <p className="text-xs text-gray-400 mt-1.5">Article slugs, guids, YouTube ids or document _ids this hub owns whatever the tags say. A pin beats tag matching outright: it adds the item here AND makes that article&rsquo;s page show this hub on its card. Reach for it when the tags point somewhere defensible but wrong, like a GTA piece that mentions Netflix in passing.</p>
+      </div>
+
+      <div className="mt-5">
+        <TagsInput label="Exclude From Coverage" value={doc.excludeCoverage} onChange={(v) => update('excludeCoverage', v)} />
+        <p className="text-xs text-gray-400 mt-1.5">Article slugs, guids, YouTube ids or document _ids to drop from this hub whatever the tags say. Use it for a retrospective: a post about SDCC written in 2027 could be about either edition, and only you know which. Exclude beats Pin.</p>
       </div>
 
       <div className="mt-10 pt-10 border-t border-white/10 space-y-8">
@@ -1506,6 +2114,152 @@ function EventForm({
         <GalleryArray value={doc.gallery} onChange={(v) => update('gallery', v)} />
         <SponsorsArray value={doc.sponsors} onChange={(v) => update('sponsors', v)} />
         <PressAssetsArray value={doc.pressAssets} onChange={(v) => update('pressAssets', v)} />
+      </div>
+
+      {/*
+        ─── RECURRING SERIES ─────────────────────────────────────────────
+
+        The local half of the template model documented in schema/event.ts.
+        A template is a reusable profile — PAX West's logo, key art, brand
+        colour, venue, organizer and sync keywords — with no dates of its
+        own; getEventsLocal() filters templates out, so one never renders a
+        page, a calendar row or an archive card.
+
+        "Duplicate as new edition" is the point of the whole feature: it
+        stamps a fresh event from this document, carrying every shared field
+        across and clearing only what genuinely changes each time (dates,
+        ticket link, edition label). Editions link back by SLUG rather than
+        by _id, matching relatedBrandSlug — the local store has no reference
+        resolution, and a slug survives a re-export from Sanity.
+      */}
+      <div className="mt-10 pt-10 border-t border-white/10">
+        <h3 className={labelClass}>Recurring Series</h3>
+
+        <Field label="Series Template">
+          <Toggle
+            label="This is a recurring series template"
+            checked={doc.isRecurringTemplate || false}
+            onChange={(v) => update('isRecurringTemplate', v)}
+          />
+          <p className="text-xs text-gray-600 mt-1.5">
+            Turn on for a reusable profile such as “PAX West” or “SDCC”. A template never
+            appears on the site. It exists so each new edition can be duplicated from it
+            with its artwork, venue and sync keywords intact instead of being rebuilt.
+          </p>
+        </Field>
+
+        {doc.isRecurringTemplate ? (
+          <div className="grid grid-cols-1 @lg:grid-cols-2 gap-3 mt-5">
+            <Field label="Cadence">
+              <select
+                value={doc.recurrenceCadence || ''}
+                onChange={(e) => update('recurrenceCadence', e.target.value)}
+                className={inputClass}
+              >
+                <option value="">Not set</option>
+                <option value="annual">Annual</option>
+                <option value="biannual">Twice a year</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="irregular">Irregular</option>
+              </select>
+            </Field>
+            <Field label="Usual Month">
+              <select
+                value={doc.recurrenceMonth || ''}
+                onChange={(e) => update('recurrenceMonth', e.target.value)}
+                className={inputClass}
+              >
+                <option value="">Not set</option>
+                {MONTH_OPTIONS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 @lg:grid-cols-2 gap-3 mt-5">
+            <Field label="Part of Series">
+              <select
+                value={doc.seriesTemplateSlug || ''}
+                onChange={(e) => update('seriesTemplateSlug', e.target.value)}
+                className={inputClass}
+              >
+                <option value="">Standalone event</option>
+                {seriesTemplates.map((t: any) => (
+                  <option key={t._id} value={typeof t.slug === 'string' ? t.slug : t.slug?.current}>
+                    {t.title}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Edition">
+              <input
+                type="text"
+                value={doc.editionLabel || ''}
+                onChange={(e) => update('editionLabel', e.target.value)}
+                className={inputClass}
+                placeholder="2026"
+              />
+            </Field>
+          </div>
+        )}
+
+        <div className="mt-5">
+          <button
+            type="button"
+            onClick={() => duplicateAsEdition(doc)}
+            className="px-4 py-2 text-xs font-bold uppercase tracking-widest border border-white/20 text-white hover:border-red-500 hover:text-red-400 transition-colors"
+          >
+            Duplicate as new edition
+          </button>
+          <p className="text-xs text-gray-600 mt-1.5">
+            Creates a new event carrying this one’s artwork, brand colour, location,
+            organizer, links and sync keywords. Dates, the ticket link and the edition
+            label are cleared, because those are the only things that actually change
+            between editions.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-10 pt-10 border-t border-white/10">
+        <Field label="Hero Override">
+          <Toggle
+            label="Force as Spotlight Hero"
+            checked={doc.forceSpotlightHero || false}
+            onChange={(v) => update('forceSpotlightHero', v)}
+          />
+          <p className="text-xs text-gray-600 mt-1.5">
+            If checked, this event will be forced into the Spotlight Hero spot at the top of the /events page. It will remain the hero until it expires (passes its end date), at which point the site will automatically fall back to the next upcoming event.
+          </p>
+        </Field>
+
+        <Field label="Hero Badge">
+          <select 
+            value={doc.spotlightBadge || 'dot'} 
+            onChange={(e) => update('spotlightBadge', e.target.value)} 
+            className={inputClass}
+          >
+            <option value="dot">Upcoming Dot (Default)</option>
+            <option value="countdown">Countdown Timer</option>
+            <option value="none">None</option>
+          </select>
+          <p className="text-xs text-gray-600 mt-1.5">
+            Choose what badge appears over the hero image when this event is featured. Use Countdown for highly anticipated upcoming events. If the event is currently happening or past, the countdown won't make sense, so use Dot or None.
+          </p>
+        </Field>
+
+        <Field label="Visibility">
+          <Toggle
+            label="Hide from the live site"
+            checked={doc.hidden || false}
+            onChange={(v) => update('hidden', v)}
+          />
+          <p className="text-xs text-gray-600 mt-1.5">
+            Hidden events are removed from /events and stop generating their own
+            page in a production build. They still appear in <code>npm run dev</code>,
+            so an unfinished event stays in front of you while you finish it.
+          </p>
+        </Field>
       </div>
     </div>
   );
@@ -1526,10 +2280,14 @@ const HUB_CATEGORIES = [
 
 function BrandForm({
   doc,
+  assetLibrary,
+  onForgetAsset,
   updateDoc,
   updateSlug,
 }: {
   doc: Doc;
+  assetLibrary: AssetEntry[];
+  onForgetAsset: (ref: string) => void;
   updateDoc: (id: string, field: keyof Doc, value: any) => void;
   updateSlug: (id: string, value: string) => void;
 }) {
@@ -1552,15 +2310,50 @@ function BrandForm({
         <Field label="Trailer URL">
           <input type="text" value={doc.trailerUrl || ''} onChange={(e) => update('trailerUrl', e.target.value)} className={inputClass} placeholder="https://youtube.com/watch?v=…" />
         </Field>
-        <ImageUploadField 
-          label="Logo URL" 
-          value={typeof doc.logo === 'string' ? doc.logo : ''} 
-          onChange={(v) => update('logo', v)} 
+        <ImageUploadField
+          label="Logo"
+          value={refOf(doc.logo)}
+          onChange={(v) => update('logo', v)}
+          library={assetLibrary}
+          onForgetAsset={onForgetAsset}
+          hint="The brand mark, and the fallback for both overrides below."
         />
-        <ImageUploadField 
-          label="Hero Image URL" 
-          value={typeof doc.heroImage === 'string' ? doc.heroImage : ''} 
-          onChange={(v) => update('heroImage', v)} 
+        <ImageUploadField
+          label="Hero Logo (optional)"
+          value={refOf(doc.heroLogo)}
+          onChange={(v) => update('heroLogo', v)}
+          library={assetLibrary}
+          onForgetAsset={onForgetAsset}
+          hint="Only the small mark at the TOP LEFT of the hub page. Leave empty and it uses the Logo above."
+        />
+        <ImageUploadField
+          label="Stage Logo (optional)"
+          value={refOf(doc.stageLogo)}
+          onChange={(v) => update('stageLogo', v)}
+          library={assetLibrary}
+          onForgetAsset={onForgetAsset}
+          hint="The third mark. Only the LARGE one in the trailer frame, and only while the switch below is on. Leave empty and it uses the Logo above."
+        />
+        <Field label="Stage">
+          <Toggle
+            label="Show a logo on the stage"
+            checked={doc.stageShowMark === true}
+            onChange={(v) => update('stageShowMark', v)}
+          />
+          <p className="mt-1 text-[11px] leading-snug text-neutral-500">
+            Off, the frame where the trailer plays holds this hub's art, from Backdrops if set and
+            Hero Image otherwise. On, it holds a mark. The hero already shows one at the top left,
+            so a mark here states the same identity twice on one screen. Turn it on where the stage
+            logo is genuinely a different thing.
+          </p>
+        </Field>
+        <ImageUploadField
+          label="Hero Image"
+          value={refOf(doc.heroImage)}
+          onChange={(v) => update('heroImage', v)}
+          library={assetLibrary}
+          onForgetAsset={onForgetAsset}
+          hint="Key art behind the whole hub page, the /featured deck card, and the nav thumbnail."
         />
       </div>
 
@@ -1627,8 +2420,34 @@ function BrandForm({
         <BackdropsField value={doc.backdrops} onChange={(v) => update('backdrops', v)} />
       </div>
 
+      {/*
+        ONE tag list, not two.
+
+        This was split into "YouTube Sync Keywords" and "Coverage Tags"
+        because the sync reads one of them and only the site reads the other,
+        so widening the sync list has consequences the site list does not.
+        That distinction was real and it was still the wrong shape: in
+        practice a YouTube video and a Substack post about SDCC 2026 get
+        tagged the same words, so the split only ever meant typing the same
+        list twice and watching the two drift.
+
+        The existing values were merged into this one field, and every reader
+        (the site matcher, the YouTube sync's hub dictionary, search, the
+        Instagram topic filter) now sees the same list.
+      */}
       <div className="mt-5">
-        <TagsInput label="YouTube Sync Keywords (hub auto-tagging)" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
+        <TagsInput label="Tags" value={doc.youtubeSyncKeywords} onChange={(v) => update('youtubeSyncKeywords', v)} />
+        <p className="text-xs text-gray-400 mt-1.5">One list, used everywhere: it matches YouTube videos during the sync AND articles and videos on the site. Spacing and punctuation do not matter ("SDCC 2026", "SDCC2026" and "sdcc-2026" are one tag). The YEAR does: "SDCC 2026" never matches "SDCC 2027", which is what keeps each edition's coverage its own. Tag broadly enough to catch your posts, narrowly enough that the sync does not pull in someone else's event.</p>
+      </div>
+
+      <div className="mt-5">
+        <TagsInput label="Pin To This Hub" value={doc.pinnedCoverage} onChange={(v) => update('pinnedCoverage', v)} />
+        <p className="text-xs text-gray-400 mt-1.5">Article slugs, guids, YouTube ids or document _ids this hub owns whatever the tags say. A pin beats tag matching outright: it adds the item here AND makes that article&rsquo;s page show this hub on its card. Reach for it when the tags point somewhere defensible but wrong, like a GTA piece that mentions Netflix in passing.</p>
+      </div>
+
+      <div className="mt-5">
+        <TagsInput label="Exclude From Coverage" value={doc.excludeCoverage} onChange={(v) => update('excludeCoverage', v)} />
+        <p className="text-xs text-gray-400 mt-1.5">Article slugs, guids, YouTube ids or document _ids to drop from this hub whatever the tags say. Use it for a retrospective: a post about SDCC written in 2027 could be about either edition, and only you know which. Exclude beats Pin.</p>
       </div>
     </div>
   );

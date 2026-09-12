@@ -1,7 +1,7 @@
-import movieImg from '../assets/categories/movies.PNG';
-import tvImg from '../assets/categories/tv.PNG';
-import gamingImg from '../assets/categories/gaming.PNG';
-import eventsImg from '../assets/categories/events.PNG';
+import movieImg from '../assets/categories/movies.png';
+import tvImg from '../assets/categories/tv.png';
+import gamingImg from '../assets/categories/gaming.png';
+import eventsImg from '../assets/categories/events.png';
 
 /**
  * Content pillars surfaced on the homepage. Each links to the Videos page

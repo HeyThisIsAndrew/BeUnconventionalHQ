@@ -2,12 +2,16 @@
 import Layout from '../../layouts/Layout.astro';
 import { getArticleItems } from '../../lib/feed-items';
 import { getVideosUnified } from '../../lib/videos-source';
-import { getFeaturedBrandsLocal, getHubBackdrop, urlFor, HUB_CATEGORY_LABELS } from '../../lib/local-content';
+import { getEventsLocal, getFeaturedBrandsLocal, getHubBackdrop, urlFor, HUB_CATEGORY_LABELS } from '../../lib/local-content';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
 import ContentCard from '../../components/ContentCard.astro';
+import EventCard from '../../components/EventCard.astro';
+import SectionHeading from '../../components/SectionHeading.astro';
+import { toYMD } from '../../lib/events';
 import InstagramFeed from '../../components/InstagramFeed.astro';
 import { getHubTopicKeywords } from '../../lib/instagram-topic';
 import { parseVideoId } from '../../lib/platforms/youtube';
+import { collectHubCoverage } from '../../lib/hub-coverage';
 
 export async function getStaticPaths() {
   // `defined(slug.current)` filtering happens in getFeaturedBrandsLocal, so a
@@ -24,63 +28,61 @@ export async function getStaticPaths() {
 
 const { event } = Astro.props;
 
+// Find associated upcoming events
+const today = toYMD();
+const allLocalEvents = getEventsLocal();
+const associatedUpcomingEvents = allLocalEvents
+  .filter((e: any) => {
+    if (e.relatedBrandSlug !== event.slug.current) return false;
+    if (!e.startDate) return false;
+    const end = (e.endDate || e.startDate).slice(0, 10);
+    return end >= today;
+  })
+  .sort((a: any, b: any) => a.startDate.localeCompare(b.startDate));
+
+
 // 1. Fetch Global Data
 const allVideos = await getVideosUnified();
 const allArticles = getArticleItems();
 
-// 1b. Phase C1 (epic #25): deterministic, editor-controlled coverage — videos
-// whose hubs[] reference THIS brand doc (by slug - see sync-youtube.mjs's
-// taxonomy dictionary, which keys hub matches off event/featuredBrand
-// slugs). Empty until editors/sync hub-tag published docs; the tag-match
-// fallback below keeps behavior unchanged until then.
-const hubCoverage = allVideos
-  .filter((v: any) => !v.isShort && !v.isLive && (v.hubs || []).includes(event.slug?.current))
-  .sort((a: any, b: any) => new Date(b.publishedAt ?? 0).getTime() - new Date(a.publishedAt ?? 0).getTime());
+/*
+  ─── ONE MATCHER, SHARED WITH /events/[slug] ───────────────────────────────
 
-// 2. Fallback: filter global data against hub tags (legacy heuristic; removed
-// in Phase C2 once hub-tagging covers the catalog)
-const eventTags = (event.youtubeSyncKeywords || []).filter((t: any) => typeof t === 'string');
+  This block used to be sixty lines of hub-tag lookup plus normalized tag
+  matching, hand-written here, and a DIFFERENT, substring-based version of
+  the same idea hand-written on the event page. The event one matched zero
+  articles for all nineteen events. They are now one function,
+  src/lib/hub-coverage.ts, which is where the reasoning lives.
 
-const filteredVideos = hubCoverage.length > 0 ? hubCoverage : allVideos.filter((v: any) => {
+  Shorts and live streams are filtered out BEFORE the call, not inside it:
+  the coverage grid is the long-form reading list, and the exclusion has to
+  be visible at the call site because it is a decision, not a detail.
+*/
+const longFormVideos = allVideos.filter((v: any) => !v.isShort && !v.isLive);
+const coverage = collectHubCoverage({ hub: event, videos: longFormVideos, articles: allArticles });
+const unifiedContent = coverage.items;
 
+/*
+  ─── A FILTER FOR CONTENT THE HUB DOES NOT HAVE ────────────────────────────
 
-  // STRICT FILTERING: Query against the actual YouTube Tags synced directly from 
-  // YouTube Studio metadata into Sanity (`v.youtubeTags`). 
-  // We use EXACT matching on normalized tags, avoiding all regex and substring data leaks.
-  return eventTags.some((tag: string) => {
-    const normalize = (s: string) => s.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
-    const t = normalize(tag);
-    if (!t) return false;
-    
-    // Exact match on normalized strings (e.g. "marvel studios" === "marvel studios")
-    const hasYouTubeTag = v.youtubeTags?.some((yt: string) => normalize(yt) === t);
-    
-    // Also include videos where the editor manually assigned the topic in Sanity
-    const hasTopic = v.tags?.some((vt: string) => normalize(vt) === t);
-    const hasCategory = v.category ? normalize(v.category) === t : false;
-    
-    return hasYouTubeTag || hasTopic || hasCategory;
-  });
-});
+  ARTICLES and VIDEOS were hardcoded, so every hub offered both whatever it
+  actually held. Four of eighteen hold only one kind, and on those, tapping the
+  other button emptied the grid completely with nothing to explain it:
 
-const filteredArticles = allArticles.filter((a: any) => {
-  return eventTags.some((tag: string) => {
-    const normalize = (s: string) => s.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
-    const t = normalize(tag);
-    if (!t) return false;
-    
-    // Exact match on normalized strings
-    const hasTopic = a.tags?.some((at: string) => normalize(at) === t);
-    const hasCategory = a.category ? normalize(a.category) === t : false;
-    return hasTopic || hasCategory;
-  });
-});
+    disney-plus   0 articles, 1 video   -> ARTICLES wiped the page
+    a24           0 articles, 1 video   -> ARTICLES wiped the page
+    universal     0 articles, 2 videos  -> ARTICLES wiped the page
+    xbox          1 article,  0 videos  -> VIDEOS   wiped the page
 
-// Merge and sort all content
-const unifiedContent = [
-  ...filteredArticles.map((a: any) => ({ ...a, contentType: 'article' })),
-  ...filteredVideos.map((v: any) => ({ ...v, contentType: 'video' }))
-].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  Reported as "the featured page filters are just broken", and from the
+  visitor's side that is exactly what it looks like.
+
+  A control is offered only when it has something to do. When a hub holds one
+  kind of thing, the whole filter row goes: a single button that can only
+  either show everything or hide everything is not a filter, it is the phantom
+  "Upcoming Events" button again in a different costume.
+*/
+const showFilters = coverage.showFilters;
 
 // YouTube IDs are extracted via the shared parseVideoId (src/lib/platforms/youtube).
 
@@ -194,8 +196,67 @@ const hasPlayableVideo =
   !!trailerId ||
   heroItems.some((it: any) => it.contentType === 'video' && parseVideoId(it.link || ''));
 
-const stageMarkUrl = event.logo ? urlFor(event.logo).height(520).auto('format').url() : null;
-const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format').url() : null;
+/*
+  ─── THREE MARK SLOTS, THREE LOGO FIELDS ──────────────────────────────────
+
+  Lifted from the event hero, because this page has the same three slots and
+  had the same problem in all three:
+
+    .hero-logo        small, top left      `heroLogo || logo`
+    .hub-stage-mark   large, in the frame  `stageLogo || logo`
+    .hub-stage-plate  the blurred ghost    whatever is in front of it
+
+  All three read `logo` alone, so a hub page stated its identity three times
+  down one screen. Reported the same way the event pages were: "there's a lot
+  of repetition over there as well."
+
+  Each override touches ONE slot. `heroLogo` must never reach the stage, or
+  the asset is back in two places, which is the thing it exists to undo.
+*/
+const heroLockupLogo = event.heroLogo || event.logo;
+
+/*
+  ─── WHAT THE STAGE SHOWS WHEN NOTHING IS PLAYING ─────────────────────────
+
+  The mark, at 520px, on a page whose top left already carries it. The default
+  is the hub's own art instead, and `stageShowMark` puts a mark back for a hub
+  that genuinely wants one.
+
+  The art comes from getHubBackdrop(), NOT straight from `heroImage`: that
+  function is the one place that decides what a hub looks like (its
+  `backdrops[0]` override first, its key art second), and going around it is
+  how the stage and the backdrop would come to disagree about the same hub.
+
+  THE GHOST FOLLOWS WHATEVER IS IN FRONT OF IT. Crisp over a blown-up blurred
+  copy of itself is this page's own lockup, so in mark mode the ghost is that
+  mark. In art mode it is the art: a logo-shaped glow around a frame with no
+  logo in it is a leftover of a lockup that is not there, and it was one more
+  appearance of the mark.
+*/
+const stageShowsMark = event.stageShowMark === true;
+const stageMarkLogo = event.stageLogo || event.logo;
+const stageMarkUrl = stageShowsMark && stageMarkLogo
+  ? urlFor(stageMarkLogo).height(520).auto('format').url()
+  : null;
+
+/*
+  Crisp, so the ladder is built from the box rather than from the
+  small-request convention a BLURRED plate uses: the stage is 760 CSS px at
+  its widest and 600 stacked, so it tops out at 1520 for a 2x screen.
+*/
+const STAGE_WIDTHS = [600, 760, 1200, 1520];
+const stageArtAt = (w: number) =>
+  heroBackdrop ? urlFor(heroBackdrop.ref).width(w).auto('format').url() : '';
+const stageArtUrl = !stageMarkUrl && heroBackdrop ? stageArtAt(900) : null;
+const stageArtSrcset = stageArtUrl ? STAGE_WIDTHS.map((w) => `${stageArtAt(w)} ${w}w`).join(', ') : '';
+const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw';
+
+const stageGhostSource = stageMarkUrl
+  ? stageMarkLogo
+  : (stageArtUrl && heroBackdrop ? heroBackdrop.ref : null);
+const stageGhostUrl = stageGhostSource
+  ? urlFor(stageGhostSource).height(300).auto('format').url()
+  : null;
 ---
 
 <Layout
@@ -254,7 +315,10 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       */}
       {stageGhostUrl && (
         <div class="hub-stage-bg" aria-hidden="true">
-          <div class="hub-stage-plate" style={`background-image: url('${stageGhostUrl}');`}></div>
+          <div
+            class:list={['hub-stage-plate', { 'hub-stage-plate--art': !stageMarkUrl }]}
+            style={`background-image: url('${stageGhostUrl}');`}
+          ></div>
         </div>
       )}
       <div class="hub-stage-wash" aria-hidden="true"></div>
@@ -308,13 +372,28 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
               lockup and give the trailer below room to matter.
             */}
             <div class="hero-identity">
-              {event.logo ? (
-                <>
-                  <h1 class="sr-only">{event.title}</h1>
-                  <span class="hero-logo-wrap" aria-hidden="true">
-                    <img src={urlFor(event.logo).height(320).auto('format').url()} alt="" class="hero-logo" />
+              {/*
+                THE MARK IS THE HEADING. It was an `aria-hidden` <img alt="">
+                beside an `sr-only` <h1>, which gave the outline but left a
+                failed image as blank space with nothing saying what the page
+                was. Naming the image and wrapping it in the <h1> puts the
+                answer where the question is: the alt renders in the mark's
+                own place if the image never arrives, and it is announced once
+                rather than once per element.
+
+                `.hero-logo-wrap` keeps its own element because HARD RULE 6
+                puts the glow on the WRAPPER and never on the <img>.
+              */}
+              {heroLockupLogo ? (
+                <h1 class="hero-title-lockup">
+                  <span class="hero-logo-wrap">
+                    <img
+                      src={urlFor(heroLockupLogo).height(320).auto('format').url()}
+                      alt={event.title}
+                      class="hero-logo"
+                    />
                   </span>
-                </>
+                </h1>
               ) : (
                 <h1 class="hero-title">{event.title}</h1>
               )}
@@ -328,6 +407,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
                 </div>
               )}
 
+              <div class="hero-actions">
               {trailerId && (
                 /*
                   ─── WATCH IT AGAIN ─────────────────────────────────────────
@@ -375,14 +455,45 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
                   Every hub happens to have a trailer today, which is exactly
                   why this would have shipped unnoticed.
                 */
-                <button type="button" class="hub-stage-replay">
-                  <svg class="hub-stage-replay-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <button type="button" class="hero-action-btn hub-stage-replay">
+                  <svg class="hero-action-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                     <path d="M8 5v14l11-7z" fill="currentColor" />
                   </svg>
                   <span class="hub-stage-replay-text">Play trailer</span>
                   <span class="sr-only"> for {event.title}</span>
                 </button>
               )}
+
+              {associatedUpcomingEvents.length > 0 && (
+                /*
+                  ─── THE HERO JUMP LINK ─────────────────────────────────────
+
+                  Sits beside Play trailer, and only exists when this hub
+                  actually has a future event associated with it. It is an
+                  ANCHOR, not a button: the destination is the "Upcoming
+                  Events" heading further down this same page, and html
+                  already carries `scroll-padding-top: 112px` so the jump
+                  clears the fixed header without any script.
+
+                  Not styled as the primary action. The hero of a hub page is
+                  the hub, and its trailer is what a first-time visitor came
+                  for; this is the same quiet rectangle, second in the row.
+                */
+                <a class="hero-action-btn hero-events-jump" href="#hub-upcoming-heading">
+                  <svg class="hero-action-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path
+                      d="M7 2v3M17 2v3M3.5 8.5h17M5 5h14a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 19 21H5a1.5 1.5 0 0 1-1.5-1.5v-13A1.5 1.5 0 0 1 5 5z"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="square"
+                    />
+                  </svg>
+                  <span>Upcoming events</span>
+                  <span class="sr-only"> for {event.title}</span>
+                </a>
+              )}
+              </div>
             </div>
 
           </div>
@@ -406,10 +517,54 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
             style="animation-delay: 0.2s;"
             data-trailer={trailerId ?? undefined}
           >
-            <div class="hub-stage-mark" aria-hidden="true">
+            {/*
+              ONE LAYER, THREE POSSIBLE CONTENTS — not three layers. Every
+              state this stage has (`is-playing` fades it to 0.28 behind the
+              video, `is-item` takes it to 0, reduced-motion drops its
+              transition) is written against `.hub-stage-mark`, so changing
+              WHAT it holds costs no new state rules and cannot leave one
+              behind.
+
+              The wordmark is the last resort, for a hub with neither art nor
+              a logo. It is what keeps the stage from being an empty box.
+            */}
+            <div
+              class:list={['hub-stage-mark', { 'hub-stage-mark--art': !!stageArtUrl }]}
+              aria-hidden="true"
+            >
               {stageMarkUrl ? (
                 /* HARD RULE 6: no filter on the <img>. The glow is on the wrapper. */
                 <img src={stageMarkUrl} alt="" class="hub-stage-mark-img" />
+              ) : stageArtUrl ? (
+                /*
+                  TWO COPIES OF ONE FILE, same src and srcset, so the browser
+                  fetches once and paints twice. The back one COVERS and is
+                  blurred, visible only in the gutters the front one leaves;
+                  the front one CONTAINS, which is what guarantees the whole
+                  image is on screen with nothing cropped away. A hub's art is
+                  an editor's upload, so its shape cannot be assumed.
+                */
+                <>
+                  <img
+                    src={stageArtUrl}
+                    srcset={stageArtSrcset}
+                    sizes={stageArtSizes}
+                    alt=""
+                    aria-hidden="true"
+                    class="hub-stage-art-fill"
+                    loading="eager"
+                    decoding="async"
+                  />
+                  <img
+                    src={stageArtUrl}
+                    srcset={stageArtSrcset}
+                    sizes={stageArtSizes}
+                    alt=""
+                    class="hub-stage-art-img"
+                    loading="eager"
+                    decoding="async"
+                  />
+                </>
               ) : (
                 <span class="hub-stage-wordmark">{event.title}</span>
               )}
@@ -606,15 +761,54 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
       </div>
     </section>
 
+    
     <div class="container-page content-container">
+      {associatedUpcomingEvents.length > 0 && (
+        /*
+          ─── THIS WAS A FILTER BUTTON PRETENDING TO BE A HEADING ───────────
+
+          "Upcoming Events" shipped as `<button class="filter-btn type-btn
+          active">`, and the coverage filter below binds EVERY `.filter-btn`
+          on the page. It carried no `data-filter`, so the shared handler did
+          this:
+
+            click 1  it ships `active`, so `wasActive` is true, every button
+                     deactivates and this one loses its outline
+            click 2  `wasActive` is now false, so the handler reads
+                     `data-filter || ''` and every `.content-card` in the
+                     COVERAGE grid below gets `display: none`
+
+          A label for one section silently wiping out another, and taking the
+          Articles/Videos state with it. It was also laid out by
+          `.filter-controls`, a centred 600px two-column grid, so the single
+          button floated in the left half of a centred box above a left-aligned
+          card grid.
+
+          It is a heading now, which is what it always was. `<SectionHeading />`
+          is the same ruled header /events uses for "Past Event Archive", so it
+          is left-aligned, full width, and cannot be picked up by a filter
+          query.
+        */
+        <section class="content-section" aria-labelledby="hub-upcoming-heading">
+          <SectionHeading title="Upcoming Events" id="hub-upcoming-heading" />
+          <div class="hub-events-grid animate-on-scroll">
+            {associatedUpcomingEvents.map((e: any, index: number) => (
+              <EventCard event={e} index={index} wide />
+            ))}
+          </div>
+        </section>
+      )}
+
       {unifiedContent.length > 0 ? (
-        <section class="content-section">
+        <section class="content-section" data-coverage="hub">
           <h2 class="sr-only">Event coverage</h2>
 
-          <div class="filter-controls animate-on-scroll">
-            <button class="filter-btn type-btn" data-filter="article" aria-pressed="false">ARTICLES</button>
-            <button class="filter-btn type-btn" data-filter="video" aria-pressed="false">VIDEOS</button>
-          </div>
+          {showFilters && (
+            <div class="filter-controls animate-on-scroll">
+              <button class="filter-btn type-btn" data-filter="article" aria-pressed="false">ARTICLES</button>
+              <button class="filter-btn type-btn" data-filter="video" aria-pressed="false">VIDEOS</button>
+            </div>
+          )}
 
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full" aria-live="polite">
             {unifiedContent.map((item, index) => (
@@ -763,15 +957,24 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     position: relative;
     z-index: 1;
     /*
-      Was 70vh, which read as dominant: the hero took most of the screen with
-      the coverage below it barely announcing itself. 62 is enough to establish
-      the hub without burying what the page is actually for.
+      ─── NO min-height. THE HERO IS AS TALL AS WHAT IS IN IT ──────────────
 
-      `lvh`, not `vh`. On iOS `vh` is the LARGEST viewport, which the page also
-      uses before the URL bar retracts — the unit this project already pins for
-      exactly this reason (scripts/viewport-units.test.mjs).
+      This was `70vh`, then `62lvh`, and the number was always the problem
+      rather than its value. A viewport-relative floor means the hero is sized
+      by the SCREEN instead of by its contents, so a hub with a short line of
+      copy reserves exactly as much room as one with a long one, and the
+      surplus is empty. Side by side with an event page — which dropped its
+      own floor in a9725ad and now shrink-wraps — the hub hero stood roughly
+      twice as tall for the same amount of content.
+
+      The padding below still separates it from the coverage grid, and the
+      backdrop still fills whatever height the content asks for, so nothing
+      that floor was protecting is lost.
+
+      If a minimum ever comes back, it belongs in `lvh` and not `vh`: on iOS
+      `vh` is the LARGEST viewport, which the page also uses before the URL bar
+      retracts (scripts/viewport-units.test.mjs).
     */
-    min-height: 62lvh;
     background: linear-gradient(
       to top,
       rgba(0, 0, 0, 0.97) 0%,
@@ -991,6 +1194,20 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
        weak edge out past the scrims. Nothing here moves. */
   }
 
+  /*
+    `contain` fits a mark inside the box and leaves its aspect alone. Key art
+    is photographic, so it covers instead, and sits back further: a full-frame
+    image at the mark's brightness washed the copy column's side of the
+    feather.
+  */
+  .hub-stage-plate--art {
+    background-size: cover;
+    background-position: center 30%;
+    opacity: 0.38;
+    filter: blur(30px) saturate(1.15) brightness(1.05);
+    -webkit-filter: blur(30px) saturate(1.15) brightness(1.05);
+  }
+
   /* Lit without needing a single asset, so a hub with no logo still reads. */
   .hub-stage-wash {
     position: absolute;
@@ -1035,6 +1252,63 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
   }
 
   /*
+    ─── ART MODE ───────────────────────────────────────────────────────────
+
+    The same layer, holding the hub's art instead of its mark.
+
+    NO FILTER: the base rule's drop-shadow glow is shaped for a mark floating
+    in transparency, and on a full-bleed rectangle it is just a shadow, which
+    `box-shadow` draws without a filter's repaint cost. That shadow is the
+    video's own, so the idle frame and the playing one are one object.
+
+    It CLIPS, which is safe HERE and only here: `.hub-stage-mark` is a SIBLING
+    of `.hub-stage-video`, never its ancestor, so hard rule 3 is not in play.
+    The stage itself still never clips.
+  */
+  .hub-stage-mark--art {
+    filter: none;
+    -webkit-filter: none;
+    opacity: 1;
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.85);
+    overflow: hidden;
+  }
+
+  /*
+    CONTAIN, so the whole image is on screen whatever shape an editor
+    uploaded. `cover` was tried on the event pages and cut two events' key art
+    in half, taking the first and last letters of their own names with it.
+  */
+  .hub-stage-art-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+    display: block;
+  }
+
+  /*
+    THE GUTTERS ARE FILLED, NOT LEFT EMPTY. Letterbox bars in the frame a
+    trailer is about to play in read as a broken image. A blurred, darkened
+    copy of the same file costs no extra request: identical src and srcset, so
+    one decode painted twice. `scale()` goes on the IMAGE, never on the
+    clipping box — scaling a clip is what leaked light on the deck page.
+  */
+  .hub-stage-art-fill {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+    transform: scale(1.12);
+    filter: blur(22px) saturate(1.1) brightness(0.62);
+    -webkit-filter: blur(22px) saturate(1.1) brightness(0.62);
+  }
+
+  /*
     THE REPLAY CONTROL.
 
     Lives in the copy column beside Read more, NOT on the stage. It used to
@@ -1047,11 +1321,34 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     overlap to reason about, and nothing to hide it behind. The sound toggle
     now owns its corner alone.
   */
-  .hub-stage-replay {
+  /*
+    THE HERO ACTION ROW.
+
+    Two controls now live under the mark: Play trailer, and (only where the
+    hub has a future event associated with it) a jump to Upcoming Events.
+    They are peers, so the margin-top that used to sit on the button moved
+    out here — otherwise the row would have carried it twice, and a wrap on
+    a narrow viewport would have opened a second gap between the lines.
+  */
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.15rem;
+  }
+
+  /*
+    ONE RECTANGLE, TWO CONTROLS. The visual rules are on .hero-action-btn so
+    the anchor and the button are pixel-identical; .hub-stage-replay stays as
+    the BEHAVIOUR hook (the click handler finds it, and the is-playing rule
+    below hides it) and carries nothing visual of its own.
+  */
+  .hero-action-btn {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
-    margin-top: 0.15rem;
+    text-decoration: none;
     /*
       HARD EDGES. Every other control on /featured is square — the deck nav
       thumbs carry an explicit `border-radius: 0` reset for exactly this
@@ -1074,8 +1371,8 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     transition: border-color 0.25s ease, background 0.25s ease;
   }
 
-  .hub-stage-replay:hover,
-  .hub-stage-replay:focus-visible {
+  .hero-action-btn:hover,
+  .hero-action-btn:focus-visible {
     border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.85);
     background: rgba(0, 0, 0, 0.5);
   }
@@ -1092,7 +1389,7 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
     display: none;
   }
 
-  .hub-stage-replay-glyph {
+  .hero-action-glyph {
     width: 13px;
     height: 13px;
     flex-shrink: 0;
@@ -1100,13 +1397,13 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
 
   /* The readable red, per scripts/a11y-tokens.test.mjs — this ring sits on
      dark artwork and #cc0000 is 3.21:1. */
-  .hub-stage-replay:focus-visible {
+  .hero-action-btn:focus-visible {
     outline: 2px solid var(--color-accent-text, #ef4444);
     outline-offset: 3px;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .hub-stage-replay {
+    .hero-action-btn {
       transition: none;
     }
   }
@@ -1228,6 +1525,22 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
   }
   .hero-identity .hero-logo-wrap {
     margin: 0;
+  }
+
+  /*
+    A HEADING THAT IS PURELY A CONTAINER. The <h1> around the mark must not
+    bring a heading's own margin, size or weight with it: the alt text only
+    paints if the image fails, and it should land where the mark would have
+    rather than shove the column down as a browser-default 2em block.
+  */
+  .hero-title-lockup {
+    display: block;
+    margin: 0;
+    padding: 0;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
   }
   .hero-identity .hero-description-wrapper {
     min-width: 0;
@@ -1653,6 +1966,37 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
   }
   
   /* Filter Controls */
+  /*
+    The same track floor `.event-grid` uses on /events, so an EventCard is the
+    same size wherever it appears. `auto-fill` with a 420px floor also means a
+    single associated event renders at a sensible width instead of being
+    squeezed into one third of the row by a hardcoded `lg:grid-cols-3`.
+  */
+  /*
+    A LIST, NOT A GRID.
+
+    This started as `repeat(auto-fill, minmax(min(100%, 420px), 1fr))`, copied
+    from `.event-grid` on /events. That is the right shape there: the Past
+    Event Archive has dozens of entries and fills every track.
+
+    A hub has one upcoming event, sometimes two. In a 3-up grid that rendered a
+    single card in the left third with two empty tracks beside it, reading as
+    an orphan rather than a section. `auto-fit` would have collapsed the empty
+    tracks, but then the count decides the layout: one event goes full width,
+    two go half, and the same card gets a different treatment on every hub.
+
+    One column at full width, always. <EventCard wide /> anchors the row at
+    both ends so the width is used rather than merely spanned, and a hub with
+    three upcoming events gets three stacked rows, which is what a schedule
+    looks like.
+  */
+  .hub-events-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+  }
+
   .filter-controls {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -2377,8 +2721,34 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
   // astro:page-load fires on the initial load AND after every View Transition
   // navigation, so the filters keep working after client-side nav.
   function initEventInteractions() {
-    const filterBtns = Array.from(document.querySelectorAll('.filter-btn'));
-    const contentCards = Array.from(document.querySelectorAll('.content-card'));
+    /*
+      SCOPED TO THE COVERAGE SECTION, deliberately.
+
+      Both of these used to be page-wide `document.querySelectorAll`, which
+      was fine while the coverage grid was the only card grid on the page.
+      The Upcoming Events section broke that assumption twice over:
+
+        - <EventCard /> renders `class="content-card past-event-card"` and
+          carries no `data-type`, so filtering to ARTICLES set
+          `display: none` on every upcoming event above it. A filter for one
+          section silently emptying another.
+        - anything button-shaped that picks up `.filter-btn` gets bound to
+          this handler whether or not it filters anything, which is exactly
+          how the old "Upcoming Events" button wiped the coverage grid.
+
+      `[data-coverage="hub"]` is on the section these controls actually
+      belong to. The VALUE matters as much as the attribute: /events/[slug]
+      now renders its own coverage filters behind `data-coverage="event"`,
+      and ClientRouter keeps both modules alive across a navigation between
+      the two. Naming the scope is what stops each page's handler from
+      finding the other's buttons.
+
+      If it is ever missing the lists come back empty and the filters simply
+      do nothing, which beats hiding content elsewhere on the page.
+    */
+    const coverage = document.querySelector('[data-coverage="hub"]');
+    const filterBtns = Array.from(coverage?.querySelectorAll('.filter-btn') ?? []);
+    const contentCards = Array.from(coverage?.querySelectorAll('.content-card') ?? []);
 
     filterBtns.forEach((btn) => {
       if ((btn as HTMLElement).dataset.bound === 'true') return;
@@ -2399,7 +2769,10 @@ const stageGhostUrl = event.logo ? urlFor(event.logo).height(300).auto('format')
 
         contentCards.forEach((card) => {
           const show = activeFilter === 'all' || card.getAttribute('data-type') === activeFilter;
-          (card as HTMLElement).style.display = show ? 'flex' : 'none';
+          /* '' restores the stylesheet's own display, whatever the card's
+             variant sets it to. A hardcoded 'flex' pins every card to one
+             layout mode on the way back from a filter. */
+          (card as HTMLElement).style.display = show ? '' : 'none';
         });
       });
     });

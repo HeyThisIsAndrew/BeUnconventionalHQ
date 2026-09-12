@@ -17,7 +17,8 @@
   is not recoverable by re-running the syncs.
 */
 import assert from 'node:assert/strict';
-import { validateStorePayload } from '../src/lib/local-cms-store.mjs';
+import fs from 'node:fs';
+import { validateStorePayload, serializeStore } from '../src/lib/local-cms-store.mjs';
 
 let passed = 0;
 let failed = 0;
@@ -107,6 +108,67 @@ test('shrinking a large store is still allowed', () => {
   assert.equal(validateStorePayload(many, 'videos.json').ok, true);
   assert.equal(validateStorePayload(few, 'videos.json').ok, true,
     'going from 211 documents to 2 is a big delete, but it is the editor\'s call');
+});
+
+/* ── serializeStore: the store on disk stays mergeable ──────────────────── */
+
+test('a minified payload is written back pretty-printed', () => {
+  /*
+    The exact regression: LocalCmsApp posts `JSON.stringify(docs)` with no
+    indent, which collapsed all 9,781 lines of videos.json onto one and left
+    the sync-json merge driver with nothing to merge per document.
+  */
+  const minified = '[{"_id":"a","title":"One"},{"_id":"b","title":"Two"}]';
+  const check = validateStorePayload(minified, 'videos.json');
+  assert.equal(check.ok, true);
+  const out = serializeStore(check.parsed);
+  assert.ok(out.split('\n').length > 5, 'expected one field per line, got a single line');
+  assert.match(out, /^\[\n {2}\{\n {4}"_id": "a"/, 'expected two-space indentation');
+});
+
+test('serializeStore ends the file with exactly one newline', () => {
+  const out = serializeStore([{ _id: 'a' }]);
+  assert.ok(out.endsWith('}\n]\n'), 'expected a trailing newline');
+  assert.ok(!out.endsWith('\n\n'), 'expected exactly one trailing newline');
+});
+
+test('serializeStore round-trips the documents unchanged', () => {
+  const docs = [{ _id: 'a', nested: { keep: [1, 2] }, empty: '' }, { _id: 'b' }];
+  assert.deepEqual(JSON.parse(serializeStore(docs)), docs);
+});
+
+/* ── Every CMS write path re-serialises ─────────────────────────────────── */
+
+test('no local-cms handler writes the raw request body', () => {
+  /*
+    THE FIX FOR ONE HANDLER IS NOT THE FIX FOR THE STORE.
+
+    serializeStore was added to `/api/local-cms/videos` and described as
+    enforcing the format "at the single point every write passes through".
+    There are TWO points — `/api/local-cms/articles` has its own handler — and
+    it kept writing the POST body verbatim, so one save flattened
+    articles.json from 415 lines to a single line and the sync-json merge
+    driver had nothing to merge per document.
+
+    This reads astro.config.mjs rather than restating what it should contain,
+    so a THIRD store handler cannot be added with the raw-body write and go
+    unnoticed.
+  */
+  const config = fs.readFileSync(new URL('../astro.config.mjs', import.meta.url), 'utf8');
+
+  const rawWrites = config.match(/fs\.writeFileSync\(\s*tmpPath\s*,\s*body\b/g) ?? [];
+  assert.equal(
+    rawWrites.length,
+    0,
+    'a local-cms handler still writes the raw POST body; it must write serializeStore(check.parsed) ' +
+      'so the store stays line-per-field and mergeable',
+  );
+
+  const serialised = config.match(/fs\.writeFileSync\(\s*tmpPath\s*,\s*serializeStore\(/g) ?? [];
+  assert.ok(
+    serialised.length >= 2,
+    `expected every store handler to re-serialise, found ${serialised.length} (videos and articles are both stores)`,
+  );
 });
 
 console.log(failed === 0 ? `\n✅ ${passed} passed, 0 failed.\n` : `\n❌ ${passed} passed, ${failed} failed.\n`);
