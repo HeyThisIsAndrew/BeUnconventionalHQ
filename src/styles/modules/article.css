@@ -416,6 +416,7 @@
 
 .article-layout > .article-rail-left {
   grid-area: toc;
+  z-index: 10;
 }
 
 /* The reading column sits centred within its (wider) middle track. */
@@ -462,7 +463,7 @@
       "toc";
   }
 
-  .article-rail-left {
+  .article-layout > .article-rail-left {
     display: block;
     position: static;
   }
@@ -511,8 +512,6 @@
   }
 }
 
-/* ── Rails ──────────────────────────────────────────────────────────────── */
-
 .article-rail {
   /* `top` clears the fixed navbar so a sticky rail never slides under it. */
   position: sticky;
@@ -521,6 +520,12 @@
   /* Removed max-height and overflow-y to prevent internal scrollbars */
   overflow-x: visible;
   padding-right: 4px;
+}
+
+/* Ensure that whatever element ends up being the first visible block in a rail 
+   (e.g. if the TOC is empty) never has a top margin pushing it down. */
+.article-rail-sticky > :first-child {
+  margin-top: 0 !important;
 }
 
 /*
