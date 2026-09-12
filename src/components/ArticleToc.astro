@@ -165,7 +165,8 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
       scrollTimeout = setTimeout(syncFallback, 50);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
-    window['__hqTocScrollHandler'] = onScroll;
+    const _win = window as any;
+    _win.__hqTocScrollHandler = onScroll;
   }
 
   document.addEventListener('astro:page-load', initArticleToc);
@@ -175,9 +176,10 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
       currentObserver.disconnect();
       currentObserver = null;
     }
-    if (window['__hqTocScrollHandler']) {
-      window.removeEventListener('scroll', window['__hqTocScrollHandler']);
-      delete window['__hqTocScrollHandler'];
+    const _win = window as any;
+    if (_win.__hqTocScrollHandler) {
+      window.removeEventListener('scroll', _win.__hqTocScrollHandler);
+      delete _win.__hqTocScrollHandler;
     }
   });
 </script>
