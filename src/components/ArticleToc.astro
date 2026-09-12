@@ -111,6 +111,13 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
       });
     };
 
+    const syncFallback = () => {
+      const ZONE_TOP = 80;
+      const passed = headings.filter((h) => h.getBoundingClientRect().top < ZONE_TOP);
+      const fallback = passed.length > 0 ? passed[passed.length - 1] : headings[0];
+      if (fallback?.id) setActive(fallback.id);
+    };
+
     const activeHeadings = new Set<Element>();
     const observer = new IntersectionObserver(
       (records) => {
@@ -129,34 +136,9 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
 
         /*
           ─── NOTHING IN THE ZONE IS A POSITION, NOT A NON-EVENT ─────────────
-
-          This used to do nothing at all when the set emptied, which left
-          whatever was highlighted last still highlighted. Reported as: read to
-          the end of an article, click the wordmark to jump to the top, and the
-          contents rail still points at the final section.
-
-          The set empties at BOTH ends of the article, and they are different
-          answers:
-
-            above the first heading  the masthead and hero fill the zone, so
-                                     nothing is in it. The reader is at the
-                                     start — highlight the FIRST entry.
-            below the last heading   every heading has scrolled past the
-                                     detection line. The reader is in the
-                                     footer — keep the LAST entry.
-
-          So the position is resolved from the headings themselves rather than
-          assumed. `ZONE_TOP` is the same 80px the rootMargin below uses; the
-          two must agree or the rail disagrees with its own detection line.
-
-          Doing this only when the set is empty keeps the normal scrolling path
-          untouched — that is still pure IntersectionObserver, no geometry read
-          per frame.
+          This used to do nothing at all when the set emptied...
         */
-        const ZONE_TOP = 80;
-        const passed = headings.filter((h) => h.getBoundingClientRect().top < ZONE_TOP);
-        const fallback = passed.length > 0 ? passed[passed.length - 1] : headings[0];
-        if (fallback?.id) setActive(fallback.id);
+        syncFallback();
       },
       // Active zone: from 80px below the top of the viewport, down to 50% of the viewport.
       { rootMargin: '-80px 0px -50% 0px', threshold: 0 },
@@ -166,6 +148,24 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
     setActive(headings[0].id);
     
     currentObserver = observer;
+
+    /*
+      ─── TELEPORTATION BUG PROTECTION ───────────────────────────────────────
+      If the user jumps across the entire active zone instantly (e.g. clicking 
+      "BE UNCONVENTIONAL HQ" to scroll to top, or dragging the scrollbar very 
+      fast), the headings go from 'not intersecting' (below) to 'not intersecting' 
+      (above) in a single frame. The IntersectionObserver never fires because 
+      the boolean state didn't change! This debounced scroll listener catches 
+      those teleports gracefully without polling layout geometry every frame.
+    */
+    let scrollTimeout: ReturnType<typeof setTimeout>;
+    const onScroll = () => {
+      if (activeHeadings.size > 0) return;
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(syncFallback, 50);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window['__hqTocScrollHandler'] = onScroll;
   }
 
   document.addEventListener('astro:page-load', initArticleToc);
@@ -174,6 +174,10 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
     if (currentObserver) {
       currentObserver.disconnect();
       currentObserver = null;
+    }
+    if (window['__hqTocScrollHandler']) {
+      window.removeEventListener('scroll', window['__hqTocScrollHandler']);
+      delete window['__hqTocScrollHandler'];
     }
   });
 </script>

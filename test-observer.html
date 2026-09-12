@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { height: 5000px; }
+  #target { position: absolute; top: 2500px; height: 100px; width: 100px; background: red; }
+</style>
+</head>
+<body>
+  <div id="target"></div>
+  <script>
+    const target = document.getElementById('target');
+    const observer = new IntersectionObserver((entries) => {
+      console.log('Fired! isIntersecting:', entries[0].isIntersecting);
+    }, { rootMargin: '-10% 0px -80% 0px' });
+    observer.observe(target);
+    
+    // Jump across the zone
+    setTimeout(() => {
+      console.log('Jumping to bottom');
+      window.scrollTo(0, 5000);
+      setTimeout(() => {
+        console.log('Jumping to top');
+        window.scrollTo(0, 0);
+      }, 500);
+    }, 500);
+  </script>
+</body>
+</html>
