@@ -175,7 +175,27 @@ Answering the direct question: *is anything about having site search a complianc
 
 Severity: **low**. Worst case is one thin JSON URL appearing in Search Console as an indexed non-page.
 
-Recommended fix, if taken: add `X-Robots-Tag: noindex` for `/api/*` in `public/_headers`. Prefer that over a `robots.txt` Disallow — `noindex` requires the crawler to be able to fetch the file, so disallowing it would prevent the directive from ever being read. Verify the header actually lands on the **Workers** deployment, not just Pages.
+Recommended fix, if taken: add `X-Robots-Tag: noindex` for `/api/*` in `public/_headers`. Prefer that over a `robots.txt` Disallow — `noindex` requires the crawler to be able to fetch the file, so disallowing it would prevent the directive from ever being read.
+
+**`public/_headers` DOES land on the Workers deployment — answered 2026-09-12.**
+This was left open above because `_headers` began as a Pages feature and this
+site deploys to Workers (see CLAUDE.md), so whether the file did anything in
+production was unverified. It does. Measured against a deployed branch preview:
+
+```
+curl -sI https://<branch>-beunconventionalhq.<account>.workers.dev/intel/<slug> \
+  | grep -i content-security-policy
+```
+
+returned the `Content-Security-Policy` line byte-for-byte identical to
+`public/_headers`. A header added to that file therefore reaches real
+responses, and this is the command to re-confirm it after any change to how
+the site is deployed.
+
+Worth keeping as a standing pre-launch check for one reason: the CSP is
+invisible locally. Neither `astro dev` nor a plain static server applies
+`_headers`, so a policy can be wrong — or absent — through every local test
+and only fail once deployed.
 
 **E3. Do not add `SearchAction` structured data.** Schema.org `SearchAction` / the sitelinks searchbox requires a `target` URL template with a query parameter. This site has no such endpoint (E1), so any markup would be invalid. Separately, confirm current Google guidance on whether that rich result is still supported before anyone proposes it.
 
