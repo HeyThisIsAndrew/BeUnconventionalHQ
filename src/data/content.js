@@ -203,7 +203,7 @@ export const MESSAGES = {
 /* ═══════════════════════════════════════════════════════════════════════════
    PAGE METADATA (<title> and meta description)
 
-   `title` here is the bare page name — Layout appends "| Be Unconventional HQ"
+   `title` here is the bare page name — Layout appends "| BE Unconventional HQ"
    via site.name, so you never type the brand name into a page again.
    ═══════════════════════════════════════════════════════════════════════════ */
 export const META = {
@@ -241,8 +241,8 @@ export const META = {
  * Build a page <title>. Always use this rather than writing the template
  * literal by hand, so the separator and brand suffix stay consistent.
  *
- *   pageTitle('Events')            -> "Events | Be Unconventional HQ"
- *   pageTitle('Events', 2)         -> "Events - Page 2 | Be Unconventional HQ"
+ *   pageTitle('Events')            -> "Events | BE Unconventional HQ"
+ *   pageTitle('Events', 2)         -> "Events - Page 2 | BE Unconventional HQ"
  */
 export function pageTitle(name, pageNumber) {
   const suffix = pageNumber && pageNumber > 1 ? ` - Page ${pageNumber}` : '';
