@@ -49,7 +49,18 @@ const heroBg = brandHero || itemBg;
 const heroTitle = latestVideo.title || '';
 const heroDescription = latestVideo.description || latestVideo.snippet || '';
 
-const brandRgb = '204, 0, 0';
+function hexToRgbTriple(hex: string): string {
+  if (!hex) return '204, 0, 0';
+  const clean = hex.replace('#', '');
+  if (clean.length !== 6) return '204, 0, 0';
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  return `${r}, ${g}, ${b}`;
+}
+
+const brandHex = brand?.brandColor?.hex || '#CC0000';
+const brandRgb = hexToRgbTriple(brandHex);
 const fallbackGradient = `linear-gradient(135deg, rgba(${brandRgb}, 0.28) 0%, #0a0a0a 62%, #111 100%)`;
 
 
@@ -77,7 +88,7 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
 <section
   class="event-hero w-full max-w-full box-border"
   data-standalone-spotlight={interactive ? '' : undefined}
-  style={`--brand-color: #CC0000; --brand-rgb: ${brandRgb};`}
+  style={`--brand-color: ${brandHex}; --brand-rgb: ${brandRgb};`}
 >
   <div class="event-hero-bg-wrapper">
     {heroBg ? (
@@ -120,8 +131,8 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
             FeedGrid rewrites the row wholesale rather than trying to keep a
             fixed set of spans in step with it. */}
         <div class="hero-eyebrow" id="hero-meta-tags">
-          {heroMetaTags.map((tag) => (
-            <span class="hero-meta-tag hero-meta-tag--type">{tag}</span>
+          {heroMetaTags.map((tag, index) => (
+            <span class={`hero-meta-tag${index === 0 ? ' hero-meta-tag--type' : ''}`}>{tag}</span>
           ))}
         </div>
 
@@ -132,8 +143,8 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
             alt="Brand Logo" 
             class={`hero-logo ${brandLogo ? '' : 'hidden'}`}
           />
-          <h1 id="hero-title" class="hero-title leading-tight">{heroTitle}</h1>
-          <p id="hero-description" class="hero-tagline line-clamp-3">{heroDescription}</p>
+          <h1 id="hero-title" class="hero-title leading-tight line-clamp-1">{heroTitle}</h1>
+          <p id="hero-description" class="hero-tagline line-clamp-2">{heroDescription}</p>
         </div>
 
 

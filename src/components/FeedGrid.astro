@@ -492,16 +492,35 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
         .filter(Boolean);
       if (heroMetaRow) {
         heroMetaRow.textContent = '';
+        let isFirst = true;
         for (const tag of (cardTags.length > 0 ? cardTags : [kind])) {
           const chip = document.createElement('span');
-          chip.className = 'hero-meta-tag hero-meta-tag--type';
+          chip.className = `hero-meta-tag${isFirst ? ' hero-meta-tag--type' : ''}`;
           chip.textContent = tag;
           carryScope(heroMetaRow, chip);
           heroMetaRow.appendChild(chip);
+          isFirst = false;
         }
       }
       if (heroDesc) {
         heroDesc.textContent = preview;
+      }
+
+      const brandColor = parsedBrand.color || '#CC0000';
+      function hexToRgbTriple(hex: string) {
+        if (!hex) return '204, 0, 0';
+        const clean = hex.replace('#', '');
+        if (clean.length !== 6) return '204, 0, 0';
+        const r = parseInt(clean.substring(0, 2), 16);
+        const g = parseInt(clean.substring(2, 4), 16);
+        const b = parseInt(clean.substring(4, 6), 16);
+        return `${r}, ${g}, ${b}`;
+      }
+      
+      const heroSection = heroTitle.closest('.event-hero') as HTMLElement;
+      if (heroSection) {
+        heroSection.style.setProperty('--brand-color', brandColor);
+        heroSection.style.setProperty('--brand-rgb', hexToRgbTriple(brandColor));
       }
 
       // Update Brand Logo
@@ -521,6 +540,7 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
         for whatever item is loaded, so there is only one control to keep in
         step with a swap instead of two.
       */
+
       // Reset iframe state
       if (heroIframe) {
         heroIframe.src = 'about:blank';
@@ -532,8 +552,8 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
       }
 
       const backgroundSrc = brandHero || image;
-      if (heroImage && backgroundSrc) { heroImage.src = backgroundSrc; heroImage.style.opacity = '1'; }
-      if (heroImageFront && backgroundSrc) { heroImageFront.src = backgroundSrc; heroImageFront.style.opacity = '1'; }
+      if (heroImage && image) { heroImage.src = image; heroImage.style.opacity = '1'; }
+      if (heroImageFront && image) { heroImageFront.src = image; heroImageFront.style.opacity = '1'; }
 
       /*
         THE STAGE PANE FOLLOWS THE SWAP.
@@ -595,11 +615,11 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
 
 
       // Update background image
-      if (heroBg && heroBg.tagName === 'IMG' && image) {
-        (heroBg as HTMLImageElement).src = image;
+      if (heroBg && heroBg.tagName === 'IMG' && backgroundSrc) {
+        (heroBg as HTMLImageElement).src = backgroundSrc;
         (heroBg as HTMLImageElement).srcset = '';
-      } else if (heroBg && heroBg.tagName === 'DIV' && image) {
-        (heroBg as HTMLDivElement).style.backgroundImage = `url('${image}')`;
+      } else if (heroBg && heroBg.tagName === 'DIV' && backgroundSrc) {
+        (heroBg as HTMLDivElement).style.backgroundImage = `url('${backgroundSrc}')`;
       }
 
       // Smooth scroll to top so the user sees the hero
