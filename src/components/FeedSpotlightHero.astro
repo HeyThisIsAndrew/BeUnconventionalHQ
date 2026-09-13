@@ -3,6 +3,15 @@ import { getVideosUnified } from '../lib/videos-source';
 import { parseVideoId } from '../lib/platforms/youtube';
 import { getDisplayTags } from '../lib/tags';
 
+interface Props {
+  /**
+   * The full feed supplies its own rail and player controller. Category feeds
+   * render a static grid, so they opt into this lightweight player control.
+   */
+  interactive?: boolean;
+}
+
+const { interactive = false } = Astro.props;
 const videos = await getVideosUnified();
 
 /*
@@ -51,7 +60,11 @@ const heroTags = getDisplayTags(latestVideo);
 const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
 ---
 
-<section class="event-hero w-full max-w-full box-border " style={`--brand-color: #CC0000; --brand-rgb: ${brandRgb};`}>
+<section
+  class="event-hero w-full max-w-full box-border"
+  data-standalone-spotlight={interactive ? '' : undefined}
+  style={`--brand-color: #CC0000; --brand-rgb: ${brandRgb};`}
+>
   <div class="event-hero-bg-wrapper">
     {heroBg ? (
       <img
@@ -214,6 +227,55 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
     </div>
   </div>
 </section>
+
+{
+  interactive && (
+    <script>
+      /*
+        FeedGrid owns this behavior on /feed, where selecting a card can also
+        replace the hero item. Category pages use a static CardGrid instead,
+        so their otherwise identical hero needs only the initial Play control.
+
+        Keep the listener lifecycle-aware: ClientRouter preserves document
+        listeners between navigations, and a category-page handler must not
+        remain active after navigating back to a full feed.
+      */
+      function initStandaloneSpotlightPlayback() {
+        const listenerKey = '__hqStandaloneSpotlightPlayListener';
+        const previousHandler = (window as any)[listenerKey] as ((event: MouseEvent) => void) | undefined;
+        if (previousHandler) document.removeEventListener('click', previousHandler);
+
+        if (!document.querySelector('[data-standalone-spotlight]')) {
+          delete (window as any)[listenerKey];
+          return;
+        }
+
+        const playHandler = (event: MouseEvent) => {
+          const target = event.target as Element | null;
+          const control = target?.closest<HTMLButtonElement>('#hero-stage-item-action[data-action="play-trailer"]');
+          if (!control) return;
+
+          const stage = control.closest('.hub-stage');
+          const iframe = stage?.querySelector<HTMLIFrameElement>('#hero-iframe');
+          const videoId = iframe?.dataset.pendingVideo;
+          if (!iframe || !videoId) return;
+
+          event.preventDefault();
+          iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
+          iframe.style.opacity = '1';
+          iframe.style.pointerEvents = 'auto';
+          stage.classList.remove('is-item');
+          stage.classList.add('is-playing');
+        };
+
+        (window as any)[listenerKey] = playHandler;
+        document.addEventListener('click', playHandler);
+      }
+
+      document.addEventListener('astro:page-load', initStandaloneSpotlightPlayback);
+    </script>
+  )
+}
 
 <style>
   .event-dashboard {

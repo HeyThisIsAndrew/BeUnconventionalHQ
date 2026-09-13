@@ -628,6 +628,12 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
       if (isCtaVideo && videoId) {
         e.preventDefault();
         heroIframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
+        /* The iframe starts transparent so its about:blank document cannot
+           flash above the stage still. Making only its parent visible leaves
+           that transparent iframe over the dimmed art, which looks like the
+           video never appeared. */
+        heroIframe.style.opacity = '1';
+        heroIframe.style.pointerEvents = 'auto';
         
         const hubStage = document.querySelector('.hub-stage');
         if (hubStage) {
