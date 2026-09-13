@@ -443,7 +443,7 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
       const preview = card.getAttribute('data-preview') || '';
       const image = card.getAttribute('data-image') || '';
       const videoId = card.getAttribute('data-video-id');
-      let parsedBrand: { logo?: string, hero?: string, slug?: string } = {};
+      let parsedBrand: { logo?: string, hero?: string, slug?: string, color?: string } = {};
       try {
         const brandStr = card.getAttribute('data-brand');
         if (brandStr) {
@@ -468,8 +468,9 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
         || card.querySelector('a')?.getAttribute('href')
         || '#';
 
-      // Update Text Content
-      heroTitle.textContent = title;
+      const performDOMUpdate = () => {
+        // Update Text Content
+        heroTitle.textContent = title;
 
       /*
         THE EYEBROW TAKES THE CARD'S OWN TAGS.
@@ -616,6 +617,15 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
         (heroBg as HTMLImageElement).srcset = '';
       } else if (heroBg && heroBg.tagName === 'DIV' && backgroundSrc) {
         (heroBg as HTMLDivElement).style.backgroundImage = `url('${backgroundSrc}')`;
+      }
+      };
+
+      if ((document as any).startViewTransition) {
+        (document as any).startViewTransition(() => {
+          performDOMUpdate();
+        });
+      } else {
+        performDOMUpdate();
       }
 
       // Smooth scroll to top so the user sees the hero
