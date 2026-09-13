@@ -505,6 +505,18 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
       }
       if (heroDesc) {
         heroDesc.textContent = preview;
+        if (isVideo) {
+          heroDesc.classList.remove('line-clamp-3');
+          heroDesc.classList.add('line-clamp-2');
+        } else {
+          heroDesc.classList.remove('line-clamp-2');
+          heroDesc.classList.add('line-clamp-3');
+        }
+      }
+
+      const youtubeBtn = document.querySelector('.feed-hero-youtube-btn') as HTMLElement;
+      if (youtubeBtn) {
+        youtubeBtn.style.display = isVideo ? 'inline-flex' : 'none';
       }
 
       const brandColor = parsedBrand.color || '#CC0000';
@@ -620,12 +632,24 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
       }
       };
 
+      // Temporarily disable Astro view transitions during this manual swap
+      const scopes = document.querySelectorAll('[data-astro-transition-scope]');
+      const scopeValues = Array.from(scopes).map(el => {
+        const val = el.getAttribute('data-astro-transition-scope');
+        el.removeAttribute('data-astro-transition-scope');
+        return { el, val };
+      });
+
       if ((document as any).startViewTransition) {
-        (document as any).startViewTransition(() => {
+        const transition = (document as any).startViewTransition(() => {
           performDOMUpdate();
+        });
+        transition.finished.finally(() => {
+          scopeValues.forEach(({el, val}) => val && el.setAttribute('data-astro-transition-scope', val));
         });
       } else {
         performDOMUpdate();
+        scopeValues.forEach(({el, val}) => val && el.setAttribute('data-astro-transition-scope', val));
       }
 
       // Smooth scroll to top so the user sees the hero
