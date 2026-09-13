@@ -31,8 +31,16 @@ const videos = await getVideosUnified();
 const latestVideo: Record<string, any> = videos[0] || {};
 const trailerId = parseVideoId(latestVideo.url || latestVideo.link || latestVideo.videoId || '');
 
+const isVideo = true;
+const heroKind = isVideo ? 'VIDEO' : 'ARTICLE';
+const heroTags = getDisplayTags(latestVideo);
+
 const brands = getFeaturedBrandsLocal();
-const brand = brands.find((b) => b.slug?.current === latestVideo.relatedBrandSlug);
+const primaryTag = heroTags[0];
+const brand = brands.find((b) => 
+  (latestVideo.relatedBrandSlug && b.slug?.current === latestVideo.relatedBrandSlug) ||
+  (primaryTag && b.title?.toUpperCase() === primaryTag.toUpperCase())
+);
 const brandLogo = brand?.logo ? urlFor(brand.logo).url() : '';
 const brandHero = brand?.heroImage ? urlFor(brand.heroImage).url() : '';
 
@@ -40,7 +48,6 @@ const itemBg = latestVideo.thumbnail || latestVideo.image || '';
 const heroBg = brandHero || itemBg;
 const heroTitle = latestVideo.title || '';
 const heroDescription = latestVideo.description || latestVideo.snippet || '';
-const isVideo = true;
 
 const brandRgb = '204, 0, 0';
 const fallbackGradient = `linear-gradient(135deg, rgba(${brandRgb}, 0.28) 0%, #0a0a0a 62%, #111 100%)`;
@@ -63,8 +70,7 @@ const fallbackGradient = `linear-gradient(135deg, rgba(${brandRgb}, 0.28) 0%, #0
   type still needs something in the chip, and that is the only case where
   VIDEO/ARTICLE earns its place.
 */
-const heroKind = isVideo ? 'VIDEO' : 'ARTICLE';
-const heroTags = getDisplayTags(latestVideo);
+
 const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
 ---
 

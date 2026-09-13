@@ -116,15 +116,17 @@ const dataAction = context === 'feed'
 
 // Safely stringify brand data if it exists
 let brandData;
-if (item.relatedBrandSlug) {
-  const brand = getFeaturedBrandsLocal().find(b => b.slug?.current === item.relatedBrandSlug);
-  if (brand) {
-    brandData = JSON.stringify({
-      slug: item.relatedBrandSlug,
-      logo: brand.logo ? urlFor(brand.logo).url() : undefined,
-      hero: brand.heroImage ? urlFor(brand.heroImage).url() : undefined
-    });
-  }
+const primaryTag = finalTags[0];
+const brand = getFeaturedBrandsLocal().find(b => 
+  (item.relatedBrandSlug && b.slug?.current === item.relatedBrandSlug) || 
+  (primaryTag && b.title?.toUpperCase() === primaryTag.toUpperCase())
+);
+if (brand) {
+  brandData = JSON.stringify({
+    slug: brand.slug?.current,
+    logo: brand.logo ? urlFor(brand.logo).url() : undefined,
+    hero: brand.heroImage ? urlFor(brand.heroImage).url() : undefined
+  });
 }
 
 const CardWrapper = isPlayable || context === 'feed' ? 'div' : 'a';
