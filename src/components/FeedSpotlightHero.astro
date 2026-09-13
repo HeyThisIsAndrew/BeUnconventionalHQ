@@ -1,9 +1,24 @@
 ---
 import { getVideosUnified } from '../lib/videos-source';
 import { parseVideoId } from '../lib/platforms/youtube';
+import { getDisplayTags } from '../lib/tags';
 
 const videos = await getVideosUnified();
-const latestVideo = videos[0] || {};
+
+/*
+  TYPED LOOSE ON PURPOSE, IN ONE PLACE.
+
+  `getVideosUnified()` is declared as returning UnifiedVideo, but this hero
+  reads fields that belong to the raw feed item and are not on that type —
+  url, videoId, image, snippet, brandLogo. Every one of those reads was its own
+  ts(2339), which is how this file came to carry the project's only `astro
+  check` errors against a 0/0/0 baseline.
+
+  Widening once here, rather than casting at each read, keeps the count at zero
+  without scattering `as any` through the markup — and leaves one obvious place
+  to delete from when UnifiedVideo grows the fields for real.
+*/
+const latestVideo: Record<string, any> = videos[0] || {};
 const trailerId = parseVideoId(latestVideo.url || latestVideo.link || latestVideo.videoId || '');
 const heroBg = latestVideo.thumbnail || latestVideo.image || '';
 const heroTitle = latestVideo.title || '';
@@ -13,7 +28,27 @@ const isVideo = true;
 const brandRgb = '204, 0, 0';
 const fallbackGradient = `linear-gradient(135deg, rgba(${brandRgb}, 0.28) 0%, #0a0a0a 62%, #111 100%)`;
 
-const heroItems = videos.slice(0, 4); // First 4 items for the rail
+
+/*
+  THE EYEBROW SHOWS THE ITEM'S OWN TAGS, NOT ITS FILE TYPE.
+
+  It used to be a single hardcoded chip reading VIDEO or ARTICLE, which is the
+  one thing about a hero item a visitor can already see: it is a still with a
+  play button on it. The cards below say "DC | REVIEW" and the hero said
+  "VIDEO", so the loudest item on the page carried the least information.
+
+  `getDisplayTags()` is the SAME function the cards use (src/lib/tags.ts) —
+  brand, then content type, then event, capped at three. Sharing it is the
+  point: a tag that reads DC | REVIEW on a card cannot read something else in
+  the hero, and the brand/type dictionaries stay in one file.
+
+  The kind is the FALLBACK, not a prefix. An item that matches no brand and no
+  type still needs something in the chip, and that is the only case where
+  VIDEO/ARTICLE earns its place.
+*/
+const heroKind = isVideo ? 'VIDEO' : 'ARTICLE';
+const heroTags = getDisplayTags(latestVideo);
+const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
 ---
 
 <section class="event-hero w-full max-w-full box-border " style={`--brand-color: #CC0000; --brand-rgb: ${brandRgb};`}>
@@ -48,13 +83,19 @@ const heroItems = videos.slice(0, 4); // First 4 items for the rail
         '2xl:!grid-cols-[1fr_1.2fr]',
         '3xl:!max-w-[2400px]',
         '3xl:!grid-cols-[1fr_1.4fr]',
-        { 'has-trailer': true, 'has-cta': true },
+        { 'has-trailer': true },
       ]}
     >
       <div class="event-hero-content hero-copy">
         
-        <div class="hero-eyebrow">
-          <span id="hero-type-tag" class="hero-meta-tag hero-meta-tag--type">{isVideo ? 'VIDEO' : 'ARTICLE'}</span>
+        {/* `id` is on the CONTAINER, not on a chip: the number of chips
+            changes with the item (one tag, two, three), so the swap handler in
+            FeedGrid rewrites the row wholesale rather than trying to keep a
+            fixed set of spans in step with it. */}
+        <div class="hero-eyebrow" id="hero-meta-tags">
+          {heroMetaTags.map((tag) => (
+            <span class="hero-meta-tag hero-meta-tag--type">{tag}</span>
+          ))}
         </div>
 
         <div class="hero-identity">
@@ -68,10 +109,30 @@ const heroItems = videos.slice(0, 4); // First 4 items for the rail
           <p id="hero-description" class="hero-tagline line-clamp-3">{heroDescription}</p>
         </div>
 
-        </div>
-      
+
+        {/*
+          ─── THERE IS NO PLAY BUTTON IN THIS COLUMN, DELIBERATELY ───────────
+
+          There was one, and before that it was a full-width bar. It is gone
+          rather than restyled: the stage pane on the right already carries the
+          action for this exact item, over its own artwork, right next to its
+          title. Two controls that start the same video, one of them beside a
+          picture of what it starts and one of them not, is a choice the
+          visitor should never have been asked to make.
+
+          It also removed a whole class of bug rather than patching it. The
+          button was rebuilt in JS on every tile swap, and a runtime-built node
+          carries none of Astro's scoped-style attributes, so after a swap it
+          lost its rectangle and its 13px glyph constraint and rendered as bare
+          text under an oversized play triangle.
+
+          If a second action ever belongs here, it goes back as a sibling of
+          the identity block — not in the `cta` grid area, which stretches.
+        */}
+      </div>
+
       <div
-        class="hero-trailer hub-stage"
+        class="hero-trailer hub-stage is-item"
         data-trailer={trailerId || undefined}
       >
         <div class="hub-stage-mark">
@@ -104,23 +165,52 @@ const heroItems = videos.slice(0, 4); // First 4 items for the rail
             style="opacity: 0; pointer-events: none;"
           ></iframe>
         </div>
-        
+
+        {/*
+          ─── THE STAGE STATES WHAT IT IS ABOUT TO PLAY ──────────────────────
+
+          The same pane /featured shows when a rail tile is picked: still,
+          scrim, kind, title, Play. Here it is the stage's OPENING state rather
+          than a selection, because the feed hero always has exactly one item
+          loaded and the visitor has not chosen it — so the stage was a bare
+          thumbnail that named nothing and offered nothing, and the only way to
+          start it was the button in the other column.
+
+          Every rule this needs (.hub-stage-item and friends, including the
+          `is-playing` rule that takes the pane off the frame it just started)
+          was already in this file's stylesheet, written for a pane that was
+          never rendered. This is that markup arriving, not a new treatment.
+
+          Sits ABOVE .hub-stage-video in both source order and stacking: the
+          video div carries `z-index: 5` inline, so a pane that merely follows
+          it would be behind it, and an opacity-0 element still swallows
+          clicks. That is why the pane takes 6 and the video layer gives up
+          pointer events while a pane is up.
+        */}
+        <div class="hub-stage-item active" id="hero-stage-item" style="z-index: 6;">
+          {heroBg && <img id="hero-stage-item-still" src={heroBg} alt="" class="hub-stage-item-still" />}
+          <span class="hub-stage-item-scrim"></span>
+          <div class="hub-stage-item-copy">
+            <span class="hub-stage-item-kind" id="hero-stage-item-kind">{heroKind}</span>
+            <p class="hub-stage-item-title" id="hero-stage-item-title">{heroTitle}</p>
+            {isVideo && trailerId ? (
+              /* Same handler as the copy column's button — `data-action` is
+                 what FeedGrid's play listener reads. It plays IN the stage; the
+                 site-wide `open-video` action would pop the modal, and this
+                 panel is already the player. */
+              <button type="button" class="hub-stage-item-action" id="hero-stage-item-action" data-action="play-trailer">
+                Play
+              </button>
+            ) : (
+              <a href={latestVideo.url || latestVideo.link || '#'} class="hub-stage-item-action" id="hero-stage-item-action">
+                Read
+              </a>
+            )}
+          </div>
+        </div>
+
       </div>
 
-        {isVideo ? (
-          <button type="button" id="hero-cta" class="hub-stage-replay" data-action="play-trailer">
-            <svg class="hub-stage-replay-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M8 5v14l11-7z" fill="currentColor" />
-            </svg>
-            <span class="hub-stage-replay-text">Play video</span>
-            <span class="sr-only"> for {heroTitle}</span>
-          </button>
-        ) : (
-          <a id="hero-cta" href={latestVideo.url || latestVideo.link || '#'} class="hub-stage-replay" style="text-decoration: none;">
-            <span class="hub-stage-replay-text">Read article</span>
-            <span class="sr-only"> for {heroTitle}</span>
-          </a>
-        )}
     </div>
   </div>
 </section>
@@ -428,13 +518,13 @@ const heroItems = videos.slice(0, 4); // First 4 items for the rail
     .hero-grid-container.has-trailer .hero-trailer.hub-stage {
       max-width: 760px;
     }
-    .hero-grid-container.has-trailer .hub-stage-replay {
-      grid-area: cta;
-      align-self: start;
-    }
-    .hub-stage-replay {
-      /* align-self handles positioning */
-    }
+    /*
+      No `grid-area: cta` here any more. The button is inside .hero-copy, so
+      placing it in a grid area would have pulled it back out of the column and
+      stretched it across the row again — which is the bug this hero shipped
+      with. The `cta` area itself is still declared in .has-trailer.has-cta
+      above for callers that genuinely put a child there.
+    */
   }
 
   .event-hero-content {
@@ -561,82 +651,16 @@ const heroItems = videos.slice(0, 4); // First 4 items for the rail
     opacity: 0.97;
   }
 
-  /*
-    THE REPLAY CONTROL.
-
-    Lives in the copy column beside Read more, NOT on the stage. It used to
-    sit in the stage's top-right corner sharing the sound toggle's slot, and
-    that read as a control belonging to whatever the stage was showing — which
-    is a rail card almost all of the time, and rail cards have their own PLAY.
-    See the note on the markup for the full history.
-
-    Consequences of being out here: no absolute positioning, no z-index, no
-    overlap to reason about, and nothing to hide it behind. The sound toggle
-    now owns its corner alone.
-  */
-  .hub-stage-replay {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    margin-top: 0.15rem;
-    /*
-      HARD EDGES. Every other control on /featured is square — the deck nav
-      thumbs carry an explicit `border-radius: 0` reset for exactly this
-      reason — and this pill was the one exception on the page.
-
-      Vertical padding is deliberately unchanged at 0.5rem: the ask was a
-      rectangle at the SAME height, so only the horizontal padding grew, which
-      a rectangle needs more of than a pill to avoid reading as cramped.
-    */
-    padding: 0.5rem 1.05rem 0.5rem 0.9rem;
-    border: 1px solid rgba(255, 255, 255, 0.28);
-    border-radius: 0;
-    background: rgba(0, 0, 0, 0.32);
-    color: var(--color-white, #f0f0f0);
-    font-family: var(--font-body);
-    font-size: 0.62rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: border-color 0.25s ease, background 0.25s ease;
+  /* A pane is up, so the frame underneath it must not take the click that was
+     aimed at the pane's own Play button. `opacity: 0` hides a layer; it does
+     not stand it down. */
+  .hub-stage.is-item .hub-stage-video {
+    pointer-events: none;
   }
 
-  .hub-stage-replay:hover,
-  .hub-stage-replay:focus-visible {
-    border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.85);
-    background: rgba(0, 0, 0, 0.5);
-  }
-
-  /*
-    While the trailer runs there is nothing to replay, and the stage's own
-    sound toggle is the control that matters. Matched from the shared
-    ancestor because the button is no longer inside .hub-stage; if :has()
-    is ever unavailable the button simply stays visible during playback,
-    which is inert rather than broken (the click handler returns early on
-    is-playing anyway).
-  */
-  .hero-grid-container:has(.hub-stage.is-playing) .hub-stage-replay {
-    display: none;
-  }
-
-  .hub-stage-replay-glyph {
-    width: 13px;
-    height: 13px;
-    flex-shrink: 0;
-  }
-
-  /* The readable red, per scripts/a11y-tokens.test.mjs — this ring sits on
-     dark artwork and #cc0000 is 3.21:1. */
-  .hub-stage-replay:focus-visible {
-    outline: 2px solid var(--color-accent-text, #ef4444);
-    outline-offset: 3px;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .hub-stage-replay {
-      transition: none;
-    }
-  }
+  /* The .hub-stage-replay rules that stood here went with the button they
+     styled. The stage pane's own control (.hub-stage-item-action) is the only
+     way to start this hero now. */
 
   .hub-stage-mark-img {
     width: 62%;

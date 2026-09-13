@@ -128,6 +128,15 @@ const baseProps = {
   'data-title': item.title,
   'data-preview': excerpt,
   'data-brand': brandData,
+  /*
+    The card's own display tags, carried so the Feed hero can show them when a
+    card is promoted into it. Recomputing them in the swap handler would mean a
+    second copy of the brand/type dictionaries in client JS; passing the string
+    the card already rendered means the hero cannot disagree with the card it
+    came from. Empty when the item matched nothing, and the hero falls back to
+    VIDEO/ARTICLE in that case.
+  */
+  'data-tags': finalTags.join(' | '),
 };
 
 const wrapperProps = (isPlayable || context === 'feed')

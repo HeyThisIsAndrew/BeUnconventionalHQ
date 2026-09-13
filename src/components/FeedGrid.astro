@@ -392,6 +392,34 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
       document.removeEventListener('click', (window as any)._spotlightSwapListener);
     }
 
+    /*
+      ─── CARRY ASTRO'S STYLE SCOPE ONTO ANYTHING BUILT AT RUNTIME ──────────
+
+      FeedSpotlightHero's <style> is SCOPED. Astro compiles every selector in
+      it to `.hero-meta-tag[data-astro-cid-7clh4sw7]` and stamps that attribute
+      on each element in the template AT BUILD TIME.
+
+      An element created here has no such attribute, so not one of those rules
+      matches it. The hero did not "lose its CSS" on swap — the new nodes were
+      never in scope to begin with: chips rendered as bare text with 0 padding
+      and no border, and "Read article" lost its rectangle entirely. Confirmed
+      by reading the attribute list before and after a swap.
+
+      Copying it from a node that still has one keeps the hash out of this file
+      (it changes whenever the component's styles change, and a hardcoded copy
+      would rot silently). Applied to descendants too, since the glyph and the
+      label are styled by scoped rules of their own.
+    */
+    const carryScope = (source: Element | null, target: Element) => {
+      if (!source) return;
+      for (const name of source.getAttributeNames()) {
+        if (!name.startsWith('data-astro-cid-')) continue;
+        const value = source.getAttribute(name) ?? '';
+        target.setAttribute(name, value);
+        target.querySelectorAll('*').forEach((child) => child.setAttribute(name, value));
+      }
+    };
+
     const swapHandler = (e: MouseEvent) => {
       const card = (e.target as Element).closest('[data-action^="spotlight-"]') as HTMLElement;
       if (!card) return;
@@ -406,7 +434,6 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
       const heroDesc = document.getElementById('hero-description');
       const heroBrandLogo = document.getElementById('hero-brand-logo') as HTMLImageElement;
       const heroIframe = document.getElementById('hero-iframe') as HTMLIFrameElement;
-            const heroCta = document.getElementById('hero-cta') as HTMLAnchorElement;
       const heroImage = document.getElementById('hero-image') as HTMLImageElement;
       const heroImageFront = document.getElementById('hero-image-front') as HTMLImageElement;
 
@@ -417,13 +444,52 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
       const image = card.getAttribute('data-image') || '';
       const videoId = card.getAttribute('data-video-id');
       const brandLogo = card.getAttribute('data-brand') || '';
-      const link = card.querySelector('a')?.getAttribute('href') || '#';
+      /*
+        `data-href` FIRST. A feed card is a <div role="button"> — ContentCard
+        drops the anchor in this context precisely so the card can swap the
+        hero instead of navigating — so `card.querySelector('a')` was null on
+        every card and this fell through to '#' every time. The "Read article"
+        CTA has been a link to nowhere for as long as it has existed; it only
+        looked fine because clicking it reloaded the same page.
+
+        The anchor lookup is kept as the fallback for any caller that does
+        render one inside the card.
+      */
+      const link = card.getAttribute('data-href')
+        || card.querySelector('a')?.getAttribute('href')
+        || '#';
 
       // Update Text Content
       heroTitle.textContent = title;
-      const heroTypeTag = document.getElementById('hero-type-tag');
-      if (heroTypeTag) {
-          heroTypeTag.textContent = isVideo ? 'VIDEO' : 'ARTICLE';
+
+      /*
+        THE EYEBROW TAKES THE CARD'S OWN TAGS.
+
+        It used to overwrite a single chip with the word VIDEO or ARTICLE,
+        which is why the hero said less about an item than the card that
+        promoted it. `data-tags` is the string ContentCard already rendered
+        ("DC | REVIEW"), so the two cannot disagree.
+
+        Chips are rebuilt rather than edited: an item can have one tag or
+        three, so there is no fixed set of spans to keep in step. textContent
+        per chip, never innerHTML on the tag text — these strings come from
+        feed data.
+      */
+      const heroMetaRow = document.getElementById('hero-meta-tags');
+      const kind = isVideo ? 'VIDEO' : 'ARTICLE';
+      const cardTags = (card.getAttribute('data-tags') || '')
+        .split('|')
+        .map((t) => t.trim())
+        .filter(Boolean);
+      if (heroMetaRow) {
+        heroMetaRow.textContent = '';
+        for (const tag of (cardTags.length > 0 ? cardTags : [kind])) {
+          const chip = document.createElement('span');
+          chip.className = 'hero-meta-tag hero-meta-tag--type';
+          chip.textContent = tag;
+          carryScope(heroMetaRow, chip);
+          heroMetaRow.appendChild(chip);
+        }
       }
       if (heroDesc) {
         heroDesc.textContent = preview;
@@ -440,26 +506,12 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
         }
       }
 
-      // Update CTA
-      const heroCtaParent = heroCta?.parentElement;
-      if (heroCta && heroCtaParent) {
-        const newHtml = isVideo ? `
-          <button type="button" id="hero-cta" class="hub-stage-replay" data-action="play-trailer">
-            <svg class="hub-stage-replay-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M8 5v14l11-7z" fill="currentColor" />
-            </svg>
-            <span class="hub-stage-replay-text">Play video</span>
-            <span class="sr-only"> for ${title}</span>
-          </button>
-        ` : `
-          <a id="hero-cta" href="${link}" class="hub-stage-replay" style="text-decoration: none;">
-            <span class="hub-stage-replay-text">Read article</span>
-            <span class="sr-only"> for ${title}</span>
-          </a>
-        `;
-        heroCta.outerHTML = newHtml;
-      }
-
+      /*
+        No CTA to rebuild. The copy column's Play/Read button was removed (see
+        the note in FeedSpotlightHero): the stage pane below carries the action
+        for whatever item is loaded, so there is only one control to keep in
+        step with a swap instead of two.
+      */
       // Reset iframe state
       if (heroIframe) {
         heroIframe.src = 'about:blank';
@@ -472,6 +524,51 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
 
       if (heroImage && image) { heroImage.src = image; heroImage.style.opacity = '1'; }
       if (heroImageFront && image) { heroImageFront.src = image; heroImageFront.style.opacity = '1'; }
+
+      /*
+        THE STAGE PANE FOLLOWS THE SWAP.
+
+        The pane is what the stage shows before anything plays — still, kind,
+        title, Play. Left un-updated it would keep naming the PREVIOUS item
+        over the new item's artwork, which is worse than showing nothing:
+        the two halves of the hero would contradict each other.
+
+        `is-item` goes back on because the previous item may have been played,
+        and play() takes it off (see the play handler below).
+      */
+      const stageItemStill = document.getElementById('hero-stage-item-still') as HTMLImageElement | null;
+      const stageItemKind = document.getElementById('hero-stage-item-kind');
+      const stageItemTitle = document.getElementById('hero-stage-item-title');
+      const stageItemAction = document.getElementById('hero-stage-item-action');
+      if (stageItemStill && image) stageItemStill.src = image;
+      if (stageItemKind) stageItemKind.textContent = kind;
+      if (stageItemTitle) stageItemTitle.textContent = title;
+      /*
+        THE PANE'S CONTROL CHANGES ELEMENT, NOT JUST ITS LABEL.
+
+        Relabelling it "Read" leaves a <button data-action="play-trailer">
+        behind the word: the play handler finds no pending video on an article
+        and returns, so the control reads as a dead button. An article needs a
+        real <a href>, so the element is rebuilt rather than retitled. Built
+        with the DOM API and `textContent`, so a title carrying an apostrophe
+        or an angle bracket cannot break out of the markup.
+      */
+      if (stageItemAction) {
+        const nextAction = document.createElement(isVideo ? 'button' : 'a');
+        nextAction.id = 'hero-stage-item-action';
+        nextAction.className = 'hub-stage-item-action';
+        nextAction.textContent = isVideo ? 'Play' : 'Read';
+        if (isVideo) {
+          (nextAction as HTMLButtonElement).type = 'button';
+          nextAction.setAttribute('data-action', 'play-trailer');
+        } else {
+          (nextAction as HTMLAnchorElement).href = link;
+        }
+        carryScope(stageItemAction, nextAction);
+        stageItemAction.replaceWith(nextAction);
+      }
+      const stageEl = document.querySelector('.hub-stage');
+      if (stageEl) stageEl.classList.add('is-item');
       
       const heroGridContainer = document.querySelector('.hero-grid-container');
       if (isVideo && videoId) {
@@ -509,10 +606,17 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
 
         const playHandler = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      
-      const isHeroCta = target.closest('#hero-cta');
+
+      /*
+        The stage pane's own control is the only thing that starts this hero.
+        Still delegated from the document rather than bound to the element: the
+        pane's action is REPLACED on every swap (button for a video, anchor for
+        an article), so a listener bound directly to it would be thrown away
+        with the node it was attached to.
+      */
+      const isHeroCta = target.closest('#hero-stage-item-action');
       if (!isHeroCta) return;
-      
+
       const isCtaVideo = isHeroCta.tagName.toLowerCase() === 'button';
 
       const heroIframe = document.getElementById('hero-iframe') as HTMLIFrameElement;
@@ -527,6 +631,13 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
         
         const hubStage = document.querySelector('.hub-stage');
         if (hubStage) {
+            /*
+              `is-item` HAS TO COME OFF. It takes .hub-stage-video to opacity 0,
+              so leaving it on starts the video behind an invisible frame — the
+              audio plays and the picture never arrives. /featured hit exactly
+              this and removes the class at the same point.
+            */
+            hubStage.classList.remove('is-item');
             hubStage.classList.add('is-playing');
         } else {
             heroIframe.style.opacity = '1'; // Fallback
