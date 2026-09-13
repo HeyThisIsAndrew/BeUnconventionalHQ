@@ -51,7 +51,7 @@ You returned NO-GO on four findings. **One was real and valuable. Three were not
 
 ## Context
 
-You are the **independent verifier** on a release candidate for **Be Unconventional HQ** — Astro 7 (static + `@astrojs/cloudflare`), Tailwind v4, deployed on Cloudflare Workers.
+You are the **independent verifier** on a release candidate for **BE Unconventional HQ** — Astro 7 (static + `@astrojs/cloudflare`), Tailwind v4, deployed on Cloudflare Workers.
 
 - Branch: **`feature/ui-qa-polish`** (identical content on `claude/unconventional-hq-mobile-qa-bibyua`), targeting **`main`**.
 - Another agent (Claude) made these changes, tested them, and returned **GO**.

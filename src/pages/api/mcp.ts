@@ -143,7 +143,7 @@ export const OPTIONS: APIRoute = async () => new Response(null, { status: 204, h
 export const GET: APIRoute = async ({ request }) => {
   const origin = new URL(request.url).origin;
   return json({
-    name: 'Be Unconventional HQ',
+    name: 'BE Unconventional HQ',
     description:
       'Read-only MCP server for beunconventionalhq.com: search the site, list ' +
       'upcoming events, and check whether the channel is live.',

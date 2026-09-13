@@ -24,7 +24,7 @@ export const ARTICLE_SECTION = {
   titlePrimary: 'The',
   titleSecondary: 'Intel',
   description:
-    'Long-form reviews, analysis and on-location reporting from Be Unconventional HQ.',
+    'Long-form reviews, analysis and on-location reporting from BE Unconventional HQ.',
 };
 
 /** Path to a single article. Never build this by hand. */
@@ -59,7 +59,7 @@ export const DEFAULT_BYLINE = {
 
 /** Where the writing is authored. Attribution links point back here. */
 export const SOURCE_PUBLICATION = {
-  name: 'Be Unconventional HQ',
+  name: 'BE Unconventional HQ',
   platform: 'Substack',
   url: 'https://beunconventionalhq.substack.com/',
 };

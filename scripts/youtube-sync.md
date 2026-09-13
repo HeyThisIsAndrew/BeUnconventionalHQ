@@ -84,7 +84,7 @@ fieldset and are marked read-only.
 
 ### Create a write token
 
-1. Go to **https://sanity.io/manage** and open the **Be Unconventional HQ**
+1. Go to **https://sanity.io/manage** and open the **BE Unconventional HQ**
    project (id `38nhxsib`).
 2. **API** tab → **Tokens** → **Add API token**.
 3. Name it (e.g. `youtube-sync`), set permission to **Editor**, and **Create**.

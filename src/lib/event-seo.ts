@@ -48,7 +48,7 @@ export const DESCRIPTION_MAX = 160;
  * actually knows (kind, place, dates) and degrades one clause at a time when
  * a field is missing, rather than emitting an empty gap.
  */
-export function buildEventDescription(event: any, siteName = 'Be Unconventional HQ'): string {
+export function buildEventDescription(event: any, siteName = 'BE Unconventional HQ'): string {
   const title = String(event?.title ?? '').trim() || 'this event';
   const kind = getEventTypeLabel(event) ?? '';
   const dates = formatEventDateRange(event?.startDate, event?.endDate);
@@ -77,7 +77,7 @@ export function buildEventDescription(event: any, siteName = 'Be Unconventional 
     leave the plural label reading wrong, so the clause is its own sentence
     instead and the article disappears with the problem.
 
-      Be Unconventional HQ coverage of The Oscars. Industry awards at Dolby
+      BE Unconventional HQ coverage of The Oscars. Industry awards at Dolby
       Theatre, Los Angeles, CA. Mar 14, 2027.
   */
   const where = place ? `${at ? 'at' : 'in'} ${place}` : '';

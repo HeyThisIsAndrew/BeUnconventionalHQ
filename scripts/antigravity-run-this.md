@@ -217,7 +217,7 @@ On `http://localhost:4321`, at iPhone size:
 1. Load `/`, rotate to landscape. The hero must fill the viewport exactly.
 2. Load `/`, scroll down, reload. The hero must still fill it.
 3. Click the logo from `/feed` → must navigate to `/`. Click the
-   "Be Unconventional HQ" wordmark on any page → must scroll to top, not
+   "BE Unconventional HQ" wordmark on any page → must scroll to top, not
    navigate.
 4. Open the video modal, close with ESC. Reopen, close with the X.
 5. Load `/`, and confirm no invisible overlay swallows taps anywhere.

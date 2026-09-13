@@ -2,7 +2,7 @@
  * REFERRAL & GEAR LINKS — the single source of truth.
  *
  * ─── WHAT THIS IS FOR ─────────────────────────────────────────────────────
- * Be Unconventional HQ is self-funded. These links are how that works: they
+ * BE Unconventional HQ is self-funded. These links are how that works: they
  * cost the reader nothing and they pay for the coverage. The plan is for this
  * list to keep growing, so it lives in ONE file rather than being retyped
  * into every surface that shows it — the article side rail today, and
