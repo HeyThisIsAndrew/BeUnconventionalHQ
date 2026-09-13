@@ -3,6 +3,7 @@ import { getVideosUnified } from '../lib/videos-source';
 import { parseVideoId } from '../lib/platforms/youtube';
 import { getDisplayTags } from '../lib/tags';
 import { getFeaturedBrandsLocal, urlFor } from '../lib/local-content';
+import logoImage from '../assets/logo-mark.webp';
 
 interface Props {
   /**
@@ -13,6 +14,7 @@ interface Props {
 }
 
 const { interactive = false } = Astro.props;
+
 const videos = await getVideosUnified();
 
 /*
@@ -41,7 +43,8 @@ const brand = brands.find((b) =>
   (latestVideo.relatedBrandSlug && b.slug?.current === latestVideo.relatedBrandSlug) ||
   (primaryTag && b.title?.toUpperCase() === primaryTag.toUpperCase())
 );
-const brandLogo = brand?.logo ? urlFor(brand.logo).url() : '';
+const fallbackLogoSrc = logoImage.src;
+const brandLogo = brand?.logo ? urlFor(brand.logo).url() : fallbackLogoSrc;
 const brandHero = brand?.heroImage ? urlFor(brand.heroImage).url() : '';
 
 const itemBg = latestVideo.thumbnail || latestVideo.image || '';
@@ -139,9 +142,10 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
         <div class="hero-identity">
           <img 
             id="hero-brand-logo" 
-            src={brandLogo || ""} 
+            src={brandLogo || fallbackLogoSrc} 
             alt="Brand Logo" 
-            class={`hero-logo ${brandLogo ? '' : 'hidden'}`}
+            class={`hero-logo`}
+            data-fallback-logo={fallbackLogoSrc}
           />
           <h1 id="hero-title" class="hero-title leading-tight line-clamp-1">{heroTitle}</h1>
           <p id="hero-description" class="hero-tagline line-clamp-2">{heroDescription}</p>
