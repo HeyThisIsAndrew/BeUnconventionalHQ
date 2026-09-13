@@ -4,6 +4,7 @@ import { parseVideoId } from '../lib/platforms/youtube';
 import { getDisplayTags } from '../lib/tags';
 import { getFeaturedBrandsLocal, urlFor } from '../lib/local-content';
 import logoImage from '../assets/logo-mark.webp';
+import { site } from '../data/site.js';
 
 interface Props {
   /**
@@ -149,6 +150,17 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
           />
           <h1 id="hero-title" class="hero-title leading-tight line-clamp-1">{heroTitle}</h1>
           <p id="hero-description" class="hero-tagline line-clamp-2">{heroDescription}</p>
+          <a
+            href={site.socials.youtube}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="feed-hero-youtube-btn"
+          >
+            <svg class="feed-hero-youtube-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z" fill="currentColor"></path>
+            </svg>
+            <span class="feed-hero-youtube-text">SUBSCRIBE</span>
+          </a>
         </div>
 
 
@@ -750,9 +762,42 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
     pointer-events: none;
   }
 
-  /* The .hub-stage-replay rules that stood here went with the button they
-     styled. The stage pane's own control (.hub-stage-item-action) is the only
-     way to start this hero now. */
+  /* Recreated youtube button styling to match featured page */
+  .feed-hero-youtube-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.15rem; /* Matches .hub-stage-replay */
+    padding: 0.5rem 1.05rem 0.5rem 0.9rem;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 0;
+    background: rgba(0, 0, 0, 0.32);
+    color: var(--color-white, #f0f0f0);
+    font-family: var(--font-body);
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+    transition: border-color 0.25s ease, background 0.25s ease;
+  }
+
+  .feed-hero-youtube-btn:hover,
+  .feed-hero-youtube-btn:focus-visible {
+    border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.85);
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  .feed-hero-youtube-glyph {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+  }
+
+  .feed-hero-youtube-btn:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: 3px;
+  }
 
   .hub-stage-mark-img {
     width: 62%;
