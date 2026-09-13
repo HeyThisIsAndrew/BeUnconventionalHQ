@@ -640,7 +640,9 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
         return { el, val };
       });
 
-      if ((document as any).startViewTransition) {
+      const isMobile = window.innerWidth < 900;
+
+      if (!isMobile && (document as any).startViewTransition) {
         const transition = (document as any).startViewTransition(() => {
           performDOMUpdate();
         });
