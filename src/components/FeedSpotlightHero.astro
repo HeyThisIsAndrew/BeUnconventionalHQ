@@ -1,0 +1,1525 @@
+---
+import { getVideosUnified } from '../lib/videos-source';
+import { parseVideoId } from '../lib/platforms/youtube';
+
+const videos = await getVideosUnified();
+const latestVideo = videos[0] || {};
+const trailerId = parseVideoId(latestVideo.url || latestVideo.link || latestVideo.videoId || '');
+const heroBg = latestVideo.thumbnail || latestVideo.image || '';
+const heroTitle = latestVideo.title || '';
+const heroDescription = latestVideo.description || latestVideo.snippet || '';
+const isVideo = true;
+
+const brandRgb = '204, 0, 0';
+const fallbackGradient = `linear-gradient(135deg, rgba(${brandRgb}, 0.28) 0%, #0a0a0a 62%, #111 100%)`;
+
+const heroItems = videos.slice(0, 4); // First 4 items for the rail
+---
+
+<section class="event-hero w-full max-w-full box-border " style={`--brand-color: #CC0000; --brand-rgb: ${brandRgb};`}>
+  <div class="event-hero-bg-wrapper">
+    {heroBg ? (
+      <img
+        id="hero-bg"
+        src={heroBg}
+        alt=""
+        class="event-hero-bg-animated hero-backdrop-plate"
+        loading="eager"
+        fetchpriority="high"
+      />
+    ) : (
+      <div id="hero-bg" class="event-hero-bg-animated" style={`background-image: ${fallbackGradient};`}></div>
+    )}
+  </div>
+
+  <div class="hub-stage-wash" aria-hidden="true"></div>
+
+  <div class="event-hero-overlay flex flex-col justify-center">
+    <div
+      class:list={[
+        'container',
+        'hero-grid-container',
+        'w-full',
+        'max-w-full',
+        'box-border',
+        'lg:!px-20',
+        'xl:!px-24',
+        '2xl:!max-w-[1920px]',
+        '2xl:!grid-cols-[1fr_1.2fr]',
+        '3xl:!max-w-[2400px]',
+        '3xl:!grid-cols-[1fr_1.4fr]',
+        { 'has-trailer': true, 'has-cta': true },
+      ]}
+    >
+      <div class="event-hero-content hero-copy">
+        
+        <div class="hero-eyebrow">
+          <span id="hero-type-tag" class="hero-meta-tag hero-meta-tag--type">{isVideo ? 'VIDEO' : 'ARTICLE'}</span>
+        </div>
+
+        <div class="hero-identity">
+          <img 
+            id="hero-brand-logo" 
+            src={latestVideo.brandLogo || ""} 
+            alt="Brand Logo" 
+            class={`hero-logo ${latestVideo.brandLogo ? '' : 'hidden'}`}
+          />
+          <h1 id="hero-title" class="hero-title leading-tight">{heroTitle}</h1>
+          <p id="hero-description" class="hero-tagline line-clamp-3">{heroDescription}</p>
+        </div>
+
+        </div>
+      
+      <div
+        class="hero-trailer hub-stage"
+        data-trailer={trailerId || undefined}
+      >
+        <div class="hub-stage-mark">
+           {/* Fallback image if no video */}
+           <img
+              id="hero-image"
+              src={heroBg}
+              class="hub-stage-art-fill"
+              
+           />
+           <img
+              id="hero-image-front"
+              src={heroBg}
+              class="hub-stage-art-img"
+              
+           />
+           
+           
+        </div>
+
+        <div class="hub-stage-video" style="z-index: 5;">
+          <iframe
+            id="hero-iframe"
+            class="hub-stage-iframe transition-opacity duration-500"
+            src="about:blank"
+            data-pending-video={trailerId || undefined}
+            title=""
+            tabindex="-1"
+            allow="autoplay; encrypted-media"
+            style="opacity: 0; pointer-events: none;"
+          ></iframe>
+        </div>
+        
+      </div>
+
+        {isVideo ? (
+          <button type="button" id="hero-cta" class="hub-stage-replay" data-action="play-trailer">
+            <svg class="hub-stage-replay-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M8 5v14l11-7z" fill="currentColor" />
+            </svg>
+            <span class="hub-stage-replay-text">Play video</span>
+            <span class="sr-only"> for {heroTitle}</span>
+          </button>
+        ) : (
+          <a id="hero-cta" href={latestVideo.url || latestVideo.link || '#'} class="hub-stage-replay" style="text-decoration: none;">
+            <span class="hub-stage-replay-text">Read article</span>
+            <span class="sr-only"> for {heroTitle}</span>
+          </a>
+        )}
+    </div>
+  </div>
+</section>
+
+<style>
+  .event-dashboard {
+    /* min-height removed to respect canonical footer spacing */
+  }
+  /* Page width wrapper now shared: `.container-page` in modules/layout.css */
+  
+  /* Hero */
+  .event-hero {
+    position: relative;
+    background-color: #111;
+    /* NO overflow:hidden here. On iOS Safari an overflow:hidden ancestor makes
+       a descendant cross-origin (YouTube) iframe render as a black box. The bg
+       below is inset:0 and its image clips to its own box, so it can't spill —
+       the clip was never needed. */
+  }
+  /* Clipping/coverage layer: static, fills the hero, hides the sliver the
+     animated child exposes at its edges while scaled. overflow:hidden is safe
+     HERE (and only here) — it contains no iframe, so the iOS black-box bug
+     cannot trigger. */
+  .event-hero-bg-wrapper {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    z-index: 0;
+  }
+  .event-hero-bg-animated {
+    position: absolute;
+    inset: 0;
+    /* Cover the whole hero (behind the copy AND the trailer). It re-crops when
+       the description expands — an accepted trade for full coverage. */
+    object-fit: cover;
+    object-position: center 22%;
+    width: 100%;
+    height: 100%;
+    /* translateZ(0) promotes this layer to its own compositor layer. Without
+       it, the overlay's backdrop-filter blur stops the animated transform from
+       repainting (issue #22 root cause) — keep it in the base AND in every
+       keyframe so the promotion never lapses mid-animation. */
+    transform: translateZ(0);
+    /* Tuned after visual QA: the original 1.05/50s (~0.1%/s) sat below the
+       perception floor and read as static. 1.08/30s is ambient but alive —
+       don't retune blind; verify any change with the 2s/1.5x debug values
+       (see d1db593). */
+    animation: cinematic-hero-zoom 30s ease-in-out infinite alternate;
+  }
+  /* Scale never drops below 1, so the image always covers the wrapper — no
+     exposed edges at any point in the cycle. */
+  @keyframes cinematic-hero-zoom {
+    from {
+      transform: scale(1.08) translateZ(0);
+    }
+    to {
+      transform: scale(1) translateZ(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .event-hero-bg-animated {
+      animation: none;
+    }
+  }
+
+  /*
+    THE HERO PLATE.
+
+    Blurred, and OVERSCANNED past its clipping wrapper. A CSS blur goes weak at
+    its own element's edges — it mixes in the transparent pixels outside — so
+    the outermost band of a blurred element is the least blurred part of it.
+    Left flush with the box, that band is what shows behind the logo and the
+    copy. `.event-hero-bg-wrapper` already clips, so pushing the plate past it
+    puts the weak edge outside the clip where it is never seen.
+
+    Blurred less than the deck's, and brightened rather than dimmed: on
+    /featured this sits behind a poster and must not compete with it, whereas
+    here it IS the scene with only a logo and a line of type in front. Trailer
+    stills are dark to begin with, and blurring a dark image and then dimming it
+    is how this hero was once a black rectangle.
+  */
+  .hero-backdrop-plate {
+    inset: -12%;
+    top: -12%;
+    left: -12%;
+    right: -12%;
+    bottom: -12%;
+    filter: blur(9px) saturate(1.15) brightness(1.16);
+    -webkit-filter: blur(9px) saturate(1.15) brightness(1.16);
+  }
+
+  /*
+    Shapes the plate the copy sits on. A single flat image behind white text is
+    what made this hero read as a stock header — the copy had no ground of its
+    own, so it floated. Darkest at the bottom left, where the mark and the line
+    are, and clearing toward the trailer on the right.
+  */
+  .event-hero-bg-wrapper::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    /*
+      TWO SCRIMS MULTIPLY. THESE ONES MULTIPLIED TO BLACK.
+
+      A design review called this hero "mostly empty dark space next to the
+      logo", and the backdrop gallery WAS behind it the whole time — it was
+      just unreadable. Stacked alpha compounds: at the bottom-left corner these
+      two came to 1 - (1-0.92)(1-0.88) = 0.99, and at the logo's own position
+      about 0.85. A gallery under a 99% black wash is an expensive way to draw
+      a black rectangle.
+
+      The vertical one now only does what it has to — seat the bottom edge
+      against the section below — and the horizontal one carries legibility for
+      the copy, ending sooner and softer. At the logo the pair now comes to
+      about 0.55, which is a lit scene with type on it rather than a void.
+    */
+    background:
+      linear-gradient(to top, rgba(5,5,5,0.82) 0%, rgba(5,5,5,0.42) 18%, rgba(5,5,5,0.12) 38%, transparent 62%),
+      linear-gradient(to right, rgba(5,5,5,0.62) 0%, rgba(5,5,5,0.34) 24%, rgba(5,5,5,0.10) 46%, transparent 68%);
+  }
+  /* In normal flow (not absolute) so the banner GROWS with its content instead
+     of overflowing upward under the fixed navbar. padding-top clears the navbar
+     so the logo is never clipped. */
+  .event-hero-overlay {
+    position: relative;
+    z-index: 1;
+    /*
+      Was 70vh, which read as dominant: the hero took most of the screen with
+      the coverage below it barely announcing itself. 62 is enough to establish
+      the hub without burying what the page is actually for.
+
+      `lvh`, not `vh`. On iOS `vh` is the LARGEST viewport, which the page also
+      uses before the URL bar retracts — the unit this project already pins for
+      exactly this reason (scripts/viewport-units.test.mjs).
+    */
+    /* Removed massive empty space */
+    /* min-height: 62lvh; */
+    background: linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.97) 0%,
+      rgba(0, 0, 0, 0.55) 55%,
+      rgba(0, 0, 0, 0.35) 100%
+    );
+    /* Subtle blur of the background image behind the overlay (content is a child,
+       so it stays sharp) — softens the busy hero art for title legibility. */
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    display: flex;
+    align-items: center;
+    padding-top: clamp(6rem, 4.5rem + 6vw, 8.5rem);
+    padding-bottom: clamp(2.5rem, 2rem + 2.5vw, 4rem);
+  }
+
+  /*
+    A PHONE HELD SIDEWAYS HAS NO ROOM FOR DESKTOP'S BREATHING SPACE.
+
+    That padding-top is a `vw` clamp, so it grows with WIDTH: 123px at 844px
+    across. On a page 390px tall that is a third of the screen spent on
+    clearance above the header, and it was pushing the hero past the bottom on
+    every iPhone below the Pro. The header still needs clearing; nothing else
+    about the spacing does.
+  */
+  @media (orientation: landscape) and (max-height: 450px) {
+    .event-hero-overlay {
+      min-height: 0;
+      padding-top: 5.25rem;
+      padding-bottom: 1.25rem;
+    }
+  }
+
+  /* Mobile: single column. Source order is copy → trailer → button, so the
+     trailer sits above the Event Details button. */
+  .hero-grid-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    align-items: center;
+    width: 100%;
+  }
+  /*
+    NAMED .hero-info-cta, NOT .hero-cta — deliberately. See the matching note
+    in events/[slug].astro: .hero-cta is already the homepage splash/reveal
+    button's class (hero.css + splash.css), and this page's wrapper reusing
+    that name let splash.css's pulsing-glow/flex rules bleed onto the
+    unrelated "Event Details" CTA here — reported as a stray red outline
+    around the button on every viewport.
+  */
+  .hero-info-cta {
+    text-align: center;
+  }
+
+  /*
+    THE SPLIT IS ABOUT SHAPE, NOT WIDTH.
+
+    This was `min-width: 900px`, which reads as "desktop" and is wrong for the
+    thing it decides. A phone held sideways is 874px on an iPhone 16/17 Pro and
+    932px on the Max, so the same gesture on two phones in the same hand got
+    two different layouts, and the smaller one stacked. Reported as landscape
+    "still showing as a stack rather than having the video on the right".
+
+    What actually decides whether copy and video fit side by side is whether
+    the viewport is WIDER THAN IT IS TALL. So: any landscape viewport with room
+    for two columns, plus anything genuinely wide, which keeps portrait tablets
+    on it.
+
+    820px is measured, not picked. The hero bottoms out around 394px on its own
+    content whatever the width, and below 820 the devices are also SHORTER than
+    that, so the split overflowed instead of fitting: an SE in landscape ran
+    93px past the bottom of the screen. 820 clears every current iPhone held
+    sideways (844, 852, 874, 896, 932, 956) and leaves the genuinely small ones
+    (SE 667, 8 Plus 736, mini 780) stacked, which is the right layout for a
+    screen that would otherwise get two 300px columns.
+
+    `.hub-stage-bg` below inverts this EXACTLY. If you change one, change both:
+    a split layout with the stacked backdrop puts a full-bleed plate behind a
+    right-hand column that expects a feathered one.
+  */
+  @media (min-width: 900px), (orientation: landscape) and (min-width: 820px) {
+    /* .has-trailer / .has-cta are applied at build time — no reliance on :has()
+       (which older Firefox lacks). Single-row areas when there's no CTA so the
+       copy isn't squeezed by an empty grid row. */
+    .hero-grid-container.has-trailer {
+      grid-template-columns: 1fr 1fr;
+      /*
+        The rail is its own row now rather than the tail of the copy column.
+        That is what lets mobile order the page copy -> trailer -> rail (the
+        rail follows the stage in the DOM) while desktop still shows it in the
+        left column: grid-areas put it back. The stage spans both rows, so the
+        rail lands level with its bottom without any margin arithmetic.
+      */
+      grid-template-areas:
+        'copy trailer'
+        'rail trailer';
+      grid-template-rows: 1fr auto;
+      align-items: center;
+    }
+    /*
+      Only the COPY column stretches. Stretching the whole row squeezed the
+      stage instead: it has an aspect-ratio, so constraining its height
+      constrains its width too, and it collapsed from 600px to 290px on an iPad.
+      Stretching one cell gives the copy the row's full height to work with and
+      leaves the stage sizing itself.
+    */
+    /*
+      ─── THE METADATA ROW DOES NOT MOVE ───────────────────────────────────
+
+      It used to. This column was `align-self: end`, so it was only ever as
+      tall as its own content and its BOTTOM edge was pinned to the bottom of
+      the 1fr row. Two things then dragged the eyebrow around:
+
+        1. THE LOGO'S HEIGHT. A tall mark made the column taller, and since
+           the bottom was fixed, the extra height came off the top: the tags
+           slid upward. Two events differing only in how their logo was
+           cropped showed the tags at two different heights.
+        2. WHETHER THERE WAS A CTA. `.has-cta` adds a grid row, which makes
+           the 1fr row shorter, which moved the bottom edge the column was
+           pinned to. So an event with no `signUpLink` (Oscars, Anime Expo,
+           Summer Game Fest, SDCC 2027) put its tags somewhere else again.
+
+      Now the column STRETCHES to the row and the eyebrow sits at its top,
+      which is the top of the grid and does not depend on anything inside the
+      column. `.hero-identity` takes `margin-top: auto` so the lockup stays
+      bottom-anchored exactly where it was, and the 1.4rem under the eyebrow
+      survives as the minimum gap rather than being eaten by an auto margin.
+    */
+    .hero-grid-container.has-trailer .hero-copy {
+      align-self: stretch;
+      /* Same reason as the rail's: a grid item defaults to a min-content
+         floor, and this column holds one. */
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+    .hero-grid-container.has-trailer .hero-copy > .hero-identity {
+      margin-top: auto;
+    }
+    .hero-grid-container.has-trailer .hub-rail {
+      grid-area: rail;
+      align-self: end;
+      margin-top: 0;
+    }
+
+    .hero-grid-container.has-trailer.has-cta {
+      grid-template-areas:
+        'copy trailer'
+        'cta trailer'
+        'rail trailer';
+      grid-template-rows: 1fr auto auto;
+    }
+    .hero-grid-container.has-trailer .hero-copy {
+      grid-area: copy;
+    }
+    .hero-grid-container.has-trailer .hero-trailer {
+      grid-area: trailer;
+    }
+    /*
+      Bigger, but only in the 50/50. A hub with no trailer stacks instead, and a
+      760px stage there is 427px of mostly-empty box that pushed the hero from
+      62% of the viewport to 106% on desktop. It earns the extra width only when
+      it has a column of its own to fill.
+    */
+    .hero-grid-container.has-trailer .hero-trailer.hub-stage {
+      max-width: 760px;
+    }
+    .hero-grid-container.has-trailer .hub-stage-replay {
+      grid-area: cta;
+      align-self: start;
+    }
+    .hub-stage-replay {
+      /* align-self handles positioning */
+    }
+  }
+
+  .event-hero-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    max-width: 900px;
+  }
+  
+  /* Placement only — the trailer's internals live in <HeroTrailer/>. */
+  /* ══════════════════════════════════════════════════════════════════════
+     THE HUB HERO'S RIGHT HALF — the deck page's stage, brought here.
+
+     Lifted rather than rewritten: every value below already survived several
+     rounds of review on /featured, and rebuilding it from memory is how the
+     two pages drift apart again.
+
+     The hero KEEPS ITS OWN HEIGHT. An earlier attempt made it 100lvh, which is
+     ~1286px on an iPad Pro portrait with maybe 400px of content centred in it —
+     a wall of nothing. Nothing here sets a viewport height.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /*
+    The plate behind the right half. Overscans its clip, because a CSS blur goes
+    WEAK at its own element's edges: it samples the transparent pixels outside
+    and mixes them in, so the outermost band is the least blurred part of it.
+    Pushed past the clip, what shows is the middle of the blur, which is even.
+
+    The mask is the feathered middle — a smoothstep rather than a two-stop ramp,
+    because a linear alpha ramp's two ENDS are discontinuities the eye reads as
+    faint vertical bands.
+  */
+  .hub-stage-bg {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    left: 28%;
+    z-index: 1;
+    overflow: hidden;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(to right,
+      rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 8%, rgba(0,0,0,0.14) 16%,
+      rgba(0,0,0,0.32) 24%, rgba(0,0,0,0.55) 32%, rgba(0,0,0,0.76) 40%,
+      rgba(0,0,0,0.90) 48%, rgba(0,0,0,0.98) 56%, rgba(0,0,0,1) 64%);
+    mask-image: linear-gradient(to right,
+      rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 8%, rgba(0,0,0,0.14) 16%,
+      rgba(0,0,0,0.32) 24%, rgba(0,0,0,0.55) 32%, rgba(0,0,0,0.76) 40%,
+      rgba(0,0,0,0.90) 48%, rgba(0,0,0,0.98) 56%, rgba(0,0,0,1) 64%);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+  }
+
+  .hub-stage-plate {
+    position: absolute;
+    inset: -30%;
+    background-size: contain;
+    background-position: 58% 50%;
+    background-repeat: no-repeat;
+    filter: blur(26px) saturate(1.4) brightness(1.45);
+    -webkit-filter: blur(26px) saturate(1.4) brightness(1.45);
+    opacity: 0.5;
+    /* STATIC. A 32s scale() on the CLIPPING wrapper was the light leak on the
+       deck page: scaling a clipping box scales the clip, dragging the blur's
+       weak edge out past the scrims. Nothing here moves. */
+  }
+
+  /*
+    `contain` fits a mark inside the box and leaves its aspect alone. Key art
+    is photographic and 16:9, so it covers instead, and sits back further: a
+    full-frame image at the mark's brightness washed the copy column's side of
+    the feather.
+  */
+  .hub-stage-plate--art {
+    background-size: cover;
+    background-position: center 30%;
+    opacity: 0.38;
+    filter: blur(30px) saturate(1.15) brightness(1.05);
+    -webkit-filter: blur(30px) saturate(1.15) brightness(1.05);
+  }
+
+  /* Lit without needing a single asset, so a hub with no logo still reads. */
+  .hub-stage-wash {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: radial-gradient(90% 80% at 76% 46%,
+      rgba(var(--brand-rgb, 204,0,0), 0.20) 0%,
+      rgba(var(--brand-rgb, 204,0,0), 0.09) 36%,
+      rgba(var(--brand-rgb, 204,0,0), 0.02) 60%,
+      transparent 78%);
+  }
+
+  /* The stage itself sits in the grid's `trailer` cell. */
+  /*
+    `.hero-trailer.hub-stage`, not `.hub-stage`. The stage carries BOTH classes
+    and `.hero-trailer { max-width: 600px }` is declared later in this file, so
+    a single-class rule here lost on source order and the stage stayed capped at
+    600 however large the column got. Two classes wins on specificity instead of
+    relying on where the rule happens to sit.
+  */
+  .hero-trailer.hub-stage {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    aspect-ratio: 16 / 9;
+    /* NO overflow: hidden — HARD RULE 3, the iframe lives in here. */
+  }
+
+  .hub-stage-mark {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* HARD RULE 6: the glow is on the WRAPPER, never on the <img>. */
+    filter: drop-shadow(0 0 38px rgba(var(--brand-rgb, 204,0,0), 0.40))
+            drop-shadow(0 16px 40px rgba(0,0,0,0.8));
+    transition: opacity 0.9s ease, transform 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+    opacity: 0.97;
+  }
+
+  /*
+    THE REPLAY CONTROL.
+
+    Lives in the copy column beside Read more, NOT on the stage. It used to
+    sit in the stage's top-right corner sharing the sound toggle's slot, and
+    that read as a control belonging to whatever the stage was showing — which
+    is a rail card almost all of the time, and rail cards have their own PLAY.
+    See the note on the markup for the full history.
+
+    Consequences of being out here: no absolute positioning, no z-index, no
+    overlap to reason about, and nothing to hide it behind. The sound toggle
+    now owns its corner alone.
+  */
+  .hub-stage-replay {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.15rem;
+    /*
+      HARD EDGES. Every other control on /featured is square — the deck nav
+      thumbs carry an explicit `border-radius: 0` reset for exactly this
+      reason — and this pill was the one exception on the page.
+
+      Vertical padding is deliberately unchanged at 0.5rem: the ask was a
+      rectangle at the SAME height, so only the horizontal padding grew, which
+      a rectangle needs more of than a pill to avoid reading as cramped.
+    */
+    padding: 0.5rem 1.05rem 0.5rem 0.9rem;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 0;
+    background: rgba(0, 0, 0, 0.32);
+    color: var(--color-white, #f0f0f0);
+    font-family: var(--font-body);
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 0.25s ease, background 0.25s ease;
+  }
+
+  .hub-stage-replay:hover,
+  .hub-stage-replay:focus-visible {
+    border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.85);
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  /*
+    While the trailer runs there is nothing to replay, and the stage's own
+    sound toggle is the control that matters. Matched from the shared
+    ancestor because the button is no longer inside .hub-stage; if :has()
+    is ever unavailable the button simply stays visible during playback,
+    which is inert rather than broken (the click handler returns early on
+    is-playing anyway).
+  */
+  .hero-grid-container:has(.hub-stage.is-playing) .hub-stage-replay {
+    display: none;
+  }
+
+  .hub-stage-replay-glyph {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+  }
+
+  /* The readable red, per scripts/a11y-tokens.test.mjs — this ring sits on
+     dark artwork and #cc0000 is 3.21:1. */
+  .hub-stage-replay:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hub-stage-replay {
+      transition: none;
+    }
+  }
+
+  .hub-stage-mark-img {
+    width: 62%;
+    max-height: 78%;
+    height: auto;
+    object-fit: contain;
+  }
+
+  /*
+    ─── ART MODE ───────────────────────────────────────────────────────────
+
+    The same layer, holding the key art instead of a mark.
+
+    It CLIPS, and that is safe HERE and only here: `.hub-stage-mark` is a
+    SIBLING of `.hub-stage-video`, never its ancestor, so hard rule 3 is not
+    in play. The plate inside overscans past the clip because a CSS blur goes
+    weak at its own edges — the outermost band is the least blurred part — and
+    left flush, that near-sharp band is exactly the edge of the frame, where
+    it would read as a sharp picture with a soft middle.
+
+    `filter: none` because the base rule's drop-shadow glow is shaped for a
+    mark with transparent surroundings. On a full-bleed rectangle it is just a
+    shadow, and `box-shadow` draws the same thing without a filter's repaint
+    cost. It is the video's own shadow, so idle and playing sit in one frame.
+  */
+  .hub-stage-mark--art {
+    /*
+      NO FILTER. The base rule's drop-shadow glow is shaped for a mark
+      floating in transparency; on a full-bleed rectangle it is just a
+      shadow, which `box-shadow` draws without a filter's repaint cost. That
+      shadow is the video's own, so the idle frame and the playing one are
+      the same object rather than two boxes that share a position.
+    */
+    filter: none;
+    -webkit-filter: none;
+    opacity: 1;
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.85);
+    /*
+      Clips the blurred fill behind the art. Safe HERE and only here:
+      `.hub-stage-mark` is a SIBLING of `.hub-stage-video`, never its
+      ancestor, so hard rule 3 is not in play. The stage itself still never
+      clips.
+    */
+    overflow: hidden;
+  }
+
+  /*
+    ─── THE PLACEHOLDER IS THE PICTURE, AND ALL OF IT ──────────────────────
+
+    It shipped blurred and overscanned, borrowing the treatment every other
+    plate on this page uses. That was wrong twice: it was an effect applied to
+    the event's art rather than the art, and the overscan zoomed it. Asked for
+    plainly: "it should just be the full image that is used for the hero but
+    in the location of the trailer at the trailer's size."
+
+    Then it was `cover`, and that cut L.A. Comic Con's key art in half. The
+    frame is 16/9 and 17 of the 19 events' art is exactly 16:9, so cover was
+    an exact fit almost everywhere and the exceptions were the whole problem:
+    L.A. Comic Con is 2.35:1 and SXSW is 2.70:1, and cover trimmed 24% and
+    34% off their sides. Both have their NAME set across the full width of
+    the artwork, so what cover removed was the first and last letters of the
+    event's own title. Reported, correctly, as "cut off".
+
+    So the front copy CONTAINS: the whole image, never cropped, whatever
+    shape it is. `contain` alone would leave bars, which is why there are two
+    copies — see the fill below. On the 17 events whose art is already 16:9,
+    contain and cover are the same fit and the fill is never visible at all.
+  */
+  .hub-stage-art-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+    display: block;
+  }
+
+  /*
+    THE GUTTERS ARE FILLED, NOT LEFT EMPTY.
+
+    Letterbox bars in the frame a trailer is about to play in read as a
+    broken image, and a flat black bar reads as a rendering fault. A blurred,
+    darkened copy of the same file behind the art is the standard answer, and
+    it costs no extra request: identical src and srcset, so the browser
+    paints one decode twice.
+
+    It is DARKENED as well as blurred, deliberately. The gutter has to recede
+    or it competes with the picture it is framing, and this page has a
+    recorded failure in the other direction: the hero was once a black
+    rectangle because a dark image was blurred and then dimmed. That applied
+    to the thing carrying the scene. This is the margin around it.
+
+    `scale(1.12)` on the IMAGE, never on the clipping box. A CSS blur samples
+    the transparent pixels outside its element and goes weak at its own
+    edges, so the fill is pushed past the clip where that band is never seen.
+    Scaling the clip instead is what caused the light leak on the deck page.
+  */
+  .hub-stage-art-fill {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+    transform: scale(1.12);
+    filter: blur(22px) saturate(1.1) brightness(0.62);
+    -webkit-filter: blur(22px) saturate(1.1) brightness(0.62);
+  }
+
+  .hub-stage-wordmark {
+    font-family: var(--font-display, sans-serif);
+    font-size: clamp(1.5rem, 3.6vw, 3rem);
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-align: center;
+    color: rgba(255,255,255,0.92);
+    line-height: 1.15;
+  }
+
+  .hub-stage-video {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transform: scale(1.02);
+    transition: opacity 1.1s ease, transform 1.1s cubic-bezier(0.2, 0.8, 0.2, 1);
+    box-shadow: 0 30px 70px rgba(0,0,0,0.85);
+    /* NO overflow: hidden and no radius needing one. HARD RULE 3. */
+  }
+
+  .hub-stage-iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    /* A frame whose document never loads paints WHITE by default, which is a
+       white rectangle in the middle of a black page. */
+    background: #050505;
+  }
+
+  /* Playing: video up, mark down but not out — it is the glow behind it. */
+  .hub-stage.is-playing .hub-stage-video {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .hub-stage.is-playing .hub-stage-mark {
+    opacity: 0.28;
+    transform: scale(1.06);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hub-stage-mark,
+    .hub-stage-video {
+      transition: none;
+    }
+  }
+
+  /*
+    Below the 50/50 breakpoint the grid stacks, so the feathered plate has no
+    right half to sit in. It becomes the full-bleed ground behind the stacked
+    copy instead, which is what the deck page does at these sizes.
+
+    This condition is the EXACT INVERSE of the split query above, and has to
+    stay that way. It used to be a flat `max-width: 1023px`, which overlapped
+    the split by a whole band: a 900-1023px portrait viewport got the two
+    column layout AND the full-bleed plate, so the right-hand column sat on a
+    backdrop built for a stacked page.
+  */
+  @media (max-width: 899px) and (orientation: portrait), (max-width: 819px) {
+    .hub-stage-bg {
+      left: 0;
+      -webkit-mask-image: none;
+      mask-image: none;
+      opacity: 0.55;
+    }
+    .hub-stage-wash {
+      background: radial-gradient(120% 70% at 50% 38%,
+        rgba(var(--brand-rgb, 204,0,0), 0.16) 0%,
+        rgba(var(--brand-rgb, 204,0,0), 0.05) 46%,
+        transparent 74%);
+    }
+  }
+
+  /*
+    THE MARK IN THE COPY COLUMN.
+
+    Sizing is left to the .hero-logo rule further down, which already scales
+    with the viewport, caps its width so a wide mark cannot overflow the column,
+    and carries a note about iOS. A second height here just fought it.
+
+    HARD RULE 6: the glow is on the WRAPPER, never on the <img>. The rule below
+    notes that a filter ON the image made it fail to render on iOS entirely.
+  */
+  .hero-logo-wrap {
+
+    display: block;
+    margin: 0.2rem 0 1.4rem;
+    filter: drop-shadow(0 10px 26px rgba(0, 0, 0, 0.9));
+  }
+
+  /*
+    MARK ABOVE THE LINE, TIGHT TOGETHER.
+
+    Side by side was tried and rejected: it squeezed the description into a
+    narrow column, which made it wrap enough to trip the "Read more" clamp on
+    hubs with longer copy — an expand control nobody wants in a hero. Full
+    width beneath the mark, the line always fits and the clamp never fires.
+
+    The gap is deliberately small. The two belong to each other; the air
+    between them was reading as two separate things.
+  */
+  .hero-identity {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.55rem;
+    margin-bottom: 1.2rem;
+  }
+  .hero-identity .hero-logo-wrap {
+    margin: 0;
+  }
+
+  /*
+    A HEADING THAT IS PURELY A CONTAINER. The <h1> around the mark must not
+    bring a heading's own margin, size or weight with it — the alt text only
+    ever paints if the image fails, and it should land where the mark would
+    have, not as a browser-default 2em block that moves everything under it.
+  */
+  .hero-title-lockup {
+    display: block;
+    margin: 0;
+    padding: 0;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
+  }
+
+  /* ─── THE RAIL ──────────────────────────────────────────────────────── */
+  .hub-rail {
+    display: flex;
+    gap: 10px;
+    /*
+      `min-width: 0` IS LOAD-BEARING.
+
+      A grid `1fr` track is `minmax(auto, 1fr)`, so it cannot shrink below its
+      content's min-content width. This rail is five 108px cards plus four 10px
+      gaps = exactly 580px of min-content, which is precisely what the copy
+      column measured while the stage next to it collapsed from 600px to 290px
+      on an iPad. The rail was quietly setting the column widths.
+
+      It already scrolls horizontally, so allowing it to shrink costs nothing —
+      the same automatic-minimum trap that made the accordion rows size
+      themselves off their sibling count on /featured.
+    */
+    min-width: 0;
+    margin-top: 1.6rem;
+    overflow-x: auto;
+    /*
+      PADDING ON ALL FOUR SIDES, AND EVERY SIDE IS LOAD-BEARING.
+
+      `overflow-x: auto` computes `overflow-y` to `auto` as well, so this box
+      clips vertically too — and the active card lifts AND scales 1.06. Without
+      room, the selected tile was sliced: off the top always, and off the left
+      or right when the selected card was the first or last one.
+
+      The horizontal padding is what stops the end cards being cut. 1.06 on a
+      108px card grows it ~3px each side, so 10px is comfortable margin.
+    */
+    padding: 10px;
+
+    /*
+      THE EDGE FEATHER ONLY EXISTS WHERE THERE IS MORE TO SCROLL TO.
+
+      Both ramps default to 0%, so a rail that fits is not faded at all, and a
+      rail scrolled hard left has no fade on its left. This is the same
+      construct as the hub rail on /featured, and for the same reason: a fixed
+      10%/90% ramp there dimmed the first and last item permanently, so two of
+      five hubs looked disabled with nothing scrolled. Selecting an end card
+      must never dim it.
+    */
+    -webkit-mask-image: linear-gradient(to right,
+      transparent 0%, #000 var(--rail-fade-start, 0%),
+      #000 calc(100% - var(--rail-fade-end, 0%)), transparent 100%);
+    mask-image: linear-gradient(to right,
+      transparent 0%, #000 var(--rail-fade-start, 0%),
+      #000 calc(100% - var(--rail-fade-end, 0%)), transparent 100%);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .hub-rail::-webkit-scrollbar { display: none; }
+
+  .hub-rail-card {
+    position: relative;
+    flex: 0 0 auto;
+    width: 108px;
+    aspect-ratio: 16 / 9;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: #111;
+    cursor: pointer;
+    opacity: 0.55;
+    transition: opacity 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
+  }
+  .hub-rail-card:hover,
+  .hub-rail-card:focus-visible { opacity: 0.85; }
+  /*
+    Matches the deck rail on /featured: lift, brand border, brand glow — plus a
+    caret above the selected tile so the link between the rail and the stage is
+    stated rather than implied.
+  */
+  .hub-rail-card.active {
+    opacity: 1;
+    border-color: rgba(var(--brand-rgb, 204,0,0), 0.95);
+    transform: scale(1.06);
+    box-shadow: 0 5px 15px rgba(var(--brand-rgb, 204,0,0), 0.42);
+  }
+  .hub-rail-card.active::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: -9px;
+    width: 0;
+    height: 0;
+    transform: translateX(-50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid rgba(var(--brand-rgb, 204,0,0), 0.95);
+    pointer-events: none;
+  }
+  .hub-rail-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .hub-rail-thumb--empty {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(150deg, rgba(var(--brand-rgb, 204,0,0), 0.30) 0%, #0b0b0d 70%);
+  }
+  .hub-rail-label {
+    position: absolute;
+    left: 5px;
+    bottom: 4px;
+    font-size: 0.52rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.9);
+    text-shadow: 0 1px 4px rgba(0,0,0,0.95);
+  }
+
+  /* ─── THE PANES THE RAIL SWITCHES TO ────────────────────────────────── */
+  .hub-stage-item {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.7s ease;
+    /* NO overflow: hidden — HARD RULE 3, the iframe is a sibling in here. */
+  }
+  .hub-stage-item.active {
+    opacity: 1;
+    visibility: visible;
+  }
+  .hub-stage-item-still {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .hub-stage-item-scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top,
+      rgba(5,5,5,0.94) 0%, rgba(5,5,5,0.86) 14%, rgba(5,5,5,0.66) 30%,
+      rgba(5,5,5,0.40) 46%, rgba(5,5,5,0.18) 62%, rgba(5,5,5,0.05) 78%,
+      transparent 92%);
+  }
+  .hub-stage-item-copy {
+    position: absolute;
+    left: 1.4rem;
+    right: 1.4rem;
+    bottom: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.55rem;
+  }
+  .hub-stage-item-kind {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(var(--brand-rgb, 204,0,0), 1);
+  }
+  .hub-stage-item-title {
+    font-family: var(--font-display, sans-serif);
+    font-size: clamp(0.95rem, 1.5vw, 1.25rem);
+    font-weight: 700;
+    line-height: 1.3;
+    color: #fff;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.95);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .hub-stage-item-action {
+    display: inline-block;
+    padding: 0.5rem 1.1rem;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: transparent;
+    color: rgba(255,255,255,0.94);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+    transition: border-color 0.3s ease, background-color 0.3s ease;
+  }
+  .hub-stage-item-action:hover,
+  .hub-stage-item-action:focus-visible {
+    border-color: rgba(var(--brand-rgb, 204,0,0), 0.95);
+    background: rgba(var(--brand-rgb, 204,0,0), 0.16);
+  }
+
+  /* An item is showing: the mark and the trailer both stand down. */
+  .hub-stage.is-item .hub-stage-mark { opacity: 0; }
+  .hub-stage.is-item .hub-stage-video { opacity: 0; }
+
+  /*
+    PLAYING BEATS EVERYTHING ELSE ON THE STAGE.
+
+    Without this the selected item's pane — its still, its title, its Play
+    button — stayed at full opacity ON TOP of the frame it had just started.
+    The video was loading and playing the whole time, behind an opaque image,
+    which from the outside is indistinguishable from the button doing nothing.
+
+    Reported as "I click it and it's not doing anything now", and my own check
+    missed it because I pressed Play without first picking a rail card, so no
+    pane was active to do the covering.
+  */
+  .hub-stage.is-playing .hub-stage-item {
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  /*
+    Top right, not bottom right: a video the visitor CHOSE runs with YouTube's
+    own controls, and the bottom strip is theirs. The trailer has no controls
+    at all, which is the case this exists for.
+  */
+  .hub-stage-sound {
+    position: absolute;
+    top: 0.7rem;
+    right: 0.7rem;
+    z-index: 12;
+    display: none;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.38rem 0.75rem 0.38rem 0.6rem;
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    /* Squared with the replay control. Leaving one of the two pills rounded
+       would be the same inconsistency, just moved. */
+    border-radius: 0;
+    background: rgba(0, 0, 0, 0.55);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    color: #fff;
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.72;
+    transition: opacity 0.25s ease, border-color 0.25s ease;
+  }
+  .hub-stage.is-playing:not(.is-chosen-video) .hub-stage-sound { display: inline-flex; }
+  .hub-stage-sound:hover,
+  .hub-stage-sound:focus-visible {
+    opacity: 1;
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+  .hub-stage-sound-glyph {
+    width: 16px;
+    height: 16px;
+    flex: none;
+  }
+  /* One glyph, two states. The slash shows while muted, the waves while not. */
+  .hub-stage-sound[data-sound='off'] .hub-stage-sound-on,
+  .hub-stage-sound[data-sound='on'] .hub-stage-sound-off {
+    display: none;
+  }
+  .hub-stage-sound[data-sound='on'] { opacity: 1; }
+
+  @media (max-width: 639px) {
+    /* On a small stage the word is what gets cut. The glyph still says it. */
+    .hub-stage-sound-label { display: none; }
+    .hub-stage-sound { padding: 0.4rem; }
+  }
+
+  .hero-trailer {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 10;
+  }
+  
+  /*
+    The row plate, restated. Same size, same tracking and same quiet grey the
+    accordion headers use, because it is the same object — the label of the row
+    you came in through.
+  */
+  /*
+    ─── THE METADATA ROW ─────────────────────────────────────────────────
+
+    The plate used to be on THIS element, wrapping all three facts in one
+    long strip with bullet characters between them. It is on the tags now,
+    so each fact is its own object and the row can wrap cleanly on a narrow
+    screen instead of stretching to the width of its longest line.
+
+    Flush left. The hero copy column is left-aligned at every width the
+    split layout applies to; the mobile-portrait override in
+    styles/modules/events.css centres it along with the rest of the lockup.
+  */
+  .hero-eyebrow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    margin-bottom: 1.4rem;
+  }
+
+  /*
+    One tag, one plate — the same construct the hub row label on /featured
+    uses, which is what makes these read as siblings of the franchise tag
+    rather than as loose text: a translucent ground, a hairline, and type at
+    the site's metadata size (0.68rem / 0.2em, uppercase, muted).
+  */
+  .hero-meta-tag {
+    display: inline-block;
+    padding: 0.4rem 0.8rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    line-height: 1.2;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.62);
+    white-space: nowrap;
+  }
+
+  /*
+    THE TYPE TAG LEADS. It carries the brand rule on its left edge and
+    brighter type, so "Convention" reads as the classification and the two
+    beside it read as its particulars. Same 2px brand rule the eyebrow plate
+    used to wear, moved to the tag that earns it.
+  */
+  .hero-meta-tag--type {
+    border-left: 2px solid rgba(var(--brand-rgb, 204, 0, 0), 0.9);
+    color: rgba(255, 255, 255, 0.86);
+  }
+
+  /*
+    The date is the widest of the three, so it is the one allowed to wrap
+    rather than force a horizontal scroll on a 320px screen. It is already
+    compact — formatEventDateRange() collapses "Sep 12, 2026–Sep 13, 2026"
+    to "Sep 12–13, 2026" — and the slightly tighter tracking keeps it from
+    dominating the row it shares.
+  */
+  .hero-meta-tag--date {
+    letter-spacing: 0.14em;
+    white-space: normal;
+  }
+
+  .hero-logo {
+    /* Responsive + width-capped so wide logos (e.g. Comic-Con) never overflow
+       the column or force the banner taller than the viewport on mobile. */
+    max-height: clamp(100px, 60px + 15vw, 240px);
+    max-width: min(100%, 540px);
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    margin-bottom: 1.5rem;
+    /* Removed filter: drop-shadow due to known iOS Safari rendering bugs 
+       causing the image to completely fail to load/display as broken on mobile */
+  }
+  .hero-title {
+    font-family: 'Syncopate', sans-serif;
+    font-size: clamp(1.2rem, calc(0.8rem + 1vw), 1.8rem);
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 0.95;
+    text-transform: uppercase;
+    color: var(--color-white, #f0f0f0);
+    text-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    margin: 0 0 1rem 0;
+  }
+  .hero-meta {
+    font-size: clamp(0.9rem, 0.8rem + 0.6vw, 1.25rem);
+    color: #ccc;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .event-dates, .event-location {
+    display: inline-block;
+  }
+
+  /*
+    THE BILLING BLOCK, NOT A PARAGRAPH.
+
+    "Presenting Marvel, the MCU, and Marvel Games." was set as sentence-case
+    body copy at 1rem — the largest text in the column after the logo, and the
+    single thing that most made this page read as a marketing page rather than
+    a title card. It is the same sentence /featured sets small, tracked out and
+    dim under the mark, and it does the same job here.
+
+    Font size stays identical in every state so toggling never resizes the
+    text. The collapsed height is still exactly two lines — 3.4em now rather
+    than 3em, because the line-height came up with the tracking; the read-more
+    script measures the full height itself and animates between the two, so
+    this number only has to agree with line-height.
+  */
+  .hero-tagline {
+    font-size: 0.95rem;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.58);
+    line-height: 1.7;
+    max-width: 52ch;
+    margin-top: 1.6rem;
+    text-shadow: 0 4px 12px rgba(0, 0, 0, 0.9);
+  }
+
+
+  .hero-rsvp-btn {
+    display: inline-block;
+    background: transparent;
+    color: white;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 700;
+    padding: 0.75rem 2rem;
+    border: 1px solid var(--color-accent, #cc0000);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    transition: background 0.3s ease, color 0.3s ease;
+  }
+  .hero-rsvp-btn:hover {
+    background: var(--color-accent, #cc0000);
+    color: white;
+  }
+
+  /* Mobile: single column with no trailer — centre the lockup for balance.
+     align-items centres the logo (a flex item); text-align centres the copy. */
+  @media (max-width: 899px) {
+    .event-hero-content {
+      align-items: flex-start;
+      text-align: left;
+    }
+    /* Only the top margin tightens on mobile; the size is set once on the
+       base rule. */
+    .hero-tagline {
+      margin-top: 1rem;
+    }
+  }
+
+  /* Content */
+  .content-container {
+    padding: 4rem 2rem;
+  }
+  .content-section {
+    margin-bottom: 5rem;
+  }
+  
+  /* Filter Controls */
+  .filter-controls {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    max-width: 600px;
+    margin: 0 auto 3rem auto;
+  }
+  /*
+    Two heavy filled slabs at 1.1rem bold were the loudest thing between the
+    hero and the coverage, and they are a filter — furniture, not a headline.
+    Quieted to match the row plates: hairline, tracked out, small.
+  */
+  .filter-btn {
+    padding: 0.85rem 1rem;
+    background: rgba(10, 10, 10, 0.45);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    font-family: var(--font-display, 'Inter', sans-serif);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  @media (hover: hover) and (pointer: fine) {
+    .filter-btn:hover,
+    .filter-btn:focus-visible {
+      background: rgba(239, 68, 68, 0.1);
+      border: 2px solid var(--color-accent, #ef4444);
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+      transform: translateY(-2px);
+    }
+  }
+
+  .filter-btn.active {
+    background: rgba(239, 68, 68, 0.1);
+    border: 2px solid var(--color-accent, #ef4444);
+    color: white;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+  }
+
+  @media (max-width: 767px) {
+    .filter-controls {
+      display: flex;
+      gap: 0.5rem;
+      
+    }
+    .filter-btn {
+      flex: 1;
+      padding: 0.75rem 0.5rem;
+      font-size: 0.9rem;
+    }
+  }
+  
+  /*
+    The coverage filter row sits inside the article column, under a ruled
+    section head, not centred on the full page like the hub's. `max-width`
+    and `margin: auto` from `.filter-controls` are therefore unwound here.
+  */
+  .filter-controls.coverage-filters {
+    max-width: none;
+    margin: 0 0 1.75rem 0;
+  }
+
+  /*
+    "All coverage" is the seventh-item door, the same one "All Past Events"
+    is on /events. It renders only when something is actually behind it, so
+    it never reads as a link to an empty page.
+  */
+  .coverage-more {
+    margin-top: 2rem;
+  }
+  .coverage-more-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-display, 'Inter', sans-serif);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--color-accent-text, #ef4444);
+    text-decoration: none;
+    padding: 0.7rem 1.1rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(10, 10, 10, 0.45);
+    transition: border-color 0.25s ease, color 0.25s ease;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .coverage-more-link:hover,
+    .coverage-more-link:focus-visible {
+      border-color: var(--color-accent-text, #ef4444);
+      color: #fff;
+    }
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 4rem;
+    color: #a0a0a0;
+    font-size: 1.2rem;
+  }
+
+  /* Visually hidden but exposed to assistive tech (used for the section <h2>
+     that restores the heading hierarchy between the hero <h1> and card <h3>s). */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+
+  /*
+    ─── ONLY THE SUPPORT RAIL STACKS. THE TOC IS DESKTOP-ONLY ──────────────
+
+    This said `.article-rail { display: block !important }`, which un-hid BOTH
+    rails, and the grid areas then placed "toc" ABOVE the column. Together with
+    the matching block in styles/modules/events.css — two overrides of the same
+    rule, in two files — that is how "On This Page" ended up rendered on a
+    phone, wedged between "Venue" and "Upcoming Events" on a page the reader is
+    already scrolling. A jump-link list belongs beside the text or nowhere.
+
+    article.css hides both rails below 1200px. Nothing here contradicts that
+    for the LEFT rail any more, so the TOC stays hidden; only the support rail
+    is brought back, after the column, because the calendar and the press desk
+    are things a phone reader still wants.
+  */
+  @media (max-width: 1200px) {
+    .article-rail-right {
+      display: block !important;
+      position: static !important;
+    }
+    .article-layout {
+      grid-template-areas:
+        "column"
+        "support";
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Grid for Coverage Cards */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+    gap: 1.5rem;
+  }
+
+  .press-desk-link {
+    font-family: var(--font-display, 'Syne Variable', sans-serif);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-white, #fff);
+    background-image: linear-gradient(var(--color-accent, #cc0000), var(--color-accent, #cc0000));
+    background-repeat: no-repeat;
+    background-position: 0 100%;
+    background-size: 0% 2px;
+    padding-bottom: 2px;
+    transition: color 0.3s ease, background-size 0.3s ease;
+    display: inline-block;
+  }
+  .press-desk-link:hover,
+  .press-desk-link:focus-visible {
+    color: var(--color-accent-text, #ef4444);
+    background-size: 100% 2px;
+  }
+
+
+  /* Override global article layout to reclaim left column real estate for event coverage grids */
+  @media (min-width: 1200px) {
+    .article-layout {
+      grid-template-columns: 12rem minmax(0, 55rem) 19rem !important;
+    }
+  }
+
+
+</style>

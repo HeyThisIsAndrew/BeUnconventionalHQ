@@ -30,7 +30,7 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
   <CardGrid id="feed-grid">
     {
       currentItems.map((item: any, index: number) => (
-        <ContentCard item={item} index={index} />
+        <ContentCard item={item} index={index} context="feed" />
       ))
     }
   </CardGrid>
@@ -43,7 +43,7 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
 
 <template id="full-dataset-cards">
   {safeAllItems.map((item: any, index: number) => (
-    <ContentCard item={item} index={index} />
+    <ContentCard item={item} index={index} context="feed" />
   ))}
 </template>
 
@@ -384,5 +384,157 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
     document.documentElement.classList.remove('js-feed-filtering');
   }
 
-  document.addEventListener('astro:page-load', initFeedClientFiltering);
+  document.addEventListener('astro:page-load', () => {
+    initFeedClientFiltering();
+    
+    // Lifecycle-protected Spotlight Swap Event Delegation
+    if ((window as any)._spotlightSwapListener) {
+      document.removeEventListener('click', (window as any)._spotlightSwapListener);
+    }
+
+    const swapHandler = (e: MouseEvent) => {
+      const card = (e.target as Element).closest('[data-action^="spotlight-"]') as HTMLElement;
+      if (!card) return;
+
+      e.preventDefault();
+      
+      const action = card.getAttribute('data-action');
+      const isVideo = action === 'spotlight-video';
+      
+      const heroBg = document.getElementById('hero-bg') as HTMLImageElement | HTMLDivElement;
+      const heroTitle = document.getElementById('hero-title');
+      const heroDesc = document.getElementById('hero-description');
+      const heroBrandLogo = document.getElementById('hero-brand-logo') as HTMLImageElement;
+      const heroIframe = document.getElementById('hero-iframe') as HTMLIFrameElement;
+            const heroCta = document.getElementById('hero-cta') as HTMLAnchorElement;
+      const heroImage = document.getElementById('hero-image') as HTMLImageElement;
+      const heroImageFront = document.getElementById('hero-image-front') as HTMLImageElement;
+
+      if (!heroTitle) return; // Not on a page with the Spotlight Hero
+
+      const title = card.getAttribute('data-title') || '';
+      const preview = card.getAttribute('data-preview') || '';
+      const image = card.getAttribute('data-image') || '';
+      const videoId = card.getAttribute('data-video-id');
+      const brandLogo = card.getAttribute('data-brand') || '';
+      const link = card.querySelector('a')?.getAttribute('href') || '#';
+
+      // Update Text Content
+      heroTitle.textContent = title;
+      const heroTypeTag = document.getElementById('hero-type-tag');
+      if (heroTypeTag) {
+          heroTypeTag.textContent = isVideo ? 'VIDEO' : 'ARTICLE';
+      }
+      if (heroDesc) {
+        heroDesc.textContent = preview;
+      }
+
+      // Update Brand Logo
+      if (heroBrandLogo) {
+        if (brandLogo) {
+          heroBrandLogo.src = brandLogo;
+          heroBrandLogo.classList.remove('hidden');
+        } else {
+          heroBrandLogo.src = '';
+          heroBrandLogo.classList.add('hidden');
+        }
+      }
+
+      // Update CTA
+      const heroCtaParent = heroCta?.parentElement;
+      if (heroCta && heroCtaParent) {
+        const newHtml = isVideo ? `
+          <button type="button" id="hero-cta" class="hub-stage-replay" data-action="play-trailer">
+            <svg class="hub-stage-replay-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M8 5v14l11-7z" fill="currentColor" />
+            </svg>
+            <span class="hub-stage-replay-text">Play video</span>
+            <span class="sr-only"> for ${title}</span>
+          </button>
+        ` : `
+          <a id="hero-cta" href="${link}" class="hub-stage-replay" style="text-decoration: none;">
+            <span class="hub-stage-replay-text">Read article</span>
+            <span class="sr-only"> for ${title}</span>
+          </a>
+        `;
+        heroCta.outerHTML = newHtml;
+      }
+
+      // Reset iframe state
+      if (heroIframe) {
+        heroIframe.src = 'about:blank';
+        heroIframe.style.opacity = '0';
+        heroIframe.style.pointerEvents = 'none';
+        heroIframe.removeAttribute('data-pending-video');
+        const hubStage = document.querySelector('.hub-stage');
+        if (hubStage) hubStage.classList.remove('is-playing');
+      }
+
+      if (heroImage && image) { heroImage.src = image; heroImage.style.opacity = '1'; }
+      if (heroImageFront && image) { heroImageFront.src = image; heroImageFront.style.opacity = '1'; }
+      
+      const heroGridContainer = document.querySelector('.hero-grid-container');
+      if (isVideo && videoId) {
+        // Step 1: Prep the video state but do not play yet!
+        if (heroGridContainer) heroGridContainer.classList.add('has-trailer');
+        
+        if (heroIframe) {
+          heroIframe.setAttribute('data-pending-video', videoId);
+        }
+              } else {
+        // Article Mode
+        // if (heroGridContainer) heroGridContainer.classList.remove('has-trailer');
+                      }
+
+
+      // Update background image
+      if (heroBg && heroBg.tagName === 'IMG' && image) {
+        (heroBg as HTMLImageElement).src = image;
+        (heroBg as HTMLImageElement).srcset = '';
+      } else if (heroBg && heroBg.tagName === 'DIV' && image) {
+        (heroBg as HTMLDivElement).style.backgroundImage = `url('${image}')`;
+      }
+
+      // Smooth scroll to top so the user sees the hero
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    (window as any)._spotlightSwapListener = swapHandler;
+    document.addEventListener('click', swapHandler);
+
+    // Step 2: The Play Action
+    if ((window as any)._spotlightPlayListener) {
+      document.removeEventListener('click', (window as any)._spotlightPlayListener);
+    }
+
+        const playHandler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      const isHeroCta = target.closest('#hero-cta');
+      if (!isHeroCta) return;
+      
+      const isCtaVideo = isHeroCta.tagName.toLowerCase() === 'button';
+
+      const heroIframe = document.getElementById('hero-iframe') as HTMLIFrameElement;
+      
+      if (!heroIframe) return;
+      
+      const videoId = heroIframe.getAttribute('data-pending-video');
+      
+      if (isCtaVideo && videoId) {
+        e.preventDefault();
+        heroIframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
+        
+        const hubStage = document.querySelector('.hub-stage');
+        if (hubStage) {
+            hubStage.classList.add('is-playing');
+        } else {
+            heroIframe.style.opacity = '1'; // Fallback
+        }
+      }
+    };
+    
+    (window as any)._spotlightPlayListener = playHandler;
+    document.addEventListener('click', playHandler);
+  });
 </script>
