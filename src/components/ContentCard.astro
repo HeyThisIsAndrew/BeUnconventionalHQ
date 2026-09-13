@@ -5,6 +5,7 @@ import { parseVideoId } from '../lib/platforms/youtube';
 import { getCardImageSources, CARD_IMAGE_SIZES } from '../lib/card-images';
 import { LABELS } from '../data/content.js';
 import { CATEGORY_TAG_ALIASES, categoryTagAliases } from '../data/constants.js';
+import { getFeaturedBrandsLocal, urlFor } from '../lib/local-content';
 import logoImage from '../assets/logo-mark.webp';
 import { getImage } from 'astro:assets';
 
@@ -12,9 +13,10 @@ export interface Props {
   item: any;
   index: number;
   variant?: 'default' | 'hero';
+  context?: 'feed' | 'default';
 }
 
-const { item, index = 0, variant = 'default' } = Astro.props;
+const { item, index = 0, variant = 'default', context = 'default' } = Astro.props;
 
 // Determine if this is the Largest Contentful Paint (LCP) element
 const isLCP = variant === 'hero' && index === 0;
@@ -107,15 +109,55 @@ const externalLinkProps = isExternalLink
   ? { target: '_blank', rel: 'noopener noreferrer' }
   : {};
 
-const CardWrapper = isPlayable ? 'div' : 'a';
-const wrapperProps = isPlayable
+// Feed context changes the action to spotlight swapping rather than normal links or modals
+const dataAction = context === 'feed' 
+  ? (isPlayable ? 'spotlight-video' : 'spotlight-article')
+  : (isPlayable ? (variant === 'hero' ? 'inline-video' : 'open-video') : undefined);
+
+// Safely stringify brand data if it exists
+let brandData;
+const primaryTag = finalTags[0];
+const brand = getFeaturedBrandsLocal().find(b => 
+  (item.relatedBrandSlug && b.slug?.current === item.relatedBrandSlug) || 
+  (primaryTag && b.title?.toUpperCase() === primaryTag.toUpperCase())
+);
+if (brand) {
+  brandData = JSON.stringify({
+    slug: brand.slug?.current,
+    logo: brand.logo ? urlFor(brand.logo).url() : undefined,
+    hero: brand.heroImage ? urlFor(brand.heroImage).url() : undefined,
+    color: brand.brandColor?.hex || '#CC0000'
+  });
+}
+
+const CardWrapper = isPlayable || context === 'feed' ? 'div' : 'a';
+
+const baseProps = {
+  class: `reveal video-card-home content-card w-full variant-${variant}`,
+  'data-categories': filterAttr,
+  'data-type': isVideo ? 'video' : 'article',
+  'data-delay': index * 100,
+  'data-action': dataAction,
+  'data-image': cardImage,
+  'data-title': item.title,
+  'data-preview': excerpt,
+  'data-brand': brandData,
+  /*
+    The card's own display tags, carried so the Feed hero can show them when a
+    card is promoted into it. Recomputing them in the swap handler would mean a
+    second copy of the brand/type dictionaries in client JS; passing the string
+    the card already rendered means the hero cannot disagree with the card it
+    came from. Empty when the item matched nothing, and the hero falls back to
+    VIDEO/ARTICLE in that case.
+  */
+  'data-tags': finalTags.join(' | '),
+};
+
+const wrapperProps = (isPlayable || context === 'feed')
   ? {
-      class: `reveal video-card-home content-card w-full variant-${variant}`,
-      'data-delay': index * 100,
-      'data-type': 'video',
-      'data-categories': filterAttr,
+      ...baseProps,
       'data-video-id': videoId,
-      'data-action': variant === 'hero' ? 'inline-video' : 'open-video',
+      'data-href': cardHref, // store href for manual navigation if they click something inside the spotlight later
       role: 'button' as const,
       tabindex: 0,
       /*
@@ -136,12 +178,9 @@ const wrapperProps = isPlayable
       */
     }
   : {
+      ...baseProps,
       href: cardHref,
       ...externalLinkProps,
-      class: `reveal video-card-home content-card w-full variant-${variant}`,
-      'data-categories': filterAttr,
-      'data-type': isVideo ? 'video' : 'article',
-      'data-delay': index * 100
     };
 
 /*
