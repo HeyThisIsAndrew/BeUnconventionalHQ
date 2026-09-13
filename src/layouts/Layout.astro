@@ -9,7 +9,7 @@ import BrandGlow from '../components/BrandGlow.astro';
 import VideoDebugOverlay from '../components/VideoDebugOverlay.astro';
 import InAppEscape from '../components/InAppEscape.astro';
 import { site } from '../data/site.js';
-import { ClientRouter } from 'astro:transitions';
+import { ClientRouter, fade } from 'astro:transitions';
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
 import logoImage from '../assets/logo.webp';
 import logoMark from '../assets/logo-mark.webp';
@@ -438,7 +438,7 @@ const fallbackMark = await getImage({
          outside the wrapper, so they stay reachable. -->
     <div id="app-wrapper" class="min-h-[100svh] w-full flex flex-col" data-home={isHomePage ? 'true' : undefined}>
       <Navbar />
-      <div id="page-content" class="flex-1 w-full flex flex-col">
+      <div id="page-content" class="flex-1 w-full flex flex-col" transition:animate={fade({ duration: '0.4s' })}>
         <slot />
       </div>
       <CommandPalette />
@@ -1083,8 +1083,16 @@ const fallbackMark = await getImage({
     <script>
       import { releaseScrollLock } from '../lib/scroll-lock';
 
+      let lastClickedLink: Element | null = null;
+      document.addEventListener('click', (e) => {
+        lastClickedLink = (e.target as Element).closest('a');
+      }, { capture: true });
+
       // Step 1: Strip mobile scroll locks BEFORE Astro takes its snapshot
-      document.addEventListener('astro:before-preparation', () => {
+      document.addEventListener('astro:before-preparation', (ev: any) => {
+        if (lastClickedLink && lastClickedLink.getAttribute('data-direction')) {
+          ev.direction = lastClickedLink.getAttribute('data-direction');
+        }
         /*
           One call replaces the hand-rolled teardown that used to live here
           (clear four inline styles, re-parse `body.style.top` to recover the
