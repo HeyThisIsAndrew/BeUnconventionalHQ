@@ -2,6 +2,7 @@
 import { getVideosUnified } from '../lib/videos-source';
 import { parseVideoId } from '../lib/platforms/youtube';
 import { getDisplayTags } from '../lib/tags';
+import { getFeaturedBrandsLocal, urlFor } from '../lib/local-content';
 
 interface Props {
   /**
@@ -29,7 +30,14 @@ const videos = await getVideosUnified();
 */
 const latestVideo: Record<string, any> = videos[0] || {};
 const trailerId = parseVideoId(latestVideo.url || latestVideo.link || latestVideo.videoId || '');
-const heroBg = latestVideo.thumbnail || latestVideo.image || '';
+
+const brands = getFeaturedBrandsLocal();
+const brand = brands.find((b) => b.slug?.current === latestVideo.relatedBrandSlug);
+const brandLogo = brand?.logo ? urlFor(brand.logo).url() : '';
+const brandHero = brand?.heroImage ? urlFor(brand.heroImage).url() : '';
+
+const itemBg = latestVideo.thumbnail || latestVideo.image || '';
+const heroBg = brandHero || itemBg;
 const heroTitle = latestVideo.title || '';
 const heroDescription = latestVideo.description || latestVideo.snippet || '';
 const isVideo = true;
@@ -114,9 +122,9 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
         <div class="hero-identity">
           <img 
             id="hero-brand-logo" 
-            src={latestVideo.brandLogo || ""} 
+            src={brandLogo || ""} 
             alt="Brand Logo" 
-            class={`hero-logo ${latestVideo.brandLogo ? '' : 'hidden'}`}
+            class={`hero-logo ${brandLogo ? '' : 'hidden'}`}
           />
           <h1 id="hero-title" class="hero-title leading-tight">{heroTitle}</h1>
           <p id="hero-description" class="hero-tagline line-clamp-3">{heroDescription}</p>
@@ -148,17 +156,17 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
         class="hero-trailer hub-stage is-item"
         data-trailer={trailerId || undefined}
       >
-        <div class="hub-stage-mark">
+        <div class="hub-stage-mark hub-stage-mark--art">
            {/* Fallback image if no video */}
            <img
               id="hero-image"
-              src={heroBg}
+              src={itemBg}
               class="hub-stage-art-fill"
               
            />
            <img
               id="hero-image-front"
-              src={heroBg}
+              src={itemBg}
               class="hub-stage-art-img"
               
            />
@@ -201,7 +209,7 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
           pointer events while a pane is up.
         */}
         <div class="hub-stage-item active" id="hero-stage-item" style="z-index: 6;">
-          {heroBg && <img id="hero-stage-item-still" src={heroBg} alt="" class="hub-stage-item-still" />}
+          {itemBg && <img id="hero-stage-item-still" src={itemBg} alt="" class="hub-stage-item-still" />}
           <span class="hub-stage-item-scrim"></span>
           <div class="hub-stage-item-copy">
             <span class="hub-stage-item-kind" id="hero-stage-item-kind">{heroKind}</span>

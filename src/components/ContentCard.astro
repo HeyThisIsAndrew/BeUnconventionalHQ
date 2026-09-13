@@ -5,6 +5,7 @@ import { parseVideoId } from '../lib/platforms/youtube';
 import { getCardImageSources, CARD_IMAGE_SIZES } from '../lib/card-images';
 import { LABELS } from '../data/content.js';
 import { CATEGORY_TAG_ALIASES, categoryTagAliases } from '../data/constants.js';
+import { getFeaturedBrandsLocal, urlFor } from '../lib/local-content';
 import logoImage from '../assets/logo-mark.webp';
 import { getImage } from 'astro:assets';
 
@@ -114,7 +115,17 @@ const dataAction = context === 'feed'
   : (isPlayable ? (variant === 'hero' ? 'inline-video' : 'open-video') : undefined);
 
 // Safely stringify brand data if it exists
-const brandData = item.relatedBrandSlug ? JSON.stringify({ slug: item.relatedBrandSlug }) : undefined;
+let brandData;
+if (item.relatedBrandSlug) {
+  const brand = getFeaturedBrandsLocal().find(b => b.slug?.current === item.relatedBrandSlug);
+  if (brand) {
+    brandData = JSON.stringify({
+      slug: item.relatedBrandSlug,
+      logo: brand.logo ? urlFor(brand.logo).url() : undefined,
+      hero: brand.heroImage ? urlFor(brand.heroImage).url() : undefined
+    });
+  }
+}
 
 const CardWrapper = isPlayable || context === 'feed' ? 'div' : 'a';
 

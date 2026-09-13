@@ -443,7 +443,16 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
       const preview = card.getAttribute('data-preview') || '';
       const image = card.getAttribute('data-image') || '';
       const videoId = card.getAttribute('data-video-id');
-      const brandLogo = card.getAttribute('data-brand') || '';
+      let parsedBrand: { logo?: string, hero?: string, slug?: string } = {};
+      try {
+        const brandStr = card.getAttribute('data-brand');
+        if (brandStr) {
+          parsedBrand = JSON.parse(brandStr);
+        }
+      } catch(e) {}
+      
+      const brandLogo = parsedBrand.logo || '';
+      const brandHero = parsedBrand.hero || '';
       /*
         `data-href` FIRST. A feed card is a <div role="button"> — ContentCard
         drops the anchor in this context precisely so the card can swap the
@@ -522,8 +531,9 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
         if (hubStage) hubStage.classList.remove('is-playing');
       }
 
-      if (heroImage && image) { heroImage.src = image; heroImage.style.opacity = '1'; }
-      if (heroImageFront && image) { heroImageFront.src = image; heroImageFront.style.opacity = '1'; }
+      const backgroundSrc = brandHero || image;
+      if (heroImage && backgroundSrc) { heroImage.src = backgroundSrc; heroImage.style.opacity = '1'; }
+      if (heroImageFront && backgroundSrc) { heroImageFront.src = backgroundSrc; heroImageFront.style.opacity = '1'; }
 
       /*
         THE STAGE PANE FOLLOWS THE SWAP.
