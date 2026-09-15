@@ -74,7 +74,8 @@ export function getDisplayTags(item: any): string[] {
 
   let tag3 = item.badge3 || '';
   const eventMap = [
-    { label: 'SDCC', regex: /SDCC|COMICCON/ },
+    // { label: 'LACC', regex: /LACC|COMICCON/ },
+    // { label: 'SDCC', regex: /SDCC|COMICCON/ },
     { label: 'CONVENTION', regex: /^CONVENTIONS?$|WONDERCON/ },
     { label: 'D23', regex: /D23/ },
     { label: 'E3', regex: /E3/ },
