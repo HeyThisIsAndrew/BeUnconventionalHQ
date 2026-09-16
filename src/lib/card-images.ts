@@ -298,3 +298,27 @@ export function getCardImageSources(raw: unknown): CardImageSources {
 */
 export const CARD_IMAGE_SIZES =
   '(max-width: 560px) 42vw, (max-width: 1100px) 47vw, (min-width: 1536px) 360px, 23vw';
+
+/*
+  ─── THE HERO CARD IS NOT IN THE CARD GRID ─────────────────────────────────
+
+  `variant="hero"` renders ONE card in the left half of FeaturedHighlights, not
+  as a tile in a four-up grid, and it was being described by the grid's `sizes`
+  above. The numbers are nearly a factor of two apart, so the browser was
+  honouring `(min-width: 1536px) 360px` and fetching a 360px rendition for a
+  box measured at 768px: a 2.1x upscale, and the reason the Featured section
+  looked soft. On a 2x display it is a 4x upscale.
+
+  It is the exact failure the note above warns about — a `sizes` that disagrees
+  with the CSS makes the browser pick the wrong rendition — reached by reusing
+  the right string in the wrong place rather than by writing a wrong one.
+
+  Measured against .fh-left, which is half of `.container-page` (max-width
+  1536, 2rem gutters) and stacks to full width below 768px:
+
+    <768px    stacked, one column        -> 100vw minus the 2rem gutters
+    >=1536px  container capped at 1536   -> (1536 - 64) / 2 = 736px
+    else      half the viewport          -> 50vw, less its share of the gutters
+*/
+export const HERO_CARD_IMAGE_SIZES =
+  '(max-width: 767px) calc(100vw - 4rem), (min-width: 1536px) 736px, calc(50vw - 3rem)';

@@ -2,7 +2,7 @@
 import { getDisplayTags } from '../lib/tags';
 
 import { parseVideoId } from '../lib/platforms/youtube';
-import { getCardImageSources, CARD_IMAGE_SIZES } from '../lib/card-images';
+import { getCardImageSources, CARD_IMAGE_SIZES, HERO_CARD_IMAGE_SIZES } from '../lib/card-images';
 import { LABELS } from '../data/content.js';
 import { CATEGORY_TAG_ALIASES, categoryTagAliases } from '../data/constants.js';
 import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-content';
@@ -378,7 +378,7 @@ if (isVideo && item.youtubeId) {
         class="content-card-img"
         src={cardImage}
         srcset={cardImageSrcset || undefined}
-        sizes={cardImageSrcset ? CARD_IMAGE_SIZES : undefined}
+        sizes={cardImageSrcset ? (variant === 'hero' ? HERO_CARD_IMAGE_SIZES : CARD_IMAGE_SIZES) : undefined}
         alt={item.title}
         loading={isLCP ? 'eager' : 'lazy'}
         fetchpriority={isLCP ? 'high' : 'auto'}
