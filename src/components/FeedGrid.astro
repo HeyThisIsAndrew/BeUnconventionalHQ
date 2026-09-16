@@ -3,7 +3,7 @@ import ContentCard from './ContentCard.astro';
 import EmptyState from './EmptyState.astro';
 import { LABELS, MESSAGES } from '../data/content.js';
 import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-content';
-import { resolveEntity } from '../lib/entity-resolver';
+import { resolveEntity, hexToRgbTriple } from '../lib/entity-resolver';
 import { getHubMatchTags, matchVideosByTags } from '../lib/hub-coverage';
 import CommercialRotator from './CommercialRotator.astro';
 
@@ -126,6 +126,12 @@ interface RowDef {
   id: string;
   title: string;
   variant?: 'prestige';
+  /*
+    Overrides the hub's own `brandColor` for this row's ambient wash. Only the
+    tentpole shelf uses it: Lanterns is a show, not a hub, so there is no
+    document to read a colour from.
+  */
+  accentColor?: string;
   match: (item: any) => boolean;
 }
 
@@ -156,6 +162,9 @@ const PRESTIGE_ROW: RowDef = {
   id: 'lanterns',
   title: 'Lanterns',
   variant: 'prestige',
+  /* The show's signature emerald. Named here because no hub document carries
+     it — `lanterns` is not a slug in the store. */
+  accentColor: '#10B981',
   match: (i) => hasTag(i, 'lanterns'),
 };
 
@@ -236,14 +245,42 @@ const hubHref = (id: string): string | null => {
   return null;
 };
 
-const buildRow = (row: RowDef) => ({
-  ...row,
-  items: safeAllItems.filter(row.match),
-  explore: (() => {
-    const href = hubHref(row.id);
-    return href ? { href, label: `EXPLORE ${row.title.toUpperCase()} HUB` } : null;
-  })(),
-});
+/*
+  ─── EVERY BRANDED ROW IS LIT IN ITS OWN COLOUR ────────────────────────────
+
+  The accent is READ FROM THE HUB, not listed here: `brandColor` already exists
+  on each featuredBrand (DC #0476F2, Marvel #E23636, Netflix #E50914, Prime
+  Video #00A8E1, HBO Max #002BE7, Star Wars #FFE81F), so the shelf lighting is
+  editor-controlled from the CMS like everything else about a hub.
+
+  WHITE IS SKIPPED. Four brands store #FFFFFF (Sony Pictures, Universal, A24,
+  Apple TV+), and a white wash over a near-black page is not an accent, it is a
+  grey fog across the row with no hue to read as branding. Those rows stay
+  unlit, which is the honest result for a brand whose colour is white.
+
+  The three global rows resolve to no hub at all and so stay clean by
+  construction — nothing to special-case.
+*/
+const buildRow = (row: RowDef) => {
+  const brandDoc = allHubDocs.find((doc) => slugOfDoc(doc) === row.id);
+  const raw = brandDoc?.brandColor;
+  const hubHex = typeof raw === 'string' ? raw : raw?.hex ?? null;
+
+  const candidate = row.accentColor ?? hubHex;
+  const accentColor =
+    candidate && candidate.toLowerCase() !== '#ffffff' ? candidate : null;
+
+  return {
+    ...row,
+    items: safeAllItems.filter(row.match),
+    accentColor,
+    accentRgb: accentColor ? hexToRgbTriple(accentColor) : null,
+    explore: (() => {
+      const href = hubHref(row.id);
+      return href ? { href, label: `EXPLORE ${row.title.toUpperCase()} HUB` } : null;
+    })(),
+  };
+};
 
 /*
   ─── NO TWO ADJACENT TILES MAY SHARE ARTWORK ───────────────────────────────
@@ -746,18 +783,69 @@ const prestigeEyebrow = prestigeHub
     now has a source — it falls off from the badge outward — which is what makes
     the shelf read as lit rather than tinted.
   */
-  .feed-row--prestige::before {
+  /*
+    ─── THE SHELF WASH, LIT AND FEATHERED ────────────────────────────────────
+
+    What stood here had two visible faults.
+
+    HARD TOP AND BOTTOM EDGES. `inset: 0 -50vw` clamped the wash to exactly the
+    row's box, and the colours it started with were opaque dark greens —
+    `rgba(6, 46, 34, 0.8)` and `rgba(8, 30, 24, 0.55)` — beginning at y=0. An
+    opaque band that starts abruptly against a near-black page draws a line,
+    and that line ran across the screen just above the eyebrow.
+
+    IT RAN OUT TO THE RIGHT. A 600px bloom and a linear wash ending at 70% left
+    the fourth card onward, and the Explore link, sitting in plain black.
+
+    The repair is light rather than paint: low-alpha brand colour over the
+    page's own background, spread wide, with a vertical mask taking both edges
+    to zero so there is no boundary to see. Nothing here is opaque.
+
+    The mask is on the PSEUDO-ELEMENT, deliberately. Feathering the row itself
+    would mean a clipping ancestor, and these shelves carry cards that open a
+    YouTube iframe — hard rule 3.
+  */
+  .feed-row--accented {
+    position: relative;
+  }
+
+  .feed-row--accented::before {
     content: '';
     position: absolute;
-    inset: 0 -50vw;
+    /* Bleeds past the row on all four sides so the mask has somewhere to fade
+       INTO, rather than fading exactly where the content stops. */
+    inset: -2.5rem -50vw -3rem;
     background:
       radial-gradient(
-        ellipse 600px 280px at 12% 0%,
-        rgba(16, 185, 129, 0.24) 0%,
-        rgba(6, 46, 34, 0.8) 40%,
-        transparent 80%
+        ellipse 1300px 480px at 20% 35%,
+        rgba(var(--row-accent-rgb, 204, 0, 0), 0.22) 0%,
+        rgba(var(--row-accent-rgb, 204, 0, 0), 0.09) 45%,
+        rgba(var(--row-accent-rgb, 204, 0, 0), 0.02) 75%,
+        transparent 90%
       ),
-      linear-gradient(100deg, rgba(8, 30, 24, 0.55) 0%, rgba(10, 10, 10, 0) 70%);
+      linear-gradient(
+        90deg,
+        rgba(var(--row-accent-rgb, 204, 0, 0), 0.14) 0%,
+        rgba(var(--row-accent-rgb, 204, 0, 0), 0.07) 50%,
+        rgba(var(--row-accent-rgb, 204, 0, 0), 0.02) 80%,
+        transparent 100%
+      );
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      #000 25%,
+      #000 75%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      #000 25%,
+      #000 75%,
+      transparent 100%
+    );
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
     pointer-events: none;
     z-index: -1;
   }
@@ -827,7 +915,9 @@ const prestigeEyebrow = prestigeHub
     font-weight: 900;
     letter-spacing: 0.1em;
     color: #d7f7e6;
-    text-shadow: 0 0 24px rgba(16, 185, 129, 0.6), 0 2px 18px rgba(0, 0, 0, 0.8);
+    /* Reads the row's own accent so the mark and the wash behind it can never
+       be two different greens. */
+    text-shadow: 0 0 24px rgba(var(--row-accent-rgb, 16, 185, 129), 0.6), 0 2px 18px rgba(0, 0, 0, 0.8);
     margin: 0;
     min-width: 0;
   }
@@ -922,7 +1012,11 @@ const prestigeEyebrow = prestigeHub
   {hasRows && (
     <div id="feed-rows">
       {prestigeRow && (
-        <section class="feed-row feed-row--prestige" data-row={prestigeRow.id}>
+        <section
+          class="feed-row feed-row--prestige feed-row--accented"
+          data-row={prestigeRow.id}
+          style={`--row-accent-color: ${prestigeRow.accentColor}; --row-accent-rgb: ${prestigeRow.accentRgb};`}
+        >
           {/*
             The tentpole lockup. The plain word "LANTERNS" in green sans-serif
             was doing none of the work a shelf like this does on a streaming
@@ -1017,7 +1111,14 @@ const prestigeEyebrow = prestigeHub
 
           <div class="feed-section-rows">
             {section.rows.map((row) => (
-              <section class="feed-row" id={row.id} data-row={row.id}>
+              <section
+                class:list={['feed-row', { 'feed-row--accented': Boolean(row.accentRgb) }]}
+                id={row.id}
+                data-row={row.id}
+                style={row.accentRgb
+                  ? `--row-accent-color: ${row.accentColor}; --row-accent-rgb: ${row.accentRgb};`
+                  : undefined}
+              >
                 <div class="feed-row-head">
                   <h3 class="feed-row-title">{row.title}</h3>
                   <div class="feed-row-actions">
