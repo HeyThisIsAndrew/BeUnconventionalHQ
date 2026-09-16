@@ -95,6 +95,26 @@ test('only the LAST rule is treated as the divider', () => {
   assert.ok(!stripped.includes('BE YOURSELF'));
 });
 
+/*
+  The page renders <ArticleOutro /> only where the strip matched, so a post from
+  before the convention keeps the ending its author actually wrote. `hadOutro`
+  on the page is derived from the strip, and this is the predicate behind it.
+*/
+test('only a post that carried the outro is flagged as having one', () => {
+  assert.equal(hasArticleOutro(`${BODY}\n${OUTRO}`), true);
+  assert.equal(hasArticleOutro(BODY), false, 'a pre-convention post must not be retro-fitted');
+});
+
+test('the page gates the component on the strip, not on a second check', () => {
+  const page = fs.readFileSync(path.join(repoRoot, 'src/pages/intel/[slug].astro'), 'utf8');
+  assert.match(
+    page,
+    /const hadOutro = bodyWithoutOutro !== dedupedBody/,
+    'the flag must come from the strip so the two cannot disagree',
+  );
+  assert.match(page, /\{hadOutro && <ArticleOutro \/>\}/, 'the component must be gated');
+});
+
 test('an empty or missing body does not throw', () => {
   assert.equal(stripArticleOutro(''), '');
   assert.equal(stripArticleOutro(undefined), '');

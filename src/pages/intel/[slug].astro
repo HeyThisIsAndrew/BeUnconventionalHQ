@@ -111,6 +111,20 @@ const dedupedBody = stripCoverImageFromBody(article.bodyHtml, article.image);
 const bodyWithoutOutro = stripArticleOutro(dedupedBody);
 
 /*
+  ─── ONLY POSTS THAT ACTUALLY CARRIED IT GET IT BACK ────────────────────────
+
+  The component renders where the strip found something to remove, so a post
+  written before this convention stays exactly as it was published rather than
+  being retro-fitted with a closing section its author never wrote.
+
+  Derived from the strip rather than checked separately: the two can never
+  disagree about whether a post has an outro, because it is the same answer
+  asked once. A post that gains one on its next sync gains the component with
+  it, automatically.
+*/
+const hadOutro = bodyWithoutOutro !== dedupedBody;
+
+/*
   ─── BODY IMAGES: COMMITTED RENDITIONS, NEVER A LIVE PROXY ──────────────────
 
   These are rewritten to renditions built ahead of time by
@@ -470,7 +484,7 @@ const breadcrumbSchema = {
           {/* Site furniture, rendered from the CMS rather than from the post.
               Outside `.article-body` on purpose: it is not the author's copy,
               and nothing in it should be indexed by the contents rail. */}
-          <ArticleOutro />
+          {hadOutro && <ArticleOutro />}
 
           <SubstackGallery />
           <YouTubeEmbed />

@@ -37,15 +37,38 @@ test('Feed UI regressions', () => {
     !feedLayout.includes('transition:name="feed-grid"'),
     'FeedLayout.astro must NOT declare transition:name, to prevent full-page navigation slides'
   );
+  /*
+    The scoped transition name now lives in FeedSpotlightHero.astro, not
+    FeedGrid.astro. The spotlight swap moved there so that every page mounting
+    the hero gets it — /category/<slug> mounts the hero but not the grid, and
+    its cards were inert because the handler was tied to the grid.
+
+    The invariant is unchanged and still worth pinning: the swap must scope its
+    transition to the element it is actually changing, rather than letting a
+    manual DOM update animate the whole page.
+  */
   assert.ok(
-    feedGrid.includes("viewTransitionName = 'feed-grid-manual'"),
-    'FeedGrid.astro must dynamically assign viewTransitionName to strictly scope pagination transitions'
+    spotlightHero.includes("viewTransitionName = 'feed-grid-manual'"),
+    'FeedSpotlightHero.astro must dynamically assign viewTransitionName to scope the spotlight swap'
+  );
+  assert.ok(
+    !feedGrid.includes("viewTransitionName = 'feed-grid-manual'"),
+    'the swap belongs to the hero now; a copy left in FeedGrid would bind it twice'
   );
 
-  // 3. Filter Button Jump-to-Top
+  // 3. Jump-to-Top on a spotlight click
+  /*
+    This used to read FeedGrid and was about the category filter buttons, which
+    the Feed no longer renders — its rows segment the same content, so the
+    filter row and the hash-filter module behind it were removed.
+
+    The behaviour it was really protecting survives in the spotlight swap: a
+    click that loads a card into the hero must not also let the browser follow
+    the card's own href and jump. That call moved to the hero with the handler.
+  */
   assert.ok(
-    feedGrid.includes('e.preventDefault()'),
-    'FeedGrid.astro must call e.preventDefault() on category filter buttons to prevent native #hash jump-to-top'
+    spotlightHero.includes('e.preventDefault()'),
+    'FeedSpotlightHero.astro must call e.preventDefault() on a spotlight click, or the card navigates instead of loading into the hero'
   );
 });
 
