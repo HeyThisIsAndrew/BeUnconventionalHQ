@@ -174,6 +174,64 @@ function withImageDimensions<T extends { logo?: any; heroImage?: any }>(doc: T):
 }
 
 /** Equivalent to `*[_type == "event"] | order(startDate desc)`. */
+/**
+ * The standard closing section rendered under every article.
+ *
+ * ─── A SINGLETON, AND WHY IT LIVES HERE ─────────────────────────────────────
+ * `src/data/articles.json` is owned by the Substack sync and must not be hand
+ * edited, so the outro cannot live with the posts. `videos.json` is the file
+ * the local CMS already writes, which makes `_type: 'articleOutro'` editable at
+ * /local-cms alongside events and featured brands — the whole point of moving
+ * this out of the body was that the copy can change without a code deploy.
+ *
+ * The DEFAULTS below are the live copy, not a placeholder. A missing or
+ * half-filled document falls back field by field rather than rendering a gap:
+ * this section appears on every article, so a blank one is worse than a stale
+ * one. Delete the document and the site still reads correctly.
+ *
+ * Links are LABEL + HREF fields with `{brand}`, `{substack}` and `{youtube}`
+ * tokens in the prose, rather than a rich-text blob. An editor can rewrite
+ * every sentence without touching markup, and nothing here is rendered with
+ * `set:html`.
+ */
+export interface ArticleOutro {
+  heading: string;
+  intro: string;
+  cta: string;
+  signOff: string;
+  brandLabel: string;
+  brandHref: string;
+  substackLabel: string;
+  substackHref: string;
+  youtubeLabel: string;
+  youtubeHref: string;
+}
+
+const ARTICLE_OUTRO_DEFAULTS: ArticleOutro = {
+  heading: 'Where Nerd Culture Gets Cinematic',
+  intro:
+    '{brand} is a publication for fans who love the craft behind the stories. If we are talking cinema, our content should look like cinema. We skip the clickbait and artificial outrage to focus on genuine conversations, unfiltered honesty, and independent analysis across Film, TV, Games, and Events.',
+  cta:
+    'If you want our full convention coverage, event photos, and articles delivered straight to your inbox, subscribe to our {substack}. Don\u2019t forget to check out the {youtube} for our long-form videos and event recaps as well. I\u2019ll see you there.',
+  signOff: 'BE YOURSELF. BE PASSIONATE. BE UNCONVENTIONAL.',
+  brandLabel: 'BE Unconventional HQ',
+  brandHref: 'https://beunconventionalhq.com/',
+  substackLabel: 'Substack publication',
+  substackHref: 'https://beunconventionalhq.substack.com/',
+  youtubeLabel: 'BE Unconventional HQ YouTube channel',
+  youtubeHref: 'https://www.youtube.com/@BeUnconventionalHQ',
+};
+
+export function getArticleOutro(): ArticleOutro {
+  const doc = (localVideos as any[]).find((d) => d?._type === 'articleOutro') ?? {};
+  const merged = { ...ARTICLE_OUTRO_DEFAULTS };
+  for (const key of Object.keys(ARTICLE_OUTRO_DEFAULTS) as (keyof ArticleOutro)[]) {
+    const value = doc[key];
+    if (typeof value === 'string' && value.trim()) merged[key] = value;
+  }
+  return merged;
+}
+
 export function getEventsLocal(): any[] {
   const showHidden = import.meta.env.DEV;
   return (localVideos as any[])

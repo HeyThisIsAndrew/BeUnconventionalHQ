@@ -643,22 +643,34 @@ test('the hero falls back to the original when there is no local rendition', () 
 
 test('the body transform is applied to the html that is actually rendered', () => {
   /*
-    Was an exact match on `localiseBodyImages(dedupedBody)`. The call is now
-    wrapped by labelImageLinks(), so the literal no longer matches — but the
-    invariant it was protecting is unchanged and still worth pinning: images
-    must be localised from the DEDUPED body, never from article.bodyHtml,
-    or the page renders the cover twice.
+    Was an exact match on `localiseBodyImages(dedupedBody)`. The call has been
+    wrapped twice since — first by labelImageLinks(), then by
+    stripArticleOutro(), which removes the standard closing section before the
+    contents rail is built from the body.
+
+    So the literal keeps moving, but the invariant behind it does not: the body
+    that reaches localiseBodyImages must descend from `dedupedBody`, never from
+    `article.bodyHtml`, or the page renders the cover image twice. That chain is
+    what is pinned here, one link at a time, rather than one brittle literal.
   */
   assert.ok(
-    /localiseBodyImages\(dedupedBody\)/.test(articlePage),
-    'body images must be localised from the DEDUPED body, not article.bodyHtml',
+    /const bodyWithoutOutro = stripArticleOutro\(dedupedBody\)/.test(articlePage),
+    'the outro must be stripped from the DEDUPED body, not from article.bodyHtml',
   );
   assert.ok(
-    /const bodyWithLocalImages = [\s\S]{0,40}localiseBodyImages\(dedupedBody\)/.test(articlePage),
-    'the localised, deduped body must be what lands in bodyWithLocalImages',
+    /localiseBodyImages\(bodyWithoutOutro\)/.test(articlePage),
+    'body images must be localised from that body, not from article.bodyHtml',
   );
   assert.ok(
-    /labelImageLinks\(localiseBodyImages\(dedupedBody\)\)/.test(articlePage),
+    /const bodyWithLocalImages = [\s\S]{0,40}localiseBodyImages\(bodyWithoutOutro\)/.test(articlePage),
+    'the localised, deduped, outro-free body must be what lands in bodyWithLocalImages',
+  );
+  assert.ok(
+    !/localiseBodyImages\(article\.bodyHtml\)/.test(articlePage),
+    'localising straight from article.bodyHtml renders the cover image twice',
+  );
+  assert.ok(
+    /labelImageLinks\(localiseBodyImages\(bodyWithoutOutro\)\)/.test(articlePage),
     'image links must be given an accessible name. Substack wraps body images in\n' +
       '      a click-to-enlarge anchor around an alt-less image, which leaves the link\n' +
       '      with no accessible name at all — Lighthouse `link-name`, WCAG 2.4.4/4.1.2.',

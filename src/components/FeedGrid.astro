@@ -263,6 +263,29 @@ const hubHref = (id: string): string | null => {
 */
 const buildRow = (row: RowDef) => {
   const brandDoc = allHubDocs.find((doc) => slugOfDoc(doc) === row.id);
+
+  /*
+    ─── THE BOOKENDS ─────────────────────────────────────────────────────────
+
+    A branded row is anchored by two static tiles: its mark at the head, and an
+    "Explore <hub>" off-ramp at the tail. Both are resolved here rather than in
+    the markup so a row that has no hub — the three global ones — gets neither,
+    with nothing to special-case at render.
+
+    The mark is asked for at height 320 like every other logo on the site
+    (HubCard, the event heroes), and `auto('format')` keeps it off the critical
+    path as a PNG.
+  */
+  const markRef = brandDoc ? brandDoc.heroLogo || brandDoc.logo : null;
+  const bookendLogo = (() => {
+    if (!markRef) return null;
+    try {
+      return urlFor(markRef).height(320).auto('format').url();
+    } catch {
+      /* A broken ref must not take the row down — the row just loses its mark. */
+      return null;
+    }
+  })();
   const raw = brandDoc?.brandColor;
   const hubHex = typeof raw === 'string' ? raw : raw?.hex ?? null;
 
@@ -275,6 +298,8 @@ const buildRow = (row: RowDef) => {
     items: safeAllItems.filter(row.match),
     accentColor,
     accentRgb: accentColor ? hexToRgbTriple(accentColor) : null,
+    bookendLogo,
+    bookendTitle: brandDoc?.title ?? row.title,
     explore: (() => {
       const href = hubHref(row.id);
       return href ? { href, label: `EXPLORE ${row.title.toUpperCase()} HUB` } : null;
@@ -718,6 +743,188 @@ const prestigeEyebrow = prestigeHub
     `snap-align: start` on the first and `end` on the last are the positions
     those two can actually occupy. Everything between them still centres.
   */
+  /* ─── BOOKENDS ────────────────────────────────────────────────────────────
+     Deliberately quieter than a content tile: they are the ends of the shelf,
+     not things to look at. No artwork, no fill — the row's own accent wash
+     shows through, which is what ties the mark to the rail it heads.
+
+     They inherit `.feed-row-item`'s width and snap, so nothing here touches
+     either. Sizing them separately is how a rail blows out on mobile. */
+  .feed-bookend-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    width: 100%;
+    height: 100%;
+    min-height: 160px;
+    padding: 1.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    background: rgba(10, 10, 10, 0.35);
+    text-align: center;
+  }
+
+  /*
+    ─── THE MARK IS NOT A TILE ───────────────────────────────────────────────
+
+    It shipped with the same border, radius and panel as a content card, which
+    made it read as a card containing nothing — an empty slate the same size as
+    the tiles it was supposed to label, competing with them.
+
+    It is a brand anchor instead: no box, and the rail scrolls THROUGH it.
+  */
+  .feed-bookend--mark .feed-bookend-inner {
+    border: none;
+    border-radius: 0;
+    background: none;
+    padding: 0.5rem;
+  }
+
+  .feed-bookend-logo {
+    max-width: 62%;
+    max-height: 96px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    opacity: 0.92;
+  }
+
+  /* Matches the Instagram rail's terminal card: icon over a two-line label,
+     uppercase from `text-transform` rather than baked into the markup so the
+     two ends of a rail cannot drift in case. */
+  .feed-bookend-link {
+    color: var(--color-white-muted, #888);
+    font-family: var(--font-display, sans-serif);
+    font-size: 0.95rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    line-height: 1.35;
+    text-transform: uppercase;
+    text-decoration: none;
+    transition: color 0.35s ease, border-color 0.35s ease, background 0.35s ease;
+  }
+
+  .feed-bookend-icon {
+    stroke: currentColor;
+    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .feed-bookend-link:hover,
+  .feed-bookend-link:focus-visible {
+    color: var(--color-white, #f0f0f0);
+    border-color: rgba(var(--row-accent-rgb, 204, 0, 0), 0.6);
+    background: rgba(var(--row-accent-rgb, 204, 0, 0), 0.08);
+  }
+
+  .feed-bookend-link:hover .feed-bookend-icon,
+  .feed-bookend-link:focus-visible .feed-bookend-icon {
+    transform: translateX(4px);
+  }
+
+  .feed-bookend-link:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .feed-bookend-link,
+    .feed-bookend-icon {
+      transition: none;
+    }
+
+    .feed-bookend-link:hover .feed-bookend-icon {
+      transform: none;
+    }
+  }
+
+  /*
+    ─── THE MARK PINS, AND THE RAIL PASSES BEHIND IT ─────────────────────────
+
+    `position: sticky` on a flex child of a horizontal scroller: the mark
+    occupies its own width at rest, then pins to the left edge as the rail
+    scrolls under it.
+
+    ─── THE SCRIM IS NOT DECORATION, IT IS WHAT MAKES THIS WORK ─────────────
+    With no box, a tile sliding under a bare logo collides with it and reads as
+    a rendering fault. `::after` lays the page's own background over the pin
+    zone, fading to nothing on its right edge, so a tile DISSOLVES on its way
+    past instead of overlapping the mark. That is the "disappear to the left".
+
+    It sits BEHIND the logo and IN FRONT of the tiles (z-index 1 against the
+    logo's 2), so the mark stays crisp on top of the fade.
+
+    Not snapped to: `scroll-snap-align: none` keeps the rail from parking on a
+    tile that is pinned in place anyway.
+  */
+  @media (min-width: 900px) {
+    .feed-bookend--mark {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      scroll-snap-align: none;
+      pointer-events: none;
+    }
+
+    .feed-bookend--mark .feed-bookend-inner {
+      position: relative;
+      z-index: 2;
+    }
+
+    .feed-bookend--mark::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      /* Starts left of the tile so the fade has begun before a card reaches
+         the mark, and runs past its right edge so the hand-off is gradual. */
+      left: -2rem;
+      right: -3.5rem;
+      z-index: 1;
+      /*
+        TWO LAYERS, AND BOTH ARE NEEDED.
+
+        The base has to be OPAQUE, because its job is to hide the tiles passing
+        underneath, and the tiles are solid #111113. Nothing translucent can do
+        that.
+
+        But an opaque black band also covers the row's accent wash, which sits
+        BEHIND the rail — so the shelf lost its colour for exactly the width of
+        the mark, leaving a dark notch at the start of every branded row. The
+        tint on top puts that colour back, so the wash appears to run
+        underneath the pin rather than stopping at it.
+
+        #0a0a0a is the page background, taken from <body> rather than a token:
+        the site sets it on the element, and there is no --color-bg to read.
+      */
+      background:
+        linear-gradient(
+          to right,
+          rgba(var(--row-accent-rgb, 204, 0, 0), 0.1) 0%,
+          rgba(var(--row-accent-rgb, 204, 0, 0), 0.05) 60%,
+          transparent 100%
+        ),
+        linear-gradient(
+          to right,
+          #0a0a0a 0%,
+          #0a0a0a 55%,
+          rgba(10, 10, 10, 0.72) 78%,
+          transparent 100%
+        );
+      pointer-events: none;
+    }
+  }
+
+  /*
+    Below the split the mark scrolls away like any other tile.
+
+    A pinned 320px mark on a 375px phone would cover the card it is labelling
+    for the entire length of the rail — `min(85vw, 320px)` is 319px there, so
+    the mark and the first card are the same size and only one of them can be
+    read. The row heading already names the brand at that width.
+  */
+
   .feed-row-item:first-child {
     scroll-snap-align: start;
   }
@@ -1152,11 +1359,44 @@ const prestigeEyebrow = prestigeHub
                 </div>
 
                 <ul class="feed-row-rail" data-rail>
+                  {/*
+                    ─── BOOKENDS ARE SIBLINGS, NOT DATA ────────────────────────
+
+                    Static <li>s either side of the mapped items rather than
+                    entries unshifted into the array. The row's data stays the
+                    row's data: nothing downstream — the dedupe, the artwork
+                    spread, the counts — has to learn to skip a tile that is not
+                    an article or a video.
+
+                    They take the SAME bounding math as a content tile
+                    (`.feed-row-item`, so `min(85vw, 320px)` and the snap
+                    alignment), which is what keeps a rail from blowing out the
+                    mobile viewport. Do not give them their own width.
+                  */}
+                  {row.bookendLogo && (
+                    <li class="feed-row-item feed-bookend feed-bookend--mark" aria-hidden="true">
+                      <div class="feed-bookend-inner">
+                        <img src={row.bookendLogo} alt="" class="feed-bookend-logo" loading="lazy" decoding="async" />
+                      </div>
+                    </li>
+                  )}
+
                   {row.items.map((item: any, index: number) => (
                     <li class="feed-row-item">
                       <ContentCard item={item} index={index} context="feed" />
                     </li>
                   ))}
+
+                  {row.explore && (
+                    <li class="feed-row-item feed-bookend feed-bookend--cta">
+                      <a href={row.explore.href} class="feed-bookend-inner feed-bookend-link">
+                        <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="feed-bookend-icon" aria-hidden="true">
+                          <path d="M5 12h14M12 5l7 7-7 7" />
+                        </svg>
+                        <span>Explore<br />{row.bookendTitle}</span>
+                      </a>
+                    </li>
+                  )}
                 </ul>
               </section>
             ))}

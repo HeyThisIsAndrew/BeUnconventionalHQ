@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { urlFor } from '../../lib/local-content.ts';
 
-type DocType = 'video' | 'short' | 'live' | 'event' | 'featuredBrand' | 'topic' | 'article';
+type DocType = 'video' | 'short' | 'live' | 'event' | 'featuredBrand' | 'topic' | 'article' | 'articleOutro';
 
 type LocationInfo = { venue?: string; city?: string; region?: string; country?: string };
 
@@ -150,7 +150,7 @@ const getImageUrl = (image: any) => {
   return null;
 };
 
-const FILTERS = ['All', 'Videos', 'Shorts', 'Live', 'Events', 'Featured', 'Topics', 'Articles'] as const;
+const FILTERS = ['All', 'Videos', 'Shorts', 'Live', 'Events', 'Featured', 'Topics', 'Articles', 'Outro'] as const;
 type Filter = (typeof FILTERS)[number] | 'GlobalStatus';
 
 const FILTER_LABELS: Record<Filter, string> = {
@@ -162,6 +162,7 @@ const FILTER_LABELS: Record<Filter, string> = {
   Featured: 'Featured Brands',
   Topics: 'Topics',
   Articles: 'Articles',
+  Outro: 'Article Outro',
   GlobalStatus: 'Global Status',
 };
 
@@ -172,6 +173,9 @@ const FILTER_GROUPS: { label: string; filters: Filter[] }[] = [
   { label: 'Content', filters: ['All', 'Videos', 'Shorts', 'Live', 'Articles'] },
   { label: 'Hubs & Pages', filters: ['Events', 'Featured'] },
   { label: 'Taxonomy', filters: ['Topics'] },
+  /* The standard closing section under every article. One document, not a
+     list — it is site furniture, so there is nothing to create or delete. */
+  { label: 'Site Copy', filters: ['Outro'] },
 ];
 
 function slugify(value: string): string {
@@ -1023,7 +1027,7 @@ export default function LocalCmsApp() {
   };
 
   const filterCounts = useMemo(() => {
-    let counts = { All: 0, Videos: 0, Shorts: 0, Live: 0, Events: 0, Featured: 0, Topics: 0, Articles: 0 };
+    let counts = { All: 0, Videos: 0, Shorts: 0, Live: 0, Events: 0, Featured: 0, Topics: 0, Articles: 0, Outro: 0 };
     docs.forEach((d) => {
       const type = d.manualTypeOverride || d._type;
       if (['video', 'short', 'live'].includes(type as string)) counts.All++;
@@ -1034,6 +1038,7 @@ export default function LocalCmsApp() {
       if (type === 'featuredBrand' || d.featured === true) counts.Featured++;
       if (type === 'topic') counts.Topics++;
       if (type === 'article') counts.Articles++;
+      if (type === 'articleOutro') counts.Outro++;
     });
     return counts;
   }, [docs]);
@@ -1053,12 +1058,13 @@ export default function LocalCmsApp() {
         if (activeFilter === 'Featured') return type === 'featuredBrand' || d.featured === true;
         if (activeFilter === 'Topics') return type === 'topic';
         if (activeFilter === 'Articles') return type === 'article';
+        if (activeFilter === 'Outro') return type === 'articleOutro';
         return true;
       });
     }
     if (statusFilter) {
       list = list.filter((d) => {
-        if (d._type === 'topic' || d._type === 'article') return false;
+        if (d._type === 'topic' || d._type === 'article' || d._type === 'articleOutro') return false;
         const status = d.contentStatus || d.status;
         if (statusFilter === 'published') return status === 'published' || status === 'live' || status === 'completed';
         if (statusFilter === 'needs-review') return status === 'needs-review';
@@ -1074,7 +1080,7 @@ export default function LocalCmsApp() {
     let other = 0;
 
     docs.forEach((doc) => {
-      if (doc._type === 'topic' || doc._type === 'article') return;
+      if (doc._type === 'topic' || doc._type === 'article' || doc._type === 'articleOutro') return;
       
       const status = doc.contentStatus || doc.status;
       if (status === 'published' || status === 'live' || status === 'completed') published++;
@@ -1373,11 +1379,81 @@ export default function LocalCmsApp() {
                 {selected._type === 'topic' && (
                   <TopicForm doc={selected} updateDoc={updateDoc} updateSlug={updateSlug} />
                 )}
+
+                {selected._type === 'articleOutro' && (
+                  <ArticleOutroForm doc={selected} updateDoc={updateDoc} />
+                )}
               </div>
             </>
           )}
         </div>
       </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The article outro — the standard closing section under every article.
+ *
+ * ─── PROSE AND LINKS ARE SEPARATE FIELDS ────────────────────────────────────
+ * The copy carries `{brand}`, `{substack}` and `{youtube}` tokens, and each one
+ * has its own label and href below. An editor can rewrite every sentence
+ * without touching markup, and the component never renders HTML it did not
+ * author — nothing here reaches the page through `set:html`.
+ *
+ * Leaving a field blank falls back to the built-in copy rather than rendering a
+ * gap (see ARTICLE_OUTRO_DEFAULTS in src/lib/local-content.ts). This section is
+ * on every article, so a blank one is worse than a stale one.
+ */
+function ArticleOutroForm({ doc, updateDoc }: { doc: Doc; updateDoc: (id: string, field: keyof Doc, value: any) => void }) {
+  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    updateDoc(doc._id, key as keyof Doc, e.target.value);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-white/50 leading-relaxed">
+        Rendered under every article. Use <code className="text-red-300">{'{brand}'}</code>,{' '}
+        <code className="text-red-300">{'{substack}'}</code> and{' '}
+        <code className="text-red-300">{'{youtube}'}</code> in the prose to place the links.
+        A blank field falls back to the built-in copy.
+      </p>
+
+      <Field label="Heading">
+        <input className={inputClass} value={(doc as any).heading || ''} onChange={set('heading')} />
+      </Field>
+
+      <Field label="Intro (the quoted paragraph)">
+        <textarea className={`${inputClass} min-h-[120px]`} value={(doc as any).intro || ''} onChange={set('intro')} />
+      </Field>
+
+      <Field label="Call to action paragraph">
+        <textarea className={`${inputClass} min-h-[120px]`} value={(doc as any).cta || ''} onChange={set('cta')} />
+      </Field>
+
+      <Field label="Sign-off (one line)">
+        <input className={inputClass} value={(doc as any).signOff || ''} onChange={set('signOff')} />
+      </Field>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Brand link label">
+          <input className={inputClass} value={(doc as any).brandLabel || ''} onChange={set('brandLabel')} />
+        </Field>
+        <Field label="Brand link URL">
+          <input className={inputClass} value={(doc as any).brandHref || ''} onChange={set('brandHref')} />
+        </Field>
+        <Field label="Substack link label">
+          <input className={inputClass} value={(doc as any).substackLabel || ''} onChange={set('substackLabel')} />
+        </Field>
+        <Field label="Substack link URL">
+          <input className={inputClass} value={(doc as any).substackHref || ''} onChange={set('substackHref')} />
+        </Field>
+        <Field label="YouTube link label">
+          <input className={inputClass} value={(doc as any).youtubeLabel || ''} onChange={set('youtubeLabel')} />
+        </Field>
+        <Field label="YouTube link URL">
+          <input className={inputClass} value={(doc as any).youtubeHref || ''} onChange={set('youtubeHref')} />
+        </Field>
       </div>
     </div>
   );

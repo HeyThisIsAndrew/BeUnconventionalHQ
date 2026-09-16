@@ -52,6 +52,8 @@ import {
 } from '../../lib/articles';
 import { getDisplayTags } from '../../lib/tags';
 import { buildToc } from '../../lib/article-toc';
+import { stripArticleOutro } from '../../lib/article-outro';
+import ArticleOutro from '../../components/ArticleOutro.astro';
 import { stripCoverImageFromBody } from '../../lib/article-media';
 import { localArticleImage, localiseBodyImages } from '../../lib/article-images.ts';
 import { parseImageDimensions, labelImageLinks } from '../../lib/article-images-transform.ts';
@@ -95,6 +97,20 @@ const { article } = Astro.props;
 const dedupedBody = stripCoverImageFromBody(article.bodyHtml, article.image);
 
 /*
+  ─── THE STANDARD OUTRO IS FURNITURE, SO IT LEAVES THE BODY ─────────────────
+
+  "Where Nerd Culture Gets Cinematic" and the BE YOURSELF sign-off are typed
+  into every Substack post, so they arrive inside `bodyHtml` — but they are the
+  same on every article and belong to the site, not to the post. <ArticleOutro />
+  renders them below instead, from a CMS document.
+
+  Runs BEFORE buildToc for the same reason the line above it does: the contents
+  rail is built from the body, so anything still in the body at that point gets
+  a rail entry. Both of the outro's headings were showing up there.
+*/
+const bodyWithoutOutro = stripArticleOutro(dedupedBody);
+
+/*
   ─── BODY IMAGES: COMMITTED RENDITIONS, NEVER A LIVE PROXY ──────────────────
 
   These are rewritten to renditions built ahead of time by
@@ -128,7 +144,7 @@ const dedupedBody = stripCoverImageFromBody(article.bodyHtml, article.image);
    leaves them with no accessible name at all — see labelImageLinks(). Applied
    here rather than at sync time so every article already in the store is fixed
    by the next build. */
-const bodyWithLocalImages = labelImageLinks(localiseBodyImages(dedupedBody));
+const bodyWithLocalImages = labelImageLinks(localiseBodyImages(bodyWithoutOutro));
 
 /*
   ─── THE COVER, IN THREE FALLBACKS ──────────────────────────────────────────
@@ -450,7 +466,12 @@ const breadcrumbSchema = {
           {/* Sanitized at sync time against a semantic allowlist — no scripts,
               styles, classes or iframes survive. Heading ids added by buildToc. */}
           <div class="article-body" set:html={bodyHtml} />
-          
+
+          {/* Site furniture, rendered from the CMS rather than from the post.
+              Outside `.article-body` on purpose: it is not the author's copy,
+              and nothing in it should be indexed by the contents rail. */}
+          <ArticleOutro />
+
           <SubstackGallery />
           <YouTubeEmbed />
 
