@@ -349,28 +349,27 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
     categoryBtns.forEach((btn) => {
       if (!(btn as any).dataset.feedBound) {
         btn.addEventListener('click', (e) => {
-          const hrefAttr = btn.getAttribute('href');
-          if (hrefAttr && hrefAttr.startsWith('#')) {
-            e.preventDefault();
-            const category = btn.getAttribute('data-category');
-            
-            // Explicitly strip active class from ALL siblings (UI Exclusivity enforcement)
-            categoryBtns.forEach(sibling => {
-              if (sibling !== btn) {
-                sibling.classList.remove('active');
-                sibling.removeAttribute('aria-current');
-              }
-            });
-
-            const currentHash = window.location.hash.replace('#', '').toLowerCase();
-            
-            if (currentHash === category) {
-              history.pushState(null, '', window.location.pathname + window.location.search); // Toggle off
-            } else {
-              history.pushState(null, '', `${window.location.pathname}${window.location.search}#${category}`); // Toggle on
+          e.preventDefault();
+          const category = btn.getAttribute('data-category');
+          
+          if (!category) return;
+          
+          // Explicitly strip active class from ALL siblings (UI Exclusivity enforcement)
+          categoryBtns.forEach(sibling => {
+            if (sibling !== btn) {
+              sibling.classList.remove('active');
+              sibling.removeAttribute('aria-current');
             }
-            applyFilters();
+          });
+
+          const currentHash = window.location.hash.replace('#', '').toLowerCase();
+          
+          if (currentHash === category) {
+            history.pushState(null, '', window.location.pathname + window.location.search); // Toggle off
+          } else {
+            history.pushState(null, '', `${window.location.pathname}${window.location.search}#${category}`); // Toggle on
           }
+          applyFilters();
         });
         (btn as any).dataset.feedBound = 'true';
       }
@@ -640,13 +639,19 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
         return { el, val };
       });
 
-      const isMobile = window.innerWidth < 900;
-
+      const feedGridWrapper = document.getElementById('feed-grid-wrapper');
+      
       if (!isMobile && (document as any).startViewTransition) {
+        if (feedGridWrapper) feedGridWrapper.style.viewTransitionName = 'feed-grid-manual';
+        document.documentElement.style.viewTransitionName = 'none';
+        
         const transition = (document as any).startViewTransition(() => {
           performDOMUpdate();
         });
+        
         transition.finished.finally(() => {
+          if (feedGridWrapper) feedGridWrapper.style.viewTransitionName = '';
+          document.documentElement.style.viewTransitionName = '';
           scopeValues.forEach(({el, val}) => val && el.setAttribute('data-astro-transition-scope', val));
         });
       } else {
