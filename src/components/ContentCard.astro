@@ -5,7 +5,8 @@ import { parseVideoId } from '../lib/platforms/youtube';
 import { getCardImageSources, CARD_IMAGE_SIZES } from '../lib/card-images';
 import { LABELS } from '../data/content.js';
 import { CATEGORY_TAG_ALIASES, categoryTagAliases } from '../data/constants.js';
-import { getFeaturedBrandsLocal, urlFor } from '../lib/local-content';
+import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-content';
+import { resolveEntity } from '../lib/entity-resolver';
 import logoImage from '../assets/logo-mark.webp';
 import { getImage } from 'astro:assets';
 
@@ -114,26 +115,71 @@ const dataAction = context === 'feed'
   ? (isPlayable ? 'spotlight-video' : 'spotlight-article')
   : (isPlayable ? (variant === 'hero' ? 'inline-video' : 'open-video') : undefined);
 
-// Safely stringify brand data if it exists
-let brandData;
-const primaryTag = finalTags[0];
-const brand = getFeaturedBrandsLocal().find(b => 
-  (item.relatedBrandSlug && b.slug?.current === item.relatedBrandSlug) || 
-  (primaryTag && b.title?.toUpperCase() === primaryTag.toUpperCase())
-);
-if (brand) {
-  brandData = JSON.stringify({
-    slug: brand.slug?.current,
-    logo: brand.logo ? urlFor(brand.logo).url() : undefined,
-    hero: brand.heroImage ? urlFor(brand.heroImage).url() : undefined,
-    color: brand.brandColor?.hex || '#CC0000'
-  });
-}
+/*
+  The card's hub, carried to the Feed hero so a swap can repaint the logo and
+  the Explore button without looking anything up again.
+
+  This used to search featuredBrands ONLY and match on an exact title-to-tag
+  comparison, so every convention resolved to nothing: L.A. Comic Con, SDCC and
+  NYCC are `_type: 'event'` documents and were never in the list being searched.
+  `resolveEntity()` searches both types and knows the three ways an item can
+  name its hub. See src/lib/entity-resolver.ts.
+
+  `url` is part of the payload because the destination differs by type —
+  /featured/<slug> for a brand, /events/<slug> for an event — and the client has
+  no way to tell which it is holding otherwise.
+*/
+const entity = resolveEntity(item, {
+  brands: getFeaturedBrandsLocal(),
+  events: getEventsLocal(),
+  urlFor,
+});
+
+const brandData = entity
+  ? JSON.stringify({
+      slug: entity.slug,
+      url: entity.url,
+      type: entity.type,
+      title: entity.title,
+      logo: entity.logo ?? undefined,
+      hero: entity.hero ?? undefined,
+      color: entity.color,
+    })
+  : undefined;
 
 const CardWrapper = isPlayable || context === 'feed' ? 'div' : 'a';
 
+/*
+  ─── THE FEED'S TILES ARE A DIFFERENT OBJECT ────────────────────────────────
+
+  Everywhere else on the site a card is an editorial card: a boxed panel with a
+  surface colour, a border and a "WATCH NOW" link at the bottom. In the Feed's
+  horizontal rows that reads as a blog roll laid on its side — on a streaming
+  shelf the artwork IS the object and the whole tile is the target.
+
+  A MODIFIER, not a second component: same markup, same data, same behaviour.
+  `context="feed"` is already how this component knows it is in a row, so the
+  cinematic treatment rides on it and /intel, /category and the hub pages are
+  untouched by construction.
+*/
+/*
+  Every card except the magazine hero is a slate now.
+
+  It shipped scoped to `context === 'feed'` so the Feed could be tried without
+  touching anything else, and that trial is over: the boxed card with 1.5rem of
+  padding and a "WATCH NOW" footer stayed on /intel, /category, the hub pages,
+  the event pages and the homepage, so the site had two card languages
+  depending on which route you were standing on.
+
+  `variant !== 'hero'` is the one exception. FeaturedHighlights renders its lead
+  item at `variant="hero"` with its own scale, excerpt and treatment, and that
+  card is a different object — it is the page's headline, not one tile among
+  several — so it keeps the styling written for it.
+*/
+const isCinematic = variant !== 'hero';
+
 const baseProps = {
-  class: `reveal video-card-home content-card w-full variant-${variant}`,
+  class: `reveal video-card-home content-card w-full variant-${variant}${isCinematic ? ' content-card--cinematic' : ''}`,
   'data-categories': filterAttr,
   'data-type': isVideo ? 'video' : 'article',
   'data-delay': index * 100,
@@ -320,6 +366,13 @@ if (isVideo && item.youtubeId) {
     thumbnails use, and reads as deliberate.
   */}
   <div class="content-card-media">
+    {isCinematic && (
+      /* The format, stated once, on the artwork. It replaces the CTA row the
+         tile no longer has, and sits over the image because that is the only
+         surface a borderless tile still owns. aria-hidden: the card's own
+         accessible name already says what it is. */
+      <span class="content-card-format" aria-hidden="true">{isVideo ? 'VIDEO' : 'ARTICLE'}</span>
+    )}
     {cardImage ? (
       <img
         class="content-card-img"
@@ -384,6 +437,16 @@ if (isVideo && item.youtubeId) {
       <p class="content-card-excerpt">{excerpt}</p>
     )}
     
+    {/*
+      The explicit CTA is omitted on a feed tile. The entire card is already the
+      control there — it is a <div role="button"> that promotes the item into
+      the hero — so a second "WATCH NOW" inside it was a target within a target,
+      and the one thing a reader could click that did not look clickable.
+
+      It stays everywhere else, where the card is a link in a grid and the words
+      are the affordance.
+    */}
+    {!isCinematic && (
     <span class="watch-now-btn" style="margin-top: auto;">
       {isVideo ? LABELS.watchNow : LABELS.readNow}
       {isVideo ? (
@@ -395,6 +458,7 @@ if (isVideo && item.youtubeId) {
       )}
       <span class="btn-underline" />
     </span>
+    )}
   </div>
 </CardWrapper>
 

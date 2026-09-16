@@ -1,16 +1,24 @@
 ---
 import ContentCard from './ContentCard.astro';
-import CardGrid from './CardGrid.astro';
 import EmptyState from './EmptyState.astro';
 import { LABELS, MESSAGES } from '../data/content.js';
+import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-content';
+import { resolveEntity } from '../lib/entity-resolver';
+import { getHubMatchTags, matchVideosByTags } from '../lib/hub-coverage';
+import CommercialRotator from './CommercialRotator.astro';
 
 export interface Props {
   page: any;
   allItems: any[];
 }
 
-const { page = { data: [] }, allItems = [] } = Astro.props;
-const currentItems = Array.isArray(page?.data) ? page.data : [];
+/*
+  `page` is still accepted so the three /feed routes keep one call shape with
+  FeedLayout, which reads it for rel=prev/next. This component no longer uses
+  it: the flat grid that consumed `page.data` is gone, and the rows render from
+  `allItems` — the whole feed, not a page of it.
+*/
+const { allItems = [] } = Astro.props;
 const safeAllItems = Array.isArray(allItems) ? allItems : [];
 
 /*
@@ -37,8 +45,59 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
   Adding a row is a line in this array. Rows that match nothing are dropped
   before render, so an empty one can never ship.
 */
-const hasHub = (item: any, slug: string) =>
-  Array.isArray(item?.hubs) && item.hubs.includes(slug);
+const hubBrands = getFeaturedBrandsLocal();
+const hubEvents = getEventsLocal();
+
+/*
+  ─── A HUB ROW HOLDS EVERYTHING ABOUT THAT HUB, NOT JUST THE VIDEOS ────────
+
+  This was `Array.isArray(item.hubs) && item.hubs.includes(slug)` and nothing
+  else, which quietly made every franchise and streamer row video-only.
+
+  `hubs` is written by the YouTube sync and exists only on video records.
+  Articles come from Substack and carry `tags`, so no article could ever
+  satisfy that test — the DC row dropped both DC articles, Netflix dropped
+  both Netflix articles, and so on, with no error and no empty row to notice.
+  A row like "DC" is a TOPIC. Media type is the concern of exactly three rows,
+  all of them in The Latest.
+
+  ─── WHY THE KEYWORDS ARE NOT LISTED HERE ─────────────────────────────────
+
+  The obvious repair is a per-row array of fallback words in this file. It
+  would work today and rot immediately: CLAUDE.md states that there is ONE tag
+  list per hub, `youtubeSyncKeywords` (labelled "Tags" in the CMS), and that it
+  is the list feeding both the sync and the site's own matching. A second copy
+  in a component is the exact drift that note exists to prevent, and it would
+  be invisible to the editor who maintains the first.
+
+  So step 3 reads the hub's own vocabulary through `getHubMatchTags()` and
+  compares with the site's `compactTag` normalisation, the same path
+  /featured/<slug> and /events/<slug> use for their coverage.
+
+  Verified against the store: dc-comics, marvel-comics, hbo-max, netflix and
+  prime-video each pick up 2 articles this way. Note an item can satisfy
+  SEVERAL hubs — the Lanterns article is both DC and HBO Max — which is right,
+  and which `resolveEntity()` could not express on its own since it returns one
+  best hub per item.
+*/
+const slugOfDoc = (doc: any) =>
+  typeof doc?.slug === 'string' ? doc.slug : doc?.slug?.current ?? null;
+
+const allHubDocs = [...hubBrands, ...hubEvents];
+
+const matchesHub = (item: any, slug: string) => {
+  /* 1. The sync's explicit taxonomy — videos. */
+  if (Array.isArray(item?.hubs) && item.hubs.includes(slug)) return true;
+
+  /* 2. An editor naming the hub outright. */
+  if (item?.relatedBrandSlug === slug) return true;
+
+  /* 3. The hub's own tag vocabulary — articles, and any video whose tags name
+     the hub without the sync having written it into `hubs`. */
+  const hub = allHubDocs.find((doc) => slugOfDoc(doc) === slug);
+  if (!hub) return false;
+  return matchVideosByTags([item], getHubMatchTags(hub)).length > 0;
+};
 
 /*
   ─── A TAG MATCH HAS TO READ BOTH TAG FIELDS ───────────────────────────────
@@ -73,6 +132,16 @@ interface RowDef {
 interface SectionDef {
   id: string;
   title: string;
+  /*
+    Where this section's "explore" link goes, as a hash on /featured.
+
+    The hash is the hub's `hubCategory` KEY, not the label shown on either page:
+    the accordion sections on /featured carry `data-category="universes"` while
+    the heading above them reads "Franchises". Linking to the label would look
+    right and open nothing. Counted in the store: streaming 6, studios 5,
+    universes 4, gaming 3.
+  */
+  explore?: { href: string; label: string };
   rows: RowDef[];
 }
 
@@ -129,28 +198,86 @@ const SECTION_DEFS: SectionDef[] = [
   {
     id: 'franchises',
     title: 'Franchises',
+    explore: { href: '/featured#universes', label: 'EXPLORE FRANCHISES' },
     rows: [
-      { id: 'dc-comics', title: 'DC', match: (i) => hasHub(i, 'dc-comics') },
-      { id: 'marvel-comics', title: 'Marvel', match: (i) => hasHub(i, 'marvel-comics') || hasHub(i, 'marvel') },
-      { id: 'star-wars', title: 'Star Wars', match: (i) => hasTag(i, 'star wars') },
+      { id: 'dc-comics', title: 'DC', match: (i) => matchesHub(i, 'dc-comics') },
+      { id: 'marvel-comics', title: 'Marvel', match: (i) => matchesHub(i, 'marvel-comics') || matchesHub(i, 'marvel') },
+      { id: 'star-wars', title: 'Star Wars', match: (i) => matchesHub(i, 'star-wars') },
     ],
   },
   {
     id: 'streaming',
     title: 'Streaming',
+    explore: { href: '/featured#streaming', label: 'EXPLORE STREAMERS' },
     rows: [
-      { id: 'hbo-max', title: 'HBO Max', match: (i) => hasHub(i, 'hbo-max') },
-      { id: 'netflix', title: 'Netflix', match: (i) => hasHub(i, 'netflix') },
-      { id: 'prime-video', title: 'Prime Video', match: (i) => hasHub(i, 'prime-video') },
+      { id: 'hbo-max', title: 'HBO Max', match: (i) => matchesHub(i, 'hbo-max') },
+      { id: 'netflix', title: 'Netflix', match: (i) => matchesHub(i, 'netflix') },
+      { id: 'prime-video', title: 'Prime Video', match: (i) => matchesHub(i, 'prime-video') },
     ],
   },
 ];
 
-const buildRow = (row: RowDef) => ({ ...row, items: safeAllItems.filter(row.match) });
+/*
+  ─── A ROW'S EXPLORE LINK IS DERIVED, NOT TYPED ────────────────────────────
+
+  Every brand row's id IS its hub slug (`dc-comics`, `hbo-max`, …), so the
+  destination is a lookup rather than a table of hardcoded hrefs that would
+  drift the first time a slug changed. A row whose id matches no hub — the three
+  global ones — simply gets no link.
+
+  Events are checked too, so a row keyed to a convention would link to
+  /events/<slug> rather than 404 at /featured/<slug>.
+*/
+const hubHref = (id: string): string | null => {
+  const slugOf = (doc: any) =>
+    typeof doc?.slug === 'string' ? doc.slug : doc?.slug?.current ?? null;
+  if (hubBrands.some((b) => slugOf(b) === id)) return `/featured/${id}`;
+  if (hubEvents.some((e) => slugOf(e) === id)) return `/events/${id}`;
+  return null;
+};
+
+const buildRow = (row: RowDef) => ({
+  ...row,
+  items: safeAllItems.filter(row.match),
+  explore: (() => {
+    const href = hubHref(row.id);
+    return href ? { href, label: `EXPLORE ${row.title.toUpperCase()} HUB` } : null;
+  })(),
+});
+
+/*
+  ─── NO TWO ADJACENT TILES MAY SHARE ARTWORK ───────────────────────────────
+
+  The channel reuses one thumbnail across a run of episode reviews, so a
+  chronological Lanterns row put four visually identical green-ring tiles side
+  by side and read as a rendering fault rather than as four different episodes.
+
+  This REORDERS rather than drops: an item whose artwork repeats the previous
+  tile is held back and re-offered after the next distinct one, so nothing
+  leaves the row and the sequence stays as close to newest-first as the
+  artwork allows. Dropping duplicates would have hidden real episodes.
+
+  Falls back to plain order when every remaining item shares one image, which
+  is the only case where the constraint cannot be satisfied at all.
+*/
+function spreadByArtwork(items: any[]): any[] {
+  const art = (item: any) => item?.thumbnail || item?.image || '';
+  const queue = [...items];
+  const out: any[] = [];
+
+  while (queue.length > 0) {
+    const lastArt = out.length > 0 ? art(out[out.length - 1]) : null;
+    const nextIndex = queue.findIndex((item) => art(item) !== lastArt);
+    out.push(...queue.splice(nextIndex === -1 ? 0 : nextIndex, 1));
+  }
+
+  return out;
+}
 
 const prestigeRow = (() => {
   const built = buildRow(PRESTIGE_ROW);
-  return built.items.length > 0 ? built : null;
+  if (built.items.length === 0) return null;
+  return { ...built, items: spreadByArtwork(built.items) };
 })();
 
 /*
@@ -205,43 +332,41 @@ const feedSections = SECTION_DEFS
   .filter((section) => section.rows.length > 0);
 
 const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
+
+/*
+  ─── THE TENTPOLE SHELF NAMES ITS OWN HUB ──────────────────────────────────
+
+  The badge, the Explore link and the second half of the eyebrow are all
+  resolved from the row's own items rather than typed in as "DC". The shelf is
+  driven by one line in PRESTIGE_ROW, so hardcoding DC here would mean pointing
+  it at another show later and shipping a row that still said DC.
+
+  The hub is taken from the first item that resolves to one, which for Lanterns
+  is DC (see resolveEntity: among hbo-max / dc-comics / warner-bros, the item's
+  own display tag decides). If nothing resolves, the badge, the divider and the
+  link are all omitted and the shelf degrades to its title alone.
+*/
+const prestigeHub = prestigeRow
+  ? prestigeRow.items.reduce<ReturnType<typeof resolveEntity>>(
+      (found, item) => found ?? resolveEntity(item, { brands: hubBrands, events: hubEvents, urlFor }),
+      null,
+    )
+  : null;
+
+/* "MAX ORIGINAL SERIES" is not ours to assert — the distributor is whatever the
+   item's hubs say. The eyebrow names the hub we actually resolved, and falls
+   back to a neutral line when we resolved none. */
+const prestigeEyebrow = prestigeHub
+  ? `FEATURED SERIES \u2022 ${prestigeHub.title.toUpperCase()}`
+  : 'FEATURED SERIES';
 ---
 
-{/*
-  ─── THE ANTI-FLASH CLOAK IS GONE, AND IT HAD TO GO WITH THE TEMPLATE ──────
-
-  An inline script used to add `js-feed-filtering` to <html> whenever the URL
-  carried a hash, and a rule below held #feed-grid-wrapper at opacity 0 until
-  initFeedClientFiltering() removed the class again at the very end of its run.
-  That hid the unfiltered grid flashing before the filter could rebuild it.
-
-  It could not survive the template's removal. initFeedClientFiltering() bails
-  at `if (!feedGrid || !template) return;`, which is ABOVE the line that takes
-  the class off — so with the template deleted the class would have been added
-  and never removed, and the entire feed would have rendered at opacity 0 for
-  anyone arriving with a hash. /category/<slug> links straight to
-  /feed/articles#film, so that is a live path, not a hypothetical one.
-
-  With no filter UI there is no filtered state to flash, so the cloak has
-  nothing left to hide and is removed rather than repaired.
-*/}
 <style>
   /* ─── NETFLIX ROWS ──────────────────────────────────────────────────────── */
 
-  /* The wrapper swaps between the two views. Both defaults are stated here so
-     the correct one shows before any script runs: rows are the browse view, so
-     with JS off or slow you get rows, not a grid AND rows.
-
-     ─── THE GRID ONLY STANDS DOWN IF ROWS EXIST TO REPLACE IT ──────────────
-     `data-has-rows` is the guard, and it is load-bearing rather than tidy.
-     Every row matches on `hubs` or `youtubeTags`, which are YouTube taxonomy.
-     Articles sync from Substack and carry neither, so /feed/articles builds
-     ZERO rows. Without this attribute the rule below hid that page's grid too
-     and the route rendered twelve cards at display:none: a completely blank
-     page. Caught by counting VISIBLE cards, not by reading the markup, which
-     was present and correct throughout. */
-  #feed-grid-wrapper.is-filtered #feed-rows { display: none; }
-  #feed-grid-wrapper[data-has-rows]:not(.is-filtered) #feed-grid { display: none; }
+  /* There is one view now. The rules that swapped this wrapper between the rows
+     and a hidden results grid went with the grid itself — there is no
+     `is-filtered` state left to enter, and nothing to hide. */
 
   /* ─── OVERARCHING SECTIONS ──────────────────────────────────────────── */
 
@@ -263,6 +388,12 @@ const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
     }
   }
 
+  /* The rotator brings its own internal padding, so this only owns the gap
+     between it and the shelves either side of it. */
+  .feed-rotator-break {
+    margin-block: 1rem 2.5rem;
+  }
+
   .feed-section {
     margin-bottom: 3.5rem;
   }
@@ -272,6 +403,73 @@ const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
     the two levels are never mistaken for each other: larger, brighter, and
     underscored by a hairline that runs the width of the content column.
   */
+  .feed-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    padding-bottom: 0.6rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .feed-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-shrink: 0;
+  }
+
+  /*
+    ONE EXPLORE LINK, USED AT THREE DEPTHS — the tentpole shelf, a section
+    heading and a row heading. `.prestige-hub-link` keeps its emerald tint on
+    the lit shelf; everything else reads in the neutral one. Same metrics, same
+    glyph, same hover, so the three never drift apart.
+  */
+  .feed-hub-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+    font-family: var(--font-body);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    text-decoration: none;
+    white-space: nowrap;
+    color: rgba(255, 255, 255, 0.62);
+    transition: color 0.25s ease;
+  }
+
+  .feed-hub-link:hover,
+  .feed-hub-link:focus-visible {
+    color: var(--color-white, #f0f0f0);
+  }
+
+  .feed-hub-link:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: 3px;
+  }
+
+  /* The link drops under its heading rather than squeezing it on a phone. */
+  @media (max-width: 640px) {
+    .feed-section-head {
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .feed-hub-link {
+      font-size: 0.56rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .feed-hub-link {
+      transition: none;
+    }
+  }
+
   .feed-section-title {
     font-family: var(--font-display, sans-serif);
     font-size: clamp(1.35rem, 2.4vw, 1.9rem);
@@ -279,9 +477,7 @@ const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--color-white, #f0f0f0);
-    margin: 0 0 0.35rem;
-    padding-bottom: 0.6rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    margin: 0;
   }
 
   .feed-section-rows {
@@ -377,7 +573,18 @@ const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
     list-style: none;
     margin-block: 0;
     margin-inline: calc(50% - 50vw);
-    padding-block: 0 0.5rem;
+    /*
+      ─── ROOM FOR THE HOVER LIFT ──────────────────────────────────────────
+
+      A scroll container cannot clip one axis and show the other: `overflow-x:
+      auto` forces `overflow-y` to clip too, whatever it is set to. The slate
+      lifts 4px and casts a 28px shadow on hover, and both were being cut off
+      flush at the rail's edges.
+
+      Padding, not margin: it is inside the scrollport, so the lifted card has
+      somewhere to go.
+    */
+    padding-block: 0.75rem 1.5rem;
     padding-inline: calc(50vw - 50%);
 
     /*
@@ -534,23 +741,146 @@ const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
 
   /* Already full-bleed by the same reasoning as the rail above, and unchanged:
      this is the band BEHIND the row, so it uses inset rather than margin. */
+  /*
+    A radial bloom anchored behind the lockup, not a flat linear wash. The light
+    now has a source — it falls off from the badge outward — which is what makes
+    the shelf read as lit rather than tinted.
+  */
   .feed-row--prestige::before {
     content: '';
     position: absolute;
     inset: 0 -50vw;
-    background: linear-gradient(
-      100deg,
-      rgba(6, 46, 34, 0.85) 0%,
-      rgba(8, 30, 24, 0.6) 42%,
-      rgba(10, 10, 10, 0) 78%
-    );
+    background:
+      radial-gradient(
+        ellipse 600px 280px at 12% 0%,
+        rgba(16, 185, 129, 0.24) 0%,
+        rgba(6, 46, 34, 0.8) 40%,
+        transparent 80%
+      ),
+      linear-gradient(100deg, rgba(8, 30, 24, 0.55) 0%, rgba(10, 10, 10, 0) 70%);
     pointer-events: none;
     z-index: -1;
   }
 
-  .feed-row--prestige .feed-row-title {
+  .feed-row-head--prestige {
+    align-items: flex-end;
+  }
+
+  .prestige-brand-lockup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .prestige-eyebrow {
+    font-family: var(--font-body);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(215, 247, 230, 0.7);
+  }
+
+  .prestige-title-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  /* The hub's own name as a lettermark. Text, not an image: the badge is
+     resolved at build time and an <img> would mean another asset lookup and
+     another thing to go missing. */
+  .prestige-badge {
+    flex-shrink: 0;
+    padding: 0.2rem 0.55rem;
+    border: 1.5px solid rgba(255, 255, 255, 0.9);
+    border-radius: 3px;
+    font-family: var(--font-display, sans-serif);
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #fff;
+    line-height: 1.35;
+  }
+
+  /* A hairline rule rather than a literal "|" glyph, which sat at the wrong
+     height against a 900-weight display face and changed with the font. */
+  .prestige-divider {
+    flex-shrink: 0;
+    width: 1px;
+    align-self: stretch;
+    min-height: 1.1em;
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      rgba(215, 247, 230, 0.55),
+      transparent
+    );
+  }
+
+  .feed-row--prestige .prestige-title {
+    font-family: var(--font-display, sans-serif);
+    font-size: clamp(1.15rem, 2.1vw, 1.7rem);
+    font-weight: 900;
+    letter-spacing: 0.1em;
     color: #d7f7e6;
-    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.8);
+    text-shadow: 0 0 24px rgba(16, 185, 129, 0.6), 0 2px 18px rgba(0, 0, 0, 0.8);
+    margin: 0;
+    min-width: 0;
+  }
+
+  .prestige-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-shrink: 0;
+  }
+
+  .prestige-hub-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: var(--font-body);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    text-decoration: none;
+    color: rgba(215, 247, 230, 0.82);
+    transition: color 0.25s ease, transform 0.25s ease;
+  }
+
+  .prestige-hub-link:hover,
+  .prestige-hub-link:focus-visible {
+    color: #eafff4;
+  }
+
+  .prestige-hub-link:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: 3px;
+  }
+
+  /* Below the phone breakpoint the lockup and the link stop competing for one
+     line: the link drops under the title rather than squeezing it. */
+  @media (max-width: 640px) {
+    .feed-row-head--prestige {
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+
+    .prestige-hub-link {
+      font-size: 0.58rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .prestige-hub-link {
+      transition: none;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -558,7 +888,7 @@ const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
     .feed-row-chevron { transition: none; }
   }
 </style>
-<div id="feed-grid-wrapper" data-has-rows={hasRows ? "true" : undefined} style="width: 100%; clear: both; transition: opacity 0.2s ease;">
+<div id="feed-grid-wrapper" style="width: 100%; clear: both; transition: opacity 0.2s ease;">
   {/*
     ─── TWO VIEWS, ONE WRAPPER ───────────────────────────────────────────────
 
@@ -593,8 +923,36 @@ const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
     <div id="feed-rows">
       {prestigeRow && (
         <section class="feed-row feed-row--prestige" data-row={prestigeRow.id}>
-          <div class="feed-row-head">
-            <h2 class="feed-row-title">{prestigeRow.title}</h2>
+          {/*
+            The tentpole lockup. The plain word "LANTERNS" in green sans-serif
+            was doing none of the work a shelf like this does on a streaming
+            service: it named the show without saying whose it is, where it
+            airs, or where to go next.
+
+            `prestigeHub` is resolved, not hardcoded — the badge, the eyebrow's
+            second half and the Explore link all come from whichever hub the
+            row's own items resolve to, so the day this shelf is pointed at a
+            different show it re-labels itself instead of lying about DC.
+          */}
+          <div class="feed-row-head feed-row-head--prestige">
+            <div class="prestige-brand-lockup">
+              <span class="prestige-eyebrow">{prestigeEyebrow}</span>
+              <div class="prestige-title-group">
+                {prestigeHub && <span class="prestige-badge">{prestigeHub.title}</span>}
+                {prestigeHub && <span class="prestige-divider" aria-hidden="true"></span>}
+                <h2 class="feed-row-title prestige-title">{prestigeRow.title}</h2>
+              </div>
+            </div>
+
+            <div class="prestige-actions">
+              {prestigeHub && (
+                <a href={prestigeHub.url} class="prestige-hub-link">
+                  <span>EXPLORE {prestigeHub.title.toUpperCase()} HUB</span>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </a>
+              )}
             <div class="feed-row-nav" aria-hidden="true">
               <button type="button" class="feed-row-chevron" data-dir="-1" tabindex="-1">
                 <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
@@ -607,6 +965,7 @@ const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
                 </svg>
               </button>
             </div>
+            </div>
           </div>
           <ul class="feed-row-rail" data-rail>
             {prestigeRow.items.map((item: any, index: number) => (
@@ -618,15 +977,58 @@ const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
         </section>
       )}
 
+      {/*
+        ─── THE PRESTIGE BREAK ────────────────────────────────────────────────
+
+        One rotator, mounted between the tentpole shelf and the chronological
+        sections. That seam is the page's natural pause: the reader has just
+        finished the featured show and has not yet started browsing, so the
+        banner lands between two thoughts rather than interrupting one.
+
+        Exactly one per page, deliberately. The rotator binds by id
+        (#banner-rotator, #banner-progress) and to the first .yt-banner-wrapper
+        it finds, so a second instance would render and never rotate.
+
+        Wrapped in a real class, NOT `my-10 px-4 mx-auto`: Tailwind's spacing
+        utilities do nothing in this project. global-base.css carries an
+        unlayered `* { margin: 0; padding: 0 }`, and unlayered rules beat
+        @layer utilities regardless of specificity — the same trap that left the
+        feed's filter row flush against the hero with `mt-16` on it.
+      */}
+      {prestigeRow && (
+        <div class="feed-rotator-break">
+          <CommercialRotator />
+        </div>
+      )}
+
       {feedSections.map((section) => (
         <section class="feed-section" data-section={section.id} aria-labelledby={`feed-section-${section.id}`}>
-          <h2 class="feed-section-title" id={`feed-section-${section.id}`}>{section.title}</h2>
+          <div class="feed-section-head">
+            <h2 class="feed-section-title" id={`feed-section-${section.id}`}>{section.title}</h2>
+            {section.explore && (
+              <a href={section.explore.href} class="feed-hub-link">
+                <span>{section.explore.label}</span>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </a>
+            )}
+          </div>
 
           <div class="feed-section-rows">
             {section.rows.map((row) => (
-              <section class="feed-row" data-row={row.id}>
+              <section class="feed-row" id={row.id} data-row={row.id}>
                 <div class="feed-row-head">
                   <h3 class="feed-row-title">{row.title}</h3>
+                  <div class="feed-row-actions">
+                    {row.explore && (
+                      <a href={row.explore.href} class="feed-hub-link">
+                        <span>{row.explore.label}</span>
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+                          <path d="M5 12h14M12 5l7 7-7 7" />
+                        </svg>
+                      </a>
+                    )}
                   {/*
                     Mouse affordances only. A touch device scrolls the rail
                     directly and a keyboard reaches every card through it, so
@@ -645,6 +1047,7 @@ const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
                       </svg>
                     </button>
                   </div>
+                  </div>
                 </div>
 
                 <ul class="feed-row-rail" data-rail>
@@ -662,19 +1065,25 @@ const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
     </div>
   )}
 
-{currentItems.length > 0 ? (
-  <CardGrid id="feed-grid">
-    {
-      currentItems.map((item: any, index: number) => (
-        <ContentCard item={item} index={index} context="feed" />
-      ))
-    }
-  </CardGrid>
-) : (
-  <CardGrid id="feed-grid">
+  {/*
+    ─── THE FLAT RESULTS GRID IS GONE ────────────────────────────────────────
+
+    A second <CardGrid id="feed-grid"> holding EVERY item stood here, hidden
+    whenever the rows rendered — which, since the rows cover every route, was
+    always. It shipped ~40 more card subtrees per page that no visitor could
+    ever see, on top of the duplicate <template> removed before it.
+
+    It was the target of the hash filter. That filter has no controls left: the
+    /feed routes stopped rendering the filter row (FeedLayout's `showFilters`)
+    and the rows segment the same content by type and by brand. Its module went
+    with it — see the note where initFeedClientFiltering() used to be.
+
+    What remains is the honest empty state: if there is genuinely nothing to
+    show, say so, rather than rendering an empty page with no explanation.
+  */}
+  {!hasRows && (
     <EmptyState message={MESSAGES.noContent} actionLabel={LABELS.viewAllContent} actionHref="/feed" />
-  </CardGrid>
-)}
+  )}
 </div>
 
 {/*
@@ -688,337 +1097,36 @@ const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
   filter, and the horizontal rows segment the same content by type and brand.
 */}
 
-<template id="feed-empty-state">
-  <EmptyState message={MESSAGES.noFilterMatch} actionLabel={LABELS.clearFilters} actionClass="clear-filters-btn" />
-</template>
+
 
 {/*
-  ─── NO NUMBERED PAGINATION ON THE FEED ────────────────────────────────────
+  ─── NO PAGINATION AND NO LOAD MORE ────────────────────────────────────────
 
-  <Pagination /> used to render here. It is gone from THIS component only; the
-  component itself still serves /intel, /category/*, /events, the events archive
-  and event coverage, so it is not deleted.
+  <Pagination /> used to render here, then a Load More button that replaced it.
+  Both are gone from THIS component; the Pagination component itself still
+  serves /intel, /category/*, /events, the events archive and event coverage.
 
-  Two reasons it had to go rather than be hidden. The rows are the browse view
-  and they carry every item already, so a "page 2" of a feed you can scroll
-  sideways is a second, contradictory way through the same content. And the
-  numbered links were full URL navigations, which is what put the view
-  transition — and with it the navbar — through a swap on every click.
-
-  Load More stays, because the FILTERED view still needs it: picking a category
-  can match far more than one screenful, and that view is a flat grid.
+  The rows carry every item already, so a "page 2" of a feed you scroll
+  sideways is a second, contradictory way through the same content. Load More
+  outlived it only to page the filtered grid, and that grid no longer exists.
 */}
-{currentItems.length > 0 && (
-  <div class="mt-auto w-full" style="padding-top: 3.5rem;">
-    <div id="load-more-container" style="display: none;" class="text-center w-full">
-      <button id="load-more-btn" class="cta-button-primary mx-auto relative z-10">
-        {LABELS.loadMore}
-      </button>
-    </div>
-  </div>
-)}
-
-
 
 <script>
-  function initFeedClientFiltering() {
-    // Memory leak fix: Cleanup old hashchange listener before early returns on new pages
-    if ((window as any)._feedHashChangeListener) {
-      window.removeEventListener('hashchange', (window as any)._feedHashChangeListener);
-    }
+  /*
+    ─── THE CLIENT-SIDE HASH FILTER IS GONE ──────────────────────────────────
 
-    const isFeedPage = window.location.pathname.startsWith('/feed') || window.location.pathname.startsWith('/category');
-    if (!isFeedPage) return;
+    ~300 lines of initFeedClientFiltering() stood here: it rebuilt #feed-grid
+    from a <template> of the whole feed, paged it with Load More, kept the
+    filter buttons' active states in step and normalised ?category= into a hash.
 
-    // URL Normalization: Consume ?category= and translate strictly to a Hash
-    const params = new URLSearchParams(window.location.search);
-    const queryCategory = params.get('category');
-    if (queryCategory) {
-      const newUrl = new URL(window.location.href);
-      newUrl.searchParams.delete('category');
-      newUrl.hash = queryCategory;
-      /* Preserve ClientRouter's state for this entry — passing null makes a
-         later Back change the URL without swapping the page. See stripHash()
-         in Hero.astro. */
-      window.history.replaceState(
-        window.history.state,
-        '',
-        newUrl.toString().replace(newUrl.origin, ''),
-      );
-    }
+    Every input it had has been removed. The /feed routes no longer render a
+    filter row, the template it cloned from is gone, and the grid it wrote into
+    is gone — it had already been dead at runtime, bailing at its own
+    `if (!feedGrid || !template) return;` on every page load.
 
-    const feedGrid = document.getElementById('feed-grid');
-    const gridWrapper = document.getElementById('feed-grid-wrapper');
-    const template = document.getElementById('full-dataset-cards') as HTMLTemplateElement;
-    const loadMoreContainer = document.getElementById('load-more-container');
-    const loadMoreBtn = document.getElementById('load-more-btn');
-    const categoryBtns = document.querySelectorAll('.cat-btn');
-    const typeBtns = document.querySelectorAll('.type-btn');
-    const openCategoriesBtn = document.getElementById('open-categories-btn');
-
-    if (!feedGrid || !template) return;
-
-    // Save initial static HTML if not saved yet so we can restore it on clear filter
-    if (!feedGrid.dataset.originalHtml) {
-      feedGrid.dataset.originalHtml = feedGrid.innerHTML;
-    }
-
-    let currentMatches: HTMLElement[] = [];
-    let currentlyDisplayedCount = 0;
-    let hasFiltered = false;
-    const PAGE_SIZE = 12;
-
-    /**
-     * Append the next page of matching cards.
-     *
-     * @param moveFocus Move keyboard focus to the first newly added card.
-     *   TRUE only when the reader pressed "Load More" — see the note at the
-     *   focus call below for why this must not happen on an automatic render.
-     */
-    function renderMoreItems(moveFocus = false) {
-      const fragment = document.createDocumentFragment();
-      const nextBatch = currentMatches.slice(currentlyDisplayedCount, currentlyDisplayedCount + PAGE_SIZE);
-      const newlyAddedNodes: HTMLElement[] = [];
-      
-      nextBatch.forEach((originalNode, index) => {
-        const node = originalNode.cloneNode(true) as HTMLElement;
-        node.style.display = 'flex'; 
-        // Force the reveal animation state so the observer isn't needed
-        node.setAttribute('data-state', 'in');
-        node.style.opacity = '1';
-        node.style.transform = 'none';
-        
-        // Re-calculate animation delays based on index in current batch
-        node.style.transitionDelay = (index * 100) + 'ms';
-        node.setAttribute('data-delay', (index * 100).toString());
-        
-        // Clear the delay after the entrance animation finishes
-        setTimeout(() => {
-          if (node) node.style.transitionDelay = '';
-        }, (index * 100) + 600);
-        
-        fragment.appendChild(node);
-        newlyAddedNodes.push(node);
-      });
-
-      feedGrid?.appendChild(fragment);
-      currentlyDisplayedCount += nextBatch.length;
-
-      if (loadMoreContainer) {
-        if (currentlyDisplayedCount < currentMatches.length) {
-          loadMoreContainer.style.display = 'block';
-        } else {
-          loadMoreContainer.style.display = 'none';
-        }
-      }
-
-      /*
-        Accessibility: after "Load More", move focus to the first new card so
-        a keyboard or screen-reader user lands on the content they just asked
-        for instead of being left on a button that may have disappeared.
-
-        ─── WHY THIS IS GUARDED ────────────────────────────────────────────
-        It used to run on EVERY render, including the automatic one that fires
-        on page load when the URL carries a category hash. Nobody had asked for
-        focus to move, but the browser still treats a programmatic focus that
-        soon after load as keyboard-driven, so `:focus-visible` matched and the
-        card painted the global 3px white focus ring (styles/modules/a11y.css).
-
-        That is the "rogue white border box on the top tile" seen on
-        /feed/articles#film. It only appeared under the Articles toggle because
-        article cards ARE `<a>` elements, so `matches('a, button')` found one to
-        focus; video cards are `<div>` wrappers that open the modal, nothing
-        focusable was found, and no ring was drawn. Same code, different markup
-        — which is exactly why it looked like a state bug.
-
-        `preventScroll` because a filtered render can place that card anywhere;
-        focusing it would otherwise scroll the reader away from the filter row
-        they just used.
-      */
-      if (moveFocus && newlyAddedNodes.length > 0) {
-        const firstNewCard = newlyAddedNodes[0];
-        const focusable = firstNewCard.matches('a, button')
-          ? firstNewCard
-          : firstNewCard.querySelector('a, button');
-        if (focusable) (focusable as HTMLElement).focus({ preventScroll: true });
-      }
-    }
-
-    function applyFilters() {
-      const hash = window.location.hash.replace('#', '').toLowerCase();
-
-      // Maintain hash on Type filter buttons
-      typeBtns.forEach(btn => {
-        if (!btn.hasAttribute('data-base-href')) {
-          btn.setAttribute('data-base-href', btn.getAttribute('href') || '');
-        }
-        const baseHref = btn.getAttribute('data-base-href');
-        const search = window.location.search;
-        if (hash) {
-          btn.setAttribute('href', `${baseHref}${search}#${hash}`);
-        } else {
-          btn.setAttribute('href', `${baseHref || ''}${search}`);
-        }
-      });
-
-      // Update Category Buttons Active State
-      categoryBtns.forEach((btn) => {
-        const btnCategory = btn.getAttribute('data-category');
-        if (hash && btnCategory === hash) {
-          btn.classList.add('active');
-          btn.setAttribute('aria-current', 'true');
-        } else {
-          btn.classList.remove('active');
-          btn.removeAttribute('aria-current');
-        }
-      });
-
-      // Update Mobile button state
-      if (openCategoriesBtn) {
-        if (hash) {
-          const activeBtn = Array.from(categoryBtns).find(btn => btn.getAttribute('data-category') === hash);
-          if (activeBtn) {
-            openCategoriesBtn.textContent = `Categories | ${activeBtn.textContent?.trim()}`;
-            openCategoriesBtn.classList.add('active');
-          }
-        } else {
-          openCategoriesBtn.textContent = 'Categories';
-          openCategoriesBtn.classList.remove('active');
-        }
-      }
-
-      if (!hash) {
-        // If we haven't filtered yet, the DOM is perfectly intact from Astro.
-        if (!hasFiltered) return;
-
-        // Reset State
-        if (feedGrid) {
-          feedGrid.innerHTML = feedGrid.dataset.originalHtml || '';
-          // Ensure restored cards become visible since the original observer is gone
-          const restoredCards = feedGrid.querySelectorAll('.reveal');
-          restoredCards.forEach((node: any, index: number) => {
-            node.setAttribute('data-state', 'in');
-            node.style.opacity = '1';
-            node.style.transform = 'none';
-            node.style.transitionDelay = (index * 50) + 'ms';
-            
-            setTimeout(() => {
-              if (node) node.style.transitionDelay = '';
-            }, (index * 50) + 600);
-          });
-
-          // Accessibility: Move focus to the restored grid wrapper after "Clear Filters"
-          const wrapper = document.getElementById('feed-grid-wrapper');
-          if (wrapper) {
-            wrapper.tabIndex = -1;
-            wrapper.focus({ preventScroll: true });
-            wrapper.style.outline = 'none'; // Prevent visual outline on programmatic focus
-          }
-        }
-        /* Back to the browse view: rows in, results grid out. */
-        gridWrapper?.classList.remove('is-filtered');
-        if (loadMoreContainer) loadMoreContainer.style.display = 'none';
-        return;
-      }
-
-      hasFiltered = true;
-
-      /* A filter is on: the flat results grid replaces the rows. */
-      gridWrapper?.classList.add('is-filtered');
-
-      // Filter elements from the full dataset template
-      const allCards = template.content.querySelectorAll('.content-card');
-      currentMatches = [];
-      currentlyDisplayedCount = 0;
-
-      allCards.forEach(card => {
-        const categoriesAttr = card.getAttribute('data-categories') || '';
-        const categories = categoriesAttr.split(',');
-        if (categories.includes(hash)) {
-          currentMatches.push(card as HTMLElement);
-        }
-      });
-
-      // Clear current grid
-      if (feedGrid) {
-        feedGrid.innerHTML = '';
-        if (currentMatches.length === 0) {
-          const emptyTemplate = document.getElementById('feed-empty-state') as HTMLTemplateElement;
-          if (emptyTemplate) {
-            const clone = emptyTemplate.content.cloneNode(true);
-            const clearBtn = (clone as DocumentFragment).querySelector('.clear-filters-btn');
-            
-            if (clearBtn) {
-              clearBtn.addEventListener('click', () => {
-                // Explicitly wipe the hash
-                history.pushState(null, '', window.location.pathname);
-                
-                // Explicitly loop through all QuadrantFilter buttons and strip the .active class
-                categoryBtns.forEach(btn => {
-                  btn.classList.remove('active');
-                  btn.removeAttribute('aria-current');
-                });
-                
-                // Trigger the filter reset
-                applyFilters();
-              });
-            }
-            
-            feedGrid.appendChild(clone);
-          }
-          if (loadMoreContainer) loadMoreContainer.style.display = 'none';
-        } else {
-          renderMoreItems();
-        }
-      }
-    }
-
-    if (loadMoreBtn && !loadMoreBtn.dataset.bound) {
-      /* Wrapped, NOT passed directly: addEventListener would hand the
-         MouseEvent to the first parameter, and any event object is truthy —
-         so `renderMoreItems` would think every automatic render was a click. */
-      loadMoreBtn.addEventListener('click', () => renderMoreItems(true));
-      loadMoreBtn.dataset.bound = 'true';
-    }
-
-    // Attach click listeners to category buttons for smooth hash updates without scrolling
-    categoryBtns.forEach((btn) => {
-      if (!(btn as any).dataset.feedBound) {
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          const category = btn.getAttribute('data-category');
-          
-          if (!category) return;
-          
-          // Explicitly strip active class from ALL siblings (UI Exclusivity enforcement)
-          categoryBtns.forEach(sibling => {
-            if (sibling !== btn) {
-              sibling.classList.remove('active');
-              sibling.removeAttribute('aria-current');
-            }
-          });
-
-          const currentHash = window.location.hash.replace('#', '').toLowerCase();
-          
-          if (currentHash === category) {
-            history.pushState(null, '', window.location.pathname + window.location.search); // Toggle off
-          } else {
-            history.pushState(null, '', `${window.location.pathname}${window.location.search}#${category}`); // Toggle on
-          }
-          applyFilters();
-        });
-        (btn as any).dataset.feedBound = 'true';
-      }
-    });
-
-    (window as any)._feedHashChangeListener = applyFilters;
-    window.addEventListener('hashchange', applyFilters);
-    
-    // Initial execution on load
-    applyFilters();
-    /* The `js-feed-filtering` cloak this used to lift no longer exists — see
-       the note at the top of this file. Nothing to un-hide. */
-  }
+    A stale /feed#film link now simply shows the full feed instead of a filtered
+    grid with no way back to the rows, which is the better of the two.
+  */
 
   /*
     THE ROW CHEVRONS.
@@ -1148,9 +1256,43 @@ const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
     });
   }
 
+  /*
+    ─── ARRIVING WITH A ROW IN MIND ──────────────────────────────────────────
+
+    /intel links to /feed#all-videos rather than to the video-only route, which
+    had no way back out of itself. The hash names a row, and this takes the
+    reader to it.
+
+    Not left to the browser's native anchor jump: the rows are lazy in practice
+    (images and the rotator settle after paint), so the element's position when
+    the fragment resolves is not where it ends up. One frame plus a short beat
+    is the difference between landing on the row and landing above it.
+
+    `block: 'center'` rather than 'start' because the site header is fixed —
+    'start' would put the row's heading underneath it.
+  */
+  function scrollToHashRow() {
+    const id = window.location.hash.replace('#', '');
+    if (!id) return;
+
+    const row = document.getElementById(id) || document.querySelector(`[data-row="${CSS.escape(id)}"]`);
+    if (!row) return;
+
+    const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    setTimeout(() => row.scrollIntoView({ behavior, block: 'center' }), 150);
+  }
+
+  /* Same reason as /featured's: a hash change on the page you are already on is
+     not a navigation, so `astro:page-load` never fires for it. */
+  const ROW_HASH_KEY = '__hqFeedRowHashListener';
+  const previousRowHashListener = (window as any)[ROW_HASH_KEY];
+  if (previousRowHashListener) window.removeEventListener('hashchange', previousRowHashListener);
+  (window as any)[ROW_HASH_KEY] = scrollToHashRow;
+  window.addEventListener('hashchange', scrollToHashRow);
+
   document.addEventListener('astro:page-load', () => {
-    initFeedClientFiltering();
     initFeedRows();
+    scrollToHashRow();
     
     // Lifecycle-protected Spotlight Swap Event Delegation
     if ((window as any)._spotlightSwapListener) {
@@ -1208,7 +1350,19 @@ const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
       const preview = card.getAttribute('data-preview') || '';
       const image = card.getAttribute('data-image') || '';
       const videoId = card.getAttribute('data-video-id');
-      let parsedBrand: { logo?: string, hero?: string, slug?: string, color?: string } = {};
+      /* Mirrors the payload ContentCard writes into `data-brand`, which is
+         resolveEntity()'s output — see src/lib/entity-resolver.ts. `url` and
+         `type` are what let the Explore CTA point at /featured/<slug> or
+         /events/<slug> without the client re-deriving which kind it holds. */
+      let parsedBrand: {
+        logo?: string;
+        hero?: string;
+        slug?: string;
+        color?: string;
+        url?: string;
+        type?: 'brand' | 'event';
+        title?: string;
+      } = {};
       try {
         const brandStr = card.getAttribute('data-brand');
         if (brandStr) {
@@ -1305,7 +1459,68 @@ const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
       if (heroBrandLogo) {
         const fallbackLogo = heroBrandLogo.getAttribute('data-fallback-logo') || '';
         heroBrandLogo.src = brandLogo || fallbackLogo;
+        /* Name the mark for a screen reader. The crown fallback is the site's
+           own, so it is labelled as such rather than left with whatever hub the
+           previous item happened to have. */
+        heroBrandLogo.alt = (brandLogo && parsedBrand.title) || 'BE Unconventional HQ';
         heroBrandLogo.classList.remove('hidden');
+      }
+
+      /*
+        ─── THE EXPLORE CTA FOLLOWS THE ITEM ──────────────────────────────────
+
+        The button is server-rendered only when the opening item has a hub, so
+        it may be absent from the DOM entirely. It is therefore CREATED here
+        when a card that has one is promoted in, and REMOVED when a card that
+        does not is — rather than being parked at `display: none`, which would
+        leave a link to nowhere in the tab order for every item with no hub.
+
+        Inserted after the SUBSCRIBE button so the two stay in their rendered
+        order, and stamped with the hero's scoped-style attribute: a node built
+        here carries none of Astro's `data-astro-cid-*`, and without it the
+        `.feed-hero-hub-btn` rules simply do not match. That was the bug that
+        made rebuilt hero chips render as bare text.
+      */
+      const hubRow = document.querySelector('.feed-hero-actions') || heroBrandLogo?.closest('.hero-copy');
+      let hubBtn = document.getElementById('hero-featured-hub-btn') as HTMLAnchorElement | null;
+
+      if (parsedBrand.url && parsedBrand.title) {
+        if (!hubBtn && hubRow) {
+          const subscribe = hubRow.querySelector('.feed-hero-youtube-btn');
+          hubBtn = document.createElement('a');
+          hubBtn.id = 'hero-featured-hub-btn';
+          hubBtn.className = 'feed-hero-hub-btn';
+
+          const label = document.createElement('span');
+          label.id = 'hero-featured-hub-text';
+          hubBtn.appendChild(label);
+
+          const glyph = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          glyph.setAttribute('class', 'feed-hero-hub-glyph');
+          glyph.setAttribute('viewBox', '0 0 24 24');
+          glyph.setAttribute('width', '14');
+          glyph.setAttribute('height', '14');
+          glyph.setAttribute('fill', 'none');
+          glyph.setAttribute('stroke', 'currentColor');
+          glyph.setAttribute('stroke-width', '2');
+          glyph.setAttribute('aria-hidden', 'true');
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', 'M5 12h14M12 5l7 7-7 7');
+          glyph.appendChild(path);
+          hubBtn.appendChild(glyph);
+
+          carryScope(subscribe || hubRow, hubBtn);
+          subscribe ? subscribe.after(hubBtn) : hubRow.appendChild(hubBtn);
+        }
+
+        if (hubBtn) {
+          hubBtn.setAttribute('href', parsedBrand.url);
+          const text = hubBtn.querySelector('#hero-featured-hub-text');
+          /* textContent, never innerHTML: these titles are feed data. */
+          if (text) text.textContent = `EXPLORE ${String(parsedBrand.title).toUpperCase()}`;
+        }
+      } else if (hubBtn) {
+        hubBtn.remove();
       }
 
       /*

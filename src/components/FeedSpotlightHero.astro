@@ -2,7 +2,8 @@
 import { getVideosUnified } from '../lib/videos-source';
 import { parseVideoId } from '../lib/platforms/youtube';
 import { getDisplayTags } from '../lib/tags';
-import { getFeaturedBrandsLocal, urlFor } from '../lib/local-content';
+import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-content';
+import { resolveEntity } from '../lib/entity-resolver';
 import logoImage from '../assets/logo-mark.webp';
 import { site } from '../data/site.js';
 
@@ -38,23 +39,34 @@ const isVideo = true;
 const heroKind = isVideo ? 'VIDEO' : 'ARTICLE';
 const heroTags = getDisplayTags(latestVideo);
 
-const brands = getFeaturedBrandsLocal();
-const primaryTag = heroTags[0];
-const brand = brands.find((b) => 
-  (latestVideo.relatedBrandSlug && b.slug?.current === latestVideo.relatedBrandSlug) ||
-  (primaryTag && b.title?.toUpperCase() === primaryTag.toUpperCase())
-);
+/*
+  The hub this item belongs to — a featuredBrand OR an event.
+
+  The lookup that stood here searched featuredBrands only and compared a brand
+  title to the item's first display tag. Conventions are `_type: 'event'`
+  documents, so an L.A. Comic Con item matched nothing and the hero fell back to
+  the BE Unconventional HQ crown, which is the generic mark it shows when it
+  knows nothing about an item at all. `resolveEntity()` searches both types.
+*/
+const entity = resolveEntity(latestVideo, {
+  brands: getFeaturedBrandsLocal(),
+  events: getEventsLocal(),
+  urlFor,
+});
+
 const fallbackLogoSrc = logoImage.src;
 
+/* The editorial override still outranks the taxonomy — see the CMS hero
+   override cascade. Only the middle rung of it changed. */
 const overrideLogo = latestVideo.customHeroLogo ? urlFor(latestVideo.customHeroLogo).url() : null;
-const taxonomyLogo = brand?.logo ? urlFor(brand.logo).url() : null;
+const taxonomyLogo = entity?.logo || null;
 const brandLogo = overrideLogo || taxonomyLogo || fallbackLogoSrc;
 
 const overrideLabel = latestVideo.customHeroBrandLabel || null;
-const taxonomyLabel = brand?.title || '';
+const taxonomyLabel = entity?.title || '';
 const brandLabel = overrideLabel || taxonomyLabel || 'BE Unconventional HQ';
 
-const brandHero = brand?.heroImage ? urlFor(brand.heroImage).url() : '';
+const brandHero = entity?.hero || '';
 const itemBg = latestVideo.thumbnail || latestVideo.image || '';
 const heroBg = brandHero || itemBg;
 const heroTitle = latestVideo.title || '';
@@ -70,7 +82,9 @@ function hexToRgbTriple(hex: string): string {
   return `${r}, ${g}, ${b}`;
 }
 
-const brandHex = brand?.brandColor?.hex || '#CC0000';
+/* The hub's own colour, already normalised by the resolver (a brand stores it
+   as `brandColor.hex`, an event sometimes as a bare string). */
+const brandHex = entity?.color || '#CC0000';
 const brandRgb = hexToRgbTriple(brandHex);
 const fallbackGradient = `linear-gradient(135deg, rgba(${brandRgb}, 0.28) 0%, #0a0a0a 62%, #111 100%)`;
 
@@ -158,6 +172,17 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
           />
           <h1 id="hero-title" class="hero-title leading-tight">{heroTitle}</h1>
           <p id="hero-description" class="hero-tagline">{heroDescription}</p>
+          {/*
+            ─── THE ACTION ROW ─────────────────────────────────────────────────
+
+            A real wrapper, not two loose links. `.hero-identity` above is a
+            COLUMN flex with `align-items: flex-start`, so siblings dropped into
+            it stack vertically: SUBSCRIBE and EXPLORE would have sat one on top
+            of the other rather than beside each other. This row is also the
+            element FeedGrid's swap handler looks for when it has to insert or
+            remove the hub button on a card swap.
+          */}
+          <div class="feed-hero-actions">
           <a
             href={site.socials.youtube}
             target="_blank"
@@ -169,6 +194,40 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
             </svg>
             <span class="feed-hero-youtube-text">SUBSCRIBE</span>
           </a>
+
+          {/*
+            ─── THE HUB CTA ────────────────────────────────────────────────────
+
+            Sends the reader to the hero item's own hub: /featured/<slug> for a
+            brand, /events/<slug> for a convention. The destination is decided
+            server-side by resolveEntity(), so the two shapes of URL never have
+            to be worked out in the browser.
+
+            Rendered only when an entity actually resolved. It is omitted from
+            the DOM entirely rather than hidden with a style, so there is no
+            empty link in the tab order and no button that navigates to "#" —
+            FeedGrid's swap handler inserts one when a card that HAS a hub is
+            promoted into the hero, and removes it again when one does not.
+          */}
+          {entity && (
+            <a id="hero-featured-hub-btn" href={entity.url} class="feed-hero-hub-btn">
+              <span id="hero-featured-hub-text">EXPLORE {(entity.title || '').toUpperCase()}</span>
+              <svg
+                class="feed-hero-hub-glyph"
+                viewBox="0 0 24 24"
+                width="14"
+                height="14"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </a>
+          )}
+          </div>
         </div>
 
 
@@ -893,6 +952,62 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
      not stand it down. */
   .hub-stage.is-item .hub-stage-video {
     pointer-events: none;
+  }
+
+  .feed-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  /*
+    The hub CTA. Same metrics as the SUBSCRIBE button beside it so the two read
+    as one control group; the only differences are the glyph sitting AFTER the
+    label (it is a "go there" arrow, not an icon for the thing) and a hover that
+    picks up the resolved hub's own colour through --brand-color.
+  */
+  .feed-hero-hub-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.15rem;
+    padding: 0.5rem 0.9rem 0.5rem 1.05rem;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 0;
+    background: rgba(0, 0, 0, 0.32);
+    color: var(--color-white, #f0f0f0);
+    font-family: var(--font-body);
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+    transition: border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+  }
+
+  .feed-hero-hub-btn:hover,
+  .feed-hero-hub-btn:focus-visible {
+    border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.85);
+    background: rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 18px rgba(var(--brand-rgb, 204, 0, 0), 0.28);
+  }
+
+  /* The readable red, per scripts/a11y-tokens.test.mjs: this ring sits on dark
+     artwork and #cc0000 is only 3.21:1. */
+  .feed-hero-hub-btn:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: 3px;
+  }
+
+  .feed-hero-hub-glyph {
+    flex-shrink: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .feed-hero-hub-btn {
+      transition: none;
+    }
   }
 
   /* Recreated youtube button styling to match featured page */

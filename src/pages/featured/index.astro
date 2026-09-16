@@ -1578,11 +1578,83 @@ ${activeFonts
     });
   }
 
+  /*
+    ─── OPENING THE ACCORDION FROM A URL ─────────────────────────────────────
+
+    The markup expands `index === 0` and nothing else, so /featured#streaming
+    arrived with Streamers collapsed and the reader looking at Franchises. The
+    Feed links straight into these sections, so the hash has to mean something.
+
+    ─── THE HASH IS THE CATEGORY KEY, NOT ITS LABEL ─────────────────────────
+    Sections carry `data-category` values of `universes`, `streaming`,
+    `studios` and `gaming`, while the headings above them read "Franchises",
+    "Streamers", "Studios" and "Games". `universes`/"Franchises" is the pair
+    that catches people out, so the visible word is accepted as an alias rather
+    than quietly matching nothing.
+
+    Collapsing the others first keeps this identical to a click: the accordion
+    shows one section at a time, and an opened-by-URL section that left the
+    default one open would be a state no click can produce.
+  */
+  const HASH_TO_CATEGORY: Record<string, string> = {
+    franchises: 'universes',
+    streamers: 'streaming',
+    games: 'gaming',
+  };
+
+  function openSectionFromHash() {
+    const hash = window.location.hash.replace('#', '').toLowerCase();
+    if (!hash) return;
+
+    const category = HASH_TO_CATEGORY[hash] ?? hash;
+    const target = document.querySelector<HTMLElement>(
+      `.accordion-section[data-category="${CSS.escape(category)}"]`,
+    );
+    if (!target) return;
+
+    document.querySelectorAll<HTMLElement>('.accordion-section').forEach((section) => {
+      const isTarget = section === target;
+      section.classList.toggle('expanded', isTarget);
+      section.classList.toggle('collapsed', !isTarget);
+      section
+        .querySelector('.accordion-header')
+        ?.setAttribute('aria-expanded', String(isTarget));
+    });
+
+    /* The stage owns at most one player; the section that just opened is not
+       the one it was loaded for. */
+    syncTrailers();
+
+    /* After the expand transition has somewhere to scroll to. `start` is right
+       here, unlike the feed's rows: an accordion section IS the heading. */
+    const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    setTimeout(() => target.scrollIntoView({ behavior, block: 'start' }), 100);
+  }
+
+  /*
+    `astro:page-load` covers ARRIVING at a hash — the Feed's "Explore Streamers"
+    link, a pasted URL, a bookmark. It does not cover changing the hash while
+    already here: ClientRouter treats /featured#streaming -> /featured#universes
+    as an in-page anchor jump, not a navigation, so nothing re-runs and the
+    previously opened section stays open under the new URL. Reached by Back and
+    Forward as much as by clicking.
+
+    Bound once and re-bound defensively: the handler lives on `window`, which
+    ClientRouter does not replace between navigations.
+  */
+  const HASH_LISTENER_KEY = '__hqFeaturedHashListener';
+  const previousHashListener = (window as any)[HASH_LISTENER_KEY];
+  if (previousHashListener) window.removeEventListener('hashchange', previousHashListener);
+  (window as any)[HASH_LISTENER_KEY] = openSectionFromHash;
+  window.addEventListener('hashchange', openSectionFromHash);
+
   initAccordionAndDecks();
   initFontPicker();
+  openSectionFromHash();
   document.addEventListener('astro:page-load', () => {
     initAccordionAndDecks();
     initFontPicker();
+    openSectionFromHash();
   });
 </script>
 
