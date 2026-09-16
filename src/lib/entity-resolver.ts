@@ -82,10 +82,33 @@ function shape(doc: any, kind: 'brand' | 'event', urlFor?: ResolveDeps['urlFor']
   if (!slug) return null;
 
   const mark = kind === 'event' ? doc.heroLogo || doc.logo : doc.logo;
-  const safeUrl = (source: any): string | null => {
+
+  /*
+    ─── ASK SANITY FOR A SIZE, ALWAYS ────────────────────────────────────────
+
+    A bare `urlFor(src).url()` returns the ORIGINAL asset. For a hub's
+    heroImage that is a 3840x2160 PNG — 3 MB — and it was being loaded as the
+    Feed hero's backdrop on every page view. Lighthouse measured /feed at
+    LCP 19.6s against it, with that single request the heaviest on the page by
+    a factor of twenty-four.
+
+    The backdrop is `.hero-backdrop-plate`, which is blurred 9px and overscanned
+    12%, so almost none of that detail can survive to the screen. CLAUDE.md
+    states the convention outright: a blurred plate is deliberately requested
+    SMALL, because the blur destroys more than the upsample costs. 1280 is
+    generous for a plate nobody can focus on.
+
+    `auto('format')` lets Sanity serve WebP where the browser takes it, which
+    is most of the remaining weight on the logo too.
+
+    Both chains are safe on either branch of `urlFor`: a non-Sanity string goes
+    through `plainUrlBuilder`, a Proxy that returns itself for any method and
+    the original URL from `.url()`.
+  */
+  const safeUrl = (source: any, size: (b: any) => any): string | null => {
     if (!source || !urlFor) return null;
     try {
-      return urlFor(source).url();
+      return size(urlFor(source)).url();
     } catch {
       /* A malformed asset ref must not take a card or the hero down with it. */
       return null;
@@ -97,8 +120,9 @@ function shape(doc: any, kind: 'brand' | 'event', urlFor?: ResolveDeps['urlFor']
     slug,
     url: kind === 'brand' ? `/featured/${slug}` : `/events/${slug}`,
     title: doc.title || '',
-    logo: safeUrl(mark),
-    hero: safeUrl(doc.heroImage),
+    /* 320 tall matches HubCard and the event heroes — this mark renders small. */
+    logo: safeUrl(mark, (b) => b.height(320).auto('format')),
+    hero: safeUrl(doc.heroImage, (b) => b.width(1280).auto('format')),
     color: hexOf(doc),
   };
 }
