@@ -70,6 +70,23 @@ interface Props {
    */
   hideHero?: boolean;
   hasSpotlightHero?: boolean;
+  /**
+   * Whether to render the filter row above the content.
+   *
+   * Default TRUE, because most of this layout's consumers need it and a prop
+   * that silently removes navigation should have to be asked for. The three
+   * /feed routes pass false: their horizontal rows already segment the feed by
+   * type and by brand, so the ARTICLE/VIDEO and FILM/TV/GAMES/EVENTS buttons
+   * were a second, flatter way to do the same job sitting directly on top of
+   * the first.
+   *
+   * This is a PROP rather than a deletion from the default slot below, because
+   * /category/<slug> renders that default and genuinely depends on it: it is
+   * the only control those pages have for switching type or category. /intel
+   * passes its own <IntelFilters /> into the same slot and is likewise
+   * unaffected.
+   */
+  showFilters?: boolean;
 }
 
 const {
@@ -88,6 +105,7 @@ const {
   noindex = false,
   hideHero = false,
   hasSpotlightHero = false,
+  showFilters = true,
 } = Astro.props;
 ---
 
@@ -102,9 +120,11 @@ const {
       )}
       {hideHero && <h1 class="sr-only">{titlePrimary} {titleSecondary}</h1>}
 
-      <slot name="filters">
-        <QuadrantFilter showTypes={true} isNavMode={isNavMode} />
-      </slot>
+      {showFilters && (
+        <slot name="filters">
+          <QuadrantFilter showTypes={true} isNavMode={isNavMode} />
+        </slot>
+      )}
 
       {/* Structural, and sr-only in BOTH paths: with the lockup shown the h1
           is <PageTitle> above, with it hidden the h1 is the line above this. */}

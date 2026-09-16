@@ -40,34 +40,192 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
 const hasHub = (item: any, slug: string) =>
   Array.isArray(item?.hubs) && item.hubs.includes(slug);
 
-const hasTag = (item: any, tag: string) =>
-  Array.isArray(item?.youtubeTags) &&
-  item.youtubeTags.some((t: any) => String(t).toLowerCase() === tag);
+/*
+  ─── A TAG MATCH HAS TO READ BOTH TAG FIELDS ───────────────────────────────
 
-const ROW_DEFS: { id: string; title: string; variant?: 'prestige'; match: (i: any) => boolean }[] = [
-  { id: 'lanterns', title: 'Lanterns', variant: 'prestige', match: (i) => hasTag(i, 'lanterns') },
-  { id: 'dc-comics', title: 'DC', match: (i) => hasHub(i, 'dc-comics') },
-  { id: 'marvel-comics', title: 'Marvel', match: (i) => hasHub(i, 'marvel-comics') },
-  { id: 'hbo-max', title: 'HBO Max', match: (i) => hasHub(i, 'hbo-max') },
-  { id: 'netflix', title: 'Netflix', match: (i) => hasHub(i, 'netflix') },
-  { id: 'prime-video', title: 'Prime Video', match: (i) => hasHub(i, 'prime-video') },
+  Videos carry `youtubeTags` (raw YouTube tags) and articles carry `tags`
+  (Substack post tags). They are different fields because they come from
+  different syncs, and an item only ever has one of them.
+
+  Reading `youtubeTags` alone made every tag-matched row video-only without
+  looking like it: the Lanterns row showed five videos and silently dropped the
+  two Lanterns articles, which are tagged "Lanterns" in `tags`. Nothing was
+  broken on screen, the row was just quietly incomplete.
+
+  Compared lower-case because the two sources disagree on case for the same
+  tag: YouTube has "lanterns", Substack has "Lanterns".
+*/
+const hasTag = (item: any, tag: string) => {
+  const wanted = tag.toLowerCase();
+  const pools = [item?.youtubeTags, item?.tags];
+  return pools.some(
+    (pool) => Array.isArray(pool) && pool.some((t: any) => String(t).toLowerCase() === wanted),
+  );
+};
+
+interface RowDef {
+  id: string;
+  title: string;
+  variant?: 'prestige';
+  match: (item: any) => boolean;
+}
+
+interface SectionDef {
+  id: string;
+  title: string;
+  rows: RowDef[];
+}
+
+/*
+  ─── THE TENTPOLE ROW SITS OUTSIDE THE SECTIONS ────────────────────────────
+
+  Lanterns is a single title, not a franchise or a streamer, so it belongs to
+  none of the three sections below. It keeps its prestige treatment and leads
+  the page. Delete this one line to remove it; nothing else refers to it.
+*/
+const PRESTIGE_ROW: RowDef = {
+  id: 'lanterns',
+  title: 'Lanterns',
+  variant: 'prestige',
+  match: (i) => hasTag(i, 'lanterns'),
+};
+
+/*
+  ─── SECTIONS AND THEIR ROWS ───────────────────────────────────────────────
+
+  Adding a row is a line in a `rows` array; adding a section is an entry here.
+  Empty rows are dropped, and a section whose rows are all empty is dropped
+  with them, so nothing can ship as a bare heading over nothing.
+
+  ─── WHAT THESE FILTERS ACTUALLY MATCH, MEASURED ───────────────────────────
+  Counted against src/data/videos.json at the time of writing, over the 28
+  documents that are published AND of effective type `video` (shorts, live and
+  retired docs never reach the feed):
+
+    dc-comics 5 · hbo-max 5 · marvel-comics 4 · netflix 3 · prime-video 2
+
+  STAR WARS MATCHES NOTHING, and that is a data fact rather than a wiring bug.
+  There is no `star-wars` value in any document's `hubs`, and no document
+  carries the exact tag "star wars". The only Star Wars strings in the store
+  are compound tags — "Star Wars Andor", "Disney Plus Star Wars", "Star Wars
+  review" — and every one of them is on a short or an unpublished document, so
+  even a substring match would find nothing the feed can render. The row is
+  specified here so it appears the moment a tagged video is published; until
+  then it drops out rather than rendering an empty rail.
+
+  `marvel` is kept alongside `marvel-comics` for the same forward-looking
+  reason. Only `marvel-comics` exists in the store today.
+*/
+const SECTION_DEFS: SectionDef[] = [
+  {
+    id: 'latest',
+    title: 'The Latest',
+    rows: [
+      { id: 'all-content', title: 'All Content', match: () => true },
+      { id: 'all-videos', title: 'All Videos', match: (i) => i?.type === 'video' },
+      { id: 'all-articles', title: 'All Articles', match: (i) => i?.type === 'article' },
+    ],
+  },
+  {
+    id: 'franchises',
+    title: 'Franchises',
+    rows: [
+      { id: 'dc-comics', title: 'DC', match: (i) => hasHub(i, 'dc-comics') },
+      { id: 'marvel-comics', title: 'Marvel', match: (i) => hasHub(i, 'marvel-comics') || hasHub(i, 'marvel') },
+      { id: 'star-wars', title: 'Star Wars', match: (i) => hasTag(i, 'star wars') },
+    ],
+  },
+  {
+    id: 'streaming',
+    title: 'Streaming',
+    rows: [
+      { id: 'hbo-max', title: 'HBO Max', match: (i) => hasHub(i, 'hbo-max') },
+      { id: 'netflix', title: 'Netflix', match: (i) => hasHub(i, 'netflix') },
+      { id: 'prime-video', title: 'Prime Video', match: (i) => hasHub(i, 'prime-video') },
+    ],
+  },
 ];
 
-const feedRows = ROW_DEFS
-  .map((row) => ({ ...row, items: safeAllItems.filter(row.match) }))
-  .filter((row) => row.items.length > 0);
+const buildRow = (row: RowDef) => ({ ...row, items: safeAllItems.filter(row.match) });
+
+const prestigeRow = (() => {
+  const built = buildRow(PRESTIGE_ROW);
+  return built.items.length > 0 ? built : null;
+})();
+
+/*
+  ─── THE GLOBAL ROWS DE-DUPLICATE, AND ONLY THEY DO ────────────────────────
+
+  "All Content", "All Videos" and "All Articles" are three different rows on
+  /feed, where allItems holds both kinds. They are NOT three different rows on
+  the type-filtered routes, which pass an already-narrowed list:
+
+    /feed/videos   -> All Content and All Videos are the same 28 items
+    /feed/articles -> All Content and All Articles are the same 12 items
+
+  Those are three views of one list, so rendering two identical rails under two
+  headings reads as a bug and doubles the cards the page ships.
+
+  ─── WHY THIS IS SCOPED TO THE `latest` SECTION ───────────────────────────
+  The first version of this compared every row against every earlier row on the
+  page, and it silently ate the DC and HBO Max rows. Both hold exactly the five
+  Lanterns videos — the show is a DC property airing on HBO Max — so by
+  set-identity they matched the tentpole row and were dropped. Franchises
+  rendered as Marvel alone and Streaming lost its largest row, which looked
+  like a filter bug and was really this.
+
+  Set identity is not the same thing as editorial identity. "DC" is a distinct
+  browse path from "Lanterns" even in the week when they happen to contain the
+  same five items, and it stops matching the moment any other DC video
+  publishes. Only rows that are BY CONSTRUCTION views of the same list — the
+  global three — may collapse into each other, so the comparison never leaves
+  the section that defines them.
+
+  First occurrence wins, so the result is deterministic rather than dependent
+  on which row happens to be longer.
+*/
+const GLOBAL_SECTION_ID = 'latest';
+
+const sameItems = (a: any[], b: any[]) => a.length === b.length && a.every((item, i) => item === b[i]);
+
+const feedSections = SECTION_DEFS
+  .map((section) => {
+    const kept: any[][] = [];
+    const rows = section.rows
+      .map(buildRow)
+      .filter((row) => row.items.length > 0)
+      .filter((row) => {
+        if (section.id !== GLOBAL_SECTION_ID) return true;
+        if (kept.some((seen) => sameItems(seen, row.items))) return false;
+        kept.push(row.items);
+        return true;
+      });
+    return { ...section, rows };
+  })
+  .filter((section) => section.rows.length > 0);
+
+const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
 ---
 
-<script is:inline>
-  if (typeof window !== 'undefined' && (window.location.hash || window.location.search.includes('category='))) {
-    document.documentElement.classList.add('js-feed-filtering');
-  }
-</script>
-<style>
-  html.js-feed-filtering body #feed-grid-wrapper {
-    opacity: 0;
-  }
+{/*
+  ─── THE ANTI-FLASH CLOAK IS GONE, AND IT HAD TO GO WITH THE TEMPLATE ──────
 
+  An inline script used to add `js-feed-filtering` to <html> whenever the URL
+  carried a hash, and a rule below held #feed-grid-wrapper at opacity 0 until
+  initFeedClientFiltering() removed the class again at the very end of its run.
+  That hid the unfiltered grid flashing before the filter could rebuild it.
+
+  It could not survive the template's removal. initFeedClientFiltering() bails
+  at `if (!feedGrid || !template) return;`, which is ABOVE the line that takes
+  the class off — so with the template deleted the class would have been added
+  and never removed, and the entire feed would have rendered at opacity 0 for
+  anyone arriving with a hash. /category/<slug> links straight to
+  /feed/articles#film, so that is a live path, not a hypothetical one.
+
+  With no filter UI there is no filtered state to flash, so the cloak has
+  nothing left to hide and is removed rather than repaired.
+*/}
+<style>
   /* ─── NETFLIX ROWS ──────────────────────────────────────────────────────── */
 
   /* The wrapper swaps between the two views. Both defaults are stated here so
@@ -84,6 +242,67 @@ const feedRows = ROW_DEFS
      was present and correct throughout. */
   #feed-grid-wrapper.is-filtered #feed-rows { display: none; }
   #feed-grid-wrapper[data-has-rows]:not(.is-filtered) #feed-grid { display: none; }
+
+  /* ─── OVERARCHING SECTIONS ──────────────────────────────────────────── */
+
+  /*
+    The rows now sit directly under the hero: the filter row that used to
+    separate them is gone from /feed (FeedLayout's `showFilters`). That row
+    carried `margin: 4rem 0 3rem`, and it took the gap with it, so the first
+    row had nothing holding it off the bottom of the hero. This is the standard
+    editorial spacing, owned by the thing that actually needs it rather than
+    inherited from a neighbour that might be removed again.
+  */
+  #feed-rows {
+    padding-top: 3rem;
+  }
+
+  @media (max-width: 768px) {
+    #feed-rows {
+      padding-top: 2rem;
+    }
+  }
+
+  .feed-section {
+    margin-bottom: 3.5rem;
+  }
+
+  /*
+    The section heading outranks its rows visually as well as semantically, so
+    the two levels are never mistaken for each other: larger, brighter, and
+    underscored by a hairline that runs the width of the content column.
+  */
+  .feed-section-title {
+    font-family: var(--font-display, sans-serif);
+    font-size: clamp(1.35rem, 2.4vw, 1.9rem);
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-white, #f0f0f0);
+    margin: 0 0 0.35rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .feed-section-rows {
+    padding-top: 1.35rem;
+  }
+
+  /* Inside a section the rows sit closer together than a standalone row does:
+     they are one group, and the section's own bottom margin provides the
+     separation from the next group. */
+  .feed-section-rows .feed-row {
+    margin-bottom: 2rem;
+  }
+
+  .feed-section-rows .feed-row:last-child {
+    margin-bottom: 0;
+  }
+
+  .feed-section-rows .feed-row-title {
+    font-size: clamp(0.85rem, 1.25vw, 1rem);
+    color: rgba(255, 255, 255, 0.82);
+  }
 
   .feed-row {
     margin-bottom: 2.75rem;
@@ -119,6 +338,32 @@ const feedRows = ROW_DEFS
     handing the gesture to the browser, which on iOS is the back-swipe: without
     it, flicking the last card sideways navigates away from the feed.
   */
+  /*
+    ─── THE RAIL RUNS EDGE TO EDGE, THE HEADINGS DO NOT ───────────────────────
+
+    `.container-page` gives this page a 25.6px gutter and a 1536px max-width.
+    The section and row headings want both. The rail wants neither: a card
+    should scroll past the edge of the screen, not stop short of it inside an
+    invisible box.
+
+    `margin-inline: calc(50% - 50vw)` is the break-out. `50%` is half the
+    element's own containing block and `50vw` is half the viewport, so the
+    negative margin is exactly the distance from the container's edge to the
+    viewport's on each side — it works at any width, including above the
+    container's max-width where the gap is much larger than the gutter.
+
+    `padding-inline` then puts that distance straight back as PADDING rather
+    than margin, which is the whole trick: the scrollable area now spans the
+    viewport, but the first card still starts on the same vertical line as the
+    heading above it, and the last one can scroll fully off the right edge.
+
+    KNOWN AND ACCEPTED: `vw` includes the scrollbar, 15px here, so the rail
+    overshoots the layout viewport by 7.5px a side. `body` is `overflow-x:
+    clip` (verified: the document's horizontal overflow is 0), so this is
+    clipped rather than scrollable, and it costs about a tenth of the feather
+    width below. Correcting it would mean publishing the scrollbar width from
+    JS and making a layout rule depend on a script having run.
+  */
   .feed-row-rail {
     display: flex;
     gap: 1rem;
@@ -130,8 +375,71 @@ const feedRows = ROW_DEFS
     scrollbar-width: none;
     -ms-overflow-style: none;
     list-style: none;
-    margin: 0;
-    padding: 0 0 0.5rem;
+    margin-block: 0;
+    margin-inline: calc(50% - 50vw);
+    padding-block: 0 0.5rem;
+    padding-inline: calc(50vw - 50%);
+
+    /*
+      ─── SNAPPING IGNORES `padding`, SO THE GUTTER HAS TO BE DECLARED TWICE ──
+
+      `scroll-snap-align: start` aligns a card to the SNAPPORT, and the
+      snapport starts at the scroll container's padding-box edge unless
+      `scroll-padding` says otherwise. So the snap engine treated the gutter
+      above as empty space to be scrolled away: the rail loaded at
+      `scrollLeft: 32` on a phone, putting the first card flush against the
+      screen edge, 32px to the left of the heading it is supposed to line up
+      with. It looked like the padding had not applied at all. It had; the
+      scroll position was hiding it.
+
+      It CANNOT be fixed in this rule, which is why it is set from the script
+      below instead. `scroll-padding`'s percentages resolve against the
+      scrollport — this element's own, now full-bleed, padding box — while
+      `padding`'s resolve against the containing block. The identical
+      expression therefore means two different things on the two properties:
+      `calc(50vw - 50%)` computes to 32px as padding here and to exactly 0 as
+      scroll-padding, which is the value that was doing nothing. `sync()` copies
+      the resolved padding across, so the two can never disagree, and it
+      already re-runs on resize.
+    */
+
+    /*
+      ─── THE FEATHER IS SCROLL-AWARE, NOT ALWAYS ON ──────────────────────────
+
+      A flat `linear-gradient(to right, transparent 0%, black 5%, black 95%,
+      transparent 100%)` fades BOTH edges permanently, and the first card sits
+      at the left edge — so the card a reader looks at first is always half
+      faded, before anything has scrolled anywhere. The effect is meant to say
+      "this continues past the edge"; on a rail resting at position 0 nothing
+      continues past the left edge, and saying so is a lie the eye reads as a
+      rendering fault.
+
+      So each side's feather is a variable, and `sync()` in the script below
+      turns it on only for a side that genuinely has content beyond it. Both
+      default to 0, which makes the gradient fully opaque — that is also the
+      correct no-JS state, since without script there is no scroll position to
+      reason about and a permanently faded card would be the only visible
+      result.
+    */
+    --feed-fade: clamp(28px, 5vw, 96px);
+    --fade-start: 0px;
+    --fade-end: 0px;
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 var(--fade-start),
+      #000 calc(100% - var(--fade-end)),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 var(--fade-start),
+      #000 calc(100% - var(--fade-end)),
+      transparent 100%
+    );
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
   }
 
   .feed-row-rail::-webkit-scrollbar { display: none; }
@@ -148,8 +456,30 @@ const feedRows = ROW_DEFS
   .feed-row-item {
     flex: 0 0 auto;
     width: min(85vw, 320px);
-    scroll-snap-align: start;
+    scroll-snap-align: center;
     display: flex;
+  }
+
+  /*
+    ─── THE FIRST AND LAST CARD OPT OUT OF CENTRE SNAPPING ───────────────────
+
+    The brief asks for `snap-center`, and it is the right feel mid-rail. At the
+    two ends it is not: a rail cannot scroll past 0 or past its maximum, so a
+    first card that wants to be centred can never reach its own snap position.
+    With `snap-type: mandatory` the browser resolves that by jumping to the
+    nearest position it CAN satisfy, which skips the first card — it becomes
+    unreachable, half off the left edge, and the same happens to the last card
+    at the other end.
+
+    `snap-align: start` on the first and `end` on the last are the positions
+    those two can actually occupy. Everything between them still centres.
+  */
+  .feed-row-item:first-child {
+    scroll-snap-align: start;
+  }
+
+  .feed-row-item:last-child {
+    scroll-snap-align: end;
   }
 
   .feed-row-item > * { width: 100%; }
@@ -202,6 +532,8 @@ const feedRows = ROW_DEFS
     margin-bottom: 3.25rem;
   }
 
+  /* Already full-bleed by the same reasoning as the rail above, and unchanged:
+     this is the band BEHIND the row, so it uses inset rather than margin. */
   .feed-row--prestige::before {
     content: '';
     position: absolute;
@@ -226,7 +558,7 @@ const feedRows = ROW_DEFS
     .feed-row-chevron { transition: none; }
   }
 </style>
-<div id="feed-grid-wrapper" data-has-rows={feedRows.length > 0 ? "true" : undefined} style="width: 100%; clear: both; transition: opacity 0.2s ease;">
+<div id="feed-grid-wrapper" data-has-rows={hasRows ? "true" : undefined} style="width: 100%; clear: both; transition: opacity 0.2s ease;">
   {/*
     ─── TWO VIEWS, ONE WRAPPER ───────────────────────────────────────────────
 
@@ -245,18 +577,24 @@ const feedRows = ROW_DEFS
     what you want, and you want a plain list the moment you have.
   */}
 
-  {feedRows.length > 0 && (
+  {/*
+    ─── ONE ROW COMPONENT, RENDERED AT TWO DEPTHS ────────────────────────────
+
+    The tentpole row sits on its own above the sections; every other row sits
+    inside one. Both use the same `.feed-row` markup so a change to the rail,
+    the snapping or the chevrons lands in both places at once.
+
+    HEADING LEVELS: FeedLayout already emits the page h1 and an sr-only h2
+    naming the surface, so section titles are h2 (siblings of it) and row
+    titles are h3. Nothing skips a level, which is what axe reports on.
+  */}
+
+  {hasRows && (
     <div id="feed-rows">
-      {feedRows.map((row) => (
-        <section class:list={['feed-row', { 'feed-row--prestige': row.variant === 'prestige' }]} data-row={row.id}>
+      {prestigeRow && (
+        <section class="feed-row feed-row--prestige" data-row={prestigeRow.id}>
           <div class="feed-row-head">
-            <h2 class="feed-row-title">{row.title}</h2>
-            {/*
-              The chevrons are mouse affordances only. A touch device scrolls
-              the rail directly and a keyboard reaches every card through it,
-              so they are aria-hidden and removed from the tab order rather
-              than duplicated as focusable controls that go nowhere new.
-            */}
+            <h2 class="feed-row-title">{prestigeRow.title}</h2>
             <div class="feed-row-nav" aria-hidden="true">
               <button type="button" class="feed-row-chevron" data-dir="-1" tabindex="-1">
                 <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
@@ -270,14 +608,55 @@ const feedRows = ROW_DEFS
               </button>
             </div>
           </div>
-
           <ul class="feed-row-rail" data-rail>
-            {row.items.map((item: any, index: number) => (
+            {prestigeRow.items.map((item: any, index: number) => (
               <li class="feed-row-item">
                 <ContentCard item={item} index={index} context="feed" />
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {feedSections.map((section) => (
+        <section class="feed-section" data-section={section.id} aria-labelledby={`feed-section-${section.id}`}>
+          <h2 class="feed-section-title" id={`feed-section-${section.id}`}>{section.title}</h2>
+
+          <div class="feed-section-rows">
+            {section.rows.map((row) => (
+              <section class="feed-row" data-row={row.id}>
+                <div class="feed-row-head">
+                  <h3 class="feed-row-title">{row.title}</h3>
+                  {/*
+                    Mouse affordances only. A touch device scrolls the rail
+                    directly and a keyboard reaches every card through it, so
+                    these are aria-hidden and out of the tab order rather than
+                    focusable controls that reach nothing new.
+                  */}
+                  <div class="feed-row-nav" aria-hidden="true">
+                    <button type="button" class="feed-row-chevron" data-dir="-1" tabindex="-1">
+                      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                        <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" />
+                      </svg>
+                    </button>
+                    <button type="button" class="feed-row-chevron" data-dir="1" tabindex="-1">
+                      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                        <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <ul class="feed-row-rail" data-rail>
+                  {row.items.map((item: any, index: number) => (
+                    <li class="feed-row-item">
+                      <ContentCard item={item} index={index} context="feed" />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
         </section>
       ))}
     </div>
@@ -298,11 +677,16 @@ const feedRows = ROW_DEFS
 )}
 </div>
 
-<template id="full-dataset-cards">
-  {safeAllItems.map((item: any, index: number) => (
-    <ContentCard item={item} index={index} context="feed" />
-  ))}
-</template>
+{/*
+  The <template id="full-dataset-cards"> that stood here is gone. It rendered
+  EVERY feed item a second time as full cards so the legacy hash filter could
+  clone from it, which on /feed meant shipping 40 extra card subtrees the page
+  never displayed. Removed for parse time and TBT.
+
+  Nothing reads it any more: the filter row is no longer rendered on any /feed
+  route (FeedLayout's `showFilters`), so there is no control that can set a
+  filter, and the horizontal rows segment the same content by type and brand.
+*/}
 
 <template id="feed-empty-state">
   <EmptyState message={MESSAGES.noFilterMatch} actionLabel={LABELS.clearFilters} actionClass="clear-filters-btn" />
@@ -632,7 +1016,8 @@ const feedRows = ROW_DEFS
     
     // Initial execution on load
     applyFilters();
-    document.documentElement.classList.remove('js-feed-filtering');
+    /* The `js-feed-filtering` cloak this used to lift no longer exists — see
+       the note at the top of this file. Nothing to un-hide. */
   }
 
   /*
@@ -659,13 +1044,73 @@ const feedRows = ROW_DEFS
          are disabled rather than left live and inert-feeling. 1px of slack
          absorbs sub-pixel layout rounding, which otherwise leaves the right
          chevron permanently enabled on an exactly-fitting row. */
+      /*
+        ─── READS AND WRITES ARE SEPARATED, AND COALESCED ─────────────────────
+
+        This runs on every scroll tick. It used to read layout (`scrollWidth`,
+        `clientWidth`, `scrollLeft`) and then immediately write to the DOM
+        (`setAttribute`, `setProperty`) in the same frame, which forces a
+        synchronous re-layout on each tick — layout thrashing, straight into
+        Total Blocking Time on a page carrying nine of these rails.
+
+        Now every read happens first, and the writes are deferred to the next
+        animation frame.
+
+        `pending` is the second half of the fix and matters as much as the rAF:
+        a scroll gesture fires this dozens of times, and scheduling a frame per
+        tick just moves the pile-up rather than removing it. One frame is
+        queued at a time and it writes the freshest values it was given.
+      */
+      let pending = false;
+      let latest = { max: 0, left: 0 };
+
       const sync = () => {
+        // 1. Read layout properties first.
         const max = rail.scrollWidth - rail.clientWidth;
-        chevrons.forEach((btn) => {
-          const dir = Number(btn.dataset.dir);
-          const atEnd = dir < 0 ? rail.scrollLeft <= 1 : rail.scrollLeft >= max - 1;
-          btn.setAttribute('data-disabled', String(max <= 1 || atEnd));
+        const left = rail.scrollLeft;
+        latest = { max, left };
+
+        if (pending) return;
+        pending = true;
+
+        // 2. Write to the DOM asynchronously.
+        requestAnimationFrame(() => {
+          pending = false;
+          const scrollable = latest.max > 1;
+          const atStart = latest.left <= 1;
+          const atEnd = latest.left >= latest.max - 1;
+
+          chevrons.forEach((btn) => {
+            const dir = Number(btn.dataset.dir);
+            btn.setAttribute('data-disabled', String(!scrollable || (dir < 0 ? atStart : atEnd)));
+          });
+
+          /*
+            The feather, one side at a time. A side is faded only when there is
+            actually content past it, so a rail resting at 0 has a crisp first
+            card and a fade on the right. Derived from the SAME values as the
+            chevrons above: the button being disabled and that edge being
+            un-feathered are one fact, and computing them separately is how the
+            two would drift.
+          */
+          rail.style.setProperty('--fade-start', !scrollable || atStart ? '0px' : 'var(--feed-fade)');
+          rail.style.setProperty('--fade-end', !scrollable || atEnd ? '0px' : 'var(--feed-fade)');
         });
+      };
+
+      /*
+        Mirror the rail's resolved inline padding onto its scroll padding. See
+        the note on `scroll-padding-inline` in the stylesheet: the snapport
+        otherwise starts at the padding-box edge and the snap engine scrolls
+        the gutter away on load, landing the first card flush against the
+        screen instead of on its heading's line.
+
+        Read from the computed style rather than restated as a number, so the
+        breakpoint that owns the gutter stays the only place it is defined.
+      */
+      const syncScrollPadding = () => {
+        const { paddingLeft } = getComputedStyle(rail);
+        rail.style.scrollPaddingInline = paddingLeft;
       };
 
       chevrons.forEach((btn) => {
@@ -676,7 +1121,29 @@ const feedRows = ROW_DEFS
       });
 
       rail.addEventListener('scroll', sync, { passive: true });
-      window.addEventListener('resize', sync);
+      window.addEventListener('resize', () => {
+        syncScrollPadding();
+        sync();
+      });
+
+      syncScrollPadding();
+
+      /*
+        Undo the snap the browser already performed.
+
+        On first layout the scroll-padding above has not been applied yet, so
+        the snap engine treats the rail's inline padding as empty space and
+        scrolls it away to align the first card to the bare padding box. Adding
+        scroll-padding afterwards fixes future snaps but does not re-run that
+        one, which left the rail resting at a non-zero scrollLeft — 32px, then
+        8px once the padding landed mid-pass — with the first card sitting left
+        of the heading it should line up with.
+
+        Init only, deliberately. Doing this on resize would throw away a
+        reader's place in the rail every time a phone rotated.
+      */
+      rail.scrollLeft = 0;
+
       sync();
     });
   }
