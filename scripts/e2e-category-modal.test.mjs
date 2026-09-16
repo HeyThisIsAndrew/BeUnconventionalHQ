@@ -13,8 +13,8 @@ async function runTests() {
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 375, height: 812 }); // Mobile viewport
-    console.log('Navigating to feed page...');
-    await page.goto('http://localhost:4321/feed');
+    console.log('Navigating to a route that renders the filter row...');
+    await page.goto('http://localhost:4321/category/film');
     
     await page.waitForSelector('#open-categories-btn', { timeout: 5000 });
     const trigger = await page.$('#open-categories-btn');
@@ -95,7 +95,21 @@ async function runTests() {
       class: focus has to come back to the trigger, or a keyboard user is
       dropped at the top of the document.
     */
-    for (const route of ['/feed', '/intel']) {
+/*
+      ─── THE FEED NO LONGER CARRIES THIS CONTROL; /category/<slug> DOES ────────
+    
+      These assertions used to run against /feed. The Feed's filter row was removed
+      deliberately (FeedLayout's `showFilters={false}` on the three /feed routes) —
+      its horizontal rows segment the same content by type and by brand, so the
+      ARTICLE/VIDEO and FILM/TV/GAMES/EVENTS buttons were a second, flatter way to
+      do the same job stacked on top of the first.
+    
+      /category/<slug> is the replacement rather than a deletion, and it has to be:
+      it renders the SAME <QuadrantFilter /> the Feed used, so swapping the route
+      keeps this suite covering both filter components — QuadrantFilter here and
+      IntelFilters on /intel — which is the coverage the note below depends on.
+    */
+    for (const route of ['/category/film', '/intel']) {
       await page.goto(`http://localhost:4321${route}`, { waitUntil: 'networkidle0' });
       await page.waitForSelector('#open-categories-btn', { timeout: 5000 });
       await page.click('#open-categories-btn');
@@ -140,7 +154,7 @@ async function runTests() {
       behind it, so the first Tab walks the page underneath rather than the
       menu.
     */
-    await page.goto('http://localhost:4321/feed', { waitUntil: 'networkidle0' });
+    await page.goto('http://localhost:4321/category/film', { waitUntil: 'networkidle0' });
     await page.waitForSelector('#open-categories-btn', { timeout: 5000 });
     await page.click('#open-categories-btn');
     await page.waitForFunction(
@@ -209,8 +223,13 @@ async function runTests() {
       "visible", and it opened and closed correctly. Only its BOX was wrong.
 
       So measure the box, on both surfaces that share the component.
+
+      That pair used to be /feed and /intel. The Feed no longer renders the
+      filter row, so /category/film takes its place — it renders the same
+      <QuadrantFilter />, which is what makes this a route swap rather than a
+      loss of coverage.
     */
-    for (const route of ['/feed', '/intel']) {
+    for (const route of ['/category/film', '/intel']) {
       await page.goto(`http://localhost:4321${route}`, { waitUntil: 'networkidle0' });
       await page.waitForSelector('#open-categories-btn', { timeout: 5000 });
       await page.click('#open-categories-btn');
