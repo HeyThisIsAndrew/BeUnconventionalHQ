@@ -10,6 +10,7 @@
 import { formatEventDateRange, formatLocation } from '../lib/events';
 import { buildImageSet } from '../lib/local-content';
 import EventStatusIndicator from './EventStatusIndicator.astro';
+import logoImage from '../assets/logo-mark.webp';
 
 const { event } = Astro.props;
 const slug = event?.slug?.current ?? '';
@@ -36,12 +37,13 @@ const hero = buildImageSet(event?.heroImage, {
   quality: 60,
 });
 
-/*
-  The logo is drawn at up to 130px tall (`.fe-logo`), so 320px of source
-  covers a 2x display with margin. It was requested at height 200 — under 2x
-  on the very phones most likely to see it.
-*/
-const logo = buildImageSet(event?.logo, { widths: [200, 320, 480, 760] });
+const fallbackLogoSrc = logoImage.src;
+const overrideLogo = event?.customHeroLogo;
+const taxonomyLogo = event?.heroLogo || event?.logo;
+const sourceLogo = overrideLogo || taxonomyLogo;
+const logo = sourceLogo ? buildImageSet(sourceLogo, { widths: [200, 320, 480, 760] }) : null;
+const resolvedLogoSrc = logo?.src || fallbackLogoSrc;
+const resolvedLabel = event?.customHeroBrandLabel || event?.title;
 const dateLabel = formatEventDateRange(event?.startDate, event?.endDate);
 const locationLabel = formatLocation(event?.location);
 const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
@@ -127,37 +129,17 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
       */}
       {/* Logo */}
       <div class="flex flex-row items-end gap-4 md:gap-10 w-32 sm:w-40 md:w-auto max-w-full">
-        {logo ? (
-          <>
-            {/*
-              Deliberately NOT fetchpriority="high". It used to be, which put
-              two images on one screen both claiming top priority.
-
-              `.fe-bg` above is the LCP element — the full-bleed 100vw hero.
-              This logo draws at 160px on a phone and 380px on desktop.
-              Marking both high meant they were fetched concurrently at equal
-              priority, so on the gate's 1.6 Mbps link the logo took bandwidth
-              directly from the element the LCP metric is measuring. Priority
-              only means something when it is scarce.
-
-              Still eager rather than lazy: it is above the fold, and
-              loading="lazy" would push it past first paint.
-            */}
-            <img
-              src={logo.src}
-              srcset={logo.srcset || undefined}
-              sizes="(min-width: 900px) 380px, 160px"
-              width={logo.width || undefined}
-              height={logo.height || undefined}
-              alt={`${event.title} logo`}
-              class="fe-logo w-full h-auto md:w-auto"
-              decoding="async"
-            />
-            <h2 class="sr-only">{event.title}</h2>
-          </>
-        ) : (
-          <h2 class="fe-title">{event.title}</h2>
-        )}
+        <img
+          src={resolvedLogoSrc}
+          srcset={logo?.srcset || undefined}
+          sizes="(min-width: 900px) 380px, 160px"
+          width={logo?.width || undefined}
+          height={logo?.height || undefined}
+          alt={resolvedLabel}
+          class="fe-logo w-full h-auto md:w-auto"
+          decoding="async"
+        />
+        <h2 class="sr-only">{event.title}</h2>
       </div>
 
       {/*

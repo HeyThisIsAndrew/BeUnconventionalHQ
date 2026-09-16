@@ -13,6 +13,7 @@ import { urlFor, getFeaturedBrandsLocal } from '../lib/local-content';
 import { formatEventDateRange, formatLocation, getEventTypeLabel } from '../lib/events';
 import { buildEventDescription, buildEventTitleName, buildEventSchema } from '../lib/event-seo';
 import { pageTitle } from '../data/content.js';
+import logoImage from '../assets/logo-mark.webp';
 
 const {
   event,
@@ -117,7 +118,14 @@ const trailerId = parseVideoId(trailerUrl);
   `heroLogo` is the override for the left slot only. Unset (the common case)
   it falls back to `logo` and nothing changes.
 */
-const heroLockupLogo = event.heroLogo || event.logo;
+const overrideLogo = event.customHeroLogo ? urlFor(event.customHeroLogo).height(320).auto('format').url() : null;
+const sourceTaxonomyLogo = event.heroLogo || event.logo || relatedBrand?.logo;
+const taxonomyLogo = sourceTaxonomyLogo ? urlFor(sourceTaxonomyLogo).height(320).auto('format').url() : null;
+const fallbackLogoSrc = logoImage.src;
+const resolvedLogoSrc = overrideLogo || taxonomyLogo || fallbackLogoSrc;
+
+const overrideLabel = event.customHeroBrandLabel || null;
+const resolvedLabel = overrideLabel || relatedBrand?.title || event.title;
 
 /*
   ─── "EVENT DETAILS" POINTS AT THIS PAGE ──────────────────────────────────
@@ -449,24 +457,24 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
                 answer where the question is: the alt renders in the mark's
                 own position if the image never arrives, and it is announced
                 once rather than once per element.
-
-                `.hero-logo-wrap` keeps its own element because HARD RULE 6
-                means the glow is a filter on the WRAPPER and never on the
-                <img>; the <h1> only replaces the sr-only twin.
               */}
-              {heroLockupLogo ? (
-                <h1 class="hero-title-lockup">
-                  <span class="hero-logo-wrap">
-                    <img
-                      src={urlFor(heroLockupLogo).height(320).auto('format').url()}
-                      alt={event.title}
-                      class="hero-logo"
-                    />
-                  </span>
-                </h1>
-              ) : (
-                <h1 class="hero-title">{event.title}</h1>
-              )}
+              {/*
+                A HEADING THAT IS PURELY A CONTAINER. The <h1> around the mark
+                must not bring a heading's own margin, size or weight with it —
+                the alt text only ever paints if the image fails, and it should
+                land where the mark would have, not as a browser-default 2em
+                block that moves everything under it.
+              */}
+              <h1 class="hero-title-lockup">
+                <span class="hero-logo-wrap">
+                  <img
+                    src={resolvedLogoSrc}
+                    alt={resolvedLabel}
+                    class="hero-logo"
+                    data-fallback-logo={fallbackLogoSrc}
+                  />
+                </span>
+              </h1>
 
               {taglineText && <p class="hero-tagline">{taglineText}</p>}
 

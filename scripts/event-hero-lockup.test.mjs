@@ -61,12 +61,17 @@ test('the left mark can be overridden without touching the stage', () => {
   for (const rel of HERO_COMPONENTS) {
     const code = heroSource(rel);
 
-    assert.match(code, /const heroLockupLogo = event\.heroLogo \|\| event\.logo;/,
-      `${rel} must resolve the left mark from heroLogo first. Without the override the four ` +
-        'PAX events render the same shared wordmark and read as one event four times.');
+    assert.match(code, /const overrideLogo = event\.customHeroLogo/,
+      `${rel} must check for customHeroLogo override first.`);
+    
+    assert.match(code, /const sourceTaxonomyLogo = event\.heroLogo \|\| event\.logo \|\| relatedBrand\?\.logo;/,
+      `${rel} must resolve taxonomy logo from heroLogo or logo.`);
 
-    assert.match(code, /class="hero-logo-wrap"[\s\S]{0,240}urlFor\(heroLockupLogo\)/,
-      `${rel}: the small top-left mark must render the RESOLVED lockup logo, not event.logo`);
+    assert.match(code, /const resolvedLogoSrc = overrideLogo \|\| taxonomyLogo \|\| fallbackLogoSrc;/,
+      `${rel} must implement the strict cascade (Override -> Taxonomy -> Default).`);
+
+    assert.match(code, /class="hero-logo-wrap"[\s\S]{0,240}src=\{resolvedLogoSrc\}/,
+      `${rel}: the small top-left mark must render the RESOLVED lockup logo.`);
 
     /*
       And the hero lockup's override reaches NOTHING else. `heroLogo` naming
@@ -75,7 +80,7 @@ test('the left mark can be overridden without touching the stage', () => {
     */
     const heroLogoUses = code.match(/event\.heroLogo/g) || [];
     assert.equal(heroLogoUses.length, 1,
-      `${rel}: heroLogo must be read exactly once, by heroLockupLogo. It is the override for ` +
+      `${rel}: heroLogo must be read exactly once, by taxonomyLogo. It is the override for ` +
         'the top-left slot alone.');
   }
 });
@@ -273,7 +278,7 @@ test('the hero states the event\'s name once', () => {
     assert.match(code, /\{taglineText && <p class="hero-tagline">\{taglineText\}<\/p>\}/,
       `${rel}: the paragraph must not render at all when there is no tagline`);
 
-    assert.match(code, /<h1 class="hero-title-lockup">[\s\S]{0,400}?alt=\{event\.title\}/,
+    assert.match(code, /<h1 class="hero-title-lockup">[\s\S]{0,400}?alt=\{resolvedLabel\}/,
       `${rel}: the mark must BE the heading, and carry the name as its alt`);
     assert.doesNotMatch(code, /<h1 class="sr-only">\{event\.title\}<\/h1>/,
       `${rel}: the sr-only twin is gone; two elements naming the page is what was announced twice`);

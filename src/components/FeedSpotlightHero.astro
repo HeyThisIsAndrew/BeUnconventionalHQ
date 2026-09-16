@@ -45,9 +45,16 @@ const brand = brands.find((b) =>
   (primaryTag && b.title?.toUpperCase() === primaryTag.toUpperCase())
 );
 const fallbackLogoSrc = logoImage.src;
-const brandLogo = brand?.logo ? urlFor(brand.logo).url() : fallbackLogoSrc;
-const brandHero = brand?.heroImage ? urlFor(brand.heroImage).url() : '';
 
+const overrideLogo = latestVideo.customHeroLogo ? urlFor(latestVideo.customHeroLogo).url() : null;
+const taxonomyLogo = brand?.logo ? urlFor(brand.logo).url() : null;
+const brandLogo = overrideLogo || taxonomyLogo || fallbackLogoSrc;
+
+const overrideLabel = latestVideo.customHeroBrandLabel || null;
+const taxonomyLabel = brand?.title || '';
+const brandLabel = overrideLabel || taxonomyLabel || 'BE Unconventional HQ';
+
+const brandHero = brand?.heroImage ? urlFor(brand.heroImage).url() : '';
 const itemBg = latestVideo.thumbnail || latestVideo.image || '';
 const heroBg = brandHero || itemBg;
 const heroTitle = latestVideo.title || '';
@@ -144,7 +151,7 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
           <img 
             id="hero-brand-logo" 
             src={brandLogo || fallbackLogoSrc} 
-            alt="Brand Logo" 
+            alt={brandLabel} 
             class={`hero-logo`}
             data-fallback-logo={fallbackLogoSrc}
           />

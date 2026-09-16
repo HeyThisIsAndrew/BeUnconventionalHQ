@@ -450,6 +450,21 @@ export default defineType({
       description: 'A YouTube URL embedded as the trailer in the hero banner.',
     }),
     defineField({
+      name: 'customHeroLogo',
+      title: 'Custom Hero Logo (Override)',
+      type: 'image',
+      fieldset: 'media',
+      options: { hotspot: true },
+      description: 'Optional. Overrides the brand/franchise taxonomy logo in the hero.',
+    }),
+    defineField({
+      name: 'customHeroBrandLabel',
+      title: 'Custom Hero Brand Label (Override)',
+      type: 'string',
+      fieldset: 'media',
+      description: 'Optional. Manually override the brand/franchise name text in the hero.',
+    }),
+    defineField({
       name: 'videoAssets',
       title: 'Additional Videos',
       type: 'array',
