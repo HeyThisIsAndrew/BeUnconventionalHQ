@@ -155,8 +155,8 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
             class={`hero-logo`}
             data-fallback-logo={fallbackLogoSrc}
           />
-          <h1 id="hero-title" class="hero-title leading-tight line-clamp-1">{heroTitle}</h1>
-          <p id="hero-description" class="hero-tagline line-clamp-2">{heroDescription}</p>
+          <h1 id="hero-title" class="hero-title leading-tight">{heroTitle}</h1>
+          <p id="hero-description" class="hero-tagline">{heroDescription}</p>
           <a
             href={site.socials.youtube}
             target="_blank"
@@ -214,7 +214,7 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
            
         </div>
 
-        <div class="hub-stage-video" style="z-index: 5;">
+        <div class="hub-stage-video">
           <iframe
             id="hero-iframe"
             class="hub-stage-iframe transition-opacity duration-500"
@@ -225,6 +225,20 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
             allow="autoplay; encrypted-media"
             style="opacity: 0; pointer-events: none;"
           ></iframe>
+
+          {/*
+            The PiP dismiss control. It lives INSIDE .hub-stage-video because
+            that is the box that becomes the floating window, so it travels with
+            it and needs no second set of coordinates. Hidden and inert until
+            the stage is actually in PiP, so it is never a stray tab stop over
+            the hero.
+          */}
+          <button type="button" class="hub-stage-pip-close" data-pip-close hidden>
+            <span class="sr-only">Close the floating video</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
+              <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" />
+            </svg>
+          </button>
         </div>
 
         {/*
@@ -325,6 +339,110 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
     </script>
   )
 }
+
+<script>
+  /*
+    ─── PICTURE IN PICTURE ───────────────────────────────────────────────────
+
+    Scroll the hero away while a video is playing and the player detaches to the
+    bottom-right of the viewport; scroll back and it returns to the stage.
+
+    ─── WHY THIS IS NOT IN HeroTrailer.astro ─────────────────────────────────
+    The brief asked for it there. CLAUDE.md hard rule 2 protects that component:
+    it encodes iOS Safari iframe, YouTube playback, rotation and WebKit
+    compositing fixes, and forbids changing its lifecycle. A scroll-driven
+    `position: fixed` on a cross-origin iframe is exactly the class of change
+    those fixes exist to survive. This hero's stage is the other player on the
+    site, it is not protected, and it is the one on /feed — so the feature lands
+    here and HeroTrailer is untouched.
+
+    ─── WHY THERE IS NO YouTube IFrame API ───────────────────────────────────
+    The brief specified tracking `onStateChange`. That needs YouTube's
+    iframe_api script, and scripts/third-party-critical-path.test.mjs exists to
+    keep vendor scripts off this path. We do not need it: playback on this stage
+    is only ever started by our own code, which marks the stage `is-playing` at
+    the same moment. That class IS the play state, it is already the thing the
+    stylesheet keys every other playing behaviour off, and it costs no network.
+
+    The trade-off, stated plainly: if a visitor pauses inside the YouTube chrome
+    we do not hear about it, so a paused video still pops out on scroll. Reading
+    that would mean the vendor script. Dismissing the window is one click.
+
+    ─── THE GUARDRAIL ───────────────────────────────────────────────────────
+    The iframe is NEVER re-parented, re-sourced or removed. Any of the three
+    restarts the video. Only a class on .hub-stage changes; CSS does the rest.
+  */
+  function initSpotlightPip() {
+    const key = '__hqSpotlightPipObserver';
+    const previous = (window as any)[key] as IntersectionObserver | undefined;
+    if (previous) previous.disconnect();
+    delete (window as any)[key];
+
+    const stage = document.querySelector<HTMLElement>('.hub-stage');
+    if (!stage) return;
+
+    const frame = stage.querySelector<HTMLIFrameElement>('#hero-iframe');
+    const closeBtn = stage.querySelector<HTMLButtonElement>('[data-pip-close]');
+    if (!frame || !closeBtn) return;
+
+    /* Set when the visitor dismisses the window, and cleared the moment the
+       hero is back on screen. Without it, one dismissal is undone by the next
+       scroll tick that still sees the hero off screen. */
+    let dismissed = false;
+
+    /* The ancestor whose backdrop-filter would otherwise trap the fixed
+       window. Looked up once; absent on any surface that frames the hero
+       differently, in which case there is nothing to neutralise. */
+    const pipHost = stage.closest<HTMLElement>('.event-hero-overlay');
+
+    const setPip = (on: boolean) => {
+      stage.classList.toggle('is-pip', on);
+      pipHost?.classList.toggle('is-pip-host', on);
+      closeBtn.hidden = !on;
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            dismissed = false;
+            setPip(false);
+            continue;
+          }
+          setPip(!dismissed && stage.classList.contains('is-playing'));
+        }
+      },
+      /* A small negative top margin means the hero has to be properly gone, not
+         merely grazing the top edge, before the window appears. */
+      { threshold: 0, rootMargin: '-80px 0px 0px 0px' },
+    );
+
+    observer.observe(stage);
+    (window as any)[key] = observer;
+
+    closeBtn.addEventListener('click', () => {
+      dismissed = true;
+      setPip(false);
+      /*
+        Pause rather than tear down. `enablejsapi=1` is already on the embed URL
+        this stage builds, so the player accepts a command over postMessage with
+        no API script loaded. Clearing the src instead would both restart the
+        video on return and, if it were ever set to '', resolve to this page and
+        load the site inside its own iframe (hard rule 4).
+      */
+      try {
+        frame.contentWindow?.postMessage(
+          JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }),
+          '*',
+        );
+      } catch {
+        /* Cross-origin refusal is harmless: the window is already closed. */
+      }
+    });
+  }
+
+  document.addEventListener('astro:page-load', initSpotlightPip);
+</script>
 
 <style>
   .event-dashboard {
@@ -937,11 +1055,125 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
   .hub-stage-video {
     position: absolute;
     inset: 0;
+    /* Was an inline `style="z-index: 5"` on the element. Moved here because an
+       inline declaration outranks every stylesheet rule, so the PiP rule's
+       z-index could never take effect and the floating window sat under the
+       page furniture. */
+    z-index: 5;
     opacity: 0;
     transform: scale(1.02);
     transition: opacity 1.1s ease, transform 1.1s cubic-bezier(0.2, 0.8, 0.2, 1);
     box-shadow: 0 30px 70px rgba(0,0,0,0.85);
     /* NO overflow: hidden and no radius needing one. HARD RULE 3. */
+  }
+
+  /* ─── PICTURE IN PICTURE ────────────────────────────────────────────────
+
+     The stage's video layer detaches to the bottom-right of the VIEWPORT while
+     a video is playing and the hero has scrolled away.
+
+     The iframe is never moved in the DOM and never re-sourced — doing either
+     restarts playback, which is the whole thing this feature exists to avoid.
+     Only this wrapper's positioning changes, so the same element keeps playing
+     the same frame throughout.
+
+     `position: fixed` here relies on no ancestor of .hub-stage-video
+     establishing a containing block (a transform, filter, perspective,
+     backdrop-filter or will-change on an ancestor would trap it into the hero
+     instead of the viewport). `.hub-stage-mark` carries transforms, but it is a
+     SIBLING of this element, not an ancestor.
+
+     And no `overflow: hidden` anywhere in this rule set: hard rule 3 says a
+     clipping ancestor turns a cross-origin YouTube iframe into a black box on
+     iOS Safari, and the rounded corner that would normally want clipping is
+     therefore drawn as a border instead. */
+  /*
+    THE ESCAPE HATCH FOR `position: fixed`.
+
+    `.event-hero-overlay` carries `backdrop-filter: blur(3px)`, and any non-none
+    backdrop-filter makes an element a containing block for fixed-position
+    DESCENDANTS. The stage lives inside it, so the PiP window anchored itself to
+    the hero rather than the viewport: measured at 1440x900 it sat 338px above
+    the bottom edge instead of 28px, and it would have scrolled away with the
+    hero it was supposed to outlive.
+
+    The blur is dropped only while a window is out, and it is set from JS rather
+    than through `:has()` on purpose. `:has()` would read better, but where it
+    is unsupported the rule silently does nothing and the window is positioned
+    off screen. A class toggled by the same function that toggles `is-pip`
+    cannot get out of step with it and works everywhere.
+
+    Nothing is lost visually: the hero is by definition scrolled out of view
+    whenever this applies.
+  */
+  .event-hero-overlay.is-pip-host {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .hub-stage.is-pip .hub-stage-video {
+    position: fixed;
+    top: auto;
+    left: auto;
+    right: clamp(12px, 3vw, 28px);
+    bottom: clamp(12px, 3vw, 28px);
+    width: min(360px, 42vw);
+    aspect-ratio: 16 / 9;
+    height: auto;
+    inset-inline-start: auto;
+    z-index: 90;
+    /* Beats .hub-stage-video's own z-index: 5 above by specificity, not by
+       !important. */
+    opacity: 1;
+    transform: none;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75);
+    transition: opacity 0.3s ease;
+  }
+
+  /* Below the phone breakpoint a 42vw window is too small to read and too easy
+     to fat-finger, so it spans the gutter width instead. */
+  @media (max-width: 640px) {
+    .hub-stage.is-pip .hub-stage-video {
+      width: min(240px, 62vw);
+    }
+  }
+
+  .hub-stage-pip-close {
+    position: absolute;
+    top: -12px;
+    right: -12px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 999px;
+    background: #0a0a0a;
+    color: var(--color-white, #f0f0f0);
+    cursor: pointer;
+    transition: border-color 0.25s ease, background 0.25s ease;
+  }
+
+  .hub-stage-pip-close:hover,
+  .hub-stage-pip-close:focus-visible {
+    border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.9);
+    background: #141414;
+  }
+
+  .hub-stage-pip-close:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hub-stage.is-pip .hub-stage-video,
+    .hub-stage-pip-close {
+      transition: none;
+    }
   }
 
   .hub-stage-iframe {
@@ -1450,6 +1682,54 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
     script measures the full height itself and animates between the two, so
     this number only has to agree with line-height.
   */
+  /*
+    ─── THE CLAMPS LIVE HERE, NOT IN THE MARKUP ───────────────────────────────
+
+    These were `line-clamp-1` on the title and `line-clamp-2` on the
+    description, as Tailwind utilities in the class attribute. A utility in the
+    markup cannot vary the way this needs to, so both applied at every width,
+    and one line of a title like "Lanterns Episode 5 Review | Hal Jordan's Fate
+    and the Future of the DCU" renders as "LANTERNS EPISODE 5…" on a phone AND
+    on a desktop.
+
+    They were a blunt instrument aimed at the overflow fixed above: clamping
+    hid the symptom by cutting the text off before it could reach the edge, so
+    the real cause (a 510px measure inside a 335px column) stayed. With the
+    measure fixed the text wraps properly, and the clamp can go back to doing
+    its actual job — bounding the hero's height so a long title cannot push the
+    stage off the screen — rather than truncating everything on sight.
+
+    The two get DIFFERENT bounds, because they are different kinds of text.
+
+    The TITLE is a headline and wants to be read in full: four lines fits this
+    one ("Lanterns Episode 5 Review | Hal Jordan's Fate and the Future of the
+    DCU") completely at 375px, where three cut it off mid-word at "the Future
+    O…". It stays clamped rather than unbounded so a freak 20-word title still
+    cannot shove the stage off a phone screen.
+
+    The DESCRIPTION is a teaser and CANNOT be shown in full here: for a video
+    it is the entire YouTube description, timestamps, gear list, affiliate
+    links and all, which measures over 3000px tall on a phone. Three lines is
+    the deliberate trim, and the point of the fix above is that those three
+    lines now wrap inside the column instead of running off the screen.
+  */
+  .hero-title,
+  .hero-tagline {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .hero-title {
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+  }
+
+  .hero-tagline {
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+  }
+
   .hero-tagline {
     font-size: 0.95rem;
     font-weight: 500;
@@ -1457,7 +1737,29 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.58);
     line-height: 1.7;
-    max-width: 52ch;
+    /*
+      ─── `min(…, 100%)`, NOT A BARE `52ch` ─────────────────────────────────
+
+      52ch is the reading measure and it is worth keeping, but a bare max-width
+      in `ch` does not know how wide the column actually is. `.hero-identity`
+      above is a COLUMN flex container with `align-items: flex-start`, which
+      means its children are sized by their own content rather than stretched
+      to the container. So this line sized itself to the only limit it had —
+      52ch, which at this font size and 0.22em of letter-spacing resolves to
+      510px — inside a column that is 335px wide on a 375px phone.
+
+      The result was the description running off the right edge of the screen,
+      mid-word, with no way to read the rest: the element clips
+      (`overflow: hidden` for the line clamp), so it did not even extend the
+      page to reveal itself. The document never scrolled horizontally, which is
+      exactly why this survived so long. It does not LOOK like an overflow bug,
+      it looks like the copy was written too long.
+
+      `min(52ch, 100%)` keeps the measure wherever there is room for it and
+      hands the column back control everywhere else. The title next to it was
+      already fine; this was the only element in the hero clearing the viewport.
+    */
+    max-width: min(52ch, 100%);
     margin-top: 1.6rem;
     text-shadow: 0 4px 12px rgba(0, 0, 0, 0.9);
   }

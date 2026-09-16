@@ -1,0 +1,50 @@
+---
+/**
+ * /feed — the main feed.
+ *
+ * ─── THIS ROUTE IS DELIBERATELY NOT PAGINATED ─────────────────────────────
+ * It was `feed/[...page].astro`, built with `paginate(..., { pageSize: 12 })`,
+ * which emitted /feed, /feed/2, /feed/3 and /feed/4.
+ *
+ * The horizontal rows in <FeedGrid /> render from `allItems` — the WHOLE feed,
+ * not a page of it — so a numbered page could only ever show the same six rows
+ * again. Once the numbered links came out of FeedGrid nothing linked to them
+ * either, so /feed/2..4 were unreachable duplicates of /feed that the sitemap
+ * was still advertising to Google. Ghost pages, and the kind that compete with
+ * the page they duplicate.
+ *
+ * Collapsing the route is what actually stops them being generated; hiding the
+ * links did not. The paths Google already knows are forwarded here in
+ * `redirects` in astro.config.mjs, so their crawl equity lands on /feed rather
+ * than on a 404.
+ *
+ * The `page` object below is the shape <FeedLayout /> and <FeedGrid /> expect,
+ * with no previous or next. It is built by hand rather than by paginate()
+ * precisely so no second page can ever come back by accident.
+ */
+import FeedLayout from '../../layouts/FeedLayout.astro';
+import FeedSpotlightHero from '../../components/FeedSpotlightHero.astro';
+import { META, pageTitle } from '../../data/content.js';
+import { getAllFeedItems } from '../../lib/feed-items';
+import FeedGrid from '../../components/FeedGrid.astro';
+
+const allItems = await getAllFeedItems();
+
+/* One page, holding everything. `url.prev`/`url.next` stay undefined so
+   Layout emits no rel=prev/next, which is correct for a single-page route. */
+const page = { data: allItems, currentPage: 1, url: { prev: undefined, next: undefined } };
+
+const title = pageTitle(META.feed.title);
+const description = META.feed.description;
+---
+
+<FeedLayout hasSpotlightHero={true}
+  title={title}
+  description={description}
+  headingLabel="All content"
+  page={page}
+  isNavMode={true}
+>
+  <FeedSpotlightHero slot="hero" />
+  <FeedGrid page={page} allItems={allItems} />
+</FeedLayout>

@@ -491,9 +491,11 @@ export default defineConfig({
       getStaticPaths and are the same one-line risk to cover; the paginated
       /category/film/2 is the only page-2 that ever existed.
 
-      These do NOT collide with /feed/[...page]: paginate() only ever emits
-      numeric page segments (/feed/2, /feed/3), so no generated route claims
-      these paths. scripts/seo-routing.test.mjs pins that.
+      These do NOT collide with anything under /feed any more: the feed routes
+      are single pages (src/pages/feed/index.astro and friends) and no longer
+      generate numeric segments at all. They did not collide before either,
+      since paginate() only ever emitted numeric ones.
+      scripts/seo-routing.test.mjs pins that.
     */
     '/feed/film': '/category/film',
     '/feed/film/2': '/category/film/2',
@@ -503,6 +505,29 @@ export default defineConfig({
     // is the shape Search Console reports as a redirect chain.
     '/feed/gaming': '/category/games',
     '/feed/events': '/category/events',
+
+    /*
+      ─── THE FEED PAGINATION COLLAPSE ───────────────────────────────────────
+      /feed and /feed/videos used to paginate. Their rows render the whole set,
+      so a numbered page was a duplicate of the page before it, and once the
+      numbered links came out of FeedGrid nothing linked to them — but the
+      sitemap had already handed them to Google.
+
+      Same reasoning as the category rename above: the pages are gone, and a
+      URL Google knows must forward rather than 404, or the crawl equity it
+      holds is simply discarded.
+
+      This list is FROZEN, not a moving target. It is exactly what the last
+      paginated build emitted (verified against dist/client/feed), and since
+      neither route can generate a numeric segment any more, no new entry can
+      ever be needed. /feed/articles is absent on purpose: it never had enough
+      articles to reach a second page, so there is nothing Google could know.
+    */
+    '/feed/2': '/feed',
+    '/feed/3': '/feed',
+    '/feed/4': '/feed',
+    '/feed/videos/2': '/feed/videos',
+    '/feed/videos/3': '/feed/videos',
 
     /*
       ─── THE GAMING → GAMES RENAME (#146) ───────────────────────────────────
@@ -740,6 +765,15 @@ export default defineConfig({
           '/feed/tv',
           '/feed/gaming',
           '/feed/events',
+          // The collapsed feed pagination (see `redirects` above). Same rule
+          // as every entry around it: these now forward to /feed and
+          // /feed/videos, and a redirect must never be advertised as a
+          // canonical destination.
+          '/feed/2',
+          '/feed/3',
+          '/feed/4',
+          '/feed/videos/2',
+          '/feed/videos/3',
           // Renamed to /category/games and /intel/topic/games (#146). Same
           // rule: the sitemap advertises destinations, never sources.
           '/category/gaming',

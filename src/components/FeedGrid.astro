@@ -2,7 +2,6 @@
 import ContentCard from './ContentCard.astro';
 import CardGrid from './CardGrid.astro';
 import EmptyState from './EmptyState.astro';
-import Pagination from './Pagination.astro';
 import { LABELS, MESSAGES } from '../data/content.js';
 
 export interface Props {
@@ -13,6 +12,50 @@ export interface Props {
 const { page = { data: [] }, allItems = [] } = Astro.props;
 const currentItems = Array.isArray(page?.data) ? page.data : [];
 const safeAllItems = Array.isArray(allItems) ? allItems : [];
+
+/*
+  ─── THE ROWS ARE BUILT FROM `hubs`, NOT `franchises` ───────────────────────
+
+  The brief specified `item.franchises?.includes('dc')`. That field exists on
+  the type and on all 215 synced documents, and it is EMPTY on every one of
+  them — `franchises: doc.franchises ?? []` in src/lib/videos.ts is defaulting,
+  not carrying data, because nothing populates it yet. A row built on it renders
+  zero cards, and it does so silently: an empty row looks like "no coverage",
+  not like a wiring bug.
+
+  `hubs` is the populated taxonomy, and its values are full slugs — `dc-comics`
+  and `marvel-comics`, NOT `dc` and `marvel`. Counted from src/data/videos.json:
+  dc-comics 29, warner-bros 29, hbo-max 26, marvel-comics 21, prime-video 9,
+  netflix 6.
+
+  Lanterns is the one match the brief got exactly right: `youtubeTags` carries a
+  lowercase `lanterns` on 26 documents, so `.includes('lanterns')` finds them
+  without any normalising. It is still compared case-insensitively below, since
+  youtubeTags is raw YouTube data and a future upload saying "Lanterns" would
+  otherwise drop out of its own row.
+
+  Adding a row is a line in this array. Rows that match nothing are dropped
+  before render, so an empty one can never ship.
+*/
+const hasHub = (item: any, slug: string) =>
+  Array.isArray(item?.hubs) && item.hubs.includes(slug);
+
+const hasTag = (item: any, tag: string) =>
+  Array.isArray(item?.youtubeTags) &&
+  item.youtubeTags.some((t: any) => String(t).toLowerCase() === tag);
+
+const ROW_DEFS: { id: string; title: string; variant?: 'prestige'; match: (i: any) => boolean }[] = [
+  { id: 'lanterns', title: 'Lanterns', variant: 'prestige', match: (i) => hasTag(i, 'lanterns') },
+  { id: 'dc-comics', title: 'DC', match: (i) => hasHub(i, 'dc-comics') },
+  { id: 'marvel-comics', title: 'Marvel', match: (i) => hasHub(i, 'marvel-comics') },
+  { id: 'hbo-max', title: 'HBO Max', match: (i) => hasHub(i, 'hbo-max') },
+  { id: 'netflix', title: 'Netflix', match: (i) => hasHub(i, 'netflix') },
+  { id: 'prime-video', title: 'Prime Video', match: (i) => hasHub(i, 'prime-video') },
+];
+
+const feedRows = ROW_DEFS
+  .map((row) => ({ ...row, items: safeAllItems.filter(row.match) }))
+  .filter((row) => row.items.length > 0);
 ---
 
 <script is:inline>
@@ -24,8 +67,222 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
   html.js-feed-filtering body #feed-grid-wrapper {
     opacity: 0;
   }
+
+  /* ─── NETFLIX ROWS ──────────────────────────────────────────────────────── */
+
+  /* The wrapper swaps between the two views. Both defaults are stated here so
+     the correct one shows before any script runs: rows are the browse view, so
+     with JS off or slow you get rows, not a grid AND rows.
+
+     ─── THE GRID ONLY STANDS DOWN IF ROWS EXIST TO REPLACE IT ──────────────
+     `data-has-rows` is the guard, and it is load-bearing rather than tidy.
+     Every row matches on `hubs` or `youtubeTags`, which are YouTube taxonomy.
+     Articles sync from Substack and carry neither, so /feed/articles builds
+     ZERO rows. Without this attribute the rule below hid that page's grid too
+     and the route rendered twelve cards at display:none: a completely blank
+     page. Caught by counting VISIBLE cards, not by reading the markup, which
+     was present and correct throughout. */
+  #feed-grid-wrapper.is-filtered #feed-rows { display: none; }
+  #feed-grid-wrapper[data-has-rows]:not(.is-filtered) #feed-grid { display: none; }
+
+  .feed-row {
+    margin-bottom: 2.75rem;
+  }
+
+  .feed-row-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.85rem;
+  }
+
+  .feed-row-title {
+    font-family: var(--font-display, sans-serif);
+    font-size: clamp(1rem, 1.6vw, 1.35rem);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-white, #f0f0f0);
+    margin: 0;
+  }
+
+  /*
+    THE RAIL.
+
+    `overflow-x: auto` with mandatory snapping, and the scrollbar hidden on all
+    three engines — WebKit needs a pseudo-element, Firefox needs
+    `scrollbar-width`, old Edge needs `-ms-overflow-style`. Hiding it is only
+    safe because the chevrons exist on desktop and touch scrolls natively.
+
+    `overscroll-behavior-x: contain` stops a rail that has hit its end from
+    handing the gesture to the browser, which on iOS is the back-swipe: without
+    it, flicking the last card sideways navigates away from the feed.
+  */
+  .feed-row-rail {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0.5rem;
+  }
+
+  .feed-row-rail::-webkit-scrollbar { display: none; }
+
+  /*
+    `min(85vw, 320px)` is the brief's number and it is the right one: 320px caps
+    the card on desktop, and 85vw keeps a phone showing a sliver of the NEXT
+    card, which is the only affordance saying the rail scrolls at all.
+
+    `flex: 0 0 auto` matters as much as the width — without it flex would shrink
+    every card to fit the row and nothing would overflow, so nothing would
+    scroll.
+  */
+  .feed-row-item {
+    flex: 0 0 auto;
+    width: min(85vw, 320px);
+    scroll-snap-align: start;
+    display: flex;
+  }
+
+  .feed-row-item > * { width: 100%; }
+
+  .feed-row-nav {
+    display: none;
+    gap: 0.4rem;
+  }
+
+  .feed-row-chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 0;
+    background: rgba(0, 0, 0, 0.4);
+    color: var(--color-white, #f0f0f0);
+    cursor: pointer;
+    transition: border-color 0.25s ease, background 0.25s ease, opacity 0.25s ease;
+  }
+
+  .feed-row-chevron:hover {
+    border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.85);
+    background: rgba(0, 0, 0, 0.6);
+  }
+
+  /* Set by the rail's scroll handler: nothing further to scroll that way. */
+  .feed-row-chevron[data-disabled='true'] {
+    opacity: 0.25;
+    pointer-events: none;
+  }
+
+  /* Mouse territory only. A coarse pointer scrolls the rail with a thumb. */
+  @media (hover: hover) and (pointer: fine) {
+    .feed-row-nav { display: flex; }
+  }
+
+  /*
+    THE PRESTIGE ROW. A dark emerald wash, which is Lanterns' own colour, bled
+    out past the page gutter so the row reads as a band rather than a boxed
+    panel. No `overflow: hidden` anywhere in here: these rows carry cards that
+    open a YouTube iframe, and hard rule 3 makes any clipping ancestor of one a
+    black box on iOS Safari.
+  */
+  .feed-row--prestige {
+    position: relative;
+    padding: 1.5rem 0 1.25rem;
+    margin-bottom: 3.25rem;
+  }
+
+  .feed-row--prestige::before {
+    content: '';
+    position: absolute;
+    inset: 0 -50vw;
+    background: linear-gradient(
+      100deg,
+      rgba(6, 46, 34, 0.85) 0%,
+      rgba(8, 30, 24, 0.6) 42%,
+      rgba(10, 10, 10, 0) 78%
+    );
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .feed-row--prestige .feed-row-title {
+    color: #d7f7e6;
+    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.8);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .feed-row-rail { scroll-behavior: auto; }
+    .feed-row-chevron { transition: none; }
+  }
 </style>
-<div id="feed-grid-wrapper" style="width: 100%; clear: both; transition: opacity 0.2s ease;">
+<div id="feed-grid-wrapper" data-has-rows={feedRows.length > 0 ? "true" : undefined} style="width: 100%; clear: both; transition: opacity 0.2s ease;">
+  {/*
+    ─── TWO VIEWS, ONE WRAPPER ───────────────────────────────────────────────
+
+    UNFILTERED  -> #feed-rows  (horizontal rows, grouped by hub)
+    FILTERED    -> #feed-grid  (the flat grid the hash filter already builds)
+
+    They are mutually exclusive and the swap is a single class on this wrapper,
+    set by applyFilters() below. Doing it this way is deliberate: the filtering
+    code already owns #feed-grid entirely — it caches the grid's original HTML,
+    rebuilds it from the <template>, and pages it with Load More. Rebuilding
+    that machinery to page six independent horizontal rows would have been a
+    rewrite of the one part of this component that currently works.
+
+    So the rows are the browse view and the grid is the results view, which is
+    also the right split for a reader: you scan rows when you have not decided
+    what you want, and you want a plain list the moment you have.
+  */}
+
+  {feedRows.length > 0 && (
+    <div id="feed-rows">
+      {feedRows.map((row) => (
+        <section class:list={['feed-row', { 'feed-row--prestige': row.variant === 'prestige' }]} data-row={row.id}>
+          <div class="feed-row-head">
+            <h2 class="feed-row-title">{row.title}</h2>
+            {/*
+              The chevrons are mouse affordances only. A touch device scrolls
+              the rail directly and a keyboard reaches every card through it,
+              so they are aria-hidden and removed from the tab order rather
+              than duplicated as focusable controls that go nowhere new.
+            */}
+            <div class="feed-row-nav" aria-hidden="true">
+              <button type="button" class="feed-row-chevron" data-dir="-1" tabindex="-1">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                  <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" />
+                </svg>
+              </button>
+              <button type="button" class="feed-row-chevron" data-dir="1" tabindex="-1">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                  <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <ul class="feed-row-rail" data-rail>
+            {row.items.map((item: any, index: number) => (
+              <li class="feed-row-item">
+                <ContentCard item={item} index={index} context="feed" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  )}
+
 {currentItems.length > 0 ? (
   <CardGrid id="feed-grid">
     {
@@ -51,11 +308,24 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
   <EmptyState message={MESSAGES.noFilterMatch} actionLabel={LABELS.clearFilters} actionClass="clear-filters-btn" />
 </template>
 
+{/*
+  ─── NO NUMBERED PAGINATION ON THE FEED ────────────────────────────────────
+
+  <Pagination /> used to render here. It is gone from THIS component only; the
+  component itself still serves /intel, /category/*, /events, the events archive
+  and event coverage, so it is not deleted.
+
+  Two reasons it had to go rather than be hidden. The rows are the browse view
+  and they carry every item already, so a "page 2" of a feed you can scroll
+  sideways is a second, contradictory way through the same content. And the
+  numbered links were full URL navigations, which is what put the view
+  transition — and with it the navbar — through a swap on every click.
+
+  Load More stays, because the FILTERED view still needs it: picking a category
+  can match far more than one screenful, and that view is a flat grid.
+*/}
 {currentItems.length > 0 && (
   <div class="mt-auto w-full" style="padding-top: 3.5rem;">
-    <div id="standard-pagination">
-      <Pagination page={page} />
-    </div>
     <div id="load-more-container" style="display: none;" class="text-center w-full">
       <button id="load-more-btn" class="cta-button-primary mx-auto relative z-10">
         {LABELS.loadMore}
@@ -94,14 +364,13 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
     }
 
     const feedGrid = document.getElementById('feed-grid');
+    const gridWrapper = document.getElementById('feed-grid-wrapper');
     const template = document.getElementById('full-dataset-cards') as HTMLTemplateElement;
-    const standardPagination = document.getElementById('standard-pagination');
     const loadMoreContainer = document.getElementById('load-more-container');
     const loadMoreBtn = document.getElementById('load-more-btn');
     const categoryBtns = document.querySelectorAll('.cat-btn');
     const typeBtns = document.querySelectorAll('.type-btn');
     const openCategoriesBtn = document.getElementById('open-categories-btn');
-    const paginationLinks = document.querySelectorAll('.pagination-number, .pagination-arrow');
 
     if (!feedGrid || !template) return;
 
@@ -208,22 +477,6 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
         }
       });
 
-      // Maintain hash on Pagination links
-      paginationLinks.forEach(link => {
-        if (!link.hasAttribute('data-base-href') && link.hasAttribute('href')) {
-          link.setAttribute('data-base-href', link.getAttribute('href') || '');
-        }
-        const baseHref = link.getAttribute('data-base-href');
-        const search = window.location.search;
-        if (baseHref) {
-          if (hash) {
-            link.setAttribute('href', `${baseHref}${search}#${hash}`);
-          } else {
-            link.setAttribute('href', `${baseHref}${search}`);
-          }
-        }
-      });
-
       // Update Category Buttons Active State
       categoryBtns.forEach((btn) => {
         const btnCategory = btn.getAttribute('data-category');
@@ -278,17 +531,16 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
             wrapper.style.outline = 'none'; // Prevent visual outline on programmatic focus
           }
         }
-        if (standardPagination) standardPagination.style.display = '';
+        /* Back to the browse view: rows in, results grid out. */
+        gridWrapper?.classList.remove('is-filtered');
         if (loadMoreContainer) loadMoreContainer.style.display = 'none';
         return;
       }
 
       hasFiltered = true;
 
-      // Hide standard pagination
-      if (standardPagination) {
-        standardPagination.style.display = 'none';
-      }
+      /* A filter is on: the flat results grid replaces the rows. */
+      gridWrapper?.classList.add('is-filtered');
 
       // Filter elements from the full dataset template
       const allCards = template.content.querySelectorAll('.content-card');
@@ -383,8 +635,55 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
     document.documentElement.classList.remove('js-feed-filtering');
   }
 
+  /*
+    THE ROW CHEVRONS.
+
+    Bound per rail, and re-bound on every `astro:page-load` because ClientRouter
+    swaps the document without reloading this module. Nothing is stored on
+    `window` here (unlike the delegated handlers below) because these listeners
+    live on elements that are themselves replaced by the swap, so they go with
+    the nodes they were attached to.
+
+    `scrollBy` gets 90% of the rail's visible width rather than a fixed pixel
+    count, so one press advances by roughly one screenful of cards at any
+    breakpoint, and the snap points do the final alignment.
+  */
+  function initFeedRows() {
+    document.querySelectorAll<HTMLElement>('.feed-row').forEach((row) => {
+      const rail = row.querySelector<HTMLElement>('[data-rail]');
+      if (!rail) return;
+
+      const chevrons = Array.from(row.querySelectorAll<HTMLButtonElement>('.feed-row-chevron'));
+
+      /* A rail that fits its content has nothing to scroll, so both chevrons
+         are disabled rather than left live and inert-feeling. 1px of slack
+         absorbs sub-pixel layout rounding, which otherwise leaves the right
+         chevron permanently enabled on an exactly-fitting row. */
+      const sync = () => {
+        const max = rail.scrollWidth - rail.clientWidth;
+        chevrons.forEach((btn) => {
+          const dir = Number(btn.dataset.dir);
+          const atEnd = dir < 0 ? rail.scrollLeft <= 1 : rail.scrollLeft >= max - 1;
+          btn.setAttribute('data-disabled', String(max <= 1 || atEnd));
+        });
+      };
+
+      chevrons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const dir = Number(btn.dataset.dir) || 1;
+          rail.scrollBy({ left: dir * rail.clientWidth * 0.9, behavior: 'smooth' });
+        });
+      });
+
+      rail.addEventListener('scroll', sync, { passive: true });
+      window.addEventListener('resize', sync);
+      sync();
+    });
+  }
+
   document.addEventListener('astro:page-load', () => {
     initFeedClientFiltering();
+    initFeedRows();
     
     // Lifecycle-protected Spotlight Swap Event Delegation
     if ((window as any)._spotlightSwapListener) {
@@ -631,33 +930,41 @@ const safeAllItems = Array.isArray(allItems) ? allItems : [];
       }
       };
 
-      // Temporarily disable Astro view transitions during this manual swap
-      const scopes = document.querySelectorAll('[data-astro-transition-scope]');
-      const scopeValues = Array.from(scopes).map(el => {
-        const val = el.getAttribute('data-astro-transition-scope');
-        el.removeAttribute('data-astro-transition-scope');
-        return { el, val };
-      });
+      /*
+        ─── THIS SWAP NO LONGER SUPPRESSES THE PAGE'S VIEW TRANSITIONS ────────
 
+        What stood here stripped `data-astro-transition-scope` off EVERY element
+        in the document and set `documentElement.style.viewTransitionName =
+        'none'` for the duration of the swap, restoring both afterwards.
+
+        That is what made the navbar blink. The navbar is a persistent,
+        transition-scoped element; pulling its scope attribute out from under it
+        and blanking the root transition name takes it out of the old snapshot
+        and puts it back into the new one, so it disappears and re-enters on a
+        swap that never involved it. The fix is not to restore it faster, it is
+        not to touch it: nothing outside this wrapper is any of this handler's
+        business.
+
+        The crossfade is KEPT. Naming the wrapper is not suppression — it scopes
+        the animation to the element actually changing, which is what the global
+        blanking was a blunt substitute for. Everything else on the page,
+        navbar included, is simply left alone.
+      */
       const feedGridWrapper = document.getElementById('feed-grid-wrapper');
       const isMobile = window.innerWidth < 768;
-      
+
       if (!isMobile && (document as any).startViewTransition) {
         if (feedGridWrapper) feedGridWrapper.style.viewTransitionName = 'feed-grid-manual';
-        document.documentElement.style.viewTransitionName = 'none';
-        
+
         const transition = (document as any).startViewTransition(() => {
           performDOMUpdate();
         });
-        
+
         transition.finished.finally(() => {
           if (feedGridWrapper) feedGridWrapper.style.viewTransitionName = '';
-          document.documentElement.style.viewTransitionName = '';
-          scopeValues.forEach(({el, val}) => val && el.setAttribute('data-astro-transition-scope', val));
         });
       } else {
         performDOMUpdate();
-        scopeValues.forEach(({el, val}) => val && el.setAttribute('data-astro-transition-scope', val));
       }
 
       // Smooth scroll to top so the user sees the hero
