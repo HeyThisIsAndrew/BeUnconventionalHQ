@@ -63,6 +63,98 @@ html[data-astro-transition] {
   animation-duration: 0s !important;
 }
 
+/*
+  ─── DIRECTIONAL PAGE TRANSITIONS ──────────────────────────────────────────
+
+  The nav reads left to right — Feed, Intel, Events, Featured, About — so a
+  move rightward along it slides the new page in from the right, and a move
+  leftward slides it in from the left. The page now has a direction, which is
+  the thing a fade cannot tell you.
+
+  ─── WHY THE NAME IS SET HERE AND NOT IN THE MARKUP ────────────────────────
+  `view-transition-name` is assigned in CSS rather than with Astro's
+  `transition:name="page-content"` directive, because
+  scripts/feed-ui-regression.test.mjs asserts Layout.astro must NOT carry that
+  directive — it breaks the feed's own in-page swap encapsulation. Assigning it
+  from a stylesheet gets the animation without the directive.
+
+  Navbar and Footer already carry their own `transition:name` with
+  `transition:animate="none"`, so they stay locked in place while the content
+  between them slides. That is what makes this read as a panel moving rather
+  than the whole window.
+
+  The easing is `--splash-ease`, the same ease-in-out quart the Enter The HQ
+  curtain uses. The duration is not: 900ms is right for a curtain you open once
+  and wrong for a page you move through all day.
+*/
+#page-content {
+  view-transition-name: page-main;
+}
+
+::view-transition-old(page-main),
+::view-transition-new(page-main) {
+  /* The snapshots are the same size, so neither needs to be squashed into the
+     other's box while it moves. */
+  width: 100%;
+  height: 100%;
+}
+
+html[data-page-transition='slide-forward']::view-transition-old(page-main) {
+  animation: page-slide-out-left 380ms var(--splash-ease) both;
+}
+
+html[data-page-transition='slide-forward']::view-transition-new(page-main) {
+  animation: page-slide-in-right 380ms var(--splash-ease) both;
+}
+
+html[data-page-transition='slide-backward']::view-transition-old(page-main) {
+  animation: page-slide-out-right 380ms var(--splash-ease) both;
+}
+
+html[data-page-transition='slide-backward']::view-transition-new(page-main) {
+  animation: page-slide-in-left 380ms var(--splash-ease) both;
+}
+
+/*
+  25%, not 100%. A full-width slide on a page this tall reads as a lurch, and
+  it also means the incoming page spends most of the animation off screen. A
+  quarter of the width plus the opacity cross-fade gives the direction without
+  the distance.
+*/
+@keyframes page-slide-out-left {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(-25%); opacity: 0; }
+}
+
+@keyframes page-slide-in-right {
+  from { transform: translateX(25%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes page-slide-out-right {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(25%); opacity: 0; }
+}
+
+@keyframes page-slide-in-left {
+  from { transform: translateX(-25%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* An in-page action — a feed hash, a filter, a spotlight swap — is not a
+   journey along the nav, so it does not slide. */
+html[data-page-transition='none']::view-transition-old(page-main),
+html[data-page-transition='none']::view-transition-new(page-main) {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(page-main),
+  ::view-transition-new(page-main) {
+    animation: none !important;
+  }
+}
+
 
 /*
    Scale the entire layout down by 12.5% on tablet and desktop to achieve a 

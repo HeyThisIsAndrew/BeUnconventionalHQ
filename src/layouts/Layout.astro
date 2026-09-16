@@ -417,6 +417,83 @@ const fallbackMark = await getImage({
         see src/components/BrandGlow.astro for the performance reasoning. */}
     <BrandGlow />
 
+    {/*
+      ─── WHICH WAY IS THIS NAVIGATION GOING ──────────────────────────────────
+
+      The nav bar is an ORDER, not a set: Feed, Intel, Events, Featured, About.
+      Moving rightward along it should look like moving rightward. This stamps
+      the direction on <html> before the swap, and global-base.css turns that
+      into the slide.
+
+      `is:inline` and not a module: it has to be listening before the FIRST
+      navigation, and `astro:before-preparation` fires early enough that a
+      deferred module can miss it.
+
+      The direction is copied onto the INCOMING document in `before-swap`,
+      because the swap replaces <html>'s attributes along with everything else
+      — set it only on the outgoing one and it is gone by the time the
+      animation runs.
+    */}
+    <script is:inline>
+      (function () {
+        var NAV_ORDER = ['/', '/feed', '/intel', '/events', '/featured', '/about'];
+
+        function indexOfRoute(pathname) {
+          var clean = pathname.replace(/\/+$/, '') || '/';
+          var exact = NAV_ORDER.indexOf(clean);
+          if (exact !== -1) return exact;
+          /* A sub-route belongs to its section: /intel/some-article is Intel,
+             so moving to it from Feed still reads as going right. */
+          var section = '/' + clean.split('/')[1];
+          var prefix = NAV_ORDER.indexOf(section);
+          return prefix !== -1 ? prefix : NAV_ORDER.length;
+        }
+
+        function directionFor(fromPath, toPath) {
+          /* Same page: a hash, a filter, a spotlight swap. Not a journey. */
+          if (fromPath === toPath) return 'none';
+
+          var from = indexOfRoute(fromPath);
+          var to = indexOfRoute(toPath);
+
+          /* Within one section, depth decides: /intel -> /intel/<slug> is
+             going deeper, and coming back out is going back. */
+          if (from === to) {
+            if (toPath.indexOf(fromPath) === 0) return 'slide-forward';
+            if (fromPath.indexOf(toPath) === 0) return 'slide-backward';
+            return 'slide-forward';
+          }
+
+          return from < to ? 'slide-forward' : 'slide-backward';
+        }
+
+        document.addEventListener('astro:before-preparation', function (event) {
+          var direction;
+          /* Back and Forward mean what the button says, whatever the nav order
+             is — a reader pressing Back expects to go back. */
+          if (event.navigationType === 'traverse') {
+            direction = event.direction === 'back' ? 'slide-backward' : 'slide-forward';
+          } else {
+            direction = directionFor(event.from.pathname, event.to.pathname);
+          }
+          document.documentElement.dataset.pageTransition = direction;
+        });
+
+        document.addEventListener('astro:before-swap', function (event) {
+          var direction = document.documentElement.dataset.pageTransition;
+          if (direction) event.newDocument.documentElement.dataset.pageTransition = direction;
+        });
+
+        /* Cleared once the animation has run, so a later in-page change does
+           not inherit the last navigation's direction. */
+        document.addEventListener('astro:page-load', function () {
+          setTimeout(function () {
+            delete document.documentElement.dataset.pageTransition;
+          }, 500);
+        });
+      })();
+    </script>
+
     <a href="#page-content" class="skip-link">Skip to main content</a>
     {
       gtmId && (
