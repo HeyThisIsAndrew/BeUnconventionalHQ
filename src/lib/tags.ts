@@ -9,6 +9,10 @@ export function getDisplayTags(item: any): string[] {
   cleanTokens = [...new Set(cleanTokens.filter(Boolean))];
 
   let tag1 = item.badge1 || '';
+  if (!tag1 && item.category && item.category.toUpperCase() === 'EVENTS') {
+    tag1 = 'EVENT';
+  }
+
   const brandMap = [
     { label: 'MARVEL', regex: /MARVEL|WOLVERINE|AVENGERS|SPIDER|XMEN|MCU|DEADPOOL|VENOM/ },
     { label: 'DC', regex: /DC$|DCU|BATMAN|SUPERMAN|WONDERWOMAN|JUSTICELEAGUE|JOKER|LANTERNS/ },
@@ -56,7 +60,8 @@ export function getDisplayTags(item: any): string[] {
     { label: 'INTERVIEW', regex: /INTERVIEW/ },
     { label: 'NEWS', regex: /NEWS/ },
     { label: 'ANNOUNCEMENT', regex: /ANNOUNCEMENT/ },
-    { label: 'DISPATCH', regex: /DISPATCH/ }
+    { label: 'DISPATCH', regex: /DISPATCH/ },
+    { label: 'EVENT COVERAGE', regex: /EVENT COVERAGE/ }
   ];
 
   if (!tag2) {
@@ -73,31 +78,6 @@ export function getDisplayTags(item: any): string[] {
   }
 
   let tag3 = item.badge3 || '';
-  const eventMap = [
-    // { label: 'LACC', regex: /LACC|COMICCON/ },
-    // { label: 'SDCC', regex: /SDCC|COMICCON/ },
-    { label: 'CONVENTION', regex: /^CONVENTIONS?$|WONDERCON/ },
-    { label: 'D23', regex: /D23/ },
-    { label: 'E3', regex: /E3/ },
-    { label: 'GAMESCOM', regex: /GAMESCOM/ },
-    { label: 'SUMMER GAME FEST', regex: /SGF|SUMMERGAMEFEST/ },
-    { label: 'THE GAME AWARDS', regex: /TGA|GAMEAWARDS/ },
-    { label: 'PAX', regex: /PAX/ },
-    { label: 'GDC', regex: /GDC/ },
-    { label: 'DC FANDOME', regex: /FANDOME/ },
-    { label: 'PREMIERE', regex: /PREMIERE/ }
-  ];
-
-  if (!tag3) {
-    for (const e of eventMap) {
-      if (tag2 === e.label) continue;
-      const match = cleanTokens.find(t => e.regex.test(t));
-      if (match) {
-        tag3 = e.label;
-        break;
-      }
-    }
-  }
 
   let finalTags: string[] = [];
   if (tag1) finalTags.push(tag1);

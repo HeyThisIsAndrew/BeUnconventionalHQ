@@ -280,7 +280,7 @@ export function mapCategory(tags: string[] = [], text = ''): string {
  * the title. Tagging a Substack post `Review` is the reliable path; the title
  * scan is a fallback so untagged posts still get something sensible.
  */
-export const CONTENT_TYPES = ['Review', 'Analysis', 'Dispatch', 'Announcement', 'Interview', 'Commentary', 'Reaction', 'News'] as const;
+export const CONTENT_TYPES = ['Review', 'Analysis', 'Dispatch', 'Announcement', 'Interview', 'Commentary', 'Reaction', 'News', 'Event Coverage'] as const;
 export type ContentType = (typeof CONTENT_TYPES)[number];
 
 const CONTENT_TYPE_KEYWORDS: Record<string, string[]> = {
@@ -300,7 +300,7 @@ const CONTENT_TYPE_KEYWORDS: Record<string, string[]> = {
 /** Default when nothing matches — most editorial writing is analysis. */
 const FALLBACK_CONTENT_TYPE: ContentType = 'Analysis';
 
-export function mapContentType(tags: string[] = [], text = ''): ContentType {
+export function mapContentType(tags: string[] = [], text = '', category?: string): ContentType {
   const normalizedTags = tags.map(normalizeToken).filter(Boolean);
 
   // 1. An explicit tag naming the type outright.
@@ -323,6 +323,10 @@ export function mapContentType(tags: string[] = [], text = ''): ContentType {
     if (keywords.some((k) => haystack.includes(` ${k} `) || haystack.includes(k))) {
       return type as ContentType;
     }
+  }
+
+  if (category === 'Events') {
+    return 'Event Coverage';
   }
 
   return FALLBACK_CONTENT_TYPE;
@@ -614,7 +618,7 @@ export function buildArticleRecord(item: RawFeedItem, now = new Date()): Article
     preview: buildPreview(bodyHtml, excerptSource),
     image: item.enclosureUrl || firstImage(item.contentEncoded ?? ''),
     category: mapCategory(tags, `${title} ${toPlainText(item.description ?? '')}`),
-    contentType: mapContentType(tags, `${title} ${toPlainText(item.description ?? '')}`),
+    contentType: mapContentType(tags, `${title} ${toPlainText(item.description ?? '')}`, mapCategory(tags, `${title} ${toPlainText(item.description ?? '')}`)),
     score: extractScore(bodyHtml),
     tags,
     bodyHtml,
