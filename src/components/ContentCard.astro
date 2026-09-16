@@ -424,13 +424,25 @@ if (isVideo && item.youtubeId) {
   </div>
 
   <div class="content-card-body">
+    {/*
+      ─── METADATA, THEN TITLE, THEN DESCRIPTION ───────────────────────────────
+
+      One order, everywhere, top to bottom. The tag line is the card's eyebrow:
+      it says what KIND of thing this is before the title says which thing, the
+      same way the hero's eyebrow does and the same way the section headings
+      read. It was rendering underneath the title.
+
+      This is a DOM reorder, not a visual one. `order:` or `flex-direction:
+      column-reverse` would have looked identical and left the reading order and
+      the tab order wrong, which is what a screen reader and a keyboard follow.
+    */}
     <div class="content-card-title-wrapper">
-      <h3 class="content-card-title">{item.title}</h3>
       {finalTags.length > 0 && (
         <div class="content-card-dynamic-tags">
           {finalTags.join(' | ')}
         </div>
       )}
+      <h3 class="content-card-title">{item.title}</h3>
     </div>
 
     {variant === 'hero' && excerpt && (
