@@ -276,6 +276,22 @@ const buildRow = (row: RowDef) => {
     (HubCard, the event heroes), and `auto('format')` keeps it off the critical
     path as a PNG.
   */
+  /*
+    The hub's key art, small and blurred-into-the-dark behind the Explore tile.
+    Same source the /featured deck uses to represent a hub, so the off-ramp
+    LOOKS like where it goes. 640 because it sits behind a dim scrim at tile
+    size — the detail is spent before it reaches the eye (the same reasoning as
+    the hero backdrop plate).
+  */
+  const bookendHero = (() => {
+    if (!brandDoc?.heroImage) return null;
+    try {
+      return urlFor(brandDoc.heroImage).width(640).auto('format').url();
+    } catch {
+      return null;
+    }
+  })();
+
   const markRef = brandDoc ? brandDoc.heroLogo || brandDoc.logo : null;
   const bookendLogo = (() => {
     if (!markRef) return null;
@@ -299,6 +315,7 @@ const buildRow = (row: RowDef) => {
     accentColor,
     accentRgb: accentColor ? hexToRgbTriple(accentColor) : null,
     bookendLogo,
+    bookendHero,
     bookendTitle: brandDoc?.title ?? row.title,
     explore: (() => {
       const href = hubHref(row.id);
@@ -750,20 +767,60 @@ const prestigeEyebrow = prestigeHub
 
      They inherit `.feed-row-item`'s width and snap, so nothing here touches
      either. Sizing them separately is how a rail blows out on mobile. */
+  /*
+    ─── THE OFF-RAMP IS BRANDED, AND HAS NO BOX ──────────────────────────────
+
+    It shipped as a bordered panel with an arrow in it, which read as an empty
+    card at the end of every row. The Instagram rail's terminal tile is the
+    reference: no border, no panel, just the mark and the words sitting on the
+    page.
+
+    What it gains here is the hub's OWN key art behind it, dimmed almost to
+    black — the same image /featured uses to represent that hub, so the tile
+    looks like the place it sends you rather than like a generic arrow. Set as
+    `--bookend-art` from the markup; a hub with no key art simply gets the flat
+    gradient and still reads.
+  */
   .feed-bookend-inner {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1rem;
+    gap: 0.9rem;
     width: 100%;
     height: 100%;
     min-height: 160px;
     padding: 1.25rem;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: none;
     border-radius: 4px;
-    background: rgba(10, 10, 10, 0.35);
+    /* NO overflow:hidden — the radius is drawn by the layers themselves, and a
+       clipping ancestor is what hard rule 3 forbids anywhere near an iframe. */
+    background: none;
     text-align: center;
+    isolation: isolate;
+  }
+
+  /* The art, and the scrim that keeps the label legible over it. Two layers on
+     one pseudo-element so the tile needs no extra markup. */
+  .feed-bookend--cta .feed-bookend-inner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: 4px;
+    background-image:
+      linear-gradient(to bottom, rgba(10, 10, 10, 0.82), rgba(10, 10, 10, 0.94)),
+      var(--bookend-art, none);
+    background-size: cover, cover;
+    background-position: center, center;
+    opacity: 0.9;
+    transition: opacity 0.35s ease;
+  }
+
+  .feed-bookend-link:hover::before,
+  .feed-bookend-link:focus-visible::before {
+    opacity: 1;
   }
 
   /*
@@ -828,8 +885,6 @@ const prestigeEyebrow = prestigeHub
   .feed-bookend-link:hover,
   .feed-bookend-link:focus-visible {
     color: var(--color-white, #f0f0f0);
-    border-color: rgba(var(--row-accent-rgb, 204, 0, 0), 0.6);
-    background: rgba(var(--row-accent-rgb, 204, 0, 0), 0.08);
   }
 
   .feed-bookend-link:hover .feed-bookend-icon,
@@ -844,7 +899,8 @@ const prestigeEyebrow = prestigeHub
 
   @media (prefers-reduced-motion: reduce) {
     .feed-bookend-link,
-    .feed-bookend-icon {
+    .feed-bookend-icon,
+    .feed-bookend--cta .feed-bookend-inner::before {
       transition: none;
     }
 
@@ -858,6 +914,60 @@ const prestigeEyebrow = prestigeHub
     branding lives in its heading now (.feed-row-mark), where it needs neither
     a pin nor a gradient to hide the cards passing under it.
   */
+
+  /*
+    ─── THE CENTRED TILE, AND THE ONE YOU PICKED ─────────────────────────────
+
+    WHITE says "this is the one you are looking at". RED says "this is the one
+    you chose, and it is now in the hero". Two different facts, so two colours,
+    and the selected state wins where both are true.
+
+    Drawn with `outline` rather than `border` deliberately: a border would add
+    to the tile's box and shift every neighbour by 2px the moment the ring
+    appeared, which on a snapping rail nudges the scroll position. An outline
+    is painted outside the box and costs no layout, and `outline-offset: -2px`
+    tucks it just inside the artwork's own edge so it reads as a rim rather
+    than a halo.
+
+    Phones only — desktop shows four tiles at once, so there is no single
+    "current" one to mark.
+  */
+  /*
+    `:global()` on the card, and it is not optional.
+
+    Astro scopes these styles by stamping a `data-astro-cid-*` attribute on the
+    elements in THIS component's template. `.feed-row-item` is one of them;
+    `.content-card` is not — it is rendered by ContentCard.astro and carries
+    that component's attribute instead. Without :global() the compiled selector
+    asks for a card bearing FeedGrid's scope, which no card has, and the rules
+    silently match nothing.
+
+    Caught by measuring: with the classes correctly applied, `outlineColor` read
+    back the inherited #f0f0f0 rather than either ring colour, which is what an
+    element with `outline-style: none` reports.
+  */
+  @media (max-width: 899px) {
+    .feed-row-item.is-centered :global(.content-card) {
+      outline: 2px solid rgba(255, 255, 255, 0.92);
+      outline-offset: -2px;
+    }
+
+    .feed-row-item.is-selected :global(.content-card) {
+      outline: 2px solid var(--color-accent-text, #ef4444);
+      outline-offset: -2px;
+      box-shadow: 0 0 24px rgba(var(--brand-rgb, 204, 0, 0), 0.45);
+    }
+
+    .feed-row-item :global(.content-card) {
+      transition: outline-color 0.25s ease, box-shadow 0.25s ease;
+    }
+  }
+
+  @media (max-width: 899px) and (prefers-reduced-motion: reduce) {
+    .feed-row-item :global(.content-card) {
+      transition: none;
+    }
+  }
 
   .feed-row-item:first-child {
     scroll-snap-align: start;
@@ -1337,7 +1447,11 @@ const prestigeEyebrow = prestigeHub
 
                   {row.explore && (
                     <li class="feed-row-item feed-bookend feed-bookend--cta">
-                      <a href={row.explore.href} class="feed-bookend-inner feed-bookend-link">
+                      <a
+                        href={row.explore.href}
+                        class="feed-bookend-inner feed-bookend-link"
+                        style={row.bookendHero ? `--bookend-art: url('${row.bookendHero}')` : undefined}
+                      >
                         <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="feed-bookend-icon" aria-hidden="true">
                           <path d="M5 12h14M12 5l7 7-7 7" />
                         </svg>
@@ -1515,6 +1629,67 @@ const prestigeEyebrow = prestigeHub
           const dir = Number(btn.dataset.dir) || 1;
           rail.scrollBy({ left: dir * rail.clientWidth * 0.9, behavior: 'smooth' });
         });
+      });
+
+      /*
+        ─── WHICH TILE IS THE READER LOOKING AT ──────────────────────────────
+
+        On a phone the rail shows one tile at a time, so "the tile in the
+        middle" is the tile being read — and nothing said which one that was.
+
+        An IntersectionObserver whose ROOT is the rail and whose rootMargin
+        squeezes it to a narrow band down the centre: the tile intersecting that
+        band is the centred one. That is why this is an observer rather than a
+        scroll handler doing arithmetic — the browser already knows what
+        overlaps what, and it tells us off the main thread.
+
+        Desktop shows four tiles at once, so there is no single "current" tile
+        to mark and the observer is never created there.
+      */
+      const centreQuery = window.matchMedia('(max-width: 899px)');
+
+      const observeCentre = () => {
+        const key = '__hqRailCentreObserver';
+        const previous = (rail as any)[key] as IntersectionObserver | undefined;
+        if (previous) previous.disconnect();
+        (rail as any)[key] = undefined;
+
+        if (!centreQuery.matches) {
+          rail.querySelectorAll('.is-centered').forEach((el) => el.classList.remove('is-centered'));
+          return;
+        }
+
+        const observer = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              entry.target.classList.toggle('is-centered', entry.isIntersecting);
+            }
+          },
+          { root: rail, rootMargin: '0px -45% 0px -45%', threshold: 0 },
+        );
+
+        rail.querySelectorAll('.feed-row-item').forEach((tile) => observer.observe(tile));
+        (rail as any)[key] = observer;
+      };
+
+      observeCentre();
+      centreQuery.addEventListener('change', observeCentre);
+
+      /*
+        Tapping the centred tile promotes it into the hero. The ring turns from
+        white to red to confirm that, and only one tile in a rail can be the
+        selected one.
+
+        Marked here rather than in the hero's swap handler because it is a
+        property of THIS rail — a click in one row must not clear the mark in
+        another, and the hero does not know which rail it was handed an item
+        from.
+      */
+      rail.addEventListener('click', (event) => {
+        const tile = (event.target as Element)?.closest('.feed-row-item');
+        if (!tile || !rail.contains(tile)) return;
+        rail.querySelectorAll('.is-selected').forEach((el) => el.classList.remove('is-selected'));
+        tile.classList.add('is-selected');
       });
 
       rail.addEventListener('scroll', sync, { passive: true });

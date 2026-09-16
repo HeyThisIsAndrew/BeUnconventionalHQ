@@ -707,7 +707,9 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition:
+    transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 0.35s ease;
 }
 
 /* ─── THE TRAY ─────────────────────────────────────────────────────────────
@@ -870,18 +872,51 @@
   it measures 3.21:1 and is therefore a BORDER AND GLOW colour only, never text
   or an icon. This is a border and a glow.
 */
+/*
+  ─── HOVER HAS TO BE UNMISSABLE, NOT TASTEFUL ─────────────────────────────
+
+  This was a 1px border going red, a 4px lift and a soft shadow. Reported as
+  "I hovered over it and couldn't tell", and that is a fair reading of the
+  measurements: #cc0000 is 3.21:1, so a single-pixel line of it on a dark card
+  sitting on a coloured row wash is close to invisible. Every part of the old
+  state was an edge effect.
+
+  So the whole tile responds now — a 2px ring, a deeper lift, a real shadow,
+  and the artwork itself brightening. The ring is the SAME language the centred
+  tile uses on a phone, so "the one you are pointing at" looks the same whether
+  it is a cursor or a thumb doing the pointing.
+
+  `outline` rather than a thicker border for the reason the mobile ring gives:
+  a border changes the box and would shift the tiles next to it on hover.
+*/
 .content-card--cinematic:hover,
 .content-card--cinematic:focus-within {
-  transform: translateY(-4px);
+  transform: translateY(-6px);
   border-color: var(--color-accent, #cc0000);
+  outline: 2px solid var(--color-accent-text, #ef4444);
+  outline-offset: -1px;
   box-shadow:
-    0 12px 28px rgba(0, 0, 0, 0.7),
-    0 0 22px rgba(var(--brand-rgb, 204, 0, 0), 0.35);
+    0 18px 38px rgba(0, 0, 0, 0.8),
+    0 0 30px rgba(var(--brand-rgb, 204, 0, 0), 0.45);
 }
 
 .content-card--cinematic:hover .content-card-media img,
 .content-card--cinematic:focus-within .content-card-media img {
-  transform: scale(1.04);
+  transform: scale(1.06);
+  /* The picture itself lifts out of the page, so the feedback is in the middle
+     of the tile and not only around its edge. */
+  filter: brightness(1.12);
+}
+
+.content-card--cinematic .content-card-media img {
+  filter: brightness(1);
+}
+
+/* The title brightens too: on a rail of dim tiles the one under the cursor
+   should read as the active one at a glance. */
+.content-card--cinematic:hover .content-card-title,
+.content-card--cinematic:focus-within .content-card-title {
+  color: #fff;
 }
 
 /* The play glyph blooms in rather than sitting there. Video tiles only: the
@@ -912,6 +947,11 @@
   .content-card--cinematic .content-card-media img,
   .content-card--cinematic .play-button-wrapper {
     transition: none;
+  }
+
+  .content-card--cinematic:hover,
+  .content-card--cinematic:focus-within {
+    transform: none;
   }
 
   .content-card--cinematic:hover,
