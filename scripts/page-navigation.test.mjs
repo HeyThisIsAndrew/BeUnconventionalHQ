@@ -272,3 +272,44 @@ test('a filter fades its cards rather than snapping them', () => {
     );
   }
 });
+
+/*
+  ─── A COMMENT THAT EATS ITS OWN RULE ───────────────────────────────────────
+
+  `.event-hero`'s note about NOT using overflow:hidden lost its terminator in a
+  commit that trimmed the last line of the comment. The comment then ran on
+  through the closing brace and destroyed the whole rule, so `position:
+  relative` never applied. `.event-hero-bg-wrapper` is `position: absolute;
+  inset: 0`, so with no positioned ancestor it escaped to the initial containing
+  block and sized itself to the VIEWPORT: the hero's blurred backdrop painted
+  2224px tall behind every row on the feed.
+
+  Reported as "why is the hero image extending into the background". Nothing
+  caught it — the build passed, `astro check` passed, and the rule simply was
+  not there. So this asserts the OUTPUT: every hero must actually establish a
+  containing block for its own backdrop.
+*/
+test('every hero establishes a containing block for its backdrop', () => {
+  for (const rel of [
+    ['src', 'components', 'FeedSpotlightHero.astro'],
+    ['src', 'components', 'EventFeatured.astro'],
+    ['src', 'components', 'EventAnnouncement.astro'],
+    ['src', 'pages', 'featured', '[slug].astro'],
+  ]) {
+    const src = read(...rel);
+    const name = rel[rel.length - 1];
+
+    /*
+      Comments stripped FIRST, then the rule is looked for. That is the whole
+      point: the bug was a rule that only existed inside a comment.
+    */
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, '');
+    const rule = code.match(/\.event-hero\s*\{([^}]*)\}/);
+    assert.ok(rule, `${name}: the .event-hero rule must survive comment stripping`);
+    assert.match(
+      rule[1],
+      /position:\s*relative/,
+      `${name}: without it the backdrop escapes to the viewport and paints over the page`,
+    );
+  }
+});

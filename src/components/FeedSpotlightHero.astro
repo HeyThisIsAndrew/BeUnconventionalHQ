@@ -537,9 +537,22 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
   .event-hero {
     position: relative;
     z-index: 10;
+    /* The ground under the backdrop. Dropped in the same commit that broke the
+       comment below; an item with no artwork rendered on a transparent hero. */
+    background-color: #111;
     /* NO overflow:hidden here. On iOS Safari an overflow:hidden ancestor makes
        a descendant cross-origin (YouTube) iframe render as a black box. The bg
        below is inset:0 and its image clips to its own box, so it can't spill —
+       the clip was never needed.
+
+       AND THE COMMENT TERMINATOR ON THE NEXT LINE IS LOAD-BEARING. It was
+       deleted once, which ran this comment on through the closing brace and
+       destroyed the whole rule: `position: relative` never applied, so
+       `.event-hero-bg-wrapper`
+       (position: absolute; inset: 0) escaped to the initial containing block
+       and sized itself to the VIEWPORT. The hero's blurred backdrop then
+       painted 2224px tall behind the entire page, under every row on the feed.
+       Reported as "why is the hero image extending into the background". */
   }
   /* Clipping/coverage layer: static, fills the hero, hides the sliver the
      animated child exposes at its edges while scaled. overflow:hidden is safe
