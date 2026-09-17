@@ -554,23 +554,46 @@ const fallbackMark = await getImage({
           So the position is captured before the swap and put back after it. The
           list then updates under the reader's eyes, where it already was.
         */
-        var rowsScrollY = null;
+        var rowsPending = false;
 
         document.addEventListener('astro:before-swap', function (event) {
           var direction = document.documentElement.dataset.pageTransition;
           if (direction) event.newDocument.documentElement.dataset.pageTransition = direction;
-          rowsScrollY = direction === 'page-rows' ? window.scrollY : null;
+          /* A FLAG, NOT AN OFFSET. This captured window.scrollY and put it back
+             after the swap, which is what threw the reader to the bottom of a
+             shorter page. All the swap needs to know is that a pagination
+             happened; where to land is decided from the list itself below. */
+          rowsPending = direction === 'page-rows';
         });
 
         document.addEventListener('astro:after-swap', function () {
-          if (rowsScrollY === null) return;
-          var y = rowsScrollY;
-          rowsScrollY = null;
+          if (!rowsPending) return;
+          rowsPending = false;
           /* Two frames: Astro's own scroll reset lands after the swap, so a
              single rAF puts this back before it and is immediately undone. */
           requestAnimationFrame(function () {
             requestAnimationFrame(function () {
-              window.scrollTo({ top: y, behavior: 'instant' });
+              /*
+                ─── LAND ON THE LIST, DO NOT RESTORE AN OFFSET ───────────────
+
+                This put back the exact `scrollY` captured before the swap, on
+                the theory that the list should update under the reader's eyes
+                where it already was. That is true only while both pages are
+                the same height.
+
+                They are not. The last page of a paginated list is usually
+                shorter, so an offset that was mid-list on page 1 is past the
+                end of page 2, and the browser clamps it to the bottom of the
+                document. Reported as: press Next and get thrown to the footer.
+
+                Even when it fits, restoring the offset leaves the reader
+                looking at the BOTTOM of a list whose items all just changed.
+                The top of the container is the honest answer to "show me the
+                next page", and it is the same answer at every page height.
+              */
+              var target = document.querySelector('[data-rows-target]');
+              if (target) target.scrollIntoView({ block: 'start', behavior: 'instant' });
+              else window.scrollTo({ top: 0, behavior: 'instant' });
             });
           });
         });

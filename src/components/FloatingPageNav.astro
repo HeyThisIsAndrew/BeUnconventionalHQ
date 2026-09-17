@@ -536,7 +536,19 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
              otherwise reset the counter every frame and the cap would always
              be what fires. */
           if (Math.abs(now - previous) <= 1 || attempt >= 8) {
-            heading.scrollIntoView({ block: 'start' });
+            /*
+              `behavior: 'instant'`, EXPLICITLY. global-base.css sets
+              `html { scroll-behavior: smooth }`, which scrollIntoView inherits,
+              so this animated despite the note above saying it switches rather
+              than travels.
+
+              It is also what made the rail flicker 1 > 4 > 2 > 3 > 4: a long
+              smooth scroll passes every intermediate section through the
+              detection band, and a stray trackpad wheel event during the
+              journey releases the pin and lets the observer light each one up
+              on the way past. An instant jump has no journey to observe.
+            */
+            heading.scrollIntoView({ block: 'start', behavior: 'instant' });
             resolveActive();
             return;
           }

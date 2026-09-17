@@ -244,16 +244,33 @@ test('paging a list moves the list, not the page', () => {
   );
   assert.match(events, /data-rows-target/, 'the list must be marked for the in-place fade');
 
+  /*
+    ─── AND IT LANDS ON THE LIST, NOT ON A REMEMBERED OFFSET ────────────────
+
+    This used to assert that `window.scrollY` was captured before the swap and
+    restored after it. That was the behaviour, and it was the bug: the last
+    page of a paginated list is usually shorter, so an offset that sat mid-list
+    on page 1 is past the end of page 2 and the browser clamps it to the bottom
+    of the document. Reported as "press Next and get thrown to the footer".
+
+    Restoring an offset is also wrong when it fits, because it leaves the
+    reader at the BOTTOM of a list whose items all just changed. The top of the
+    container is the same correct answer at every page height.
+  */
   const layoutSrc = read('src', 'layouts', 'Layout.astro');
   assert.match(
     layoutSrc,
-    /rowsScrollY = direction === 'page-rows' \? window\.scrollY : null/,
-    'the scroll position must be captured before the swap',
+    /rowsPending = direction === 'page-rows'/,
+    'the swap must know a pagination happened',
   );
   assert.match(
     layoutSrc,
-    /astro:after-swap[\s\S]{0,600}?window\.scrollTo\(\{ top: y/,
-    'and restored after it, or the reader is thrown to the top',
+    /astro:after-swap[\s\S]{0,1400}?querySelector\('\[data-rows-target\]'\)[\s\S]{0,200}?scrollIntoView/,
+    'and must land on the list itself',
+  );
+  assert.ok(
+    !/window\.scrollTo\(\{ top: y/.test(layoutSrc),
+    'restoring a remembered offset is what threw the reader to the bottom',
   );
 
   const cssSrc = read('src', 'styles', 'global-base.css');

@@ -682,7 +682,34 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
     margin: 0;
     overflow: visible;
     opacity: 0;
-    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+    /*
+      ─── A <dialog> NEEDS allow-discrete TO ANIMATE *OUT* ───────────────────
+
+      Entering worked because `@starting-style` below gives the browser a frame
+      to animate from. Leaving did not: `dialog.close()` removes the element
+      from the top layer and flips `display` to none in the same frame, which
+      cancels an outbound transition before it can run a single step. The
+      palette vanished on a hard cut while the opening was smooth.
+
+      `display` and `overlay` are DISCRETE properties — they have no in-between
+      values — so by default they switch instantly and take the transition with
+      them. `transition-behavior: allow-discrete` tells the browser to hold
+      both at their old value for the duration of the transition instead, which
+      is what keeps the dialog painted and on top while it fades.
+
+      `overlay` must be in the list as well as `display`. Without it the
+      element keeps its box but leaves the top layer immediately, so it fades
+      out from BEHIND the backdrop and the page content.
+
+      Preferred over the alternative (a `.closing` class plus a setTimeout
+      around `dialog.close()`), which puts the duration in two places and
+      leaves the dialog open if the timer is interrupted mid-navigation.
+    */
+    transition:
+      opacity 0.3s ease,
+      transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.1),
+      display 0.3s allow-discrete,
+      overlay 0.3s allow-discrete;
   }
 
   .cmd-palette[open] {
@@ -702,7 +729,12 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
     opacity: 0;
-    transition: opacity 0.3s ease;
+    /* Same treatment for the backdrop, or the blur snaps away a beat before
+       the panel it sits behind has finished fading. */
+    transition:
+      opacity 0.3s ease,
+      display 0.3s allow-discrete,
+      overlay 0.3s allow-discrete;
   }
 
   .cmd-palette[open]::backdrop {
@@ -783,6 +815,15 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
     }
   }
   @media (prefers-reduced-motion: reduce) {
+    /*
+      The dialog and its backdrop are listed alongside the content now. They
+      were not, so the outward fade added above would have animated for readers
+      who asked for no motion. `transition: none` also drops the
+      allow-discrete, which is right: with nothing to wait for, the dialog
+      should leave the top layer immediately.
+    */
+    .cmd-palette,
+    .cmd-palette::backdrop,
     .cmd-palette-content {
       transition: none;
     }

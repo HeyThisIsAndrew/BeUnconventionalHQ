@@ -2346,6 +2346,8 @@ ${activeFonts
   .deck-nav-track {
     width: 100%;
     box-sizing: border-box;
+    /* OVERRIDDEN. A later `.deck-nav-track` rule in this file sets the height
+       unconditionally, so this value never applies — see the note there. */
     height: 90px;
     margin-top: 1rem;
     display: flex;
@@ -3537,7 +3539,26 @@ ${activeFonts
     }
 
     .deck-nav-track {
-      height: 66px;
+      /*
+        ─── THE THUMBNAILS HAVE TO GROW WITH THE DECK ──────────────────────
+
+        This was a flat 66px while `.deck-column` above it is `height: 100%` of
+        an accordion row that expands with the viewport. Measured at 3840x2160:
+        the deck is 1432px tall and the filmstrip under it was 66px — 4.6% of
+        it — which reads as a control somebody forgot to scale rather than as
+        navigation for the thing above it.
+
+        THIS IS THE DECLARATION THAT COUNTS. There is an earlier
+        `.deck-nav-track { height: 90px }` in this file, and despite its
+        indentation this rule is NOT inside a media query: it ships
+        unconditional, so it wins on source order at every viewport and the 90px
+        has never applied. Verified by reading the built CSS rather than the
+        source. Retune here, not there.
+
+        Clamped rather than pure vh so it cannot collapse on a short laptop
+        window or run away on a tall one.
+      */
+      height: clamp(66px, 7vh, 150px);
       margin-top: 0.5rem;
       padding: 6px 4%;
       gap: 8px;
