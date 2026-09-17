@@ -91,54 +91,26 @@ const entity = resolveEntity(latestVideo, {
 const fallbackLogoSrc = (await getImage({ src: logoImage, height: 360, format: 'webp', quality: 70 })).src;
 
 /*
-  ─── THE OVERRIDE TAKES A LOCAL MARK AS WELL AS A SANITY ONE ────────────────
+  ─── THE EDITORIAL OVERRIDE, STRAIGHT THROUGH urlFor() ──────────────────────
 
-  The editorial override still outranks the taxonomy — see the CMS hero
-  override cascade. What changed is what it will accept.
+  The override outranks the taxonomy — see the CMS hero override cascade. It
+  needs no special handling for where the asset lives: `urlFor()` returns a
+  cdn.sanity.io URL for a Sanity id and passes any other string through
+  untouched, which is exactly what the local CMS's own uploads are.
 
-  `urlFor()` builds a cdn.sanity.io URL out of an asset id, so the override
-  could only ever name a mark that had been uploaded to Sanity. Coyote vs. Acme
-  needs the Ketchup Entertainment wordmark, Ketchup has no brand document and
-  no Sanity asset, and standing up a hub page for a distributor we have covered
-  once would be a much larger change than the hero needs.
+  An earlier pass here read a bare filename out of `src/assets/partners/`,
+  because the mark this was built for had no Sanity asset. That was the wrong
+  home for it twice over: that folder is REFERRAL partners (Mint Mobile,
+  DaVinci Resolve), and a distributor whose film we reviewed is not one, and
+  CLAUDE.md is explicit that new assets upload through the CMS rather than
+  being committed beside the code. The field is editable in the local CMS now,
+  so there is nothing left for the shortcut to buy.
 
-  So a bare name (no `image-` prefix) is read from `src/assets/partners/`
-  instead, which is where the site's other third-party marks already live. A
-  Sanity id behaves exactly as before.
-
-  IT FAILS SOFT, DELIBERATELY. A name with no matching file resolves to null
-  and the cascade carries on to the taxonomy and then to the HQ crown, so the
-  data can name a mark before the file is committed and the page still renders.
-  A missing brand asset must not be a build error.
+  It still fails soft: an override that resolves to nothing falls through to
+  the taxonomy and then to the HQ crown, so a half-finished edit never breaks
+  the page.
 */
-const PARTNER_MARKS = import.meta.glob<{ default: ImageMetadata }>(
-  '/src/assets/partners/*.{png,webp,avif,jpg,jpeg}',
-  { eager: true },
-);
-const partnerMark = (name: string): ImageMetadata | null => {
-  const hit = Object.entries(PARTNER_MARKS).find(
-    ([path]) => path.split('/').pop()?.replace(/\.[^.]+$/, '') === name,
-  );
-  return hit ? hit[1].default : null;
-};
-
-const heroLogoField = latestVideo.customHeroLogo;
-/* A Sanity asset id is `image-<hash>-<W>x<H>-<ext>`; anything else that is a
-   plain string is a filename in src/assets/partners. An OBJECT is always the
-   Sanity `{_type:'image', asset:{_ref}}` shape, which urlFor() also handles. */
-const heroLogoIsLocalName =
-  typeof heroLogoField === 'string' && heroLogoField.length > 0 && !heroLogoField.startsWith('image-');
-
-let overrideLogo: string | null = null;
-if (heroLogoIsLocalName) {
-  const local = partnerMark(heroLogoField as string);
-  /* Sized, not the original — the same 414 KB lesson recorded above. */
-  overrideLogo = local
-    ? (await getImage({ src: local, height: 360, format: 'webp', quality: 82 })).src
-    : null;
-} else if (heroLogoField) {
-  overrideLogo = urlFor(heroLogoField).url();
-}
+const overrideLogo = latestVideo.customHeroLogo ? urlFor(latestVideo.customHeroLogo).url() : null;
 const taxonomyLogo = entity?.logo || null;
 const brandLogo = overrideLogo || taxonomyLogo || fallbackLogoSrc;
 
@@ -147,10 +119,9 @@ const brandLogo = overrideLogo || taxonomyLogo || fallbackLogoSrc;
 
   This is alt text on a logo, so it is not decorative: it is the only thing
   telling a screen reader whose brand is on the hero. It used to cascade
-  independently of the image, which meant the two could disagree — and with a
-  local override they disagree in the worst direction. Name a mark whose file
-  is not committed yet and the hero paints the HQ crown while announcing
-  "Ketchup Entertainment".
+  independently of the image, which meant the two could disagree. They disagree
+  in the worst direction while an editor is mid-edit: set the label, and the
+  hero paints the HQ crown while announcing somebody else's brand.
 
   So the label follows the logo. If the override resolved to a real image, its
   label applies; if it fell through to the crown, the crown's own name does.

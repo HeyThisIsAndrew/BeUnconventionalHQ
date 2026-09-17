@@ -31,6 +31,11 @@ type Doc = {
   badge1?: string;
   badge2?: string;
   badge3?: string;
+  /* The /feed hero's editorial overrides. Only the newest video ever renders
+     them, but they are seeded on every video doc so an editor can set them
+     before the item reaches the top of the feed. */
+  customHeroLogo?: string;
+  customHeroBrandLabel?: string;
   durationSeconds?: number;
   isShort?: boolean;
   isLive?: boolean;
@@ -303,6 +308,11 @@ function makeBlankDoc(type: DocType): Doc {
     series: '',
     editorialNotes: '',
     sortDate: '',
+    /* Seeded empty for the same reason every other editorial field here is:
+       the sync rebuilds a doc from a named list, so a field that is absent is
+       erased rather than left alone. */
+    customHeroLogo: '',
+    customHeroBrandLabel: '',
     topics: [],
     hubs: [],
     requiresReview: true,
@@ -1371,7 +1381,7 @@ export default function LocalCmsApp() {
 
               <div className="flex-1 p-5 sm:p-6">
                 {(selected._type === 'video' || selected._type === 'short' || selected._type === 'live') && (
-                  <VideoForm doc={selected} activeTab={activeTab} setActiveTab={setActiveTab} updateDoc={updateDoc} />
+                  <VideoForm doc={selected} activeTab={activeTab} setActiveTab={setActiveTab} updateDoc={updateDoc} assetLibrary={assetLibrary} onForgetAsset={forgetAsset} />
                 )}
                 {selected._type === 'event' && (
                   <EventForm doc={selected} allDocs={docs} assetLibrary={assetLibrary} onForgetAsset={forgetAsset} updateDoc={updateDoc} updateSlug={updateSlug} updateLocation={updateLocation} duplicateAsEdition={duplicateAsEdition} />
@@ -1692,11 +1702,19 @@ function VideoForm({
   activeTab,
   setActiveTab,
   updateDoc,
+  assetLibrary = [],
+  onForgetAsset,
 }: {
   doc: Doc;
   activeTab: string;
   setActiveTab: (t: string) => void;
   updateDoc: (id: string, field: keyof Doc, value: any) => void;
+  /* Threaded in so the hero override can upload and REUSE marks through the
+     same picker every other image field uses. Without it the only way to set
+     one would be to upload a duplicate of an asset already in the store,
+     which is the exact problem the picker was built to end. */
+  assetLibrary?: AssetEntry[];
+  onForgetAsset?: (ref: string) => void;
 }) {
   const update = (field: keyof Doc, value: any) => updateDoc(doc._id, field, value);
   return (
@@ -1720,6 +1738,52 @@ function VideoForm({
           )}
         </Field>
         <div className="@lg:col-span-full">
+          {/*
+            ─── THE FEED HERO OVERRIDE ────────────────────────────────────
+
+            /feed leads with the newest video, and its hero shows that item's
+            HUB mark: the brand or event it belongs to. When nothing resolves
+            it falls back to the BE Unconventional crown, which is right for
+            our own coverage and wrong when the piece is about somebody else's
+            title and they have no hub here.
+
+            That was the Coyote vs. Acme case: the distributor is Ketchup
+            Entertainment, which has no brand document, so the hero announced
+            the HQ over a film we were reviewing for them. Standing up a whole
+            hub for a distributor we have covered once is a much larger change
+            than the hero needs, and this is the smaller one.
+
+            Only the newest video renders it, so setting it on an older doc
+            does nothing visible today and everything the day it leads.
+          */}
+          <p className="text-sm font-bold text-white mb-2">Feed Hero Override</p>
+          <p className="text-xs text-gray-500 mb-3">
+            Only used while this is the newest video, and only on /feed. Leave both empty
+            and the hero uses the item's hub, then the BE Unconventional mark.
+          </p>
+          <div className="grid grid-cols-1 @sm:grid-cols-2 gap-4 mb-6">
+            <ImageUploadField
+              label="Hero Logo (optional)"
+              value={refOf(doc.customHeroLogo)}
+              onChange={(v) => update('customHeroLogo', v)}
+              library={assetLibrary}
+              onForgetAsset={onForgetAsset}
+              hint="Replaces the mark on the /feed hero. Use it when the piece is about a brand with no hub on this site. Upload a version that reads on a dark background: the hero sits on #111, so a black wordmark disappears."
+            />
+            <Field label="Hero Brand Label (optional)">
+              <input
+                type="text"
+                value={doc.customHeroBrandLabel || ''}
+                onChange={(e) => update('customHeroBrandLabel', e.target.value)}
+                className={inputClass}
+                placeholder="e.g. Ketchup Entertainment"
+              />
+              <p className="text-xs text-gray-500 mt-1.5">
+                The logo's alt text. Set it whenever you set a logo above, or a screen
+                reader is told the wrong company. Ignored while the logo is empty.
+              </p>
+            </Field>
+          </div>
           <p className="text-sm font-bold text-white mb-2">Visual Badge Overrides</p>
           <div className="grid grid-cols-1 @sm:grid-cols-3 gap-4">
             <Field label="Badge 1 (Brand)">
