@@ -188,8 +188,28 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
     overscroll-behavior: contain;
     scroll-behavior: smooth;
     scroll-snap-type: y proximity;
-    /* Room for the rows' own focus ring and hover lift, which a tight box
-       would clip against the scroll edge. */
+    /*
+      ─── ROOM FOR THE HOVER LIFT AT THE SCROLL EDGES ────────────────────────
+
+      `.uel-link:hover` lifts `translateY(-4px)` and throws a 40px glow. A
+      scroll container clips at its own edges, so the row resting against the
+      top of the box had its lift and the top of its red border cut off —
+      reported as the top tile being cut off on hover. The bottom row had the
+      same problem in the other direction, less visibly because the glow is
+      cast downward.
+
+      TWO declarations, and both are needed. `padding-block` gives the lift
+      somewhere to go. `scroll-padding-block` is what makes a SNAPPED row come
+      to rest inside that padding rather than flush against the scrollport
+      edge, which is where snapping would otherwise put it and where the
+      padding would not help at all.
+
+      12px against a 4px lift: enough for the movement and the first part of
+      the glow, and not enough to read as a gap.
+    */
+    padding-block: 0.75rem;
+    scroll-padding-block: 0.75rem;
+    /* The same, for the ring and glow on the inline edge. */
     padding-right: 0.35rem;
   }
 
@@ -248,7 +268,15 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
 
   .uel-rail {
     position: absolute;
-    top: 0;
+    /*
+      CENTRED on the list, not pinned to its top. Top-aligned it sat level with
+      the year heading and the first row rather than with the list it drives,
+      and the distance your hand travels to reach it depended on how far down
+      you already were. Centred, the three controls are equidistant from both
+      ends of the box at every height it takes.
+    */
+    top: 50%;
+    transform: translateY(-50%);
     right: 0;
     width: 44px;
     display: flex;
@@ -403,6 +431,10 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
       max-height: none;
       overflow-y: visible;
       scroll-snap-type: none;
+      /* Nothing clips here, so the lift needs no allowance and the spacing
+         stays exactly as it was before the scroller existed. */
+      padding-block: 0;
+      scroll-padding-block: 0;
       padding-right: 0;
     }
     .uel-rail {
