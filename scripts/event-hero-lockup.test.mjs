@@ -513,5 +513,65 @@ test('the hub mark is the heading', () => {
     'a heading element brings a default margin the alt would shove the column down with');
 });
 
+/*
+  ─── AND THE THIRD HERO: THE ONE ON THE /events INDEX ──────────────────────
+
+  /events used to render its featured event through `FeaturedEvent.astro`, a
+  CARD. Beside the real hero it had no backdrop plate, no eyebrow chips and no
+  logo lockup, it printed "UPCOMING" twice (the status pill renders a visible
+  label AND an sr-only one), and its key art was blown up edge to edge under
+  `object-fit: cover`. It is `EventHero.astro` now, and the card is deleted so
+  there is no second implementation to drift.
+*/
+const indexHero = stripComments(readSrc('src', 'components', 'EventHero.astro'));
+const eventsIndex = stripComments(readSrc('src', 'pages', 'events', '[...page].astro'));
+
+test('the /events hero is the hero, not a card', () => {
+  assert.match(eventsIndex, /<EventHero event=\{featuredEvent\}/,
+    'the index must render the hero component');
+  assert.doesNotMatch(eventsIndex, /FeaturedEvent/,
+    'the card is gone; a reference to it means a second hero came back');
+
+  for (const marker of ['event-hero-bg-wrapper', 'hero-backdrop-plate', 'hub-stage-wash', 'hero-title-lockup']) {
+    assert.ok(indexHero.includes(marker), `the index hero is missing ${marker}`);
+  }
+});
+
+test('the /events hero says what, where and when — each of them once', () => {
+  const eyebrow = indexHero.match(/<div class="hero-eyebrow">[\s\S]*?<\/div>/);
+  assert.ok(eyebrow, 'no chip row');
+  assert.match(eyebrow[0], /\{eventTypeLabel\}/, 'what it is');
+  assert.match(eyebrow[0], /\{locationLabel\}/, 'where it is');
+  assert.match(eyebrow[0], /datetime=\{event\.startDate\}/, 'when it is, as a real <time>');
+  assert.doesNotMatch(indexHero, /esi-sr|sr-only/,
+    'the sr-only status twin is what printed UPCOMING a second time');
+});
+
+test('the /events hero is flush, and its copy still lands on the page column', () => {
+  const root = indexHero.match(/\.event-hero--index \{[^}]*\}/);
+  assert.ok(root, 'no index modifier');
+  assert.match(root[0], /margin-inline: calc\(50% - 50vw\);/, 'break out to the viewport');
+  assert.match(root[0], /padding-inline: calc\(50vw - 50%\);/,
+    'and put the SAME distance back, or the copy sits half a scrollbar off the column');
+
+  assert.match(indexHero, /\.event-hero--index \.event-hero-content \{[^}]*align-self: stretch;/,
+    'align-items: center on the overlay centres a shrink-wrapped copy block');
+  assert.match(indexHero, /\.event-hero--index \.hero-tagline \{[^}]*-webkit-line-clamp: 2;/,
+    'unclamped, the description set to nine lines and owned a whole phone screen');
+});
+
+test('the /events hero defines the animation it asks for', () => {
+  assert.match(indexHero, /animation: cinematic-hero-zoom/, 'the slow push is the house treatment');
+  assert.match(indexHero, /@keyframes cinematic-hero-zoom \{/,
+    'Astro scopes this <style>; naming another component\'s keyframes silently does nothing');
+});
+
+test('the /events hero holds no iframe, which is why it may clip', () => {
+  assert.doesNotMatch(indexHero, /HeroTrailer|<iframe/,
+    'HARD RULE 2/3 — the trailer stage stays on the detail page');
+  assert.match(indexHero, /\.event-hero-bg-wrapper \{[^}]*overflow: hidden;/,
+    'the backdrop wrapper is the one thing that clips');
+});
+
 console.log(failed === 0 ? `\n✅ ${passed} passed, 0 failed.` : `\n❌ ${passed} passed, ${failed} failed.`);
 process.exit(failed === 0 ? 0 : 1);
