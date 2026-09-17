@@ -19,7 +19,21 @@
    together with the other two homepage rows. */
 .cat {
   position: relative;
-  min-height: 260px;
+  /*
+    A RATIO, NOT A FIXED HEIGHT. `min-height: 260px` was fine while the grid
+    was pinned at 1536px and every tile was about 340 wide. Once the grid was
+    routed through `--page-max` the tiles grew to 602px on a 3840 screen and
+    the height did not follow, so they became 602x260 letterboxes and
+    `object-fit: cover` on the sketches zoomed to fill the width and cropped
+    the crowns straight off the top.
+
+    4:3 is the shape they already were: 341x260 at the 1512 control is 1.31,
+    and 4/3 is 1.33, so the control moves by about 4px and every wider screen
+    grows in both directions at once. The min-height stays as a floor for the
+    single-column case at the narrow end.
+  */
+  aspect-ratio: 4 / 3;
+  min-height: 200px;
   display: flex;
   align-items: flex-end;
   overflow: hidden;
