@@ -67,6 +67,13 @@ interface Slide {
   /** The HQ's own mark, for the slide that promotes the HQ rather than a
       piece of coverage. Sized, never the raw import — see the note below. */
   mark?: string | null;
+  /**
+   * WHAT KIND OF PICTURE IT IS, which decides where the band crops it.
+   * A YouTube thumbnail and a key-art poster are composed differently and a
+   * 6.4:1 band shows barely a quarter of either, so one crop cannot serve
+   * both. See `.spotlight-art` for the numbers.
+   */
+  artFocus?: 'thumbnail' | 'keyart';
 }
 
 interface Props {
@@ -157,6 +164,7 @@ if (newest) {
     href: link,
     cta: newest.type === 'video' ? 'Watch' : 'Read',
     art: src ? { src, srcset } : null,
+    artFocus: 'thumbnail',
     accent: null,
     /*
       The one destination here that can leave the site, and only because it has
@@ -178,6 +186,7 @@ if (featured) {
     href: `/feed#${featuredSlug}`,
     cta: 'See the coverage',
     art: featuredArt,
+    artFocus: 'keyart',
     accent: featuredAccent,
     external: false,
   });
@@ -221,6 +230,7 @@ const rotates = slides.length > 1;
       <a
         class:list={['spotlight-slide', { 'spotlight-slide--brand': !!slide.mark }]}
         data-slide
+        data-art-focus={slide.artFocus}
         href={slide.href}
         style={slide.accent ? `--slide-accent: ${slide.accent};` : undefined}
         aria-hidden={index === 0 ? undefined : 'true'}
@@ -254,10 +264,6 @@ const rotates = slides.length > 1;
             decoding="async"
           />
         )}
-        {slide.mark && (
-          <img class="spotlight-mark" src={slide.mark} alt="" aria-hidden="true" loading="eager" decoding="async" />
-        )}
-
         <span class="spotlight-scrim" aria-hidden="true"></span>
 
         {/*
@@ -276,6 +282,13 @@ const rotates = slides.length > 1;
             <span class="spotlight-eyebrow">{slide.eyebrow}</span>
             <span class="spotlight-title">{slide.title}</span>
           </span>
+
+          {/*
+            IN THE ROW, NOT PINNED OVER IT. See the note on `.spotlight-mark`.
+          */}
+          {slide.mark && (
+            <img class="spotlight-mark" src={slide.mark} alt="" aria-hidden="true" loading="eager" decoding="async" />
+          )}
 
           <span class="spotlight-cta">
             <span class="spotlight-cta-label">{slide.cta}</span>
@@ -455,20 +468,44 @@ const rotates = slides.length > 1;
       );
   }
 
+  /*
+    ─── THE MARK IS A ROW ITEM, NOT AN OVERLAY ──────────────────────────────
+
+    It shipped `position: absolute` against the slide, pinned to the slide's
+    own right edge. The CTA is right-aligned inside `.spotlight-inner`, which
+    is the narrower page column, so the two were laid out against different
+    edges and the subscribe button sat on top of the wordmark. Worse, the
+    point where they touched moved with the CTA's label: "WATCH" and "SEE THE
+    COVERAGE" are different widths, so any right offset that cleared one would
+    have been wrong for the other, and the brand slide's own "SUBSCRIBE" is
+    the longest of the three.
+
+    In the flex row there is no offset to get wrong. The mark takes
+    `margin-left: auto`, the brand slide's CTA gives up its own, and the two
+    travel as a right-aligned pair with the row's 1rem gap between them,
+    at every width and every label length.
+  */
   .spotlight-mark {
-    position: absolute;
-    right: clamp(1rem, 4vw, 4rem);
-    top: 50%;
-    transform: translateY(-50%);
-    height: clamp(52px, 5rem + 2vw, 104px);
+    flex: 0 1 auto;
+    margin-left: auto;
+    align-self: center;
+    /* Smaller than the absolute version was. In flow it contributes to the
+       row's height, and the band's proportions are the hero's, not the
+       wordmark's. */
+    height: clamp(40px, 2.4rem + 2vw, 72px);
     width: auto;
-    z-index: 1;
-    /* Sits in the picture's place, so it takes the picture's treatment: bright
-       enough to be the brand, quiet enough that the copy in front still wins. */
+    min-width: 0;
+    object-fit: contain;
+    /* Bright enough to be the brand, quiet enough that the copy still wins. */
     opacity: 0.9;
     /* No drop-shadow: hard rule 6 forbids the filter on an <img>. The mark is
        light-on-dark over a gradient that is darkest exactly where the mark is
        lightest, so it had nothing to separate it from anyway. */
+  }
+
+  /* The pair, not two things each reaching for the right edge. */
+  .spotlight-slide--brand .spotlight-cta {
+    margin-left: 0;
   }
 
   /* The scrim exists to hold type over a photograph. On the brand slide there
@@ -484,6 +521,35 @@ const rotates = slides.length > 1;
     );
   }
 
+  /*
+    ─── WHERE A 6.4:1 BAND CROPS A 16:9 PICTURE ────────────────────────────
+
+    The band is 1497x234 at a 1512 viewport, so `cover` shows about 28% of the
+    art's height and throws the rest away. WHICH 28% cannot be one number for
+    every slide, because the two kinds of picture here are composed
+    differently.
+
+    `thumbnail` keeps the 35% bias: a YouTube cover puts its subject in the
+    upper third, and centring one crops the face off.
+
+    `keyart` sits at 53%, and that number is solved, not judged by eye.
+    Measured on the Lanterns art (1536x864) the ring occupies 43.6% to 61.3%
+    of the image height; at 35% the visible band was 25% to 53%, which cut the
+    top third off it. Reported as "I want the ring to be visible in the
+    preview".
+
+    THE PANEL IS THE BINDING CONSTRAINT, NOT THE BANNER. The banner is 6.4:1
+    and shows a 27.8% band, so anything from 46.4% to 60.4% keeps the ring
+    whole there. The panel is 9.69:1 and shows 18.4%, barely more than the
+    ring's own 17.7%, which leaves only 52.6% to 53.4%. 53% is the overlap.
+    Plain `center` satisfies the banner and clips the panel, which is what
+    checking only the wider box would have shipped.
+
+    It is one number for one piece of key art, and it is the right shape of fix
+    only while there is one. A second series whose subject sits elsewhere needs
+    a focal point per image, and that belongs in the CMS beside the art, not
+    here. Purpose-built band art removes the question entirely.
+  */
   .spotlight-art {
     position: absolute;
     inset: 0;
@@ -492,6 +558,10 @@ const rotates = slides.length > 1;
     object-fit: cover;
     object-position: center 35%;
     z-index: 0;
+  }
+
+  [data-art-focus='keyart'] .spotlight-art {
+    object-position: center 53%;
   }
 
   /*
@@ -705,11 +775,50 @@ const rotates = slides.length > 1;
   }
 
   @media (max-width: 599px) {
-    /* The CTA collapses to an arrow at this width and lands where the mark is,
-       so the mark steps back to being a watermark rather than competing. */
+    /*
+      AT THIS WIDTH THE MARK LEAVES THE ROW AGAIN, and that is not a return to
+      the bug above. The bug was anchoring the mark to the SLIDE while the CTA
+      was anchored to the column, so the two were measured from different
+      edges. Here it is `.spotlight-inner` that it pins to, the column itself,
+      which is the same box the CTA sits in.
+
+      It has to leave, because in the row it was costing the title 57px of a
+      290px line and "GET NEW COVERAGE AS IT LANDS" was truncating to "GET NEW
+      COVERAGE AS IT...". A headline that does not finish is a worse loss than
+      a wordmark that moves, and the alternatives were both worse: a third
+      clamped line grows a band that has no min-height and is sized by its
+      content, and dropping the mark outright is the blank slide this whole
+      change set out to fix.
+
+      Top right, not centre right: the arrow CTA is vertically centred, so the
+      corner above it is the one part of the column that nothing else claims.
+    */
     .spotlight-mark {
-      height: 40px;
-      opacity: 0.35;
+      position: absolute;
+      /*
+        ABOVE THE COLUMN, NOT INSIDE IT. `.spotlight-inner` is only as tall as
+        its own two lines -- 64px inside a 125px slide, measured -- so a plain
+        `top` lands the mark in the middle band on top of the title and the
+        arrow. `bottom: 100%` puts its foot on the column's top edge instead,
+        in the empty strip the slide's own padding leaves above it.
+      */
+      bottom: calc(100% + 0.35rem);
+      margin-left: 0;
+      height: 24px;
+    }
+
+    /*
+      The mark's containing block is `.spotlight-inner`, and an absolute offset
+      is measured from the PADDING box, so `right: 0` would land on the slide
+      edge rather than the column. Each variant repeats its own gutter, the
+      same pairing the padding rules above use, so the mark's right edge and
+      the CTA's agree at every width.
+    */
+    .spotlight--panel .spotlight-mark {
+      right: clamp(0.9rem, 0.6rem + 1vw, 1.5rem);
+    }
+    .spotlight--banner .spotlight-mark {
+      right: clamp(1.25rem, calc(0.625rem + 2.5vw), 3rem);
     }
 
     /* The label goes, the arrow stays: at this width the words cost more room
