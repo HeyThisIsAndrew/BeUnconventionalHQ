@@ -206,6 +206,42 @@ check('the swap cleanup is registered outside the binding guard', () => {
   assert.ok(closes >= opens, 'the swap listener appears to be inside the guard');
 });
 
+console.log('\nCategory overlay: it is a takeover, so it goes over everything');
+
+check('the overlay escapes the stacking context that trapped it', () => {
+  /*
+    The overlay is rendered inside `#page-content`, which carries
+    `view-transition-name: page-main` so ClientRouter can slide the page. That
+    forms a STACKING CONTEXT with no z-index of its own, so the overlay painted
+    below the `<header>` at 100 however high it set itself — verified in a
+    browser at z-index 10000, where elementsFromPoint still returned the header
+    in front. A phone showed the navbar's logo, search icon and hamburger over
+    a full-screen black menu, with its close X underneath the hamburger.
+
+    What must hold: the CONTEXT is lifted, and only while this one overlay is
+    open. Asserted as the relationship between the class the component sets and
+    the rule that reads it, because either half alone is silent.
+  */
+  const filters = code(read('src/styles/modules/filters.css'));
+  const overlaySrc = code(read('src/components/CategoryOverlay.astro'));
+
+  const lift = filters.match(/html\.category-overlay-open #page-content \{[^}]*\}/);
+  assert.ok(lift, 'nothing lifts #page-content, so the overlay is still sealed inside it');
+  assert.match(lift[0], /position: relative;/, 'z-index does nothing on a static box');
+
+  const liftZ = Number(lift[0].match(/z-index:\s*(\d+)/)[1]);
+  const navZ = Number(code(read('src/components/Navbar.astro')).match(/z-index:\s*(\d+)/)[1]);
+  assert.ok(liftZ > navZ, `the lifted context (${liftZ}) must outrank the navbar (${navZ})`);
+
+  assert.match(overlaySrc, /classList\.add\('category-overlay-open'\)/,
+    'opening must set the class the rule keys on');
+  assert.match(overlaySrc, /classList\.remove\('category-overlay-open'\)/,
+    'and closing must drop it, or the page stays over the navbar for good');
+
+  assert.doesNotMatch(overlaySrc, /class="category-fullscreen-overlay z-\[/,
+    'the Tailwind z utility contradicted the stylesheet it lost to; it is gone');
+});
+
 console.log(
   failures === 0
     ? '\n✅ Category overlay ownership checks passed.\n'

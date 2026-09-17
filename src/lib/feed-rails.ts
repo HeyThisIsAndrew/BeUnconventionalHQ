@@ -85,7 +85,44 @@ export interface Rail {
   items: any[];
   /** Where "explore" goes, when the rail maps to a real destination. */
   href?: string | null;
+  /**
+   * The name this rail answers to in a URL, when that differs from its `id`.
+   * See RAIL_ANCHORS.
+   */
+  anchor?: string;
 }
+
+/*
+  ─── THE RAIL'S INTERNAL NAME AND ITS PUBLIC ONE ARE NOT ALWAYS THE SAME ────
+
+  A hub-category rail's `id` is its `hubCategory` verbatim, because that is the
+  CMS's word for it and the rest of this file reasons in those terms. But the
+  category a READER browses by has its own canonical slug, declared once in
+  `src/data/constants.js`, and for this one category the two disagree: the CMS
+  says `gaming`, the site's category taxonomy says `games` with `gaming` listed
+  as a tag spelling that means it.
+
+  That is not a naming quibble, it was a dead link. The homepage's Games tile
+  points at `/feed#games` (Categories.astro) and so does the note in
+  Layout.astro that gives such a link its downward transition, while the
+  section on the page was `id="gaming"` — so the tile navigated to /feed and
+  then landed nowhere, silently, which looks like the anchor feature being
+  broken rather than one name being spelled two ways.
+
+  Renaming the CATEGORY to match the rail was the other option and is the wrong
+  one: `constants.js` documents that this rename was already made once in the
+  other direction, `/category/games` is a built and indexed route, and
+  `CATEGORY_TAG_ALIASES` has no `gaming` key, so a slug of `gaming` would fall
+  through to matching the literal tag and quietly drop everything tagged
+  `games`.
+
+  So the id stays the CMS's, the anchor becomes the reader's. FeedGrid renders
+  the anchor as the element's `id` and keeps the rail's own id on `data-row`,
+  and its scroll handler already resolves either one.
+*/
+export const RAIL_ANCHORS: Record<string, string> = {
+  gaming: 'games',
+};
 
 export interface CuratedCollection {
   id: string;
@@ -283,6 +320,7 @@ export function buildRails(items: any[], options: BuildOptions): Rail[] {
       title: HUB_CATEGORY_LABELS[category] ?? category,
       items: leadWithUnseen(matched).slice(0, RAIL_LIMIT),
       href: hrefForCategory?.(category) ?? null,
+      anchor: RAIL_ANCHORS[category],
     });
   }
 

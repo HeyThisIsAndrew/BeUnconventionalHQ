@@ -75,7 +75,7 @@ const { items, buttonLabel = LABELS.categories } = Astro.props;
 {/* The open state. Always rendered; `.is-open` reveals it. */}
 <div
   id="category-fullscreen-overlay"
-  class="category-fullscreen-overlay z-[200]"
+  class="category-fullscreen-overlay"
   role="dialog"
   aria-modal="true"
   aria-label="Categories"
@@ -151,6 +151,7 @@ const { items, buttonLabel = LABELS.categories } = Astro.props;
       if (!overlay.classList.contains('is-open')) return;
       overlay.classList.remove('is-open');
       overlay.setAttribute('aria-hidden', 'true');
+      document.documentElement.classList.remove('category-overlay-open');
       unlockScroll();
       if (openBtn) {
         openBtn.setAttribute('aria-expanded', 'false');
@@ -161,6 +162,26 @@ const { items, buttonLabel = LABELS.categories } = Astro.props;
     function open(overlay: HTMLElement, openBtn: HTMLElement | null, closeBtn: HTMLElement | null) {
       overlay.classList.add('is-open');
       overlay.setAttribute('aria-hidden', 'false');
+      /*
+        ─── A CLASS ON <html>, BECAUSE z-index CANNOT REACH THE NAVBAR ───────
+
+        This overlay is rendered inside the page, and `#page-content` carries
+        `view-transition-name: page-main` (global-base.css), which forms a
+        STACKING CONTEXT. Everything in here is therefore sealed inside it, and
+        `#page-content` itself has no z-index, so it sits below the `<header>`
+        at 100 whatever number the overlay gives itself. Raising the overlay
+        from 200 to 10000 changed nothing at all: measured with
+        elementsFromPoint, the header still came back in front.
+
+        The only thing that can lift it is its own stacking context, and the
+        only selector that can reach that is one anchored outside the page. So
+        the component says it is open and filters.css does the lifting.
+
+        `modal-open` already lands on <html> via the shared scroll lock, but it
+        is shared with the search palette and the video lightbox, and neither
+        of those wants the page raised over the navbar. This says which modal.
+      */
+      document.documentElement.classList.add('category-overlay-open');
       lockScroll();
       if (openBtn) {
         openBtn.setAttribute('aria-expanded', 'true');

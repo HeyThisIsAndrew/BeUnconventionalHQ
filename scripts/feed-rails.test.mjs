@@ -31,6 +31,7 @@ import {
   accentFor,
   sortTime,
   HUB_CATEGORY_ORDER,
+  RAIL_ANCHORS,
   RAIL_LIMIT,
   LATEST_LIMIT,
 } from '../src/lib/feed-rails.ts';
@@ -264,6 +265,52 @@ test('The Latest still leads with the newest thing, whatever the collection show
     .find((r) => r.id === 'latest');
   const newest = [...corpus].sort((a, b) => sortTime(b) - sortTime(a))[0];
   assert.equal(latest.items[0].title, newest.title);
+});
+
+test('the Games tile on the homepage lands on the Games rail', () => {
+  /*
+    The tile links to /feed#games (Categories.astro) because `games` is the
+    canonical category slug in src/data/constants.js. The rail's own id is its
+    hubCategory, `gaming`. Both names are correct and they are not the same
+    name, so the section answers to the reader's one and keeps the CMS's.
+
+    This was a dead anchor: the link navigated to /feed and landed nowhere,
+    with nothing to show that anything had failed.
+  */
+  const rail = buildRails(corpus, { hubs, matchesHub, hasTopic }).find((r) => r.id === 'gaming');
+  assert.ok(rail, 'the gaming rail must still be built from the hubCategory');
+  assert.equal(rail.anchor, 'games', 'and must answer to the slug the tile uses');
+
+  const grid = read('src', 'components', 'FeedGrid.astro');
+  assert.match(grid, /id=\{rail\.anchor \?\? rail\.id\}/,
+    'the element id is the public name, falling back to the rail id');
+  assert.match(grid, /data-row=\{rail\.id\}/,
+    'and data-row keeps the internal one, which the scroll handler also resolves');
+
+  const tiles = read('src', 'components', 'Categories.astro');
+  assert.match(tiles, /\/feed#\$\{cat\.slug\}/,
+    'the tile builds its href from the slug, so the slug is what must resolve');
+});
+
+test('every homepage tile has somewhere on the Feed to land', () => {
+  /*
+    The general form of the bug above, checked against the source rather than a
+    fixture: a tile whose slug names no section is a link that goes nowhere and
+    says nothing. Events is excluded because its tile goes to /events, which is
+    a page, not a rail.
+  */
+  const slugs = [...read('src', 'data', 'categories.js').matchAll(/slug: '([a-z]+)'/g)]
+    .map((m) => m[1])
+    .filter((slug) => slug !== 'events');
+  assert.ok(slugs.length >= 3, 'the tiles were not parsed');
+
+  const topicIds = [...read('src', 'lib', 'feed-rails.ts').matchAll(/\{ id: '([a-z-]+)', title: '[^']*', topic:/g)]
+    .map((m) => m[1]);
+  const reachable = new Set([...topicIds, ...Object.values(RAIL_ANCHORS)]);
+
+  for (const slug of slugs) {
+    assert.ok(reachable.has(slug), `/feed#${slug} names no section: the tile is a dead link`);
+  }
 });
 
 console.log('\nFeed rails: all assertions ran.');
