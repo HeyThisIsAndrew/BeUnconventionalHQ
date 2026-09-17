@@ -145,7 +145,7 @@ const featuredEvent = featuredProp;
           
           {/* Secondary upcoming events as a clean vertical list. */}
           {secondaryUpcoming.length > 0 && (
-            <section class="upcoming-section animate-on-scroll" aria-labelledby="more-upcoming-heading">
+            <section class="upcoming-section animate-on-scroll" data-rows-target aria-labelledby="more-upcoming-heading">
               <UpcomingEventsList events={secondaryUpcoming} />
             </section>
             <Pagination page={page} />
@@ -299,8 +299,25 @@ const featuredEvent = featuredProp;
     control that stays put while what it controls moves is what makes the
     movement legible.
   */
+  /*
+    ─── NO view-transition-name HERE, DELIBERATELY ───────────────────────────
+
+    It carried `view-transition-name: section-rows` so that paging animated the
+    tiles and not the page. That produced a worse bug: a view-transition
+    snapshot is positioned against the VIEWPORT, not against the element's place
+    in the document, and Astro resets scroll to the top on navigation. So the
+    outgoing tiles — captured 700px down the page — were replayed at the top of
+    the screen, flying over the hero. Reported as "it looks like it scrolls over
+    the hero from the top of the page".
+
+    The fix is not a different name or a different animation: it is to stop the
+    page jumping at all. `page-rows` now restores the scroll position across the
+    swap (Layout.astro) and the list fades in where it already is, from the
+    `[data-rows-target]` rule in global-base.css. Nothing is lifted out of flow,
+    so nothing can be drawn anywhere but where it lives.
+  */
   .upcoming-section {
-    view-transition-name: section-rows;
+    scroll-margin-top: 7rem;
   }
 
   /* The layout wrapper gives the whole page a dark base; the page's own width

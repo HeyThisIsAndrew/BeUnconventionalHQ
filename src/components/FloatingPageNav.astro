@@ -356,8 +356,38 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
       });
     };
 
+    /*
+      ─── A HEADING JUST BELOW THE LINE IS THE CURRENT ONE ────────────────────
+
+      This was only "the last heading whose top is above ZONE_TOP", which is
+      right while you are scrolling THROUGH a section and wrong the moment you
+      jump to one.
+
+      Clicking the second entry in the rail lands its heading at ~200px — below
+      the 80px line, so nothing had "passed" except the FIRST heading, and the
+      rail highlighted the first while the reader was looking at the second.
+      Reported as "I selected the 2nd tile it scrolled down but first is still
+      highlighted".
+
+      So a heading sitting in the upper part of the viewport wins outright: if
+      any heading's top is between the line and the middle of the screen, the
+      topmost of those IS the section you are on. Only when none is on screen
+      does the "last one passed" rule apply, which is the scrolling case it was
+      written for.
+    */
     const syncFallback = () => {
       const ZONE_TOP = 80;
+      const ZONE_BOTTOM = window.innerHeight * 0.5;
+
+      const onScreen = headings.filter((h) => {
+        const top = h.getBoundingClientRect().top;
+        return top >= ZONE_TOP && top < ZONE_BOTTOM;
+      });
+      if (onScreen[0]?.id) {
+        setActive(onScreen[0].id);
+        return;
+      }
+
       const passed = headings.filter((h) => h.getBoundingClientRect().top < ZONE_TOP);
       const fallback = passed.length > 0 ? passed[passed.length - 1] : headings[0];
       if (fallback?.id) setActive(fallback.id);
@@ -414,6 +444,61 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
 
     headings.forEach((heading) => observer.observe(heading));
     setActive(headings[0].id);
+
+    /*
+      ─── A CLICK IS AN ANSWER, NOT A HINT ───────────────────────────────────
+
+      The reader has just told us which section they want. Waiting for the
+      observer to agree is how the rail ends up pointing at the previous one:
+      the jump is instant, the callback is not, and if the heading lands outside
+      the detection band nothing fires at all.
+
+      `syncFallback()` after a beat covers the case where the browser settles
+      somewhere slightly different from where the anchor aimed — images above
+      finishing their layout, mostly.
+    */
+    links.forEach((link) => {
+      link.addEventListener('click', (event) => {
+        const id = link.dataset.tocLink;
+        const heading = id ? document.getElementById(id) : null;
+        if (!id || !heading) return;
+
+        setActive(id);
+
+        /*
+          ─── THE JUMP HAS TO BE MADE TWICE ──────────────────────────────────
+
+          A native anchor jump resolves against the layout AS IT IS at that
+          instant. On the first interaction with an article the images above the
+          fold have not finished laying out, so everything below them shifts
+          down afterwards and the heading ends up hundreds of pixels below where
+          it was aimed. Measured on the first click of a cold load: the target
+          landed at 842px instead of the ~90px its `scroll-margin-top` asks for.
+
+          Later clicks looked fine, which is exactly why this is worth handling
+          rather than dismissing — it only misses on the first one, which is the
+          one every reader makes.
+
+          So the browser's own jump is replaced by one we can repeat: scroll
+          now, then again once layout has settled. The second call is a no-op
+          when nothing moved. `scroll-margin-top` on the heading still supplies
+          the offset under the fixed navbar, so the number lives in the CSS.
+        */
+        event.preventDefault();
+
+        const jump = () => heading.scrollIntoView({ behavior: 'auto', block: 'start' });
+        jump();
+        window.setTimeout(() => {
+          jump();
+          syncFallback();
+        }, 350);
+
+        /* The address bar should still say where the reader is. `replaceState`
+           rather than assigning `location.hash`, which would re-trigger the
+           browser's own jump and undo the correction above. */
+        history.replaceState(null, '', `#${id}`);
+      });
+    });
     
     currentObserver = observer;
 

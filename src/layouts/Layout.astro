@@ -537,9 +537,38 @@ const fallbackMark = await getImage({
           document.documentElement.dataset.pageTransition = direction;
         });
 
+        /*
+          PAGING A LIST MUST NOT MOVE THE READER.
+
+          Astro resets scroll to the top on navigation. For a page-rows move
+          that is wrong twice over: the reader was looking at the list, and any
+          animated snapshot of it gets replayed at the top of the screen,
+          because a view transition positions its snapshots against the VIEWPORT
+          rather than the element's place in the document. That is what drew the
+          outgoing tiles over the hero.
+
+          So the position is captured before the swap and put back after it. The
+          list then updates under the reader's eyes, where it already was.
+        */
+        var rowsScrollY = null;
+
         document.addEventListener('astro:before-swap', function (event) {
           var direction = document.documentElement.dataset.pageTransition;
           if (direction) event.newDocument.documentElement.dataset.pageTransition = direction;
+          rowsScrollY = direction === 'page-rows' ? window.scrollY : null;
+        });
+
+        document.addEventListener('astro:after-swap', function () {
+          if (rowsScrollY === null) return;
+          var y = rowsScrollY;
+          rowsScrollY = null;
+          /* Two frames: Astro's own scroll reset lands after the swap, so a
+             single rAF puts this back before it and is immediately undone. */
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+              window.scrollTo({ top: y, behavior: 'instant' });
+            });
+          });
         });
 
         /* Cleared once the animation has run, so a later in-page change does

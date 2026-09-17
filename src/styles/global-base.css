@@ -204,29 +204,32 @@ html[data-page-transition='page-rows']::view-transition-new(page-main) {
   animation: none !important;
 }
 
-html[data-page-transition='page-rows']::view-transition-old(section-rows) {
-  animation: section-rows-out 260ms var(--splash-ease) both;
-}
+/*
+  ─── THE LIST FADES IN PLACE. IT IS NOT A VIEW TRANSITION ──────────────────
 
-html[data-page-transition='page-rows']::view-transition-new(section-rows) {
+  The paginated list used to carry `view-transition-name: section-rows` so that
+  only it animated. That was worse: a view transition positions its snapshots
+  against the VIEWPORT, not the element's place in the document, and Astro
+  resets scroll on navigation — so tiles captured 700px down the page were
+  replayed at the top of the screen, over the hero.
+
+  Nothing is lifted out of flow now. `page-rows` keeps the scroll position
+  (Layout.astro) and the incoming list plays this on load, exactly where it
+  already sits. An animation on the real element cannot be drawn anywhere else.
+*/
+html[data-page-transition='page-rows'] [data-rows-target] {
   animation: section-rows-in 260ms var(--splash-ease) both;
 }
 
 /* 6%, and shorter than a page move. A list advancing is the smaller of the two
    gestures and should read that way. */
-@keyframes section-rows-out {
-  from { transform: translateY(0); opacity: 1; }
-  to { transform: translateY(-6%); opacity: 0; }
-}
-
 @keyframes section-rows-in {
   from { transform: translateY(6%); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  ::view-transition-old(section-rows),
-  ::view-transition-new(section-rows) {
+  html[data-page-transition='page-rows'] [data-rows-target] {
     animation: none !important;
   }
 }

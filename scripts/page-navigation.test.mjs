@@ -223,20 +223,44 @@ test('paging a list moves the list, not the page', () => {
   );
 
   /*
-    ON THE TILE LIST, not on the layout that contains it. This first went on
-    `.events-page-grid`, which is the whole two-column spread including the
-    sidebar with the calendar and Support The HQ — so paging the list animated
-    a sidebar whose contents do not change between pages.
+    ─── NOTHING ON THIS PAGE IS A VIEW-TRANSITION TARGET ──────────────────────
+
+    This went through two wrong answers. First `.events-page-grid` carried the
+    name, which animated the sidebar too. Then `.upcoming-section` did, which
+    was worse: a view transition positions its snapshots against the VIEWPORT,
+    not the element's place in the document, and Astro resets scroll on
+    navigation — so tiles captured 700px down the page were replayed at the top
+    of the screen, over the hero.
+
+    Neither a different element nor a different animation fixes that. The page
+    must not jump, and the list must not leave the flow. So: no name anywhere
+    here, the scroll position is restored across the swap, and the list plays a
+    plain CSS fade on the real element.
   */
-  assert.match(
-    events,
-    /\.upcoming-section \{[^}]*view-transition-name: section-rows/,
-    'the tile list must be the thing that moves',
-  );
   assert.doesNotMatch(
     eventsCode,
-    /\.events-page-grid \{[^}]*view-transition-name/,
-    'naming the whole spread animates the sidebar too',
+    /view-transition-name/,
+    'a snapshot of this list is drawn against the viewport, not where the list lives',
+  );
+  assert.match(events, /data-rows-target/, 'the list must be marked for the in-place fade');
+
+  const layoutSrc = read('src', 'layouts', 'Layout.astro');
+  assert.match(
+    layoutSrc,
+    /rowsScrollY = direction === 'page-rows' \? window\.scrollY : null/,
+    'the scroll position must be captured before the swap',
+  );
+  assert.match(
+    layoutSrc,
+    /astro:after-swap[\s\S]{0,600}?window\.scrollTo\(\{ top: y/,
+    'and restored after it, or the reader is thrown to the top',
+  );
+
+  const cssSrc = read('src', 'styles', 'global-base.css');
+  assert.match(
+    cssSrc,
+    /html\[data-page-transition='page-rows'\] \[data-rows-target\]/,
+    'the fade must play on the real element, not a snapshot',
   );
 
   /*
@@ -260,6 +284,11 @@ test('paging a list moves the list, not the page', () => {
     'the page-main GROUP has to be stopped too, not just its old/new',
   );
   assert.match(css, /@keyframes section-rows-in/, 'the rows need their own motion');
+  assert.doesNotMatch(
+    css,
+    /::view-transition-(old|new)\(section-rows\)/,
+    'the list is animated in place now; a snapshot rule would bring the fly-over back',
+  );
 });
 
 /*
@@ -497,4 +526,55 @@ test('a featured tile hands its show\'s artwork to the hero', () => {
   assert.match(grid, /const prestigeBrand = prestigeBannerArt/, 'the row must build the override');
   assert.match(grid, /getImage\(\{ src: prestigeBannerArt, width: \d+ \}\)/, 'the backdrop must be resized');
   assert.match(grid, /brandOverride=\{prestigeBrand\}/, 'the tiles must carry it');
+});
+
+/*
+  ─── THE CONTENTS RAIL FOLLOWS THE READER, AND THE JUMP LANDS ───────────────
+
+  Two faults, reported together as "I selected the 2nd tile it scrolled down but
+  first is still highlighted, the scroll position is broken for all articles":
+
+    the rail only ever asked "which heading was the last to pass the 80px
+    line", which is right while scrolling THROUGH a section and wrong the
+    instant you jump to one — the target lands BELOW the line, so the previous
+    heading is still the last one passed and stays lit;
+
+    and the jump itself landed short on the first click of a cold load, because
+    a native anchor resolves against the layout as it is at that instant and
+    the images above the fold had not finished laying out. Measured: 842px
+    instead of the ~90px `scroll-margin-top` asks for.
+*/
+test('the contents rail tracks the section you jumped to', () => {
+  const nav = read('src', 'components', 'FloatingPageNav.astro');
+
+  /* A heading in the upper part of the viewport wins outright. */
+  assert.match(
+    nav,
+    /const ZONE_BOTTOM = window\.innerHeight \* 0\.5/,
+    'the rail needs a zone, not just a line',
+  );
+  assert.match(
+    nav,
+    /onScreen\[0\]\?\.id[\s\S]{0,80}setActive\(onScreen\[0\]\.id\)/,
+    'the topmost heading on screen is the current section',
+  );
+
+  /* And a click is an answer, not a hint. */
+  assert.match(nav, /setActive\(id\);/, 'the clicked entry lights immediately');
+
+  /*
+    The jump is made TWICE. The second call is a no-op when nothing moved, and
+    corrects the first click of a cold load when it did.
+  */
+  assert.match(nav, /event\.preventDefault\(\)/, 'the browser jump is replaced by one we can repeat');
+  assert.match(
+    nav,
+    /jump\(\);\s*\n\s*window\.setTimeout\(\(\) => \{\s*\n\s*jump\(\);/,
+    'scroll now, and again once layout has settled',
+  );
+  assert.match(
+    nav,
+    /history\.replaceState\(null, '', `#\$\{id\}`\)/,
+    'replaceState, not location.hash — the latter re-triggers the browser jump',
+  );
 });
