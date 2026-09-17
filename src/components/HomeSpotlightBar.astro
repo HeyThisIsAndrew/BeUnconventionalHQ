@@ -45,6 +45,7 @@
  * binds by id and documents itself as single-instance for exactly that reason.
  */
 import { getImage } from 'astro:assets';
+import logoMark from '../assets/logo-mark.webp';
 import { getAllFeedItems } from '../lib/feed-items';
 import { getCardImageSources } from '../lib/card-images';
 import { selectCollections } from '../lib/feed-rails';
@@ -63,6 +64,9 @@ interface Slide {
   art: SlideArt | null;
   accent: string | null;
   external: boolean;
+  /** The HQ's own mark, for the slide that promotes the HQ rather than a
+      piece of coverage. Sized, never the raw import — see the note below. */
+  mark?: string | null;
 }
 
 interface Props {
@@ -179,6 +183,20 @@ if (featured) {
   });
 }
 
+/*
+  ─── THE HQ SLIDE IS THE ONE WITH NO COVERAGE TO SHOW ───────────────────────
+
+  Every other slide brings a picture. This one promotes the HQ itself, so it
+  brought nothing and rendered as a flat black band with two lines of type on
+  it — reported as blank. It carries the HQ's own mark and the brand gradient
+  instead, which is the thing it is actually advertising.
+
+  `getImage()` rather than `logoMark.src`: a raw import's `.src` is a path
+  Astro only emits when something asks the pipeline to process the file, which
+  is how the featured art 404'd on this same component.
+*/
+const markSrc = (await getImage({ src: logoMark, height: 240, format: 'webp', quality: 82 })).src;
+
 slides.push({
   key: 'subscribe',
   eyebrow: 'The HQ',
@@ -189,6 +207,7 @@ slides.push({
   art: null,
   accent: null,
   external: false,
+  mark: markSrc,
 });
 
 /* Nothing to rotate through is not a failure: one slide renders as a static
@@ -200,7 +219,7 @@ const rotates = slides.length > 1;
   <div class="spotlight-frame">
     {slides.map((slide, index) => (
       <a
-        class="spotlight-slide"
+        class:list={['spotlight-slide', { 'spotlight-slide--brand': !!slide.mark }]}
         data-slide
         href={slide.href}
         style={slide.accent ? `--slide-accent: ${slide.accent};` : undefined}
@@ -208,6 +227,22 @@ const rotates = slides.length > 1;
         {...(index === 0 ? {} : { inert: true })}
         {...(slide.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
       >
+        {/*
+          ─── EAGER ON EVERY SLIDE, NOT JUST THE FIRST ─────────────────────
+
+          `loading="lazy"` was right for a slide that might never be seen and
+          wrong for these: the hidden slides are `visibility: hidden`, and the
+          browser does not start a lazy image on an element it is not
+          rendering. Measured — the mark on the third slide reported
+          `naturalWidth: 0` with an empty `currentSrc` even after its slide was
+          made current, and setting `loading` to eager on the live element
+          loaded it immediately from the same URL.
+
+          The cost is small and bounded: three images, the same three URLs in
+          both instances of this bar, and every one of them is on screen within
+          seven seconds of the page settling. A slide that arrives blank is the
+          worse trade.
+        */}
         {slide.art && (
           <img
             class="spotlight-art"
@@ -215,10 +250,14 @@ const rotates = slides.length > 1;
             srcset={slide.art.srcset || undefined}
             sizes="(max-width: 899px) 100vw, 1536px"
             alt=""
-            loading={index === 0 ? 'eager' : 'lazy'}
+            loading="eager"
             decoding="async"
           />
         )}
+        {slide.mark && (
+          <img class="spotlight-mark" src={slide.mark} alt="" aria-hidden="true" loading="eager" decoding="async" />
+        )}
+
         <span class="spotlight-scrim" aria-hidden="true"></span>
 
         {/*
@@ -383,6 +422,68 @@ const rotates = slides.length > 1;
     padding-inline: clamp(0.9rem, 0.6rem + 1vw, 1.5rem);
   }
 
+  /*
+    ─── THE BRAND SLIDE ────────────────────────────────────────────────────
+
+    Black into the house red, on the diagonal so it does not read as a flat
+    two-tone split.
+
+    THE RED IS THE BACKGROUND RED, NOT THE BUTTON RED. This shipped once as
+    opaque stops running out to `--color-accent` itself, and a panel of solid
+    #cc0000 next to a page whose every other red is a wash read as a different
+    site. So it is built the way the hero's own glow is built (hero.css): the
+    accent at a low alpha over the same `#0a0a0a` the page sits on, which is
+    what makes it the same red rather than a second one. The far end lands at
+    0.34 -- about where the old gradient's 72% stop was -- so the slide still
+    reads as branded without any stop reaching the accent at full strength.
+
+    The alpha stops name 204,0,0 literally, as hero.css does: `--color-accent`
+    is a hex token and there is no RGB triple stored beside it.
+
+    The mark sits where the other slides put their artwork, which is what
+    makes this read as the same kind of slide rather than an empty one.
+  */
+  .spotlight-slide--brand {
+    background-color: #0a0a0a;
+    background-image:
+      linear-gradient(
+        105deg,
+        transparent 0%,
+        rgba(204, 0, 0, 0.06) 38%,
+        rgba(204, 0, 0, 0.18) 72%,
+        rgba(204, 0, 0, 0.34) 100%
+      );
+  }
+
+  .spotlight-mark {
+    position: absolute;
+    right: clamp(1rem, 4vw, 4rem);
+    top: 50%;
+    transform: translateY(-50%);
+    height: clamp(52px, 5rem + 2vw, 104px);
+    width: auto;
+    z-index: 1;
+    /* Sits in the picture's place, so it takes the picture's treatment: bright
+       enough to be the brand, quiet enough that the copy in front still wins. */
+    opacity: 0.9;
+    /* No drop-shadow: hard rule 6 forbids the filter on an <img>. The mark is
+       light-on-dark over a gradient that is darkest exactly where the mark is
+       lightest, so it had nothing to separate it from anyway. */
+  }
+
+  /* The scrim exists to hold type over a photograph. On the brand slide there
+     is no photograph, and running it at full strength put a dark wash over a
+     gradient that is already dark on the left and is the whole point on the
+     right. */
+  .spotlight-slide--brand .spotlight-scrim {
+    background: linear-gradient(
+      to right,
+      rgba(10, 10, 10, 0.7) 0%,
+      rgba(10, 10, 10, 0.35) 45%,
+      transparent 72%
+    );
+  }
+
   .spotlight-art {
     position: absolute;
     inset: 0;
@@ -444,9 +545,27 @@ const rotates = slides.length > 1;
   }
 
   .spotlight-title {
-    font-family: var(--font-display, 'Syne Variable', sans-serif);
+    /*
+      ─── THE DISPLAY FACE, AND CAPS ─────────────────────────────────────────
+
+      Set in the body font and sentence case, this was the only title on the
+      homepage not in the site's own voice: "FEATURED HIGHLIGHTS" directly
+      beneath it is Syne, uppercase and tracked, and so is every row title on
+      the Feed (`.feed-row-title`). The band read as a widget dropped onto the
+      page rather than part of it.
+
+      Same three properties those use — family, weight, tracking — so a change
+      to the house treatment finds this too. The fallback is a bare
+      `sans-serif` rather than a guessed family name: `--font-display` is
+      declared by the Astro Fonts API in astro.config.mjs and naming a
+      not-quite-right family after it only masks the day it fails to load.
+    */
+    font-family: var(--font-display, sans-serif);
     font-size: clamp(1.05rem, 0.85rem + 0.9vw, 1.7rem);
-    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    line-height: 1.25;
     color: var(--color-white, #f0f0f0);
     /* Two lines, then stop: a headline is allowed to be long, this band is
        not allowed to grow. */
@@ -586,6 +705,13 @@ const rotates = slides.length > 1;
   }
 
   @media (max-width: 599px) {
+    /* The CTA collapses to an arrow at this width and lands where the mark is,
+       so the mark steps back to being a watermark rather than competing. */
+    .spotlight-mark {
+      height: 40px;
+      opacity: 0.35;
+    }
+
     /* The label goes, the arrow stays: at this width the words cost more room
        than they buy, and the whole band is the link anyway. */
     .spotlight-cta-label {
