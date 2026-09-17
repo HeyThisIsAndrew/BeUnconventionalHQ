@@ -900,17 +900,33 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
       plate stopped at 928px. The same thing happened at the bottom, invisible
       only because the scrim there is nearly black.
 
-      The overscan is 12% on each side, so the plate is 124% of the hero in both
-      axes. It is stated as a WIDTH rather than left over to `auto` because this
-      is an <img>, and the global `img { max-width: 100% }` reset clamps an auto
-      width to the containing block — measured: the plate came back 1009px wide
-      inside a 1009px hero, still shifted 121px left, gap unchanged. `max-width:
-      none` is what actually lets it overscan; without that line the width below
-      is capped and the gap returns.
+      ─── THE OVERSCAN IS A BLUR ALLOWANCE, NOT A ZOOM ───────────────────────
+
+      It exists for one reason: a CSS blur goes weak at its own element's edges,
+      because it mixes in the transparent pixels outside, so the outermost band
+      is the least blurred part of it. Pushing the plate past the clip puts that
+      band where nobody sees it.
+
+      The band is about twice the blur radius — 18px at `blur(9px)`. It was
+      specified as 12% instead, which on a 1920px hero is 230px a side: ten
+      times what the blur needs, and it read exactly as what it was, a backdrop
+      zoomed a third of the way in. Reported as "too far zoomed in", on heroes
+      whose key art sets the event's name across the full width of the artwork.
+
+      32px is a generous allowance at this radius and costs ~3% of scale on a
+      desktop hero instead of 24%. Tie any change to the blur radius above, not
+      to the hero's size.
+
+      Stated as a WIDTH rather than left to `auto` because this is an <img>, and
+      the global `img { max-width: 100% }` reset clamps an auto width to the
+      containing block — measured: the plate came back 1009px wide inside a
+      1009px hero, still shifted, gap unchanged. `max-width: none` is what
+      actually lets it overscan.
     */
-    inset: -12%;
-    width: 124%;
-    height: 124%;
+    --plate-overscan: 32px;
+    inset: calc(var(--plate-overscan) * -1);
+    width: calc(100% + var(--plate-overscan) * 2);
+    height: calc(100% + var(--plate-overscan) * 2);
     max-width: none;
     filter: blur(9px) saturate(1.15) brightness(1.16);
     -webkit-filter: blur(9px) saturate(1.15) brightness(1.16);

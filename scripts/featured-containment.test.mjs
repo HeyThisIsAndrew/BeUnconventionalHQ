@@ -1535,9 +1535,17 @@ test('the hub hero is the deck page\'s stage, and keeps its own height', () => {
   */
   const plate = hub.slice(hub.indexOf('.hero-backdrop-plate {'));
   const pdecl = plate.slice(0, plate.indexOf('\n  }'));
-  assert.match(pdecl, /inset: -\d+%/, 'the plate must overscan its clip');
-  assert.match(pdecl, /width: 124%/, 'the plate must span its own overscan, not the hero');
-  assert.match(pdecl, /height: 124%/, 'in both axes');
+  /*
+    The overscan is an ABSOLUTE allowance for the blur's weak edge (about twice
+    the radius), not a percentage. At 12% it was 230px a side on a 1920px hero —
+    ten times what the blur needs — and read as a backdrop zoomed a third of the
+    way in, reported as "too far zoomed in".
+  */
+  assert.match(pdecl, /--plate-overscan: \d+px/, 'the overscan must be tied to the blur radius');
+  assert.doesNotMatch(pdecl, /inset: -\d+%/, 'a percentage overscan scales with the hero, not the blur');
+  assert.match(pdecl, /width: calc\(100% \+ var\(--plate-overscan\) \* 2\)/,
+    'the plate must span its own overscan, not the hero');
+  assert.match(pdecl, /height: calc\(100% \+ var\(--plate-overscan\) \* 2\)/, 'in both axes');
   assert.match(pdecl, /max-width: none/,
     'the global img reset caps an overscanning plate at 100% and the gap returns');
   assert.doesNotMatch(pdecl, /animation:/, 'scaling a clipping box was the light leak — nothing here moves');

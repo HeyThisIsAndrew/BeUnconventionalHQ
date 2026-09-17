@@ -279,8 +279,11 @@ test('the hero backdrop is one image, centred, covering', () => {
     */
     const plate = code.slice(code.indexOf('.hero-backdrop-plate {'));
     const decl = plate.slice(0, plate.indexOf('\n  }'));
-    assert.match(decl, /width: 124%/, `${rel}: the plate must span its own overscan`);
-    assert.match(decl, /height: 124%/, `${rel}: in both axes`);
+    assert.match(decl, /--plate-overscan: \d+px/,
+      `${rel}: the overscan is a blur allowance, so it is absolute, not a percentage`);
+    assert.match(decl, /width: calc\(100% \+ var\(--plate-overscan\) \* 2\)/,
+      `${rel}: the plate must span its own overscan`);
+    assert.match(decl, /height: calc\(100% \+ var\(--plate-overscan\) \* 2\)/, `${rel}: in both axes`);
     assert.match(decl, /max-width: none/,
       `${rel}: the global img reset caps it at 100% and the gap returns`);
   }

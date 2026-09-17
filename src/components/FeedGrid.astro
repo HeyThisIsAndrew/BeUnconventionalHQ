@@ -1,5 +1,6 @@
 ---
 import ContentCard from './ContentCard.astro';
+import FeedRowBanner from './FeedRowBanner.astro';
 import EmptyState from './EmptyState.astro';
 import { LABELS, MESSAGES } from '../data/content.js';
 import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-content';
@@ -160,6 +161,16 @@ interface RowDef {
     document to read a colour from.
   */
   accentColor?: string;
+  /*
+    Basenames under src/assets/rows, WITHOUT an extension.
+
+    Resolved through import.meta.glob below rather than as a `/public` path, so
+    the art goes through Astro's image pipeline (hashed, format-converted, a
+    real srcset) and a file that is not there yet simply resolves to null. A
+    public path would have shipped a broken <img> until somebody noticed.
+  */
+  bannerArt?: string;
+  bannerLogo?: string;
   match: (item: any) => boolean;
 }
 
@@ -193,7 +204,38 @@ const PRESTIGE_ROW: RowDef = {
   /* The show's signature emerald. Named here because no hub document carries
      it — `lanterns` is not a slug in the store. */
   accentColor: '#10B981',
+  /*
+    Drop the files in as src/assets/rows/lanterns-key-art.(jpg|png|webp) and
+    lanterns-logo.png and the banner appears. Until then the shelf renders
+    exactly as it did before, with its text lockup.
+  */
+  bannerArt: 'lanterns-key-art',
+  bannerLogo: 'lanterns-logo',
   match: (i) => hasTag(i, 'lanterns'),
+};
+
+/*
+  ─── ROW ARTWORK, RESOLVED AT BUILD TIME ───────────────────────────────────
+
+  `eager` because there are at most a handful of these and the row needs the
+  metadata (width/height) synchronously to render without layout shift. The glob
+  is keyed by full path, so the lookup strips everything but the basename.
+
+  A missing file is not an error here, by design: the banner is optional
+  decoration on one row, and a build that fails because an editor has not
+  uploaded artwork yet would be a worse trade than a shelf that renders plain.
+*/
+const ROW_ART = import.meta.glob<{ default: ImageMetadata }>(
+  '/src/assets/rows/*.{jpg,jpeg,png,webp,avif}',
+  { eager: true },
+);
+
+const rowArt = (name?: string): ImageMetadata | null => {
+  if (!name) return null;
+  const hit = Object.entries(ROW_ART).find(
+    ([path]) => path.split('/').pop()?.replace(/\.[^.]+$/, '') === name,
+  );
+  return hit ? hit[1].default : null;
 };
 
 /*
@@ -499,6 +541,15 @@ const prestigeHub = prestigeRow
 const prestigeEyebrow = prestigeHub
   ? `FEATURED SERIES \u2022 ${prestigeHub.title.toUpperCase()}`
   : 'FEATURED SERIES';
+
+/*
+  The banner is all-or-nothing. With key art the strip renders and takes the
+  eyebrow and the title with it; without, the shelf keeps the text lockup it has
+  always had. There is deliberately no half state where a logo floats over the
+  page with no art behind it.
+*/
+const prestigeBannerArt = prestigeRow ? rowArt(PRESTIGE_ROW.bannerArt) : null;
+const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) : null;
 ---
 
 <style>
@@ -1214,6 +1265,17 @@ const prestigeEyebrow = prestigeHub
   }
 
   /* The fallback, for a hub with no mark on file: its name as a lettermark. */
+  /*
+    With a banner above it the head has nothing on its left: the eyebrow and the
+    title are up on the artwork. `space-between` would then push the actions to
+    the right anyway, but only by accident of there being one child — stating it
+    means the row does not re-flow if anything is ever added back.
+  */
+  .feed-row-head--banner {
+    justify-content: flex-end;
+    padding-top: clamp(0.6rem, 1.4vw, 1rem);
+  }
+
   .prestige-badge {
     flex-shrink: 0;
     padding: 0.2rem 0.55rem;
@@ -1362,7 +1424,24 @@ const prestigeEyebrow = prestigeHub
             row's own items resolve to, so the day this shelf is pointed at a
             different show it re-labels itself instead of lying about DC.
           */}
-          <div class="feed-row-head feed-row-head--prestige">
+          {prestigeBannerArt && (
+            <FeedRowBanner
+              art={prestigeBannerArt}
+              logo={prestigeBannerLogo}
+              eyebrow={prestigeEyebrow}
+              title={prestigeRow.title}
+              accentRgb={prestigeRow.accentRgb}
+            />
+          )}
+
+          <div
+            class:list={[
+              'feed-row-head',
+              'feed-row-head--prestige',
+              { 'feed-row-head--banner': !!prestigeBannerArt },
+            ]}
+          >
+            {!prestigeBannerArt && (
             <div class="prestige-brand-lockup">
               <span class="prestige-eyebrow">{prestigeEyebrow}</span>
               <div class="prestige-title-group">
@@ -1381,6 +1460,7 @@ const prestigeEyebrow = prestigeHub
                 <h2 class="feed-row-title prestige-title">{prestigeRow.title}</h2>
               </div>
             </div>
+            )}
 
             <div class="prestige-actions">
               {prestigeHub && (
