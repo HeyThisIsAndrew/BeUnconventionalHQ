@@ -27,25 +27,8 @@ import FeedSpotlightHero from '../../components/FeedSpotlightHero.astro';
 import { META, pageTitle } from '../../data/content.js';
 import { getAllFeedItems } from '../../lib/feed-items';
 import FeedGrid from '../../components/FeedGrid.astro';
-import { composeFeed } from '../../lib/feed-composition';
 
 const allItems = await getAllFeedItems();
-
-/*
-  ─── THE FEED IS COMPOSED, NOT QUERIED ─────────────────────────────────────
-
-  Every row here used to filter `allItems` independently, so an item appeared
-  once per taxonomy relationship it had: 41 unique items produced 160 tile
-  placements and not one item appeared only once.
-
-  `composeFeed()` fills the levels in editorial order and consumes what it
-  takes, so nothing can be placed twice. The taxonomy is untouched; it is for
-  discovery and filtering, and it was never a rendering instruction.
-
-  The full archive is /feed/videos and /feed/articles, which still render every
-  row this component can build.
-*/
-const composition = composeFeed(allItems);
 
 /* One page, holding everything. `url.prev`/`url.next` stay undefined so
    Layout emits no rel=prev/next, which is correct for a single-page route. */
@@ -63,6 +46,6 @@ const description = META.feed.description;
   page={page}
   isNavMode={true}
 >
-  <FeedSpotlightHero slot="hero" item={composition.hero} />
-  <FeedGrid page={page} allItems={allItems} mode="curated" composition={composition} />
+  <FeedSpotlightHero slot="hero" />
+  <FeedGrid page={page} allItems={allItems} />
 </FeedLayout>

@@ -167,10 +167,6 @@ export function planVideoSync(video, match, existingDoc, now = new Date()) {
     characters: existingDoc?.characters ?? [],
     coverageType: existingDoc?.coverageType ?? '',
     series: existingDoc?.series ?? '',
-    /* Series-level editorial. EDITORIAL class: seeded by a human, never written
-       by this script, wiped on the next run if not carried here. */
-    featuredSeries: existingDoc?.featuredSeries ?? false,
-    seriesAccent: existingDoc?.seriesAccent ?? '',
     editorialNotes: existingDoc?.editorialNotes ?? '',
     /* The hand-written standfirst. EDITORIAL class (hard rule 5): seeded by a
        human, never written by this script, and wiped on the next run if it is

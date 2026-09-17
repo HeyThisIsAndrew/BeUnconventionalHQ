@@ -14,22 +14,9 @@ interface Props {
    * render a static grid, so they opt into this lightweight player control.
    */
   interactive?: boolean;
-  /**
-   * The item to lead with, chosen by the Feed's composition.
-   *
-   * WITHOUT THIS THE HERO IS OUTSIDE THE CONSUMING PASS. It picked `videos[0]`
-   * itself, so the page's largest element was selected by one rule and every
-   * row below it by another, and the item it chose was then free to appear
-   * again in the rows. It also meant the hero could never lead with an article,
-   * since it only ever looked at the video list.
-   *
-   * Optional, and unset everywhere except /feed: the archive routes and the
-   * category feeds keep the newest-video behaviour they have always had.
-   */
-  item?: any | null;
 }
 
-const { interactive = false, item = null } = Astro.props;
+const { interactive = false } = Astro.props;
 
 const videos = await getVideosUnified();
 
@@ -46,7 +33,7 @@ const videos = await getVideosUnified();
   without scattering `as any` through the markup — and leaves one obvious place
   to delete from when UnifiedVideo grows the fields for real.
 */
-const latestVideo: Record<string, any> = item || videos[0] || {};
+const latestVideo: Record<string, any> = videos[0] || {};
 const trailerId = parseVideoId(latestVideo.url || latestVideo.link || latestVideo.videoId || '');
 
 const isVideo = true;
