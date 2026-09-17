@@ -24,6 +24,41 @@ const groupedEvents = events.reduce((acc: any, event: any) => {
 const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number(b));
 ---
 
+{/*
+  ─── A SCROLL, NOT A SECOND DOCUMENT ────────────────────────────────────────
+
+  This list used to be paginated: the thirteenth upcoming event was at
+  /events/2, so reaching it cost a route navigation, a page transition and a
+  scroll restore. It is a scroll container now and every upcoming event is on
+  the page.
+
+  The buttons are a convenience, not the mechanism. The container scrolls with
+  a wheel, a trackpad, a touch drag and — because of `tabindex="0"` — the arrow
+  keys, all of which work whether or not the script below ever runs. `role` and
+  the label exist because a focusable scrolling box with no name is announced
+  as nothing at all.
+*/}
+<div class="uel-scroller" data-uel-scroller>
+  <div class="uel-controls" data-uel-controls hidden>
+    <button type="button" class="uel-scroll-btn" data-uel-up aria-label="Scroll up through upcoming events">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+        <path d="M18 15l-6-6-6 6" />
+      </svg>
+    </button>
+    <button type="button" class="uel-scroll-btn" data-uel-down aria-label="Scroll down through upcoming events">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+    </button>
+  </div>
+
+  <div
+    class="uel-viewport"
+    data-uel-viewport
+    tabindex="0"
+    role="group"
+    aria-label="Upcoming events"
+  >
 <div class="uel-container">
   {sortedYears.map((yearStr) => {
     const yearNum = Number(yearStr);
@@ -75,8 +110,154 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
     );
   })}
 </div>
+  </div>
+</div>
 
 <style>
+  .uel-scroller {
+    position: relative;
+  }
+
+  /*
+    ─── THE VIEWPORT, AND WHY IT IS NOT A FIXED 800px ────────────────────────
+
+    `min()` against `vh` as well as a pixel cap: a fixed 800px box is most of a
+    laptop screen and effectively the WHOLE of a short one, at which point the
+    inner scrollbar and the page's own are the same gesture in the same place
+    and the reader cannot tell which one they are driving.
+
+    `scroll-behavior: smooth` is set HERE rather than inherited. The global
+    `html { scroll-behavior: smooth }` does not reach a nested scroll container,
+    and the buttons below call scrollBy() without naming a behaviour so that
+    this one declaration is the single place it is decided — including for the
+    reduced-motion override underneath.
+  */
+  .uel-viewport {
+    max-height: min(800px, 68vh);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
+    scroll-snap-type: y proximity;
+    /* Room for the rows' own focus ring and hover lift, which a tight box
+       would clip against the scroll edge. */
+    padding-right: 0.5rem;
+  }
+
+  /*
+    PROXIMITY, NOT MANDATORY. With `mandatory` the browser must always come to
+    rest on a snap point, and this list interleaves year headings between the
+    rows — so a short flick near a heading is yanked to a row, and a reader
+    trying to stop and read "2027" cannot. `proximity` tidies a scroll that
+    ends near a row and leaves every other one alone, which is the part worth
+    having.
+  */
+  .uel-item,
+  .uel-year-group > .intel-break-head {
+    scroll-snap-align: start;
+  }
+
+  .uel-viewport:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: 4px;
+  }
+
+  /* The scrollbar is part of the furniture here, not a system artefact. */
+  .uel-viewport {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  }
+  .uel-viewport::-webkit-scrollbar {
+    width: 6px;
+  }
+  .uel-viewport::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.22);
+    border-radius: 3px;
+  }
+  .uel-viewport::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /*
+    The controls sit above the list's top-right corner, clear of the rows. They
+    are `hidden` in the markup and revealed by script ONLY when the content
+    actually overflows: a pair of arrows that cannot move anything is furniture
+    that lies about what the page can do.
+  */
+  .uel-controls {
+    position: absolute;
+    top: -3.1rem;
+    right: 0;
+    display: flex;
+    gap: 0.5rem;
+    z-index: 2;
+  }
+  .uel-controls[hidden] {
+    display: none;
+  }
+
+  .uel-scroll-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* 44px, the minimum comfortable touch target. */
+    width: 44px;
+    height: 44px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.72);
+    cursor: pointer;
+    padding: 0;
+    transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+  }
+  .uel-scroll-btn:hover:not(:disabled),
+  .uel-scroll-btn:focus-visible:not(:disabled) {
+    border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.9);
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--color-white, #f0f0f0);
+  }
+  .uel-scroll-btn:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: 3px;
+  }
+  /* Disabled at the ends rather than hidden: a control that disappears when you
+     reach an edge moves the other one under the cursor. */
+  .uel-scroll-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+
+  /*
+    ─── NO NESTED SCROLL ON A PHONE ──────────────────────────────────────────
+
+    Below the breakpoint where the sidebar joins (768px, matching the page's own
+    md: split) the container stops scrolling and the page simply grows. A
+    scroll box inside a scrolling document on a touch screen is a trap: the
+    drag that was meant to move the page moves the list instead, and at the
+    list's end the gesture stops rather than handing back. The arrows go with
+    it, since there is nothing left for them to drive.
+  */
+  @media (max-width: 767px) {
+    .uel-viewport {
+      max-height: none;
+      overflow-y: visible;
+      scroll-snap-type: none;
+      padding-right: 0;
+    }
+    .uel-controls {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .uel-viewport {
+      scroll-behavior: auto;
+      scroll-snap-type: none;
+    }
+    .uel-scroll-btn {
+      transition: none;
+    }
+  }
+
   .uel-container {
     display: flex;
     flex-direction: column;
@@ -212,3 +393,85 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
     }
   }
 </style>
+
+<script>
+  /*
+    ─── THE ARROWS ARE PROGRESSIVE ENHANCEMENT ─────────────────────────────────
+
+    The container scrolls without any of this: wheel, trackpad, touch drag and
+    the arrow keys all work off the CSS alone. What this adds is a pair of
+    buttons for a reader using neither, and the only state it owns is whether
+    they are shown and whether each is disabled.
+
+    They start `hidden` in the markup and are revealed only if the content
+    actually overflows, so a short list never grows a pair of controls that
+    cannot move anything. `ResizeObserver` because that answer changes with the
+    viewport, and because the rows carry `animate-on-scroll` — their height is
+    not final at first paint.
+
+    Bound per page-load and torn down on swap: Astro's ClientRouter keeps this
+    module alive across a navigation, so without the teardown a second visit
+    leaves the first visit's observers pointed at detached nodes.
+  */
+  const STEP = 400;
+  let teardown: Array<() => void> = [];
+
+  function initUpcomingScroller() {
+    teardown.forEach((fn) => fn());
+    teardown = [];
+
+    document.querySelectorAll<HTMLElement>('[data-uel-scroller]').forEach((scroller) => {
+      const viewport = scroller.querySelector<HTMLElement>('[data-uel-viewport]');
+      const controls = scroller.querySelector<HTMLElement>('[data-uel-controls]');
+      const up = scroller.querySelector<HTMLButtonElement>('[data-uel-up]');
+      const down = scroller.querySelector<HTMLButtonElement>('[data-uel-down]');
+      if (!viewport || !controls || !up || !down) return;
+
+      const sync = () => {
+        /*
+          `scrollHeight > clientHeight + 1`: below the md breakpoint the CSS
+          removes the max-height, so the box does not scroll and the controls
+          must stay away. The 1px is the same fractional-rounding allowance the
+          floating nav needs at the bottom of a document.
+        */
+        const scrollable = viewport.scrollHeight > viewport.clientHeight + 1;
+        controls.hidden = !scrollable;
+        if (!scrollable) return;
+
+        const max = viewport.scrollHeight - viewport.clientHeight;
+        up.disabled = viewport.scrollTop <= 1;
+        down.disabled = viewport.scrollTop >= max - 1;
+      };
+
+      /* No `behavior` here on purpose: the stylesheet owns it, which is what
+         lets the reduced-motion query turn it off in one place. */
+      const step = (delta: number) => () => viewport.scrollBy({ top: delta });
+
+      const onUp = step(-STEP);
+      const onDown = step(STEP);
+      up.addEventListener('click', onUp);
+      down.addEventListener('click', onDown);
+      viewport.addEventListener('scroll', sync, { passive: true });
+
+      const ro = new ResizeObserver(sync);
+      ro.observe(viewport);
+      const list = viewport.firstElementChild;
+      if (list) ro.observe(list);
+
+      sync();
+
+      teardown.push(() => {
+        up.removeEventListener('click', onUp);
+        down.removeEventListener('click', onDown);
+        viewport.removeEventListener('scroll', sync);
+        ro.disconnect();
+      });
+    });
+  }
+
+  document.addEventListener('astro:page-load', initUpcomingScroller);
+  document.addEventListener('astro:before-swap', () => {
+    teardown.forEach((fn) => fn());
+    teardown = [];
+  });
+</script>

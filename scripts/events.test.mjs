@@ -299,7 +299,7 @@ test('the /events display lockup is gone, but the page still has an h1', () => {
     reader, and a missing-h1 finding for the SEO audit that runs on every PR.
     So the heading survives as .sr-only and only the typography goes.
   */
-  const page = fs.readFileSync(new URL('../src/pages/events/[...page].astro', import.meta.url), 'utf8');
+  const page = fs.readFileSync(new URL('../src/pages/events/index.astro', import.meta.url), 'utf8');
 
   assert.doesNotMatch(page, /<PageTitle[\s\S]{0,80}SECTIONS\.events/,
     'the display lockup is back above the /events hero');

@@ -14,6 +14,7 @@
  *                        viewport now, and the reading measure took the width.
  */
 import assert from 'node:assert/strict';
+import { execSync } from 'node:child_process';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -209,7 +210,14 @@ test('the rows do not slide under the hero by a viewport-relative amount', () =>
 test('paging a list moves the list, not the page', () => {
   const layout = read('src', 'layouts', 'Layout.astro');
   const css = read('src', 'styles', 'global-base.css');
-  const events = read('src', 'pages', 'events', '[...page].astro');
+  /*
+    THE ROUTE MOVED. /events no longer paginates — its upcoming list is a scroll
+    container in the page — so the list this test was written about is now the
+    PAST EVENT ARCHIVE, which is the same list pattern and still paged. The
+    machinery in Layout.astro and global-base.css is unchanged and still serves
+    every other paginated route.
+  */
+  const events = read('src', 'pages', 'events', 'archive', '[...page].astro');
 
   /* Comments stripped: the notes explaining WHY these are forbidden quote the
      offending declarations, and an un-stripped check matches the prose. */
@@ -243,6 +251,19 @@ test('paging a list moves the list, not the page', () => {
     'a snapshot of this list is drawn against the viewport, not where the list lives',
   );
   assert.match(events, /data-rows-target/, 'the list must be marked for the in-place fade');
+
+  /*
+    And SOMETHING must carry it. The events index was the only element in the
+    project ever marked, so removing pagination from that page came within one
+    attribute of leaving the fade and the scroll restore pointed at nothing,
+    site-wide and silently. This asserts the attribute exists somewhere under
+    src/pages, not merely in the file above.
+  */
+  const marked = execSync(
+    "grep -rl 'data-rows-target' src/pages || true",
+    { cwd: join(here, '..'), encoding: 'utf8' },
+  ).trim();
+  assert.ok(marked.length > 0, 'no page carries data-rows-target: page-rows animates nothing');
 
   /*
     ─── AND IT LANDS ON THE LIST, NOT ON A REMEMBERED OFFSET ────────────────

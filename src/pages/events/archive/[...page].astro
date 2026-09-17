@@ -80,8 +80,20 @@ const description =
         <PageTitle as="h1" {...SECTIONS.eventArchive} />
       </header>
 
+      {/*
+        `data-rows-target` below MOVED HERE from /events when that page stopped
+        paginating. It is read by the `page-rows` transition, which fires when
+        two paths differ only by a trailing number, and the events index was the
+        only element in the project ever marked — so without this the in-place
+        fade in global-base.css, and the scroll restore in Layout.astro that
+        goes with it, would have had nothing to act on anywhere on the site.
+        This archive is the same list, still paged.
+
+        (Outside the ternary: a comment plus an element inside a branch is two
+        nodes, and the file stops parsing.)
+      */}
       {page.data.length > 0 ? (
-        <section class="archive-section animate-on-scroll" aria-labelledby="past-archive-heading">
+        <section class="archive-section animate-on-scroll" data-rows-target aria-labelledby="past-archive-heading">
           {/*
             The grid sits under the page's own <h1>, so it needs a structural
             <h2> naming it for the outline. sr-only because the display title

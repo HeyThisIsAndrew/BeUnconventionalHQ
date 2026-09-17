@@ -530,6 +530,21 @@ export default defineConfig({
     '/feed/videos/3': '/feed/videos',
 
     /*
+      ─── AND THE EVENTS PAGINATION COLLAPSE ─────────────────────────────────
+      Same story, same remedy. /events paged its upcoming list 12 at a time;
+      the list is a scroll container inside the page now
+      (UpcomingEventsList.astro) and there is no second document to go to.
+
+      One entry, because one numbered page is all that ever existed: verified
+      against dist/client/events of the last paginated build, which contains
+      `2` and nothing higher. 15 secondary events at a page size of 12 cannot
+      reach a third.
+
+      /events/archive is untouched and still paginates.
+    */
+    '/events/2': '/events',
+
+    /*
       ─── THE GAMING → GAMES RENAME (#146) ───────────────────────────────────
       The content category was renamed from `Gaming` to `Games`, and the label
       is the URL slug, so two live paths moved. Both were generated from the
@@ -785,6 +800,10 @@ export default defineConfig({
           '/feed/4',
           '/feed/videos/2',
           '/feed/videos/3',
+          // The collapsed EVENTS pagination. /events shows its whole upcoming
+          // list in a scroll container now, so /events/2 forwards to /events
+          // and must not be advertised as a destination.
+          '/events/2',
           // Renamed to /category/games and /intel/topic/games (#146). Same
           // rule: the sitemap advertises destinations, never sources.
           '/category/gaming',

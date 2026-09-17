@@ -592,7 +592,7 @@ test('the /events chips carry the accent that says what the event is', () => {
   there is no second implementation to drift.
 */
 const indexHero = stripComments(readSrc('src', 'components', 'EventHero.astro'));
-const eventsIndex = stripComments(readSrc('src', 'pages', 'events', '[...page].astro'));
+const eventsIndex = stripComments(readSrc('src', 'pages', 'events', 'index.astro'));
 
 test('the /events hero is the hero, not a card', () => {
   assert.match(eventsIndex, /<EventHero event=\{featuredEvent\}/,

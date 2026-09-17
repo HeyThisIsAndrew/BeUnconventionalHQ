@@ -9,64 +9,58 @@ import EventCard from '../../components/EventCard.astro';
 import ReferralLinks from '../../components/ReferralLinks.astro';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
 import SpanningCalendarModal from '../../components/SpanningCalendarModal.astro';
-import Pagination from '../../components/Pagination.astro';
 import { getEventsLocal } from '../../lib/local-content';
 import { toYMD } from '../../lib/events';
 
-export async function getStaticPaths({ paginate }: any) {
-  const allEvents = getEventsLocal();
-  const today = toYMD();
-  
-  // 1. Compute upcoming events
-  const upcomingEventsAll = allEvents
-    .filter((e: any) => {
-      if (!e.startDate) return false;
-      const end = (e.endDate || e.startDate).slice(0, 10);
-      return end >= today;
-    })
-    .sort((a: any, b: any) => a.startDate.localeCompare(b.startDate));
+/*
+  ─── NO LONGER PAGINATED ────────────────────────────────────────────────────
 
-  // 2. Identify featured hero
-  const forcedHero = upcomingEventsAll.find((e: any) => e.forceSpotlightHero === true);
-  const featuredEvent = forcedHero || upcomingEventsAll[0] || null;
-  const secondaryUpcomingAll = upcomingEventsAll.filter((e: any) => e._id !== featuredEvent?._id);
+  This was `[...page].astro`, paginating the secondary upcoming events 12 at a
+  time, so reaching the thirteenth was a full route navigation to /events/2 —
+  a page transition, a scroll restore and a new document, to move down a list.
 
-  // 3. Compute static past events (max 6, no pagination)
-  const pastEvents = allEvents
-    .filter((e: any) => {
-      if (!e.startDate) return false;
-      const end = (e.endDate || e.startDate).slice(0, 10);
-      return end < today;
-    })
-    .sort((a: any, b: any) => b.startDate.localeCompare(a.startDate))
-    .slice(0, 6); // Hard cap at 6!
+  The list is now a scroll container inside the page (UpcomingEventsList), so
+  every upcoming event is here and getting to it is a scroll. There are 15 of
+  them; there is no width of list at which loading a second document to show a
+  few more rows is the better answer.
 
-  // 4. Paginate ONLY the secondary upcoming events (pageSize 12)
-  return paginate(secondaryUpcomingAll, { 
-    pageSize: 12,
-    props: { allEvents, today, featuredEvent, pastEvents, upcomingEventsAll }
-  });
-}
+  `/events/2` is redirected in astro.config.mjs rather than left to 404. It was
+  in the last paginated build (verified against dist/client/events) and so is
+  in the sitemap Google has already read. Same reasoning, same precedent, as
+  the feed pagination collapse recorded beside it.
+*/
+const allEvents = getEventsLocal();
+const today = toYMD();
 
-import type { Page } from 'astro';
+const upcomingEventsAll = allEvents
+  .filter((e: any) => {
+    if (!e.startDate) return false;
+    const end = (e.endDate || e.startDate).slice(0, 10);
+    return end >= today;
+  })
+  .sort((a: any, b: any) => a.startDate.localeCompare(b.startDate));
 
-export interface Props {
-  page: Page<any>;
-  allEvents: any[];
-  today: string;
-  featuredEvent: any;
-  pastEvents: any[];
-  upcomingEventsAll: any[];
-}
+const forcedHero = upcomingEventsAll.find((e: any) => e.forceSpotlightHero === true);
+const featuredEvent = forcedHero || upcomingEventsAll[0] || null;
+const secondaryUpcoming = upcomingEventsAll.filter((e: any) => e._id !== featuredEvent?._id);
 
-const { page, allEvents, featuredEvent: featuredProp, pastEvents, upcomingEventsAll } = Astro.props as Props;
-const secondaryUpcoming = page.data;
+/* The six most recent finished events. Capped here, with its own overflow
+   route at /events/archive — unchanged by the pagination removal above. */
+const pastEvents = allEvents
+  .filter((e: any) => {
+    if (!e.startDate) return false;
+    const end = (e.endDate || e.startDate).slice(0, 10);
+    return end < today;
+  })
+  .sort((a: any, b: any) => b.startDate.localeCompare(a.startDate))
+  .slice(0, 6);
 
+/* Layout appends nothing to <title>, so a page that does not call pageTitle()
+   ships brandless. See src/lib/event-seo.ts for the same rule on the detail
+   pages. */
 const title = pageTitle(META.events.title);
 const description = META.events.description;
 
-// Always show the massive hero on all pages of the events dashboard
-const featuredEvent = featuredProp;
 ---
 
 <Layout title={title} description={description} preconnect={["https://cdn.sanity.io"]}>
@@ -144,11 +138,16 @@ const featuredEvent = featuredProp;
         <section class="md:col-span-8 min-w-0">
           
           {/* Secondary upcoming events as a clean vertical list. */}
+          {/*
+            No `data-rows-target` any more. That attribute is read by the
+            `page-rows` transition, which fires only when two paths differ by a
+            trailing number (`baseOf` in Layout.astro). /events has no numbered
+            sibling now, so this page can never be part of one.
+          */}
           {secondaryUpcoming.length > 0 && (
-            <section class="upcoming-section animate-on-scroll" data-rows-target aria-labelledby="more-upcoming-heading">
+            <section class="upcoming-section animate-on-scroll" aria-labelledby="more-upcoming-heading">
               <UpcomingEventsList events={secondaryUpcoming} />
             </section>
-            <Pagination page={page} />
           )}
 
           {/*
@@ -270,51 +269,24 @@ const featuredEvent = featuredProp;
 
 <style>
   /*
-    ─── PAGING THE TILES MOVES THE TILES, NOT THE PAGE ───────────────────────
+    ─── WHY THERE IS NO view-transition-name ON THIS SECTION ─────────────────
 
-    Pagination here is a navigation (/events -> /events/2), so it drove the
-    site-wide page transition and slid the entire document sideways, header and
-    all, to change a grid of tiles halfway down it.
+    Kept as a warning after the pagination it describes was removed, because
+    the idea that produced the bug is the obvious one to have again.
 
-    This element carries its own `view-transition-name`, so the browser captures
-    it separately from `page-main`. `global-base.css` then animates ONLY this
-    one for a `page-rows` navigation and holds the rest of the page still.
+    While /events paged to /events/2, three things were tried to stop the whole
+    document sliding sideways to change a list halfway down it. The one that
+    looked right was `view-transition-name: section-rows` on this section, so
+    the transition animated the tiles rather than the page. It was worse: a
+    view-transition snapshot is positioned against the VIEWPORT, not against the
+    element's place in the document, and Astro resets scroll to the top on
+    navigation — so tiles captured 700px down were replayed at the top of the
+    screen, flying over the hero. Reported as "it looks like it scrolls over the
+    hero from the top of the page".
 
-    The name is unconditional. An earlier attempt set
-    `#page-content { view-transition-name: none !important }` from this page,
-    which switched the page-level transition off for every navigation INTO and
-    OUT OF /events as well — and asymmetrically, since only one of the two
-    documents in a transition carries this stylesheet.
-  */
-  /*
-    ─── THE TILES MOVE, NOT THE SPREAD AROUND THEM ───────────────────────────
-
-    This was on `.events-page-grid`, which is the whole two-column layout — the
-    event list AND the sidebar holding the calendar, the coverage inquiry and
-    Support The HQ. Paging the list therefore animated all of it, including a
-    sidebar whose contents do not change between pages.
-
-    `.upcoming-section` wraps exactly the list of tiles. The "UPCOMING EVENTS"
-    heading sits outside it and so does the Next button, which is right: a
-    control that stays put while what it controls moves is what makes the
-    movement legible.
-  */
-  /*
-    ─── NO view-transition-name HERE, DELIBERATELY ───────────────────────────
-
-    It carried `view-transition-name: section-rows` so that paging animated the
-    tiles and not the page. That produced a worse bug: a view-transition
-    snapshot is positioned against the VIEWPORT, not against the element's place
-    in the document, and Astro resets scroll to the top on navigation. So the
-    outgoing tiles — captured 700px down the page — were replayed at the top of
-    the screen, flying over the hero. Reported as "it looks like it scrolls over
-    the hero from the top of the page".
-
-    The fix is not a different name or a different animation: it is to stop the
-    page jumping at all. `page-rows` now restores the scroll position across the
-    swap (Layout.astro) and the list fades in where it already is, from the
-    `[data-rows-target]` rule in global-base.css. Nothing is lifted out of flow,
-    so nothing can be drawn anywhere but where it lives.
+    The list does not page at all now, so none of it is reachable from here. Do
+    not name this element for a transition; if a future list needs one, that
+    snapshot-positioning behaviour is what to design around.
   */
   .upcoming-section {
     scroll-margin-top: 7rem;
