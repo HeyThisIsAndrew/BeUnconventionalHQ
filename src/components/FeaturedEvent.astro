@@ -62,7 +62,7 @@ const locationLabel = formatLocation(event?.location);
 const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
 ---
 
-<article class="fe-card animate-on-scroll" style={`--brand: ${brandColor};`}>
+<article class="fe-card event-hero animate-on-scroll" style={`--brand: ${brandColor};`}>
   {hero ? (
     <img
       class="fe-bg"
@@ -235,8 +235,41 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
 <style>
   .fe-card {
     position: relative;
+    /*
+      ─── THIS IS A HERO, NOT A CARD IN A COLUMN ─────────────────────────────
+
+      It sits inside `.container-page`, which is a 1536px max-width and a
+      25.6px gutter, so the one event the page is built around stopped short of
+      the screen on both sides and read as a banner someone had inset. Every
+      other hero on the site is edge to edge.
+
+      Same break-out the feed rails use. `50%` is half this element's own
+      containing block and `50vw` is half the viewport, so the negative margin
+      is exactly the distance from the container's edge to the viewport's, at
+      any width — including above the container's max-width, where that gap is
+      far larger than the gutter.
+
+      No `padding-inline` to put the distance back, unlike the rails: the
+      content inside this hero is positioned against the picture, not aligned to
+      the page's text column, so it should travel with the full-bleed edge.
+
+      KNOWN AND ACCEPTED, as on the rails: `vw` includes the scrollbar, so this
+      overshoots the layout viewport by about half a scrollbar a side. `body` is
+      `overflow-x: clip`, so it is clipped rather than scrollable.
+
+      `overflow: hidden` stays. It is safe HERE specifically because this
+      component contains no iframe — hard rule 3 is about an overflow:hidden
+      ancestor turning a cross-origin YouTube iframe into a black box on iOS
+      Safari, and there is none in this subtree. Do not copy this line into a
+      hero that plays a trailer.
+
+      The class list also carries `event-hero`, which is what picks up the
+      site-wide cast shadow and stacking order from modules/hero.css. One idiom
+      for "a hero floats over the page", not a second copy of it here.
+    */
+    margin-inline: calc(50% - 50vw);
     overflow: hidden;
-    min-height: 420px;
+    min-height: clamp(420px, 52vh, 620px);
     display: flex;
     background: #111;
     isolation: isolate;
@@ -321,7 +354,26 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
     position: relative;
     z-index: 2;
     margin-top: auto; /* anchor copy to the bottom of the hero */
-    padding: 2rem;
+    padding-block: 2rem;
+    /*
+      ─── THE ART IS FULL BLEED, THE COPY IS NOT ─────────────────────────────
+
+      Once `.fe-card` broke out of `.container-page`, its copy went with it and
+      sat against the screen edge while everything below stayed in the centred
+      column. Measured at 2560: the CTA was at 41px and the "Upcoming Events"
+      heading beneath it at 199px, 158px out of line.
+
+      This is what the feed rails do with `padding-inline` and what
+      FeedSpotlightHero does by putting `.container` around its copy: break the
+      BACKGROUND out to the viewport, then put the distance back so the text
+      still starts on the page's own line.
+
+      `100%` here is the full-bleed card, so `(100% - var(--page-max)) / 2` is
+      the gap from the viewport edge to the container, and `1.6rem` is the
+      gutter `.container-page` adds inside it. `max()` keeps the original 2rem
+      on any screen narrower than the container, where that sum goes negative.
+    */
+    padding-inline: max(2rem, calc((100% - var(--page-max, 1536px)) / 2 + 1.6rem));
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -329,7 +381,18 @@ const brandColor = event?.brandColor || 'var(--color-accent, #cc0000)';
   }
   @media (min-width: 900px) {
     .fe-content {
-      padding: 3rem;
+      /*
+        A `padding` SHORTHAND here would reset the `padding-inline` set above,
+        which is exactly what it used to do: the copy went back to hugging the
+        full-bleed edge on every screen 900px and wider, which is every screen
+        this matters on. Found by reading computed style after the first
+        attempt silently changed nothing.
+
+        Block and inline are set separately so the desktop step can raise the
+        vertical padding without touching the column alignment.
+      */
+      padding-block: 3rem;
+      padding-inline: max(3rem, calc((100% - var(--page-max, 1536px)) / 2 + 1.6rem));
     }
   }
 
