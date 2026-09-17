@@ -269,16 +269,29 @@ const featuredEvent = featuredProp;
 </Layout>
 
 <style>
-  /* Scope View Transitions to the grid so the page header doesn't flash */
-  :global(#page-content) {
-    view-transition-name: none !important;
-  }
+  /*
+    ─── PAGING THE TILES MOVES THE TILES, NOT THE PAGE ───────────────────────
+
+    Pagination here is a navigation (/events -> /events/2), so it drove the
+    site-wide page transition and slid the entire document sideways, header and
+    all, to change a grid of tiles halfway down it.
+
+    This element carries its own `view-transition-name`, so the browser captures
+    it separately from `page-main`. `global-base.css` then animates ONLY this
+    one for a `page-rows` navigation and holds the rest of the page still.
+
+    The name is unconditional. An earlier attempt set
+    `#page-content { view-transition-name: none !important }` from this page,
+    which switched the page-level transition off for every navigation INTO and
+    OUT OF /events as well — and asymmetrically, since only one of the two
+    documents in a transition carries this stylesheet.
+  */
   .events-page-grid {
-    view-transition-name: page-main;
+    view-transition-name: section-rows;
   }
 
-  /* 
-    The layout wrapper gives the whole page a dark base, but `.container-page` in modules/layout.css */
+  /* The layout wrapper gives the whole page a dark base; the page's own width
+     comes from `.container-page` in modules/layout.css. */
 
   .events-none {
     display: flex;

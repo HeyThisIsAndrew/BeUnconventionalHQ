@@ -180,6 +180,57 @@ html[data-page-transition='dive-up']::view-transition-new(page-main) {
   animation: page-dive-in-down 350ms cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
+/*
+  ─── PAGING A LIST MOVES THE LIST ──────────────────────────────────────────
+
+  /events -> /events/2 is a real navigation, so it drove the page transition and
+  slid the whole document sideways to change a grid of tiles halfway down it.
+
+  The paginated grid carries its own `view-transition-name: section-rows`, which
+  the browser captures separately from `page-main`. Here `page-main` is held
+  completely still and only the rows move: a short lift and fade, which is the
+  gesture the content is actually making.
+
+  `::view-transition-group(page-main)` has to be stopped too. Suppressing the
+  old/new animations alone still leaves the group's default cross-fade, which
+  reintroduces the full-page flash this exists to avoid.
+*/
+html[data-page-transition='page-rows']::view-transition-group(page-main) {
+  animation-duration: 0s !important;
+}
+
+html[data-page-transition='page-rows']::view-transition-old(page-main),
+html[data-page-transition='page-rows']::view-transition-new(page-main) {
+  animation: none !important;
+}
+
+html[data-page-transition='page-rows']::view-transition-old(section-rows) {
+  animation: section-rows-out 260ms var(--splash-ease) both;
+}
+
+html[data-page-transition='page-rows']::view-transition-new(section-rows) {
+  animation: section-rows-in 260ms var(--splash-ease) both;
+}
+
+/* 6%, and shorter than a page move. A list advancing is the smaller of the two
+   gestures and should read that way. */
+@keyframes section-rows-out {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(-6%); opacity: 0; }
+}
+
+@keyframes section-rows-in {
+  from { transform: translateY(6%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(section-rows),
+  ::view-transition-new(section-rows) {
+    animation: none !important;
+  }
+}
+
 /* An in-page action — a filter, a spotlight swap, a hash on the page you are
    already on — should crossfade smoothly without changing size or morphing. */
 html[data-page-transition='none']::view-transition-old(page-main) {

@@ -1093,10 +1093,37 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
           activeFilter = btn.getAttribute('data-filter') || 'all';
         }
 
+        /*
+          ─── FADE, DO NOT SNAP ──────────────────────────────────────────────
+
+          This set `display` straight away, so the grid reflowed in a single
+          frame and the change read as a glitch rather than as a filter.
+
+          Two steps, because `display` cannot be transitioned. A card being
+          hidden fades first and only leaves the layout once it is invisible; a
+          card being shown is put back into the layout first and fades in on the
+          next frame, since a transition from `display: none` has no starting
+          frame to animate from.
+
+          FADE_MS matches the CSS. If the two drift the card either pops out
+          mid-fade or leaves a gap behind it.
+        */
+        const FADE_MS = 180;
         contentCards.forEach((card) => {
           const show = activeFilter === 'all' || card.getAttribute('data-type') === activeFilter;
-          /* '' restores the stylesheet's own display for the card variant. */
-          card.style.display = show ? '' : 'none';
+
+          if (show) {
+            /* '' restores the stylesheet's own display for the card variant. */
+            card.style.display = '';
+            requestAnimationFrame(() => card.classList.remove('is-filtered-out'));
+          } else {
+            card.classList.add('is-filtered-out');
+            window.setTimeout(() => {
+              /* Only if it is still meant to be hidden: a fast second click can
+                 land inside this window and bring the card back. */
+              if (card.classList.contains('is-filtered-out')) card.style.display = 'none';
+            }, FADE_MS);
+          }
         });
       });
     });
@@ -2192,6 +2219,20 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
     on a hand-picked asset, it costs on the nineteen it was not picked for.
   */
   /* Lit without needing a single asset, so a hub with no logo still reads. */
+  /*
+    The filter's fade. Opacity only, deliberately: `.content-card` already owns
+    a `transform` for its hover lift, and animating the same property from two
+    places means whichever fires last wins and the card jumps.
+  */
+  :global(.content-card) {
+    transition: opacity 0.18s ease;
+  }
+
+  :global(.content-card.is-filtered-out) {
+    opacity: 0;
+    pointer-events: none;
+  }
+
   .hub-stage-wash {
     position: absolute;
     inset: 0;

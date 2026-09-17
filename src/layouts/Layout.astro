@@ -449,9 +449,30 @@ const fallbackMark = await getImage({
           return prefix !== -1 ? prefix : NAV_ORDER.length;
         }
 
+        /*
+          A paginated route's page number, so /events and /events/2 can be
+          recognised as the same place.
+        */
+        function baseOf(pathname) {
+          return pathname.replace(/\/+$/, '').replace(/\/\d+$/, '') || '/';
+        }
+
         function directionFor(fromPath, toPath, fromHash, toHash) {
           /* Same page: a hash, a filter, a spotlight swap. Not a journey. */
           if (fromPath === toPath) return 'none';
+
+          /*
+            PAGING A LIST IS NOT TRAVELLING ANYWHERE.
+
+            /events -> /events/2 is the same page showing the next tiles, but it
+            is a real navigation, so it drove the full page transition and slid
+            the entire document sideways — header and all — to change a grid
+            halfway down it.
+
+            `page-rows` animates only the element that actually changed. The
+            page holds still.
+          */
+          if (baseOf(fromPath) === baseOf(toPath)) return 'page-rows';
 
           /*
             A LINK THAT NAMES A SECTION GOES DOWN, NOT SIDEWAYS.

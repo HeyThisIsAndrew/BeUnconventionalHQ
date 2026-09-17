@@ -189,3 +189,86 @@ test('the rows do not slide under the hero by a viewport-relative amount', () =>
     'the hero bottom fade was removed deliberately; it is not the fix for a seam',
   );
 });
+
+/*
+  ─── PAGING A LIST IS NOT TRAVELLING ANYWHERE ───────────────────────────────
+
+  /events -> /events/2 is a real navigation, so it drove the site-wide page
+  transition and slid the whole document sideways to change a grid of tiles
+  halfway down it.
+*/
+test('paging a list moves the list, not the page', () => {
+  const layout = read('src', 'layouts', 'Layout.astro');
+  const css = read('src', 'styles', 'global-base.css');
+  const events = read('src', 'pages', 'events', '[...page].astro');
+
+  assert.match(layout, /function baseOf\(pathname\)/, 'a paginated route needs its page number stripped');
+  assert.match(
+    layout,
+    /if \(baseOf\(fromPath\) === baseOf\(toPath\)\) return 'page-rows';/,
+    'same list, different page, must not read as a journey along the nav',
+  );
+
+  assert.match(events, /view-transition-name: section-rows/, 'the grid must be captured separately');
+
+  /*
+    An earlier attempt switched the page-level name off from this page with
+    `#page-content { view-transition-name: none !important }`. That disabled the
+    transition for every navigation INTO and OUT OF /events too, and
+    asymmetrically — only one of the two documents in a transition carries this
+    page's stylesheet.
+  */
+  /* Comments stripped first: the note explaining WHY this is forbidden quotes
+     the offending declaration, and an un-stripped check matches the prose. */
+  const eventsCode = events.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(
+    eventsCode,
+    /#page-content\)?\s*\{[^}]*view-transition-name:\s*none/,
+    'the page-level transition name must not be switched off from one route',
+  );
+
+  /* Suppressing old/new alone leaves the group's default cross-fade, which is
+     the full-page flash this exists to avoid. */
+  assert.match(
+    css,
+    /html\[data-page-transition='page-rows'\]::view-transition-group\(page-main\)\s*\{\s*animation-duration:\s*0s/,
+    'the page-main GROUP has to be stopped too, not just its old/new',
+  );
+  assert.match(css, /@keyframes section-rows-in/, 'the rows need their own motion');
+});
+
+/*
+  The coverage filters are client-side: no navigation, so no view transition to
+  ride on. They set `display` directly, which reflowed the grid in one frame.
+*/
+test('a filter fades its cards rather than snapping them', () => {
+  for (const rel of [
+    ['src', 'pages', 'featured', '[slug].astro'],
+    ['src', 'components', 'EventFeatured.astro'],
+    ['src', 'components', 'EventAnnouncement.astro'],
+  ]) {
+    const src = read(...rel);
+    const name = rel[rel.length - 1];
+
+    assert.match(src, /is-filtered-out/, `${name}: the fade needs a class to drive it`);
+    assert.match(
+      src,
+      /requestAnimationFrame\(\(\) => \w+\.classList\.remove\('is-filtered-out'\)\)/,
+      `${name}: a card coming back must be laid out BEFORE it fades in, or there is no start frame`,
+    );
+    assert.match(
+      src,
+      /if \(\w+\.classList\.contains\('is-filtered-out'\)\) \w+\.style\.display = 'none'/,
+      `${name}: re-check before hiding — a fast second click lands inside the fade`,
+    );
+
+    /* Opacity only. `.content-card` already owns a transform for its hover
+       lift, and two sources animating one property means the card jumps. */
+    const decl = src.slice(src.indexOf('.content-card.is-filtered-out'));
+    assert.doesNotMatch(
+      decl.slice(0, decl.indexOf('}')),
+      /transform:/,
+      `${name}: the filter must not animate transform, the hover lift owns it`,
+    );
+  }
+});
