@@ -85,6 +85,34 @@ const slugOfDoc = (doc: any) =>
 
 const allHubDocs = [...hubBrands, ...hubEvents];
 
+/*
+  ─── A TOPIC IS NOT A HUB ──────────────────────────────────────────────────
+
+  Film, TV and Games are the site's Tier-1 topics, and they are stored in two
+  different places depending on where the item came from: the YouTube sync
+  writes `topics: ['film']` on a video, and a Substack article carries
+  `category: 'Film'`. An item only ever has one of them.
+
+  `games` and `gaming` are the same topic under two names — CLAUDE.md records
+  the rename, and both spellings are still in the store (videos say `gaming`,
+  articles say `Games`), so the alias is read here rather than left to whoever
+  writes the next row definition.
+*/
+const TOPIC_ALIASES: Record<string, string[]> = {
+  film: ['film', 'movies'],
+  tv: ['tv', 'television'],
+  games: ['games', 'gaming'],
+  events: ['events', 'event'],
+};
+
+const hasTopic = (item: any, topic: string) => {
+  const wanted = TOPIC_ALIASES[topic] ?? [topic];
+  const topics = Array.isArray(item?.topics) ? item.topics.map((t: any) => String(t).toLowerCase()) : [];
+  if (topics.some((t: string) => wanted.includes(t))) return true;
+  const category = String(item?.category ?? '').toLowerCase();
+  return wanted.includes(category);
+};
+
 const matchesHub = (item: any, slug: string) => {
   /* 1. The sync's explicit taxonomy — videos. */
   if (Array.isArray(item?.hubs) && item.hubs.includes(slug)) return true;
@@ -212,6 +240,39 @@ const SECTION_DEFS: SectionDef[] = [
       { id: 'dc-comics', title: 'DC', match: (i) => matchesHub(i, 'dc-comics') },
       { id: 'marvel-comics', title: 'Marvel', match: (i) => matchesHub(i, 'marvel-comics') || matchesHub(i, 'marvel') },
       { id: 'star-wars', title: 'Star Wars', match: (i) => matchesHub(i, 'star-wars') },
+    ],
+  },
+  /*
+    ─── THE TOPIC SECTIONS EXIST SO THE HOMEPAGE CAN LINK INTO THEM ──────────
+
+    The homepage's "What We Cover" tiles are Film, TV, Games and Events, and
+    they deep-link to /feed#film, #tv and #games. Those anchors need something
+    to land on, so each topic is a section with that id.
+
+    Games carries the platform hubs as well as its topic row: PlayStation,
+    Nintendo and Xbox are how gaming content is actually branded, and an empty
+    one drops out rather than shipping a bare heading — which today is most of
+    them, since the store holds one PlayStation video and nothing for the other
+    two.
+  */
+  {
+    id: 'film',
+    title: 'Film',
+    rows: [{ id: 'topic-film', title: 'Film', match: (i) => hasTopic(i, 'film') }],
+  },
+  {
+    id: 'tv',
+    title: 'TV',
+    rows: [{ id: 'topic-tv', title: 'TV', match: (i) => hasTopic(i, 'tv') }],
+  },
+  {
+    id: 'games',
+    title: 'Games',
+    rows: [
+      { id: 'topic-games', title: 'All Games', match: (i) => hasTopic(i, 'games') },
+      { id: 'playstation', title: 'PlayStation', match: (i) => matchesHub(i, 'playstation') },
+      { id: 'nintendo', title: 'Nintendo', match: (i) => matchesHub(i, 'nintendo') },
+      { id: 'xbox', title: 'Xbox', match: (i) => matchesHub(i, 'xbox') },
     ],
   },
   {
@@ -1128,9 +1189,31 @@ const prestigeEyebrow = prestigeHub
     min-width: 0;
   }
 
-  /* The hub's own name as a lettermark. Text, not an image: the badge is
-     resolved at build time and an <img> would mean another asset lookup and
-     another thing to go missing. */
+  /*
+    ─── THE HUB'S REAL MARK, NOT ITS NAME IN A BOX ───────────────────────────
+
+    This slot used to render the word "DC" inside a hairline rectangle, on the
+    reasoning that an <img> "would mean another asset lookup and another thing
+    to go missing". Neither half held up. `prestigeHub` comes from
+    resolveEntity(), which already resolves `logo` for the card watermarks, so
+    the lookup is paid for whether this uses it or not; and the shelf sits
+    directly above cards that ARE showing the real mark, so drawing it as type
+    here was the one place on the row that did not look like DC.
+
+    Sized like `.feed-row-mark`, and for the same reason: DC, HBO Max, Netflix
+    and Prime ship as 320x320 letterboxed squares, so the cap has to clear the
+    padding baked into the asset before the mark itself reads. Smaller than that
+    rule because this one sits inline with the row title rather than above it.
+  */
+  .prestige-mark {
+    flex-shrink: 0;
+    height: clamp(34px, 3.6vw, 52px);
+    width: auto;
+    max-width: 150px;
+    object-fit: contain;
+  }
+
+  /* The fallback, for a hub with no mark on file: its name as a lettermark. */
   .prestige-badge {
     flex-shrink: 0;
     padding: 0.2rem 0.55rem;
@@ -1283,7 +1366,17 @@ const prestigeEyebrow = prestigeHub
             <div class="prestige-brand-lockup">
               <span class="prestige-eyebrow">{prestigeEyebrow}</span>
               <div class="prestige-title-group">
-                {prestigeHub && <span class="prestige-badge">{prestigeHub.title}</span>}
+                {prestigeHub?.logo ? (
+                  <img
+                    src={prestigeHub.logo}
+                    alt={prestigeHub.title}
+                    class="prestige-mark"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  prestigeHub && <span class="prestige-badge">{prestigeHub.title}</span>
+                )}
                 {prestigeHub && <span class="prestige-divider" aria-hidden="true"></span>}
                 <h2 class="feed-row-title prestige-title">{prestigeRow.title}</h2>
               </div>
@@ -1347,7 +1440,12 @@ const prestigeEyebrow = prestigeHub
       )}
 
       {feedSections.map((section) => (
-        <section class="feed-section" data-section={section.id} aria-labelledby={`feed-section-${section.id}`}>
+        <section
+          class="feed-section"
+          id={section.id}
+          data-section={section.id}
+          aria-labelledby={`feed-section-${section.id}`}
+        >
           <div class="feed-section-head">
             <h2 class="feed-section-title" id={`feed-section-${section.id}`}>{section.title}</h2>
             {section.explore && (
