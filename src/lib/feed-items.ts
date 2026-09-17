@@ -56,6 +56,18 @@ function sortTime(item: FeedItem): number {
   return t;
 }
 
+/**
+ * The same rule, exported, because more than one surface has to agree with it.
+ *
+ * `/feed`'s own hero used to pick `videos[0]`, the first document in the store,
+ * while the homepage banner sorted by this. The two agreed only for as long as
+ * the sync happened to write the newest item first, and they were one
+ * `sortDate` away from disagreeing — which is this field's whole purpose.
+ */
+export function feedSortTime(item: { sortDate?: string; date?: string }): number {
+  return sortTime(item as FeedItem);
+}
+
 /** Newest first. Items with unparseable dates sort last rather than throwing. */
 function byNewest(a: FeedItem, b: FeedItem) {
   return sortTime(b) - sortTime(a);

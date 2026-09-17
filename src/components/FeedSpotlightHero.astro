@@ -1,6 +1,7 @@
 ---
 import { getVideosUnified } from '../lib/videos-source';
 import { parseVideoId } from '../lib/platforms/youtube';
+import { feedSortTime } from '../lib/feed-items';
 import { getDisplayTagSlots } from '../lib/tags';
 import { editorialPreview } from '../lib/editorial-text';
 import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-content';
@@ -34,7 +35,26 @@ const videos = await getVideosUnified();
   without scattering `as any` through the markup — and leaves one obvious place
   to delete from when UnifiedVideo grows the fields for real.
 */
-const latestVideo: Record<string, any> = videos[0] || {};
+/*
+  SORTED, NOT `videos[0]`.
+
+  `getUnifiedVideos()` maps and filters but never sorts, so `videos[0]` was
+  whichever document happens to sit first in `videos.json`. That was the newest
+  video only because the sync writes newest-first, and the file is already not
+  strictly in date order further down.
+
+  It stopped being a cosmetic detail when the homepage banner's "Watch" button
+  started pointing at /feed instead of at YouTube. The banner picks its item
+  with `byNewest`, which honours `sortDate`; this picked file order, which does
+  not. One `sortDate` — the field's whole purpose, and already used for the
+  Lanterns episode ordering — and the banner would advertise one video while
+  the hero it links to showed another, with the direct link that used to
+  guarantee it now gone.
+
+  Same rule, one definition, imported from feed-items.
+*/
+const latestVideo: Record<string, any> =
+  [...videos].sort((a: any, b: any) => feedSortTime(b) - feedSortTime(a))[0] || {};
 const trailerId = parseVideoId(latestVideo.url || latestVideo.link || latestVideo.videoId || '');
 
 const isVideo = true;
