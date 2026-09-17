@@ -2,7 +2,30 @@
 .hero {
   position: relative;
   width: 100%;
-  height: 100vh;
+  /*
+    ─── NOT 100vh, AND CAPPED ──────────────────────────────────────────────
+
+    `100vh` sized the hero to the glass rather than to what is in it. On a
+    2160px display that is a logo, a line of type and a button floating in
+    over 2000px of nothing, with no indication that a site exists below —
+    reported as an empty void.
+
+    Three numbers, each doing one job:
+      500px  a floor, so a short laptop window or a landscape phone does not
+             crush the lockup.
+      85vh   the working value, and the reason it is not 100: the bottom 15%
+             of the screen shows the top edge of the next section, which is
+             what tells a reader there is something to scroll to.
+      1000px the cap. Past this the hero stops growing with the monitor and
+             the surplus becomes visible page instead of visible nothing.
+
+    SAFE TO CHANGE: nothing measures this as a constant. The splash lift
+    (`--splash-lift`), the reveal distance and the scroll handler all read
+    `hero.offsetHeight` at runtime — see Hero.astro — so they follow whatever
+    this resolves to. The scroll-driven compression is keyed to a fixed 400px
+    of scroll and is unaffected either way.
+  */
+  height: clamp(500px, 85vh, 1000px);
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -297,13 +320,38 @@ body.scroll-locked .hero {
      black. Matching the page colour exactly is what makes the join invisible;
      the mask on `.hero-bg` above then softens the image itself into it.
   */
-  background: linear-gradient(
-    to bottom,
-    rgba(10, 10, 10, 0.3) 0%,
-    rgba(10, 10, 10, 0.5) 50%,
-    rgba(10, 10, 10, 0.88) 85%,
-    #0a0a0a 100%
-  );
+  /*
+    ─── A GLOW BEHIND THE LOCKUP, NOT A TEXTURE OVER IT ──────────────────────
+
+    The brief offered a radial glow OR a grain texture. It is the glow,
+    because the grain already exists: `body::before` in modules/grain.css
+    lays an SVG fractal-noise sheet over the WHOLE site at `opacity: 0.035`.
+    A second one here would be a texture on a texture, at double density on
+    the one screen that is meant to be the calmest.
+
+    The glow is the site's own accent at 0.07, centred at 42% — above the
+    middle, so it sits behind the wordmark rather than behind the empty space
+    under it — and gone by 55%, so it never reaches the join with the page
+    below. That join is the reason the gradient beneath lands on `#0a0a0a`
+    exactly, and a tint bleeding into it would undo the work described there.
+
+    It costs one more gradient on a layer that is already painting one. No
+    element, no image, no animation.
+  */
+  background:
+    radial-gradient(
+      ellipse 70% 55% at 50% 42%,
+      rgba(204, 0, 0, 0.07) 0%,
+      rgba(204, 0, 0, 0.03) 30%,
+      transparent 55%
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(10, 10, 10, 0.3) 0%,
+      rgba(10, 10, 10, 0.5) 50%,
+      rgba(10, 10, 10, 0.88) 85%,
+      #0a0a0a 100%
+    );
 }
 
 .hero-content {
@@ -328,6 +376,14 @@ body.scroll-locked .hero {
   z-index: 2;
   text-align: center;
   padding: 0 1.5rem;
+  /*
+    Sits ABOVE the centre line, not on it. `.hero` centres its content, and
+    dead-centre in a box whose whole point is now to leave room underneath
+    reads as untidy rather than as deliberate: the lockup and the gap below it
+    were the same weight. A margin on the bottom of the flex child is what
+    pushes it up — `vh` so it scales with the same viewport the height does.
+  */
+  margin-bottom: 5vh;
   transform: translateY(var(--hero-content-y));
   /* Removed transition to avoid scroll jitter */
   will-change: transform, opacity;
