@@ -1881,5 +1881,48 @@ test('a hub card does not also trigger the site-wide modal', () => {
 });
 
 
+test('the deck card and its filmstrip scale together', () => {
+  /*
+    ─── WHAT THIS STOPS ──────────────────────────────────────────────────────
+
+    `.deck-card` was a flat `85%` of the stack and `.deck-nav-thumb` a flat
+    84x46 at every width, so the two had no relationship at all. Measured at
+    3840x2160: the card reached 2101x1182 while each thumbnail stayed 46px
+    tall — 4% of the picture it navigates — and the strip around them was
+    `clamp(66px, 7vh, 150px)`, growing while its own contents did not.
+    Reported as the image being too massive and the tiles far too small.
+
+    Both are sized from the same `vw` basis now, the thumb at exactly a fifth
+    of the card, so the ratio holds instead of one outrunning the other.
+    Measured after: card 1982 wide, thumb 372, which is 18.8%.
+  */
+  const src = raw;
+
+  const card = src.match(/\n  \.deck-card \{[\s\S]*?\n  \}/);
+  assert.ok(card, 'the deck card rule is gone');
+  assert.match(card[0], /width: min\(85%, (\d+)vw\)/,
+    'the card must stop growing with the screen');
+  const cardVw = Number(card[0].match(/width: min\(85%, (\d+(?:\.\d+)?)vw\)/)[1]);
+
+  const thumb = src.match(/\.deck-nav-thumb \{\s*\/\*[\s\S]*?width: clamp\([^)]*\);[\s\S]*?\n    \}/);
+  assert.ok(thumb, 'the sized thumbnail rule is gone');
+  const thumbVw = Number(thumb[0].match(/clamp\(\d+px, (\d+(?:\.\d+)?)vw/)[1]);
+
+  const ratio = thumbVw / cardVw;
+  assert.ok(ratio > 0.15 && ratio < 0.25,
+    `the tile should be about a fifth of the card; got ${(ratio * 100).toFixed(1)}%`);
+  assert.match(thumb[0], /aspect-ratio: 16 \/ 9;/,
+    '84x46 was 1.83, which had already drifted off 16/9');
+
+  /*
+    And the card's dead centring declaration must stay dead. Computed style
+    reports `position: relative; top: 0; margin-top: 0` — a later rule re-lays
+    the deck out. Replacing it with a `translate` that DID apply moved the card
+    566px up the page.
+  */
+  assert.ok(!/translate: 0 -50%/.test(card[0]),
+    'the card is not positioned by this rule; a live translate here moves it off screen');
+});
+
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
 process.exit(failed === 0 ? 0 : 1);

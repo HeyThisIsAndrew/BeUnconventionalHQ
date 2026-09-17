@@ -2187,9 +2187,32 @@ ${activeFonts
     position: absolute;
     top: 50%;
     left: 0;
-    width: 85%;
+    /*
+      ─── IT STOPS GROWING WITH THE SCREEN ─────────────────────────────────
+
+      This was a flat `85%` of the stack, so on a 4K display the card reached
+      2101x1182 and the page became one enormous poster with a row of
+      thumbnails under it that had not grown at all. Reported as the image
+      being too massive and the tiles far too small beside it.
+
+      `min()` against a viewport width keeps the 85% on ordinary screens, where
+      it is the smaller of the two, and caps the card past about 2100px wide.
+      The filmstrip below is sized from the SAME `vw` basis, which is what
+      holds the two at a fixed ratio to each other instead of letting one
+      outrun the other.
+    */
+    width: min(85%, 48vw);
     aspect-ratio: 16 / 9;
     transform-origin: center center;
+    /*
+      DEAD, and left exactly as it was. Computed style on the active card at
+      3840x2160 reports `position: relative; top: 0; margin-top: 0` — a later
+      rule in this file re-lays the deck out and this declaration has not
+      applied in a long time. Replacing it with a `translate` that DID apply
+      moved the card 566px up the page. If the layout above ever comes back,
+      note that -24% is half the card's height as a share of the STACK's width,
+      so it is only correct while the width above is exactly 85%.
+    */
     margin-top: -24%; /* Half of 16/9 height to vertically center perfectly */
     border-radius: 0; 
     overflow: hidden;
@@ -3569,16 +3592,40 @@ ${activeFonts
         Clamped rather than pure vh so it cannot collapse on a short laptop
         window or run away on a tall one.
       */
-      height: clamp(66px, 7vh, 150px);
+      /*
+        HEIGHT COMES FROM THE THUMBNAILS NOW, not from `vh`. It was
+        `clamp(66px, 7vh, 150px)` while the thumbs underneath it were a flat
+        84x46 at every width, so the track grew and the pictures in it did not:
+        at 3840x2160 the strip was 148px tall and each thumbnail was 46px of
+        that, floating in it.
+      */
+      height: auto;
       margin-top: 0.5rem;
-      padding: 6px 4%;
-      gap: 8px;
+      padding: 10px 4%;
+      gap: 12px;
       flex: 0 0 auto;
     }
 
     .deck-nav-thumb {
-      width: 84px;
-      height: 46px;
+      /*
+        ─── 20% OF THE CARD, AT EVERY WIDTH ────────────────────────────────
+
+        `.deck-card` is `min(85%, 48vw)` and this is `9.6vw`, which is exactly
+        a fifth of that — so once the card is on its vw branch, which is where
+        the complaint came from, the tile is 20% of the picture above it by
+        construction rather than by coincidence. Measured at 3840: card 1843
+        wide, thumb 360. At 1920: 922 and 184.
+
+        Clamped at both ends: 84px is where it started and is still right on a
+        small laptop, and past ~3750px a thumbnail large enough to be a poster
+        in its own right stops reading as navigation.
+
+        `aspect-ratio` rather than a second fixed number, so the two cannot
+        drift out of 16/9 the way 84x46 (1.83) already had.
+      */
+      width: clamp(84px, 9.6vw, 360px);
+      height: auto;
+      aspect-ratio: 16 / 9;
     }
 
     /* Hover tooltips are meaningless on touch and stick after a tap. */

@@ -209,6 +209,41 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
     */
     padding-block: 0.75rem;
     scroll-padding-block: 0.75rem;
+
+    /*
+      ─── FEATHERED AT WHICHEVER EDGE HAS MORE BEHIND IT ─────────────────────
+
+      The same idiom the feed rails use (`--fade-start` / `--fade-end` in
+      FeedGrid.astro), turned through ninety degrees. The custom properties
+      default to `0px`, so with no script the list has hard edges and nothing
+      is permanently faded — which is the correct no-JS state, since without a
+      scroll position there is nothing to reason about.
+
+      PER EDGE, not both at once. A fade at the top while the list is already
+      scrolled to the top would dim the first row for no reason, and would eat
+      the top border of a row hovered there — the bug fixed directly above
+      this. `sync()` turns each one on only when there is content past that
+      edge.
+    */
+    --uel-fade: clamp(20px, 3vh, 56px);
+    --fade-top: 0px;
+    --fade-bottom: 0px;
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--fade-top),
+      #000 calc(100% - var(--fade-bottom)),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--fade-top),
+      #000 calc(100% - var(--fade-bottom)),
+      transparent 100%
+    );
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
     /* The same, for the ring and glow on the inline edge. */
     padding-right: 0.35rem;
   }
@@ -436,6 +471,10 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
       padding-block: 0;
       scroll-padding-block: 0;
       padding-right: 0;
+      /* Nothing scrolls here, so there is no edge to feather and a mask would
+         only dim the first and last rows permanently. */
+      -webkit-mask-image: none;
+      mask-image: none;
     }
     .uel-rail {
       display: none;
@@ -652,13 +691,22 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
         const scrollable = viewport.scrollHeight > viewport.clientHeight + 1;
         rail.hidden = !scrollable;
         if (!scrollable) {
+          viewport.style.setProperty('--fade-top', '0px');
+          viewport.style.setProperty('--fade-bottom', '0px');
           closePanel();
           return;
         }
 
         const max = viewport.scrollHeight - viewport.clientHeight;
-        up.disabled = viewport.scrollTop <= 1;
-        down.disabled = viewport.scrollTop >= max - 1;
+        const atTop = viewport.scrollTop <= 1;
+        const atEnd = viewport.scrollTop >= max - 1;
+        up.disabled = atTop;
+        down.disabled = atEnd;
+
+        /* The feather, one edge at a time. See the mask note in the stylesheet
+           — the same shape as the feed rails' --fade-start / --fade-end. */
+        viewport.style.setProperty('--fade-top', atTop ? '0px' : 'var(--uel-fade)');
+        viewport.style.setProperty('--fade-bottom', atEnd ? '0px' : 'var(--uel-fade)');
 
         /*
           WHICH YEAR IS ON SCREEN: the last group whose top has passed the

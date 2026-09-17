@@ -364,6 +364,50 @@ test('the upcoming list is scrolled by a rail, not by controls over the list', (
     'the rail must go where the nested scroll goes');
 });
 
+test('the upcoming list feathers at whichever edge has more behind it', () => {
+  /*
+    The same idiom as the feed rails (`--fade-start` / `--fade-end` in
+    FeedGrid.astro), turned ninety degrees. PER EDGE, not both at once: a fade
+    at the top while already scrolled to the top dims the first row for nothing
+    and eats the top border of a row hovered there, which is the bug fixed
+    immediately before this one.
+
+    The custom properties default to 0px so the no-JS state is hard edges
+    rather than two permanently dimmed rows.
+  */
+  const list = fs.readFileSync(
+    new URL('../src/components/UpcomingEventsList.astro', import.meta.url), 'utf8');
+  const code = list.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  assert.match(code, /--fade-top: 0px;/, 'the fade must default to off');
+  assert.match(code, /--fade-bottom: 0px;/, 'both of them');
+  assert.match(code, /mask-image: linear-gradient\(\s*to bottom,[\s\S]*?var\(--fade-top\)[\s\S]*?var\(--fade-bottom\)/,
+    'the mask must read both edges independently');
+  assert.match(code, /setProperty\('--fade-top', atTop \? '0px'/,
+    'no top fade while the list is already at the top');
+  assert.match(code, /setProperty\('--fade-bottom', atEnd \? '0px'/,
+    'and none at the bottom once there is nothing below');
+  assert.match(code, /@media \(max-width: 767px\) \{[\s\S]*?mask-image: none;/,
+    'nothing scrolls below the breakpoint, so a mask there only dims rows');
+});
+
+test('the calendar tile has depth against the page', () => {
+  /*
+    A translucent panel on a near-black page reads as a slightly lighter
+    rectangle: the 1px border was all that separated it from the background,
+    and beside the events list — which has its own hover lift and glow — it
+    looked like part of the backdrop.
+  */
+  const cal = fs.readFileSync(
+    new URL('../src/components/MiniCalendarSidebar.astro', import.meta.url), 'utf8');
+  const rule = cal.match(/\.mini-calendar-wrapper \{[\s\S]*?\n  \}/);
+  assert.ok(rule, 'the wrapper rule is gone');
+  assert.match(rule[0], /box-shadow:/, 'the tile must sit on the page, not in it');
+  const shadows = rule[0].match(/rgba\(0, 0, 0, [\d.]+\)/g) || [];
+  assert.ok(shadows.length >= 2,
+    'a cast shadow that broad has no detectable start; it needs a tight one under the edge too');
+});
+
 test('sunsetting the /events header did not touch any other route', () => {
   /*
     The ask named /events specifically and guarded the homepage, /intel and
