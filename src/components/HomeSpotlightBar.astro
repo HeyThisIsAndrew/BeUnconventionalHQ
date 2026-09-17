@@ -31,6 +31,7 @@
  * two components share no markup and a shared script would have to carry both
  * their DOM shapes.
  */
+import { getImage } from 'astro:assets';
 import { getAllFeedItems } from '../lib/feed-items';
 import { getCardImageSources } from '../lib/card-images';
 import { selectCollections } from '../lib/feed-rails';
@@ -87,7 +88,29 @@ const rowArt = (name: string): ImageMetadata | null => {
 };
 
 const featuredSlug = featured ? seriesSlug(featured.name) : '';
-const featuredArt = featuredSlug ? rowArt(`${featuredSlug}-key-art`) : null;
+const featuredArtSource = featuredSlug ? rowArt(`${featuredSlug}-key-art`) : null;
+
+/*
+  ─── THROUGH getImage(), NEVER THE GLOB'S OWN `.src` ────────────────────────
+
+  `import.meta.glob` hands back the ImageMetadata, and its `.src` is a path
+  Astro does not emit unless something actually asks the pipeline to process
+  that file. Passing it straight to an <img> shipped a 404: the element
+  reported `complete: true` with `naturalWidth: 0`, so the band rendered as a
+  flat dark box and looked like a styling problem rather than a missing file.
+
+  Two widths rather than one, because this is full-bleed: 1600 is 1x on the
+  widest column and 2400 covers a 4K screen without asking a phone to fetch it.
+*/
+const featuredArt = featuredArtSource
+  ? {
+      src: (await getImage({ src: featuredArtSource, width: 1600, format: 'webp', quality: 78 })).src,
+      srcset: [
+        `${(await getImage({ src: featuredArtSource, width: 1600, format: 'webp', quality: 78 })).src} 1600w`,
+        `${(await getImage({ src: featuredArtSource, width: 2400, format: 'webp', quality: 78 })).src} 2400w`,
+      ].join(', '),
+    }
+  : null;
 
 /* The series accent, read off any member so it survives one document being
    edited. Falls back to the site accent. */
@@ -129,7 +152,7 @@ if (featured) {
        page that may not exist for every series. */
     href: `/feed#${featuredSlug}`,
     cta: 'See the coverage',
-    art: featuredArt ? { src: featuredArt.src } : null,
+    art: featuredArt,
     accent: featuredAccent,
     external: false,
   });
@@ -177,16 +200,29 @@ const rotates = slides.length > 1;
         )}
         <span class="spotlight-scrim" aria-hidden="true"></span>
 
-        <span class="spotlight-body">
-          <span class="spotlight-eyebrow">{slide.eyebrow}</span>
-          <span class="spotlight-title">{slide.title}</span>
-        </span>
+        {/*
+          THE ART IS FULL BLEED, THE WORDS ARE NOT.
 
-        <span class="spotlight-cta">
-          <span class="spotlight-cta-label">{slide.cta}</span>
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
-            <path d="M5 12h14M12 5l7 7-7 7" />
-          </svg>
+          This inner wrapper carries the page's own column — same max-width,
+          same gutter, centred the same way — so the copy starts exactly where
+          every heading above and below it does. It is the shape
+          `.feed-row-banner-inner` already uses for the same problem, and it is
+          arithmetic-free: no expression has to know how far the full-bleed
+          escape overshot, which is where a hand-computed padding lands a few
+          pixels off the column and stays there.
+        */}
+        <span class="spotlight-inner">
+          <span class="spotlight-body">
+            <span class="spotlight-eyebrow">{slide.eyebrow}</span>
+            <span class="spotlight-title">{slide.title}</span>
+          </span>
+
+          <span class="spotlight-cta">
+            <span class="spotlight-cta-label">{slide.cta}</span>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </span>
         </span>
       </a>
     ))}
@@ -212,39 +248,47 @@ const rotates = slides.length > 1;
 </section>
 
 <style>
+  /*
+    ─── EDGE TO EDGE, WITHOUT ESCAPING ANYTHING ────────────────────────────
+
+    No negative margin, and that is the fix rather than an omission. This is a
+    direct child of <main>, which already spans the whole content width — the
+    sections around it are narrower only because THEY carry a max-width and a
+    gutter. So the default width is already edge to edge.
+
+    It was written with the `margin-inline: calc(50% - 50vw)` break-out the
+    rails use, and that idiom is for an element INSIDE a column. Here it did
+    nothing but introduce the overshoot it exists to manage: `vw` counts the
+    scrollbar, so the band hung ~7px past the content on each side, the copy
+    inside it inherited the same 7px, and it no longer lined up with the
+    category tiles above. It also needed a second rule to undo the padding the
+    splash adds to `#app-wrapper` while the curtain is armed.
+
+    All of that goes away by not moving it in the first place.
+  */
   .spotlight {
-    width: 100%;
-    max-width: var(--page-max, 1536px);
-    /*
-      ─── IT NEEDS AIR, AND IT NEEDS TO CLEAR THE NAVBAR ─────────────────────
-
-      The strip this replaced had neither. It butted against the hero above and
-      the section below, and — because the splash lift scrolls the page by
-      exactly the hero's height — it landed flush at the top of the viewport,
-      underneath a fixed navbar, the moment the curtain came up.
-
-      The top margin is what the reader lands on instead, and it has to beat
-      the navbar's RENDERED height, not the logo height quoted in navbar.css:
-      measured, the header is 67px on desktop and 57px on a phone. 6rem is
-      76.8px at this project's 12.8px root, which clears both. 4rem resolved to
-      51px and the navbar still took the top off the band.
-    */
-    margin: 6rem auto 0;
-    padding: 0 2rem;
+    margin-block: clamp(3rem, 6vh, 5rem);
   }
 
   .spotlight-frame {
     position: relative;
     /*
-      Taller than the strip it replaces, which is the point — this is a band
-      you are meant to notice under the hero, not a footnote. It is a fixed
-      height rather than an aspect ratio because the slides carry different
-      art at different shapes and the band must not resize as it rotates.
+      A BANNER, not a strip. A fixed height rather than an aspect ratio,
+      because the slides carry art of different shapes and the band must not
+      resize as it rotates through them.
     */
-    height: clamp(132px, 9rem + 4vw, 210px);
+    height: clamp(170px, 10rem + 7vw, 300px);
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    /*
+      Top and bottom only. The left and right edges are off the screen now, so
+      a border there paints nothing; these two are what make the band read as a
+      layer sitting ON the page rather than a hole cut into it, and they are
+      what the shadow below lands against.
+    */
+    border-block: 1px solid rgba(255, 255, 255, 0.1);
     background: #0d0d0d;
+    /* The same raised treatment the calendar tile and the category tiles
+       carry, so the layering is one idiom across the site. */
     box-shadow: var(--shadow-tile);
     isolation: isolate;
   }
@@ -254,8 +298,7 @@ const rotates = slides.length > 1;
     inset: 0;
     display: flex;
     align-items: flex-end;
-    gap: 1rem;
-    padding: clamp(1rem, 0.75rem + 1vw, 1.75rem);
+    padding-block: clamp(1rem, 0.75rem + 1vw, 1.75rem);
     text-decoration: none;
     color: inherit;
     /*
@@ -273,6 +316,25 @@ const rotates = slides.length > 1;
     opacity: 1;
     visibility: visible;
     transition: opacity 0.5s ease, visibility 0s linear 0s;
+  }
+
+  .spotlight-inner {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: flex-end;
+    gap: 1rem;
+    width: 100%;
+    max-width: var(--page-max, 1536px);
+    margin-inline: auto;
+    /*
+      The SAME expression `.container` uses in modules/layout.css, because the
+      homepage's sections are `.container` and this has to start where their
+      content starts. `.container-page`'s flat 2rem is the other gutter on this
+      site and would sit 13px inboard of the category tiles above.
+    */
+    padding-inline: clamp(1.25rem, calc(0.625rem + 2.5vw), 3rem);
+    min-width: 0;
   }
 
   .spotlight-art {
@@ -387,6 +449,12 @@ const rotates = slides.length > 1;
     align-items: center;
     gap: 0.75rem;
     margin-top: 0.6rem;
+    /* Furniture belongs in the column even though the art does not, so it uses
+       the same measurements the slide's inner does. */
+    width: 100%;
+    max-width: var(--page-max, 1536px);
+    margin-inline: auto;
+    padding-inline: clamp(1.25rem, calc(0.625rem + 2.5vw), 3rem);
   }
 
   .spotlight-pause {
@@ -472,15 +540,6 @@ const rotates = slides.length > 1;
   }
 
   @media (max-width: 599px) {
-    /*
-      5rem = 64px, and it must stay LARGER than the navbar (57px at this
-      width). The splash lift scrolls the page by exactly the hero's height, so
-      this margin is what the bar comes to rest on — at 2.5rem its top landed
-      at 40px and the navbar sliced the top third off it.
-    */
-    .spotlight {
-      margin-top: 5rem;
-    }
     /* The label goes, the arrow stays: at this width the words cost more room
        than they buy, and the whole band is the link anyway. */
     .spotlight-cta-label {

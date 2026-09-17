@@ -99,22 +99,21 @@ test('the mobile hero is sized in lvh, NOT a measurement', () => {
     too small is a visible gap.
   */
   /*
-    THE UNIT IS WHAT THIS GUARDS, NOT THE NUMBER.
+    STRICT AGAIN, AND THE ROUND TRIP IS WORTH RECORDING.
 
-    This asserted the literal `100lvh` until a deliberate element — the
-    latest-coverage strip — was placed directly under the hero, at which point
-    100 put it entirely below the fold on a phone and the fraction became a
-    design decision rather than a correctness one.
+    This was loosened to any `<number>lvh` while a spotlight bar sat BELOW the
+    hero and needed to show above the fold, which made the fraction a design
+    decision. The bar moved INSIDE the hero, so nothing below it needs room and
+    the original reason for 100 is operative again: this rule is an outright
+    size, and too small is a visible gap under the toolbar.
 
-    Every reason recorded above is a reason about the UNIT and every one of
-    them still stands. So the assertion is now: it is `lvh`, and it is a plain
-    `<number>lvh` rather than a measurement or a calc that could smuggle one
-    back in. What the number should be is not this file's business.
+    If a future change puts something under the hero again, loosen it again —
+    but the unit reasons above are permanent and the number is not.
   */
   const height = mobileHeroHeight();
-  assert.match(
+  assert.equal(
     height,
-    /^\d+(?:\.\d+)?lvh$/,
+    '100lvh',
     `mobile .hero height is "${height}".\n\n` +
       '      It must be a plain <number>lvh. svh is short once the address bar\n' +
       '      retracts; dvh re-resolves during scroll and re-rasterizes the\n' +

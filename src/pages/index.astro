@@ -67,43 +67,20 @@ const isHomePage = currentPath === '/';
   */}
 
   {/*
-    ─── THE PROOF, THEN THE ORIENTATION ──────────────────────────────────────
+    `id="hq-content"` is the hero CTA's anchor target, and it is BACK on this
+    section.
 
-    One real, dated piece of coverage above the category tiles.
+    It has to be the first thing BELOW the hero. It moved to the spotlight bar
+    while that bar sat between the hero and this section; the bar is inside the
+    hero now, so targeting it would ask the page to scroll to something that is
+    already on screen — which is the exact bug the note below records.
 
-    A design review proposed getting this by moving Featured Highlights above
-    Categories. That undoes the decision recorded below — orientation before
-    individual content — to buy one thing: evidence the site is alive, which a
-    taxonomy cannot give because four illustrated tiles look identical on a
-    publication that posted this morning and one abandoned two years ago.
-
-    It matters more since the hero was capped: on a 2160px screen roughly
-    1160px of page now shows under it, and every pixel of that was taxonomy.
-
-    So the strip buys the evidence and the order keeps the orientation. It is
-    additive: nothing below moved.
-
-    `id="hq-content"` MOVED HERE WITH THE POSITION, not with the section it was
-    on. It is the hero CTA's target and its rule is "the first thing BELOW the
-    hero" — see the note that follows. Left on Categories, "Enter The Feed"
-    would have scrolled the reader straight PAST the newest story.
-  */}
-  <div id="hq-content" class="dispatch-anchor">
-    <HomeSpotlightBar />
-  </div>
-
-
-  {/*
-    `id="hq-content"` is the hero CTA's anchor target, and it is on the wrapper
-    above rather than here for the reason given there.
-
-    It has to be the first thing BELOW the hero, not the page wrapper. The CTA
-    used to point at `#page-content`, which wraps <main> and therefore starts
-    at offset 0 — so once the splash had been dismissed and the reader
+    The CTA used to point at `#page-content`, which wraps <main> and therefore
+    starts at offset 0, so once the splash had been dismissed and the reader
     scrolled back to the top, pressing the button "scrolled" to where they
     already were and appeared to do nothing at all.
   */}
-  <Section pt="4rem" pb="6rem" maxWidth="1536px">
+  <Section id="hq-content" pt="4rem" pb="6rem" maxWidth="1536px">
     <SectionHeader>
       {/* Copy lives in src/data/content.js -> SECTIONS.whatWeCover */}
       <PageTitle {...SECTIONS.whatWeCover} />
@@ -116,6 +93,29 @@ const isHomePage = currentPath === '/';
       <a href="/feed" class="view-all-link">{LABELS.viewAllContent} &rarr;</a>
     </div>
   </Section>
+
+  {/*
+    ─── THE SPOTLIGHT BANNER SITS BETWEEN THE TWO ────────────────────────────
+
+    Order on this page, and the reason for it:
+
+      1. Hero            who this is
+      2. What We Cover   orientation, the four pillars
+      3. THIS BANNER     what is actually on the site right now
+      4. Featured        the editorial shelf
+
+    It went through two wrong homes before this one. Under the hero, sized so a
+    slice peeked above the fold: a band cut off by the bottom of the screen
+    reads as a mistake, and it forced the hero to be shortened for something
+    that was not part of it. Then inside the hero, floating over the artwork,
+    which buried it in the splash.
+
+    Here it is a break between two sections — orientation above it, editorial
+    below — which is the one place a rotating promo does not compete with
+    either. It is deliberately NOT inside a <Section>: it runs edge to edge
+    like a hero, and Section is the page column.
+  */}
+  <HomeSpotlightBar />
 
   <Section pt="4rem" pb="6rem" maxWidth="1536px">
     <SectionHeader>
@@ -155,14 +155,3 @@ const isHomePage = currentPath === '/';
   <SubscribeCTA />
   </main>
 </Layout>
-
-<style>
-  /*
-    The navbar is fixed, so a bare anchor jump puts the target under it. Same
-    one-property fix, and the same 7rem, that article.css uses for its own
-    in-page headings.
-  */
-  .dispatch-anchor {
-    scroll-margin-top: 7rem;
-  }
-</style>
