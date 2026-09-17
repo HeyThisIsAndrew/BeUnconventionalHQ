@@ -568,6 +568,35 @@ test('the featured shelf describes its own width, not the grid\'s', () => {
   rendition for the old width and every card would go soft. That is the same
   failure this file already guards three times over, arriving by a new route.
 */
+/*
+  ─── EVERY PAGE-LEVEL WRAPPER IS THE SAME WIDTH ─────────────────────────────
+
+  `.container` and `.container-page` are the same idea: the page's content
+  column. They disagreed — `.container` was a hard 1536px while
+  `.container-page` stepped up with the screen — and the navbar is a
+  `.container`. Measured on a 3840 display: the nav ran 1145 -> 2681 while the
+  rows under it ran 648 -> 3177, so the logo sat 497px inboard of the content
+  and the links clustered mid-screen.
+
+  Any new hard-coded page width is the same bug waiting to happen, so this
+  asserts that both read the variable rather than a number.
+*/
+test('the page wrappers all read --page-max, none hard-code a width', () => {
+  const layout = _read('src', 'styles', 'modules', 'layout.css');
+
+  for (const selector of ['.container', '.container-page']) {
+    const rule = layout.match(
+      new RegExp(`(^|\\n)\\${selector}\\s*\\{([^}]*)\\}`, 'm'),
+    );
+    assert.ok(rule, `${selector} must be declared in layout.css`);
+    assert.match(
+      rule[2],
+      /max-width:\s*var\(--page-max\)/,
+      `${selector} must read --page-max, not a fixed width`,
+    );
+  }
+});
+
 test('the card ladder is in px, so growing the root cannot desync the images', () => {
   const layout = _read('src', 'styles', 'modules', 'layout.css');
 

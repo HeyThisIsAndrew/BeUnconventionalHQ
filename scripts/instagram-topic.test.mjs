@@ -247,13 +247,30 @@ const layout = fs.readFileSync(path.join(ROOT, 'src/styles/modules/layout.css'),
 test('tile width, gap and container cap are still what the derivation assumes', () => {
   assert.match(gallery, /\.ig-carousel-tile\s*\{[^}]*flex:\s*0\s+0\s+220px/s, 'tile basis is 220px');
   assert.match(gallery, /\.ig-carousel-track\s*\{[^}]*gap:\s*1\.25rem/s, 'track gap is 1.25rem');
-  assert.match(layout, /\.container\s*\{[^}]*max-width:\s*1536px/s, 'container caps at 1536px');
+
+  /*
+    ─── THE CAP IS A LADDER NOW, AND THE BASE STEP IS WHAT THIS DERIVES FROM ──
+
+    `.container` read a flat 1536px when this threshold was derived. It reads
+    `--page-max` now, which is 1536px at its base step and rises to 2600px on a
+    4K display, so "the widest row the layout can produce" is no longer one
+    number.
+
+    The base step stays the right one to derive from. Raising the threshold to
+    fill a 2600px row would need 11 tiles, and a hub with 8 would then ship no
+    carousel AT ANY WIDTH — trading a full row on the rare screen for an empty
+    section on every other one. What the threshold is actually protecting
+    against is a nearly-empty rail, and 7 tiles in a 2600px row is 60% full and
+    still scrolls.
+  */
+  assert.match(layout, /\.container\s*\{[^}]*max-width:\s*var\(--page-max\)/s, 'container reads the ladder');
+  assert.match(layout, /:root\s*\{[^}]*--page-max:\s*1536px/s, 'the ladder still starts at 1536px');
 });
 
 test('HUB_CAROUSEL_MIN_TILES fills the widest possible row', () => {
   const TILE = 220;
   const GAP = 1.25 * 12.8; // 1.25rem at the ≥768px root size of 80% (=16px)
-  const MAX_ROW = 1536; // .container max-width
+  const MAX_ROW = 1536; // --page-max's BASE step; see the note above
   const tilesPerRow = (MAX_ROW + GAP) / (TILE + GAP);
 
   assert.ok(tilesPerRow > 6 && tilesPerRow < 7, `widest row holds ${tilesPerRow.toFixed(2)} tiles`);

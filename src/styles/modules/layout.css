@@ -28,9 +28,23 @@
    position of `.container` (import order matters — see global.css).
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
+/*
+  ─── THE SAME WIDTH AS THE PAGE BODY, INCLUDING ON A BIG MONITOR ───────────
+
+  `.container` and `.container-page` are the same idea — the page's content
+  column — and they have to be the same number or the furniture stops lining up
+  with the content. This was a hard 1536px while `.container-page` stepped up
+  with the screen, and the navbar is a `.container`: measured on a 3840 display,
+  the nav ran 1145 -> 2681 while the rows under it ran 648 -> 3177. The logo sat
+  497px inboard of the content's left edge and the links clustered in the middle
+  of the screen. Reported as "navbar element positions are too narrowly centered
+  on a 4K monitor".
+
+  `--page-max` is 1536px at its base step, so nothing below 1920 moves at all.
+*/
 .container {
   width: 100%;
-  max-width: 1536px;
+  max-width: var(--page-max);
   margin-inline: auto;
   padding-inline: clamp(1.25rem, calc(0.625rem + 2.5vw), 3rem);
 }
@@ -38,7 +52,7 @@
 /* Interior content pages: feed, events, featured. */
 .container-page {
   width: 100%;
-  max-width: 1536px;
+  max-width: var(--page-max);
   margin: 0 auto;
   padding: 0 2rem;
 }
@@ -120,27 +134,6 @@
   }
 }
 
-/*
-  ─── ON A VERY WIDE SCREEN, MATCH THE HERO ─────────────────────────────────
-
-  The hero grid carries `2xl:!max-w-[1920px]`, so above 1536px the hero and the
-  page body stopped agreeing about where the content column is. Measured on a
-  3840px viewport: the hero ran 953 -> 2873 while the cards under it ran
-  1170 -> 2655. Every row on the page was inset 217px from the hero above it,
-  and the page read as two documents stacked on each other.
-
-  Reported as "in 4K monitor this looks terrible", and this is the half of it
-  that is not the banner: a 1536px column on a 3840px screen also leaves 1152px
-  of empty ground either side, so the whole page sat in the middle looking
-  undersized.
-
-  1920 rather than something wider because that is what the hero caps at. The
-  point is that they are THE SAME NUMBER: a container that overshot the hero
-  would reproduce the same misalignment in the other direction.
-*/
-.container-page {
-  max-width: var(--page-max);
-}
 
 /* Reading-width page: collaborations. */
 .container-narrow {
