@@ -176,6 +176,36 @@ const fallbackMark = await getImage({
       document.documentElement.classList.add('js');
 
       /*
+        ─── A BIG MONITOR IS A PROPERTY OF THE MONITOR, NOT OF THE WINDOW ────
+
+        The root font ladder in global-base.css steps on WINDOW width, and
+        window width cannot tell a 4K panel from a 1080p one. Half of a 3840px
+        monitor is a 1920px window, byte for byte identical to a maximised
+        window on a 1080p screen, so it took the 90% rung and rendered at
+        14.4px -- on a display whose pixels are half the physical size. The
+        report was that the 4K problem "is also present when the site is
+        occupying half of the 4K monitor", and it was right: nothing in CSS
+        could see the difference.
+
+        `screen.width` can. It reports the panel, not the window: measured
+        3840 while `innerWidth` was 1920. So it is read once here and published
+        as an attribute the stylesheet can branch on.
+
+        INLINE AND FIRST, for the same reason `--vv-height` is seeded inline
+        further down: this changes the root font size, so a class arriving
+        after first paint would reflow the entire page and charge it to CLS.
+
+        Plain ES5, no TypeScript syntax: an `is:inline` script is shipped to
+        the browser exactly as written and is never stripped, so a type
+        annotation here is a SyntaxError that takes the whole file down.
+      */
+      try {
+        if (window.screen && screen.width >= 3400) {
+          document.documentElement.setAttribute('data-screen-4k', '');
+        }
+      } catch (e) {}
+
+      /*
         ─── THE REVEAL WATCHDOG ──────────────────────────────────────────────
 
         Two systems on this site ship content at `opacity: 0` and reveal it

@@ -370,6 +370,34 @@ html[data-page-transition='none']::view-transition-new(page-main) {
 }
 
 /*
+  ─── THE SAME PANEL, HALF AS WIDE ─────────────────────────────────────────
+
+  The ladder above steps on the WINDOW, and a 1920px window is a 1920px
+  window whether it is a whole 1080p monitor or half of a 4K one. On the 4K
+  it took the 90% rung, so the site rendered at 14.4px on pixels half the
+  physical size of the ones that rung was chosen for.
+
+  `[data-screen-4k]` is set inline in Layout.astro from
+  `screen.width`, which reports the PANEL rather than the window, and is the
+  only thing available that can tell the two apart.
+
+  130%, the same as the full-screen rung, because the point is that the
+  physical size should not change when the window does. It lands the layout
+  at an effective 1477px at a 1920px window -- within 3% of the 1512px laptop
+  this design is signed off on -- and it leaves the lockup alone, because the
+  `.word-*` clamps are driven by vw and stay proportional to the window.
+
+  The 1600px floor keeps it away from a genuinely small window on a big
+  monitor, where someone has chosen a narrow column and should get one.
+
+  The attribute selector outranks the bare `html` rules above it, so this
+  wins wherever it applies regardless of source order.
+*/
+@media (min-width: 1600px) {
+  :root[data-screen-4k] { font-size: 130%; }
+}
+
+/*
    Smooth scrolling is MOTION, and someone who has asked their OS to reduce
    motion has asked for it to stop.
 
