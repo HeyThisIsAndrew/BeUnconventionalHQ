@@ -39,19 +39,18 @@ const hero = buildImageSet(event?.heroImage, {
 });
 
 /*
-  ─── THE MARK MUST GO THROUGH getImage(), NOT `logoImage.src` ──────────────
+  ─── SIZED, NOT JUST ROUTED THROUGH getImage() ──────────────────────────────
 
-  Same trap ContentCard.astro documents at its watermark: with compile-time
-  image optimization on, Astro emits the TRANSFORMED renditions
-  (logo-mark.<hash>_<variant>.webp) and never the untransformed path that
-  `logoImage.src` resolves to. The reference looks right in the markup and
-  404s in the browser.
+  Getting the path right is only half of it. `getImage({ src })` with no
+  dimensions emits the ORIGINAL, and logo-mark.webp is 414 KB — for an element
+  capped at 180px tall. That shipped as the heaviest request on /feed (405 KB,
+  bigger than the hero backdrop) and helped push mobile LCP to 7.9s.
 
-  It was shipping on 27 built pages, and on /category/* and /events/* it was
-  the hero's VISIBLE logo rather than just the fallback attribute, so the
-  crown simply did not render.
+  ContentCard.astro sizes its watermark for exactly this reason and names the
+  414 KB figure. Requested at 480px wide, matching the widths its real logos are built at just below here, which is 2x the largest size this
+  element is ever displayed at.
 */
-const fallbackLogoSrc = (await getImage({ src: logoImage })).src;
+const fallbackLogoSrc = (await getImage({ src: logoImage, width: 480, format: 'webp', quality: 70 })).src;
 const overrideLogo = event?.customHeroLogo;
 const taxonomyLogo = event?.heroLogo || event?.logo;
 const sourceLogo = overrideLogo || taxonomyLogo;

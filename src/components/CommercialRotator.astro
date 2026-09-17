@@ -67,7 +67,13 @@ const getBannerCopy = (item: ReferralItem) => ({
   <div class="banner-rotator-grid" id="banner-rotator">
     {/* 1. The channel CTA. Always first, always the one that renders without JS. */}
     <a href="https://youtube.com/@BeUnconventionalHQ?sub_confirmation=1" target="_blank" rel="noopener noreferrer" class="yt-subscribe-banner banner-slide" data-state="active" data-meta="YOUTUBE">
-      <Image src={logoImage} alt="Be Unconventional" class="yt-banner-logo" />
+      {/*
+        SIZED. Unsized, <Image> emits the 414 KB original as the plain `src`
+        and it downloaded in full on every page carrying this banner — 403 KB,
+        the single heaviest request on /feed, for an element that renders at
+        48px tall. `height={96}` is 2x that.
+      */}
+      <Image src={logoImage} alt="Be Unconventional" class="yt-banner-logo" height={96} quality={70} />
       {/*
         Same responsive swap as the ad slides, and for the same reason:
         measured at 320px, "Subscribe on YouTube" rendered 187px wide into a
