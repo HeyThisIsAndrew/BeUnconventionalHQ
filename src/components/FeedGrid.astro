@@ -1360,34 +1360,62 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
     position: absolute;
     /* Bleeds past the row on all four sides so the mask has somewhere to fade
        INTO, rather than fading exactly where the content stops. */
-    inset: -2.5rem -50vw -3rem;
+    inset: -3.5rem -50vw -4rem;
     background:
+      /*
+        ─── THE WHOLE ROW IS THEMED, NOT JUST ITS LEFT-HAND END ──────────────
+
+        The wash was one bloom at 20% plus a left-to-right ramp decaying to
+        alpha 0.02 by 80%, so the colour was spent before the third card and
+        everything past it sat on plain black. On a shelf that is meant to BE
+        the show — its banner above it, its logo in the heading — a tint that
+        only reaches the first card reads as a gradient someone forgot to
+        finish rather than as a theme.
+
+        Three layers now, and each has a job:
+
+          a bloom at each END, offset vertically from one another, so the band
+          has depth and neither side is flat;
+
+          an even BED under both, which is what actually themes the middle. It
+          never drops below the blooms' own tail, so there is no stretch of the
+          row that is not in the show's colour.
+
+        Alphas stay low. This is light over the page's own background, not
+        paint: the cards' artwork still has to read as the brightest thing in
+        the row.
+      */
       radial-gradient(
-        ellipse 1300px 480px at 20% 35%,
-        rgba(var(--row-accent-rgb, 204, 0, 0), 0.22) 0%,
-        rgba(var(--row-accent-rgb, 204, 0, 0), 0.09) 45%,
-        rgba(var(--row-accent-rgb, 204, 0, 0), 0.02) 75%,
-        transparent 90%
+        ellipse 1200px 460px at 10% 26%,
+        rgba(var(--row-accent-rgb, 204, 0, 0), 0.24) 0%,
+        rgba(var(--row-accent-rgb, 204, 0, 0), 0.10) 48%,
+        transparent 84%
+      ),
+      radial-gradient(
+        ellipse 1150px 440px at 90% 74%,
+        rgba(var(--row-accent-rgb, 204, 0, 0), 0.20) 0%,
+        rgba(var(--row-accent-rgb, 204, 0, 0), 0.08) 50%,
+        transparent 86%
       ),
       linear-gradient(
         90deg,
-        rgba(var(--row-accent-rgb, 204, 0, 0), 0.14) 0%,
-        rgba(var(--row-accent-rgb, 204, 0, 0), 0.07) 50%,
-        rgba(var(--row-accent-rgb, 204, 0, 0), 0.02) 80%,
-        transparent 100%
+        rgba(var(--row-accent-rgb, 204, 0, 0), 0.13) 0%,
+        rgba(var(--row-accent-rgb, 204, 0, 0), 0.10) 30%,
+        rgba(var(--row-accent-rgb, 204, 0, 0), 0.10) 70%,
+        rgba(var(--row-accent-rgb, 204, 0, 0), 0.13) 100%
       );
     -webkit-mask-image: linear-gradient(
       to bottom,
       transparent 0%,
-      #000 25%,
-      #000 75%,
+      #000 14%,
+      #000 86%,
       transparent 100%
     );
     mask-image: linear-gradient(
       to bottom,
       transparent 0%,
-      #000 25%,
-      #000 75%,
+      #000 14%,
+      #000 86%,
       transparent 100%
     );
     -webkit-mask-repeat: no-repeat;
