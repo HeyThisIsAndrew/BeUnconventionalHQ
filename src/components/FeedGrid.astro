@@ -7,6 +7,7 @@ import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-con
 import { resolveEntity, hexToRgbTriple } from '../lib/entity-resolver';
 import { getHubMatchTags, matchVideosByTags } from '../lib/hub-coverage';
 import CommercialRotator from './CommercialRotator.astro';
+import FloatingPageNav from './FloatingPageNav.astro';
 
 export interface Props {
   page: any;
@@ -550,6 +551,8 @@ const prestigeEyebrow = prestigeHub
 */
 const prestigeBannerArt = prestigeRow ? rowArt(PRESTIGE_ROW.bannerArt) : null;
 const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) : null;
+
+const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
 ---
 
 <style>
@@ -570,12 +573,21 @@ const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) :
     inherited from a neighbour that might be removed again.
   */
   #feed-rows {
-    padding-top: 3rem;
+    padding-top: 3rem; 
+  }
+  
+  :global(.has-spotlight-hero) #feed-rows {
+    position: relative;
+    z-index: 1; /* Sits under the hero's z-index: 10 */
+    margin-top: -12vh;
   }
 
   @media (max-width: 768px) {
     #feed-rows {
       padding-top: 2rem;
+    }
+    :global(.has-spotlight-hero) #feed-rows {
+      margin-top: -10vh;
     }
   }
 
@@ -961,6 +973,35 @@ const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) :
     mask-repeat: no-repeat;
   }
 
+  /*
+    ─── BORDERLESS BRAND LOGO BOOKEND ─────────────────────────────────────────
+  */
+  .feed-bookend--logo-only .feed-bookend-inner {
+    background: transparent !important;
+    border: none;
+    padding: 0;
+    gap: 1.5rem;
+    min-height: auto;
+  }
+
+  .feed-bookend--logo-only .feed-bookend-inner::before {
+    display: none; /* remove the scrim and background */
+  }
+
+  .feed-bookend-logo {
+    max-width: 160px;
+    height: auto;
+    object-fit: contain;
+    opacity: 0.9;
+    transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .feed-bookend-link:hover .feed-bookend-logo,
+  .feed-bookend-link:focus-visible .feed-bookend-logo {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+
   .feed-bookend-link:hover::before,
   .feed-bookend-link:focus-visible::before {
     opacity: 1;
@@ -1091,18 +1132,17 @@ const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) :
   */
   @media (max-width: 899px) {
     .feed-row-item.is-centered :global(.content-card) {
-      outline: 2px solid rgba(255, 255, 255, 0.92);
-      outline-offset: -2px;
+      outline: none;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3), 0 0 12px rgba(255, 255, 255, 0.1);
     }
 
     .feed-row-item.is-selected :global(.content-card) {
-      outline: 2px solid var(--color-accent-text, #ef4444);
-      outline-offset: -2px;
-      box-shadow: 0 0 24px rgba(var(--brand-rgb, 204, 0, 0), 0.45);
+      outline: none;
+      box-shadow: 0 0 0 1px var(--color-accent-text, #ef4444), 0 0 16px rgba(var(--brand-rgb, 239, 68, 68), 0.3);
     }
 
     .feed-row-item :global(.content-card) {
-      transition: outline-color 0.25s ease, box-shadow 0.25s ease;
+      transition: box-shadow 0.25s ease;
     }
   }
 
@@ -1426,7 +1466,9 @@ const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) :
   */}
 
   {hasRows && (
-    <div id="feed-rows">
+    <>
+      <FloatingPageNav entries={navItems} />
+      <div id="feed-rows">
       {prestigeRow && (
         <section
           class="feed-row feed-row--prestige feed-row--accented"
@@ -1449,6 +1491,7 @@ const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) :
               art={prestigeBannerArt}
               logo={prestigeBannerLogo}
               title={prestigeRow.title}
+              eyebrow={prestigeEyebrow}
               accentRgb={prestigeRow.accentRgb}
             />
           )}
@@ -1644,15 +1687,14 @@ const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) :
                   ))}
 
                   {row.explore && (
-                    <li class="feed-row-item feed-bookend feed-bookend--cta">
+                    <li class="feed-row-item feed-bookend feed-bookend--logo-only">
                       <a
                         href={row.explore.href}
                         class="feed-bookend-inner feed-bookend-link"
-                        style={row.bookendHero ? `--bookend-art: url('${row.bookendHero}')` : undefined}
                       >
-                        <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="feed-bookend-icon" aria-hidden="true">
-                          <path d="M5 12h14M12 5l7 7-7 7" />
-                        </svg>
+                        {row.bookendLogo && (
+                          <img src={row.bookendLogo} alt={row.bookendTitle} class="feed-bookend-logo" loading="lazy" decoding="async" />
+                        )}
                         <span>Explore<br />{row.bookendTitle}</span>
                       </a>
                     </li>
@@ -1664,6 +1706,7 @@ const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) :
         </section>
       ))}
     </div>
+    </>
   )}
 
   {/*
@@ -1959,7 +2002,12 @@ const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) :
 
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const behavior = instant || reduced ? 'auto' : 'smooth';
-    setTimeout(() => row.scrollIntoView({ behavior, block: 'center' }), 150);
+    
+    if (instant) {
+      row.scrollIntoView({ behavior: 'auto', block: 'center' });
+    } else {
+      setTimeout(() => row.scrollIntoView({ behavior, block: 'center' }), 150);
+    }
   }
 
   /* Same reason as /featured's: a hash change on the page you are already on is
@@ -1973,11 +2021,20 @@ const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) :
   (window as any)[ROW_HASH_KEY] = onRowHashChange;
   window.addEventListener('hashchange', onRowHashChange);
 
+  document.addEventListener('astro:after-swap', () => {
+    /* `true`: this is an arrival, so the row is already in place behind the
+       page transition rather than scrolled to after it. Fires in after-swap
+       so the browser captures the scrolled page for its View Transition
+       snapshot, preventing a mid-animation jump. */
+    scrollToHashRow(true);
+  });
+
   document.addEventListener('astro:page-load', () => {
     initFeedRows();
-    /* `true`: this is an arrival, so the row is already in place behind the
-       page transition rather than scrolled to after it. */
-    scrollToHashRow(true);
+    /* Fallback for hard reloads where after-swap doesn't fire */
+    if (!document.documentElement.dataset.pageTransition) {
+      scrollToHashRow(true);
+    }
     
     /*
       ─── THE SPOTLIGHT SWAP MOVED TO THE HERO ────────────────────────────────

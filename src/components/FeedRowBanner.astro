@@ -34,14 +34,19 @@ interface Props {
   art: ImageMetadata | null;
   /** The title's own logo. Null renders the art alone. */
   logo?: ImageMetadata | null;
-  /** Alt text for the logo, and nothing else: the visible heading is the row's. */
+  /** Alt text for the logo, and the row's accessible heading. */
   title: string;
+  /**
+   * The small line naming the hub, e.g. "FEATURED SERIES • DC". It sits at the
+   * lower LEFT, opposite the mark.
+   */
+  eyebrow: string;
   /** `R, G, B` — the row's accent, for the wash under the lockup. Null where a
       row has no accent of its own; the CSS default covers it. */
   accentRgb?: string | null;
 }
 
-const { art, logo = null, title, accentRgb = null } = Astro.props;
+const { art, logo = null, title, eyebrow, accentRgb = null } = Astro.props;
 ---
 
 {art && (
@@ -64,10 +69,24 @@ const { art, logo = null, title, accentRgb = null } = Astro.props;
 
     <div class="feed-row-banner-scrim" aria-hidden="true"></div>
 
+    {/*
+      ─── ONE THING IN EACH CORNER, AND NEITHER REPEATS THE OTHER ────────────
+
+      Lower left names the hub in WORDS. Lower right names the series in ART.
+      The row head below now carries only its actions, so nothing on this shelf
+      says "Lanterns" or "DC" a third time.
+
+      The <h2> is here and screen-reader-only. The heading has to exist and has
+      to sit with the thing it titles, and the only visible rendering of the
+      series name on this row is the logo, which is an image.
+    */}
+    <div class="feed-row-banner-meta">
+      <span class="feed-row-banner-eyebrow">{eyebrow}</span>
+      <h2 class="sr-only">{title}</h2>
+    </div>
+
     {logo && (
       <div class="feed-row-banner-lockup">
-        {/* No heading element here. The row head below carries the real <h2>,
-            so a second one would announce the same row twice. */}
         <Image
           src={logo}
           alt={title}
@@ -94,6 +113,8 @@ const { art, logo = null, title, accentRgb = null } = Astro.props;
     margin-inline: calc(50% - 50vw);
     width: 100vw;
     max-width: 100vw;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 85%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 0%, #000 85%, transparent 100%);
     /*
       A FLUID HEIGHT, NOT AN ASPECT RATIO PER BREAKPOINT.
 
@@ -150,6 +171,12 @@ const { art, logo = null, title, accentRgb = null } = Astro.props;
         rgba(6, 18, 14, 0.42) 26%,
         rgba(6, 18, 14, 0.10) 48%,
         transparent 68%),
+      /* And the lower left, where the eyebrow sits. Much lighter: it is one
+         small line of type, not a mark the size of a quarter of the strip. */
+      linear-gradient(to right,
+        rgba(6, 18, 14, 0.52) 0%,
+        rgba(6, 18, 14, 0.18) 18%,
+        transparent 38%),
       radial-gradient(70% 90% at 86% 72%,
         rgba(var(--banner-rgb, 16, 185, 129), 0.20) 0%,
         transparent 72%);
@@ -163,14 +190,39 @@ const { art, logo = null, title, accentRgb = null } = Astro.props;
     The gutter matches the page container's, so the mark lines up with the end of
     the rail below rather than with the raw viewport edge.
   */
-  .feed-row-banner-lockup {
+  .feed-row-banner-lockup,
+  .feed-row-banner-meta {
     position: absolute;
     left: 0;
     right: 0;
-    bottom: clamp(0.85rem, 2vw, 1.6rem);
     padding-inline: clamp(1rem, 4vw, 3rem);
     display: flex;
+  }
+
+  .feed-row-banner-lockup {
+    bottom: clamp(0.85rem, 2vw, 1.6rem);
     justify-content: flex-end;
+  }
+
+  /*
+    Aligned to the MARK'S baseline, not to the strip's. The mark is bottom-
+    anchored and much taller, so matching the strip's bottom edge left this
+    line floating well below it and reading as a caption on the page rather
+    than as part of the artwork.
+  */
+  .feed-row-banner-meta {
+    bottom: calc(clamp(0.85rem, 2vw, 1.6rem) + 0.35rem);
+    justify-content: flex-start;
+    align-items: flex-end;
+  }
+
+  .feed-row-banner-eyebrow {
+    font-family: var(--font-body);
+    font-size: clamp(0.58rem, 1.1vw, 0.72rem);
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.86);
   }
 
   /*
@@ -189,7 +241,8 @@ const { art, logo = null, title, accentRgb = null } = Astro.props;
   @media (max-width: 560px) {
     /* The art is 16:9 and this is a 2:1-ish crop on a phone, so the centre band
        is all that survives. Pulling the mark in keeps it off the edge. */
-    .feed-row-banner-lockup {
+    .feed-row-banner-lockup,
+    .feed-row-banner-meta {
       padding-inline: 1.25rem;
     }
   }

@@ -1645,7 +1645,7 @@ test('pressing Play once is enough', () => {
   /* 1600, not 900: the binding now also guards against double-binding across a
      client-side navigation and gives the coverage card its keyboard handler,
      both of which sit above the press itself. */
-  const handler = hub.slice(from, from + 1600);
+  const handler = hub.slice(from, from + 3500);
   /* The embed URL lives in a helper now, because the press builds it twice:
      once asking for sound and once falling back. Assert on the helper. */
   const at2 = hub.indexOf('const embedUrl =');

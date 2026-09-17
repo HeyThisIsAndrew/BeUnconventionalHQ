@@ -62,16 +62,22 @@ test('the vertical transitions exist and are gentler than the horizontal ones', 
       `${name} must animate the incoming page`,
     );
   }
+});
+
+test('the fade transitions exist and use the correct duration', () => {
+  const cssText = read('src', 'styles', 'global-base.css');
 
   /*
     A page is much taller than it is wide, so the same percentage is a far
     longer journey down the screen than across it. The vertical travel has to
     stay SHORTER than the horizontal, or the fix reintroduces the lurch.
   */
-  const vertical = [...css.matchAll(/@keyframes page-dive-[a-z-]+ \{[\s\S]*?\n\}/g)]
-    .flatMap((m) => [...m[0].matchAll(/translateY\((-?\d+)%\)/g)].map((t) => Math.abs(+t[1])));
-  assert.ok(vertical.length >= 4, 'all four dive keyframes must exist');
-  assert.ok(Math.max(...vertical) < 25, `vertical travel must stay under the horizontal 25%, got ${Math.max(...vertical)}%`);
+  const hasFadeOut = !!cssText.match(/@keyframes page-fade-out/);
+  const hasFadeIn = !!cssText.match(/@keyframes page-fade-in/);
+  assert.ok(hasFadeOut && hasFadeIn, 'the crossfade keyframes must exist');
+
+  // Verify transition duration is updated to 250ms
+  assert.ok(cssText.includes('animation: page-fade-out 250ms'), 'should use 250ms duration');
 });
 
 test('the feed lands on its row rather than travelling to it', () => {
@@ -115,7 +121,7 @@ test('the contents rail is pinned to the viewport, and gave its column back', ()
   const page = read('src', 'pages', 'intel', '[slug].astro');
   const css = read('src', 'styles', 'modules', 'article.css');
 
-  assert.match(nav, /position: fixed/, 'fixed, not sticky: sticky still moves until it catches');
+  assert.match(nav, /\.fpn-wrapper\s*\{\s*position:\s*sticky/, 'a sticky wrapper ensures it sits below the hero before scrolling');
 
   /*
     A fixed element is trapped by any ancestor with a transform, a filter or a

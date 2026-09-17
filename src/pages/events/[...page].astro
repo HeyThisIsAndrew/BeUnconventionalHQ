@@ -133,7 +133,7 @@ const featuredEvent = featuredProp;
           <h2 id="more-upcoming-heading" class="intel-break-title">UPCOMING EVENTS</h2>
         </div>
       )}
-      <div class="grid grid-cols-1 md:grid-cols-12 md:gap-8 lg:items-start w-full" style={secondaryUpcoming.length === 0 ? "margin-top: 3.5rem;" : ""}>
+      <div class="events-page-grid grid grid-cols-1 md:grid-cols-12 md:gap-8 lg:items-start w-full" style={secondaryUpcoming.length === 0 ? "margin-top: 3.5rem;" : ""}>
         {/*
           OVERFLOW GUARDRAIL (min-w-0): grid/flex children default to
           min-width:auto and refuse to shrink below their intrinsic content, so a
@@ -269,7 +269,16 @@ const featuredEvent = featuredProp;
 </Layout>
 
 <style>
-  /* Page width wrapper now shared: `.container-page` in modules/layout.css */
+  /* Scope View Transitions to the grid so the page header doesn't flash */
+  :global(#page-content) {
+    view-transition-name: none !important;
+  }
+  .events-page-grid {
+    view-transition-name: page-main;
+  }
+
+  /* 
+    The layout wrapper gives the whole page a dark base, but `.container-page` in modules/layout.css */
 
   .events-none {
     display: flex;

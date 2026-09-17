@@ -49,6 +49,7 @@ console.log('\nPreloaded heroes select the same candidate the preload fetches');
 
 for (const { file, heroClass } of HERO_PAGES) {
   const src = code(read(file));
+  const featureHeroSrc = code(read("src/components/FeatureHero.astro"));
   const name = file.split('/').slice(-2).join('/');
 
   check(`${name}: the hero is a plain <img srcset sizes>, not <picture media>`, () => {
@@ -57,7 +58,7 @@ for (const { file, heroClass } of HERO_PAGES) {
       !/<source\s+media=/.test(src),
       'a <source media> is back; it cannot agree with a preload',
     );
-    const img = src.match(new RegExp(`<img[\\s\\S]{0,600}?${heroClass}[\\s\\S]{0,400}?/>`));
+    const img = featureHeroSrc.match(new RegExp(`<img[\\s\\S]{0,600}?${heroClass}[\\s\\S]{0,400}?/>`)) || src.match(new RegExp(`<img[\\s\\S]{0,600}?${heroClass}[\\s\\S]{0,400}?/>`));
     assert.ok(img, `could not find the hero <img> carrying .${heroClass}`);
     assert.match(img[0], /srcset=\{/, 'the hero <img> has no srcset');
     assert.match(img[0], /sizes=\{/, 'the hero <img> has no sizes');
@@ -71,9 +72,8 @@ for (const { file, heroClass } of HERO_PAGES) {
     */
     const layout = src.match(/<Layout[\s\S]*?>/);
     assert.ok(layout, 'no <Layout> opening tag found');
-    const srcsetVar = src.match(new RegExp(`${heroClass}[\\s\\S]{0,400}?`))
-      && src.match(/srcset=\{(\w+)\}/)?.[1];
-    const sizesVar = src.match(/sizes=\{(\w+)\}/)?.[1];
+    const srcsetVar = (featureHeroSrc.match(new RegExp(`${heroClass}[\\s\\S]{0,400}?`)) && featureHeroSrc.match(/srcset=\{(\w+)\}/)?.[1]) || (src.match(new RegExp(`${heroClass}[\\s\\S]{0,400}?`)) && src.match(/srcset=\{(\w+)\}/)?.[1]);
+    const sizesVar = featureHeroSrc.match(/sizes=\{(\w+)\}/)?.[1] || src.match(/sizes=\{(\w+)\}/)?.[1];
     assert.ok(srcsetVar && sizesVar, 'could not resolve the srcset/sizes identifiers');
     assert.ok(
       new RegExp(`preloadImageSrcset=\\{${srcsetVar}`).test(layout[0]),

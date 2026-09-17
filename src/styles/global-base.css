@@ -93,117 +93,100 @@ html[data-astro-transition] {
 
 ::view-transition-old(page-main),
 ::view-transition-new(page-main) {
-  /* The snapshots are the same size, so neither needs to be squashed into the
-     other's box while it moves. */
-  width: 100%;
+  /* When filtering, heights change drastically. Preventing the old/new snapshots
+     from stretching to match the transitioning group box stops the 'stretch' effect. */
   height: 100%;
+  width: 100%;
+  object-fit: none;
+  object-position: top center;
 }
 
-html[data-page-transition='slide-forward']::view-transition-old(page-main) {
-  animation: page-slide-out-left 380ms var(--splash-ease) both;
+::view-transition-group(page-main) {
+  animation: none !important;
 }
 
-html[data-page-transition='slide-forward']::view-transition-new(page-main) {
-  animation: page-slide-in-right 380ms var(--splash-ease) both;
+@keyframes page-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
-html[data-page-transition='slide-backward']::view-transition-old(page-main) {
-  animation: page-slide-out-right 380ms var(--splash-ease) both;
+@keyframes page-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-html[data-page-transition='slide-backward']::view-transition-new(page-main) {
-  animation: page-slide-in-left 380ms var(--splash-ease) both;
-}
-
-/*
-  25%, not 100%. A full-width slide on a page this tall reads as a lurch, and
-  it also means the incoming page spends most of the animation off screen. A
-  quarter of the width plus the opacity cross-fade gives the direction without
-  the distance.
-*/
 @keyframes page-slide-out-left {
   from { transform: translateX(0); opacity: 1; }
-  to { transform: translateX(-25%); opacity: 0; }
+  to { transform: translateX(-15%); opacity: 0; }
 }
-
 @keyframes page-slide-in-right {
-  from { transform: translateX(25%); opacity: 0; }
+  from { transform: translateX(15%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
-
 @keyframes page-slide-out-right {
   from { transform: translateX(0); opacity: 1; }
-  to { transform: translateX(25%); opacity: 0; }
+  to { transform: translateX(15%); opacity: 0; }
 }
-
 @keyframes page-slide-in-left {
-  from { transform: translateX(-25%); opacity: 0; }
+  from { transform: translateX(-15%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
-
-/*
-  ─── A LINK THAT NAMES A SECTION IS A DESCENT, NOT A JOURNEY ───────────────
-
-  The "What We Cover" tiles go to /feed#film, /feed#tv, /feed#games. Along the
-  nav that is Home -> Feed, one step right, so it slid sideways — and then the
-  feed scrolled down several thousand pixels to the row. Two motions, in two
-  axes, one after the other. Reported as "way too jarring", and the horizontal
-  half was the part that did not match what was happening.
-
-  Arriving at an anchor moves DOWN: the old page rises out of the way and the
-  new one comes up from below, which is the same gesture as scrolling to the
-  thing you asked for. Leaving one moves back up.
-
-  14%, where the horizontal slides use 25%. A page is much taller than it is
-  wide, so the same percentage is a far longer journey down the screen than
-  across it. 440ms rather than 380 for the same reason: a vertical move of this
-  size wants a beat more to read as travel instead of a jump.
-
-  This pairs with the feed landing on its row INSTANTLY on arrival rather than
-  smooth-scrolling to it (see scrollToHashRow in FeedGrid.astro). The animation
-  is the travel; a second animation underneath it was the lurch.
-*/
-html[data-page-transition='dive-down']::view-transition-old(page-main) {
-  animation: page-dive-out-up 440ms var(--splash-ease) both;
-}
-
-html[data-page-transition='dive-down']::view-transition-new(page-main) {
-  animation: page-dive-in-up 440ms var(--splash-ease) both;
-}
-
-html[data-page-transition='dive-up']::view-transition-old(page-main) {
-  animation: page-dive-out-down 440ms var(--splash-ease) both;
-}
-
-html[data-page-transition='dive-up']::view-transition-new(page-main) {
-  animation: page-dive-in-down 440ms var(--splash-ease) both;
-}
-
-@keyframes page-dive-out-up {
-  from { transform: translateY(0); opacity: 1; }
-  to { transform: translateY(-14%); opacity: 0; }
-}
-
-@keyframes page-dive-in-up {
-  from { transform: translateY(14%); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
 @keyframes page-dive-out-down {
   from { transform: translateY(0); opacity: 1; }
-  to { transform: translateY(14%); opacity: 0; }
+  to { transform: translateY(5%); opacity: 0; }
+}
+@keyframes page-dive-in-down {
+  from { transform: translateY(-5%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes page-dive-out-up {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(-5%); opacity: 0; }
+}
+@keyframes page-dive-in-up {
+  from { transform: translateY(5%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
-@keyframes page-dive-in-down {
-  from { transform: translateY(-14%); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+/* SLIDE FORWARD (e.g. Feed -> Intel) */
+html[data-page-transition='slide-forward']::view-transition-old(page-main) {
+  animation: page-slide-out-left 350ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+html[data-page-transition='slide-forward']::view-transition-new(page-main) {
+  animation: page-slide-in-right 350ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* SLIDE BACKWARD (e.g. Intel -> Feed) */
+html[data-page-transition='slide-backward']::view-transition-old(page-main) {
+  animation: page-slide-out-right 350ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+html[data-page-transition='slide-backward']::view-transition-new(page-main) {
+  animation: page-slide-in-left 350ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* DIVE DOWN (e.g. Landing on an anchor) */
+html[data-page-transition='dive-down']::view-transition-old(page-main) {
+  animation: page-dive-out-up 350ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+html[data-page-transition='dive-down']::view-transition-new(page-main) {
+  animation: page-dive-in-up 350ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* DIVE UP (e.g. Leaving an anchor) */
+html[data-page-transition='dive-up']::view-transition-old(page-main) {
+  animation: page-dive-out-down 350ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+html[data-page-transition='dive-up']::view-transition-new(page-main) {
+  animation: page-dive-in-down 350ms cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
 /* An in-page action — a filter, a spotlight swap, a hash on the page you are
-   already on — is not a journey anywhere, so it does not move. */
-html[data-page-transition='none']::view-transition-old(page-main),
+   already on — should crossfade smoothly without changing size or morphing. */
+html[data-page-transition='none']::view-transition-old(page-main) {
+  animation: page-fade-out 250ms ease-in-out both;
+}
 html[data-page-transition='none']::view-transition-new(page-main) {
-  animation: none !important;
+  animation: page-fade-in 250ms ease-in-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {

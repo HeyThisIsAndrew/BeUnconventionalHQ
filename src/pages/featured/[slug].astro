@@ -657,8 +657,29 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
                 </div>
               );
             })}
+          
           </div>
-
+          {/* Dynamic pane for articles selected outside the rail */}
+          <div class="hub-stage-item hub-stage-item--dynamic" data-index="dynamic" aria-hidden="true" inert>
+            <img src="" alt="" class="hub-stage-item-still" loading="lazy" style="opacity: 0;" />
+            <span class="hub-stage-item-scrim"></span>
+            <div class="hub-stage-item-copy">
+              <span class="hub-stage-item-kind">Article</span>
+              <p class="hub-stage-item-title"></p>
+              <a href="#" class="hub-stage-item-action">Read</a>
+            </div>
+          </div>
+          </div>
+          {/* Dynamic pane for articles selected outside the rail */}
+          <div class="hub-stage-item hub-stage-item--dynamic" data-index="dynamic" aria-hidden="true" inert>
+            <img src="" alt="" class="hub-stage-item-still" loading="lazy" style="opacity: 0;" />
+            <span class="hub-stage-item-scrim"></span>
+            <div class="hub-stage-item-copy">
+              <span class="hub-stage-item-kind">Article</span>
+              <p class="hub-stage-item-title"></p>
+              <a href="#" class="hub-stage-item-action">Read</a>
+            </div>
+          </div>
             {heroItems.length > 0 && (
               /*
                 THE RAIL. The hub's most recent coverage, videos and articles
@@ -2579,9 +2600,45 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
         });
       }
 
-      btn.addEventListener('click', async () => {
+      
+      btn.addEventListener('click', async (e) => {
         const id = btn.dataset.hubPlay;
         if (!id || !frame) return;
+
+        if (btn.dataset.type === 'article') {
+          e.preventDefault();
+          const dynamicPane = stage.querySelector('.hub-stage-item--dynamic');
+          if (!dynamicPane) return;
+
+          const titleEl = dynamicPane.querySelector('.hub-stage-item-title');
+          const imgEl = dynamicPane.querySelector('.hub-stage-item-still');
+          const linkEl = dynamicPane.querySelector('.hub-stage-item-action');
+
+          if (titleEl) titleEl.textContent = btn.dataset.title || '';
+          if (imgEl && btn.dataset.image) {
+            imgEl.src = btn.dataset.image;
+            imgEl.style.opacity = '1';
+          }
+          if (linkEl) linkEl.href = id;
+
+          const panes = Array.from(stage.querySelectorAll('.hub-stage-item'));
+          panes.forEach((pane) => {
+            const on = pane === dynamicPane;
+            pane.classList.toggle('active', on);
+            pane.setAttribute('aria-hidden', on ? 'false' : 'true');
+            pane.toggleAttribute('inert', !on);
+          });
+          
+          stage.classList.add('is-item');
+          stage.classList.remove('is-playing');
+          stage.classList.remove('is-chosen-video');
+
+          if (!stage.contains(btn)) {
+            stage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+          return;
+        }
+
         const token = ++playToken;
 
         stage.classList.remove('is-item');

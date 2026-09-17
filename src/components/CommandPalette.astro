@@ -681,12 +681,40 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
     padding: 0;
     margin: 0;
     overflow: visible;
+    opacity: 0;
+    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.1);
   }
+
+  .cmd-palette[open] {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+
+  @starting-style {
+    .cmd-palette[open] {
+      opacity: 0;
+      transform: translate(-50%, -45%) scale(0.95);
+    }
+  }
+
   .cmd-palette::backdrop {
     background: rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
+    opacity: 0;
+    transition: opacity 0.3s ease;
   }
+
+  .cmd-palette[open]::backdrop {
+    opacity: 1;
+  }
+
+  @starting-style {
+    .cmd-palette[open]::backdrop {
+      opacity: 0;
+    }
+  }
+
   .cmd-palette[open] .cmd-palette-content {
     opacity: 1;
     transform: scale(1) translateY(0);

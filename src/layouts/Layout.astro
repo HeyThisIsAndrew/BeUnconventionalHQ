@@ -468,6 +468,19 @@ const fallbackMark = await getImage({
           if (toHash) return 'dive-down';
           if (fromHash) return 'dive-up';
 
+          /*
+            INTEL FILTERS ARE IN-PLACE CROSSFADES, NOT SPATIAL NAVIGATION.
+            Navigating between /intel and /intel/topic/* changes the grid, not
+            the depth of the page. It must crossfade in place ('none') rather
+            than sliding sideways like an article descent.
+          */
+          var isIntelFilter = function(p) {
+            return p === '/intel' || p === '/intel/' || p.indexOf('/intel/topic/') === 0;
+          };
+          if (isIntelFilter(fromPath) && isIntelFilter(toPath)) {
+            return 'none';
+          }
+
           var from = indexOfRoute(fromPath);
           var to = indexOfRoute(toPath);
 

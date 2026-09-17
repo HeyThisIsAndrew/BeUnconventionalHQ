@@ -130,7 +130,7 @@ const externalLinkProps = isExternalLink
   article.
 */
 const isHubContext = context === 'hub';
-const hubPlayId = isHubContext && isPlayable ? videoId : null;
+const hubPlayId = isHubContext ? (isPlayable ? videoId : item.link) : null;
 
 const dataAction = context === 'feed'
   ? (isPlayable ? 'spotlight-video' : 'spotlight-article')
@@ -226,7 +226,7 @@ const baseProps = {
   'data-hub-play': hubPlayId ?? undefined,
 };
 
-const wrapperProps = (isPlayable || context === 'feed')
+const wrapperProps = (isPlayable || context === 'feed' || context === 'hub')
   ? {
       ...baseProps,
       'data-video-id': videoId,
@@ -400,6 +400,11 @@ if (isVideo && item.youtubeId) {
          accessible name already says what it is. */
       <span class="content-card-format" aria-hidden="true">{isVideo ? 'VIDEO' : 'ARTICLE'}</span>
     )}
+    {variant === 'hero' && finalTags.length > 0 && (
+      <div class="content-card-hero-tags">
+        {finalTags.join(' | ')}
+      </div>
+    )}
     {cardImage ? (
       <img
         class="content-card-img"
@@ -464,7 +469,7 @@ if (isVideo && item.youtubeId) {
       the tab order wrong, which is what a screen reader and a keyboard follow.
     */}
     <div class="content-card-title-wrapper">
-      {finalTags.length > 0 && (
+      {variant !== 'hero' && finalTags.length > 0 && (
         <div class="content-card-dynamic-tags">
           {finalTags.join(' | ')}
         </div>
@@ -645,6 +650,13 @@ if (isVideo && item.youtubeId) {
     gap: 0.3rem; /* ensures title pushes tags down safely */
   }
 
+  @media (max-width: 768px) {
+    :global(.content-card-title-wrapper) {
+      gap: 0.15rem;
+      margin-bottom: 0.3rem;
+    }
+  }
+
   :global(.content-card-title) {
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -669,10 +681,24 @@ if (isVideo && item.youtubeId) {
     min-height: 1.2rem;
     display: flex;
     align-items: center; /* Vertically center within the gap */
-    
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  :global(.content-card-hero-tags) {
+    position: absolute;
+    bottom: 1rem;
+    left: 1rem;
+    z-index: 5;
+    font-family: var(--font-body, 'Inter', sans-serif);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.9);
+    pointer-events: none;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
   }
 
 </style>
