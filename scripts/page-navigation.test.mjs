@@ -563,14 +563,27 @@ test('the contents rail tracks the section you jumped to', () => {
   assert.match(nav, /setActive\(id\);/, 'the clicked entry lights immediately');
 
   /*
-    The jump is made TWICE. The second call is a no-op when nothing moved, and
-    corrects the first click of a cold load when it did.
+    ─── ONE MOVEMENT, AIMED AFTER THE LAYOUT SETTLES ─────────────────────────
+
+    The first attempt scrolled immediately and then again 350ms later to correct
+    for images landing above the fold. It corrected, and the reader saw TWO
+    jumps — reported as "it is not smoothly scrolling it jumps around".
+
+    So the order is reversed: wait for the target to stop moving, then scroll
+    once. Measured on the reported case (1st entry -> 5th on the Resident Evil
+    article): 61 scroll events, 0 direction reversals, landing on target.
   */
-  assert.match(nav, /event\.preventDefault\(\)/, 'the browser jump is replaced by one we can repeat');
+  assert.match(nav, /event\.preventDefault\(\)/, 'the browser jump is replaced by one we control');
+  assert.match(nav, /const whenStable = \(\) =>/, 'the target must stop moving before it is aimed at');
   assert.match(
     nav,
+    /behavior: reduced \? 'auto' : 'smooth'/,
+    'the movement is smooth, and instant only when motion is reduced',
+  );
+  assert.doesNotMatch(
+    nav,
     /jump\(\);\s*\n\s*window\.setTimeout\(\(\) => \{\s*\n\s*jump\(\);/,
-    'scroll now, and again once layout has settled',
+    'scrolling twice is what read as jumping around',
   );
   assert.match(
     nav,

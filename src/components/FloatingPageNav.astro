@@ -466,32 +466,64 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
         setActive(id);
 
         /*
-          ─── THE JUMP HAS TO BE MADE TWICE ──────────────────────────────────
+          ─── ONE MOVEMENT, AIMED AFTER THE LAYOUT HAS SETTLED ───────────────
 
-          A native anchor jump resolves against the layout AS IT IS at that
-          instant. On the first interaction with an article the images above the
-          fold have not finished laying out, so everything below them shifts
-          down afterwards and the heading ends up hundreds of pixels below where
-          it was aimed. Measured on the first click of a cold load: the target
-          landed at 842px instead of the ~90px its `scroll-margin-top` asks for.
+          The problem this solves is that a native anchor jump resolves against
+          the layout AS IT IS at that instant. On the first interaction with an
+          article the images above the fold have not finished laying out, so
+          everything below shifts down afterwards and the heading ends up far
+          below where it was aimed — measured at 842px against the ~90px its
+          `scroll-margin-top` asks for.
 
-          Later clicks looked fine, which is exactly why this is worth handling
-          rather than dismissing — it only misses on the first one, which is the
-          one every reader makes.
+          The first attempt at this scrolled immediately and then scrolled AGAIN
+          350ms later to correct. It corrected, and it was worse: the reader saw
+          two jumps instead of one. Reported as "it is not smoothly scrolling it
+          jumps around".
 
-          So the browser's own jump is replaced by one we can repeat: scroll
-          now, then again once layout has settled. The second call is a no-op
-          when nothing moved. `scroll-margin-top` on the heading still supplies
-          the offset under the fixed navbar, so the number lives in the CSS.
+          So the order is reversed. Wait for the target to stop moving, THEN
+          scroll once, smoothly. Stability is two consecutive frames-plus-a-beat
+          at the same document offset, capped so a page that never settles still
+          goes. The reader sees a single continuous movement that lands where it
+          was aimed, which is the whole point.
+
+          `scroll-margin-top` on the heading still supplies the offset under the
+          fixed navbar, so the number stays in the CSS where it belongs.
         */
         event.preventDefault();
 
-        const jump = () => heading.scrollIntoView({ behavior: 'auto', block: 'start' });
-        jump();
-        window.setTimeout(() => {
-          jump();
-          syncFallback();
-        }, 350);
+        const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const offsetOf = () => heading.getBoundingClientRect().top + window.scrollY;
+
+        let previous = offsetOf();
+        let settled = 0;
+
+        const go = () => heading.scrollIntoView({
+          behavior: reduced ? 'auto' : 'smooth',
+          block: 'start',
+        });
+
+        const whenStable = () => {
+          const now = offsetOf();
+          /* Within a pixel counts as unmoved: sub-pixel layout rounding would
+             otherwise keep resetting the counter and the cap would always win. */
+          if (Math.abs(now - previous) <= 1) {
+            go();
+            window.setTimeout(syncFallback, reduced ? 0 : 600);
+            return;
+          }
+          previous = now;
+          settled += 1;
+          /* ~8 frames. Long enough for images above to land, short enough that
+             the click never feels ignored. */
+          if (settled >= 8) {
+            go();
+            window.setTimeout(syncFallback, reduced ? 0 : 600);
+            return;
+          }
+          window.setTimeout(whenStable, 16);
+        };
+
+        whenStable();
 
         /* The address bar should still say where the reader is. `replaceState`
            rather than assigning `location.hash`, which would re-trigger the
