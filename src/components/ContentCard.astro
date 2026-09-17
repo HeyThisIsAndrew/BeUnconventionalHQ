@@ -14,7 +14,14 @@ export interface Props {
   item: any;
   index: number;
   variant?: 'default' | 'hero';
-  context?: 'feed' | 'default';
+  /**
+   * Which surface this card is on, and therefore what clicking it does.
+   *
+   *   'feed'    promotes the item into <FeedSpotlightHero /> above it
+   *   'hub'     plays it in the hub/event page's own stage
+   *   'default' opens the modal, or follows the link for an article
+   */
+  context?: 'feed' | 'hub' | 'default';
 }
 
 const { item, index = 0, variant = 'default', context = 'default' } = Astro.props;
@@ -111,9 +118,25 @@ const externalLinkProps = isExternalLink
   : {};
 
 // Feed context changes the action to spotlight swapping rather than normal links or modals
-const dataAction = context === 'feed' 
+/*
+  ─── WHAT A CLICK MEANS DEPENDS ON THE HERO ABOVE IT ────────────────────────
+
+  A hub or event page already has a stage that plays video, driven by
+  `data-hub-play`. A card there should feed THAT, not open the site-wide modal:
+  a popup over a page whose whole top half is a player reads as the page losing
+  its place — the same reasoning the stage's own rail carries in its markup.
+
+  Articles on those pages stay ordinary links, because the stage cannot show an
+  article.
+*/
+const isHubContext = context === 'hub';
+const hubPlayId = isHubContext && isPlayable ? videoId : null;
+
+const dataAction = context === 'feed'
   ? (isPlayable ? 'spotlight-video' : 'spotlight-article')
-  : (isPlayable ? (variant === 'hero' ? 'inline-video' : 'open-video') : undefined);
+  : isHubContext
+    ? undefined
+    : (isPlayable ? (variant === 'hero' ? 'inline-video' : 'open-video') : undefined);
 
 /*
   The card's hub, carried to the Feed hero so a swap can repaint the logo and
@@ -147,6 +170,8 @@ const brandData = entity
     })
   : undefined;
 
+/* A playable card on a hub page is a control, not a link: it drives the stage
+   in place rather than navigating. */
 const CardWrapper = isPlayable || context === 'feed' ? 'div' : 'a';
 
 /*
@@ -197,6 +222,8 @@ const baseProps = {
     VIDEO/ARTICLE in that case.
   */
   'data-tags': finalTags.join(' | '),
+  /* Picked up by the hub/event stage's delegated play handler. */
+  'data-hub-play': hubPlayId ?? undefined,
 };
 
 const wrapperProps = (isPlayable || context === 'feed')

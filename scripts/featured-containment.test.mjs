@@ -1362,7 +1362,20 @@ test('the hub hero rail never cuts a card at any edge', () => {
   assert.match(decl, /--rail-fade-start, 0%/, 'the start ramp must default to zero');
   assert.match(decl, /--rail-fade-end, 0%/, 'the end ramp must default to zero');
 
-  const js = hub.slice(hub.indexOf('function initHubRail'));
+  /*
+    BOUNDED TO initHubRail, not sliced to the end of the file.
+
+    The open-ended slice was fine only while the rail happened to be the last
+    thing in the module. It is not any more: initHubPlay() sits below it and
+    scrolls the STAGE into view with `behavior: 'smooth'`, which is a vertical
+    scroll of the page and has nothing to do with the rail's fade. Read to the
+    end and this test failed on a line it was never written about.
+  */
+  const railFrom = hub.indexOf('function initHubRail');
+  assert.ok(railFrom > -1, 'the rail must initialise itself');
+  const js = hub.slice(railFrom, hub.indexOf('\n  }', hub.indexOf('function initHubPlay')) > -1
+    ? hub.indexOf('function initHubPlay')
+    : undefined);
   assert.match(js, /scrollWidth - rail\.clientWidth/, 'the fade must know whether the rail overflows');
   assert.match(js, /getBoundingClientRect/, 'bring-into-view must not rely on offsetLeft');
   assert.doesNotMatch(js, /offsetLeft/, 'offsetLeft is not rail-relative here — it broke scrolling to the first card');
@@ -1497,16 +1510,36 @@ test('the hub hero is the deck page\'s stage, and keeps its own height', () => {
   assert.doesNotMatch(stage.slice(0, stage.indexOf('\n  }')), /overflow: hidden/,
     'nothing between the iframe and the page may clip');
 
-  // The feathered middle, and the blur's weak edge kept outside the clip.
-  const bg = hub.slice(hub.indexOf('.hub-stage-bg {'));
-  const bdecl = bg.slice(0, bg.indexOf('\n  }'));
-  assert.match(bdecl, /overflow: hidden/, 'the plate must clip so the blur\'s weak edge never shows');
-  assert.match(bdecl, /mask-image: linear-gradient\(to right/, 'the middle must feather, not meet at a line');
-  assert.ok((bdecl.match(/rgba\(0,0,0,/g) || []).length >= 8, 'multi-stop, or the ramp bands');
+  /*
+    ─── ONE BACKDROP LAYER, NOT TWO ─────────────────────────────────────────
 
-  const plate = hub.slice(hub.indexOf('.hub-stage-plate {'));
+    This used to assert the OPPOSITE: a second `.hub-stage-bg` plate, masked
+    into the right-hand side and feathered across the middle into the backdrop
+    behind it. Two copies of one picture at two scales show the same shapes
+    twice out of register, which is what "a blob of images meshing" was, and
+    `contain` on the wide banners left lit bare ground either side of the plate.
+
+    Reverting that is a design decision the owner made after seeing it on the
+    real artwork, so the guard is inverted rather than deleted: the layer must
+    stay gone, or the bug comes back the next time somebody reads the old note.
+  */
+  assert.doesNotMatch(hub, /class="hub-stage-bg"/, 'the second backdrop layer must stay removed');
+  assert.doesNotMatch(hub, /\.hub-stage-plate \{/, 'and so must the blurred ghost inside it');
+
+  /*
+    The one that remains must actually cover the hero. `.event-hero-bg-animated`
+    sets width/height to 100%, and an absolutely positioned box with a left, a
+    right AND a width all non-auto drops its `right` — so `inset: -12%` shifted
+    the plate left and left 12% of the hero bare down the right-hand edge.
+    Measured on /feed at a 1009px hero, the plate stopped at 928px.
+  */
+  const plate = hub.slice(hub.indexOf('.hero-backdrop-plate {'));
   const pdecl = plate.slice(0, plate.indexOf('\n  }'));
   assert.match(pdecl, /inset: -\d+%/, 'the plate must overscan its clip');
+  assert.match(pdecl, /width: 124%/, 'the plate must span its own overscan, not the hero');
+  assert.match(pdecl, /height: 124%/, 'in both axes');
+  assert.match(pdecl, /max-width: none/,
+    'the global img reset caps an overscanning plate at 100% and the gap returns');
   assert.doesNotMatch(pdecl, /animation:/, 'scaling a clipping box was the light leak — nothing here moves');
 
   /*
@@ -1601,7 +1634,10 @@ test('pressing Play once is enough', () => {
   /* Bounded to the press handler itself: the feed BELOW the hero legitimately
      binds [data-action="open-video"], and an unbounded slice swept it in. */
   const from = hub.indexOf('[data-hub-play]', at);
-  const handler = hub.slice(from, from + 900);
+  /* 1600, not 900: the binding now also guards against double-binding across a
+     client-side navigation and gives the coverage card its keyboard handler,
+     both of which sit above the press itself. */
+  const handler = hub.slice(from, from + 1600);
   /* The embed URL lives in a helper now, because the press builds it twice:
      once asking for sound and once falling back. Assert on the helper. */
   const at2 = hub.indexOf('const embedUrl =');
@@ -1759,3 +1795,82 @@ test('the shipping typeface actually has a file to ship', () => {
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
 process.exit(failed === 0 ? 0 : 1);
+
+/*
+  ─── THE COVERAGE GRID DRIVES THE STAGE ───────────────────────────────────────
+
+  The hero swap the rest of the site got — click a card, it plays where the hero
+  is — had reached the Feed and every FeedSpotlightHero page but not these. A hub
+  or event page has its own player at the top and its coverage cards opened the
+  full-screen modal over it instead, which is the same "page loses its place"
+  the rail's own Play button was fixed for two commits earlier.
+
+  Three things have to hold together, and all three are easy to undo by accident:
+  the cards must ask for it (`context="hub"`), the binding must be able to see
+  them (document-wide), and it must run at all on a hub whose stage has no rail.
+*/
+test('a coverage card plays in the stage, not over it', () => {
+  for (const file of [
+    join('src', 'pages', 'featured', '[slug].astro'),
+    join('src', 'components', 'EventFeatured.astro'),
+    join('src', 'components', 'EventAnnouncement.astro'),
+  ]) {
+    const src = readFileSync(join(here, '..', file), 'utf8');
+    const code = src
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '');
+
+    assert.match(
+      code,
+      /<ContentCard item=\{item\} index=\{index\} context="hub" \/>/,
+      `${file}: the coverage card must ask to drive the stage`,
+    );
+
+    /*
+      Its own function, NOT inside initHubRail(). That function returns early
+      when a hub has no rail, and a card that looks exactly like a working one
+      but does nothing is the quietest failure this page can have.
+    */
+    assert.match(code, /function initHubPlay\(\)/, `${file}: the press must not depend on the rail`);
+    const play = code.slice(code.indexOf('function initHubPlay()'));
+    assert.match(
+      play,
+      /document\.querySelectorAll<HTMLElement>\('\[data-hub-play\]'\)/,
+      `${file}: a coverage card is not inside the stage, so the query cannot be`,
+    );
+    assert.match(
+      play,
+      /!stage\.contains\(btn\)[\s\S]{0,120}scrollIntoView/,
+      `${file}: a press from below the fold must bring the player back into view`,
+    );
+    assert.match(
+      play,
+      /hubPlayBound/,
+      `${file}: astro:page-load fires again after every navigation`,
+    );
+    assert.match(
+      play,
+      /role'\) === 'button'[\s\S]{0,200}keydown/,
+      `${file}: a <div role="button"> fires no click on Enter`,
+    );
+
+    assert.ok(
+      code.includes('initHubPlay();'),
+      `${file}: the function has to actually be called`,
+    );
+  }
+});
+
+/*
+  The modal must not ALSO fire. ContentCard emits `data-action="open-video"` for
+  a playable card everywhere else on the site, and that is the global handler
+  that opens the overlay. On a hub page both would run: the video would start in
+  the stage and a modal would cover it.
+*/
+test('a hub card does not also trigger the site-wide modal', () => {
+  const card = readFileSync(join(here, '..', 'src', 'components', 'ContentCard.astro'), 'utf8');
+  const at = card.indexOf('const dataAction =');
+  assert.ok(at > -1, 'the card must decide its own action in one place');
+  const decision = card.slice(at, at + 400);
+  assert.match(decision, /isHubContext\s*\n?\s*\?\s*undefined/, 'hub context must emit no data-action');
+});

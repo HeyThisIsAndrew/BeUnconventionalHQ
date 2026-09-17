@@ -234,21 +234,55 @@ test('losing the blur means the request has to match the box', () => {
   }
 });
 
-test('the ghost follows whatever is in front of it', () => {
+test('the hero backdrop is one image, centred, covering', () => {
   /*
-    Crisp over a blown-up blurred copy of ITSELF is the lockup /featured uses.
-    In art mode there is no mark in front, so a logo-shaped glow around the
-    frame is a leftover of a lockup that is not there — and one more
-    appearance of the mark, which is the thing being removed.
+    ─── WHAT THIS REPLACED ──────────────────────────────────────────────────
+
+    This test used to assert that a blurred GHOST of the stage mark followed
+    whatever was in front of it — crisp over a blown-up blurred copy of itself,
+    the lockup /featured uses. That layer is gone.
+
+    It was a second copy of the hero's own picture, masked into the right-hand
+    side of the hero and feathered into the backdrop behind it. On a hand-picked
+    asset it reads as depth. On the real set it does not: two copies at two
+    scales put the same shapes on screen twice slightly out of register, worst
+    on line-work key art like PAX Unplugged's, and `background-size: contain`
+    left lit bare ground either side of itself on the 2.35:1 banners.
+
+    So the assertions are inverted. The hero is ONE image, and these are the
+    three things that keep it that way.
   */
   for (const rel of HERO_COMPONENTS) {
     const code = heroSource(rel);
-    assert.match(code, /const stageGhostSource = stageMarkUrl \? stageMarkLogo : \(stageArtUrl \? event\.heroImage : null\);/,
-      `${rel}: the ghost's source must follow the stage's`);
-    assert.match(code, /'hub-stage-plate--art': !stageMarkUrl/,
-      `${rel}: and key art has to cover rather than contain, so it needs the modifier`);
-    assert.doesNotMatch(code, /const stageGhostUrl = event\.logo/,
-      `${rel}: the ghost must not be pinned to the logo any more`);
+
+    assert.doesNotMatch(code, /class="hub-stage-bg"/,
+      `${rel}: the second backdrop layer must stay removed`);
+    assert.doesNotMatch(code, /const stageGhostUrl/,
+      `${rel}: and nothing should still be building a URL for it`);
+
+    /*
+      CENTRED, not biased high. Behind 9px of blur the subject is unreadable
+      anyway, so a vertical bias only crops differently on every asset: the
+      wide banners lost their bottom edge while the 16:9 stills lost nothing.
+    */
+    assert.match(code, /object-position: center;/,
+      `${rel}: one position for every image, whatever its aspect`);
+    assert.doesNotMatch(code, /object-position: center \d+%/,
+      `${rel}: a vertical bias is what made the crop asset-dependent`);
+
+    /*
+      And it must cover. `.event-hero-bg-animated` sets width/height 100%; an
+      absolutely positioned box with left, right AND width all non-auto drops
+      its `right`, so `inset: -12%` shifted the plate left and left 12% of the
+      hero bare down the right-hand edge. Measured at a 1009px hero: the plate
+      ended at 928px.
+    */
+    const plate = code.slice(code.indexOf('.hero-backdrop-plate {'));
+    const decl = plate.slice(0, plate.indexOf('\n  }'));
+    assert.match(decl, /width: 124%/, `${rel}: the plate must span its own overscan`);
+    assert.match(decl, /height: 124%/, `${rel}: in both axes`);
+    assert.match(decl, /max-width: none/,
+      `${rel}: the global img reset caps it at 100% and the gap returns`);
   }
 });
 
@@ -442,8 +476,10 @@ test('the hub stage idles on the hub art, through getHubBackdrop', () => {
 
   assert.match(hubHero, /class:list=\{\['hub-stage-mark', \{ 'hub-stage-mark--art': !!stageArtUrl \}\]\}/,
     'art mode is a modifier on the existing idle layer, not a second layer');
-  assert.match(hubHero, /const stageGhostSource = stageMarkUrl/,
-    'the ghost must follow whatever is in front of it');
+  /* The ghost that used to follow it is gone with the second backdrop layer.
+     See 'the hero backdrop is one image, centred, covering' above. */
+  assert.doesNotMatch(hubHero, /const stageGhostSource/,
+    'the ghost layer must stay removed');
 });
 
 test('the hub placeholder is never cropped either', () => {

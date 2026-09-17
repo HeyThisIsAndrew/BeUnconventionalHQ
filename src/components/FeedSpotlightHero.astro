@@ -495,7 +495,14 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
     /* Cover the whole hero (behind the copy AND the trailer). It re-crops when
        the description expands — an accepted trade for full coverage. */
     object-fit: cover;
-    object-position: center 22%;
+    /*
+      CENTRED. It was `center 22%`, biased high for key art that carries its
+      subject near the top. Behind 9px of blur nobody can tell what the subject
+      is, and the bias simply cropped differently on every asset: the 2.35:1
+      banners lost their bottom edge while the 16:9 stills lost nothing. One
+      position for every image is the point.
+    */
+    object-position: center;
     width: 100%;
     height: 100%;
     /* translateZ(0) promotes this layer to its own compositor layer. Without
@@ -542,11 +549,29 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
     is how this hero was once a black rectangle.
   */
   .hero-backdrop-plate {
+    /*
+      ─── OVER-CONSTRAINED IS WHAT LEFT A GAP DOWN THE RIGHT-HAND EDGE ───────
+
+      `.event-hero-bg-animated` above sets `width: 100%; height: 100%`. When an
+      absolutely positioned box has a left, a right AND a width all non-auto,
+      CSS drops the `right` — so `inset: -12%` moved this plate 12% to the LEFT
+      and then held it at exactly the hero's own width, leaving 12% of the hero
+      bare down the right-hand side. Measured on /feed at a 1009px hero: the
+      plate stopped at 928px. The same thing happened at the bottom, invisible
+      only because the scrim there is nearly black.
+
+      The overscan is 12% on each side, so the plate is 124% of the hero in both
+      axes. It is stated as a WIDTH rather than left over to `auto` because this
+      is an <img>, and the global `img { max-width: 100% }` reset clamps an auto
+      width to the containing block — measured: the plate came back 1009px wide
+      inside a 1009px hero, still shifted 121px left, gap unchanged. `max-width:
+      none` is what actually lets it overscan; without that line the width below
+      is capped and the gap returns.
+    */
     inset: -12%;
-    top: -12%;
-    left: -12%;
-    right: -12%;
-    bottom: -12%;
+    width: 124%;
+    height: 124%;
+    max-width: none;
     filter: blur(9px) saturate(1.15) brightness(1.16);
     -webkit-filter: blur(9px) saturate(1.15) brightness(1.16);
   }
@@ -678,9 +703,9 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
     (SE 667, 8 Plus 736, mini 780) stacked, which is the right layout for a
     screen that would otherwise get two 300px columns.
 
-    `.hub-stage-bg` below inverts this EXACTLY. If you change one, change both:
-    a split layout with the stacked backdrop puts a full-bleed plate behind a
-    right-hand column that expects a feathered one.
+    This used to pair with a `.hub-stage-bg` media query that had to invert it
+    exactly. That layer is gone (see ONE BACKDROP, NOT TWO IMAGES BLENDED), so
+    this breakpoint now decides the grid and nothing else.
   */
   @media (min-width: 900px), (orientation: landscape) and (min-width: 820px) {
     /* .has-trailer / .has-cta are applied at build time — no reliance on :has()
@@ -791,79 +816,27 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
   }
   
   /* Placement only — the trailer's internals live in <HeroTrailer/>. */
-  /* ══════════════════════════════════════════════════════════════════════
-     THE HUB HERO'S RIGHT HALF — the deck page's stage, brought here.
-
-     Lifted rather than rewritten: every value below already survived several
-     rounds of review on /featured, and rebuilding it from memory is how the
-     two pages drift apart again.
-
-     The hero KEEPS ITS OWN HEIGHT. An earlier attempt made it 100lvh, which is
-     ~1286px on an iPad Pro portrait with maybe 400px of content centred in it —
-     a wall of nothing. Nothing here sets a viewport height.
-     ══════════════════════════════════════════════════════════════════════ */
-
   /*
-    The plate behind the right half. Overscans its clip, because a CSS blur goes
-    WEAK at its own element's edges: it samples the transparent pixels outside
-    and mixes them in, so the outermost band is the least blurred part of it.
-    Pushed past the clip, what shows is the middle of the blur, which is even.
+    ─── ONE BACKDROP, NOT TWO IMAGES BLENDED ─────────────────────────────────
 
-    The mask is the feathered middle — a smoothstep rather than a two-stop ramp,
-    because a linear alpha ramp's two ENDS are discontinuities the eye reads as
-    faint vertical bands.
+    `.hub-stage-bg` used to sit above this: a SECOND copy of the same picture,
+    masked into the right-hand 72% of the hero, blurred 26px and brightened, so
+    that it feathered across the middle into `.hero-backdrop-plate` behind it.
+
+    It is gone because it does not survive contact with real artwork. The two
+    copies are at different scales and different crops, so wherever they overlap
+    the same shapes appear twice slightly out of register. Reported as "a blob
+    of images meshing", on PAX Unplugged, whose key art is line work: exactly
+    the kind of picture that shows a double exposure.
+
+    `background-size: contain` made it worse on the wide banners. A contained
+    plate leaves bare ground either side of itself, and the brightness lift on
+    that layer meant the bare ground read as a lit panel rather than as nothing.
+
+    The hero is ONE blurred image now, centred and covering, at every width.
+    That is the owner's decision, not an oversight: whatever a second layer buys
+    on a hand-picked asset, it costs on the nineteen it was not picked for.
   */
-  .hub-stage-bg {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    right: 0;
-    left: 28%;
-    z-index: 1;
-    overflow: hidden;
-    pointer-events: none;
-    -webkit-mask-image: linear-gradient(to right,
-      rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 8%, rgba(0,0,0,0.14) 16%,
-      rgba(0,0,0,0.32) 24%, rgba(0,0,0,0.55) 32%, rgba(0,0,0,0.76) 40%,
-      rgba(0,0,0,0.90) 48%, rgba(0,0,0,0.98) 56%, rgba(0,0,0,1) 64%);
-    mask-image: linear-gradient(to right,
-      rgba(0,0,0,0) 0%, rgba(0,0,0,0.04) 8%, rgba(0,0,0,0.14) 16%,
-      rgba(0,0,0,0.32) 24%, rgba(0,0,0,0.55) 32%, rgba(0,0,0,0.76) 40%,
-      rgba(0,0,0,0.90) 48%, rgba(0,0,0,0.98) 56%, rgba(0,0,0,1) 64%);
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    -webkit-mask-size: 100% 100%;
-    mask-size: 100% 100%;
-  }
-
-  .hub-stage-plate {
-    position: absolute;
-    inset: -30%;
-    background-size: contain;
-    background-position: 58% 50%;
-    background-repeat: no-repeat;
-    filter: blur(26px) saturate(1.4) brightness(1.45);
-    -webkit-filter: blur(26px) saturate(1.4) brightness(1.45);
-    opacity: 0.5;
-    /* STATIC. A 32s scale() on the CLIPPING wrapper was the light leak on the
-       deck page: scaling a clipping box scales the clip, dragging the blur's
-       weak edge out past the scrims. Nothing here moves. */
-  }
-
-  /*
-    `contain` fits a mark inside the box and leaves its aspect alone. Key art
-    is photographic and 16:9, so it covers instead, and sits back further: a
-    full-frame image at the mark's brightness washed the copy column's side of
-    the feather.
-  */
-  .hub-stage-plate--art {
-    background-size: cover;
-    background-position: center 30%;
-    opacity: 0.38;
-    filter: blur(30px) saturate(1.15) brightness(1.05);
-    -webkit-filter: blur(30px) saturate(1.15) brightness(1.05);
-  }
-
   /* Lit without needing a single asset, so a hub with no logo still reads. */
   .hub-stage-wash {
     position: absolute;
@@ -1291,12 +1264,6 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
     backdrop built for a stacked page.
   */
   @media (max-width: 899px) and (orientation: portrait), (max-width: 819px) {
-    .hub-stage-bg {
-      left: 0;
-      -webkit-mask-image: none;
-      mask-image: none;
-      opacity: 0.55;
-    }
     .hub-stage-wash {
       background: radial-gradient(120% 70% at 50% 38%,
         rgba(var(--brand-rgb, 204,0,0), 0.16) 0%,
