@@ -95,18 +95,7 @@ const resolvedLogoSrc = markUrl || fallbackLogoSrc;
       slivers (issue #22). */}
   <div class="event-hero-bg-wrapper">
     {heroBackdrop ? (
-      <>
-      <img
-        src={heroBackdropMobileUrl}
-        srcset={heroBackdropSrcset}
-        sizes="100vw"
-        alt=""
-        class="event-hero-bg-animated hero-backdrop-fill"
-        aria-hidden="true"
-        loading="eager"
-        fetchpriority="high"
-      />
-      <img
+            <img
         src={heroBackdropMobileUrl}
         srcset={heroBackdropSrcset}
         sizes="100vw"
@@ -115,7 +104,6 @@ const resolvedLogoSrc = markUrl || fallbackLogoSrc;
         loading="eager"
         fetchpriority="high"
       />
-      </>
     ) : (
       <div class="event-hero-bg-animated" style={`background-image: ${fallbackGradient};`}></div>
     )}
@@ -242,33 +230,33 @@ const resolvedLogoSrc = markUrl || fallbackLogoSrc;
   }
 
   /*
-    ─── THE ART IS CONTAINED NOW, AND THE FILL IS WHAT COVERS ────────────────
+    ─── ONE COPY OF THE PICTURE. ONLY EVER ONE ───────────────────────────────
 
-    `cover` on a hero this wide is a crop, not a fit. Measured at 3840x2160 on
-    both heroes: the box is ~3840x665, an aspect ratio of about 5.4, against
-    16/9 key art. Cover scales the image to the WIDTH and throws the rest away,
-    so 33% of the picture's height was on screen and two thirds of it was not.
-    Reported as "way too zoomed in, I should be able to see the logo".
+    `cover` on a hero this wide is a crop: measured at 3840x2160 the box is
+    ~3840x665 against 16/9 key art, so 33% of the picture's height was on
+    screen. Reported as "way too zoomed in".
 
-    The remedy is the one this project already worked out for the /featured
-    stage and wrote down in CLAUDE.md: TWO COPIES OF ONE FILE. The front one
-    `contain`s, so the whole artwork is visible whatever shape an editor
-    uploads and whatever shape the hero is. The back one `cover`s, and is only
-    ever seen in the gutters the front one leaves.
+    The first fix for that was two copies of the file — one contained in front,
+    one covering behind to fill the gutters. It put the same artwork on screen
+    twice at two scales, which is exactly what this project had already removed
+    once and written down: "two copies at two scales put the same shapes on
+    screen twice slightly out of register". Reported again, correctly, as the
+    hero looking duplicated. The second copy is gone and is not coming back.
 
-    The fill is not flat `#111`, which is what a letterboxed video looks like
-    and which on a 3840px hero would be two 1200px slabs of black either side
-    of the picture. It is the same image, blurred harder and dimmed, so the
-    gutters read as the scene continuing rather than as bars.
+    So: ONE image, contained, and the space it does not fill is the page's own
+    dark, shaped by a horizontal vignette on `.event-hero-scrim`. The picture
+    dissolves into the field rather than ending on a letterbox edge.
 
-    Same `src` and `srcset` on both, so it is ONE fetch painted twice. On art
-    that happens to match the hero's shape the fill is never visible at all.
+    The vignette is on the SCRIM, not a mask on the image, because which edges
+    the art leaves bare depends on the shape of the box: a wide desktop hero
+    leaves gutters at the sides, a phone leaves them top and bottom. An overlay
+    does not need to know which — where the art reaches the edge it reads as an
+    ordinary cinematic vignette instead.
 
-    THE OVERSCAN IS GONE from the front layer and kept on the fill. It existed
-    as a blur allowance — a CSS blur goes weak at its own edges because it
-    mixes in the transparent pixels outside — which is a real problem for a
-    layer that reaches the edge of the box, and no problem at all for one that
-    is inset from it by design.
+    CROPPING IS STILL WRONG HERE, whatever the aspect. CLAUDE.md: L.A. Comic
+    Con is 2.35:1 and SXSW is 2.70:1, and both set the event's NAME across the
+    full width of the artwork, so cover removes the first and last letters of
+    its own title.
   */
   .hero-backdrop-plate {
     inset: 0;
@@ -276,36 +264,10 @@ const resolvedLogoSrc = markUrl || fallbackLogoSrc;
     height: 100%;
     object-fit: contain;
     object-position: center;
-    filter: blur(6px) saturate(1.1) brightness(1.1);
-    -webkit-filter: blur(6px) saturate(1.1) brightness(1.1);
-  }
-
-  .hero-backdrop-fill {
-    /* Behind the contained copy, and overscanned past the clip because THIS
-       one is blurred hard enough for its weak edge band to show. ~2x the blur
-       radius, as on every other plate in this project. */
-    --fill-overscan: 48px;
-    inset: calc(var(--fill-overscan) * -1);
-    width: calc(100% + var(--fill-overscan) * 2);
-    height: calc(100% + var(--fill-overscan) * 2);
-    max-width: none;
-    object-fit: cover;
-    object-position: center;
-    filter: blur(24px) saturate(1.1) brightness(0.55);
-    -webkit-filter: blur(24px) saturate(1.1) brightness(0.55);
-  }
-
-
-  .hub-stage-wash {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
-    background: radial-gradient(90% 80% at 76% 46%,
-      rgba(var(--brand-rgb, 204,0,0), 0.20) 0%,
-      rgba(var(--brand-rgb, 204,0,0), 0.09) 36%,
-      rgba(var(--brand-rgb, 204,0,0), 0.02) 60%,
-      transparent 78%);
+    /* Light, and lighter than it was. The picture is meant to be legible now,
+       not destroyed — the scrim below does the work of keeping type readable. */
+    filter: blur(2px) saturate(1.08) brightness(1.04);
+    -webkit-filter: blur(2px) saturate(1.08) brightness(1.04);
   }
 
   .event-hero-overlay {
@@ -336,12 +298,41 @@ const resolvedLogoSrc = markUrl || fallbackLogoSrc;
     inset: 0;
     z-index: 1;
     pointer-events: none;
-    background: linear-gradient(
-      to top,
-      rgba(0, 0, 0, 0.97) 0%,
-      rgba(0, 0, 0, 0.55) 55%,
-      rgba(0, 0, 0, 0.35) 100%
-    );
+    background:
+      /*
+        ─── THE HORIZONTAL VIGNETTE ────────────────────────────────────────
+
+        The contained artwork does not fill an ultra-wide hero, and what is
+        beside it must not read as letterbox bars. This fades the page's own
+        dark inward from both edges so the picture dissolves into the field
+        instead of ending on an edge — and it replaces the second copy of the
+        artwork that used to fill that space, which read as a duplicate.
+
+        It is also what the copy sits on: the lockup is at the left, where
+        this is at its most opaque, so legibility comes from the same
+        declaration as the framing rather than a second scrim over the type.
+
+        Clear through the middle, which is where a 16/9 picture lands in a box
+        this wide. On a phone the box is TALLER than the art, so the art
+        reaches both side edges and this reads as an ordinary vignette.
+      */
+      linear-gradient(
+        to right,
+        #0a0a0a 0%,
+        rgba(10, 10, 10, 0.92) 10%,
+        rgba(10, 10, 10, 0.45) 24%,
+        transparent 38%,
+        transparent 64%,
+        rgba(10, 10, 10, 0.45) 78%,
+        rgba(10, 10, 10, 0.92) 92%,
+        #0a0a0a 100%
+      ),
+      linear-gradient(
+        to top,
+        rgba(0, 0, 0, 0.97) 0%,
+        rgba(0, 0, 0, 0.55) 55%,
+        rgba(0, 0, 0, 0.35) 100%
+      );
     /* Subtle blur of the background image behind the overlay (the copy is not a
        child of this layer, so it stays sharp) — softens the busy hero art for
        title legibility. */

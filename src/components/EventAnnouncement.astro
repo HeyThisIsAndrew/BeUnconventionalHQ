@@ -332,18 +332,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
             getHubBackdrop(). Do not reintroduce that; a hub is somebody
             else's brand.
           */
-          <>
-          <img
-            src={heroBackdropMobileUrl}
-            srcset={heroBackdropSrcset}
-            sizes={heroBackdropSizes}
-            alt=""
-            class="event-hero-bg-animated hero-backdrop-fill"
-            aria-hidden="true"
-            loading="eager"
-            fetchpriority="high"
-          />
-          <img
+                    <img
             src={heroBackdropMobileUrl}
             srcset={heroBackdropSrcset}
             sizes={heroBackdropSizes}
@@ -352,7 +341,6 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
             loading="eager"
             fetchpriority="high"
           />
-          </>
         ) : (
           <div class="event-hero-bg-animated" style={`background-image: ${fallbackGradient};`}></div>
         )}
@@ -585,8 +573,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
                   here is a blur on the fill, and there is no drop-shadow
                   anywhere near either of them.
                 */
-                <>
-                  <img
+                                  <img
                     src={stageArtUrl}
                     srcset={stageArtSrcset}
                     sizes={stageArtSizes}
@@ -605,7 +592,6 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
                     loading="eager"
                     decoding="async"
                   />
-                </>
               ) : (
                 <span class="hub-stage-wordmark">{event.title}</span>
               )}
@@ -1931,33 +1917,33 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
   }
 
   /*
-    ─── THE ART IS CONTAINED NOW, AND THE FILL IS WHAT COVERS ────────────────
+    ─── ONE COPY OF THE PICTURE. ONLY EVER ONE ───────────────────────────────
 
-    `cover` on a hero this wide is a crop, not a fit. Measured at 3840x2160 on
-    both heroes: the box is ~3840x665, an aspect ratio of about 5.4, against
-    16/9 key art. Cover scales the image to the WIDTH and throws the rest away,
-    so 33% of the picture's height was on screen and two thirds of it was not.
-    Reported as "way too zoomed in, I should be able to see the logo".
+    `cover` on a hero this wide is a crop: measured at 3840x2160 the box is
+    ~3840x665 against 16/9 key art, so 33% of the picture's height was on
+    screen. Reported as "way too zoomed in".
 
-    The remedy is the one this project already worked out for the /featured
-    stage and wrote down in CLAUDE.md: TWO COPIES OF ONE FILE. The front one
-    `contain`s, so the whole artwork is visible whatever shape an editor
-    uploads and whatever shape the hero is. The back one `cover`s, and is only
-    ever seen in the gutters the front one leaves.
+    The first fix for that was two copies of the file — one contained in front,
+    one covering behind to fill the gutters. It put the same artwork on screen
+    twice at two scales, which is exactly what this project had already removed
+    once and written down: "two copies at two scales put the same shapes on
+    screen twice slightly out of register". Reported again, correctly, as the
+    hero looking duplicated. The second copy is gone and is not coming back.
 
-    The fill is not flat `#111`, which is what a letterboxed video looks like
-    and which on a 3840px hero would be two 1200px slabs of black either side
-    of the picture. It is the same image, blurred harder and dimmed, so the
-    gutters read as the scene continuing rather than as bars.
+    So: ONE image, contained, and the space it does not fill is the page's own
+    dark, shaped by a horizontal vignette on `.event-hero-scrim`. The picture
+    dissolves into the field rather than ending on a letterbox edge.
 
-    Same `src` and `srcset` on both, so it is ONE fetch painted twice. On art
-    that happens to match the hero's shape the fill is never visible at all.
+    The vignette is on the SCRIM, not a mask on the image, because which edges
+    the art leaves bare depends on the shape of the box: a wide desktop hero
+    leaves gutters at the sides, a phone leaves them top and bottom. An overlay
+    does not need to know which — where the art reaches the edge it reads as an
+    ordinary cinematic vignette instead.
 
-    THE OVERSCAN IS GONE from the front layer and kept on the fill. It existed
-    as a blur allowance — a CSS blur goes weak at its own edges because it
-    mixes in the transparent pixels outside — which is a real problem for a
-    layer that reaches the edge of the box, and no problem at all for one that
-    is inset from it by design.
+    CROPPING IS STILL WRONG HERE, whatever the aspect. CLAUDE.md: L.A. Comic
+    Con is 2.35:1 and SXSW is 2.70:1, and both set the event's NAME across the
+    full width of the artwork, so cover removes the first and last letters of
+    its own title.
   */
   .hero-backdrop-plate {
     inset: 0;
@@ -1965,56 +1951,10 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
     height: 100%;
     object-fit: contain;
     object-position: center;
-    filter: blur(6px) saturate(1.1) brightness(1.1);
-    -webkit-filter: blur(6px) saturate(1.1) brightness(1.1);
-  }
-
-  .hero-backdrop-fill {
-    /* Behind the contained copy, and overscanned past the clip because THIS
-       one is blurred hard enough for its weak edge band to show. ~2x the blur
-       radius, as on every other plate in this project. */
-    --fill-overscan: 48px;
-    inset: calc(var(--fill-overscan) * -1);
-    width: calc(100% + var(--fill-overscan) * 2);
-    height: calc(100% + var(--fill-overscan) * 2);
-    max-width: none;
-    object-fit: cover;
-    object-position: center;
-    filter: blur(24px) saturate(1.1) brightness(0.55);
-    -webkit-filter: blur(24px) saturate(1.1) brightness(0.55);
-  }
-
-
-  /*
-    Shapes the plate the copy sits on. A single flat image behind white text is
-    what made this hero read as a stock header — the copy had no ground of its
-    own, so it floated. Darkest at the bottom left, where the mark and the line
-    are, and clearing toward the trailer on the right.
-  */
-  .event-hero-bg-wrapper::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
-    /*
-      TWO SCRIMS MULTIPLY. THESE ONES MULTIPLIED TO BLACK.
-
-      A design review called this hero "mostly empty dark space next to the
-      logo", and the backdrop gallery WAS behind it the whole time — it was
-      just unreadable. Stacked alpha compounds: at the bottom-left corner these
-      two came to 1 - (1-0.92)(1-0.88) = 0.99, and at the logo's own position
-      about 0.85. A gallery under a 99% black wash is an expensive way to draw
-      a black rectangle.
-
-      The vertical one now only does what it has to — seat the bottom edge
-      against the section below — and the horizontal one carries legibility for
-      the copy, ending sooner and softer. At the logo the pair now comes to
-      about 0.55, which is a lit scene with type on it rather than a void.
-    */
-    background:
-      linear-gradient(to top, rgba(5,5,5,0.82) 0%, rgba(5,5,5,0.42) 18%, rgba(5,5,5,0.12) 38%, transparent 62%),
-      linear-gradient(to right, rgba(5,5,5,0.62) 0%, rgba(5,5,5,0.34) 24%, rgba(5,5,5,0.10) 46%, transparent 68%);
+    /* Light, and lighter than it was. The picture is meant to be legible now,
+       not destroyed — the scrim below does the work of keeping type readable. */
+    filter: blur(2px) saturate(1.08) brightness(1.04);
+    -webkit-filter: blur(2px) saturate(1.08) brightness(1.04);
   }
   /* In normal flow (not absolute) so the banner GROWS with its content instead
      of overflowing upward under the fixed navbar. padding-top clears the navbar
@@ -2031,12 +1971,41 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
       uses before the URL bar retracts — the unit this project already pins for
       exactly this reason (scripts/viewport-units.test.mjs).
     */
-    background: linear-gradient(
-      to top,
-      rgba(0, 0, 0, 0.97) 0%,
-      rgba(0, 0, 0, 0.55) 55%,
-      rgba(0, 0, 0, 0.35) 100%
-    );
+    background:
+      /*
+        ─── THE HORIZONTAL VIGNETTE ────────────────────────────────────────
+
+        The contained artwork does not fill an ultra-wide hero, and what is
+        beside it must not read as letterbox bars. This fades the page's own
+        dark inward from both edges so the picture dissolves into the field
+        instead of ending on an edge — and it replaces the second copy of the
+        artwork that used to fill that space, which read as a duplicate.
+
+        It is also what the copy sits on: the lockup is at the left, where
+        this is at its most opaque, so legibility comes from the same
+        declaration as the framing rather than a second scrim over the type.
+
+        Clear through the middle, which is where a 16/9 picture lands in a box
+        this wide. On a phone the box is TALLER than the art, so the art
+        reaches both side edges and this reads as an ordinary vignette.
+      */
+      linear-gradient(
+        to right,
+        #0a0a0a 0%,
+        rgba(10, 10, 10, 0.92) 10%,
+        rgba(10, 10, 10, 0.45) 24%,
+        transparent 38%,
+        transparent 64%,
+        rgba(10, 10, 10, 0.45) 78%,
+        rgba(10, 10, 10, 0.92) 92%,
+        #0a0a0a 100%
+      ),
+      linear-gradient(
+        to top,
+        rgba(0, 0, 0, 0.97) 0%,
+        rgba(0, 0, 0, 0.55) 55%,
+        rgba(0, 0, 0, 0.35) 100%
+      );
     /* Subtle blur of the background image behind the overlay (content is a child,
        so it stays sharp) — softens the busy hero art for title legibility. */
     -webkit-backdrop-filter: blur(3px);

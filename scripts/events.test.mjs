@@ -310,6 +310,60 @@ test('the /events display lockup is gone, but the page still has an h1', () => {
     'the heading text must come from SECTIONS.events, not a hardcoded string');
 });
 
+test('the upcoming list is scrolled by a rail, not by controls over the list', () => {
+  /*
+    The first version floated two buttons above the list's top-right corner,
+    where they sat on the "UPCOMING EVENTS" heading and the first row.
+
+    Docking them INSIDE the list is no better and is the obvious next idea: the
+    right-hand edge of every row already carries its own arrow and the left
+    carries the date badge. So the scroller reserves a gutter and the rail
+    stands in it — the rows are narrower by exactly that strip and nothing
+    overlaps anything. Measured at 1512x858: rail at x 930-974, rows ending at
+    911, heading ending at y 62 against a rail starting at 112.
+
+    The middle button is the year index. The arrows answer the wrong question
+    on a list spanning years: nudging 400px at a time to reach 2027 is the
+    paging this change removed.
+  */
+  const list = fs.readFileSync(
+    new URL('../src/components/UpcomingEventsList.astro', import.meta.url), 'utf8');
+  const code = list.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  assert.match(code, /\.uel-scroller \{[^}]*--uel-rail-gutter:/,
+    'the gutter the rail stands in must be a token the scroller reads');
+  assert.match(code, /\.uel-scroller \{[^}]*padding-right: var\(--uel-rail-gutter\)/,
+    'the rows must be narrowed by the gutter, or the rail is back on top of them');
+  assert.match(code, /\.uel-rail \{[^}]*flex-direction: column/,
+    'a vertical rail: up, index, down');
+
+  const order = ['data-uel-up', 'data-uel-index', 'data-uel-down']
+    .map((hook) => code.indexOf(hook));
+  assert.ok(order.every((i) => i > -1), 'all three controls must exist');
+  assert.deepEqual([...order].sort((a, b) => a - b), order, 'top to bottom: up, index, down');
+
+  /*
+    The panel opens INWARD. The rail is in the column's right-hand gutter, so
+    outward runs off the content column and, at md, under the sidebar.
+  */
+  assert.match(code, /\.uel-index-panel \{[^}]*right: calc\(100% \+/,
+    'the year panel must open over the list, not off the edge of the column');
+
+  /*
+    And the jump must move the CONTAINER, not the page. scrollIntoView() walks
+    every scrollable ancestor, so jumping to 2027 inside this box would also
+    scroll the document to bring the box into view — the jump the rail exists
+    to avoid. Verified in a browser: page scroll unchanged, container at 582.
+  */
+  assert.match(code, /viewport\.scrollTo\(\{/, 'the year jump must drive the container directly');
+  assert.ok(!/group\.scrollIntoView/.test(code),
+    'scrollIntoView here scrolls the page as well as the list');
+
+  /* Nothing to drive below the breakpoint, where the list stops scrolling. */
+  assert.match(code, /@media \(max-width: 767px\) \{[\s\S]*?\.uel-rail \{\s*display: none;/,
+    'the rail must go where the nested scroll goes');
+});
+
 test('sunsetting the /events header did not touch any other route', () => {
   /*
     The ask named /events specifically and guarded the homepage, /intel and

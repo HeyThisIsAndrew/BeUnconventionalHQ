@@ -271,29 +271,26 @@ test('the hero backdrop is one image, centred, covering', () => {
       `${rel}: a vertical bias is what made the crop asset-dependent`);
 
     /*
-      THE OVERSCAN MOVED, and the reasoning came with it. It is a blur
-      allowance — a CSS blur mixes in the transparent pixels outside its own
-      element, so the outermost band is the least blurred part of it — which is
-      a problem for a layer that reaches the edge of the box and no problem for
-      one inset from it by design. The plate CONTAINS now, so the layer that
-      still reaches the edge is `.hero-backdrop-fill`.
+      THE OVERSCAN IS GONE, and this asserts that rather than deleting the
+      knowledge with it.
 
-      What must not come back: an absolutely positioned box with left, right
-      AND width all non-auto drops its `right`, so `inset: -12%` shifted the
-      old plate left and left 12% of the hero bare down the right-hand edge
-      (measured at a 1009px hero: it ended at 928px). Hence absolute pixels,
-      matching width and height, and `max-width: none` against the global img
-      reset that would otherwise clamp it back to 100%.
+      It was a blur allowance: a CSS blur mixes in the transparent pixels
+      outside its own element, so the outermost band is the least blurred part
+      of it, and a layer reaching the edge of the box has to be pushed past the
+      clip to hide that band. The plate no longer reaches the edge — it is
+      contained, and blurred 2px rather than 9 — so there is nothing to hide
+      and an overscan would only be a zoom.
+
+      What must not come back with it: an absolutely positioned box with left,
+      right AND width all non-auto drops its `right`, so `inset: -12%` shifted
+      the old plate left and left 12% of the hero bare down the right-hand edge
+      (measured at a 1009px hero: it ended at 928px).
     */
-    const fill = code.slice(code.indexOf('.hero-backdrop-fill {'));
-    const decl = fill.slice(0, fill.indexOf('\n  }'));
-    assert.match(decl, /--fill-overscan: \d+px/,
-      `${rel}: the overscan is a blur allowance, so it is absolute, not a percentage`);
-    assert.match(decl, /width: calc\(100% \+ var\(--fill-overscan\) \* 2\)/,
-      `${rel}: the fill must span its own overscan`);
-    assert.match(decl, /height: calc\(100% \+ var\(--fill-overscan\) \* 2\)/, `${rel}: in both axes`);
-    assert.match(decl, /max-width: none/,
-      `${rel}: the global img reset caps it at 100% and the gap returns`);
+    const plate = code.slice(code.indexOf('.hero-backdrop-plate {'));
+    const decl = plate.slice(0, plate.indexOf('\n  }'));
+    assert.match(decl, /inset: 0;/, `${rel}: a contained plate has nothing to overscan past`);
+    assert.doesNotMatch(decl, /--plate-overscan|--fill-overscan/,
+      `${rel}: an overscan on a contained picture is a zoom, which is the bug this started as`);
   }
 });
 
@@ -521,28 +518,29 @@ test('the hub mark is the heading', () => {
     'a heading element brings a default margin the alt would shove the column down with');
 });
 
-test('the event art is never cropped, on any of the three heroes', () => {
+test('the event art is never cropped, and never doubled', () => {
   /*
-    `cover` on a hero this wide is a crop, not a fit. Measured at 3840x2160:
-    the box is ~3840x665 against 16/9 key art, so 33% of the picture's height
-    was on screen and two thirds was not. Reported as "way too zoomed in, I
-    should be able to see the logo".
+    TWO WRONG ANSWERS BEFORE THIS ONE, and the test has to forbid both.
 
-    It matters here more than anywhere because of what this art IS. CLAUDE.md:
-    L.A. Comic Con is 2.35:1 and SXSW is 2.70:1, and both set the event's NAME
-    across the full width of the artwork, so a crop removes the first and last
-    letters of its own title.
+    `cover` is a crop. Measured at 3840x2160: the box is ~3840x665 against 16/9
+    key art, so 33% of the picture's height was on screen. Reported as "way too
+    zoomed in". It matters most on this art in particular — CLAUDE.md records
+    that L.A. Comic Con is 2.35:1 and SXSW 2.70:1 and both set the event's NAME
+    across the full width, so a crop removes the first and last letters of its
+    own title.
 
-    The remedy is the two-layer idiom this project already worked out for the
-    /featured stage: the front copy CONTAINS, the back copy COVERS and is
-    blurred hard and dimmed so the gutters read as the scene continuing rather
-    than as letterbox bars. One `srcset` on both, so it is one fetch painted
-    twice.
+    The fix for that was two copies of the file, one contained in front and one
+    covering behind to fill the gutters. That put the same artwork on screen
+    twice at two scales, which this project had ALREADY removed once and
+    written down — "two copies at two scales put the same shapes on screen
+    twice slightly out of register" — and it was reported again, correctly, as
+    the hero looking duplicated.
 
-    Checked on all THREE event heroes. There is no fourth: /featured/[slug] and
-    FeedSpotlightHero draw an AMBIENT backdrop (getHubBackdrop, requested at
-    640-900px precisely because the blur destroys it), which is a different job
-    and must keep covering.
+    So: ONE image, contained, and the space beside it is the page's own dark,
+    shaped by a horizontal vignette on the scrim. The vignette lives on an
+    overlay rather than as a mask on the image because which edges the art
+    leaves bare depends on the box: a wide hero leaves gutters at the sides, a
+    phone leaves them top and bottom.
   */
   for (const rel of ['EventHero.astro', 'EventFeatured.astro', 'EventAnnouncement.astro']) {
     const hero = heroSource(rel);
@@ -553,15 +551,18 @@ test('the event art is never cropped, on any of the three heroes', () => {
     assert.doesNotMatch(plate[0], /--plate-overscan/,
       `${rel}: an overscan is a blur allowance for a layer that reaches the edge; a contained one does not`);
 
-    const fill = hero.match(/\.hero-backdrop-fill \{[^}]*\}/);
-    assert.ok(fill, `${rel}: contain without a fill is a letterboxed video`);
-    assert.match(fill[0], /object-fit: cover;/, `${rel}: the fill is the copy that covers`);
-    assert.match(fill[0], /--fill-overscan/, `${rel}: THIS one is blurred hard enough for its weak edge to show`);
+    assert.ok(!/hero-backdrop-fill/.test(hero),
+      `${rel}: the second copy of the artwork is what read as a duplicate; it must stay gone`);
 
-    const fills = hero.match(/class="event-hero-bg-animated hero-backdrop-(plate|fill)"/g) || [];
-    assert.equal(fills.length, 2, `${rel}: both layers must be rendered`);
-    const srcsets = hero.match(/srcset=\{heroBackdropSrcset\}/g) || [];
-    assert.ok(srcsets.length >= 2, `${rel}: both copies read one srcset, so it is one fetch painted twice`);
+    const plates = hero.match(/class="event-hero-bg-animated hero-backdrop-plate"/g) || [];
+    assert.equal(plates.length, 1, `${rel}: exactly one copy of the picture`);
+
+    /*
+      And the gutters must be filled by something. Without it the contained art
+      ends on a hard edge against flat black, which is a letterboxed video.
+    */
+    assert.match(hero, /linear-gradient\(\s*to right,[\s\S]{0,400}?transparent 38%/,
+      `${rel}: the horizontal vignette is what the removed second copy was doing`);
   }
 });
 
