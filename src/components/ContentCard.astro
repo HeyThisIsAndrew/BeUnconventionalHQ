@@ -1,5 +1,6 @@
 ---
-import { getDisplayTags } from '../lib/tags';
+import { getDisplayTags, getDisplayTagSlots } from '../lib/tags';
+import { editorialPreview } from '../lib/editorial-text';
 
 import { parseVideoId } from '../lib/platforms/youtube';
 import {
@@ -57,21 +58,44 @@ const isLCP = variant === 'hero' && index === 0;
 
 if (!item) return;
 
-let excerpt = '';
-let finalTags: string[] = [];
+/*
+  ─── THE CARD PRINTS THE PUBLICATION'S WORDS, NOT THE PLATFORM'S ────────────
 
-{
-  // Use preview/excerpt for articles, or description for videos
-  excerpt = item.preview || item.excerpt || item.description || '';
+  This was `item.preview || item.excerpt || item.description` with a pair of
+  inline hashtag strips after it, and it was wrong in three ways that only
+  showed up when the built page was measured:
 
-  finalTags = getDisplayTags(item);
+    - `preview` is an ARRAY of body paragraphs on an article, so the `||` chain
+      never reached `excerpt`, the Substack subtitle that is already a
+      standfirst. The array then stringified into the attribute below joining
+      paragraphs on a bare comma: "...its own distinct identity.,One of the
+      things I love most...". 49 cards on /feed shipped that.
+    - `description` is a raw YouTube description. 102 of 160 carried affiliate
+      links, gear lists or subscribe CTAs, and `amzn.to` appeared 219 times in
+      the HTML of a single page.
+    - The hashtag strips only caught a cluster at the very start or the very
+      end, and only on a string, so a video opening "#sinnersmovie #ryancoogler
+      🚨 Movie Review 🚨" kept everything after the first non-hashtag token.
 
-  // Clean up any HTML tags if present (e.g., from article excerpts)
-  if (typeof excerpt === 'string') {
-    // Strip HTML tags and any leading/trailing hashtags clusters
-    excerpt = excerpt.replace(/<[^>]*>?/gm, '').replace(/^(?:\s*#[\w-]+\s*)+/, '').replace(/(?:\s*#[\w-]+\s*)+$/, '').trim();
-  }
-}
+  `editorialPreview()` owns all of it now, and FeedSpotlightHero calls the same
+  function, so a tile and the hero it promotes into cannot describe one item
+  with two different sets of words.
+*/
+const excerpt = editorialPreview(item);
+/*
+  ─── THE METADATA PAIR KEEPS ITS SLOTS ──────────────────────────────────────
+
+  `getDisplayTags()` filters out the empty slots, so an item with no brand used
+  to print its editorial type in the brand's position. Rendered as discrete
+  spans instead, each one declaring which slot it is, the separator appearing
+  only between two labels that both exist.
+
+  The text and the " | " between them are unchanged, so a card with both slots
+  filled (36 of the 41 items on /feed) renders exactly as before. The five
+  without a brand stop claiming one.
+*/
+const tagSlots = getDisplayTagSlots(item);
+const finalTags = getDisplayTags(item);
 
 const isVideo = item.contentType === 'video' || item.type === 'video';
 const videoId = isVideo ? parseVideoId(item.link || '') : null;
@@ -259,14 +283,18 @@ const baseProps = {
   'data-preview': excerpt,
   'data-brand': brandData,
   /*
-    The card's own display tags, carried so the Feed hero can show them when a
+    The card's own display slots, carried so the Feed hero can show them when a
     card is promoted into it. Recomputing them in the swap handler would mean a
-    second copy of the brand/type dictionaries in client JS; passing the string
-    the card already rendered means the hero cannot disagree with the card it
-    came from. Empty when the item matched nothing, and the hero falls back to
+    second copy of the brand/type dictionaries in client JS; passing what the
+    card already resolved means the hero cannot disagree with the card it came
+    from. Absent when the item matched nothing, and the hero falls back to
     VIDEO/ARTICLE in that case.
   */
-  'data-tags': finalTags.join(' | '),
+  /* Per SLOT, not a joined string: the hero styles the brand chip with the
+     brand accent, and a joined string cannot tell it which chip that is. */
+  'data-tag-brand': tagSlots.brand || undefined,
+  'data-tag-type': tagSlots.type || undefined,
+  'data-tag-extra': tagSlots.extra || undefined,
   /* Picked up by the hub/event stage's delegated play handler. */
   'data-hub-play': hubPlayId ?? undefined,
 };
@@ -447,7 +475,11 @@ if (isVideo && item.youtubeId) {
     )}
     {variant === 'hero' && finalTags.length > 0 && (
       <div class="content-card-hero-tags">
-        {finalTags.join(' | ')}
+        {tagSlots.brand && <span data-slot="brand">{tagSlots.brand}</span>}
+        {tagSlots.brand && tagSlots.type && <span class="tag-slot-sep" aria-hidden="true">{"\u00a0|\u00a0"}</span>}
+        {tagSlots.type && <span data-slot="type">{tagSlots.type}</span>}
+        {(tagSlots.brand || tagSlots.type) && tagSlots.extra && <span class="tag-slot-sep" aria-hidden="true">{"\u00a0|\u00a0"}</span>}
+        {tagSlots.extra && <span data-slot="extra">{tagSlots.extra}</span>}
       </div>
     )}
     {cardImage ? (
@@ -516,7 +548,11 @@ if (isVideo && item.youtubeId) {
     <div class="content-card-title-wrapper">
       {variant !== 'hero' && finalTags.length > 0 && (
         <div class="content-card-dynamic-tags">
-          {finalTags.join(' | ')}
+          {tagSlots.brand && <span data-slot="brand">{tagSlots.brand}</span>}
+          {tagSlots.brand && tagSlots.type && <span class="tag-slot-sep" aria-hidden="true">{"\u00a0|\u00a0"}</span>}
+          {tagSlots.type && <span data-slot="type">{tagSlots.type}</span>}
+          {(tagSlots.brand || tagSlots.type) && tagSlots.extra && <span class="tag-slot-sep" aria-hidden="true">{"\u00a0|\u00a0"}</span>}
+          {tagSlots.extra && <span data-slot="extra">{tagSlots.extra}</span>}
         </div>
       )}
       <h3 class="content-card-title">{item.title}</h3>

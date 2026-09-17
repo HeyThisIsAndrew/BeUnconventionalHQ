@@ -1,7 +1,8 @@
 ---
 import { getVideosUnified } from '../lib/videos-source';
 import { parseVideoId } from '../lib/platforms/youtube';
-import { getDisplayTags } from '../lib/tags';
+import { getDisplayTagSlots } from '../lib/tags';
+import { editorialPreview } from '../lib/editorial-text';
 import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-content';
 import { resolveEntity } from '../lib/entity-resolver';
 import logoImage from '../assets/logo-mark.webp';
@@ -37,7 +38,7 @@ const trailerId = parseVideoId(latestVideo.url || latestVideo.link || latestVide
 
 const isVideo = true;
 const heroKind = isVideo ? 'VIDEO' : 'ARTICLE';
-const heroTags = getDisplayTags(latestVideo);
+const heroSlots = getDisplayTagSlots(latestVideo);
 
 /*
   The hub this item belongs to — a featuredBrand OR an event.
@@ -70,7 +71,25 @@ const brandHero = entity?.hero || '';
 const itemBg = latestVideo.thumbnail || latestVideo.image || '';
 const heroBg = brandHero || itemBg;
 const heroTitle = latestVideo.title || '';
-const heroDescription = latestVideo.description || latestVideo.snippet || '';
+/*
+  ─── THE HERO AND THE CARDS MUST DESCRIBE AN ITEM THE SAME WAY ──────────────
+
+  This was `latestVideo.description`, raw. ContentCard cleaned its text and this
+  did not, which is the definition of two code paths for one decision, and the
+  hero is the one that matters: it is the largest text on /feed and the first
+  thing a PR contact reads.
+
+  Measured on the store: 14 of 29 published videos open with a hashtag block or
+  an emoji banner INSIDE the first 280 characters, which is the window this
+  element displays before its 3-4 line clamp. Whenever one of those was the
+  newest video it led the page with "#TheOdysseyMovie #christophernolan
+  #trailerreaction #movie #tomholland".
+
+  Same function as the cards (src/lib/editorial-text.ts). The swap handler below
+  reads `data-preview`, which ContentCard fills from that same function, so the
+  hero renders identical text whether it was built here or promoted from a tile.
+*/
+const heroDescription = editorialPreview(latestVideo);
 
 function hexToRgbTriple(hex: string): string {
   if (!hex) return '204, 0, 0';
@@ -107,7 +126,27 @@ const fallbackGradient = `linear-gradient(135deg, rgba(${brandRgb}, 0.28) 0%, #0
   VIDEO/ARTICLE earns its place.
 */
 
-const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
+/*
+  ─── THE ACCENT BELONGS TO THE BRAND CHIP, NOT TO CHIP NUMBER ONE ───────────
+
+  `.hero-meta-tag--type` (a 2px brand-coloured left border) was applied to
+  `index === 0`. Slot 0 is the BRAND, so the class has always been misnamed,
+  and worse: when no brand resolved, `getDisplayTags()` collapsed its array and
+  the editorial type moved into position 0 and took the brand accent with it.
+  Five of the 41 items on /feed painted a brand accent on the words REVIEW or
+  ANALYSIS while naming no brand at all.
+
+  Chips are built from the slots now, and the accent follows the brand slot
+  wherever it is. An item WITH a brand renders exactly as it did; an item
+  without one simply does not get a brand accent.
+*/
+const heroMetaChips: Array<{ label: string; slot: 'brand' | 'type' | 'extra' | 'kind' }> = [
+  ...(heroSlots.brand ? [{ label: heroSlots.brand, slot: 'brand' as const }] : []),
+  ...(heroSlots.type ? [{ label: heroSlots.type, slot: 'type' as const }] : []),
+  ...(heroSlots.extra ? [{ label: heroSlots.extra, slot: 'extra' as const }] : []),
+];
+/* The kind is the FALLBACK, and only when the item resolved nothing at all. */
+if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kind' });
 ---
 
 <section
@@ -155,8 +194,11 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
             FeedGrid rewrites the row wholesale rather than trying to keep a
             fixed set of spans in step with it. */}
         <div class="hero-eyebrow" id="hero-meta-tags">
-          {heroMetaTags.map((tag, index) => (
-            <span class={`hero-meta-tag${index === 0 ? ' hero-meta-tag--type' : ''}`}>{tag}</span>
+          {heroMetaChips.map((chip) => (
+            <span
+              class={`hero-meta-tag${chip.slot === 'brand' ? ' hero-meta-tag--brand' : ''}`}
+              data-slot={chip.slot}
+            >{chip.label}</span>
           ))}
         </div>
 
@@ -1768,7 +1810,7 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
     beside it read as its particulars. Same 2px brand rule the eyebrow plate
     used to wear, moved to the tag that earns it.
   */
-  .hero-meta-tag--type {
+  .hero-meta-tag--brand {
     border-left: 2px solid rgba(var(--brand-rgb, 204, 0, 0), 0.9);
     color: rgba(255, 255, 255, 0.86);
   }
@@ -2273,8 +2315,8 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
 
         It used to overwrite a single chip with the word VIDEO or ARTICLE,
         which is why the hero said less about an item than the card that
-        promoted it. `data-tags` is the string ContentCard already rendered
-        ("DC | REVIEW"), so the two cannot disagree.
+        promoted it. The slots come straight off the card's own attributes, so
+        the two cannot disagree about either the words or which slot they sit in.
 
         Chips are rebuilt rather than edited: an item can have one tag or
         three, so there is no fixed set of spans to keep in step. textContent
@@ -2283,20 +2325,31 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
       */
       const heroMetaRow = document.getElementById('hero-meta-tags');
       const kind = isVideo ? 'VIDEO' : 'ARTICLE';
-      const cardTags = (card.getAttribute('data-tags') || '')
-        .split('|')
-        .map((t) => t.trim())
-        .filter(Boolean);
+      /*
+        Read PER SLOT, not from a joined string.
+
+        This used to split `data-tags` on "|" and give the brand accent to
+        whichever chip came out first, which meant an item with no brand had
+        the accent painted onto REVIEW or ANALYSIS. The card now states each
+        slot separately, so the accent can follow the brand and an absent
+        brand simply produces no brand chip.
+      */
+      const cardSlots = ([
+        ['brand', card.getAttribute('data-tag-brand')],
+        ['type', card.getAttribute('data-tag-type')],
+        ['extra', card.getAttribute('data-tag-extra')],
+      ] as Array<[string, string | null]>)
+        .filter((entry): entry is [string, string] => Boolean(entry[1]));
       if (heroMetaRow) {
         heroMetaRow.textContent = '';
-        let isFirst = true;
-        for (const tag of (cardTags.length > 0 ? cardTags : [kind])) {
+        const chips: Array<[string, string]> = cardSlots.length > 0 ? cardSlots : [['kind', kind]];
+        for (const [slot, label] of chips) {
           const chip = document.createElement('span');
-          chip.className = `hero-meta-tag${isFirst ? ' hero-meta-tag--type' : ''}`;
-          chip.textContent = tag;
+          chip.className = `hero-meta-tag${slot === 'brand' ? ' hero-meta-tag--brand' : ''}`;
+          chip.setAttribute('data-slot', slot);
+          chip.textContent = label;
           carryScope(heroMetaRow, chip);
           heroMetaRow.appendChild(chip);
-          isFirst = false;
         }
       }
       if (heroDesc) {
