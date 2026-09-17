@@ -9,6 +9,15 @@ import { resolveEntity, hexToRgbTriple } from '../lib/entity-resolver';
 import { getHubMatchTags, matchVideosByTags } from '../lib/hub-coverage';
 import CommercialRotator from './CommercialRotator.astro';
 import FloatingPageNav from './FloatingPageNav.astro';
+import {
+  buildRails,
+  selectCollections,
+  inSeries,
+  accentFor,
+  byNewest,
+  HUB_CATEGORY_ORDER,
+  RAIL_LIMIT,
+} from '../lib/feed-rails';
 
 export interface Props {
   page: any;
@@ -131,101 +140,30 @@ const matchesHub = (item: any, slug: string) => {
 };
 
 /*
-  ─── A TAG MATCH HAS TO READ BOTH TAG FIELDS ───────────────────────────────
-
-  Videos carry `youtubeTags` (raw YouTube tags) and articles carry `tags`
-  (Substack post tags). They are different fields because they come from
-  different syncs, and an item only ever has one of them.
-
-  Reading `youtubeTags` alone made every tag-matched row video-only without
-  looking like it: the Lanterns row showed five videos and silently dropped the
-  two Lanterns articles, which are tagged "Lanterns" in `tags`. Nothing was
-  broken on screen, the row was just quietly incomplete.
-
-  Compared lower-case because the two sources disagree on case for the same
-  tag: YouTube has "lanterns", Substack has "Lanterns".
+  The `hasTag()` helper that stood here matched an item against a literal tag
+  name, and its only caller was the hardcoded Lanterns shelf. Collection
+  membership is decided by `inSeries()` in src/lib/feed-rails.ts now, which
+  reads the editor's `series` field first and falls back to the same two tag
+  fields so an article can still join.
 */
-const hasTag = (item: any, tag: string) => {
-  const wanted = tag.toLowerCase();
-  const pools = [item?.youtubeTags, item?.tags];
-  return pools.some(
-    (pool) => Array.isArray(pool) && pool.some((t: any) => String(t).toLowerCase() === wanted),
-  );
-};
 
-interface RowDef {
-  id: string;
-  title: string;
-  variant?: 'prestige';
-  /*
-    Overrides the hub's own `brandColor` for this row's ambient wash. Only the
-    tentpole shelf uses it: Lanterns is a show, not a hub, so there is no
-    document to read a colour from.
-  */
-  accentColor?: string;
-  /*
-    Basenames under src/assets/rows, WITHOUT an extension.
-
-    Resolved through import.meta.glob below rather than as a `/public` path, so
-    the art goes through Astro's image pipeline (hashed, format-converted, a
-    real srcset) and a file that is not there yet simply resolves to null. A
-    public path would have shipped a broken <img> until somebody noticed.
-  */
-  bannerArt?: string;
-  bannerLogo?: string;
-  match: (item: any) => boolean;
-}
-
-interface SectionDef {
-  id: string;
-  title: string;
-  /*
-    Where this section's "explore" link goes, as a hash on /featured.
-
-    The hash is the hub's `hubCategory` KEY, not the label shown on either page:
-    the accordion sections on /featured carry `data-category="universes"` while
-    the heading above them reads "Franchises". Linking to the label would look
-    right and open nothing. Counted in the store: streaming 6, studios 5,
-    universes 4, gaming 3.
-  */
-  explore?: { href: string; label: string };
-  rows: RowDef[];
-}
+/* --color-accent in the global tokens. The last rung of a collection's accent
+   chain, so one with no accent and no usable hub colour is still lit. */
+const SITE_ACCENT = '#cc0000';
 
 /*
-  ─── THE TENTPOLE ROW SITS OUTSIDE THE SECTIONS ────────────────────────────
+  ─── COLLECTION ARTWORK, RESOLVED AT BUILD TIME BY CONVENTION ──────────────
 
-  Lanterns is a single title, not a franchise or a streamer, so it belongs to
-  none of the three sections below. It keeps its prestige treatment and leads
-  the page. Delete this one line to remove it; nothing else refers to it.
-*/
-const PRESTIGE_ROW: RowDef = {
-  id: 'lanterns',
-  title: 'Lanterns',
-  variant: 'prestige',
-  /* The show's signature emerald. Named here because no hub document carries
-     it — `lanterns` is not a slug in the store. */
-  accentColor: '#10B981',
-  /*
-    Drop the files in as src/assets/rows/lanterns-key-art.(jpg|png|webp) and
-    lanterns-logo.png and the banner appears. Until then the shelf renders
-    exactly as it did before, with its text lockup.
-  */
-  bannerArt: 'lanterns-key-art',
-  bannerLogo: 'lanterns-logo',
-  match: (i) => hasTag(i, 'lanterns'),
-};
+  A collection named "The Umbrella Academy" looks for
+  src/assets/rows/the-umbrella-academy-key-art.(jpg|png|webp) and ...-logo.png.
+  Drop the files in and the banner appears; leave them out and the shelf renders
+  its text lockup like any other row. No code change either way, which is the
+  whole point of a convention over a table.
 
-/*
-  ─── ROW ARTWORK, RESOLVED AT BUILD TIME ───────────────────────────────────
-
-  `eager` because there are at most a handful of these and the row needs the
-  metadata (width/height) synchronously to render without layout shift. The glob
-  is keyed by full path, so the lookup strips everything but the basename.
-
-  A missing file is not an error here, by design: the banner is optional
-  decoration on one row, and a build that fails because an editor has not
-  uploaded artwork yet would be a worse trade than a shelf that renders plain.
+  `eager` because there are at most a handful and the row needs the metadata
+  (width/height) synchronously to render without layout shift. A missing file is
+  not an error by design: a build that failed because an editor had not uploaded
+  artwork yet would be a worse trade than a shelf that renders plain.
 */
 const ROW_ART = import.meta.glob<{ default: ImageMetadata }>(
   '/src/assets/rows/*.{jpg,jpeg,png,webp,avif}',
@@ -240,115 +178,19 @@ const rowArt = (name?: string): ImageMetadata | null => {
   return hit ? hit[1].default : null;
 };
 
-/*
-  ─── SECTIONS AND THEIR ROWS ───────────────────────────────────────────────
-
-  Adding a row is a line in a `rows` array; adding a section is an entry here.
-  Empty rows are dropped, and a section whose rows are all empty is dropped
-  with them, so nothing can ship as a bare heading over nothing.
-
-  ─── WHAT THESE FILTERS ACTUALLY MATCH, MEASURED ───────────────────────────
-  Counted against src/data/videos.json at the time of writing, over the 28
-  documents that are published AND of effective type `video` (shorts, live and
-  retired docs never reach the feed):
-
-    dc-comics 5 · hbo-max 5 · marvel-comics 4 · netflix 3 · prime-video 2
-
-  STAR WARS MATCHES NOTHING, and that is a data fact rather than a wiring bug.
-  There is no `star-wars` value in any document's `hubs`, and no document
-  carries the exact tag "star wars". The only Star Wars strings in the store
-  are compound tags — "Star Wars Andor", "Disney Plus Star Wars", "Star Wars
-  review" — and every one of them is on a short or an unpublished document, so
-  even a substring match would find nothing the feed can render. The row is
-  specified here so it appears the moment a tagged video is published; until
-  then it drops out rather than rendering an empty rail.
-
-  `marvel` is kept alongside `marvel-comics` for the same forward-looking
-  reason. Only `marvel-comics` exists in the store today.
-*/
-const SECTION_DEFS: SectionDef[] = [
-  {
-    id: 'latest',
-    title: 'The Latest',
-    rows: [
-      { id: 'all-content', title: 'All Content', match: () => true },
-      { id: 'all-videos', title: 'All Videos', match: (i) => i?.type === 'video' },
-      { id: 'all-articles', title: 'All Articles', match: (i) => i?.type === 'article' },
-    ],
-  },
-  {
-    id: 'franchises',
-    title: 'Franchises',
-    explore: { href: '/featured#universes', label: 'EXPLORE FRANCHISES' },
-    rows: [
-      { id: 'dc-comics', title: 'DC', match: (i) => matchesHub(i, 'dc-comics') },
-      { id: 'marvel-comics', title: 'Marvel', match: (i) => matchesHub(i, 'marvel-comics') || matchesHub(i, 'marvel') },
-      { id: 'star-wars', title: 'Star Wars', match: (i) => matchesHub(i, 'star-wars') },
-    ],
-  },
-  /*
-    ─── THE TOPIC SECTIONS EXIST SO THE HOMEPAGE CAN LINK INTO THEM ──────────
-
-    The homepage's "What We Cover" tiles are Film, TV, Games and Events, and
-    they deep-link to /feed#film, #tv and #games. Those anchors need something
-    to land on, so each topic is a section with that id.
-
-    Games carries the platform hubs as well as its topic row: PlayStation,
-    Nintendo and Xbox are how gaming content is actually branded, and an empty
-    one drops out rather than shipping a bare heading — which today is most of
-    them, since the store holds one PlayStation video and nothing for the other
-    two.
-  */
-  {
-    id: 'film',
-    title: 'Film',
-    rows: [{ id: 'topic-film', title: 'Film', match: (i) => hasTopic(i, 'film') }],
-  },
-  {
-    id: 'tv',
-    title: 'TV',
-    rows: [{ id: 'topic-tv', title: 'TV', match: (i) => hasTopic(i, 'tv') }],
-  },
-  {
-    id: 'games',
-    title: 'Games',
-    rows: [
-      { id: 'topic-games', title: 'All Games', match: (i) => hasTopic(i, 'games') },
-      { id: 'playstation', title: 'PlayStation', match: (i) => matchesHub(i, 'playstation') },
-      { id: 'nintendo', title: 'Nintendo', match: (i) => matchesHub(i, 'nintendo') },
-      { id: 'xbox', title: 'Xbox', match: (i) => matchesHub(i, 'xbox') },
-    ],
-  },
-  {
-    id: 'streaming',
-    title: 'Streaming',
-    explore: { href: '/featured#streaming', label: 'EXPLORE STREAMERS' },
-    rows: [
-      { id: 'hbo-max', title: 'HBO Max', match: (i) => matchesHub(i, 'hbo-max') },
-      { id: 'netflix', title: 'Netflix', match: (i) => matchesHub(i, 'netflix') },
-      { id: 'prime-video', title: 'Prime Video', match: (i) => matchesHub(i, 'prime-video') },
-    ],
-  },
-];
+const seriesSlug = (name: string) =>
+  String(name)
+    .toLowerCase()
+    .replace(/[\u2018\u2019']/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 
 /*
-  ─── A ROW'S EXPLORE LINK IS DERIVED, NOT TYPED ────────────────────────────
-
-  Every brand row's id IS its hub slug (`dc-comics`, `hbo-max`, …), so the
-  destination is a lookup rather than a table of hardcoded hrefs that would
-  drift the first time a slug changed. A row whose id matches no hub — the three
-  global ones — simply gets no link.
-
-  Events are checked too, so a row keyed to a convention would link to
-  /events/<slug> rather than 404 at /featured/<slug>.
+  `hubHref()` stood here, turning a row id into /featured/<slug> or
+  /events/<slug>. The rails are categories rather than single hubs now, so
+  their explore link goes to the matching accordion row on /featured
+  (`/featured#streaming`), which is built inline where the rails are.
 */
-const hubHref = (id: string): string | null => {
-  const slugOf = (doc: any) =>
-    typeof doc?.slug === 'string' ? doc.slug : doc?.slug?.current ?? null;
-  if (hubBrands.some((b) => slugOf(b) === id)) return `/featured/${id}`;
-  if (hubEvents.some((e) => slugOf(e) === id)) return `/events/${id}`;
-  return null;
-};
 
 /*
   ─── EVERY BRANDED ROW IS LIT IN ITS OWN COLOUR ────────────────────────────
@@ -366,68 +208,13 @@ const hubHref = (id: string): string | null => {
   The three global rows resolve to no hub at all and so stay clean by
   construction — nothing to special-case.
 */
-const buildRow = (row: RowDef) => {
-  const brandDoc = allHubDocs.find((doc) => slugOfDoc(doc) === row.id);
-
-  /*
-    ─── THE BOOKENDS ─────────────────────────────────────────────────────────
-
-    A branded row is anchored by two static tiles: its mark at the head, and an
-    "Explore <hub>" off-ramp at the tail. Both are resolved here rather than in
-    the markup so a row that has no hub — the three global ones — gets neither,
-    with nothing to special-case at render.
-
-    The mark is asked for at height 320 like every other logo on the site
-    (HubCard, the event heroes), and `auto('format')` keeps it off the critical
-    path as a PNG.
-  */
-  /*
-    The hub's key art, small and blurred-into-the-dark behind the Explore tile.
-    Same source the /featured deck uses to represent a hub, so the off-ramp
-    LOOKS like where it goes. 640 because it sits behind a dim scrim at tile
-    size — the detail is spent before it reaches the eye (the same reasoning as
-    the hero backdrop plate).
-  */
-  const bookendHero = (() => {
-    if (!brandDoc?.heroImage) return null;
-    try {
-      return urlFor(brandDoc.heroImage).width(640).auto('format').url();
-    } catch {
-      return null;
-    }
-  })();
-
-  const markRef = brandDoc ? brandDoc.heroLogo || brandDoc.logo : null;
-  const bookendLogo = (() => {
-    if (!markRef) return null;
-    try {
-      return urlFor(markRef).height(320).auto('format').url();
-    } catch {
-      /* A broken ref must not take the row down — the row just loses its mark. */
-      return null;
-    }
-  })();
-  const raw = brandDoc?.brandColor;
-  const hubHex = typeof raw === 'string' ? raw : raw?.hex ?? null;
-
-  const candidate = row.accentColor ?? hubHex;
-  const accentColor =
-    candidate && candidate.toLowerCase() !== '#ffffff' ? candidate : null;
-
-  return {
-    ...row,
-    items: safeAllItems.filter(row.match),
-    accentColor,
-    accentRgb: accentColor ? hexToRgbTriple(accentColor) : null,
-    bookendLogo,
-    bookendHero,
-    bookendTitle: brandDoc?.title ?? row.title,
-    explore: (() => {
-      const href = hubHref(row.id);
-      return href ? { href, label: `EXPLORE ${row.title.toUpperCase()} HUB` } : null;
-    })(),
-  };
-};
+/*
+  `buildRow()` stood here: it took a hand-written RowDef, resolved the hub's
+  mark and key art for the row's bookends, and read its accent colour. Every
+  one of those jobs now belongs to either `buildRails()` (the taxonomy rails,
+  which need no per-row furniture) or the collection builder below (which needs
+  all of it, and gets it from the series rather than from a literal).
+*/
 
 /*
   ─── NO TWO ADJACENT TILES MAY SHARE ARTWORK ───────────────────────────────
@@ -458,136 +245,112 @@ function spreadByArtwork(items: any[]): any[] {
   return out;
 }
 
-const prestigeRow = (() => {
-  const built = buildRow(PRESTIGE_ROW);
-  if (built.items.length === 0) return null;
-  return { ...built, items: spreadByArtwork(built.items) };
-})();
+/*
+  ─── CURATED COLLECTIONS ───────────────────────────────────────────────────
+
+  One shelf per series an editor has flagged, most recently updated first, each
+  with the prestige treatment. This is the Lanterns section generalised: the
+  look is unchanged, and the only thing that moved is how it learns which show
+  it is about.
+
+  `spreadByArtwork` still applies. The channel reuses one thumbnail across a run
+  of episode reviews, so a chronological collection put four visually identical
+  tiles side by side and read as a rendering fault rather than four episodes.
+*/
+const collections = selectCollections(safeAllItems).map((chosen) => {
+  const members = safeAllItems.filter((item) => inSeries(item, chosen.name)).sort(byNewest);
+  const hub = members.reduce<ReturnType<typeof resolveEntity>>(
+    (found, item) => found ?? resolveEntity(item, { brands: hubBrands, events: hubEvents, urlFor }),
+    null,
+  );
+
+  /*
+    ─── THE SHELF IS THEMED FOR THE SHOW, NOT ITS STUDIO ────────────────────
+
+    Three rungs. `seriesAccent` from any member of the collection, so the theme
+    outlives the flagged document; then the hub's own CMS-editable brandColor;
+    then the site accent, so a collection shelf is ALWAYS lit. An unlit row is
+    right for an ordinary rail whose brand is white and wrong under a banner
+    and a lockup, where it leaves a half-finished treatment.
+
+    White is skipped at the second rung for the reason it is skipped everywhere
+    on this page: over a near-black ground it is not an accent, it is grey fog.
+  */
+  const rawHub = (hub as any)?.color;
+  const hubHex = typeof rawHub === 'string' ? rawHub : rawHub?.hex ?? null;
+  const usableHub = hubHex && hubHex.toLowerCase() !== '#ffffff' ? hubHex : null;
+  const accentHex = accentFor(members) || usableHub || SITE_ACCENT;
+
+  const slug = seriesSlug(chosen.name);
+  const art = rowArt(`${slug}-key-art`);
+
+  return {
+    id: slug,
+    name: chosen.name,
+    reason: chosen.reason,
+    items: spreadByArtwork(members).slice(0, RAIL_LIMIT),
+    hub,
+    accentColor: accentHex,
+    accentRgb: hexToRgbTriple(accentHex),
+    bannerArt: art,
+    /* All or nothing: there is deliberately no half state where a logo floats
+       over the page with no art behind it. */
+    bannerLogo: art ? rowArt(`${slug}-logo`) : null,
+    eyebrow: hub ? `FEATURED SERIES \u2022 ${hub.title.toUpperCase()}` : 'FEATURED SERIES',
+  };
+}).filter((c) => c.items.length > 0);
 
 /*
-  ─── THE GLOBAL ROWS DE-DUPLICATE, AND ONLY THEY DO ────────────────────────
+  ─── A COLLECTION TILE CARRIES THE SHOW, NOT THE HUB ───────────────────────
 
-  "All Content", "All Videos" and "All Articles" are three different rows on
-  /feed, where allItems holds both kinds. They are NOT three different rows on
-  the type-filtered routes, which pass an already-narrowed list:
-
-    /feed/videos   -> All Content and All Videos are the same 28 items
-    /feed/articles -> All Content and All Articles are the same 12 items
-
-  Those are three views of one list, so rendering two identical rails under two
-  headings reads as a bug and doubles the cards the page ships.
-
-  ─── WHY THIS IS SCOPED TO THE `latest` SECTION ───────────────────────────
-  The first version of this compared every row against every earlier row on the
-  page, and it silently ate the DC and HBO Max rows. Both hold exactly the five
-  Lanterns videos — the show is a DC property airing on HBO Max — so by
-  set-identity they matched the tentpole row and were dropped. Franchises
-  rendered as Marvel alone and Streaming lost its largest row, which looked
-  like a filter bug and was really this.
-
-  Set identity is not the same thing as editorial identity. "DC" is a distinct
-  browse path from "Lanterns" even in the week when they happen to contain the
-  same five items, and it stops matching the moment any other DC video
-  publishes. Only rows that are BY CONSTRUCTION views of the same list — the
-  global three — may collapse into each other, so the comparison never leaves
-  the section that defines them.
-
-  First occurrence wins, so the result is deterministic rather than dependent
-  on which row happens to be longer.
+  These items resolve to their hub, so promoting one into the spotlight hero
+  filled it with the hub's key art and roundel, under a banner showing the
+  show's own logo. The row and the hero it drove disagreed about what you were
+  looking at. Where a collection has artwork of its own, its tiles hand that to
+  the hero instead, sized for a backdrop rather than shipping the 2560px master.
 */
-const GLOBAL_SECTION_ID = 'latest';
-
-const sameItems = (a: any[], b: any[]) => a.length === b.length && a.every((item, i) => item === b[i]);
-
-const feedSections = SECTION_DEFS
-  .map((section) => {
-    const kept: any[][] = [];
-    const rows = section.rows
-      .map(buildRow)
-      .filter((row) => row.items.length > 0)
-      .filter((row) => {
-        if (section.id !== GLOBAL_SECTION_ID) return true;
-        if (kept.some((seen) => sameItems(seen, row.items))) return false;
-        kept.push(row.items);
-        return true;
-      });
-    return { ...section, rows };
-  })
-  .filter((section) => section.rows.length > 0);
-
-const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
+const collectionBrands = new Map<string, { title?: string; hero: string; logo?: string }>();
+for (const collection of collections) {
+  if (!collection.bannerArt) continue;
+  collectionBrands.set(collection.id, {
+    title: collection.name,
+    hero: (await getImage({ src: collection.bannerArt, width: 1600 })).src,
+    logo: collection.bannerLogo
+      ? (await getImage({ src: collection.bannerLogo, width: 640 })).src
+      : undefined,
+  });
+}
 
 /*
-  ─── THE TENTPOLE SHELF NAMES ITS OWN HUB ──────────────────────────────────
+  ─── THE RAILS ─────────────────────────────────────────────────────────────
 
-  The badge, the Explore link and the second half of the eyebrow are all
-  resolved from the row's own items rather than typed in as "DC". The shelf is
-  driven by one line in PRESTIGE_ROW, so hardcoding DC here would mean pointing
-  it at another show later and shipping a row that still said DC.
-
-  The hub is taken from the first item that resolves to one, which for Lanterns
-  is DC (see resolveEntity: among hbo-max / dc-comics / warner-bros, the item's
-  own display tag decides). If nothing resolves, the badge, the divider and the
-  link are all omitted and the shelf degrades to its title alone.
+  Derived from `hubCategory`, the same field /featured groups its directory by,
+  so re-categorising a hub in the CMS moves it on both pages and adding one
+  needs no code at all. The matchers stay here: they are the page's existing
+  understanding of what belongs to a hub or a topic, and the rail builder is
+  handed them rather than growing a second copy.
 */
-const prestigeHub = prestigeRow
-  ? prestigeRow.items.reduce<ReturnType<typeof resolveEntity>>(
-      (found, item) => found ?? resolveEntity(item, { brands: hubBrands, events: hubEvents, urlFor }),
-      null,
-    )
-  : null;
+const shownInCollections = new Set(collections.flatMap((c) => c.items));
 
-/* "MAX ORIGINAL SERIES" is not ours to assert — the distributor is whatever the
-   item's hubs say. The eyebrow names the hub we actually resolved, and falls
-   back to a neutral line when we resolved none. */
-const prestigeEyebrow = prestigeHub
-  ? `FEATURED SERIES \u2022 ${prestigeHub.title.toUpperCase()}`
-  : 'FEATURED SERIES';
+const rails = buildRails(safeAllItems, {
+  hubs: hubBrands,
+  matchesHub,
+  hasTopic,
+  alreadyShown: shownInCollections,
+  hrefForCategory: (category) =>
+    HUB_CATEGORY_ORDER.includes(category as any) ? `/featured#${category}` : null,
+});
+
+const hasRows = collections.length > 0 || rails.length > 0;
 
 /*
-  The banner is all-or-nothing. With key art the strip renders and takes the
-  eyebrow and the title with it; without, the shelf keeps the text lockup it has
-  always had. There is deliberately no half state where a logo floats over the
-  page with no art behind it.
+  The floating nav lists the collections and then the rails, which is the page's
+  own order. With the sections flattened there is no second level to represent.
 */
-const prestigeBannerArt = prestigeRow ? rowArt(PRESTIGE_ROW.bannerArt) : null;
-const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) : null;
-
-/*
-  ─── A FEATURED ROW'S TILES CARRY THE SHOW, NOT THE HUB ────────────────────
-
-  These items resolve to DC, because that is the hub that owns them, so
-  promoting one into the spotlight hero filled it with DC's key art and the DC
-  roundel — under a banner that says LANTERNS in the show's own logo. The row
-  and the hero it drives disagreed about what you were looking at.
-
-  Where the row has artwork of its own, its tiles hand that to the hero
-  instead. Sized here rather than passing the raw import: the hero backdrop is
-  a full-bleed plate, and shipping the 2560px master to it is the same waste
-  the entity resolver's own note is about.
-
-  Only the look and the name are overridden. The Explore CTA still points at
-  /featured/dc-comics, because the show has no page of its own.
-*/
-const prestigeBrand = prestigeBannerArt
-  ? {
-      title: prestigeRow?.title,
-      hero: (await getImage({ src: prestigeBannerArt, width: 1600 })).src,
-      logo: prestigeBannerLogo
-        ? (await getImage({ src: prestigeBannerLogo, width: 640 })).src
-        : undefined,
-    }
-  : null;
-
-/*
-  Which section is open on arrival. The Latest is the newsroom and the reason
-  most people are on this page; everything below it is a browse path somebody
-  goes looking for. One open section is what makes the page readable at a
-  glance while keeping every row one click away.
-*/
-const DEFAULT_OPEN_SECTION = 'latest';
-
-const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
+const navItems = [
+  ...collections.map((c) => ({ id: c.id, text: c.name, level: 2 })),
+  ...rails.map((r) => ({ id: r.id, text: r.title, level: 2 })),
+];
 ---
 
 <style>
@@ -669,110 +432,30 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
     margin-block: 1rem 2.5rem;
   }
 
-  .feed-section {
-    margin-bottom: 3.5rem;
-  }
-
   /*
-    ─── THE COLLAPSED SECTION ────────────────────────────────────────────────
+    ─── RAILS ────────────────────────────────────────────────────────────────
 
-    A closed section is a heading and a hairline, which is exactly what it was
-    before minus its rows, so nothing about the page's rhythm changes when one
-    is open. Deliberately no height animation: the bodies hold up to 41 cards
-    and animating that much layout is a stutter on a phone and a repaint storm
-    on a 4K display. The chevron turns; the content is there or it is not.
+    A rail is a `.feed-row` with a plain heading. It reuses the row metrics, the
+    rail scrolling, the snapping and the chevrons exactly as they were; the only
+    new rule is the heading size, which steps up from a row title because a rail
+    IS a section now rather than one row inside one.
 
-    `hidden` rather than `display: none` in a class, so the state lives in ONE
-    place. A lazy image inside a `hidden` container is never fetched, which is
-    why closing four sections cuts the page's image requests rather than just
-    hiding them.
+    ─── WHAT WAS REMOVED HERE ────────────────────────────────────────────────
+
+    Every `.feed-section*` rule: the heads, the titles, the row wrappers and the
+    whole collapsed-section treatment (toggle, chevron, count). They styled six
+    collapsible SECTIONS containing fourteen rows. There are no sections any
+    more, so nothing matched them, and dead CSS on a page in the Lighthouse gate
+    is not free.
   */
-  .feed-section--collapsible {
-    margin-bottom: 2rem;
+  .feed-rail {
+    margin-bottom: 3rem;
   }
 
-  .feed-section--collapsible.is-open {
-    margin-bottom: 3.5rem;
-  }
-
-  /* The whole heading is the hit target, not just the words. */
-  .feed-section-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0;
-    background: none;
-    border: none;
-    color: inherit;
-    font: inherit;
-    letter-spacing: inherit;
-    text-transform: inherit;
-    cursor: pointer;
-    text-align: left;
-  }
-
-  .feed-section-chevron {
-    flex-shrink: 0;
-    color: var(--color-white-muted, #888888);
-    transition: transform 200ms ease, color 200ms ease;
-  }
-
-  .is-open .feed-section-chevron {
-    transform: rotate(90deg);
-    color: var(--color-accent-text, #ef4444);
-  }
-
-  /*
-    How much is behind the heading. It is the one thing a closed section cannot
-    show for itself, and it is what makes a collapsed row worth opening rather
-    than a mystery.
-  */
-  .feed-section-count {
-    font-family: var(--font-body, 'Inter', sans-serif);
-    font-size: 0.62rem;
-    font-weight: 600;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--color-white-muted, #888888);
-    white-space: nowrap;
-  }
-
-  .feed-section-toggle:hover .feed-section-chevron,
-  .feed-section-toggle:focus-visible .feed-section-chevron {
-    color: var(--color-accent-text, #ef4444);
-  }
-
-  .feed-section-toggle:focus-visible {
-    outline: 2px solid var(--color-accent-text, #ef4444);
-    outline-offset: 4px;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .feed-section-chevron {
-      transition: none;
-    }
-  }
-
-  /*
-    The section heading outranks its rows visually as well as semantically, so
-    the two levels are never mistaken for each other: larger, brighter, and
-    underscored by a hairline that runs the width of the content column.
-  */
-  .feed-section-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-    padding-bottom: 0.6rem;
-    margin-bottom: 0.35rem;
-  }
-
-  .feed-row-actions {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    flex-shrink: 0;
+  .feed-rail-title {
+    font-size: clamp(1.05rem, 1.7vw, 1.45rem);
+    letter-spacing: 0.06em;
+    color: var(--color-white, #f0f0f0);
   }
 
   /*
@@ -803,56 +486,14 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
   }
 
   .feed-hub-link:focus-visible {
-    outline: 2px solid var(--color-accent-text, #ef4444);
-    outline-offset: 3px;
-  }
-
-  /* The link drops under its heading rather than squeezing it on a phone. */
-  @media (max-width: 640px) {
-    .feed-section-head {
-      flex-wrap: wrap;
-      gap: 0.4rem;
-    }
-
-    .feed-hub-link {
-      font-size: 0.56rem;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .feed-hub-link {
-      transition: none;
-    }
-  }
-
-  .feed-section-title {
-    font-family: var(--font-display, sans-serif);
-    font-size: clamp(1.35rem, 2.4vw, 1.9rem);
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
     color: var(--color-white, #f0f0f0);
-    margin: 0;
   }
 
-  .feed-section-rows {
-    padding-top: 1.35rem;
-  }
-
-  /* Inside a section the rows sit closer together than a standalone row does:
-     they are one group, and the section's own bottom margin provides the
-     separation from the next group. */
-  .feed-section-rows .feed-row {
-    margin-bottom: 2rem;
-  }
-
-  .feed-section-rows .feed-row:last-child {
-    margin-bottom: 0;
-  }
-
-  .feed-section-rows .feed-row-title {
-    font-size: clamp(0.85rem, 1.25vw, 1rem);
-    color: rgba(255, 255, 255, 0.82);
+  .feed-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-shrink: 0;
   }
 
   .feed-row {
@@ -1696,307 +1337,150 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
   {hasRows && (
     <>
       <FloatingPageNav entries={navItems} />
-      <div id="feed-rows" data-hero-banner={prestigeBannerArt ? "" : undefined}>
-      {prestigeRow && (
+      <div id="feed-rows" data-hero-banner={collections[0]?.bannerArt ? "" : undefined}>
+
+      {/*
+        ─── CURATED COLLECTIONS ───────────────────────────────────────────────
+
+        The Lanterns shelf, generalised. Identical treatment: full-bleed key
+        art, the brand lockup, the accent wash across the whole row and tiles at
+        the `featured` size. One per flagged series, so a second show can have
+        one without touching this file.
+      */}
+      {collections.map((collection) => (
         <section
           class="feed-row feed-row--prestige feed-row--accented"
-          data-row={prestigeRow.id}
-          style={`--row-accent-color: ${prestigeRow.accentColor}; --row-accent-rgb: ${prestigeRow.accentRgb};`}
+          id={collection.id}
+          data-row={collection.id}
+          data-collection
+          style={`--row-accent-color: ${collection.accentColor}; --row-accent-rgb: ${collection.accentRgb};`}
         >
-          {/*
-            The tentpole lockup. The plain word "LANTERNS" in green sans-serif
-            was doing none of the work a shelf like this does on a streaming
-            service: it named the show without saying whose it is, where it
-            airs, or where to go next.
-
-            `prestigeHub` is resolved, not hardcoded — the badge, the eyebrow's
-            second half and the Explore link all come from whichever hub the
-            row's own items resolve to, so the day this shelf is pointed at a
-            different show it re-labels itself instead of lying about DC.
-          */}
-          {prestigeBannerArt && (
+          {collection.bannerArt && (
             <FeedRowBanner
-              art={prestigeBannerArt}
-              logo={prestigeBannerLogo}
-              title={prestigeRow.title}
-              eyebrow={prestigeEyebrow}
-              accentRgb={prestigeRow.accentRgb}
+              art={collection.bannerArt}
+              logo={collection.bannerLogo}
+              title={collection.name}
+              eyebrow={collection.eyebrow}
+              accentRgb={collection.accentRgb}
             />
           )}
 
-          {/*
-            THE HEAD RENDERS ITS LOCKUP EVEN WHEN THERE IS ART ABOVE IT.
-
-            It shipped once gated on `!prestigeBannerArt`, with the eyebrow and
-            the title moved up onto the banner. That gave the tentpole row a
-            different heading treatment from every other row on the page, and
-            put text that belongs with the rail onto the artwork. Reverted on
-            the owner's call after seeing it on the real key art.
-          */}
           <div class="feed-row-head feed-row-head--prestige">
             <div class="prestige-brand-lockup">
-              <span class="prestige-eyebrow">{prestigeEyebrow}</span>
+              <span class="prestige-eyebrow">{collection.eyebrow}</span>
               <div class="prestige-title-group">
-                {prestigeHub?.logo ? (
-                  <img
-                    src={prestigeHub.logo}
-                    alt={prestigeHub.title}
-                    class="prestige-mark"
-                    loading="lazy"
-                    decoding="async"
-                  />
+                {collection.hub?.logo ? (
+                  <img src={collection.hub.logo} alt={collection.hub.title} class="prestige-mark" loading="lazy" decoding="async" />
                 ) : (
-                  prestigeHub && <span class="prestige-badge">{prestigeHub.title}</span>
+                  collection.hub && <span class="prestige-badge">{collection.hub.title}</span>
                 )}
-                {prestigeHub && <span class="prestige-divider" aria-hidden="true"></span>}
-                <h2 class="feed-row-title prestige-title">{prestigeRow.title}</h2>
+                {collection.hub && <span class="prestige-divider" aria-hidden="true"></span>}
+                <h2 class="feed-row-title prestige-title">{collection.name}</h2>
               </div>
             </div>
 
             <div class="prestige-actions">
-              {prestigeHub && (
-                <a href={prestigeHub.url} class="prestige-hub-link">
-                  <span>EXPLORE {prestigeHub.title.toUpperCase()} HUB</span>
+              {collection.hub && (
+                <a href={collection.hub.url} class="prestige-hub-link">
+                  <span>EXPLORE {collection.hub.title.toUpperCase()} HUB</span>
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
                     <path d="M5 12h14M12 5l7 7-7 7" />
                   </svg>
                 </a>
               )}
-            <div class="feed-row-nav" aria-hidden="true">
-              <button type="button" class="feed-row-chevron" data-dir="-1" tabindex="-1">
-                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-                  <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" />
-                </svg>
-              </button>
-              <button type="button" class="feed-row-chevron" data-dir="1" tabindex="-1">
-                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-                  <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" />
-                </svg>
-              </button>
-            </div>
+              <div class="feed-row-nav" aria-hidden="true">
+                <button type="button" class="feed-row-chevron" data-dir="-1" tabindex="-1">
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                    <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" />
+                  </svg>
+                </button>
+                <button type="button" class="feed-row-chevron" data-dir="1" tabindex="-1">
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                    <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
+
           <ul class="feed-row-rail" data-rail>
-            {prestigeRow.items.map((item: any, index: number) => (
+            {collection.items.map((item: any, index: number) => (
               <li class="feed-row-item">
                 <ContentCard
                   item={item}
                   index={index}
                   context="feed"
                   variant="featured"
-                  brandOverride={prestigeBrand}
+                  brandOverride={collectionBrands.get(collection.id) ?? null}
                 />
               </li>
             ))}
           </ul>
         </section>
-      )}
+      ))}
 
-      {/*
-        ─── THE PRESTIGE BREAK ────────────────────────────────────────────────
-
-        One rotator, mounted between the tentpole shelf and the chronological
-        sections. That seam is the page's natural pause: the reader has just
-        finished the featured show and has not yet started browsing, so the
-        banner lands between two thoughts rather than interrupting one.
-
-        Exactly one per page, deliberately. The rotator binds by id
-        (#banner-rotator, #banner-progress) and to the first .yt-banner-wrapper
-        it finds, so a second instance would render and never rotate.
-
-        Wrapped in a real class, NOT `my-10 px-4 mx-auto`: Tailwind's spacing
-        utilities do nothing in this project. global-base.css carries an
-        unlayered `* { margin: 0; padding: 0 }`, and unlayered rules beat
-        @layer utilities regardless of specificity — the same trap that left the
-        feed's filter row flush against the hero with `mt-16` on it.
-      */}
-      {prestigeRow && (
+      {collections.length > 0 && (
         <div class="feed-rotator-break">
           <CommercialRotator />
         </div>
       )}
 
       {/*
-        ─── THE SECTIONS COLLAPSE, THEY ARE NOT REMOVED ──────────────────────
+        ─── THE RAILS ─────────────────────────────────────────────────────────
 
-        Every row this page can build is still here. What changed is that they
-        are not all open at once: the page opened as one continuous scroll
-        through the entire archive, the same story appearing in each section it
-        belongs to, and the repetition READ as padding even though each section
-        is a genuinely different browse path.
+        Flat, and visible. They were six collapsible SECTIONS containing
+        fourteen rows, and the accordion existed because fourteen stacked rows
+        made the page an endless scroll. Eight rails do not stack that way: a
+        rail of seventeen stories is one row of vertical space, which is the
+        whole reason a browse surface uses them. Nothing to collapse, so nothing
+        to open.
 
-        Collapsing is the honest fix for that and deleting rows was not. A
-        closed section still says what it holds and is one click from open, so
-        nothing becomes unreachable and no editorial relationship is thrown
-        away to tidy up a page.
-
-        SAME ARIA PATTERN AS /featured: an <h2> wrapping a <button>, not a div
-        with a click handler. The heading keeps the document outline, the
-        button takes focus and fires on Enter and Space for free, and
-        aria-expanded announces the state. That page learned this the hard way
-        — its collapsed rows were unreachable by keyboard entirely.
-
-        The Explore link stays OUTSIDE the button. A link inside a button is
-        invalid HTML and browsers disagree about which one a click reaches.
+        Same `.feed-row` markup as the collections above, so the rail, the
+        snapping and the chevrons are one implementation.
       */}
-      {feedSections.map((section) => (
-        <section
-          class:list={['feed-section', 'feed-section--collapsible', {
-            'is-open': section.id === DEFAULT_OPEN_SECTION,
-          }]}
-          id={section.id}
-          data-section={section.id}
-          data-collapsible
-        >
-          <div class="feed-section-head">
-            <h2 class="feed-section-title" id={`feed-section-${section.id}`}>
-              <button
-                type="button"
-                class="feed-section-toggle"
-                aria-expanded={section.id === DEFAULT_OPEN_SECTION ? 'true' : 'false'}
-                aria-controls={`feed-section-rows-${section.id}`}
-              >
-                <svg class="feed-section-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true" focusable="false">
-                  <path d="M9 5l7 7-7 7" />
-                </svg>
-                <span>{section.title}</span>
-                <span class="feed-section-count">{section.rows.length === 1 ? '1 row' : `${section.rows.length} rows`}</span>
-              </button>
-            </h2>
-            {section.explore && (
-              <a href={section.explore.href} class="feed-hub-link">
-                <span>{section.explore.label}</span>
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </a>
-            )}
+      {rails.map((rail) => (
+        <section class="feed-row feed-rail" id={rail.id} data-row={rail.id}>
+          <div class="feed-row-head">
+            <h2 class="feed-row-title feed-rail-title">{rail.title}</h2>
+            <div class="feed-row-actions">
+              {rail.href && (
+                <a href={rail.href} class="feed-hub-link">
+                  <span>EXPLORE {rail.title.toUpperCase()}</span>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </a>
+              )}
+              {/* Mouse affordances only. A touch device scrolls the rail
+                  directly and a keyboard reaches every card through it. */}
+              <div class="feed-row-nav" aria-hidden="true">
+                <button type="button" class="feed-row-chevron" data-dir="-1" tabindex="-1">
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                    <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" />
+                  </svg>
+                </button>
+                <button type="button" class="feed-row-chevron" data-dir="1" tabindex="-1">
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                    <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div class="feed-section-rows" id={`feed-section-rows-${section.id}`} hidden={section.id !== DEFAULT_OPEN_SECTION}>
-            {section.rows.map((row) => (
-              <section
-                class:list={['feed-row', { 'feed-row--accented': Boolean(row.accentRgb) }]}
-                id={row.id}
-                data-row={row.id}
-                style={row.accentRgb
-                  ? `--row-accent-color: ${row.accentColor}; --row-accent-rgb: ${row.accentRgb};`
-                  : undefined}
-              >
-                <div class="feed-row-head">
-                  {/*
-                    ─── THE LOGO IS THE ROW'S LABEL, NOT A TILE ────────────────
-
-                    It was the first <li> in the rail: a boxless mark occupying
-                    a full 320px card slot, which read as a gap with a small
-                    logo floating in it and scrolled away with the content.
-
-                    A row's branding is not content in the row. It sits in the
-                    heading, off to the side of the rail, at a size you can
-                    actually read — and it never takes a slot a card could use.
-
-                    The title goes sr-only when a mark exists rather than being
-                    dropped: the heading level still has to be there for the
-                    document outline, and showing both would put the same brand
-                    on screen twice.
-                  */}
-                  {row.bookendLogo ? (
-                    <h3 class="feed-row-title feed-row-title--mark">
-                      <img src={row.bookendLogo} alt={row.bookendTitle} class="feed-row-mark" loading="lazy" decoding="async" />
-                    </h3>
-                  ) : (
-                    <h3 class="feed-row-title">{row.title}</h3>
-                  )}
-                  <div class="feed-row-actions">
-                    {row.explore && (
-                      <a href={row.explore.href} class="feed-hub-link">
-                        <span>{row.explore.label}</span>
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
-                          <path d="M5 12h14M12 5l7 7-7 7" />
-                        </svg>
-                      </a>
-                    )}
-                  {/*
-                    Mouse affordances only. A touch device scrolls the rail
-                    directly and a keyboard reaches every card through it, so
-                    these are aria-hidden and out of the tab order rather than
-                    focusable controls that reach nothing new.
-                  */}
-                  <div class="feed-row-nav" aria-hidden="true">
-                    <button type="button" class="feed-row-chevron" data-dir="-1" tabindex="-1">
-                      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-                        <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" />
-                      </svg>
-                    </button>
-                    <button type="button" class="feed-row-chevron" data-dir="1" tabindex="-1">
-                      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-                        <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" />
-                      </svg>
-                    </button>
-                  </div>
-                  </div>
-                </div>
-
-                <ul class="feed-row-rail" data-rail>
-                  {/*
-                    ─── BOOKENDS ARE SIBLINGS, NOT DATA ────────────────────────
-
-                    Static <li>s either side of the mapped items rather than
-                    entries unshifted into the array. The row's data stays the
-                    row's data: nothing downstream — the dedupe, the artwork
-                    spread, the counts — has to learn to skip a tile that is not
-                    an article or a video.
-
-                    They take the SAME bounding math as a content tile
-                    (`.feed-row-item`, so `min(85vw, 320px)` and the snap
-                    alignment), which is what keeps a rail from blowing out the
-                    mobile viewport. Do not give them their own width.
-                  */}
-                  {row.items.map((item: any, index: number) => (
-                    <li class="feed-row-item">
-                      <ContentCard item={item} index={index} context="feed" />
-                    </li>
-                  ))}
-
-                  {row.explore && (
-                    <li class="feed-row-item feed-bookend feed-bookend--logo-only">
-                      <a
-                        href={row.explore.href}
-                        class="feed-bookend-inner feed-bookend-link"
-                      >
-                        {row.bookendLogo && (
-                          <img src={row.bookendLogo} alt={row.bookendTitle} class="feed-bookend-logo" loading="lazy" decoding="async" />
-                        )}
-                        <span>Explore<br />{row.bookendTitle}</span>
-                      </a>
-                    </li>
-                  )}
-                </ul>
-              </section>
+          <ul class="feed-row-rail" data-rail>
+            {rail.items.map((item: any, index: number) => (
+              <li class="feed-row-item">
+                <ContentCard item={item} index={index} context="feed" />
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       ))}
-    </div>
+      </div>
     </>
   )}
 
-  {/*
-    ─── THE FLAT RESULTS GRID IS GONE ────────────────────────────────────────
-
-    A second <CardGrid id="feed-grid"> holding EVERY item stood here, hidden
-    whenever the rows rendered — which, since the rows cover every route, was
-    always. It shipped ~40 more card subtrees per page that no visitor could
-    ever see, on top of the duplicate <template> removed before it.
-
-    It was the target of the hash filter. That filter has no controls left: the
-    /feed routes stopped rendering the filter row (FeedLayout's `showFilters`)
-    and the rows segment the same content by type and by brand. Its module went
-    with it — see the note where initFeedClientFiltering() used to be.
-
-    What remains is the honest empty state: if there is genuinely nothing to
-    show, say so, rather than rendering an empty page with no explanation.
-  */}
   {!hasRows && (
     <EmptyState message={MESSAGES.noContent} actionLabel={LABELS.viewAllContent} actionHref="/feed" />
   )}
@@ -2302,80 +1786,20 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
   });
 
   /*
-    ─── COLLAPSIBLE SECTIONS ───────────────────────────────────────────────────
+    ─── THE COLLAPSIBLE SECTIONS ARE GONE ────────────────────────────────────
 
-    The state lives in exactly two places and they are kept in step here: the
-    `hidden` attribute on the body, and `aria-expanded` on the button. The
-    `is-open` class on the wrapper is presentation only, for the chevron.
+    ~70 lines of accordion lived here. It existed because the page was six
+    sections containing fourteen stacked ROWS, which made it an endless scroll.
+    Eight horizontal rails do not stack that way: a rail of seventeen stories
+    occupies one row of vertical space, which is the entire reason a browse
+    surface uses them. There is nothing left to collapse.
 
-    NO HEIGHT ANIMATION, deliberately. A body can hold 41 cards and animating
-    that much layout stutters on a phone. The chevron turns instead.
+    /featured keeps its accordion, and should: its rows are decks of hub cards,
+    which DO stack.
   */
-  function setSectionOpen(section: HTMLElement, open: boolean) {
-    const button = section.querySelector<HTMLButtonElement>('.feed-section-toggle');
-    const body = section.querySelector<HTMLElement>('.feed-section-rows');
-    if (!button || !body) return;
-    section.classList.toggle('is-open', open);
-    button.setAttribute('aria-expanded', open ? 'true' : 'false');
-    body.hidden = !open;
-  }
-
-  function initCollapsibleSections() {
-    const sections = document.querySelectorAll<HTMLElement>('[data-collapsible]');
-    if (sections.length === 0) return;
-
-    for (const section of sections) {
-      const button = section.querySelector<HTMLButtonElement>('.feed-section-toggle');
-      if (!button || button.dataset.bound === 'true') continue;
-      button.dataset.bound = 'true';
-      button.addEventListener('click', () => {
-        setSectionOpen(section, button.getAttribute('aria-expanded') !== 'true');
-      });
-    }
-
-    /* Arriving at a section by link must not land on a closed one. */
-    openSectionForHash(window.location.hash);
-  }
-
-  function openSectionForHash(hash: string) {
-    if (!hash || hash.length < 2) return;
-    let id = hash.slice(1);
-    try {
-      id = decodeURIComponent(id);
-    } catch {
-      /* A malformed hash is not worth throwing over. */
-    }
-    const target = document.getElementById(id);
-    const section = target?.closest<HTMLElement>('[data-collapsible]');
-    if (section) setSectionOpen(section, true);
-  }
-
-  /*
-    CAPTURE PHASE, and that is load-bearing. FloatingPageNav calls
-    preventDefault() and then measures the heading's offset to aim its jump, so
-    a section opened in the bubble phase would be measured while still closed
-    and the jump would land short. Capturing runs this first, and the nav's own
-    re-aim loop absorbs the reflow.
-  */
-  document.addEventListener(
-    'click',
-    (event) => {
-      const link = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>('a[href*="#"]');
-      if (!link) return;
-      const hash = link.hash;
-      if (!hash) return;
-      /* Only same-page links. */
-      if (link.pathname !== window.location.pathname) return;
-      openSectionForHash(hash);
-    },
-    true,
-  );
-
-  window.addEventListener('hashchange', () => openSectionForHash(window.location.hash));
 
   document.addEventListener('astro:page-load', () => {
     initFeedRows();
-    initCollapsibleSections();
     /* Fallback for hard reloads where after-swap doesn't fire */
     if (!document.documentElement.dataset.pageTransition) {
       scrollToHashRow(true);

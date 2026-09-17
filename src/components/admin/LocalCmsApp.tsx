@@ -47,6 +47,8 @@ type Doc = {
   characters?: string[];
   coverageType?: string;
   series?: string;
+  featuredSeries?: boolean;
+  seriesAccent?: string;
   editorialNotes?: string;
   /** Ordering override. Changes where the item sits in a row, not its date. */
   sortDate?: string;
@@ -1880,6 +1882,47 @@ function VideoForm({
             <div className="@lg:col-span-full">
               <Field label="Series">
                 <input type="text" value={doc.series || ''} onChange={(e) => update('series', e.target.value)} className={inputClass} />
+                <p className="mt-1 text-xs text-neutral-500">
+                  Groups a run of coverage, e.g. "Lanterns". Items sharing this name can get their own Feed section.
+                </p>
+              </Field>
+            </div>
+            {/*
+              ─── A DEDICATED FEED SECTION FOR THIS SHOW ──────────────────────
+
+              Two decisions that belong to the SERIES, not to this item, which
+              is why they sit beside Series rather than beside Featured.
+              `featured` means "this piece deserves elevated placement"; these
+              mean "this piece's series gets its own shelf" and "that shelf is
+              themed like this". Coupling them would mean unflagging one video
+              to demote it silently killed an entire section.
+
+              Flag items from several different series and each gets its own
+              section, most recently updated first. Flag none and the Feed uses
+              the most recently updated series with a real run behind it.
+            */}
+            <div className="@lg:col-span-full">
+              <Toggle
+                label="Featured Series"
+                checked={doc.featuredSeries || false}
+                onChange={(v) => update('featuredSeries', v)}
+              />
+              <p className="mt-1 text-xs text-neutral-500">
+                Gives THIS ITEM'S SERIES its own section on the Feed. Not the same as Featured.
+              </p>
+            </div>
+            <div className="@lg:col-span-full">
+              <Field label="Series Accent Colour">
+                <input
+                  type="text"
+                  value={doc.seriesAccent || ''}
+                  onChange={(e) => update('seriesAccent', e.target.value)}
+                  placeholder="#10B981"
+                  className={inputClass}
+                />
+                <p className="mt-1 text-xs text-neutral-500">
+                  Hex. Themes the section for the show rather than its studio. Empty uses the hub's brand colour.
+                </p>
               </Field>
             </div>
             <div className="@lg:col-span-full">

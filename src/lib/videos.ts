@@ -46,6 +46,28 @@ export interface UnifiedVideo {
   characters?: string[];
   coverageType?: string;
   series?: string;
+  /**
+   * Puts this item's SERIES on the Feed as a curated collection of its own.
+   *
+   * Strictly scoped to that. It is NOT a second `featured`: `featured` says
+   * this PIECE deserves elevated placement, this says this piece's SERIES
+   * deserves a dedicated shelf. Coupling them would mean unflagging a video to
+   * demote it silently killed a whole collection.
+   *
+   * Several series may be flagged at once; the Feed renders one collection per
+   * flagged series, most recently updated first. With none flagged it falls
+   * back to the most recently updated qualifying series, so the shelf is never
+   * empty because nobody has been into the CMS this week.
+   */
+  featuredSeries?: boolean;
+  /**
+   * The collection's own accent colour, overriding the hub's `brandColor`.
+   *
+   * A show is not its studio. Lanterns is a DC property and DC is blue, but
+   * the show's identity is emerald and the shelf is themed for the SHOW. Read
+   * from any member of the series, so it survives the flagged item changing.
+   */
+  seriesAccent?: string;
   hubs?: string[];
   editorialNotes?: string;
   /**
@@ -141,6 +163,10 @@ export function mapSanityVideo(doc: any, { categorize }: MapOptions = {}): Unifi
     characters: doc.characters ?? [],
     coverageType: doc.coverageType,
     series: doc.series,
+    /* Named here as well as carried by the sync: this mapping is an explicit
+       whitelist, so a field missing from it never reaches the feed at all. */
+    featuredSeries: doc.featuredSeries ?? false,
+    seriesAccent: doc.seriesAccent,
     hubs: doc.hubs ?? [],
     editorialNotes: doc.editorialNotes,
     /* The standfirst. Named here for the same whitelist reason as sortDate

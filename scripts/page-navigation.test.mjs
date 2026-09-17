@@ -523,9 +523,9 @@ test('a featured tile hands its show\'s artwork to the hero', () => {
 
   /* And the shelf must actually pass it, at a size fit for a hero backdrop
      rather than the 2560px master the banner uses. */
-  assert.match(grid, /const prestigeBrand = prestigeBannerArt/, 'the row must build the override');
-  assert.match(grid, /getImage\(\{ src: prestigeBannerArt, width: \d+ \}\)/, 'the backdrop must be resized');
-  assert.match(grid, /brandOverride=\{prestigeBrand\}/, 'the tiles must carry it');
+  assert.match(grid, /const collectionBrands = new Map/, 'the row must build the override');
+  assert.match(grid, /getImage\(\{ src: collection\.bannerArt, width: \d+ \}\)/, 'the backdrop must be resized');
+  assert.match(grid, /brandOverride=\{collectionBrands\.get\(collection\.id\)/, 'the tiles must carry it');
 });
 
 /*

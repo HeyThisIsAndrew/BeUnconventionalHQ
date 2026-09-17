@@ -546,11 +546,15 @@ test('the featured shelf describes its own width, not the grid\'s', () => {
     spelling and broke the moment the element was reformatted to take
     `brandOverride` — a test failing on whitespace, not on behaviour.
   */
-  const prestigeBlock = grid.slice(grid.indexOf('prestigeRow.items.map'));
+  /* The shelf was a hardcoded `prestigeRow`; it is a curated COLLECTION built
+     from the `series` field now. Same markup, same variant, same oversized
+     tiles; only the identifier moved. */
+  const shelfStart = grid.indexOf('collection.items.map');
+  assert.notEqual(shelfStart, -1, 'the collection shelf should still render its own items');
   assert.match(
-    prestigeBlock.slice(0, 900),
+    grid.slice(shelfStart, shelfStart + 900),
     /variant="featured"/,
-    'the tentpole row must render its cards as the featured variant',
+    'a curated collection must render its cards as the featured variant',
   );
 });
 
