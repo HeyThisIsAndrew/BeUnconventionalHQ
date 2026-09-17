@@ -13,9 +13,11 @@
     Three numbers, each doing one job:
       500px  a floor, so a short laptop window or a landscape phone does not
              crush the lockup.
-      85vh   the working value, and the reason it is not 100: the bottom 15%
-             of the screen shows the top edge of the next section, which is
-             what tells a reader there is something to scroll to.
+      80vh   the working value, and the reason it is not 100: the bottom fifth
+             of the screen shows the spotlight bar beneath, which is what tells
+             a reader there is something to scroll to. It was 85 until the bar
+             grew a 6rem top margin to clear the navbar — the two numbers are
+             spent on the same 20%, so they are tuned together.
       1000px the cap. Past this the hero stops growing with the monitor and
              the surplus becomes visible page instead of visible nothing.
 
@@ -25,7 +27,7 @@
     this resolves to. The scroll-driven compression is keyed to a fixed 400px
     of scroll and is unaffected either way.
   */
-  height: clamp(500px, 85vh, 1000px);
+  height: clamp(500px, 80vh, 1000px);
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -152,9 +154,42 @@ body.scroll-locked .hero {
      decide. This rule is an outright size, where too small is a gap.
 
      Do not swap this for svh, dvh or a measurement without testing on a real
-     iOS device. All three have been tried. */
+     iOS device. All three have been tried.
+
+     ─── THE UNIT IS THE INVARIANT. THE FRACTION IS A DESIGN CHOICE ─────────
+
+     Everything above is about the UNIT, and it still holds. The number was
+     100 for a different reason: the hero was meant to reach the bottom of the
+     screen, so anything shorter left a strip of the NEXT SECTION showing
+     under the toolbar, which reads as a gap because nothing was supposed to
+     be there.
+
+     That premise changed. There is now a deliberate element directly beneath
+     the hero — the latest-coverage strip — and on a phone at 100lvh it sat
+     entirely below the fold, which is the whole point of it lost. Reported
+     with a screenshot: the strip was off the bottom of the screen.
+
+     At 85lvh the strip is visible on arrival. A partial reveal is no longer
+     ambiguous, because what shows is content placed there on purpose rather
+     than the top edge of a section that should have been out of frame. The
+     chrome states still differ, but now they only change HOW MUCH of the
+     strip you see, which is benign in a way an empty gap never was.
+
+     Keep `lvh`. Do not reintroduce svh, dvh or a measured height: those were
+     wrong about the unit, and that is a separate question from this number. */
   .hero {
-    height: 100lvh;
+    /*
+      78, not 85. Two things have to be true at once on a phone and the number
+      is what satisfies both: the spotlight bar must show meaningfully BEFORE
+      the splash lifts, and it must clear the fixed navbar AFTER it lifts,
+      since the lift scrolls the page by exactly this height.
+
+      Measured on a 390x844 screen: hero 658, bar top 722, so 122px of the bar
+      is on screen at rest, and after a 658px lift its top sits at the bar's
+      own 64px margin — clear of the 57px navbar. At 85lvh the first number was
+      87 and the second was 40, i.e. behind the navbar.
+    */
+    height: 78lvh;
   }
 
   /* Force visibility on mobile to rule out IntersectionObserver failures */

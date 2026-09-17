@@ -1,0 +1,624 @@
+---
+/**
+ * The homepage spotlight bar: a rotating band of INTERNAL promotion, directly
+ * under the hero.
+ *
+ * ─── WHAT IT REPLACED, AND WHY ──────────────────────────────────────────────
+ * A static one-item strip. It was correct and far too quiet: a thin row that
+ * sat flush against the hero above and the section below, and on a phone it
+ * fell under the fixed navbar as soon as the splash lifted. Reported twice,
+ * the second time as "the placement of what you built is completely bad".
+ *
+ * ─── IT IS NOT CommercialRotator, AND MUST NOT BECOME IT ────────────────────
+ * The obvious move was to reuse CommercialRotator, and it is the wrong one.
+ * That component's slides ARE referral partners: its data comes from
+ * getReferralItems() and every slide carries an FTC disclosure line naming the
+ * commercial relationship. This bar is the first thing under the hero, and
+ * filling that slot with affiliate links would make the homepage's opening
+ * statement an ad break. "Support The HQ" already exists further down the page
+ * and in the article rail, which is where a commercial ask belongs.
+ *
+ * So: same IDEA, opposite content. Every destination here is somewhere else on
+ * this site.
+ *
+ * ─── ONE CLOCK, NOT TWO ─────────────────────────────────────────────────────
+ * The progress bar's CSS animation IS the timer: the script advances on its
+ * `animationend` and pausing is a class the stylesheet reads, so a paused bar
+ * is a paused rotation by construction. This is the same rule CommercialRotator
+ * records, for the same reason — its first version ran a setInterval alongside
+ * a CSS animation and the two drifted apart the moment anything paused one of
+ * them. The rule is copied here deliberately rather than the code, because the
+ * two components share no markup and a shared script would have to carry both
+ * their DOM shapes.
+ */
+import { getAllFeedItems } from '../lib/feed-items';
+import { getCardImageSources } from '../lib/card-images';
+import { selectCollections } from '../lib/feed-rails';
+
+interface SlideArt {
+  src: string;
+  srcset?: string;
+}
+
+interface Slide {
+  key: string;
+  eyebrow: string;
+  title: string;
+  href: string;
+  cta: string;
+  art: SlideArt | null;
+  accent: string | null;
+  external: boolean;
+}
+
+const items = await getAllFeedItems();
+const [newest] = items;
+
+/*
+  The featured series, derived the same way the Feed derives it — the CMS's
+  `featuredSeries` flag first, most recently updated series otherwise. Reading
+  it from the same function rather than naming a show here is what stops this
+  bar and the Feed's own shelf disagreeing about what is being featured.
+*/
+const [featured] = selectCollections(items);
+
+const seriesSlug = (name: string) =>
+  String(name)
+    .toLowerCase()
+    .replace(/[‘’']/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+/*
+  Same convention and the same folder the Feed's row banners use:
+  `<slug>-key-art.*` in src/assets/rows. A series with no art is not an error —
+  its slide simply renders without a picture, which is the same all-or-nothing
+  rule FeedGrid applies.
+*/
+const ROW_ART = import.meta.glob<{ default: ImageMetadata }>(
+  '/src/assets/rows/*.{jpg,jpeg,png,webp,avif}',
+  { eager: true },
+);
+const rowArt = (name: string): ImageMetadata | null => {
+  const hit = Object.entries(ROW_ART).find(
+    ([path]) => path.split('/').pop()?.replace(/\.[^.]+$/, '') === name,
+  );
+  return hit ? hit[1].default : null;
+};
+
+const featuredSlug = featured ? seriesSlug(featured.name) : '';
+const featuredArt = featuredSlug ? rowArt(`${featuredSlug}-key-art`) : null;
+
+/* The series accent, read off any member so it survives one document being
+   edited. Falls back to the site accent. */
+const featuredAccent =
+  items
+    .filter((i: any) => String(i?.series ?? '').trim().toLowerCase() === String(featured?.name ?? '').trim().toLowerCase())
+    .map((i: any) => (typeof i?.seriesAccent === 'string' ? i.seriesAccent.trim() : ''))
+    .find((hex: string) => /^#[0-9a-f]{6}$/i.test(hex)) || null;
+
+const slides: Slide[] = [];
+
+if (newest) {
+  const { src, srcset } = getCardImageSources(newest.image);
+  const link = typeof newest.link === 'string' ? newest.link : '';
+  slides.push({
+    key: 'latest',
+    eyebrow: 'Latest',
+    title: newest.title,
+    href: link,
+    cta: newest.type === 'video' ? 'Watch' : 'Read',
+    art: src ? { src, srcset } : null,
+    accent: null,
+    /*
+      The one destination here that can leave the site, and only because it has
+      to: a video's canonical home IS YouTube — there is no per-video page on
+      this site, and the Feed's own spotlight CTA goes to the same place. It
+      opens in a new tab so the reader still has the HQ behind them.
+    */
+    external: /^https?:\/\//i.test(link) && !link.includes('beunconventionalhq.com'),
+  });
+}
+
+if (featured) {
+  slides.push({
+    key: 'series',
+    eyebrow: 'Featured series',
+    title: featured.name,
+    /* The series' own shelf on the Feed, not an outbound link and not a hub
+       page that may not exist for every series. */
+    href: `/feed#${featuredSlug}`,
+    cta: 'See the coverage',
+    art: featuredArt ? { src: featuredArt.src } : null,
+    accent: featuredAccent,
+    external: false,
+  });
+}
+
+slides.push({
+  key: 'subscribe',
+  eyebrow: 'The HQ',
+  title: 'Get new coverage as it lands',
+  /* On this page. SubscribeCTA carries the matching id. */
+  href: '#subscribe',
+  cta: 'Subscribe',
+  art: null,
+  accent: null,
+  external: false,
+});
+
+/* Nothing to rotate through is not a failure: one slide renders as a static
+   band and the script never starts the clock. */
+const rotates = slides.length > 1;
+---
+
+<section class="spotlight" aria-label="Highlights" data-spotlight>
+  <div class="spotlight-frame">
+    {slides.map((slide, index) => (
+      <a
+        class="spotlight-slide"
+        data-slide
+        href={slide.href}
+        style={slide.accent ? `--slide-accent: ${slide.accent};` : undefined}
+        aria-hidden={index === 0 ? undefined : 'true'}
+        {...(index === 0 ? {} : { inert: true })}
+        {...(slide.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+      >
+        {slide.art && (
+          <img
+            class="spotlight-art"
+            src={slide.art.src}
+            srcset={slide.art.srcset || undefined}
+            sizes="(max-width: 899px) 100vw, 1536px"
+            alt=""
+            loading={index === 0 ? 'eager' : 'lazy'}
+            decoding="async"
+          />
+        )}
+        <span class="spotlight-scrim" aria-hidden="true"></span>
+
+        <span class="spotlight-body">
+          <span class="spotlight-eyebrow">{slide.eyebrow}</span>
+          <span class="spotlight-title">{slide.title}</span>
+        </span>
+
+        <span class="spotlight-cta">
+          <span class="spotlight-cta-label">{slide.cta}</span>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+            <path d="M5 12h14M12 5l7 7-7 7" />
+          </svg>
+        </span>
+      </a>
+    ))}
+  </div>
+
+  {rotates && (
+    <div class="spotlight-controls">
+      {/*
+        WCAG 2.2.2: content that moves or auto-updates has to be pausable. This
+        is `hidden` in the markup and revealed by the script, because with no
+        JS nothing rotates and a pause button for a static band is a lie.
+      */}
+      <button type="button" class="spotlight-pause" data-pause hidden aria-label="Pause the highlights">
+        <span class="spotlight-pause-glyph" data-pause-glyph aria-hidden="true"></span>
+      </button>
+
+      {/* The clock. Its animationend is what advances the slide. */}
+      <span class="spotlight-progress" data-progress aria-hidden="true"></span>
+
+      <span class="sr-only" role="status" data-live></span>
+    </div>
+  )}
+</section>
+
+<style>
+  .spotlight {
+    width: 100%;
+    max-width: var(--page-max, 1536px);
+    /*
+      ─── IT NEEDS AIR, AND IT NEEDS TO CLEAR THE NAVBAR ─────────────────────
+
+      The strip this replaced had neither. It butted against the hero above and
+      the section below, and — because the splash lift scrolls the page by
+      exactly the hero's height — it landed flush at the top of the viewport,
+      underneath a fixed navbar, the moment the curtain came up.
+
+      The top margin is what the reader lands on instead, and it has to beat
+      the navbar's RENDERED height, not the logo height quoted in navbar.css:
+      measured, the header is 67px on desktop and 57px on a phone. 6rem is
+      76.8px at this project's 12.8px root, which clears both. 4rem resolved to
+      51px and the navbar still took the top off the band.
+    */
+    margin: 6rem auto 0;
+    padding: 0 2rem;
+  }
+
+  .spotlight-frame {
+    position: relative;
+    /*
+      Taller than the strip it replaces, which is the point — this is a band
+      you are meant to notice under the hero, not a footnote. It is a fixed
+      height rather than an aspect ratio because the slides carry different
+      art at different shapes and the band must not resize as it rotates.
+    */
+    height: clamp(132px, 9rem + 4vw, 210px);
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: #0d0d0d;
+    box-shadow: var(--shadow-tile);
+    isolation: isolate;
+  }
+
+  .spotlight-slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    gap: 1rem;
+    padding: clamp(1rem, 0.75rem + 1vw, 1.75rem);
+    text-decoration: none;
+    color: inherit;
+    /*
+      Stacked, and cross-faded. `visibility` rather than `display` so the
+      outgoing slide can fade rather than vanish, and so a hidden slide is out
+      of the tab order as well as out of sight — `inert` in the markup covers
+      the rest.
+    */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.5s ease, visibility 0s linear 0.5s;
+  }
+
+  .spotlight-slide.is-current {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.5s ease, visibility 0s linear 0s;
+  }
+
+  .spotlight-art {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 35%;
+    z-index: 0;
+  }
+
+  /*
+    Left-weighted, because that is where the words are. Solid at the left edge
+    so the eyebrow and title sit on their own ground whatever the artwork does,
+    clearing by the middle so the picture is still a picture.
+  */
+  .spotlight-scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background:
+      linear-gradient(
+        to right,
+        rgba(10, 10, 10, 0.96) 0%,
+        rgba(10, 10, 10, 0.82) 38%,
+        rgba(10, 10, 10, 0.35) 70%,
+        rgba(10, 10, 10, 0.2) 100%
+      ),
+      linear-gradient(to top, rgba(10, 10, 10, 0.75) 0%, transparent 60%);
+  }
+
+  /* The series slide lights in its own colour. Every other slide has no accent
+     and falls back to the site's. */
+  .spotlight-slide[style*='--slide-accent']::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--slide-accent, var(--color-accent, #cc0000));
+    z-index: 2;
+  }
+
+  .spotlight-body {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .spotlight-eyebrow {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--slide-accent, var(--color-accent-text, #ef4444));
+  }
+
+  .spotlight-title {
+    font-family: var(--font-display, 'Syne Variable', sans-serif);
+    font-size: clamp(1.05rem, 0.85rem + 0.9vw, 1.7rem);
+    line-height: 1.2;
+    color: var(--color-white, #f0f0f0);
+    /* Two lines, then stop: a headline is allowed to be long, this band is
+       not allowed to grow. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .spotlight-cta {
+    position: relative;
+    z-index: 2;
+    margin-left: auto;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.9rem;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(0, 0, 0, 0.35);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-white, #f0f0f0);
+    white-space: nowrap;
+    transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease;
+  }
+
+  .spotlight-slide:hover .spotlight-cta,
+  .spotlight-slide:focus-visible .spotlight-cta {
+    border-color: var(--slide-accent, var(--color-accent, #cc0000));
+    background: rgba(0, 0, 0, 0.6);
+    transform: translateX(3px);
+  }
+
+  .spotlight-slide:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: -4px;
+  }
+
+  /* ─── CONTROLS ─────────────────────────────────────────────────────────── */
+
+  .spotlight-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.6rem;
+  }
+
+  .spotlight-pause {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    transition: border-color 0.2s ease, color 0.2s ease;
+  }
+  .spotlight-pause[hidden] {
+    display: none;
+  }
+  .spotlight-pause:hover,
+  .spotlight-pause:focus-visible {
+    border-color: var(--color-accent, #cc0000);
+    color: var(--color-white, #f0f0f0);
+  }
+  .spotlight-pause:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: 2px;
+  }
+
+  /* Two bars, or one triangle. Drawn rather than an icon file: it is 26px and
+     it has exactly two states. */
+  .spotlight-pause-glyph {
+    display: block;
+    width: 8px;
+    height: 9px;
+    border-left: 3px solid currentColor;
+    border-right: 3px solid currentColor;
+  }
+  .spotlight-pause[data-paused='true'] .spotlight-pause-glyph {
+    width: 0;
+    height: 0;
+    border-left: 8px solid currentColor;
+    border-right: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+  }
+
+  /*
+    ─── THE CLOCK ──────────────────────────────────────────────────────────
+
+    This animation is the ONLY timer. The script listens for its `animationend`
+    and advances there, so pausing the animation pauses the rotation and the
+    two cannot drift apart.
+  */
+  .spotlight-progress {
+    flex: 1;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .spotlight-progress::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform-origin: left center;
+    transform: scaleX(0);
+    background: var(--color-accent, #cc0000);
+  }
+
+  .spotlight-progress.is-running::after {
+    animation: spotlight-lap 7s linear forwards;
+  }
+
+  .spotlight-controls.is-paused .spotlight-progress::after {
+    animation-play-state: paused;
+  }
+
+  @keyframes spotlight-lap {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+
+  @media (max-width: 599px) {
+    /*
+      5rem = 64px, and it must stay LARGER than the navbar (57px at this
+      width). The splash lift scrolls the page by exactly the hero's height, so
+      this margin is what the bar comes to rest on — at 2.5rem its top landed
+      at 40px and the navbar sliced the top third off it.
+    */
+    .spotlight {
+      margin-top: 5rem;
+    }
+    /* The label goes, the arrow stays: at this width the words cost more room
+       than they buy, and the whole band is the link anyway. */
+    .spotlight-cta-label {
+      display: none;
+    }
+    .spotlight-cta {
+      padding: 0.5rem;
+    }
+  }
+
+  /*
+    ─── NOTHING MOVES ON ITS OWN ───────────────────────────────────────────
+
+    The script checks the same query and never starts the clock, so this is
+    belt and braces rather than the whole implementation: a reader who has
+    asked for less motion gets slide one and a band that stays put.
+  */
+  @media (prefers-reduced-motion: reduce) {
+    .spotlight-slide,
+    .spotlight-cta {
+      transition: none;
+    }
+    .spotlight-progress.is-running::after {
+      animation: none;
+      transform: scaleX(1);
+    }
+  }
+</style>
+
+<script>
+  /*
+    ─── ONE CLOCK ────────────────────────────────────────────────────────────
+
+    There is no timer in here. `.spotlight-progress` runs a 7s CSS animation
+    and this advances on its `animationend`; pausing is a class the stylesheet
+    reads. See the note in the component header for the bug that rule exists to
+    prevent.
+  */
+  function initSpotlightBar() {
+    document.querySelectorAll<HTMLElement>('[data-spotlight]').forEach((root) => {
+      /* ClientRouter hands us a fresh DOM on every navigation, so there is
+         nothing to tear down — the flag only guards this module's listener
+         firing twice against one document. */
+      if (root.dataset.spotlightBound === 'true') return;
+      root.dataset.spotlightBound = 'true';
+
+      const slides = Array.from(root.querySelectorAll<HTMLElement>('[data-slide]'));
+      const controls = root.querySelector<HTMLElement>('.spotlight-controls');
+      const progress = root.querySelector<HTMLElement>('[data-progress]');
+      const pause = root.querySelector<HTMLButtonElement>('[data-pause]');
+      const live = root.querySelector<HTMLElement>('[data-live]');
+
+      /* One slide is a static band: no clock, no control, nothing to announce. */
+      if (slides.length <= 1) {
+        slides[0]?.classList.add('is-current');
+        return;
+      }
+
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      let index = 0;
+      const show = (next: number) => {
+        slides.forEach((slide, i) => {
+          const current = i === next;
+          slide.classList.toggle('is-current', current);
+          /* `inert` takes a hidden slide out of the tab order and the
+             accessibility tree in one attribute; aria-hidden is belt and
+             braces for browsers that shipped it late. */
+          slide.inert = !current;
+          if (current) slide.removeAttribute('aria-hidden');
+          else slide.setAttribute('aria-hidden', 'true');
+        });
+        index = next;
+        if (live) live.textContent = `Highlight ${next + 1} of ${slides.length}`;
+      };
+
+      show(0);
+
+      if (reduced || !progress || !controls) return;
+
+      const lap = () => {
+        progress.classList.remove('is-running');
+        /* Force the style flush. Without it the remove and the add coalesce
+           into no change and the animation never restarts. */
+        void progress.offsetWidth;
+        progress.classList.add('is-running');
+      };
+
+      progress.addEventListener('animationend', () => {
+        show((index + 1) % slides.length);
+        lap();
+      });
+
+      /*
+        TWO REASONS TO BE PAUSED, TRACKED SEPARATELY.
+
+        Hovering pauses, and so does pressing the button, and they are not the
+        same state: folded into one flag, moving the pointer off the band would
+        resume a rotation the reader had explicitly stopped. The button's state
+        is sticky and the pointer's is not; the clock stops if EITHER says so.
+      */
+      let userPaused = false;
+      let hoverPaused = false;
+
+      const apply = () => {
+        const held = userPaused || hoverPaused;
+        controls.classList.toggle('is-paused', held);
+        if (pause) {
+          pause.dataset.paused = String(userPaused);
+          pause.setAttribute('aria-label', userPaused ? 'Play the highlights' : 'Pause the highlights');
+        }
+      };
+
+      if (pause) {
+        pause.hidden = false;
+        pause.addEventListener('click', () => {
+          userPaused = !userPaused;
+          apply();
+        });
+      }
+
+      /* Hovering or tabbing into the band holds it, so nothing changes under a
+         reader who is looking at it or a pointer already on its way to it. */
+      root.addEventListener('mouseenter', () => { hoverPaused = true; apply(); });
+      root.addEventListener('mouseleave', () => { hoverPaused = false; apply(); });
+      root.addEventListener('focusin', () => { hoverPaused = true; apply(); });
+      root.addEventListener('focusout', (event) => {
+        /* Only when focus has actually left the band, not while it moves
+           between the slide and the pause button inside it. */
+        if (!root.contains((event as FocusEvent).relatedTarget as Node)) {
+          hoverPaused = false;
+          apply();
+        }
+      });
+
+      lap();
+    });
+  }
+
+  document.addEventListener('astro:page-load', initSpotlightBar);
+</script>

@@ -98,15 +98,28 @@ test('the mobile hero is sized in lvh, NOT a measurement', () => {
     a MIN-bound on an auto-sized box; this rule is an outright size, where
     too small is a visible gap.
   */
+  /*
+    THE UNIT IS WHAT THIS GUARDS, NOT THE NUMBER.
+
+    This asserted the literal `100lvh` until a deliberate element — the
+    latest-coverage strip — was placed directly under the hero, at which point
+    100 put it entirely below the fold on a phone and the fraction became a
+    design decision rather than a correctness one.
+
+    Every reason recorded above is a reason about the UNIT and every one of
+    them still stands. So the assertion is now: it is `lvh`, and it is a plain
+    `<number>lvh` rather than a measurement or a calc that could smuggle one
+    back in. What the number should be is not this file's business.
+  */
   const height = mobileHeroHeight();
-  assert.equal(
+  assert.match(
     height,
-    '100lvh',
+    /^\d+(?:\.\d+)?lvh$/,
     `mobile .hero height is "${height}".\n\n` +
-      '      It must be 100lvh. svh is short once the address bar retracts;\n' +
-      '      dvh re-resolves during scroll and re-rasterizes the blurred\n' +
-      '      .hero-bg; and a measured visualViewport height is SHORTER than\n' +
-      '      the layout viewport, which is what put the next section under\n' +
+      '      It must be a plain <number>lvh. svh is short once the address bar\n' +
+      '      retracts; dvh re-resolves during scroll and re-rasterizes the\n' +
+      '      blurred .hero-bg; and a measured visualViewport height is SHORTER\n' +
+      '      than the layout viewport, which is what put the next section under\n' +
       '      the toolbar on a real device. All three have been tried.\n',
   );
 });
