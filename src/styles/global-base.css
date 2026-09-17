@@ -141,8 +141,66 @@ html[data-page-transition='slide-backward']::view-transition-new(page-main) {
   to { transform: translateX(0); opacity: 1; }
 }
 
-/* An in-page action — a feed hash, a filter, a spotlight swap — is not a
-   journey along the nav, so it does not slide. */
+/*
+  ─── A LINK THAT NAMES A SECTION IS A DESCENT, NOT A JOURNEY ───────────────
+
+  The "What We Cover" tiles go to /feed#film, /feed#tv, /feed#games. Along the
+  nav that is Home -> Feed, one step right, so it slid sideways — and then the
+  feed scrolled down several thousand pixels to the row. Two motions, in two
+  axes, one after the other. Reported as "way too jarring", and the horizontal
+  half was the part that did not match what was happening.
+
+  Arriving at an anchor moves DOWN: the old page rises out of the way and the
+  new one comes up from below, which is the same gesture as scrolling to the
+  thing you asked for. Leaving one moves back up.
+
+  14%, where the horizontal slides use 25%. A page is much taller than it is
+  wide, so the same percentage is a far longer journey down the screen than
+  across it. 440ms rather than 380 for the same reason: a vertical move of this
+  size wants a beat more to read as travel instead of a jump.
+
+  This pairs with the feed landing on its row INSTANTLY on arrival rather than
+  smooth-scrolling to it (see scrollToHashRow in FeedGrid.astro). The animation
+  is the travel; a second animation underneath it was the lurch.
+*/
+html[data-page-transition='dive-down']::view-transition-old(page-main) {
+  animation: page-dive-out-up 440ms var(--splash-ease) both;
+}
+
+html[data-page-transition='dive-down']::view-transition-new(page-main) {
+  animation: page-dive-in-up 440ms var(--splash-ease) both;
+}
+
+html[data-page-transition='dive-up']::view-transition-old(page-main) {
+  animation: page-dive-out-down 440ms var(--splash-ease) both;
+}
+
+html[data-page-transition='dive-up']::view-transition-new(page-main) {
+  animation: page-dive-in-down 440ms var(--splash-ease) both;
+}
+
+@keyframes page-dive-out-up {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(-14%); opacity: 0; }
+}
+
+@keyframes page-dive-in-up {
+  from { transform: translateY(14%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes page-dive-out-down {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(14%); opacity: 0; }
+}
+
+@keyframes page-dive-in-down {
+  from { transform: translateY(-14%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* An in-page action — a filter, a spotlight swap, a hash on the page you are
+   already on — is not a journey anywhere, so it does not move. */
 html[data-page-transition='none']::view-transition-old(page-main),
 html[data-page-transition='none']::view-transition-new(page-main) {
   animation: none !important;

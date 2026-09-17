@@ -402,10 +402,22 @@
 */
 .article-layout {
   display: grid;
-  /* Symmetrical rails (16rem each) and a 53rem center track.
-     space-between pushes the rails to the outer edges of the container,
-     giving maximum breathing room on large/4K monitors. */
-  grid-template-columns: 14rem minmax(0, 53rem) 19rem;
+  /*
+    ─── THE LEFT TRACK SHRANK WHEN THE CONTENTS LEFT IT ──────────────────────
+
+    It was 14rem because it held the table of contents, which is now
+    <FloatingPageNav />, pinned to the viewport's left edge. What is left in
+    that rail is "Stay Updated", one button and a line of type, and 14rem of
+    column for it was a hole beside the reading measure.
+
+    11rem fits what is actually there and hands the 3rem to the middle track,
+    which is where the words are. The right rail is untouched: it carries the
+    hub card, the editorial desk and Support The HQ, and all three need it.
+
+    space-between still pushes the rails to the outer edges of the container,
+    so the extra width is reading measure rather than margin.
+  */
+  grid-template-columns: 11rem minmax(0, 56rem) 19rem;
   grid-template-areas: "toc column support";
   justify-content: space-between;
   gap: 2rem; /* Fallback gap if screen gets tight right before the 1200px breakpoint */
@@ -555,8 +567,16 @@
 }
 
 /*
-  ArticleToc renders NOTHING when an article has fewer than two headings, so
-  this becomes the first child and has nothing above it to clear.
+  ─── NOTHING IS ABOVE IT IN THIS RAIL ANY MORE ────────────────────────────
+
+  `.article-rail-stay` spends 4rem to clear the table of contents above it. The
+  contents are <FloatingPageNav /> now, pinned to the viewport, so in the LEFT
+  rail this block is always the first child and always has nothing to clear.
+
+  The rule is kept rather than deleted, and kept with its `:first-child`, so the
+  4rem comes back on its own the day anything is put above it again. The base
+  `.article-rail-stay` rule still serves the right rail, where the margin is
+  doing real work.
 */
 .article-rail-left .article-rail-sticky > .article-rail-stay:first-child {
   margin-top: 0;

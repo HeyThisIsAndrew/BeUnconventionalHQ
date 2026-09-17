@@ -393,9 +393,15 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
     restarts the video. Only a class on .hub-stage changes; CSS does the rest.
   */
   function initSpotlightPip() {
-    const key = '__hqSpotlightPipObserver';
-    const previous = (window as any)[key] as IntersectionObserver | undefined;
-    if (previous) previous.disconnect();
+    /*
+      A client-side navigation re-runs this against a NEW stage, so the previous
+      page's observer and its scroll listeners have to go first. The teardown is
+      a function rather than the observer itself now: the window also holds two
+      listeners on `window`, which outlive the document that registered them.
+    */
+    const key = '__hqSpotlightPipTeardown';
+    const previous = (window as any)[key] as (() => void) | undefined;
+    if (typeof previous === 'function') previous();
     delete (window as any)[key];
 
     const stage = document.querySelector<HTMLElement>('.hub-stage');
@@ -415,10 +421,64 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
        differently, in which case there is nothing to neutralise. */
     const pipHost = stage.closest<HTMLElement>('.event-hero-overlay');
 
+    /*
+      ─── THE WINDOW RIDES UP ON THE FOOTER ────────────────────────────────────
+
+      Reported: the PiP player disappears behind the footer. It is
+      `position: fixed`, so it stays put while the footer scrolls up underneath
+      it, and the two end up sharing the bottom-right corner of the screen.
+
+      Raising its z-index would have swapped one wrong answer for another — the
+      window would then sit ON the footer, covering the site's own navigation.
+      So it is pushed instead: `--pip-lift` carries however far the footer has
+      risen into the viewport, and the window's `bottom` adds it.
+
+      Measured in a rAF and written in the same frame, which is the read/write
+      split this project already uses on the feed rails: reading
+      getBoundingClientRect() inside a scroll handler and writing a style
+      straight after it is the layout thrash that showed up in Lighthouse.
+
+      Listeners are attached only while a window is actually out. A scroll
+      handler that runs on every page, for a feature that is off, is the kind of
+      cost that does not show up until there are several of them.
+    */
+    const footer = document.querySelector<HTMLElement>('footer.site-footer');
+    let liftFrame = 0;
+
+    const measureLift = () => {
+      liftFrame = 0;
+      if (!footer) return;
+      const intrusion = window.innerHeight - footer.getBoundingClientRect().top;
+      /* Ceil, so a fractional pixel cannot leave a hairline of footer showing
+         through under the window's own border. */
+      stage.style.setProperty('--pip-lift', `${Math.max(0, Math.ceil(intrusion))}px`);
+    };
+
+    const scheduleLift = () => {
+      if (!liftFrame) liftFrame = requestAnimationFrame(measureLift);
+    };
+
+    const watchFooter = (on: boolean) => {
+      window.removeEventListener('scroll', scheduleLift);
+      window.removeEventListener('resize', scheduleLift);
+      if (!on) {
+        if (liftFrame) cancelAnimationFrame(liftFrame);
+        liftFrame = 0;
+        /* Back to the plain inset, so the next window does not open already
+           lifted by wherever the last one happened to stop. */
+        stage.style.removeProperty('--pip-lift');
+        return;
+      }
+      window.addEventListener('scroll', scheduleLift, { passive: true });
+      window.addEventListener('resize', scheduleLift, { passive: true });
+      measureLift();
+    };
+
     const setPip = (on: boolean) => {
       stage.classList.toggle('is-pip', on);
       pipHost?.classList.toggle('is-pip-host', on);
       closeBtn.hidden = !on;
+      watchFooter(on);
     };
 
     const observer = new IntersectionObserver(
@@ -438,7 +498,10 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
     );
 
     observer.observe(stage);
-    (window as any)[key] = observer;
+    (window as any)[key] = () => {
+      observer.disconnect();
+      watchFooter(false);
+    };
 
     closeBtn.addEventListener('click', () => {
       dismissed = true;
@@ -1181,7 +1244,20 @@ const heroMetaTags = heroTags.length > 0 ? heroTags : [heroKind];
     top: auto;
     left: auto;
     right: clamp(12px, 3vw, 28px);
-    bottom: clamp(12px, 3vw, 28px);
+    /*
+      ─── IT STOPS ON THE FOOTER, IT DOES NOT CROSS IT ───────────────────────
+
+      `--pip-lift` is how far the footer has risen into the viewport, written by
+      the scroll handler below. At rest it is 0 and this is the plain inset the
+      window has always had; as the footer arrives the window rides up ahead of
+      it and comes to a stop on its top edge.
+
+      Lifting is the fix rather than a z-index. The window was rendering BEHIND
+      the footer, and raising it above would have left it sitting ON the footer,
+      over the site's own links. Neither is right: it should never share pixels
+      with the footer in either direction.
+    */
+    bottom: calc(clamp(12px, 3vw, 28px) + var(--pip-lift, 0px));
     width: min(360px, 42vw);
     aspect-ratio: 16 / 9;
     height: auto;

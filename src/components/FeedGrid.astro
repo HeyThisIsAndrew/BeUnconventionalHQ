@@ -905,9 +905,12 @@ const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) :
     min-height: 160px;
     padding: 1.25rem;
     border: none;
-    border-radius: 4px;
-    /* NO overflow:hidden — the radius is drawn by the layers themselves, and a
-       clipping ancestor is what hard rule 3 forbids anywhere near an iframe. */
+    /* No radius and no border: there is no edge to round. The art layer below
+       feathers out to transparent on all four sides, so anything drawn on this
+       box would be the hard edge the mask exists to remove.
+
+       NO overflow:hidden either — a clipping ancestor is what hard rule 3
+       forbids anywhere near an iframe. */
     background: none;
     text-align: center;
     isolation: isolate;
@@ -920,7 +923,6 @@ const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) :
     position: absolute;
     inset: 0;
     z-index: -1;
-    border-radius: 4px;
     background-image:
       linear-gradient(to bottom, rgba(10, 10, 10, 0.82), rgba(10, 10, 10, 0.94)),
       var(--bookend-art, none);
@@ -928,6 +930,35 @@ const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) :
     background-position: center, center;
     opacity: 0.9;
     transition: opacity 0.35s ease;
+
+    /*
+      ─── NO EDGES. IT DISSOLVES INTO THE PAGE ───────────────────────────────
+
+      The radius is gone and a mask took its place. A 4px radius still draws a
+      rectangle: the art and its scrim ended on a hard line, so the tile read as
+      a box parked at the end of the rail rather than as the rail running out.
+
+      TWO linear masks INTERSECTED, not one radial. A radial on a tile this much
+      taller than it is wide pinches the middle of the long sides and leaves the
+      label sitting in a visibly dimmer patch. Intersecting a horizontal and a
+      vertical ramp fades all four edges evenly and leaves the centre at full
+      strength, which is where the mark and the words are.
+
+      Where `mask-composite` is not understood the two masks add instead of
+      intersecting, which still softens the corners and never produces a hard
+      edge. The fallback is a weaker version of the same thing, not a different
+      result.
+    */
+    -webkit-mask-image:
+      linear-gradient(to right, transparent 0%, #000 20%, #000 80%, transparent 100%),
+      linear-gradient(to bottom, transparent 0%, #000 17%, #000 83%, transparent 100%);
+    mask-image:
+      linear-gradient(to right, transparent 0%, #000 20%, #000 80%, transparent 100%),
+      linear-gradient(to bottom, transparent 0%, #000 17%, #000 83%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-composite: intersect;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
   }
 
   .feed-bookend-link:hover::before,
@@ -1913,14 +1944,32 @@ const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) :
     `block: 'center'` rather than 'start' because the site header is fixed —
     'start' would put the row's heading underneath it.
   */
-  function scrollToHashRow() {
+  /*
+    ─── ARRIVING IS A JUMP; A HASH CHANGE IN PLACE IS A SCROLL ───────────────
+
+    These are two different events and they used to share one answer: a smooth
+    scroll, always. On ARRIVAL that is the second half of a lurch. The page
+    transition has already animated the move, and then this smooth-scrolled
+    several thousand pixels down a 7000px feed to reach the row, in a different
+    axis from the slide that had just run. Reported as "way too jarring".
+
+    So arrival lands instantly, underneath the transition: by the time the new
+    page is painted it is already at the row, and the only motion the reader
+    sees is the one the transition drew.
+
+    A hashchange on the page you are ALREADY on has no transition to hide
+    behind, and there the scroll IS the feedback that the click did something.
+    That one stays smooth.
+  */
+  function scrollToHashRow(instant = false) {
     const id = window.location.hash.replace('#', '');
     if (!id) return;
 
     const row = document.getElementById(id) || document.querySelector(`[data-row="${CSS.escape(id)}"]`);
     if (!row) return;
 
-    const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const behavior = instant || reduced ? 'auto' : 'smooth';
     setTimeout(() => row.scrollIntoView({ behavior, block: 'center' }), 150);
   }
 
@@ -1929,12 +1978,17 @@ const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) :
   const ROW_HASH_KEY = '__hqFeedRowHashListener';
   const previousRowHashListener = (window as any)[ROW_HASH_KEY];
   if (previousRowHashListener) window.removeEventListener('hashchange', previousRowHashListener);
-  (window as any)[ROW_HASH_KEY] = scrollToHashRow;
-  window.addEventListener('hashchange', scrollToHashRow);
+  /* Wrapped, not passed directly: the handler receives an Event, which would
+     land in the `instant` parameter and be truthy. */
+  const onRowHashChange = () => scrollToHashRow(false);
+  (window as any)[ROW_HASH_KEY] = onRowHashChange;
+  window.addEventListener('hashchange', onRowHashChange);
 
   document.addEventListener('astro:page-load', () => {
     initFeedRows();
-    scrollToHashRow();
+    /* `true`: this is an arrival, so the row is already in place behind the
+       page transition rather than scrolled to after it. */
+    scrollToHashRow(true);
     
     /*
       ─── THE SPOTLIGHT SWAP MOVED TO THE HERO ────────────────────────────────

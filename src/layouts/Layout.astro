@@ -449,9 +449,24 @@ const fallbackMark = await getImage({
           return prefix !== -1 ? prefix : NAV_ORDER.length;
         }
 
-        function directionFor(fromPath, toPath) {
+        function directionFor(fromPath, toPath, fromHash, toHash) {
           /* Same page: a hash, a filter, a spotlight swap. Not a journey. */
           if (fromPath === toPath) return 'none';
+
+          /*
+            A LINK THAT NAMES A SECTION GOES DOWN, NOT SIDEWAYS.
+
+            The "What We Cover" tiles point at /feed#film, /feed#tv, /feed#games.
+            Along the nav that is one step right, so it slid sideways — and then
+            the feed scrolled down to the row. Two motions, two axes, reported as
+            "way too jarring".
+
+            Arriving at an anchor is a descent into the page, so it moves down.
+            Leaving one moves back up. This is checked before the nav order
+            because it is the more specific thing the link is saying.
+          */
+          if (toHash) return 'dive-down';
+          if (fromHash) return 'dive-up';
 
           var from = indexOfRoute(fromPath);
           var to = indexOfRoute(toPath);
@@ -472,9 +487,18 @@ const fallbackMark = await getImage({
           /* Back and Forward mean what the button says, whatever the nav order
              is — a reader pressing Back expects to go back. */
           if (event.navigationType === 'traverse') {
-            direction = event.direction === 'back' ? 'slide-backward' : 'slide-forward';
+            /* Back out of an anchor the way you went in: if either end of the
+               traverse names a section, it is the same descent in reverse. */
+            if (event.from.hash && !event.to.hash) direction = 'dive-up';
+            else if (!event.from.hash && event.to.hash) direction = 'dive-down';
+            else direction = event.direction === 'back' ? 'slide-backward' : 'slide-forward';
           } else {
-            direction = directionFor(event.from.pathname, event.to.pathname);
+            direction = directionFor(
+              event.from.pathname,
+              event.to.pathname,
+              event.from.hash,
+              event.to.hash,
+            );
           }
           document.documentElement.dataset.pageTransition = direction;
         });

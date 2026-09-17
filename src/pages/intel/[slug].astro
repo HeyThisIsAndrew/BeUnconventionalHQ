@@ -30,7 +30,7 @@
 import { PUBLISH_TIME_ZONE } from '../../lib/publish-timezone.js';
 import Layout from '../../layouts/Layout.astro';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
-import ArticleToc from '../../components/ArticleToc.astro';
+import FloatingPageNav from '../../components/FloatingPageNav.astro';
 import ArticleSupportRail from '../../components/ArticleSupportRail.astro';
 import ArticleAuthorBlock from '../../components/ArticleAuthorBlock.astro';
 import SubstackGallery from '../../components/SubstackGallery.astro';
@@ -225,7 +225,7 @@ const articleHub = findHubForItem(article, getFeaturedBrandsLocal());
 
 /*
   Fallback anchors for a post with too few headings to index — see the note in
-  ArticleToc.astro. Both ids are rendered below (`#article-top` on the masthead,
+  FloatingPageNav.astro. Both ids are rendered below (`#article-top` on the masthead,
   `#article-related` on the Suggested Reading section), so neither can point at
   nothing; Suggested Reading is only offered when that section actually renders.
 */
@@ -394,15 +394,29 @@ const breadcrumbSchema = {
   <meta property="article:author" content={author.url} slot="head" />
   <meta property="article:section" content={article.category} slot="head" />
 
+  {/*
+    OUTSIDE THE LAYOUT, deliberately. The nav is `position: fixed`, and a fixed
+    element is trapped by any ancestor with a transform, a filter or a
+    backdrop-filter — the containing-block rule that anchored the feed's PiP
+    window to its hero instead of the viewport. Mounted here it has no such
+    ancestor and cannot acquire one from a change inside the grid.
+  */}
+  <FloatingPageNav entries={tocEntries} landmarks={tocLandmarks} />
+
   <main class="article-page">
     <div class="container">
       {/* Three columns on desktop; the rails drop away below 1200px and the
           reading column becomes the page. */}
       <div class="article-layout">
+        {/*
+          The contents left this rail. It is <FloatingPageNav /> below, pinned to
+          the viewport's left edge, so it no longer moves with the page until
+          its sticky catches and no longer holds the top of a column that had
+          one other thing in it. The reading measure took the width back — see
+          .article-layout in article.css.
+        */}
         <aside class="article-rail article-rail-left" aria-label="Article Utilities">
           <div class="article-rail-sticky">
-            <ArticleToc entries={tocEntries} landmarks={tocLandmarks} />
-
             <div class="article-rail-desk article-rail-stay pb-2">
               <p class="article-rail-head">Stay Updated</p>
               <div class="flex justify-start py-2">
