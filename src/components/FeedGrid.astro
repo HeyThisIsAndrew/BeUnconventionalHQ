@@ -579,6 +579,14 @@ const prestigeBrand = prestigeBannerArt
     }
   : null;
 
+/*
+  Which section is open on arrival. The Latest is the newsroom and the reason
+  most people are on this page; everything below it is a browse path somebody
+  goes looking for. One open section is what makes the page readable at a
+  glance while keeping every row one click away.
+*/
+const DEFAULT_OPEN_SECTION = 'latest';
+
 const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
 ---
 
@@ -663,6 +671,86 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
 
   .feed-section {
     margin-bottom: 3.5rem;
+  }
+
+  /*
+    ─── THE COLLAPSED SECTION ────────────────────────────────────────────────
+
+    A closed section is a heading and a hairline, which is exactly what it was
+    before minus its rows, so nothing about the page's rhythm changes when one
+    is open. Deliberately no height animation: the bodies hold up to 41 cards
+    and animating that much layout is a stutter on a phone and a repaint storm
+    on a 4K display. The chevron turns; the content is there or it is not.
+
+    `hidden` rather than `display: none` in a class, so the state lives in ONE
+    place. A lazy image inside a `hidden` container is never fetched, which is
+    why closing four sections cuts the page's image requests rather than just
+    hiding them.
+  */
+  .feed-section--collapsible {
+    margin-bottom: 2rem;
+  }
+
+  .feed-section--collapsible.is-open {
+    margin-bottom: 3.5rem;
+  }
+
+  /* The whole heading is the hit target, not just the words. */
+  .feed-section-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0;
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .feed-section-chevron {
+    flex-shrink: 0;
+    color: var(--color-white-muted, #888888);
+    transition: transform 200ms ease, color 200ms ease;
+  }
+
+  .is-open .feed-section-chevron {
+    transform: rotate(90deg);
+    color: var(--color-accent-text, #ef4444);
+  }
+
+  /*
+    How much is behind the heading. It is the one thing a closed section cannot
+    show for itself, and it is what makes a collapsed row worth opening rather
+    than a mystery.
+  */
+  .feed-section-count {
+    font-family: var(--font-body, 'Inter', sans-serif);
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-white-muted, #888888);
+    white-space: nowrap;
+  }
+
+  .feed-section-toggle:hover .feed-section-chevron,
+  .feed-section-toggle:focus-visible .feed-section-chevron {
+    color: var(--color-accent-text, #ef4444);
+  }
+
+  .feed-section-toggle:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .feed-section-chevron {
+      transition: none;
+    }
   }
 
   /*
@@ -1728,15 +1816,53 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
         </div>
       )}
 
+      {/*
+        ─── THE SECTIONS COLLAPSE, THEY ARE NOT REMOVED ──────────────────────
+
+        Every row this page can build is still here. What changed is that they
+        are not all open at once: the page opened as one continuous scroll
+        through the entire archive, the same story appearing in each section it
+        belongs to, and the repetition READ as padding even though each section
+        is a genuinely different browse path.
+
+        Collapsing is the honest fix for that and deleting rows was not. A
+        closed section still says what it holds and is one click from open, so
+        nothing becomes unreachable and no editorial relationship is thrown
+        away to tidy up a page.
+
+        SAME ARIA PATTERN AS /featured: an <h2> wrapping a <button>, not a div
+        with a click handler. The heading keeps the document outline, the
+        button takes focus and fires on Enter and Space for free, and
+        aria-expanded announces the state. That page learned this the hard way
+        — its collapsed rows were unreachable by keyboard entirely.
+
+        The Explore link stays OUTSIDE the button. A link inside a button is
+        invalid HTML and browsers disagree about which one a click reaches.
+      */}
       {feedSections.map((section) => (
         <section
-          class="feed-section"
+          class:list={['feed-section', 'feed-section--collapsible', {
+            'is-open': section.id === DEFAULT_OPEN_SECTION,
+          }]}
           id={section.id}
           data-section={section.id}
-          aria-labelledby={`feed-section-${section.id}`}
+          data-collapsible
         >
           <div class="feed-section-head">
-            <h2 class="feed-section-title" id={`feed-section-${section.id}`}>{section.title}</h2>
+            <h2 class="feed-section-title" id={`feed-section-${section.id}`}>
+              <button
+                type="button"
+                class="feed-section-toggle"
+                aria-expanded={section.id === DEFAULT_OPEN_SECTION ? 'true' : 'false'}
+                aria-controls={`feed-section-rows-${section.id}`}
+              >
+                <svg class="feed-section-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true" focusable="false">
+                  <path d="M9 5l7 7-7 7" />
+                </svg>
+                <span>{section.title}</span>
+                <span class="feed-section-count">{section.rows.length === 1 ? '1 row' : `${section.rows.length} rows`}</span>
+              </button>
+            </h2>
             {section.explore && (
               <a href={section.explore.href} class="feed-hub-link">
                 <span>{section.explore.label}</span>
@@ -1747,7 +1873,7 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
             )}
           </div>
 
-          <div class="feed-section-rows">
+          <div class="feed-section-rows" id={`feed-section-rows-${section.id}`} hidden={section.id !== DEFAULT_OPEN_SECTION}>
             {section.rows.map((row) => (
               <section
                 class:list={['feed-row', { 'feed-row--accented': Boolean(row.accentRgb) }]}
@@ -2175,8 +2301,81 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
     scrollToHashRow(true);
   });
 
+  /*
+    ─── COLLAPSIBLE SECTIONS ───────────────────────────────────────────────────
+
+    The state lives in exactly two places and they are kept in step here: the
+    `hidden` attribute on the body, and `aria-expanded` on the button. The
+    `is-open` class on the wrapper is presentation only, for the chevron.
+
+    NO HEIGHT ANIMATION, deliberately. A body can hold 41 cards and animating
+    that much layout stutters on a phone. The chevron turns instead.
+  */
+  function setSectionOpen(section: HTMLElement, open: boolean) {
+    const button = section.querySelector<HTMLButtonElement>('.feed-section-toggle');
+    const body = section.querySelector<HTMLElement>('.feed-section-rows');
+    if (!button || !body) return;
+    section.classList.toggle('is-open', open);
+    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    body.hidden = !open;
+  }
+
+  function initCollapsibleSections() {
+    const sections = document.querySelectorAll<HTMLElement>('[data-collapsible]');
+    if (sections.length === 0) return;
+
+    for (const section of sections) {
+      const button = section.querySelector<HTMLButtonElement>('.feed-section-toggle');
+      if (!button || button.dataset.bound === 'true') continue;
+      button.dataset.bound = 'true';
+      button.addEventListener('click', () => {
+        setSectionOpen(section, button.getAttribute('aria-expanded') !== 'true');
+      });
+    }
+
+    /* Arriving at a section by link must not land on a closed one. */
+    openSectionForHash(window.location.hash);
+  }
+
+  function openSectionForHash(hash: string) {
+    if (!hash || hash.length < 2) return;
+    let id = hash.slice(1);
+    try {
+      id = decodeURIComponent(id);
+    } catch {
+      /* A malformed hash is not worth throwing over. */
+    }
+    const target = document.getElementById(id);
+    const section = target?.closest<HTMLElement>('[data-collapsible]');
+    if (section) setSectionOpen(section, true);
+  }
+
+  /*
+    CAPTURE PHASE, and that is load-bearing. FloatingPageNav calls
+    preventDefault() and then measures the heading's offset to aim its jump, so
+    a section opened in the bubble phase would be measured while still closed
+    and the jump would land short. Capturing runs this first, and the nav's own
+    re-aim loop absorbs the reflow.
+  */
+  document.addEventListener(
+    'click',
+    (event) => {
+      const link = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>('a[href*="#"]');
+      if (!link) return;
+      const hash = link.hash;
+      if (!hash) return;
+      /* Only same-page links. */
+      if (link.pathname !== window.location.pathname) return;
+      openSectionForHash(hash);
+    },
+    true,
+  );
+
+  window.addEventListener('hashchange', () => openSectionForHash(window.location.hash));
+
   document.addEventListener('astro:page-load', () => {
     initFeedRows();
+    initCollapsibleSections();
     /* Fallback for hard reloads where after-swap doesn't fire */
     if (!document.documentElement.dataset.pageTransition) {
       scrollToHashRow(true);
