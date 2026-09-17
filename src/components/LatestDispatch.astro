@@ -1,0 +1,257 @@
+---
+/**
+ * The newest piece of coverage, as a single strip under the hero.
+ *
+ * ─── WHY THIS EXISTS ────────────────────────────────────────────────────────
+ * The homepage's first section is "What We Cover": four illustrated category
+ * tiles. That order is deliberate and is staying — a visitor landing cold gets
+ * told what the site IS before being asked to pick a piece of it, and the note
+ * in index.astro records that being decided the other way round once already.
+ *
+ * What it does not do is prove the site is ALIVE. A taxonomy looks the same on
+ * a publication that posted this morning and one abandoned two years ago, and
+ * on a tall screen the taxonomy is now the whole of what shows under the hero.
+ *
+ * A review proposed fixing that by moving Featured Highlights above Categories.
+ * That trades the orientation away to buy the proof. This buys the proof
+ * without the trade: ONE real item, dated, above the tiles. Orientation still
+ * comes first, and it is no longer the first thing a reader sees moving.
+ *
+ * ─── WHY ONE, AND WHY NOT A CARD ───────────────────────────────────────────
+ * One, because the claim being made is "something happened recently", and that
+ * needs a single piece of evidence rather than a shelf. A shelf is what the
+ * sections below already are, and a second one here would push the tiles off
+ * the screen this was meant to make useful.
+ *
+ * Not a ContentCard, because a card in a grid reads as "here is some content"
+ * and this has to read as a dateline. It is a strip: thumbnail, what it is,
+ * when it went out, its headline. It borrows the card's IMAGE pipeline
+ * (getCardImageSources) so YouTube and Substack sources resolve the same way
+ * they do everywhere else, and nothing about the card itself.
+ */
+import { getAllFeedItems } from '../lib/feed-items';
+import { getCardImageSources } from '../lib/card-images';
+
+/*
+  `getAllFeedItems()` already interleaves articles and videos newest-first and
+  already honours the `sortDate` editorial override, so "the newest thing" is
+  its first element and this component does not get an opinion about ordering.
+*/
+const [newest] = await getAllFeedItems();
+
+const { src, srcset } = newest ? getCardImageSources(newest.image) : { src: '', srcset: '' };
+
+/*
+  `date` is ALREADY a display string on both kinds of item — videos are
+  formatted in src/lib/videos.ts and articles carry theirs from the sync. So
+  nothing here parses a date, which is the point: hard rule 1 is about exactly
+  the UTC shift a `new Date(...)` on a bare calendar string would introduce.
+*/
+const dateLabel = typeof newest?.date === 'string' ? newest.date : '';
+const kindLabel = newest?.type === 'video' ? 'Video' : 'Article';
+const categoryLabel = typeof newest?.category === 'string' ? newest.category : '';
+/*
+  EXTERNAL IS DECIDED BY THE URL, not by the item's type.
+
+  `isExternal` is set by getArticleItems() for an article we have no body for,
+  and is absent on videos — but a video's `link` IS a youtube.com watch URL,
+  because there is no per-video page on this site (the Feed spotlights them in
+  place and its own CTA goes to YouTube too). Trusting the flag alone therefore
+  sent the reader off the site in the same tab, from the first thing under the
+  hero, with nothing to come back to.
+
+  Testing the href covers both and cannot drift when a new item type appears.
+*/
+const link = typeof newest?.link === 'string' ? newest.link : '';
+const isExternal = /^https?:\/\//i.test(link) && !link.includes('beunconventionalhq.com');
+---
+
+{newest && (
+  <section class="dispatch" aria-labelledby="dispatch-heading">
+    <h2 class="sr-only" id="dispatch-heading">Latest coverage</h2>
+    <a
+      class="dispatch-link"
+      href={newest.link}
+      {...(isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+    >
+      {src && (
+        <span class="dispatch-thumb">
+          {/*
+            `sizes` is not optional with `w` descriptors: without it the spec's
+            default source size is 100vw, and the browser would pick a 1280px
+            file for a box that is never wider than 200.
+          */}
+          <img
+            src={src}
+            srcset={srcset || undefined}
+            sizes="(max-width: 639px) 40vw, 200px"
+            alt=""
+            loading="lazy"
+            decoding="async"
+          />
+        </span>
+      )}
+
+      <span class="dispatch-copy">
+        <span class="dispatch-meta">
+          <span class="dispatch-flag">Latest</span>
+          {categoryLabel && <span class="dispatch-sep" aria-hidden="true">/</span>}
+          {categoryLabel && <span>{categoryLabel}</span>}
+          <span class="dispatch-sep" aria-hidden="true">/</span>
+          <span>{kindLabel}</span>
+          {dateLabel && <span class="dispatch-sep" aria-hidden="true">/</span>}
+          {dateLabel && <span class="dispatch-date">{dateLabel}</span>}
+        </span>
+
+        <span class="dispatch-title">{newest.title}</span>
+      </span>
+
+      <span class="dispatch-go" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" focusable="false">
+          <path d="M5 12h14M12 5l7 7-7 7" />
+        </svg>
+      </span>
+    </a>
+  </section>
+)}
+
+<style>
+  .dispatch {
+    /* The page column, the same one every section below uses. */
+    width: 100%;
+    max-width: var(--page-max, 1536px);
+    margin: 0 auto;
+    padding: 0 2rem;
+  }
+
+  .dispatch-link {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 0.85rem;
+    text-decoration: none;
+    color: inherit;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.015);
+    /* The same raised treatment every other tile on the site carries. */
+    box-shadow: var(--shadow-tile);
+    transition:
+      border-color 0.3s ease,
+      background-color 0.3s ease,
+      box-shadow 0.3s ease,
+      transform 0.3s ease;
+  }
+
+  .dispatch-link:hover,
+  .dispatch-link:focus-visible {
+    border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.9);
+    background: rgba(255, 255, 255, 0.04);
+    /* Layered, not replaced: naming only the glow here would drop the strip
+       flat at the moment it lifts. */
+    box-shadow: var(--shadow-tile), 0 8px 30px rgba(204, 0, 0, 0.15);
+    transform: translateY(-3px);
+  }
+
+  .dispatch-link:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: 3px;
+  }
+
+  .dispatch-thumb {
+    flex: 0 0 auto;
+    width: clamp(110px, 22vw, 200px);
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: #000;
+  }
+
+  .dispatch-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .dispatch-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    /* Grid/flex children floor at their own min-content width, which for an
+       unbroken headline is the whole headline. Without this the strip refuses
+       to shrink and pushes the arrow off a phone. */
+    min-width: 0;
+  }
+
+  .dispatch-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  /* The one word carrying the whole claim, so it is the one thing in accent. */
+  .dispatch-flag {
+    color: var(--color-accent-text, #ef4444);
+  }
+
+  .dispatch-sep {
+    color: rgba(255, 255, 255, 0.22);
+  }
+
+  .dispatch-date {
+    letter-spacing: 0.12em;
+  }
+
+  .dispatch-title {
+    font-family: var(--font-display, 'Syne Variable', sans-serif);
+    font-size: clamp(0.95rem, 0.8rem + 0.6vw, 1.35rem);
+    line-height: 1.25;
+    color: var(--color-white, #f0f0f0);
+    /* Two lines, then stop. This is a dateline, not a standfirst, and an
+       unclamped headline on a phone turns the strip into a paragraph. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .dispatch-go {
+    flex: 0 0 auto;
+    margin-left: auto;
+    color: rgba(255, 255, 255, 0.5);
+    transition: transform 0.3s ease, color 0.3s ease;
+  }
+
+  .dispatch-link:hover .dispatch-go,
+  .dispatch-link:focus-visible .dispatch-go {
+    transform: translateX(4px);
+    color: var(--color-accent-text, #ef4444);
+  }
+
+  /* The arrow is the least useful thing on a narrow screen and the first to
+     go: the whole strip is the link, and the row is tight enough without it. */
+  @media (max-width: 479px) {
+    .dispatch-go {
+      display: none;
+    }
+    .dispatch-link {
+      gap: 0.85rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dispatch-link,
+    .dispatch-go {
+      transition: none;
+    }
+    .dispatch-link:hover,
+    .dispatch-link:focus-visible {
+      transform: none;
+    }
+  }
+</style>

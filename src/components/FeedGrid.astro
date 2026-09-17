@@ -1165,6 +1165,17 @@ const navItems = [
     align-items: flex-end;
   }
 
+  /*
+    `.feed-row-head` is `justify-content: space-between`, which does nothing
+    with a single child — the actions would fall to the LEFT edge on exactly
+    the rows that have a banner, which is all of them in practice. `margin-left:
+    auto` puts them back on the right without the head needing to know how many
+    children it has.
+  */
+  .feed-row-head--prestige > .prestige-actions:only-child {
+    margin-left: auto;
+  }
+
   .prestige-brand-lockup {
     display: flex;
     flex-direction: column;
@@ -1373,19 +1384,42 @@ const navItems = [
             />
           )}
 
+          {/*
+            ─── THE LOCKUP BELONGS TO WHICHEVER ELEMENT IS THERE, NOT BOTH ────
+
+            FeedRowBanner already renders the eyebrow in words at its lower
+            left, the series logo as art at its lower right, and the row's
+            `<h2>` as sr-only beside the eyebrow. Rendering the lockup HERE as
+            well put "FEATURED SERIES - DC" on screen twice and "LANTERNS"
+            twice — once as the banner's logo and once as type — which is what
+            was reported.
+
+            FeedRowBanner.astro carried both decisions at once: its header note
+            said the duplication was accepted for consistency, and a note
+            further down said "the row head below now carries only its
+            actions". The code followed the first and the comment promised the
+            second. This is the second, which is also the owner's call on
+            seeing it.
+
+            A collection with NO banner art keeps the full lockup — otherwise
+            that row would have no visible heading and no <h2> at all, since
+            both live in the banner.
+          */}
           <div class="feed-row-head feed-row-head--prestige">
-            <div class="prestige-brand-lockup">
-              <span class="prestige-eyebrow">{collection.eyebrow}</span>
-              <div class="prestige-title-group">
-                {collection.hub?.logo ? (
-                  <img src={collection.hub.logo} alt={collection.hub.title} class="prestige-mark" loading="lazy" decoding="async" />
-                ) : (
-                  collection.hub && <span class="prestige-badge">{collection.hub.title}</span>
-                )}
-                {collection.hub && <span class="prestige-divider" aria-hidden="true"></span>}
-                <h2 class="feed-row-title prestige-title">{collection.name}</h2>
+            {!collection.bannerArt && (
+              <div class="prestige-brand-lockup">
+                <span class="prestige-eyebrow">{collection.eyebrow}</span>
+                <div class="prestige-title-group">
+                  {collection.hub?.logo ? (
+                    <img src={collection.hub.logo} alt={collection.hub.title} class="prestige-mark" loading="lazy" decoding="async" />
+                  ) : (
+                    collection.hub && <span class="prestige-badge">{collection.hub.title}</span>
+                  )}
+                  {collection.hub && <span class="prestige-divider" aria-hidden="true"></span>}
+                  <h2 class="feed-row-title prestige-title">{collection.name}</h2>
+                </div>
               </div>
-            </div>
+            )}
 
             <div class="prestige-actions">
               {collection.hub && (

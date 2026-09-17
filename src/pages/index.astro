@@ -2,6 +2,7 @@
 import { SECTIONS, LABELS } from '../data/content.js';
 import Layout from '../layouts/Layout.astro';
 import Hero from '../components/Hero.astro';
+import LatestDispatch from '../components/LatestDispatch.astro';
 import FeaturedHighlights from '../components/FeaturedHighlights.astro';
 import Categories from '../components/Categories.astro';
 import LatestArticles from '../components/LatestArticles.astro';
@@ -66,7 +67,35 @@ const isHomePage = currentPath === '/';
   */}
 
   {/*
-    `id="hq-content"` is the hero CTA's anchor target.
+    ─── THE PROOF, THEN THE ORIENTATION ──────────────────────────────────────
+
+    One real, dated piece of coverage above the category tiles.
+
+    A design review proposed getting this by moving Featured Highlights above
+    Categories. That undoes the decision recorded below — orientation before
+    individual content — to buy one thing: evidence the site is alive, which a
+    taxonomy cannot give because four illustrated tiles look identical on a
+    publication that posted this morning and one abandoned two years ago.
+
+    It matters more since the hero was capped: on a 2160px screen roughly
+    1160px of page now shows under it, and every pixel of that was taxonomy.
+
+    So the strip buys the evidence and the order keeps the orientation. It is
+    additive: nothing below moved.
+
+    `id="hq-content"` MOVED HERE WITH THE POSITION, not with the section it was
+    on. It is the hero CTA's target and its rule is "the first thing BELOW the
+    hero" — see the note that follows. Left on Categories, "Enter The Feed"
+    would have scrolled the reader straight PAST the newest story.
+  */}
+  <div id="hq-content" class="dispatch-anchor">
+    <LatestDispatch />
+  </div>
+
+
+  {/*
+    `id="hq-content"` is the hero CTA's anchor target, and it is on the wrapper
+    above rather than here for the reason given there.
 
     It has to be the first thing BELOW the hero, not the page wrapper. The CTA
     used to point at `#page-content`, which wraps <main> and therefore starts
@@ -74,7 +103,7 @@ const isHomePage = currentPath === '/';
     scrolled back to the top, pressing the button "scrolled" to where they
     already were and appeared to do nothing at all.
   */}
-  <Section id="hq-content" pt="4rem" pb="6rem" maxWidth="1536px">
+  <Section pt="4rem" pb="6rem" maxWidth="1536px">
     <SectionHeader>
       {/* Copy lives in src/data/content.js -> SECTIONS.whatWeCover */}
       <PageTitle {...SECTIONS.whatWeCover} />
@@ -126,3 +155,14 @@ const isHomePage = currentPath === '/';
   <SubscribeCTA />
   </main>
 </Layout>
+
+<style>
+  /*
+    The navbar is fixed, so a bare anchor jump puts the target under it. Same
+    one-property fix, and the same 7rem, that article.css uses for its own
+    in-page headings.
+  */
+  .dispatch-anchor {
+    scroll-margin-top: 7rem;
+  }
+</style>
