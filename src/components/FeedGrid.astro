@@ -1,6 +1,7 @@
 ---
 import ContentCard from './ContentCard.astro';
 import FeedRowBanner from './FeedRowBanner.astro';
+import { getImage } from 'astro:assets';
 import EmptyState from './EmptyState.astro';
 import { LABELS, MESSAGES } from '../data/content.js';
 import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-content';
@@ -551,6 +552,32 @@ const prestigeEyebrow = prestigeHub
 */
 const prestigeBannerArt = prestigeRow ? rowArt(PRESTIGE_ROW.bannerArt) : null;
 const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) : null;
+
+/*
+  ─── A FEATURED ROW'S TILES CARRY THE SHOW, NOT THE HUB ────────────────────
+
+  These items resolve to DC, because that is the hub that owns them, so
+  promoting one into the spotlight hero filled it with DC's key art and the DC
+  roundel — under a banner that says LANTERNS in the show's own logo. The row
+  and the hero it drives disagreed about what you were looking at.
+
+  Where the row has artwork of its own, its tiles hand that to the hero
+  instead. Sized here rather than passing the raw import: the hero backdrop is
+  a full-bleed plate, and shipping the 2560px master to it is the same waste
+  the entity resolver's own note is about.
+
+  Only the look and the name are overridden. The Explore CTA still points at
+  /featured/dc-comics, because the show has no page of its own.
+*/
+const prestigeBrand = prestigeBannerArt
+  ? {
+      title: prestigeRow?.title,
+      hero: (await getImage({ src: prestigeBannerArt, width: 1600 })).src,
+      logo: prestigeBannerLogo
+        ? (await getImage({ src: prestigeBannerLogo, width: 640 })).src
+        : undefined,
+    }
+  : null;
 
 const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
 ---
@@ -1636,7 +1663,13 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
           <ul class="feed-row-rail" data-rail>
             {prestigeRow.items.map((item: any, index: number) => (
               <li class="feed-row-item">
-                <ContentCard item={item} index={index} context="feed" variant="featured" />
+                <ContentCard
+                  item={item}
+                  index={index}
+                  context="feed"
+                  variant="featured"
+                  brandOverride={prestigeBrand}
+                />
               </li>
             ))}
           </ul>

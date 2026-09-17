@@ -33,9 +33,24 @@ export interface Props {
    *   'default' opens the modal, or follows the link for an article
    */
   context?: 'feed' | 'hub' | 'default';
+  /**
+   * Artwork and name for the SHOW this card belongs to, overriding the hub
+   * `resolveEntity()` would otherwise resolve.
+   *
+   * The Lanterns tiles resolve to DC, because that is the hub that owns them,
+   * and promoting one into the spotlight hero therefore filled it with DC's
+   * key art and the DC roundel. On a shelf that has its own banner and its own
+   * logo directly above it, that is the wrong identity: the row says Lanterns
+   * and the hero it drives said DC.
+   *
+   * Only the fields given are replaced. `slug`, `url`, `type` and `color` stay
+   * as resolved, so the Explore CTA still goes to the hub — the show has no
+   * page of its own to send anyone to.
+   */
+  brandOverride?: { logo?: string; hero?: string; title?: string } | null;
 }
 
-const { item, index = 0, variant = 'default', context = 'default' } = Astro.props;
+const { item, index = 0, variant = 'default', context = 'default', brandOverride = null } = Astro.props;
 
 // Determine if this is the Largest Contentful Paint (LCP) element
 const isLCP = variant === 'hero' && index === 0;
@@ -174,9 +189,15 @@ const brandData = entity
       slug: entity.slug,
       url: entity.url,
       type: entity.type,
-      title: entity.title,
-      logo: entity.logo ?? undefined,
-      hero: entity.hero ?? undefined,
+      /*
+        The show's identity wins over the hub's where one is supplied, and only
+        for the three things that are actually about the show: what it is
+        called and what it looks like. The destination stays the hub's, because
+        that is the page that exists.
+      */
+      title: brandOverride?.title || entity.title,
+      logo: brandOverride?.logo || entity.logo || undefined,
+      hero: brandOverride?.hero || entity.hero || undefined,
       color: entity.color,
     })
   : undefined;

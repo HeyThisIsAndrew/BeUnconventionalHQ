@@ -435,3 +435,50 @@ test('the banner art overhangs its box and fades, rather than being cut off', ()
     'the heading and the rail must paint above the overhang',
   );
 });
+
+/*
+  ─── A FEATURED ROW'S TILES CARRY THE SHOW, NOT THE HUB ─────────────────────
+
+  The Lanterns tiles resolve to DC, because that is the hub that owns them, so
+  promoting one into the spotlight hero filled it with DC's key art and the DC
+  roundel — directly under a banner showing the show's own logo. The row and
+  the hero it drives disagreed about what you were looking at.
+*/
+test('a featured tile hands its show\'s artwork to the hero', () => {
+  const card = read('src', 'components', 'ContentCard.astro');
+  const grid = read('src', 'components', 'FeedGrid.astro');
+
+  assert.match(card, /brandOverride\?:/, 'the card must accept a show-level identity');
+  assert.match(
+    card,
+    /title: brandOverride\?\.title \|\| entity\.title/,
+    'the show names itself where it has a name',
+  );
+  for (const field of ['logo', 'hero']) {
+    assert.match(
+      card,
+      new RegExp(`${field}: brandOverride\\?\\.${field} \\|\\| entity\\.${field}`),
+      `the show's ${field} must win over the hub's`,
+    );
+  }
+
+  /*
+    But ONLY the look and the name. The Explore CTA still has to reach a page
+    that exists, and the show has none — overriding `url` would send it nowhere.
+  */
+  const payload = card.slice(card.indexOf('const brandData = entity'));
+  const block = payload.slice(0, payload.indexOf(': undefined;'));
+  for (const field of ['slug', 'url', 'type', 'color']) {
+    assert.doesNotMatch(
+      block,
+      new RegExp(`${field}: brandOverride`),
+      `${field} must stay the hub's — the show has no page of its own`,
+    );
+  }
+
+  /* And the shelf must actually pass it, at a size fit for a hero backdrop
+     rather than the 2560px master the banner uses. */
+  assert.match(grid, /const prestigeBrand = prestigeBannerArt/, 'the row must build the override');
+  assert.match(grid, /getImage\(\{ src: prestigeBannerArt, width: \d+ \}\)/, 'the backdrop must be resized');
+  assert.match(grid, /brandOverride=\{prestigeBrand\}/, 'the tiles must carry it');
+});
