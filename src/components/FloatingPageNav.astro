@@ -419,8 +419,32 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
         is the last section that has begun, not the last one that happened to
         cross a line the remaining ones can never cross.
       */
+      /*
+        ─── THE TOLERANCE IS A BAND, NOT A MEASUREMENT ───────────────────────
+
+        This was `- 2`, and reported as still picking the wrong section on a 4K
+        display. `scrollHeight` is an integer while `scrollY` is fractional, and
+        a scaled display rounds the two differently, so the maximum scroll
+        position can land several pixels short of the number this compares
+        against and the branch never runs.
+
+        STATED PLAINLY: I could not reproduce it. Measured here at 3840x2160,
+        `devicePixelRatio` 1, the gap at maximum scroll is exactly 0 and `- 2`
+        was sufficient. The failing case is a scaled display this browser is not
+        emulating, so the number below is a tolerance chosen to cover it rather
+        than one measured against it.
+
+        Widening it is safe whatever the real gap is: inside this band the
+        branch returns the same answer the geometry below would be trying to
+        reach. There is no reading of "ten pixels from the end of the document"
+        under which the last section that has begun is the wrong one.
+
+        `Math.ceil` because the sum is fractional and the comparison is not.
+      */
+      const BOTTOM_TOLERANCE = 10;
       const atBottom =
-        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+        Math.ceil(window.innerHeight + window.scrollY) >=
+        document.documentElement.scrollHeight - BOTTOM_TOLERANCE;
       if (atBottom) {
         const started = headings.filter((h) => h.getBoundingClientRect().top < window.innerHeight);
         const last = started[started.length - 1] ?? headings[headings.length - 1];
@@ -496,6 +520,50 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
       somewhere slightly different from where the anchor aimed — images above
       finishing their layout, mostly.
     */
+    /*
+      ─── EXCEPT DURING THE JUMP THE CLICK ITSELF STARTED ────────────────────
+
+      A `wheel` event is the reader taking the page back, which is exactly what
+      should release the pin — unless it lands in the middle of the smooth
+      scroll the click just began. A Mac trackpad emits microscopic residual
+      wheel events from the flick that PRECEDED the click, and one of those
+      inside the animation released the pin, let geometry resume, and lit up
+      every section the page was travelling past. That is the 1 > 4 > 2 > 3 > 4
+      flicker, and it is why the jump was made instant.
+
+      NOT A FIXED TIMEOUT. A one-second window was the obvious version and it
+      guesses twice: Chrome scales a smooth scroll's duration with distance, so
+      one second is too long for a jump to the next heading and too short for a
+      jump down a 6,500px feed, and the wrong guess either swallows a real
+      gesture or lets the flicker back in at the end of a long journey.
+
+      So the suppression ends when the SCROLL does: three consecutive frames
+      within a pixel. The 2s cap is a failsafe, not a duration — a page that
+      never settles must not wedge the pin, because the pin is what stops the
+      rail arguing with the reader at the bottom of the document.
+    */
+    let releaseArmed = true;
+    const armReleaseWhenSettled = () => {
+      releaseArmed = false;
+      let previous = window.scrollY;
+      let still = 0;
+      const deadline = Date.now() + 2000;
+      const tick = () => {
+        const now = window.scrollY;
+        still = Math.abs(now - previous) <= 1 ? still + 1 : 0;
+        previous = now;
+        if (still >= 3 || Date.now() > deadline) {
+          /* Only re-arms. No resolveActive() here: the pin is still set, so it
+             would return at its first line. The rail is already showing what
+             the reader clicked, and it keeps showing it until they scroll. */
+          releaseArmed = true;
+          return;
+        }
+        window.requestAnimationFrame(tick);
+      };
+      window.requestAnimationFrame(tick);
+    };
+
     links.forEach((link) => {
       link.addEventListener('click', (event) => {
         const id = link.dataset.tocLink;
@@ -506,24 +574,25 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
         setActive(id);
 
         /*
-          ─── IT SWITCHES. IT DOES NOT TRAVEL ────────────────────────────────
+          ─── IT TRAVELS AGAIN, NOW THAT THE JOURNEY IS SURVIVABLE ───────────
 
-          This went through two animated versions and both were worse than no
-          animation at all. Scrolling instantly and then correcting 350ms later
-          showed the reader two jumps; scrolling smoothly after waiting for
-          layout was correct in measurement and still read as unsteady in use.
+          This was instant, and the note here used to argue that switching beat
+          travelling because two animated versions had read as unsteady. That
+          was treating the symptom. The rail flickering 1 > 4 > 2 > 3 > 4 during
+          a smooth scroll was never caused by the animation: it was caused by
+          the animation being long enough for a stray trackpad `wheel` event to
+          land inside it and release the pin, after which geometry resumed and
+          lit up every section the page travelled past.
 
-          The owner's call, and the right one: switch to the selection instead
-          of travelling to it. An instant jump has no frames in which to stutter,
-          no animation to be interrupted by a second click, and nothing to tune.
+          With the pin held for the duration (see `armReleaseWhenSettled`), a
+          smooth scroll passes through those sections without reporting any of
+          them, so the cinematic scroll comes back and the flicker does not.
 
-          The one thing kept from those attempts is AIMING. A native anchor
-          resolves against the layout as it is at that instant, and on the first
-          click of a cold load the images above the fold have not finished
-          laying out — the target ended up at 842px against the ~90px its
-          `scroll-margin-top` asks for. So the jump waits for the heading to
-          stop moving, then goes once. The wait is ~8 frames at most, which is
-          not perceptible on a movement that is itself instant.
+          AIMING is kept and still matters. A native anchor resolves against the
+          layout as it is at that instant, and on the first click of a cold load
+          the images above the fold have not finished laying out — the target
+          ended up at 842px against the ~90px its `scroll-margin-top` asks for.
+          The jump waits for the heading to stop moving, then goes once.
         */
         event.preventDefault();
 
@@ -537,19 +606,18 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
              be what fires. */
           if (Math.abs(now - previous) <= 1 || attempt >= 8) {
             /*
-              `behavior: 'instant'`, EXPLICITLY. global-base.css sets
-              `html { scroll-behavior: smooth }`, which scrollIntoView inherits,
-              so this animated despite the note above saying it switches rather
-              than travels.
+              `behavior: 'smooth'` EXPLICITLY, rather than inheriting it from
+              `html { scroll-behavior: smooth }` in global-base.css. Written out
+              so that changing the global does not silently change this, which
+              is how it came to be animating while the note beside it claimed it
+              did not.
 
-              It is also what made the rail flicker 1 > 4 > 2 > 3 > 4: a long
-              smooth scroll passes every intermediate section through the
-              detection band, and a stray trackpad wheel event during the
-              journey releases the pin and lets the observer light each one up
-              on the way past. An instant jump has no journey to observe.
+              `armReleaseWhenSettled()` BEFORE the scroll, not after: the first
+              wheel event of a trackpad flick can arrive in the same frame as
+              the call, and arming afterwards leaves that frame unguarded.
             */
-            heading.scrollIntoView({ block: 'start', behavior: 'instant' });
-            resolveActive();
+            armReleaseWhenSettled();
+            heading.scrollIntoView({ block: 'start', behavior: 'smooth' });
             return;
           }
           previous = now;
@@ -578,8 +646,11 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
     */
     /* The reader taking the page back releases the pin. These fire only for
        input, never for scrollIntoView(), which is the distinction the pin
-       needs and which a plain `scroll` listener cannot make. */
+       needs and which a plain `scroll` listener cannot make — and not while
+       the click's own smooth scroll is still running, which is what
+       `armReleaseWhenSettled` above is for. */
     const releasePin = () => {
+      if (!releaseArmed) return;
       pinnedId = null;
     };
     const SCROLL_KEYS = new Set([

@@ -580,16 +580,21 @@ test('the contents rail tracks the section you jumped to', () => {
   assert.match(nav, /setActive\(id\);/, 'the clicked entry lights immediately');
 
   /*
-    ─── IT SWITCHES, IT DOES NOT TRAVEL ──────────────────────────────────────
+    ─── IT TRAVELS, AND THE JOURNEY IS GUARDED ───────────────────────────────
 
-    Two animated versions were tried and both were worse than none. Scrolling
-    instantly then correcting 350ms later showed two jumps; scrolling smoothly
-    after a settle wait measured clean and still read as unsteady in use.
+    This file used to assert the opposite: `doesNotMatch(/behavior: 'smooth'/)`,
+    on the reasoning that two animated versions had read as unsteady so
+    switching beat travelling. That pinned a workaround as the contract.
 
-    The owner chose the simple answer: switch to the selection. An instant jump
-    has no frames in which to stutter and nothing to tune. Aiming is kept,
-    because a native anchor resolves against the layout as it is at that
-    instant and the first click of a cold load landed 750px off.
+    The flicker (1 > 4 > 2 > 3 > 4) was never the animation. It was a stray
+    trackpad `wheel` event landing inside the animation, releasing the pin, and
+    letting geometry light up every section the page travelled past. Making the
+    jump instant removed the window rather than the cause.
+
+    So the scroll is smooth again and what must hold is the guard: the pin
+    survives the journey, and it stops surviving when the journey ENDS rather
+    than after a guessed number of milliseconds, because a smooth scroll's
+    duration scales with distance.
   */
   assert.match(nav, /event\.preventDefault\(\)/, 'the browser jump is replaced by one we control');
   assert.match(
@@ -597,10 +602,30 @@ test('the contents rail tracks the section you jumped to', () => {
     /const jumpWhenAimed = \(attempt(: number)?\) =>/,
     'the target must stop moving before it is aimed at',
   );
+  assert.match(
+    nav,
+    /scrollIntoView\(\{ block: 'start', behavior: 'smooth' \}\)/,
+    'the cinematic scroll is the point; instant was the workaround',
+  );
+  assert.match(
+    nav,
+    /armReleaseWhenSettled\(\);[\s\S]{0,120}?scrollIntoView/,
+    'the guard must be armed BEFORE the scroll: a flick can land in the same frame',
+  );
+  assert.match(
+    nav,
+    /const releasePin = \(\) => \{\s*if \(!releaseArmed\) return;/,
+    'a wheel event during the jump must not release the pin',
+  );
   assert.doesNotMatch(
     nav,
-    /behavior:\s*'smooth'/,
-    'no smooth scroll here — switching beat travelling, twice',
+    /ignoreWheelUntil|Date\.now\(\) \+ 1000/,
+    'not a fixed window — Chrome scales a smooth scroll with distance, so one guess is wrong at both ends',
+  );
+  assert.match(
+    nav,
+    /still >= 3 \|\| Date\.now\(\) > deadline/,
+    'the guard ends when the scroll settles, with a cap so it cannot wedge the pin',
   );
   assert.match(
     nav,
@@ -646,7 +671,20 @@ test('the last sections are reachable on a tall viewport', () => {
   */
   const nav = read('src', 'components', 'FloatingPageNav.astro');
   assert.match(nav, /const atBottom =/, 'the end of the document is a position, not a non-event');
-  assert.match(nav, /scrollHeight - 2/, 'and it needs a tolerance, not an exact equality');
+  /*
+    The tolerance was `- 2` and was reported as still wrong on a 4K display:
+    `scrollHeight` is an integer and `scrollY` is not, so a scaled display
+    rounds them apart and maximum scroll lands short of the number. Asserted as
+    a RANGE rather than a literal, because the exact figure is a band chosen to
+    cover a display this browser does not emulate, not a measurement — inside
+    it the branch returns the same answer either way.
+  */
+  const tolerance = nav.match(/const BOTTOM_TOLERANCE = (\d+);/);
+  assert.ok(tolerance, 'the tolerance must be named, not buried in the comparison');
+  assert.ok(Number(tolerance[1]) >= 4, 'two pixels was not enough on a scaled 4K display');
+  assert.ok(Number(tolerance[1]) <= 40, 'a wide band starts answering for sections still in reach');
+  assert.match(nav, /Math\.ceil\(window\.innerHeight \+ window\.scrollY\)/,
+    'the sum is fractional and the value it is compared against is not');
 });
 
 test('a click outranks geometry until the reader takes the page back', () => {

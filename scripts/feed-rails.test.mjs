@@ -286,6 +286,13 @@ test('the Games tile on the homepage lands on the Games rail', () => {
     'the element id is the public name, falling back to the rail id');
   assert.match(grid, /data-row=\{rail\.id\}/,
     'and data-row keeps the internal one, which the scroll handler also resolves');
+  /*
+    The floating contents rail links by getElementById, so it must be given the
+    same name the element actually carries. It was given `rail.id` and the Games
+    entry became a link to nothing — no error, no highlight, no scroll.
+  */
+  assert.match(grid, /rails\.map\(\(r\) => \(\{ id: r\.anchor \?\? r\.id,/,
+    'the contents rail must link to the anchor, not the internal id');
 
   const tiles = read('src', 'components', 'Categories.astro');
   assert.match(tiles, /\/feed#\$\{cat\.slug\}/,

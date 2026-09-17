@@ -349,7 +349,15 @@ const hasRows = collections.length > 0 || rails.length > 0;
 */
 const navItems = [
   ...collections.map((c) => ({ id: c.id, text: c.name, level: 2 })),
-  ...rails.map((r) => ({ id: r.id, text: r.title, level: 2 })),
+  /*
+    `r.anchor ?? r.id`, the SAME expression the section element uses below. The
+    nav links by `getElementById`, so giving it the rail's internal id while the
+    element carries its public anchor is a link to nothing: the Games entry
+    pointed at `#gaming` against a section with `id="games"` and its handler
+    returned at `if (!id || !heading) return;`, silently. Introduced here by the
+    anchor change itself and caught by reading the rendered hrefs back.
+  */
+  ...rails.map((r) => ({ id: r.anchor ?? r.id, text: r.title, level: 2 })),
 ];
 ---
 
