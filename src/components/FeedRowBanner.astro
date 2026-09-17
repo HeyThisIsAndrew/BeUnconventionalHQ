@@ -80,13 +80,29 @@ const { art, logo = null, title, eyebrow, accentRgb = null } = Astro.props;
       to sit with the thing it titles, and the only visible rendering of the
       series name on this row is the logo, which is an image.
     */}
-    <div class="feed-row-banner-meta">
-      <span class="feed-row-banner-eyebrow">{eyebrow}</span>
-      <h2 class="sr-only">{title}</h2>
-    </div>
+    {/*
+      ─── THE FURNITURE SITS IN THE CONTENT COLUMN, NOT ON THE VIEWPORT ──────
 
-    {logo && (
-      <div class="feed-row-banner-lockup">
+      `.container-page` is on this element on purpose, and it is the same class
+      the rows below use. The art is full-bleed; the words and the mark are not.
+
+      They were pinned to the viewport's own edges with a clamped inset, which
+      is indistinguishable from correct until the screen is much wider than the
+      content column. Measured on a 3840px viewport: the eyebrow sat at x=31 and
+      the mark ended at x=3794, while the first card in the rail underneath
+      started at x=1170 and the last ended at x=2655. The banner's furniture was
+      over a thousand pixels outside the column it belongs to, at both ends.
+
+      Sharing the class rather than copying its numbers is the point: a change
+      to the page's width cannot leave this behind.
+    */}
+    <div class="container-page feed-row-banner-inner">
+      <div class="feed-row-banner-meta">
+        <span class="feed-row-banner-eyebrow">{eyebrow}</span>
+        <h2 class="sr-only">{title}</h2>
+      </div>
+
+      {logo && (
         <Image
           src={logo}
           alt={title}
@@ -96,8 +112,8 @@ const { art, logo = null, title, eyebrow, accentRgb = null } = Astro.props;
           loading="lazy"
           decoding="async"
         />
-      </div>
-    )}
+      )}
+    </div>
   </div>
 )}
 
@@ -190,30 +206,28 @@ const { art, logo = null, title, eyebrow, accentRgb = null } = Astro.props;
     The gutter matches the page container's, so the mark lines up with the end of
     the rail below rather than with the raw viewport edge.
   */
-  .feed-row-banner-lockup,
-  .feed-row-banner-meta {
+  /*
+    One row, pinned to the bottom of the strip: words at one end, mark at the
+    other. `.container-page` supplies the width and the gutters, so both ends
+    line up with the rail below rather than with the screen.
+  */
+  .feed-row-banner-inner {
     position: absolute;
     left: 0;
     right: 0;
-    padding-inline: clamp(1rem, 4vw, 3rem);
-    display: flex;
-  }
-
-  .feed-row-banner-lockup {
     bottom: clamp(0.85rem, 2vw, 1.6rem);
-    justify-content: flex-end;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
   }
 
-  /*
-    Aligned to the MARK'S baseline, not to the strip's. The mark is bottom-
-    anchored and much taller, so matching the strip's bottom edge left this
-    line floating well below it and reading as a caption on the page rather
-    than as part of the artwork.
-  */
   .feed-row-banner-meta {
-    bottom: calc(clamp(0.85rem, 2vw, 1.6rem) + 0.35rem);
-    justify-content: flex-start;
+    display: flex;
     align-items: flex-end;
+    /* Nudged off the strip's own baseline so it sits with the mark's, which is
+       much taller and bottom-anchored. */
+    padding-bottom: 0.35rem;
   }
 
   .feed-row-banner-eyebrow {
@@ -223,6 +237,7 @@ const { art, logo = null, title, eyebrow, accentRgb = null } = Astro.props;
     letter-spacing: 0.22em;
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.86);
+    white-space: nowrap;
   }
 
   /*
@@ -241,9 +256,30 @@ const { art, logo = null, title, eyebrow, accentRgb = null } = Astro.props;
   @media (max-width: 560px) {
     /* The art is 16:9 and this is a 2:1-ish crop on a phone, so the centre band
        is all that survives. Pulling the mark in keeps it off the edge. */
-    .feed-row-banner-lockup,
-    .feed-row-banner-meta {
-      padding-inline: 1.25rem;
+    /*
+      ─── ON A PHONE THE TWO ENDS COMPETE FOR ONE LINE ───────────────────────
+
+      Measured at 375px: the eyebrow is 146px and the mark 168px, which with the
+      1rem gap needs 330px inside a 311px column. `space-between` does not
+      shrink anything, so the overflow went out the right-hand end and the mark
+      sat 20px past the column the cards line up with.
+
+      The mark yields, because it is the element that can: at 46% it comes down
+      to ~143px and the line fits with room to spare. The eyebrow keeps its
+      `nowrap` — it is one short string, and wrapping "FEATURED SERIES • DC"
+      onto two lines under a mark is worse than a slightly smaller mark.
+
+      `min-width: 0` is required as well. A replaced element's automatic minimum
+      size is its intrinsic width, so without it flex refuses to shrink the
+      image below its natural size and max-width alone would not have helped.
+    */
+    .feed-row-banner-inner {
+      gap: 0.75rem;
+    }
+
+    .feed-row-banner-logo {
+      max-width: 46%;
+      min-width: 0;
     }
   }
 </style>

@@ -43,6 +43,30 @@
   padding: 0 2rem;
 }
 
+/*
+  ─── ON A VERY WIDE SCREEN, MATCH THE HERO ─────────────────────────────────
+
+  The hero grid carries `2xl:!max-w-[1920px]`, so above 1536px the hero and the
+  page body stopped agreeing about where the content column is. Measured on a
+  3840px viewport: the hero ran 953 -> 2873 while the cards under it ran
+  1170 -> 2655. Every row on the page was inset 217px from the hero above it,
+  and the page read as two documents stacked on each other.
+
+  Reported as "in 4K monitor this looks terrible", and this is the half of it
+  that is not the banner: a 1536px column on a 3840px screen also leaves 1152px
+  of empty ground either side, so the whole page sat in the middle looking
+  undersized.
+
+  1920 rather than something wider because that is what the hero caps at. The
+  point is that they are THE SAME NUMBER: a container that overshot the hero
+  would reproduce the same misalignment in the other direction.
+*/
+@media (min-width: 1920px) {
+  .container-page {
+    max-width: 1920px;
+  }
+}
+
 /* Reading-width page: collaborations. */
 .container-narrow {
   width: 100%;
