@@ -517,8 +517,19 @@ try {
     worst case rather than whatever frame the screenshot happened to catch.
 
     `maxDelta` is red minus the larger of green/blue — a colour-cast measure.
-    The hero background is a dark neutral, so any red glow spilling onto it
-    shows up as a positive delta immediately.
+
+    THE BACKGROUND IS NO LONGER A DARK NEUTRAL, which is what this comment
+    used to rely on and why the threshold moved. `.hero-overlay` now carries a
+    deliberate radial glow, the site accent at 0.07 centred at 42% of the hero
+    (modules/hero.css), so the wall behind the button has a faint red cast of
+    its own that has nothing to do with the button.
+
+    Measured on the failing run: 9 above the button and 5 below, against 0 to
+    either side, and the asymmetry is the tell — the glow's centre sits ABOVE
+    the button, so it reads strongest there. The button's own interior is over
+    30. The ceiling is 15: high enough to clear a background the design asks
+    for, far enough below 30 that a real bleed still fails. Raise the glow's
+    alpha and this needs revisiting; it is not a licence to widen again.
   */
   {
     const page = await browser.newPage();
@@ -563,7 +574,7 @@ try {
       ['below', box.x, box.y + box.h + 2, box.w, PAD - 2],
     ]) {
       const spill = await cast(x, y, w, h);
-      ok(`pulse: no bleed ${side} of the button`, spill <= 4, `red cast ${spill}`);
+      ok(`pulse: no bleed ${side} of the button`, spill <= 15, `red cast ${spill}`);
     }
     await page.close();
   }

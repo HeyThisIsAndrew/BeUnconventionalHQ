@@ -47,6 +47,7 @@
 import { getImage } from 'astro:assets';
 import logoMark from '../assets/logo-mark.webp';
 import { getAllFeedItems } from '../lib/feed-items';
+import { cappedWidths } from '../lib/local-content';
 import { getCardImageSources } from '../lib/card-images';
 import { selectCollections } from '../lib/feed-rails';
 
@@ -131,16 +132,25 @@ const featuredArtSource = featuredSlug ? rowArt(`${featuredSlug}-key-art`) : nul
   reported `complete: true` with `naturalWidth: 0`, so the band rendered as a
   flat dark box and looked like a styling problem rather than a missing file.
 
-  Two widths rather than one, because this is full-bleed: 1600 is 1x on the
-  widest column and 2400 covers a 4K screen without asking a phone to fetch it.
+  THE LADDER IS CAPPED BY THE FILE, NOT WRITTEN OUT. It was a flat 1600 and
+  2400. The band is full bleed, so on a 4K screen its slot is 3840 CSS pixels
+  and 2400 was the most it could ever be offered: the art rendered upscaled and
+  soft, and the old `sizes` below made it worse by claiming 1536.
+
+  3840 is in the ladder now, but `cappedWidths` drops any rung the file cannot
+  actually fill, so today's 2560-wide key art tops out at 2560 rather than
+  being upsampled to 3840 — which would cost more bytes to look worse. Drop in
+  a 3840 original and the top rung appears on its own.
 */
+const ART_WIDTHS = cappedWidths(featuredArtSource, [1600, 2400, 3840]);
+const featuredArtAt = async (w: number) =>
+  (await getImage({ src: featuredArtSource!, width: w, format: 'webp', quality: 78 })).src;
 const featuredArt = featuredArtSource
   ? {
-      src: (await getImage({ src: featuredArtSource, width: 1600, format: 'webp', quality: 78 })).src,
-      srcset: [
-        `${(await getImage({ src: featuredArtSource, width: 1600, format: 'webp', quality: 78 })).src} 1600w`,
-        `${(await getImage({ src: featuredArtSource, width: 2400, format: 'webp', quality: 78 })).src} 2400w`,
-      ].join(', '),
+      src: await featuredArtAt(ART_WIDTHS[0]),
+      srcset: (
+        await Promise.all(ART_WIDTHS.map(async (w) => `${await featuredArtAt(w)} ${w}w`))
+      ).join(', '),
     }
   : null;
 
@@ -222,6 +232,26 @@ slides.push({
 /* Nothing to rotate through is not a failure: one slide renders as a static
    band and the script never starts the clock. */
 const rotates = slides.length > 1;
+
+/*
+  WHAT THE SLOT ACTUALLY IS, which the old flat "1536px" was not.
+  Under-declaring is what made a 4K screen fetch the 1600 rung and stretch it
+  across 3840 pixels.
+
+  The banner is full bleed with no ceiling, so it is simply the viewport:
+  measured 3825 of 3840.
+
+  The panel is NOT 95vw all the way up, which is what this said first. It sits
+  on the hero column, which stops at `--page-max` (2600px), so it tracks the
+  viewport to about 2737px and is flat above that: 957 of 1024, 1434 of 1497,
+  then 2494 at 3840 where a bare 95vw would have claimed 3648. The breakpoint
+  is where 95vw reaches 2600.
+
+  Written as a media condition rather than `min(95vw, 2600px)` on purpose: a
+  browser that does not understand a function in `sizes` discards the whole
+  attribute and falls back to 100vw, and that failure is silent.
+*/
+const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 95vw';
 ---
 
 <section class:list={['spotlight', `spotlight--${variant}`]} aria-label={label} data-spotlight>
@@ -258,7 +288,7 @@ const rotates = slides.length > 1;
             class="spotlight-art"
             src={slide.art.src}
             srcset={slide.art.srcset || undefined}
-            sizes="(max-width: 899px) 100vw, 1536px"
+            sizes={artSizes}
             alt=""
             loading="eager"
             decoding="async"

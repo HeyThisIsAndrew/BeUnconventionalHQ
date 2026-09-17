@@ -114,6 +114,37 @@ export interface ImageSet {
  * @param aspect   Optional forced aspect ratio (w / h) for a cropped box.
  *                 Omit to keep the asset's own proportions.
  */
+/**
+ * The width ladder an asset can actually serve: every candidate below its
+ * native width, plus the native width itself as the top rung.
+ *
+ * This is the capping rule `buildImageSet` documents above, pulled out so the
+ * hero backdrops can use it too. They ship their own `srcset` rather than an
+ * ImageSet, because their `src` is deliberately the SMALL candidate (a
+ * mobile-first fallback) where buildImageSet's is the largest, and that is a
+ * real difference rather than an oversight. Without this they asked for a flat
+ * 2400 from assets that are 1920, which is the upscale the note above is
+ * about, and they could never ask for more than 2400 from the two that are
+ * 3840.
+ *
+ * An asset with no embedded dimensions (an arbitrary external URL) gets the
+ * ladder back untouched: there is nothing to cap against, and inventing a
+ * ceiling would be a guess.
+ */
+export function cappedWidths(source: any, widths: number[]): number[] {
+  /*
+    Two shapes reach this. A Sanity asset carries its size in its id, and
+    Astro's own ImageMetadata (a local import or an import.meta.glob entry)
+    carries a plain `.width`. The rule is the same for both and there is no
+    reason for the homepage band to own a second copy of it.
+  */
+  const nativeWidth =
+    typeof source?.width === 'number' ? source.width : getImageDimensions(source)?.width;
+  if (!nativeWidth) return [...widths].sort((a, b) => a - b);
+  const capped = Math.min(Math.max(...widths), nativeWidth);
+  return [...new Set(widths.filter((w) => w < capped).concat(capped))].sort((a, b) => a - b);
+}
+
 export function buildImageSet(
   source: any,
   { widths, aspect, quality = 80 }: { widths: number[]; aspect?: number; quality?: number },
@@ -130,10 +161,7 @@ export function buildImageSet(
     return src ? { src, srcset: '', width: 0, height: 0 } : null;
   }
 
-  const capped = Math.min(Math.max(...widths), native.width);
-  const candidates = [...new Set(widths.filter((w) => w < capped).concat(capped))].sort(
-    (a, b) => a - b,
-  );
+  const candidates = cappedWidths(source, widths);
 
   const at = (w: number) =>
     urlFor(source)

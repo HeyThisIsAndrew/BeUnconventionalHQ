@@ -39,7 +39,7 @@
  * these rules. Unifying them means extracting the hero out of a 3,000-line
  * component that owns a protected iframe, which is worth doing on its own.
  */
-import { urlFor } from '../lib/local-content';
+import { urlFor, cappedWidths } from '../lib/local-content';
 import { formatEventDateRange, formatLocation, getEventTypeLabel } from '../lib/events';
 import logoImage from '../assets/logo-mark.webp';
 import { getImage } from 'astro:assets';
@@ -72,7 +72,20 @@ function hexToRgbTriple(hex: string): string {
 const brandRgb = hexToRgbTriple(brandColor);
 
 /* Same ladder and the same `100vw` claim the detail hero makes. */
-const HERO_WIDTHS = [600, 900, 1200, 2400];
+/*
+  CAPPED AT THE ASSET, NOT A FLAT CEILING. This was a hard `[600, 900, 1200,
+  2400]`, which got it wrong at both ends of the library: 15 of the 37 hero
+  assets are 1920 wide, so the top rung asked Sanity to upsample them to 2400
+  and return a bigger, blurrier file (the exact failure buildImageSet's note
+  in local-content.ts is about), while the two that are genuinely 3840 could
+  never be asked for more than 2400 and rendered soft on a 4K screen.
+
+  `cappedWidths` drops anything above the asset's own width and puts that width
+  on top, so 1920 art tops out at 1920, 2560 art at 2560, and 3840 art now gets
+  the full rung. New art at a higher resolution earns its rung by existing;
+  nothing here has to be edited again.
+*/
+const HERO_WIDTHS = cappedWidths(event.heroImage, [600, 900, 1200, 2400, 3840]);
 const heroAt = (w: number) => (event.heroImage ? urlFor(event.heroImage).width(w).auto('format').url() : '');
 const heroBackdropMobileUrl = heroAt(800);
 const heroBackdropSrcset = event.heroImage ? HERO_WIDTHS.map((w) => `${heroAt(w)} ${w}w`).join(', ') : '';
