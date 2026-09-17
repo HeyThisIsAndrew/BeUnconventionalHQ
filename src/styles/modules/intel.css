@@ -114,6 +114,24 @@
   gap, so spacing between the three blocks is set in exactly one place.
 */
 .intel-feature-meta {
+  /*
+    ─── LINED UP WITH THE STANDFIRST ─────────────────────────────────────────
+
+    The excerpt centres its `--feature-measure` in the column, so its left edge
+    sits half the leftover width inboard. This puts the kicker and the headline
+    on that same edge, so the whole lockup stands over the sample of the article
+    instead of the type starting at the column edge and the body starting a
+    third of the way across.
+
+    A MARGIN, not `align-self: center`. These two are shrink-to-fit boxes — a
+    short kicker is ~255px and a short headline ~577px — so centring the BOX
+    would park each one at a different place. Half the leftover is the excerpt's
+    own offset, and a percentage margin resolves against this container's inline
+    size, so all four track each other at every width with no breakpoint.
+    `max()` clamps it at 0 below the measure, where everything is flush already.
+  */
+  margin-inline-start: max(0px, calc((100% - var(--feature-measure)) / 2));
+
   display: block;
   font-size: 0.75rem;
   font-weight: 700;
@@ -252,22 +270,6 @@
     this one value and both follow.
   */
   --feature-measure: 42rem;
-  /*
-    ─── AND THE BLOCK ITSELF IS BOUNDED ──────────────────────────────────────
-
-    The note above argues, correctly, that a HEADLINE should not be held to the
-    body's measure: it is display type, scanned in one movement. It then relies
-    on "the column itself is already a constraint — 720px at 1440".
-
-    That stopped being true when the page width started stepping up on wide
-    screens: at 3840 this column is 1320px, so a long headline sets to 1257px
-    and the picture above no longer leads the block, the type does.
-
-    58rem leaves the headline ~140px more than the body's measure, which is the
-    difference the note is asking for, and never bites below about 1500px where
-    the column was already narrower than this.
-  */
-  max-width: 58rem;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -293,6 +295,32 @@
    three-line headline still reads as one object. Margin removed: the flex
    gap on `.intel-feature-copy` owns the spacing now. */
 .intel-feature-title {
+  /*
+    ─── LINED UP WITH THE STANDFIRST ─────────────────────────────────────────
+
+    The excerpt centres its `--feature-measure` in the column, so its left edge
+    sits half the leftover width inboard. This puts the kicker and the headline
+    on that same edge, so the whole lockup stands over the sample of the article
+    instead of the type starting at the column edge and the body starting a
+    third of the way across.
+
+    A MARGIN, not `align-self: center`. These two are shrink-to-fit boxes — a
+    short kicker is ~255px and a short headline ~577px — so centring the BOX
+    would park each one at a different place. Half the leftover is the excerpt's
+    own offset, and a percentage margin resolves against this container's inline
+    size, so all four track each other at every width with no breakpoint.
+    `max()` clamps it at 0 below the measure, where everything is flush already.
+  */
+  margin-inline-start: max(0px, calc((100% - var(--feature-measure)) / 2));
+  /*
+    And capped to the same measure, so the headline sits squarely over the
+    sample rather than overhanging it. The note above argues a headline should
+    run wider than body copy, and it was right while the column itself bounded
+    it at ~720px — but the page width steps up on wide screens now, and at 3840
+    this column is 1320px. Left uncapped the title would start on the sample's
+    left edge and end 700px past its right.
+  */
+  max-width: var(--feature-measure);
   font-family: var(--font-display);
   font-size: clamp(1.6rem, calc(1rem + 1.9vw), 2.75rem);
   font-weight: 800;
@@ -332,26 +360,18 @@
   --excerpt-leading: 1.6;
   flex: 0 0 auto;
   /*
-    ─── ONE READING EDGE, SHARED WITH THE HEADLINE ───────────────────────────
+    THE BLOCK IS CENTRED. THE TEXT INSIDE IT IS NOT.
 
-    This was `align-self: center`, which centred the 42rem measure between the
-    column's padding edges. The note here used to say it "deliberately breaks
-    alignment with the headline above", and it did: the standfirst started half
-    the leftover width inboard of the title.
+    `align-self` acts on the CROSS axis of this column flex container, which is
+    the horizontal one, so it centres the 42rem measure between the column's
+    padding edges while `text-align: left` (inherited from
+    `.intel-feature-copy`) keeps every line starting at the same reading edge.
 
-    That offset is half of whatever the column has spare, so it grows with the
-    screen. At 1440 the column is ~720px and the step is ~91px, which reads as
-    a slightly odd indent. At 3840 the column is 1257px and the step is 360px,
-    at which point the kicker and the headline are hard against the left edge
-    while the body sits a third of the way across. Reported as "look how the
-    title on a short title is shifted far left".
-
-    An offset that is a fraction of the leftover cannot be tuned — any value
-    that looks deliberate at one width is wrong at another. So everything in
-    this block starts at the same place, which is what `align-items:
-    flex-start` and `text-align: left` on the container already say.
+    Note this deliberately breaks alignment with the headline above, which runs
+    the full width of the column: the standfirst's left edge sits inboard of
+    the title's by half the leftover width.
   */
-  align-self: flex-start;
+  align-self: center;
   /*
     ─── A CAP, NOT A RESERVATION ──────────────────────────────────────────
 
@@ -432,14 +452,24 @@
   width: fit-content;
   padding-bottom: 4px;
   /*
-    FLUSH LEFT, like everything else in this block.
+    ALIGNED WITH THE STANDFIRST, NOT WITH THE COLUMN.
 
-    This carried `margin-inline-start: max(0px, calc((100% - var(--feature-measure)) / 2))`
-    to track the excerpt, which used to centre itself. The excerpt starts at the
-    reading edge now, so the compensation has nothing left to compensate for —
-    and left in place it would push "Read More" out on its own.
+    The excerpt is centred at `--feature-measure`, so its left edge sits half
+    the leftover width inboard of the column. "Read More" belongs to that block
+    and was still starting at the column's padding edge, which left the two
+    visibly out of step.
+
+    Half the leftover is exactly the excerpt's own offset, and a percentage
+    margin resolves against this container's inline size, so the two track each
+    other at every width with no breakpoint. `max()` clamps it at 0 for
+    containers narrower than the measure, where the excerpt is full width and
+    both are already flush left.
+
+    This is a margin rather than `align-self`, because align-self would centre
+    the CTA itself. It is a short pill, so that would park it mid-column
+    instead of lining its left edge up with the text.
   */
-  margin-inline-start: 0;
+  margin-inline-start: max(0px, calc((100% - var(--feature-measure)) / 2));
 }
 
 .intel-feature-cta::after {
