@@ -442,3 +442,56 @@ body.scroll-locked .hero {
     transform: scale(1.25);
   }
 }
+
+/* ===========================================================================
+   EVERY HERO FLOATS OVER THE PAGE, IN ONE PLACE
+   ===========================================================================
+
+   Heroes used to feather out with a `-webkit-mask-image` gradient. That was
+   removed because the fade was applied to the ART: the bottom of the picture
+   dissolved, and because the mask was sized in viewport units the seam moved
+   with the window. What replaced it was nothing, which left a hard horizontal
+   edge with the next section starting flat against it.
+
+   A cast shadow is the same intent applied to the LAYER rather than to the
+   artwork. The hero keeps its whole image and the depth comes from what it
+   throws onto what is beneath it. It is the treatment the sticky navbar
+   already uses, so the site has ONE way of saying "this sits above that".
+
+   ─── WHY THIS IS GLOBAL AND NOT FIVE SCOPED COPIES ───────────────────────
+
+   There are five hero roots: FeedSpotlightHero, EventFeatured,
+   EventAnnouncement, /featured/[slug] and the homepage Hero. Astro scopes a
+   component's styles, so the same declaration in each would be five things to
+   keep in step, and the first one somebody retuned would silently disagree
+   with the other four. This file is already imported by global.css and is
+   where `.hero` itself is defined.
+
+   Anything that wants to opt out overrides it in its own scoped block, where
+   the `[data-astro-cid-…]` attribute makes it the more specific rule.
+
+   ─── THE TWO PARTS THAT ARE LOAD-BEARING ─────────────────────────────────
+
+   NEGATIVE SPREAD. -10px pulls the shadow in horizontally so a full-bleed hero
+   casts downward instead of sideways into the viewport gutters.
+
+   Z-INDEX. A shadow is painted with its element, so without a stacking order a
+   later positioned sibling paints straight over it. FeedSpotlightHero already
+   set `z-index: 10`; the other heroes did not, and the shadow would simply not
+   have appeared on them. Stated here once, at the same value.
+
+   NOTE ON `overflow: hidden`: `.hero` has it, and that is fine — overflow
+   clips an element's CHILDREN, never its own box-shadow. Do not add it to
+   `.event-hero`, and not because of the shadow: hard rule 3 says an
+   overflow:hidden ancestor makes a descendant YouTube iframe render as a black
+   box on iOS Safari.
+   =========================================================================== */
+.hero,
+.event-hero {
+  position: relative;
+  z-index: 10;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.9);
+}
+
+/* The shadow is deliberately static. Animating or parallaxing it would
+   reintroduce the moving seam it was brought in to replace. */
