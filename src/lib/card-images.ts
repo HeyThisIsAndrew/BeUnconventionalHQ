@@ -295,8 +295,15 @@ export function getCardImageSources(raw: unknown): CardImageSources {
 /*
   `sizes` for the standard card grid, mirroring home-cards.css:
 
-    <=560px   single column, but the card turns into a horizontal row and the
-              media takes `flex: 0 0 42%` of it
+    <=560px   single column, the card FULL WIDTH of it
+
+              This said 42vw, from when the card turned into a horizontal row
+              below 560 and its media took `flex: 0 0 42%`. The cinematic
+              refactor replaced that layout — every card is a vertical slate at
+              every width now — but the `sizes` kept describing the old one.
+              Measured at 375: the media box is 336px, 89% of the viewport,
+              against a promised 157px. The browser fetched a 158px rendition
+              and upscaled it 2.02x, on a phone, where it is most visible.
     <=1100px  two columns with a 1.25rem gap
     >1100px   four columns, container capped at 1536px, 1.5rem gaps
               -> (1536 - 3*24) / 4 = 366px, so 360px is the steady state
@@ -325,7 +332,7 @@ export function getCardImageSources(raw: unknown): CardImageSources {
   the 4K steps never apply — a silent soft-image bug, not an error.
 */
 export const CARD_IMAGE_SIZES =
-  '(max-width: 560px) 42vw, (max-width: 1100px) 47vw, ' +
+  '(max-width: 560px) 90vw, (max-width: 1100px) 47vw, ' +
   '(min-width: 3400px) 635px, (min-width: 2560px) 545px, (min-width: 1920px) 465px, ' +
   '(min-width: 1536px) 370px, 23vw';
 
@@ -346,12 +353,22 @@ export const CARD_IMAGE_SIZES =
   Measured against .fh-left, which is half of `.container-page` (max-width
   1536, 2rem gutters) and stacks to full width below 768px:
 
-    <768px    stacked, one column        -> 100vw minus the 2rem gutters
+    <768px    stacked, one column        -> 90vw
+
+              `calc(100vw - 4rem)` was the arithmetic for a 2rem gutter each
+              side, which is right at the root's desktop size and wrong on a
+              phone, where the root is 16px and the gutter is smaller. Measured
+              at 375: the box is 333px against a promised 311px, a 1.07x
+              upscale. 90vw covers it at every phone width without needing to
+              know what the gutter resolves to.
     >=1536px  container capped at 1536   -> (1536 - 64) / 2 = 736px
+    >=1920px  the container steps up too  -> measured 838px at 1920 and 823px
+              at 3840 (the section carries its own cap, so it stops growing).
+              850 covers both without over-fetching.
     else      half the viewport          -> 50vw, less its share of the gutters
 */
 export const HERO_CARD_IMAGE_SIZES =
-  '(max-width: 767px) calc(100vw - 4rem), (min-width: 1536px) 736px, calc(50vw - 3rem)';
+  '(max-width: 767px) 90vw, (min-width: 1920px) 850px, (min-width: 1536px) 736px, calc(50vw - 3rem)';
 
 /*
   ─── AND THE FEATURED SHELF IS NOT IN THE CARD GRID EITHER ─────────────────

@@ -73,9 +73,41 @@ const isFeature = size === 'feature';
 */
 const sources = getCardImageSources(image);
 
-/* Feature renders ~720px wide on desktop and ~92vw on a phone; the small
-   thumbs are 640-wide boxes that display far smaller in the rail. */
-const SIZES = isFeature ? '(max-width: 900px) 92vw, 720px' : '(max-width: 900px) 45vw, 320px';
+/*
+  ─── BOTH LADDERS ARE MEASURED, NOT ESTIMATED ──────────────────────────────
+
+  These were two flat numbers — 720px for the feature, 320px for a rail thumb —
+  from when the page capped at 1536. The page steps up on wide screens now
+  (`--page-max`) and the magazine's proportions rebalance with it, so both
+  boxes grow well past what they claimed, and the browser fetched a rendition
+  for the old size and upscaled it.
+
+  Measured rail thumb widths:
+
+     375   271px   (72vw — the rail is single column here, not the 45vw
+                    two-up the old query assumed)
+     820   339px   (41vw)
+    1440   292px
+    1920   401px
+    2560   516px
+    3840   630px
+
+  So a phone was promised 169px for a 271px box (1.61x) and a 4K display 320px
+  for a 630px box (1.97x). The steps below are those numbers rounded up.
+
+  Largest-first among the min-widths, and the max-width queries ahead of them:
+  `sizes` takes the FIRST matching condition, so a narrow query placed after a
+  wide one never runs.
+*/
+const FEATURE_SIZES =
+  '(max-width: 900px) 92vw, ' +
+  '(min-width: 3400px) 1180px, (min-width: 2560px) 1050px, (min-width: 1920px) 970px, 720px';
+
+const THUMB_SIZES =
+  '(max-width: 560px) 75vw, (max-width: 900px) 45vw, ' +
+  '(min-width: 3400px) 640px, (min-width: 2560px) 530px, (min-width: 1920px) 410px, 320px';
+
+const SIZES = isFeature ? FEATURE_SIZES : THUMB_SIZES;
 
 ---
 

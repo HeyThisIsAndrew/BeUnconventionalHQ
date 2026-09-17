@@ -1801,9 +1801,6 @@ test('the shipping typeface actually has a file to ship', () => {
     'the page must refuse to build with a face it cannot serve');
 });
 
-console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
-process.exit(failed === 0 ? 0 : 1);
-
 /*
   ─── THE COVERAGE GRID DRIVES THE STAGE ───────────────────────────────────────
 
@@ -1882,3 +1879,7 @@ test('a hub card does not also trigger the site-wide modal', () => {
   const decision = card.slice(at, at + 400);
   assert.match(decision, /isHubContext\s*\n?\s*\?\s*undefined/, 'hub context must emit no data-action');
 });
+
+
+console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
+process.exit(failed === 0 ? 0 : 1);

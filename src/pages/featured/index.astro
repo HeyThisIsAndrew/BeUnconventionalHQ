@@ -503,8 +503,17 @@ ${activeFonts
 
                     <div class="deck-stack">
                       {categoryBrands.map((brand: Brand, bIndex: number) => {
+                        /*
+                          An OPEN deck card's key art is the largest unblurred
+                          picture on this page, and the ladder stopped at 1200.
+                          The page width steps up on wide screens now, so the
+                          card measures 2240px on a 4K display — a 1.87x upscale
+                          on artwork with no blur to hide it (verified: the
+                          element's computed filter is `none`).
+                        */
                         const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).auto('format').quality(78).url() : null;
                         const heroUrlMobile = brand.heroImage ? urlFor(brand.heroImage).width(600).auto('format').quality(70).url() : null;
+                        const heroUrlWide = brand.heroImage ? urlFor(brand.heroImage).width(2400).auto('format').quality(78).url() : null;
                         const metaCard = metaFor(brand);
                         return (
                           <a
@@ -531,8 +540,8 @@ ${activeFonts
                             {heroUrl ? (
                               <img
                                 src={heroUrl}
-                                srcset={`${heroUrlMobile} 600w, ${heroUrl} 1200w`}
-                                sizes="(max-width: 600px) 600px, 1200px"
+                                srcset={`${heroUrlMobile} 600w, ${heroUrl} 1200w, ${heroUrlWide} 2400w`}
+                                sizes="(max-width: 600px) 600px, (min-width: 1920px) 2250px, 1200px"
                                 alt={brand.title}
                                 loading={bIndex === 0 ? 'eager' : 'lazy'}
                                 fetchpriority={bIndex === 0 ? 'high' : 'auto'}

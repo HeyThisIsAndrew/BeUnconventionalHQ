@@ -235,7 +235,9 @@ console.log('\nsizes attribute:');
 
 test('CARD_IMAGE_SIZES covers every grid breakpoint', () => {
   // Mirrors home-cards.css: 42vw phone row, 2-up to 1100px, 4-up from 1536.
-  assert.match(CARD_IMAGE_SIZES, /max-width:\s*560px\)\s*42vw/);
+  /* 90vw, not the old 42vw: below 560 the card is a full-width vertical slate,
+     not the horizontal row whose media took 42% of it. */
+  assert.match(CARD_IMAGE_SIZES, /max-width:\s*560px\)\s*90vw/);
   assert.match(CARD_IMAGE_SIZES, /max-width:\s*1100px\)\s*47vw/);
 
   /*
@@ -393,9 +395,6 @@ test('the hero never routes a non-Substack cover through wsrv.nl', () => {
 });
 
 
-console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);
-process.exit(failed === 0 ? 0 : 1);
-
 /*
   ─── A `sizes` IS A CLAIM ABOUT THE CSS ─────────────────────────────────────
 
@@ -453,7 +452,14 @@ test('every card width has a matching image size, at every step', () => {
     for (const m of text.matchAll(/\(min-width:\s*(\d+)px\)\s*(\d+)px/g)) {
       found.set(Number(m[1]), Number(m[2]));
     }
-    /* The trailing default, e.g. `... , 560px'` or `..., 23vw'`. */
+    /*
+      The trailing default. FEATURED_CARD_IMAGE_SIZES ends in a px value, which
+      is the base step; CARD_IMAGE_SIZES ends in `23vw`, which is a viewport
+      fraction and not comparable to a px ladder entry — at the base breakpoint
+      it resolves to 353px against a 320px card, so it covers, but it cannot be
+      read as a number here. A missing base entry therefore means "not stated in
+      px", not "wrong", and the caller skips it.
+    */
     const tail = text.match(/,\s*'?\s*(\d+)px'/);
     if (tail) found.set(0, Number(tail[1]));
     return found;
@@ -476,6 +482,11 @@ test('every card width has a matching image size, at every step', () => {
     */
     for (const [breakpoint, width] of css) {
       const promised = declared.get(breakpoint);
+
+      /* See sizesOf(): a `vw` fallback has no px step to compare. Every
+         BREAKPOINT step still must be stated and must cover. */
+      if (breakpoint === 0 && promised === undefined) continue;
+
       assert.ok(
         typeof promised === 'number',
         `${sizesConst} has no step at min-width ${breakpoint || '(base)'}px, but ${cssVar} does`,
@@ -529,9 +540,16 @@ test('the featured shelf describes its own width, not the grid\'s', () => {
   */
   assert.match(card, /CARD_SIZES_FOR_VARIANT/, 'sizes must be chosen by variant');
   assert.match(card, /featured: FEATURED_CARD_IMAGE_SIZES/, 'the featured variant must map to its own');
+  /*
+    Matched on the ATTRIBUTE inside the tentpole row's block rather than on a
+    whole one-line element. The original assertion pinned the exact single-line
+    spelling and broke the moment the element was reformatted to take
+    `brandOverride` — a test failing on whitespace, not on behaviour.
+  */
+  const prestigeBlock = grid.slice(grid.indexOf('prestigeRow.items.map'));
   assert.match(
-    grid,
-    /<ContentCard item=\{item\} index=\{index\} context="feed" variant="featured" \/>/,
+    prestigeBlock.slice(0, 900),
+    /variant="featured"/,
     'the tentpole row must render its cards as the featured variant',
   );
 });
@@ -575,3 +593,7 @@ test('the card ladder is in px, so growing the root cannot desync the images', (
     'the root font and the page width must step at the same breakpoints',
   );
 });
+
+
+console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);
+process.exit(failed === 0 ? 0 : 1);

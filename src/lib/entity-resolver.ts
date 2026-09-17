@@ -122,7 +122,27 @@ function shape(doc: any, kind: 'brand' | 'event', urlFor?: ResolveDeps['urlFor']
     title: doc.title || '',
     /* 320 tall matches HubCard and the event heroes — this mark renders small. */
     logo: safeUrl(mark, (b) => b.height(320).auto('format')),
-    hero: safeUrl(doc.heroImage, (b) => b.width(1280).auto('format')),
+    /*
+      2560, raised from 1280. The plate is blurred and overscanned so it is
+      deliberately asked for SMALL — the note above is still the reasoning, and
+      a 3 MB original was the LCP problem it solved. But 1280 was chosen when
+      the hero was at most ~1536 wide. The page steps up on wide screens now and
+      the plate renders ~4200px on a 4K display, where a 1280 source came back a
+      3.28x upscale.
+
+      MEASURED, with a real browser's Accept header rather than curl's default —
+      `auto('format')` serves AVIF/WebP, and reading the PNG figures instead
+      makes this look ~30x more expensive than it is:
+
+        1280   9.8 KB (avif)   3.28x
+        1920  27.0 KB (webp)   2.19x
+        2560  53.1 KB (webp)   1.64x
+
+      53 KB is 1.7% of the original that caused the LCP regression, so the
+      trade the old note describes is still being honoured — it was never
+      "small at any cost", it was "not the 3 MB original".
+    */
+    hero: safeUrl(doc.heroImage, (b) => b.width(2560).auto('format')),
     color: hexOf(doc),
   };
 }
