@@ -485,6 +485,13 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
     z-index: 2;
     display: flex;
     align-items: flex-end;
+    /*
+      FULL HEIGHT so the mark has something to centre against. The copy does
+      not move: `align-items: flex-end` still pins it to the bottom, and the
+      bottom it pins to is the same one, because the slide's own padding was
+      already what set it.
+    */
+    height: 100%;
     gap: 1rem;
     width: 100%;
     max-width: var(--page-max, 1536px);
@@ -560,26 +567,47 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
     at every width and every label length.
   */
   .spotlight-mark {
-    flex: 0 1 auto;
-    margin-left: auto;
-    align-self: center;
-    /* Smaller than the absolute version was. In flow it contributes to the
-       row's height, and the band's proportions are the hero's, not the
-       wordmark's. */
-    height: clamp(40px, 2.4rem + 2vw, 72px);
+    /*
+      ─── CENTRED IN THE BAND, NOT PARKED NEXT TO THE BUTTON ──────────────
+
+      It sat at the end of the flex row, which put it hard against SUBSCRIBE
+      with the row's 1rem gap and nothing else, while 700px of the band sat
+      empty to its left.
+
+      NOT BECAUSE FLEX WAS SQUEEZING IT, which is the obvious reading and the
+      wrong one. Measured before this change: rendered 133x61 against a
+      natural 522x240, an aspect ratio of 2.17 against 2.17. Nothing was
+      compressed. It was small because the clamp's fluid term lands on 61px at
+      a 1512 viewport and its ceiling was 72px, and it looked cramped because
+      of where it was, not what size it was. Worth recording, because "the
+      flex item is being crushed" would have sent the next reader to
+      `flex-shrink` and there is nothing wrong there.
+
+      So: out of the row and absolutely centred in `.spotlight-inner`, which
+      now fills the slide. The row goes back to two items, which is why the
+      brand slide's `margin-left: 0` override on the CTA has gone -- the base
+      rule's `margin-left: auto` puts SUBSCRIBE back on the right edge by
+      itself.
+
+      `z-index: 0` keeps it under the copy. At a width where the title is long
+      enough to reach the middle they overlap, and a watermark behind the
+      words is the right way for that to land.
+    */
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    /* Larger, and the ceiling is the part that was actually holding it back. */
+    height: clamp(60px, 3.5rem + 3vw, 100px);
     width: auto;
     min-width: 0;
     object-fit: contain;
+    z-index: 0;
     /* Bright enough to be the brand, quiet enough that the copy still wins. */
     opacity: 0.9;
     /* No drop-shadow: hard rule 6 forbids the filter on an <img>. The mark is
        light-on-dark over a gradient that is darkest exactly where the mark is
        lightest, so it had nothing to separate it from anyway. */
-  }
-
-  /* The pair, not two things each reaching for the right edge. */
-  .spotlight-slide--brand .spotlight-cta {
-    margin-left: 0;
   }
 
   /* The scrim exists to hold type over a photograph. On the brand slide there
@@ -870,15 +898,19 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
     .spotlight-mark {
       position: absolute;
       /*
-        ABOVE THE COLUMN, NOT INSIDE IT. `.spotlight-inner` is only as tall as
-        its own two lines -- 64px inside a 125px slide, measured -- so a plain
-        `top` lands the mark in the middle band on top of the title and the
-        arrow. `bottom: 100%` puts its foot on the column's top edge instead,
-        in the empty strip the slide's own padding leaves above it.
+        TOP RIGHT, and `bottom: calc(100% + …)` no longer works for it. That
+        expression put the mark's foot on the column's top edge, which was
+        correct while the column was only as tall as its own two lines. The
+        column fills the slide now, so "just above it" is outside the band.
+        Pinned to the top instead, in the strip the centred copy leaves empty,
+        clear of the arrow that sits centred on the right.
       */
-      bottom: calc(100% + 0.35rem);
+      top: 0;
+      bottom: auto;
+      left: auto;
+      transform: none;
       margin-left: 0;
-      height: 24px;
+      height: 28px;
     }
 
     /*
