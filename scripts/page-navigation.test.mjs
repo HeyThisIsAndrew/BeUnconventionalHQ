@@ -211,6 +211,10 @@ test('paging a list moves the list, not the page', () => {
   const css = read('src', 'styles', 'global-base.css');
   const events = read('src', 'pages', 'events', '[...page].astro');
 
+  /* Comments stripped: the notes explaining WHY these are forbidden quote the
+     offending declarations, and an un-stripped check matches the prose. */
+  const eventsCode = events.replace(/\/\*[\s\S]*?\*\//g, '');
+
   assert.match(layout, /function baseOf\(pathname\)/, 'a paginated route needs its page number stripped');
   assert.match(
     layout,
@@ -218,7 +222,22 @@ test('paging a list moves the list, not the page', () => {
     'same list, different page, must not read as a journey along the nav',
   );
 
-  assert.match(events, /view-transition-name: section-rows/, 'the grid must be captured separately');
+  /*
+    ON THE TILE LIST, not on the layout that contains it. This first went on
+    `.events-page-grid`, which is the whole two-column spread including the
+    sidebar with the calendar and Support The HQ — so paging the list animated
+    a sidebar whose contents do not change between pages.
+  */
+  assert.match(
+    events,
+    /\.upcoming-section \{[^}]*view-transition-name: section-rows/,
+    'the tile list must be the thing that moves',
+  );
+  assert.doesNotMatch(
+    eventsCode,
+    /\.events-page-grid \{[^}]*view-transition-name/,
+    'naming the whole spread animates the sidebar too',
+  );
 
   /*
     An earlier attempt switched the page-level name off from this page with
@@ -227,9 +246,6 @@ test('paging a list moves the list, not the page', () => {
     asymmetrically — only one of the two documents in a transition carries this
     page's stylesheet.
   */
-  /* Comments stripped first: the note explaining WHY this is forbidden quotes
-     the offending declaration, and an un-stripped check matches the prose. */
-  const eventsCode = events.replace(/\/\*[\s\S]*?\*\//g, '');
   assert.doesNotMatch(
     eventsCode,
     /#page-content\)?\s*\{[^}]*view-transition-name:\s*none/,
