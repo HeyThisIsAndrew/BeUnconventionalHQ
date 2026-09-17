@@ -44,6 +44,42 @@
 }
 
 /*
+  ─── ONE WIDTH, AND THE HERO USES IT TOO ───────────────────────────────────
+
+  `--page-max` is the page's content width. It is read here AND by every hero's
+  `.hero-grid-container`, which used to carry its own Tailwind caps
+  (`2xl:!max-w-[1920px]`, `3xl:!max-w-[2400px]`). Two sources for one
+  measurement is how the hero and the rows came to disagree about where the
+  content column is in the first place.
+
+  The ladder exists because a fixed cap is wrong at both ends of the range. At
+  1536 on a 4K screen the page sat in the middle of 2304px of empty ground, and
+  the rails made it worse: a rail is full-bleed and insets its first card to
+  this column, so at 3840 there were 978px of nothing before the first card
+  while the cards ran off the right-hand edge. That asymmetry is what reads as
+  "a ton of empty space on the left side".
+
+  It stops at 2600 rather than filling the screen. These are card rails, but the
+  hero shares the measurement, and past roughly 2600 its copy column starts
+  setting lines too long to read comfortably.
+*/
+:root {
+  --page-max: 1536px;
+}
+
+@media (min-width: 1920px) {
+  :root { --page-max: 1920px; }
+}
+
+@media (min-width: 2560px) {
+  :root { --page-max: 2240px; }
+}
+
+@media (min-width: 3400px) {
+  :root { --page-max: 2600px; }
+}
+
+/*
   ─── ON A VERY WIDE SCREEN, MATCH THE HERO ─────────────────────────────────
 
   The hero grid carries `2xl:!max-w-[1920px]`, so above 1536px the hero and the
@@ -61,10 +97,8 @@
   point is that they are THE SAME NUMBER: a container that overshot the hero
   would reproduce the same misalignment in the other direction.
 */
-@media (min-width: 1920px) {
-  .container-page {
-    max-width: 1920px;
-  }
+.container-page {
+  max-width: var(--page-max);
 }
 
 /* Reading-width page: collaborations. */

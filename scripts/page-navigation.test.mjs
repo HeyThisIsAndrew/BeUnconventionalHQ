@@ -121,7 +121,16 @@ test('the contents rail is pinned to the viewport, and gave its column back', ()
   const page = read('src', 'pages', 'intel', '[slug].astro');
   const css = read('src', 'styles', 'modules', 'article.css');
 
-  assert.match(nav, /\.fpn-wrapper\s*\{\s*position:\s*sticky/, 'a sticky wrapper ensures it sits below the hero before scrolling');
+  /*
+    This briefly asserted the OPPOSITE — that a `.fpn-wrapper` with
+    `position: sticky` had to exist. A sticky box sits where it is inserted,
+    which is inside the page's content column, so the nav inherited that
+    column's left edge rather than the screen's. At 1440 the column starts ~32px
+    in and it looked right; at 3840 it starts at 978px and the nav landed on top
+    of the first card.
+  */
+  assert.match(nav, /\.floating-page-nav\s*\{[\s\S]{0,400}?position:\s*fixed/,
+    'only fixed is measured from the viewport at every width');
 
   /*
     A fixed element is trapped by any ancestor with a transform, a filter or a
@@ -312,4 +321,65 @@ test('every hero establishes a containing block for its backdrop', () => {
       `${name}: without it the backdrop escapes to the viewport and paints over the page`,
     );
   }
+});
+
+/*
+  ─── THE HERO AND THE ROWS READ ONE WIDTH ───────────────────────────────────
+
+  The heroes carried their own `2xl:!max-w-[1920px]` / `3xl:!max-w-[2400px]`
+  while `.container-page` capped at 1536. Two sources for one measurement, and
+  they disagreed by 217px at 3840.
+
+  Worse, a full-bleed rail insets its first card to that column, so at 3840
+  there were 978px of empty ground before the first card while the cards ran off
+  the right-hand edge. Reported as "a ton of empty space on the left side".
+*/
+test('one content width, shared by the hero and the page body', () => {
+  const layoutCss = read('src', 'styles', 'modules', 'layout.css');
+
+  assert.match(layoutCss, /--page-max:\s*\d+px/, 'the width has to be named somewhere');
+  assert.match(
+    layoutCss,
+    /\.container-page\s*\{[^}]*max-width:\s*var\(--page-max\)/,
+    'the page body reads the shared width',
+  );
+
+  for (const rel of [
+    ['src', 'components', 'FeedSpotlightHero.astro'],
+    ['src', 'components', 'EventFeatured.astro'],
+    ['src', 'components', 'EventAnnouncement.astro'],
+    ['src', 'pages', 'featured', '[slug].astro'],
+  ]) {
+    const src = read(...rel);
+    const name = rel[rel.length - 1];
+
+    assert.doesNotMatch(
+      src,
+      /max-w-\[(1920|2400)px\]/,
+      `${name}: a second cap on the hero is how the two came to disagree`,
+    );
+    assert.match(
+      src,
+      /\.hero-grid-container\s*\{[\s\S]{0,200}?max-width:\s*var\(--page-max\)/,
+      `${name}: the hero must read the shared width`,
+    );
+  }
+});
+
+/*
+  The contents nav is edge-pinned. It was briefly a zero-size `sticky` wrapper,
+  which sits inside the content column — so at 3840 it landed on top of the
+  first card instead of on the screen's edge.
+*/
+test('the contents nav is pinned to the viewport, not the content column', () => {
+  const nav = read('src', 'components', 'FloatingPageNav.astro');
+  const rule = nav.slice(nav.indexOf('.floating-page-nav {'));
+  const decl = rule.slice(0, rule.indexOf('\n  }'));
+
+  assert.match(decl, /position:\s*fixed/, 'only fixed is measured from the viewport at every width');
+
+  /* Comments stripped: the notes explaining why sticky was wrong name it. */
+  const code = nav.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(code, /position:\s*sticky/, 'a sticky box inherits the content column it sits in');
+  assert.doesNotMatch(code, /class="fpn-wrapper"/, 'the wrapper is gone; fixed takes no layout space anyway');
 });

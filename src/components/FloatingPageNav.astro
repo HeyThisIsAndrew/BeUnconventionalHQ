@@ -75,21 +75,19 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
 
 {
   show && (
-    <div class="fpn-wrapper">
-      <nav class="floating-page-nav" aria-label={heading}>
-        <p class="fpn-head" aria-hidden="true">{heading}</p>
-        <ul class="fpn-list">
-          {items.map((entry) => (
-            <li class:list={['fpn-item', { 'is-sub': entry.level >= 3 }]}>
-              <a href={`#${entry.id}`} data-toc-link={entry.id}>
-                <span class="fpn-tick" aria-hidden="true"></span>
-                <span class="fpn-label">{entry.text}</span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      </nav>
-    </div>
+    <nav class="floating-page-nav" aria-label={heading}>
+      <p class="fpn-head" aria-hidden="true">{heading}</p>
+      <ul class="fpn-list">
+        {items.map((entry) => (
+          <li class:list={['fpn-item', { 'is-sub': entry.level >= 3 }]}>
+            <a href={`#${entry.id}`} data-toc-link={entry.id}>
+              <span class="fpn-tick" aria-hidden="true"></span>
+              <span class="fpn-label">{entry.text}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
   )
 }
 
@@ -110,19 +108,30 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
     `sticky`, it starts exactly where it is inserted (beneath the hero) and
     scrolls up until it reaches 50vh, then sticks there for the rest of the page.
   */
-  .fpn-wrapper {
-    position: sticky;
-    top: 50vh;
-    width: 0;
-    height: 0;
-    z-index: 40;
-  }
+  /*
+    ─── PINNED TO THE VIEWPORT, NOT TO THE CONTENT COLUMN ────────────────────
 
+    This was briefly a zero-size `position: sticky` wrapper with the nav
+    absolutely positioned inside it. A sticky box sits where it is inserted —
+    which is inside the page's content column — so the nav inherited that
+    column's left edge rather than the screen's.
+
+    At 1440 the column starts ~32px in and it looked correct. At 3840 the column
+    starts at 978px, so the nav landed directly on top of the first card in the
+    first row. Reported as "the contents thing we added is in the row on 4k
+    monitor".
+
+    `fixed` is measured from the viewport at every width, which is the only
+    thing that makes an edge-pinned element actually edge-pinned. It takes no
+    layout space either, so the rows are not pushed down — the reason the
+    wrapper was introduced is satisfied by this anyway.
+  */
   .floating-page-nav {
-    position: absolute;
+    position: fixed;
     left: 0;
-    top: 0;
+    top: 50%;
     transform: translateY(-50%);
+    z-index: 40;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -279,7 +288,6 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
     and the scrollbar is the position indicator at that width.
   */
   @media (max-width: 1199px) {
-    .fpn-wrapper,
     .floating-page-nav {
       display: none;
     }

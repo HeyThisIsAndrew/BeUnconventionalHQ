@@ -342,9 +342,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
             'hero-grid-container',
             'lg:!px-20',
             'xl:!px-24',
-            '2xl:!max-w-[1920px]',
             '2xl:!grid-cols-[1fr_1.2fr]',
-            '3xl:!max-w-[2400px]',
             '3xl:!grid-cols-[1fr_1.4fr]',
             { 'has-trailer': !!trailerId, 'has-cta': true },
           ]}
@@ -2048,7 +2046,13 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
 
   /* Mobile: single column. Source order is copy → trailer → button, so the
      trailer sits above the Event Details button. */
+  /*
+    The page's content width, shared with `.container-page` (modules/layout.css).
+    It was two Tailwind caps on this element, which is how the hero and the rows
+    came to disagree about where the content column is.
+  */
   .hero-grid-container {
+    max-width: var(--page-max);
     display: grid;
     grid-template-columns: 1fr;
     gap: 2rem;
