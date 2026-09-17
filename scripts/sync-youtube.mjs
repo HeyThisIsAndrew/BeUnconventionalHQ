@@ -168,6 +168,10 @@ export function planVideoSync(video, match, existingDoc, now = new Date()) {
     coverageType: existingDoc?.coverageType ?? '',
     series: existingDoc?.series ?? '',
     editorialNotes: existingDoc?.editorialNotes ?? '',
+    /* The hand-written standfirst. EDITORIAL class (hard rule 5): seeded by a
+       human, never written by this script, and wiped on the next run if it is
+       not carried here. */
+    editorial: existingDoc?.editorial ?? undefined,
     /* Ordering override. Publish order and episode order are different things:
        the Lanterns ep 2 review went out after the ep 3 review, so by date the
        row read 5, 4, 2, 3. Carried forward explicitly, like every editorial

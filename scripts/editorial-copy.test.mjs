@@ -267,4 +267,54 @@ test('both surfaces normalise their text through the same function', () => {
   );
 });
 
+test('a video standfirst survives every hop between the CMS and the card', () => {
+  /*
+    THE WHITELIST IS THE TRAP, and this project has already been caught by it
+    once with `sortDate`: the sync preserved the field perfectly, the CMS showed
+    it, the store held it, and it still never reached the feed because `mapDoc`
+    in videos.ts names every field it copies. Asserted explicitly rather than
+    trusted, because the failure mode is silence.
+  */
+  const videosLib = read('src', 'lib', 'videos.ts');
+  assert.match(videosLib, /editorial: doc\.editorial/, 'the video mapping must copy it, or it never arrives');
+  assert.match(videosLib, /editorial\?:\s*\{/, 'and the type must carry it');
+
+  const sync = read('scripts', 'sync-youtube.mjs');
+  assert.match(
+    sync,
+    /editorial: existingDoc\?\.editorial/,
+    'an editorial field the sync does not carry is wiped on the next run',
+  );
+
+  const cms = read('src', 'components', 'admin', 'LocalCmsApp.tsx');
+  assert.match(cms, /Editorial Excerpt \(Standfirst\)/, 'and there must be somewhere to type it');
+});
+
+test('the CMS offers exactly the coverage types the renderer understands', () => {
+  /*
+    The dropdown was typed out by hand and had drifted: "trailer", "breakdown"
+    and "other" named nothing the site could render, so choosing one set a field
+    the metadata line then ignored and fell back to guessing from YouTube tags.
+  */
+  const cms = read('src', 'components', 'admin', 'LocalCmsApp.tsx');
+  assert.match(cms, /COVERAGE_TYPES/, 'the CMS must render the shared list, not its own copy');
+
+  /*
+    READ THE COVERAGE TYPE FIELD, NOT THE FILE. The first version of this
+    searched the whole component and failed on `<option value="other">` inside
+    Event Type, which is a different field where "Other" is correct. Same trap
+    headers-integrity.test.mjs documents: assert against the thing, not against
+    a string that also appears somewhere else.
+  */
+  const start = cms.indexOf('<Field label="Coverage Type">');
+  assert.ok(start !== -1, 'the Coverage Type field should exist');
+  const block = cms.slice(start, cms.indexOf('</Field>', start));
+  for (const dead of ['trailer', 'breakdown', 'other']) {
+    assert.ok(
+      !block.includes(`value="${dead}"`),
+      `"${dead}" is not a coverage type the site can render`,
+    );
+  }
+});
+
 console.log('\nEditorial copy and metadata slots: all assertions ran.');

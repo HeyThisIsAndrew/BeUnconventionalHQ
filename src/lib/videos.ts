@@ -48,6 +48,20 @@ export interface UnifiedVideo {
   series?: string;
   hubs?: string[];
   editorialNotes?: string;
+  /**
+   * Words written FOR this site, overriding anything the platform supplied.
+   *
+   * Articles have carried this since the Substack sync (src/lib/articles.ts);
+   * videos had no equivalent, which is why every card and the hero fell back to
+   * a YouTube description written for a different audience. Same field name and
+   * same meaning on both, so `editorialPreview()` reads one path for either.
+   *
+   * Optional, and a video without one degrades to its title and metadata rather
+   * than to somebody's gear list.
+   */
+  editorial?: {
+    excerpt?: string;
+  };
   requiresReview?: boolean;
   manualTaxonomyOverride?: boolean;
   relatedMedia?: { title: string; mediaType: string }[];
@@ -129,6 +143,10 @@ export function mapSanityVideo(doc: any, { categorize }: MapOptions = {}): Unifi
     series: doc.series,
     hubs: doc.hubs ?? [],
     editorialNotes: doc.editorialNotes,
+    /* The standfirst. Named here for the same whitelist reason as sortDate
+       below: the sync can preserve it perfectly and it still never reaches a
+       card unless this mapping copies it. */
+    editorial: doc.editorial,
     /*
       Ordering override, and it has to be listed HERE as well as carried by the
       sync. This mapping is an explicit whitelist, so a field the sync preserves

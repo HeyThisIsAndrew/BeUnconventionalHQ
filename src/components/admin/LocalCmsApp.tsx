@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { urlFor } from '../../lib/local-content.ts';
+import { COVERAGE_TYPES } from '../../lib/tags.ts';
 
 type DocType = 'video' | 'short' | 'live' | 'event' | 'featuredBrand' | 'topic' | 'article' | 'articleOutro';
 
@@ -1894,18 +1895,68 @@ function VideoForm({
 
         {activeTab === 'editorial' && (
           <div className="grid grid-cols-1 gap-5">
+            {/*
+              ─── WHAT THIS PIECE IS ─────────────────────────────────────────
+
+              The options come from COVERAGE_TYPES in src/lib/tags.ts, which is
+              the SAME list the renderer validates against. They were typed out
+              here once, and four of the eight values in that list disagreed
+              with it: "trailer", "breakdown" and "other" named nothing the
+              site could render, so choosing one set a field the metadata line
+              then ignored and fell back to guessing from raw YouTube tags.
+
+              The list is ordered by editorial priority, highest first. That
+              order is what the Feed uses to decide what leads the publication,
+              so it is deliberately not alphabetical.
+            */}
             <Field label="Coverage Type">
               <select value={doc.coverageType || ''} onChange={(e) => update('coverageType', e.target.value)} className={inputClass}>
                 <option value="">(None)</option>
-                <option value="review">Review</option>
-                <option value="reaction">Reaction</option>
-                <option value="trailer">Trailer</option>
-                <option value="breakdown">Breakdown</option>
-                <option value="vlog">Vlog</option>
-                <option value="interview">Interview</option>
-                <option value="news">News</option>
-                <option value="other">Other</option>
+                {COVERAGE_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type.charAt(0) + type.slice(1).toLowerCase()}
+                  </option>
+                ))}
               </select>
+              <p className="mt-1 text-xs text-neutral-500">
+                What the piece IS. Drives the metadata line and how the Feed ranks it.
+              </p>
+            </Field>
+
+            {/*
+              ─── THE SITE'S OWN WORDS FOR THIS VIDEO ────────────────────────
+
+              Without this the card and the spotlight hero fall back to the
+              YouTube description, which is written for a different audience and
+              carries subscribe CTAs, gear lists and affiliate links. Articles
+              have had this field since the Substack sync; videos had no
+              equivalent, and that was the one genuinely missing piece of the
+              editorial layer.
+
+              Optional. Left empty, the card shows its title and metadata and no
+              body text, which is honest. It is never overwritten by a sync.
+            */}
+            <Field label="Editorial Excerpt (Standfirst)">
+              <textarea
+                value={doc.editorial?.excerpt || ''}
+                onChange={(e) => {
+                  /* An empty excerpt is stored as an ABSENT key, not an empty
+                     string: `editorialPreview()` falls through on absent and
+                     would return '' for a stored empty one, which are the same
+                     result today but diverge the moment anything treats the
+                     field as "has the editor been here". */
+                  const next: NonNullable<Doc['editorial']> = { ...(doc.editorial || {}) };
+                  if (e.target.value) next.excerpt = e.target.value;
+                  else delete next.excerpt;
+                  update('editorial', Object.keys(next).length > 0 ? next : undefined);
+                }}
+                rows={3}
+                className={textareaClass}
+                placeholder="One or two sentences, in the publication's voice..."
+              />
+              <p className="mt-1 text-xs text-neutral-500">
+                Shown on cards and in the hero. Replaces the YouTube description entirely.
+              </p>
             </Field>
 
             {/*
