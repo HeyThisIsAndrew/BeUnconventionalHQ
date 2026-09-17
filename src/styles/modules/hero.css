@@ -616,7 +616,25 @@ body.scroll-locked .hero {
    reintroduce the moving seam it was brought in to replace. */
 
 /*
-  ─── THE 4K LOCKUP, SCOPED SO IT CANNOT REACH A LAPTOP ─────────────────────
+  ─── DO NOT "RESTORE" 8.5rem / 130%. THOSE WERE REJECTED TWICE. ────────────
+
+  The original 4K brief specified `clamp(2rem, 5vw, 8.5rem)` and a 130% root,
+  and they were implemented exactly. The owner's response was "you scaled the
+  text to be way too big on a 4K monitor", and to the next pass at it, "4k
+  monitor, text is still too big!". A later change read the original brief,
+  took these smaller numbers for a half-finished implementation and put 8.5rem
+  and 130% back. They are not a half-finished anything. They are the answer to
+  the feedback that came after the brief.
+
+  The ceiling that is finally right is not yet known and is NOT to be guessed
+  again: at 3840 production is about 79px and was called too small, 8.5rem is
+  176.8px and was called way too big, and 6.5rem is 119.6px and was still
+  called too big. It is somewhere between 79 and 119, and it needs measuring on
+  real 4K hardware, which is what scripts/antigravity-4k-scaling-investigation.md
+  asks for. Emulating a 3840 viewport gets the CSS pixels right and says
+  nothing about apparent size, which is the thing being judged.
+
+  ─── SCOPED SO IT CANNOT REACH A LAPTOP ────────────────────────────────────────────────────────
 
   The ceilings above are the production values and they are staying that way.
   Raising them globally is what went wrong the first time: `.word-unconventional`
@@ -636,17 +654,17 @@ body.scroll-locked .hero {
   has been).
 */
 @media (min-width: 3400px) {
-  .word-be { font-size: clamp(1rem, calc(0.5rem + 1.25vw), 2.5rem); }
-  .word-unconventional { font-size: clamp(2rem, calc(1rem + 4vw), 8.5rem); }
-  .word-hq { font-size: clamp(1.5rem, calc(0.75rem + 2.5vw), 5.5rem); }
-  .hero-subtitle { font-size: clamp(0.7rem, 0.62rem + 0.5vw, 1.5rem); }
+  .word-be { font-size: clamp(1rem, calc(0.5rem + 1.25vw), 2.1rem); }
+  .word-unconventional { font-size: clamp(2rem, calc(1rem + 4vw), 6.5rem); }
+  .word-hq { font-size: clamp(1.5rem, calc(0.75rem + 2.5vw), 4.3rem); }
+  .hero-subtitle { font-size: clamp(0.7rem, 0.62rem + 0.5vw, 1.15rem); }
 }
 
 /* Half of a 4K panel is a 1920px window, so the width query above never fires
    there. Same ceilings, same reason — see global-base.css. */
 @media (min-width: 1600px) {
-  :root[data-screen-4k] .word-be { font-size: clamp(1rem, calc(0.5rem + 1.25vw), 2.5rem); }
-  :root[data-screen-4k] .word-unconventional { font-size: clamp(2rem, calc(1rem + 4vw), 8.5rem); }
-  :root[data-screen-4k] .word-hq { font-size: clamp(1.5rem, calc(0.75rem + 2.5vw), 5.5rem); }
-  :root[data-screen-4k] .hero-subtitle { font-size: clamp(0.7rem, 0.62rem + 0.5vw, 1.5rem); }
+  :root[data-screen-4k] .word-be { font-size: clamp(1rem, calc(0.5rem + 1.25vw), 2.1rem); }
+  :root[data-screen-4k] .word-unconventional { font-size: clamp(2rem, calc(1rem + 4vw), 6.5rem); }
+  :root[data-screen-4k] .word-hq { font-size: clamp(1.5rem, calc(0.75rem + 2.5vw), 4.3rem); }
+  :root[data-screen-4k] .hero-subtitle { font-size: clamp(0.7rem, 0.62rem + 0.5vw, 1.15rem); }
 }
