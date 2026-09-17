@@ -31,6 +31,19 @@
  * two components share no markup and a shared script would have to carry both
  * their DOM shapes.
  */
+/**
+ * TWO PLACES ON THE HOMEPAGE, ONE COMPONENT.
+ *
+ *   variant="panel"   floating at the foot of the hero, on the page column,
+ *                     over the artwork. The first thing a reader sees.
+ *   variant="banner"  edge to edge between What We Cover and Featured, as a
+ *                     break between the two sections.
+ *
+ * The rotation is per-instance by construction: the script binds inside each
+ * `[data-spotlight]` root and every query is scoped to it, so two on one page
+ * run their own clocks. That is the difference from CommercialRotator, which
+ * binds by id and documents itself as single-instance for exactly that reason.
+ */
 import { getImage } from 'astro:assets';
 import { getAllFeedItems } from '../lib/feed-items';
 import { getCardImageSources } from '../lib/card-images';
@@ -51,6 +64,14 @@ interface Slide {
   accent: string | null;
   external: boolean;
 }
+
+interface Props {
+  variant?: 'panel' | 'banner';
+  /** Distinguishes the two instances for a screen reader. */
+  label?: string;
+}
+
+const { variant = 'banner', label = 'Highlights' } = Astro.props;
 
 const items = await getAllFeedItems();
 const [newest] = items;
@@ -175,7 +196,7 @@ slides.push({
 const rotates = slides.length > 1;
 ---
 
-<section class="spotlight" aria-label="Highlights" data-spotlight>
+<section class:list={['spotlight', `spotlight--${variant}`]} aria-label={label} data-spotlight>
   <div class="spotlight-frame">
     {slides.map((slide, index) => (
       <a
@@ -266,7 +287,9 @@ const rotates = slides.length > 1;
 
     All of that goes away by not moving it in the first place.
   */
-  .spotlight {
+  /* The banner is a break between two sections and needs air around it. The
+     panel is positioned by the hero and must not add margins of its own. */
+  .spotlight--banner {
     margin-block: clamp(3rem, 6vh, 5rem);
   }
 
@@ -278,6 +301,18 @@ const rotates = slides.length > 1;
       resize as it rotates through them.
     */
     height: clamp(170px, 10rem + 7vw, 300px);
+  }
+
+  /*
+    Shorter in the hero. It shares the frame with the lockup and the CTA, so it
+    is a strip of evidence under them rather than the band it becomes lower
+    down the page where it has the width to itself.
+  */
+  .spotlight--panel .spotlight-frame {
+    height: clamp(120px, 7rem + 4vw, 168px);
+    /* It is inside the page column here, not running off the screen, so its
+       side edges are visible and belong. */
+    border-inline: 1px solid rgba(255, 255, 255, 0.1);
     overflow: hidden;
     /*
       Top and bottom only. The left and right edges are off the screen now, so
@@ -286,6 +321,7 @@ const rotates = slides.length > 1;
       what the shadow below lands against.
     */
     border-block: 1px solid rgba(255, 255, 255, 0.1);
+    border-inline: none;
     background: #0d0d0d;
     /* The same raised treatment the calendar tile and the category tiles
        carry, so the layering is one idiom across the site. */
@@ -335,6 +371,16 @@ const rotates = slides.length > 1;
     */
     padding-inline: clamp(1.25rem, calc(0.625rem + 2.5vw), 3rem);
     min-width: 0;
+  }
+
+  /*
+    The panel's wrapper IS the column (see `.hero-spotlight` in modules/
+    hero.css), so repeating the page gutter in here would inset the copy twice
+    and it would not line up with the lockup above it.
+  */
+  .spotlight--panel .spotlight-inner,
+  .spotlight--panel .spotlight-controls {
+    padding-inline: clamp(0.9rem, 0.6rem + 1vw, 1.5rem);
   }
 
   .spotlight-art {

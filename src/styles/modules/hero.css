@@ -359,6 +359,45 @@ body.scroll-locked .hero {
     );
 }
 
+/*
+  ─── THE CONTENT PREVIEW FLOATS AT THE HERO'S FOOT ──────────────────────────
+
+  ABSOLUTE, and that is the whole trick. `.hero` is a centring flex box, so
+  left in normal flow this panel becomes a second flex child and the lockup and
+  the panel share the middle of the frame — measured when it was first tried,
+  both occupied 324-534px, exactly on top of each other. Out of flow, the
+  lockup stays optically centred and this sits below it.
+
+  Constrained to the page's own content width so it lines up with the sections
+  underneath, and inset from the bottom by a `vh` figure so the gap grows with
+  the frame rather than pinning a laptop's 20px onto a 4K screen.
+
+  `z-index: 3` puts it over `.hero-overlay` (1) and `.hero-content` (2).
+*/
+.hero-spotlight {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: clamp(1.25rem, 4vh, 3.5rem);
+  z-index: 3;
+  width: 100%;
+  max-width: var(--page-max, 1536px);
+  padding-inline: clamp(1.25rem, calc(0.625rem + 2.5vw), 3rem);
+}
+
+/*
+  A landscape phone has no room for both the lockup and a 120px panel, and the
+  lockup is the one that has to survive. Hidden rather than shrunk: a band that
+  small stops being readable before it stops taking up space. The banner lower
+  down the page is unaffected and carries the same three slides, so nothing is
+  lost, only moved.
+*/
+@media (max-height: 620px) {
+  .hero-spotlight {
+    display: none;
+  }
+}
+
 .hero-content {
   /* These live HERE, not on `.hero`, and that placement is load-bearing.
      Custom properties INHERIT, so writing `--hero-compress-progress` on
