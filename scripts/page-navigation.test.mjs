@@ -151,3 +151,41 @@ test('the contents rail is pinned to the viewport, and gave its column back', ()
   assert.ok(+cols[1] <= 11, `the left track must shrink with the contents gone, got ${cols[1]}rem`);
   assert.ok(+cols[2] >= 56, `and the reading measure must take the width, got ${cols[2]}rem`);
 });
+
+/*
+  ─── THE HERO/BANNER SEAM MUST NOT DEPEND ON THE WINDOW'S HEIGHT ────────────
+
+  The rows were pulled up over the hero with `margin-top: -6vh`, paired with a
+  mask that faded the hero's bottom edge. The mask was removed and the overlap
+  was only reduced, which left a hard-edged hero with the rows still sliding
+  under it.
+
+  `vh` is a fraction of the window's HEIGHT; the hero's height is set by its
+  CONTENT. Measured on /feed:
+
+    1440 x 900    hero 654px   overlap  54px    8.3% of the hero
+    1440 x 1800   hero 654px   overlap 108px   16.5% of the hero
+    3840 x 2160   hero 632px   overlap 130px   20.5% of the hero
+
+  The first two are the same page at the same width — only the window's height
+  changed and the overlap doubled. Retuning the number cannot fix that; any
+  `vh` value has the same defect. Hence: no viewport-relative overlap at all.
+*/
+test('the rows do not slide under the hero by a viewport-relative amount', () => {
+  const grid = read('src', 'components', 'FeedGrid.astro');
+
+  const spotlight = [...grid.matchAll(/#feed-rows\s*\{[^}]*\}/g)].map((m) => m[0]).join('\n');
+  assert.doesNotMatch(
+    spotlight,
+    /margin-top:\s*-[\d.]+v(h|min|max)/,
+    'a vh overlap is a different fraction of the hero at every window size',
+  );
+
+  /* And the hero must not have grown a bottom fade back to hide the seam. */
+  const hero = read('src', 'components', 'FeedSpotlightHero.astro');
+  assert.doesNotMatch(
+    hero,
+    /mask-image:\s*linear-gradient\(\s*to bottom[^)]*transparent/,
+    'the hero bottom fade was removed deliberately; it is not the fix for a seam',
+  );
+});

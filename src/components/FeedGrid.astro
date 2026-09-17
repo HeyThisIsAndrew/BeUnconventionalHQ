@@ -576,10 +576,47 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
     padding-top: 3rem; 
   }
   
+  /*
+    ─── WHY THE SEAM MOVED WITH THE WINDOW ───────────────────────────────────
+
+    This pulled the rows up over the hero with `margin-top: -6vh`, and the hero
+    below it used to carry a mask fading its bottom edge out. The mask was
+    removed; the overlap was not, only reduced. What was left is a hard-edged
+    hero with the rows still sliding under it by an amount nobody can predict.
+
+    `vh` is a fraction of the window's HEIGHT. The hero's height is set by its
+    CONTENT: how many lines the headline wraps to, how tall the stage is. Those
+    two numbers have nothing to do with each other, so the overlap was a
+    different fraction of the hero at every window size. Measured on this page:
+
+      1440 x 900    hero 654px   overlap  54px    8.3% of the hero
+      1440 x 1800   hero 654px   overlap 108px   16.5% of the hero
+      3840 x 2160   hero 632px   overlap 130px   20.5% of the hero
+
+    The first two are the SAME page at the same width. Only the window's height
+    changed, and the overlap doubled. At 4K it is worse than either: the hero is
+    actually shorter there, while the overlap is largest, so the two move in
+    opposite directions.
+
+    That is the whole of "it's different at different window sizes", and no
+    amount of retuning the number fixes it — any `vh` value has the same
+    problem. So the overlap is gone. The hero ends where it ends and the banner
+    begins, which is identical at every size because neither measurement
+    depends on the other.
+  */
   :global(.has-spotlight-hero) #feed-rows {
     position: relative;
     z-index: 1; /* Sits under the hero's z-index: 10 */
-    margin-top: -6vh; /* Decreased negative overlap since fade is gone */
+    margin-top: 0;
+  }
+
+  /*
+    A full-bleed banner directly under a full-bleed hero reads as one cinematic
+    block, so there is no gap between them to pay for. Without a banner the
+    first row is type on the page ground and still needs its air.
+  */
+  :global(.has-spotlight-hero) #feed-rows[data-hero-banner] {
+    padding-top: 0;
   }
 
   @media (max-width: 768px) {
@@ -587,7 +624,7 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
       padding-top: 2rem;
     }
     :global(.has-spotlight-hero) #feed-rows {
-      margin-top: -4vh; /* Decreased negative overlap */
+      margin-top: 0;
     }
   }
 
@@ -1204,9 +1241,17 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
     open a YouTube iframe, and hard rule 3 makes any clipping ancestor of one a
     black box on iOS Safari.
   */
+  /* The banner is the top of this row, and it meets the hero directly. */
+  #feed-rows[data-hero-banner] .feed-row--prestige {
+    padding-top: 0;
+  }
+
   .feed-row--prestige {
     position: relative;
-    padding: 3rem 0 1.25rem; /* Increased top padding so banner sits correctly beneath hero */
+    /* 1.5rem is the shelf's own air. It was raised to 3rem to push the banner
+       clear of an overlap that no longer exists, and the banner zeroes it
+       outright below. */
+    padding: 1.5rem 0 1.25rem;
     margin-bottom: 3.25rem;
   }
 
@@ -1468,7 +1513,7 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
   {hasRows && (
     <>
       <FloatingPageNav entries={navItems} />
-      <div id="feed-rows">
+      <div id="feed-rows" data-hero-banner={prestigeBannerArt ? "" : undefined}>
       {prestigeRow && (
         <section
           class="feed-row feed-row--prestige feed-row--accented"
