@@ -383,3 +383,55 @@ test('the contents nav is pinned to the viewport, not the content column', () =>
   assert.doesNotMatch(code, /position:\s*sticky/, 'a sticky box inherits the content column it sits in');
   assert.doesNotMatch(code, /class="fpn-wrapper"/, 'the wrapper is gone; fixed takes no layout space anyway');
 });
+
+/*
+  ─── THE BANNER ART CARRIES ON BEHIND THE ROW ───────────────────────────────
+
+  The artwork used to stop dead on the banner's bottom edge, which put a hard
+  horizontal line directly above the row heading. The cause was a `mask-image`
+  on the banner BOX: a mask resolves its percentages against the element's own
+  border box, so it faded out at exactly the height the row starts at.
+
+  The fade belongs to the ART, which is taller than the box by `--banner-bleed`
+  and dissolves across it. The box keeps its own height, so the row still flows
+  underneath and the lockup stays anchored where it was.
+*/
+test('the banner art overhangs its box and fades, rather than being cut off', () => {
+  const banner = read('src', 'components', 'FeedRowBanner.astro');
+  const grid = read('src', 'components', 'FeedGrid.astro');
+
+  const boxRule = banner.slice(banner.indexOf('.feed-row-banner {'));
+  const boxDecl = boxRule.slice(0, boxRule.indexOf('\n  }'));
+
+  assert.match(boxDecl, /--banner-bleed:/, 'the overhang has to be a named amount');
+  assert.match(boxDecl, /overflow:\s*visible/, 'hidden clips the overhang away again');
+  assert.doesNotMatch(
+    boxDecl,
+    /mask-image:/,
+    'a mask on the BOX cuts the art off at the row, which is the bug',
+  );
+
+  /* The art is what is taller, and what fades. */
+  assert.match(
+    banner,
+    /height:\s*calc\(100% \+ var\(--banner-bleed\)\)/,
+    'the art must be taller than the box by the bleed',
+  );
+  const artRule = banner.slice(banner.indexOf('.feed-row-banner-art {'));
+  assert.match(
+    artRule.slice(0, artRule.indexOf('\n  }')),
+    /mask-image:\s*linear-gradient\(to bottom[\s\S]*?transparent 100%\)/,
+    'the art dissolves at its own bottom, not the box\'s',
+  );
+
+  /*
+    And the row has to sit on top of it. The art is positioned and the heading
+    is not, so without a stacking position of its own the picture paints over
+    the row's own content.
+  */
+  assert.match(
+    grid,
+    /\.feed-row--prestige \.feed-row-head,\s*\n\s*\.feed-row--prestige \.feed-row-rail \{[^}]*z-index:\s*1/,
+    'the heading and the rail must paint above the overhang',
+  );
+});

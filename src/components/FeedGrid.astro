@@ -1272,6 +1272,20 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
     padding-top: 0;
   }
 
+  /*
+    ─── THE ROW SITS ON TOP OF THE BANNER'S OVERHANG ─────────────────────────
+
+    The banner's artwork paints past its own box, down behind this heading and
+    the top of the tiles (see `--banner-bleed` in FeedRowBanner.astro). The art
+    is a positioned element and these are not, so without a stacking position of
+    their own the picture would paint over the row's own content.
+  */
+  .feed-row--prestige .feed-row-head,
+  .feed-row--prestige .feed-row-rail {
+    position: relative;
+    z-index: 1;
+  }
+
   .feed-row--prestige {
     position: relative;
     /* 1.5rem is the shelf's own air. It was raised to 3rem to push the banner

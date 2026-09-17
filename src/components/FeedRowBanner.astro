@@ -129,8 +129,25 @@ const { art, logo = null, title, eyebrow, accentRgb = null } = Astro.props;
     margin-inline: calc(50% - 50vw);
     width: 100vw;
     max-width: 100vw;
-    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 85%, transparent 100%);
-    mask-image: linear-gradient(to bottom, #000 0%, #000 85%, transparent 100%);
+
+    /*
+      ─── THE ART CARRIES ON BEHIND THE ROW ──────────────────────────────────
+
+      `--banner-bleed` is how far the artwork paints PAST this box, down behind
+      the row heading and the top of the tiles. The box itself keeps its own
+      height, so the row still flows underneath as before — only the picture
+      overhangs, and it dissolves out rather than ending on a line.
+
+      This replaces a `mask-image` that used to live on this element, fading its
+      bottom 15%. A mask resolves its percentages against the element's own
+      box, so it cut the art off at exactly the height the row starts at, which
+      is the hard horizontal edge above the heading. The fade belongs to the
+      ART, which is now taller than this box, not to the box.
+
+      `overflow: visible` for the same reason. Nothing spills sideways: this is
+      already exactly 100vw wide and the art is 100% of it.
+    */
+    --banner-bleed: clamp(160px, 18vw, 420px);
     /*
       A FLUID HEIGHT, NOT AN ASPECT RATIO PER BREAKPOINT.
 
@@ -144,28 +161,56 @@ const { art, logo = null, title, eyebrow, accentRgb = null } = Astro.props;
       2560 display, which is a second hero halfway down the feed.
     */
     height: clamp(200px, 22vw, 380px);
-    overflow: hidden;
+    overflow: visible;
     /* The row below owns the space between them. */
     margin-bottom: 0;
+    /*
+      A stacking context at level 0, so the overhanging art stays BEHIND the
+      heading and the tiles. Without it the art is a positioned element and the
+      row's static content would paint underneath it.
+    */
+    z-index: 0;
+  }
+
+  .feed-row-banner-art,
+  .feed-row-banner-scrim {
+    /* Both run past the box by the bleed, so the scrim keeps shaping the art
+       the whole way down instead of stopping halfway through it. */
+    height: calc(100% + var(--banner-bleed));
   }
 
   .feed-row-banner-art {
     position: absolute;
-    inset: 0;
+    top: 0;
+    left: 0;
     width: 100%;
-    height: 100%;
     object-fit: cover;
     object-position: center;
     /* This is real artwork, not a plate: no blur, no brightness lift. */
+
+    /*
+      The dissolve. Held at full strength through the box, then faded to nothing
+      across the bleed, so the picture thins out behind the row rather than
+      ending on an edge. The stops are percentages of the ART's height, which is
+      why the bleed has to be part of that height rather than a separate layer.
+    */
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 52%, rgba(0,0,0,0.55) 74%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 0%, #000 52%, rgba(0,0,0,0.55) 74%, transparent 100%);
   }
 
   /*
     Two scrims, and both are doing a specific job.
 
-    The vertical one seats the bottom edge on the page ground so the strip and
-    the row below it read as one block rather than a picture with a shelf under
-    it. It has to reach alpha 1 and hold: at 0.95 a band of the art shows at the
-    seam, which is the same failure CLAUDE.md records on the hub backdrops.
+    ─── THE VERTICAL ONE NO LONGER SEATS AN EDGE ─────────────────────────────
+    It used to reach alpha 1 at the bottom and hold, because the art stopped
+    there and the black was what joined the strip to the page. The art now
+    carries on past this box and dissolves on its own mask, so there is no edge
+    left to hide — and an opaque band in the middle of the picture would be a
+    dark stripe across it rather than a seam.
+
+    What it still owes is LEGIBILITY for the lockup, which sits just above the
+    box's bottom edge. So it darkens through that band and then eases off,
+    rather than going to black and staying there.
 
     The horizontal one is legibility for the mark, and it carries the row's
     accent rather than plain black so the strip agrees with the wash below it.
@@ -174,14 +219,18 @@ const { art, logo = null, title, eyebrow, accentRgb = null } = Astro.props;
   */
   .feed-row-banner-scrim {
     position: absolute;
-    inset: 0;
+    top: 0;
+    left: 0;
+    width: 100%;
     pointer-events: none;
     background:
-      linear-gradient(to top,
-        rgba(10, 10, 10, 1) 0%,
-        rgba(10, 10, 10, 0.72) 14%,
-        rgba(10, 10, 10, 0.28) 34%,
-        transparent 62%),
+      linear-gradient(to bottom,
+        transparent 0%,
+        rgba(10, 10, 10, 0.30) 34%,
+        rgba(10, 10, 10, 0.62) 50%,
+        rgba(10, 10, 10, 0.52) 62%,
+        rgba(10, 10, 10, 0.30) 80%,
+        transparent 100%),
       linear-gradient(to left,
         rgba(6, 18, 14, 0.78) 0%,
         rgba(6, 18, 14, 0.42) 26%,
