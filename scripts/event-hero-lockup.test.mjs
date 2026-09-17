@@ -271,19 +271,27 @@ test('the hero backdrop is one image, centred, covering', () => {
       `${rel}: a vertical bias is what made the crop asset-dependent`);
 
     /*
-      And it must cover. `.event-hero-bg-animated` sets width/height 100%; an
-      absolutely positioned box with left, right AND width all non-auto drops
-      its `right`, so `inset: -12%` shifted the plate left and left 12% of the
-      hero bare down the right-hand edge. Measured at a 1009px hero: the plate
-      ended at 928px.
+      THE OVERSCAN MOVED, and the reasoning came with it. It is a blur
+      allowance — a CSS blur mixes in the transparent pixels outside its own
+      element, so the outermost band is the least blurred part of it — which is
+      a problem for a layer that reaches the edge of the box and no problem for
+      one inset from it by design. The plate CONTAINS now, so the layer that
+      still reaches the edge is `.hero-backdrop-fill`.
+
+      What must not come back: an absolutely positioned box with left, right
+      AND width all non-auto drops its `right`, so `inset: -12%` shifted the
+      old plate left and left 12% of the hero bare down the right-hand edge
+      (measured at a 1009px hero: it ended at 928px). Hence absolute pixels,
+      matching width and height, and `max-width: none` against the global img
+      reset that would otherwise clamp it back to 100%.
     */
-    const plate = code.slice(code.indexOf('.hero-backdrop-plate {'));
-    const decl = plate.slice(0, plate.indexOf('\n  }'));
-    assert.match(decl, /--plate-overscan: \d+px/,
+    const fill = code.slice(code.indexOf('.hero-backdrop-fill {'));
+    const decl = fill.slice(0, fill.indexOf('\n  }'));
+    assert.match(decl, /--fill-overscan: \d+px/,
       `${rel}: the overscan is a blur allowance, so it is absolute, not a percentage`);
-    assert.match(decl, /width: calc\(100% \+ var\(--plate-overscan\) \* 2\)/,
-      `${rel}: the plate must span its own overscan`);
-    assert.match(decl, /height: calc\(100% \+ var\(--plate-overscan\) \* 2\)/, `${rel}: in both axes`);
+    assert.match(decl, /width: calc\(100% \+ var\(--fill-overscan\) \* 2\)/,
+      `${rel}: the fill must span its own overscan`);
+    assert.match(decl, /height: calc\(100% \+ var\(--fill-overscan\) \* 2\)/, `${rel}: in both axes`);
     assert.match(decl, /max-width: none/,
       `${rel}: the global img reset caps it at 100% and the gap returns`);
   }
@@ -511,6 +519,66 @@ test('the hub mark is the heading', () => {
     'the sr-only twin is what got the name announced twice');
   assert.match(hubHero, /\.hero-title-lockup \{[^}]*margin: 0;[^}]*\}/,
     'a heading element brings a default margin the alt would shove the column down with');
+});
+
+test('the event art is never cropped, on any of the three heroes', () => {
+  /*
+    `cover` on a hero this wide is a crop, not a fit. Measured at 3840x2160:
+    the box is ~3840x665 against 16/9 key art, so 33% of the picture's height
+    was on screen and two thirds was not. Reported as "way too zoomed in, I
+    should be able to see the logo".
+
+    It matters here more than anywhere because of what this art IS. CLAUDE.md:
+    L.A. Comic Con is 2.35:1 and SXSW is 2.70:1, and both set the event's NAME
+    across the full width of the artwork, so a crop removes the first and last
+    letters of its own title.
+
+    The remedy is the two-layer idiom this project already worked out for the
+    /featured stage: the front copy CONTAINS, the back copy COVERS and is
+    blurred hard and dimmed so the gutters read as the scene continuing rather
+    than as letterbox bars. One `srcset` on both, so it is one fetch painted
+    twice.
+
+    Checked on all THREE event heroes. There is no fourth: /featured/[slug] and
+    FeedSpotlightHero draw an AMBIENT backdrop (getHubBackdrop, requested at
+    640-900px precisely because the blur destroys it), which is a different job
+    and must keep covering.
+  */
+  for (const rel of ['EventHero.astro', 'EventFeatured.astro', 'EventAnnouncement.astro']) {
+    const hero = heroSource(rel);
+
+    const plate = hero.match(/\.hero-backdrop-plate \{[^}]*\}/);
+    assert.ok(plate, `${rel}: no backdrop plate`);
+    assert.match(plate[0], /object-fit: contain;/, `${rel}: the art must not be cropped`);
+    assert.doesNotMatch(plate[0], /--plate-overscan/,
+      `${rel}: an overscan is a blur allowance for a layer that reaches the edge; a contained one does not`);
+
+    const fill = hero.match(/\.hero-backdrop-fill \{[^}]*\}/);
+    assert.ok(fill, `${rel}: contain without a fill is a letterboxed video`);
+    assert.match(fill[0], /object-fit: cover;/, `${rel}: the fill is the copy that covers`);
+    assert.match(fill[0], /--fill-overscan/, `${rel}: THIS one is blurred hard enough for its weak edge to show`);
+
+    const fills = hero.match(/class="event-hero-bg-animated hero-backdrop-(plate|fill)"/g) || [];
+    assert.equal(fills.length, 2, `${rel}: both layers must be rendered`);
+    const srcsets = hero.match(/srcset=\{heroBackdropSrcset\}/g) || [];
+    assert.ok(srcsets.length >= 2, `${rel}: both copies read one srcset, so it is one fetch painted twice`);
+  }
+});
+
+test('the /events chips carry the accent that says what the event is', () => {
+  /*
+    `hero-meta-tag--type` was in the markup and its rule was not: lifting the
+    hero into EventHero.astro took `.hero-meta-tag` and left both modifiers
+    behind, so all three chips rendered identically and the red border that
+    marks the event's KIND never appeared.
+  */
+  for (const rel of ['EventHero.astro', 'EventFeatured.astro', 'EventAnnouncement.astro']) {
+    const hero = heroSource(rel);
+    assert.match(hero, /\.hero-meta-tag--type \{[^}]*border-left: 2px solid rgba\(var\(--brand-rgb/,
+      `${rel}: the type chip must carry the brand accent`);
+    assert.match(hero, /\.hero-meta-tag--date \{[^}]*white-space: normal;/,
+      `${rel}: the date is the widest chip and must wrap rather than overflow a 320px screen`);
+  }
 });
 
 /*

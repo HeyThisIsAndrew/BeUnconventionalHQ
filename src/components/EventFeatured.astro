@@ -338,6 +338,17 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
             getHubBackdrop(). Do not reintroduce that; a hub is somebody
             else's brand.
           */
+          <>
+          <img
+            src={heroBackdropMobileUrl}
+            srcset={heroBackdropSrcset}
+            sizes={heroBackdropSizes}
+            alt=""
+            class="event-hero-bg-animated hero-backdrop-fill"
+            aria-hidden="true"
+            loading="eager"
+            fetchpriority="high"
+          />
           <img
             src={heroBackdropMobileUrl}
             srcset={heroBackdropSrcset}
@@ -347,6 +358,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
             loading="eager"
             fetchpriority="high"
           />
+          </>
         ) : (
           <div class="event-hero-bg-animated" style={`background-image: ${fallbackGradient};`}></div>
         )}
@@ -1916,64 +1928,59 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
   }
 
   /*
-    THE HERO PLATE.
+    ─── THE ART IS CONTAINED NOW, AND THE FILL IS WHAT COVERS ────────────────
 
-    Blurred, and OVERSCANNED past its clipping wrapper. A CSS blur goes weak at
-    its own element's edges — it mixes in the transparent pixels outside — so
-    the outermost band of a blurred element is the least blurred part of it.
-    Left flush with the box, that band is what shows behind the logo and the
-    copy. `.event-hero-bg-wrapper` already clips, so pushing the plate past it
-    puts the weak edge outside the clip where it is never seen.
+    `cover` on a hero this wide is a crop, not a fit. Measured at 3840x2160 on
+    both heroes: the box is ~3825x664, an aspect ratio of about 5.4, against
+    16/9 key art. Cover scales the image to the WIDTH and throws the rest away,
+    so 33% of the picture's height was on screen and two thirds of it was not.
+    Reported as "way too zoomed in, I should be able to see the logo".
 
-    Blurred less than the deck's, and brightened rather than dimmed: on
-    /featured this sits behind a poster and must not compete with it, whereas
-    here it IS the scene with only a logo and a line of type in front. Trailer
-    stills are dark to begin with, and blurring a dark image and then dimming it
-    is how this hero was once a black rectangle.
+    The remedy is the one this project already worked out for the /featured
+    stage and wrote down in CLAUDE.md: TWO COPIES OF ONE FILE. The front one
+    `contain`s, so the whole artwork is visible whatever shape an editor
+    uploads and whatever shape the hero is. The back one `cover`s, and is only
+    ever seen in the gutters the front one leaves.
+
+    The fill is not flat `#111`, which is what a letterboxed video looks like
+    and which on a 3840px hero would be two 1200px slabs of black either side
+    of the picture. It is the same image, blurred harder and dimmed, so the
+    gutters read as the scene continuing rather than as bars.
+
+    Same `src` and `srcset` on both, so it is ONE fetch painted twice. On art
+    that happens to match the hero's shape the fill is never visible at all.
+
+    THE OVERSCAN IS GONE from the front layer and kept on the fill. It existed
+    as a blur allowance — a CSS blur goes weak at its own edges because it
+    mixes in the transparent pixels outside — which is a real problem for a
+    layer that reaches the edge of the box, and no problem at all for one that
+    is inset from it by design.
   */
   .hero-backdrop-plate {
-    /*
-      ─── OVER-CONSTRAINED IS WHAT LEFT A GAP DOWN THE RIGHT-HAND EDGE ───────
-
-      `.event-hero-bg-animated` above sets `width: 100%; height: 100%`. When an
-      absolutely positioned box has a left, a right AND a width all non-auto,
-      CSS drops the `right` — so `inset: -12%` moved this plate 12% to the LEFT
-      and then held it at exactly the hero's own width, leaving 12% of the hero
-      bare down the right-hand side. Measured on /feed at a 1009px hero: the
-      plate stopped at 928px. The same thing happened at the bottom, invisible
-      only because the scrim there is nearly black.
-
-      ─── THE OVERSCAN IS A BLUR ALLOWANCE, NOT A ZOOM ───────────────────────
-
-      It exists for one reason: a CSS blur goes weak at its own element's edges,
-      because it mixes in the transparent pixels outside, so the outermost band
-      is the least blurred part of it. Pushing the plate past the clip puts that
-      band where nobody sees it.
-
-      The band is about twice the blur radius — 18px at `blur(9px)`. It was
-      specified as 12% instead, which on a 1920px hero is 230px a side: ten
-      times what the blur needs, and it read exactly as what it was, a backdrop
-      zoomed a third of the way in. Reported as "too far zoomed in", on heroes
-      whose key art sets the event's name across the full width of the artwork.
-
-      32px is a generous allowance at this radius and costs ~3% of scale on a
-      desktop hero instead of 24%. Tie any change to the blur radius above, not
-      to the hero's size.
-
-      Stated as a WIDTH rather than left to `auto` because this is an <img>, and
-      the global `img { max-width: 100% }` reset clamps an auto width to the
-      containing block — measured: the plate came back 1009px wide inside a
-      1009px hero, still shifted, gap unchanged. `max-width: none` is what
-      actually lets it overscan.
-    */
-    --plate-overscan: 32px;
-    inset: calc(var(--plate-overscan) * -1);
-    width: calc(100% + var(--plate-overscan) * 2);
-    height: calc(100% + var(--plate-overscan) * 2);
-    max-width: none;
-    filter: blur(9px) saturate(1.15) brightness(1.16);
-    -webkit-filter: blur(9px) saturate(1.15) brightness(1.16);
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+    filter: blur(6px) saturate(1.1) brightness(1.1);
+    -webkit-filter: blur(6px) saturate(1.1) brightness(1.1);
   }
+
+  .hero-backdrop-fill {
+    /* Behind the contained copy, and overscanned past the clip because THIS
+       one is blurred hard enough for its weak edge band to show. ~2x the blur
+       radius, as on every other plate in this project. */
+    --fill-overscan: 48px;
+    inset: calc(var(--fill-overscan) * -1);
+    width: calc(100% + var(--fill-overscan) * 2);
+    height: calc(100% + var(--fill-overscan) * 2);
+    max-width: none;
+    object-fit: cover;
+    object-position: center;
+    filter: blur(24px) saturate(1.1) brightness(0.55);
+    -webkit-filter: blur(24px) saturate(1.1) brightness(0.55);
+  }
+
 
   /*
     Shapes the plate the copy sits on. A single flat image behind white text is
