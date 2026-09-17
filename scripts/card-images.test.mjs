@@ -535,3 +535,43 @@ test('the featured shelf describes its own width, not the grid\'s', () => {
     'the tentpole row must render its cards as the featured variant',
   );
 });
+
+/*
+  ─── SCALING TYPE MUST NOT SCALE CARD WIDTHS ────────────────────────────────
+
+  The root font-size steps up on wide monitors (80% -> 90% -> 100% -> 110%), so
+  every rem on the site grows with the screen. That is the point: the whole
+  layout is authored in rem and a 4K display was rendering a page built for a
+  1536px window.
+
+  The card widths must NOT follow. `sizes` is a px claim mirroring `--feed-card`
+  in modules/layout.css, and if that variable were expressed in rem it would
+  grow with the root while `sizes` stayed put — the browser would fetch a
+  rendition for the old width and every card would go soft. That is the same
+  failure this file already guards three times over, arriving by a new route.
+*/
+test('the card ladder is in px, so growing the root cannot desync the images', () => {
+  const layout = _read('src', 'styles', 'modules', 'layout.css');
+
+  for (const name of ['--page-max', '--feed-card', '--feed-card-featured']) {
+    const decls = [...layout.matchAll(new RegExp(`${name}:\\s*([^;]+);`, 'g'))].map((m) => m[1].trim());
+    assert.ok(decls.length >= 2, `${name} must have a ladder`);
+    for (const value of decls) {
+      assert.match(value, /^\d+px$/, `${name} must be px, got "${value}" — rem would track the root font`);
+    }
+  }
+
+  /* And the root ladder has to step where the page ladder does, or the
+     container and its type change size at different widths. */
+  const base = _read('src', 'styles', 'global-base.css');
+  const fontSteps = [...base.matchAll(/@media \(min-width:\s*(\d+)px\)\s*\{\s*html\s*\{\s*font-size:/g)]
+    .map((m) => Number(m[1]))
+    .filter((bp) => bp >= 1920);
+  const pageSteps = [...layout.matchAll(/@media \(min-width:\s*(\d+)px\)[\s\S]{0,200}?--page-max:/g)]
+    .map((m) => Number(m[1]));
+  assert.deepEqual(
+    fontSteps.sort((a, b) => a - b),
+    pageSteps.sort((a, b) => a - b),
+    'the root font and the page width must step at the same breakpoints',
+  );
+});

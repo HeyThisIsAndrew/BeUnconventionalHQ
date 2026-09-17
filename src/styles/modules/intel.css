@@ -26,6 +26,35 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.09);
 }
 
+/*
+  ─── THE SPREAD REBALANCES ON A BIG MONITOR ────────────────────────────────
+
+  2.15fr gives the lead story more than twice either rail, which is the right
+  emphasis while the whole spread is ~1470px. It stops being right once the
+  page starts stepping up: at 3840 the centre column came out 1320px, and the
+  standfirst's measure cannot use that — body copy set 1300px wide is unreadable
+  whatever the type size — so 572px of the column stayed empty while the rails
+  ran cards at a third of that width.
+
+  Easing toward 1.7fr moves that width to the rails, where it becomes bigger
+  pictures and bigger headlines rather than empty ground. The lead is still
+  clearly the lead: at 3840 the centre is ~1080px against ~735px rails.
+
+  The steps match `--page-max` and the root font ladder, so the container, the
+  type and these proportions all change at the same widths.
+*/
+@media (min-width: 2560px) {
+  .intel-magazine {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.85fr) minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 3400px) {
+  .intel-magazine {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr) minmax(0, 1fr);
+  }
+}
+
 /* ── Rails ──────────────────────────────────────────────────────────────── */
 
 .intel-rail {
@@ -205,6 +234,45 @@
   background: var(--color-surface);
 }
 
+/*
+  ─── ON A BIG MONITOR THE PICTURE TAKES THE SLACK, NOT THE AIR ─────────────
+
+  The spread's height is set by whichever column is tallest, which is a rail of
+  four cards. The lead story then stretches to match, and because the image is
+  `flex: 0 0 auto` at a fixed 16/9 it was the COPY that absorbed every spare
+  pixel — and the copy centres its content, so the leftover showed up as air
+  above and below the standfirst. Measured at 3840: 294px above, 304px below.
+
+  Letting the image grow instead puts that height into the photograph, which is
+  what a lead story is supposed to lead with. `aspect-ratio: auto` has to come
+  with it: a definite ratio wins over `flex-grow` and the image would not move.
+
+  `object-fit: cover` on the <img> already crops to whatever shape this ends up,
+  and the min-height stops a short spread from collapsing the picture to a
+  strip.
+
+  Below 2560 nothing changes — the columns are close enough in height there that
+  the leftover is the 10-50px the copy's own note describes.
+*/
+/*
+  ─── THE PICTURE DOES NOT STRETCH, AND THAT IS THE POINT ───────────────────
+
+  The spread's height is set by whichever column is tallest, which is a rail of
+  four cards, so the lead story has surplus height to place. Letting the IMAGE
+  take it was tried and reverted: `object-fit: cover` crops to whatever shape it
+  is handed, and unbounded the picture came out 1162x1155, very nearly square.
+  On a 2.6:1 event banner that cropped both ends off the wordmark the image
+  exists to show. Capping it at ~1.4:1 still cut it.
+
+  So the ratio stays 16/9 and the surplus goes to the BOTTOM of the column
+  instead — the copy sits directly under the picture and the column simply ends.
+  Whitespace at the foot of a column reads as the end of it. The same whitespace
+  split above and below the standfirst, which is what `justify-content: center`
+  was doing, reads as text floating in the middle of nothing.
+
+  Artwork is not elastic. Nothing here should be tempted to make it so.
+*/
+
 .intel-feature-image img {
   width: 100%;
   height: 100%;
@@ -289,6 +357,28 @@
   gap: 0.75rem;
   padding: 2.5rem 2.5rem 3rem;
   text-align: left;
+}
+
+/*
+  The copy stops being the elastic one on a big monitor, so the picture above
+  takes the column's spare height instead of the air around this text.
+
+  THIS BLOCK HAS TO SIT AFTER THE RULE IT OVERRIDES. A media query adds no
+  specificity, so the same declaration written earlier in the file loses on
+  source order — which is exactly what happened: the image grew and the copy
+  stayed elastic, leaving the dead space it was meant to remove.
+*/
+@media (min-width: 2560px) {
+  .intel-feature-copy {
+    flex: 0 0 auto;
+    /*
+      Sat under the picture rather than centred in the leftover. `center` is
+      right when the block roughly fills its space, which is the case at the
+      widths the base rule was written for. Here the picture takes its share
+      first and the copy follows it directly.
+    */
+    justify-content: flex-start;
+  }
 }
 
 /* Syne (var(--font-display)) at a tight leading — `leading-tight` — so a
@@ -402,6 +492,32 @@
   color: var(--color-white-muted);
   max-width: var(--feature-measure);
   margin: 0;
+}
+
+/*
+  ─── A BIGGER SCREEN PREVIEWS MORE OF THE ARTICLE ──────────────────────────
+
+  The lead column is structurally shorter than a rail of four cards, so it has
+  surplus height whatever is done with the picture. Measured at 3840 with the
+  image left at its own ratio: 555px of it.
+
+  The useful thing to put there is the article. `--excerpt-lines` is a fixed
+  count so every story cuts at the same place, and that reasoning holds — it
+  just does not follow that the count has to be the same on a 13-inch laptop and
+  a 4K display. Stepping it up keeps every story cutting at the same place AS
+  EACH OTHER at any given width, which is what the rule is actually for, while
+  spending the surplus on words instead of air.
+*/
+@media (min-width: 2560px) {
+  .intel-feature-excerpt {
+    --excerpt-lines: 20;
+  }
+}
+
+@media (min-width: 3400px) {
+  .intel-feature-excerpt {
+    --excerpt-lines: 26;
+  }
 }
 
 /*
