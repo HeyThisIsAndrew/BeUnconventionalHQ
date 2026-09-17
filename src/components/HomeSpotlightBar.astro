@@ -375,6 +375,27 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
     margin-block: clamp(3rem, 6vh, 5rem);
   }
 
+  /*
+    ─── THE BANNER NEEDS HEIGHT TO EARN ITS WIDTH ──────────────────────────
+
+    Full bleed against a height driven by one line of type is fine at 1512 and
+    absurd at 3840: the band became roughly 13:1 and `object-fit: cover` threw
+    away everything but a horizontal strip, which on the Coyote art was the
+    eyes and nothing else.
+
+    ON THE FRAME, NOT ON THE SECTION. The section is just a wrapper; the frame
+    is what has the height and what the art is sized against, so a min-height
+    on the section would have added empty page under the band and cropped the
+    picture exactly as hard.
+
+    12vw tracks the width that is causing the problem, and 450px stops it
+    before the band starts competing with the hero. Below about 1500px the
+    frame's own clamp is already taller, so nothing changes at laptop sizes.
+  */
+  .spotlight--banner .spotlight-frame {
+    min-height: clamp(180px, 12vw, 450px);
+  }
+
   .spotlight-frame {
     position: relative;
     /*
@@ -383,6 +404,26 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
       resize as it rotates through them.
     */
     height: clamp(170px, 10rem + 7vw, 300px);
+    /*
+      ─── IT CLIPS. THIS IS NOT DECORATION ───────────────────────────────────
+
+      `overflow: hidden` lived on the panel variant alone, and the banner ran
+      `visible`, which is why a sliver of the artwork showed along the banner's
+      bottom edge and never along the panel's.
+
+      The height is a clamp, so it lands on a FRACTION: 199.672px at a 1512
+      viewport, measured. The frame's painted edge and the absolutely
+      positioned art inside it round that fraction to device pixels
+      independently, and when they round apart the art keeps a row the frame
+      has already given up. Unclipped, that row paints -- one bright line of
+      photograph under the band, against the page's black.
+
+      It cannot be fixed by nudging the height to a whole number, because the
+      clamp is meant to be fluid and the fraction comes back at the next
+      viewport width. Clipping the frame settles it at every width at once,
+      which is the same answer the panel has always had.
+    */
+    overflow: hidden;
   }
 
   /*
@@ -395,7 +436,8 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
     /* It is inside the page column here, not running off the screen, so its
        side edges are visible and belong. */
     border-inline: 1px solid rgba(255, 255, 255, 0.1);
-    overflow: hidden;
+    /* `overflow: hidden` moved to `.spotlight-frame`: both variants need it,
+       and only this one had it. See the note there. */
     /*
       Top and bottom only. The left and right edges are off the screen now, so
       a border there paints nothing; these two are what make the band read as a

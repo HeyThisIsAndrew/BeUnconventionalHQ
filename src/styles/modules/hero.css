@@ -17,14 +17,28 @@
     reason is just a short hero.
 
     500px is a floor so a short laptop window or a landscape phone does not
-    crush the lockup. 1000px is where it stops growing with the monitor and the
-    surplus becomes visible page instead of visible nothing.
+    crush the lockup.
+
+    THE 1000px CAP IS GONE, and the reasoning above is why it can be. The cap
+    treated the empty void as a height problem, and it is a TYPE problem: the
+    lockup was capped at 4.5rem, so on a 3840x2160 display it stayed the size
+    it is on a laptop and the space around it read as emptiness. Shrinking the
+    box to hide that had a cost the note above never counted -- at 2160px tall
+    the hero ended at 1000px, so the spotlight bar AND the whole What We Cover
+    grid were pulled into the first screen, and the page opened on four tiny
+    tiles instead of on a hero.
+
+    So the box fills the glass again (`min-height: 100vh`, not `height`, so a
+    hero whose content outgrows the viewport can still push past it) and the
+    lockup scales with the viewport instead: see the `.word-*` clamps, whose
+    ceilings went up with it. Big screens get a big hero, which is what they
+    were always asking for.
 
     SAFE TO CHANGE: nothing measures this as a constant. The splash lift
     (`--splash-lift`), the reveal distance and the scroll handler all read
     `hero.offsetHeight` at runtime — see Hero.astro.
   */
-  height: clamp(500px, 100vh, 1000px);
+  min-height: 100vh;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -399,6 +413,11 @@ body.scroll-locked .hero {
 }
 
 .hero-content {
+  /* The lockup grows with the viewport now, so the column it sits in needs a
+     ceiling or the subtitle sets itself across the full 3840px. Same token the
+     rest of the page grid uses. */
+  max-width: var(--page-max, 1536px);
+  margin-inline: auto;
   /* These live HERE, not on `.hero`, and that placement is load-bearing.
      Custom properties INHERIT, so writing `--hero-compress-progress` on
      `.hero` every scroll frame invalidated style for the entire hero
@@ -480,7 +499,8 @@ body.scroll-locked .hero {
 }
 
 .word-be {
-  font-size: clamp(1rem, calc(0.5rem + 1.25vw), 1.8rem);
+  /* Ceiling raised for 4K: the lockup is what fills a big hero. */
+  font-size: clamp(1rem, 1.5vw, 2.5rem);
   font-weight: 600;
   align-self: center;
   color: var(--color-white-muted);
@@ -488,7 +508,9 @@ body.scroll-locked .hero {
 }
 
 .word-unconventional {
-  font-size: clamp(2rem, calc(1rem + 4vw), 4.5rem);
+  /* Ceiling raised for 4K: was 4.5rem, which left a laptop-sized wordmark
+     stranded in the middle of a 3840px screen. */
+  font-size: clamp(2rem, 5vw, 8.5rem);
   font-weight: 800;
   letter-spacing: -0.04em;
   color: var(--color-white);
@@ -499,7 +521,8 @@ body.scroll-locked .hero {
 }
 
 .word-hq {
-  font-size: clamp(1.5rem, calc(0.75rem + 2.5vw), 3rem);
+  /* Ceiling raised for 4K, in step with `.word-unconventional`. */
+  font-size: clamp(1.5rem, 3.5vw, 5.5rem);
   font-weight: 800;
   align-self: center;
   margin-top: -1.2rem;
@@ -515,7 +538,8 @@ body.scroll-locked .hero {
 
 .hero-subtitle {
   color: rgba(255, 255, 255, 0.9);
-  font-size: clamp(0.7rem, 0.62rem + 0.5vw, 0.95rem);
+  /* Ceiling raised for 4K, in step with the lockup above it. */
+  font-size: clamp(0.7rem, 1vw, 1.5rem);
   text-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
   letter-spacing: 0.15em;
   text-transform: uppercase;
