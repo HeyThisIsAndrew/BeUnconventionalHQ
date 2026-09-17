@@ -704,8 +704,22 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
               );
             })}
           
-          </div>
-          {/* Dynamic pane for articles selected outside the rail */}
+          {/*
+            ─── THE PANE FOR AN ARTICLE CHOSEN OUTSIDE THE RAIL ───────────────
+
+            One pane, and it lives INSIDE the panes wrapper with the mapped
+            ones. It shipped duplicated, with a stray closing tag between the
+            two copies, which put the second copy outside the wrapper and left
+            the template with one more closing tag than opening tags. The build
+            failed with "Closing tag has no matching opening tag" and
+            `astro check` passed clean, which is the trap CLAUDE.md records:
+            only a build catches a structural error in the template.
+
+            It also has to be a sibling of the mapped panes for the code that
+            drives it — `stage.querySelectorAll('.hub-stage-item')` toggles
+            `active` across all of them, and a pane outside the wrapper is
+            positioned against a different box.
+          */}
           <div class="hub-stage-item hub-stage-item--dynamic" data-index="dynamic" aria-hidden="true" inert>
             <img src="" alt="" class="hub-stage-item-still" loading="lazy" style="opacity: 0;" />
             <span class="hub-stage-item-scrim"></span>
@@ -715,16 +729,6 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
               <a href="#" class="hub-stage-item-action">Read</a>
             </div>
           </div>
-          </div>
-          {/* Dynamic pane for articles selected outside the rail */}
-          <div class="hub-stage-item hub-stage-item--dynamic" data-index="dynamic" aria-hidden="true" inert>
-            <img src="" alt="" class="hub-stage-item-still" loading="lazy" style="opacity: 0;" />
-            <span class="hub-stage-item-scrim"></span>
-            <div class="hub-stage-item-copy">
-              <span class="hub-stage-item-kind">Article</span>
-              <p class="hub-stage-item-title"></p>
-              <a href="#" class="hub-stage-item-action">Read</a>
-            </div>
           </div>
             {heroItems.length > 0 && (
               /*
@@ -1630,9 +1634,12 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
           const dynamicPane = stage.querySelector('.hub-stage-item--dynamic');
           if (!dynamicPane) return;
 
-          const titleEl = dynamicPane.querySelector('.hub-stage-item-title');
-          const imgEl = dynamicPane.querySelector('.hub-stage-item-still');
-          const linkEl = dynamicPane.querySelector('.hub-stage-item-action');
+          /* Typed queries. Bare querySelector returns Element, which has no
+             src/style/href, and `astro check` fails on every one of them —
+             CLAUDE.md's bar is zero NEW errors against a 0 baseline. */
+          const titleEl = dynamicPane.querySelector<HTMLElement>('.hub-stage-item-title');
+          const imgEl = dynamicPane.querySelector<HTMLImageElement>('.hub-stage-item-still');
+          const linkEl = dynamicPane.querySelector<HTMLAnchorElement>('.hub-stage-item-action');
 
           if (titleEl) titleEl.textContent = btn.dataset.title || '';
           if (imgEl && btn.dataset.image) {
