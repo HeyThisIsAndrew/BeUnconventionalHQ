@@ -47,6 +47,8 @@ type Doc = {
   coverageType?: string;
   series?: string;
   editorialNotes?: string;
+  /** Ordering override. Changes where the item sits in a row, not its date. */
+  sortDate?: string;
   topics?: string[];
   hubs?: string[];
   requiresReview?: boolean;
@@ -297,6 +299,7 @@ function makeBlankDoc(type: DocType): Doc {
     coverageType: '',
     series: '',
     editorialNotes: '',
+    sortDate: '',
     topics: [],
     hubs: [],
     requiresReview: true,
@@ -1903,6 +1906,32 @@ function VideoForm({
                 <option value="news">News</option>
                 <option value="other">Other</option>
               </select>
+            </Field>
+
+            {/*
+              ─── ORDER, NOT DATE ────────────────────────────────────────────
+
+              Publish order and episode order are different things. The Lanterns
+              episode 2 review went out the day AFTER the episode 3 review, so
+              every row it appears in read 5, 4, 2, 3.
+
+              This changes where the item sits in a row and nothing else. The
+              date on the card, in the metadata and in the feeds is still the
+              real publish date, because that is when it actually went out.
+
+              Left empty, the item orders by its publish date as before.
+            */}
+            <Field label="Order as if published on">
+              <input
+                type="date"
+                value={(doc.sortDate || '').slice(0, 10)}
+                onChange={(e) => update('sortDate', e.target.value)}
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-neutral-500">
+                Ordering only. Leave empty to use the publish date
+                {doc.publishedAt ? ` (${String(doc.publishedAt).slice(0, 10)})` : ''}.
+              </p>
             </Field>
 
             <Field label="Editorial Notes">

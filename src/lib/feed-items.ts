@@ -20,15 +20,45 @@ export interface FeedItem {
   image?: string;
   category?: string;
   tags?: string[];
+  /** Editorial ordering override. See sortTime() below. Never shown to a reader. */
+  sortDate?: string;
   type: 'article' | 'video';
   [key: string]: any;
 }
 
+/**
+ * The date an item SORTS by, which is not always the date it was published.
+ *
+ * ─── WHY AN OVERRIDE EXISTS AT ALL ──────────────────────────────────────────
+ * Publish order and episode order are different things. The Lanterns episode 2
+ * review went up on 2026-09-02 and the episode 3 review on 2026-09-01, because
+ * that is the order they were finished in. By publish date the row read
+ * 5, 4, 2, 3 — the reviews out of sequence with the show they are about.
+ *
+ * `sortDate` is the editorial answer: order this as if it went out on that day.
+ * It changes ORDER ONLY. The date shown on the card, in the metadata and in the
+ * feeds is still `date`, because that is when the thing was actually published
+ * and claiming otherwise in public would be a lie rather than a preference.
+ *
+ * It is an EDITORIAL field in the sense CLAUDE.md hard rule 5 means: seeded by
+ * a human, never written by the sync, and explicitly carried forward in
+ * scripts/sync-youtube.mjs so a sync run cannot drop it.
+ */
+function sortTime(item: FeedItem): number {
+  const raw = item.sortDate || item.date;
+  const t = new Date(raw).getTime();
+  /* A malformed override must not send the item to the top of the feed, and
+     must not throw: fall back to the real date, then to "sorts last". */
+  if (Number.isNaN(t)) {
+    const fallback = new Date(item.date).getTime();
+    return Number.isNaN(fallback) ? 0 : fallback;
+  }
+  return t;
+}
+
 /** Newest first. Items with unparseable dates sort last rather than throwing. */
 function byNewest(a: FeedItem, b: FeedItem) {
-  const at = new Date(a.date).getTime();
-  const bt = new Date(b.date).getTime();
-  return (Number.isNaN(bt) ? 0 : bt) - (Number.isNaN(at) ? 0 : at);
+  return sortTime(b) - sortTime(a);
 }
 
 /**

@@ -902,9 +902,35 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
   */
   .feed-row-item {
     flex: 0 0 auto;
-    width: min(85vw, 320px);
+    /* `--feed-card` steps with `--page-max` (modules/layout.css) so a row shows
+       about five cards at any screen size, instead of four at 1440 and ten on a
+       4K display. 85vw keeps the phone on a near-full-width card. */
+    width: min(85vw, var(--feed-card, 320px));
     scroll-snap-align: center;
     display: flex;
+  }
+
+  /*
+    ─── THE FEATURED SHELF'S CARDS ARE BIGGER THAN EVERYONE ELSE'S ───────────
+
+    A shelf that is meant to say "start here" cannot be the same size as the
+    browse rows under it. It had the banner and the accent wash and otherwise
+    identical 320px cards, so the only thing marking it out was scenery — and
+    scenery reads as decoration, not as emphasis.
+
+    560 against 320 is a 75% step up in width and a bit over three times the
+    area. 440 was tried first and read as "slightly bigger", which is the worst
+    of both: it spends the vertical space of a decision without making one.
+
+    A cap, not a fixed width. `min()` keeps the phone case on 90vw, where the
+    card is already as wide as the screen allows.
+
+    Scoped to `.feed-row--prestige` so the browse rows keep their density. The
+    point is the CONTRAST between them; making every row bigger would cost the
+    same space and say nothing.
+  */
+  .feed-row--prestige .feed-row-item {
+    width: min(90vw, var(--feed-card-featured, 560px));
   }
 
   /*
@@ -1596,7 +1622,7 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
           <ul class="feed-row-rail" data-rail>
             {prestigeRow.items.map((item: any, index: number) => (
               <li class="feed-row-item">
-                <ContentCard item={item} index={index} context="feed" />
+                <ContentCard item={item} index={index} context="feed" variant="featured" />
               </li>
             ))}
           </ul>

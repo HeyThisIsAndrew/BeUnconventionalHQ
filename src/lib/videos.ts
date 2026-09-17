@@ -34,6 +34,8 @@ export interface UnifiedVideo {
   /** Raw ISO publish timestamp (Sanity only) — the Dispatch Log needs a real
    *  instant, not the display-string `date`. */
   publishedAt?: string;
+  /** Editorial ordering override. Changes row position, never the shown date. */
+  sortDate?: string;
   /** Marks which pipeline produced the entry. */
   source: 'sanity';
 
@@ -127,6 +129,13 @@ export function mapSanityVideo(doc: any, { categorize }: MapOptions = {}): Unifi
     series: doc.series,
     hubs: doc.hubs ?? [],
     editorialNotes: doc.editorialNotes,
+    /*
+      Ordering override, and it has to be listed HERE as well as carried by the
+      sync. This mapping is an explicit whitelist, so a field the sync preserves
+      perfectly still never reaches the feed unless it is named on this line.
+      That is exactly how the first attempt at this silently did nothing.
+    */
+    sortDate: doc.sortDate || undefined,
     requiresReview: doc.requiresReview ?? false,
     manualTaxonomyOverride: doc.manualTaxonomyOverride ?? false,
     relatedMedia: doc.relatedMedia ?? [],

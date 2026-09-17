@@ -2,7 +2,12 @@
 import { getDisplayTags } from '../lib/tags';
 
 import { parseVideoId } from '../lib/platforms/youtube';
-import { getCardImageSources, CARD_IMAGE_SIZES, HERO_CARD_IMAGE_SIZES } from '../lib/card-images';
+import {
+  getCardImageSources,
+  CARD_IMAGE_SIZES,
+  HERO_CARD_IMAGE_SIZES,
+  FEATURED_CARD_IMAGE_SIZES,
+} from '../lib/card-images';
 import { LABELS } from '../data/content.js';
 import { CATEGORY_TAG_ALIASES, categoryTagAliases } from '../data/constants.js';
 import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-content';
@@ -13,7 +18,13 @@ import { getImage } from 'astro:assets';
 export interface Props {
   item: any;
   index: number;
-  variant?: 'default' | 'hero';
+  /**
+   * 'hero'     the lead card in FeaturedHighlights, with its own treatment
+   * 'featured' a tile on the tentpole shelf: cinematic like the default, but
+   *            560px wide instead of 320, so it needs its own image `sizes`
+   * 'default'  a tile in the card grid or a browse row
+   */
+  variant?: 'default' | 'hero' | 'featured';
   /**
    * Which surface this card is on, and therefore what clicking it does.
    *
@@ -202,6 +213,19 @@ const CardWrapper = isPlayable || context === 'feed' ? 'div' : 'a';
   several — so it keeps the styling written for it.
 */
 const isCinematic = variant !== 'hero';
+
+/*
+  A `sizes` is a CLAIM ABOUT THE CSS, so each variant needs its own. Getting it
+  from a ternary is how the featured shelf ended up describing itself with the
+  320px grid's numbers while rendering 560px wide, and fetching a 360px
+  rendition into it. A map makes a new variant declare its width or fail to
+  compile rather than silently inherit the wrong one.
+*/
+const CARD_SIZES_FOR_VARIANT: Record<NonNullable<Props['variant']>, string> = {
+  hero: HERO_CARD_IMAGE_SIZES,
+  featured: FEATURED_CARD_IMAGE_SIZES,
+  default: CARD_IMAGE_SIZES,
+};
 
 const baseProps = {
   class: `reveal video-card-home content-card w-full variant-${variant}${isCinematic ? ' content-card--cinematic' : ''}`,
@@ -410,7 +434,7 @@ if (isVideo && item.youtubeId) {
         class="content-card-img"
         src={cardImage}
         srcset={cardImageSrcset || undefined}
-        sizes={cardImageSrcset ? (variant === 'hero' ? HERO_CARD_IMAGE_SIZES : CARD_IMAGE_SIZES) : undefined}
+        sizes={cardImageSrcset ? CARD_SIZES_FOR_VARIANT[variant] : undefined}
         alt={item.title}
         loading={isLCP ? 'eager' : 'lazy'}
         fetchpriority={isLCP ? 'high' : 'auto'}

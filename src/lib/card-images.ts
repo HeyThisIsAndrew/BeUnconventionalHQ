@@ -183,7 +183,14 @@ export function isSubstackFetchUrl(raw: unknown): boolean {
 */
 
 /** Rendition widths offered to the browser, smallest first. */
-const SUBSTACK_WIDTHS = [400, 600, 900, 1200];
+/*
+  Up to 2000 because the cards grew. A featured tile is 860px on a 4K display,
+  which is ~1720 device pixels on a 2x screen, and a ladder stopping at 1200
+  means the browser picks 1200 and upscales it 1.4x. Substack originals are
+  commonly 2048 wide, so the top of this ladder costs nothing to offer and the
+  browser only fetches it on a screen that can actually use it.
+*/
+const SUBSTACK_WIDTHS = [400, 600, 900, 1200, 1600, 2000];
 
 /** Width used for the plain `src` — covers a phone card at 2x. */
 const SUBSTACK_SRC_WIDTH = 600;
@@ -238,7 +245,9 @@ function substackSources(url: string): CardImageSources {
 }
 
 /** Rendition widths for generic external proxy, smallest first. */
-const WSRV_WIDTHS = [400, 600, 900, 1200];
+/* Same reasoning as SUBSTACK_WIDTHS above: the cards are large enough now that
+   a 1200px ceiling is an upscale on a 2x 4K display. */
+const WSRV_WIDTHS = [400, 600, 900, 1200, 1600, 2000];
 const WSRV_SRC_WIDTH = 600;
 
 function genericExternalSources(url: string): CardImageSources {
@@ -296,8 +305,29 @@ export function getCardImageSources(raw: unknown): CardImageSources {
   apart — a `sizes` that disagrees with the CSS makes the browser pick the
   wrong rendition, which is the failure mode srcset exists to avoid.
 */
+/*
+  ─── THIS ONE STRING SERVES TWO DIFFERENT BOXES ────────────────────────────
+
+  `CARD_IMAGE_SIZES` describes the 4-up card grid AND the feed's browse rows,
+  and they are not the same width:
+
+                       1536    1920    2240    2600   (--page-max)
+    4-up grid card      366     462     542     632   ((container - 3 gaps) / 4)
+    feed row card       320     380     440     500   (--feed-card)
+
+  A `sizes` may safely over-state a box — the browser fetches a slightly larger
+  rendition and the image is sharp. Under-stating it is the bug: it picks a
+  smaller source and the card is visibly soft. So each step is the LARGER of
+  the two consumers, rounded up.
+
+  The widest match wins, so these run LARGEST FIRST. Written the other way round
+  a `(min-width: 1536px)` earlier in the list swallows every wider screen and
+  the 4K steps never apply — a silent soft-image bug, not an error.
+*/
 export const CARD_IMAGE_SIZES =
-  '(max-width: 560px) 42vw, (max-width: 1100px) 47vw, (min-width: 1536px) 360px, 23vw';
+  '(max-width: 560px) 42vw, (max-width: 1100px) 47vw, ' +
+  '(min-width: 3400px) 635px, (min-width: 2560px) 545px, (min-width: 1920px) 465px, ' +
+  '(min-width: 1536px) 370px, 23vw';
 
 /*
   ─── THE HERO CARD IS NOT IN THE CARD GRID ─────────────────────────────────
@@ -322,3 +352,26 @@ export const CARD_IMAGE_SIZES =
 */
 export const HERO_CARD_IMAGE_SIZES =
   '(max-width: 767px) calc(100vw - 4rem), (min-width: 1536px) 736px, calc(50vw - 3rem)';
+
+/*
+  ─── AND THE FEATURED SHELF IS NOT IN THE CARD GRID EITHER ─────────────────
+
+  The tentpole row's cards are `min(90vw, 560px)` — 75% wider than the 320px
+  browse cards, so that the shelf reads as the thing to look at. The `sizes`
+  did not follow: `CARD_IMAGE_SIZES` promises the browser `360px` above 1536,
+  so it fetched a 360px rendition for a 560px box. A 1.56x upscale, 3.1x on a
+  2x display, and the cards looked soft at exactly the size meant to show them
+  off.
+
+  This is the SECOND time the same mistake has been made — see the hero note
+  above, where a 360px rendition went into a 768px box. Both times the cause was
+  reusing a correct string somewhere it does not describe. A `sizes` is a claim
+  about the CSS; change one and the other is already wrong.
+
+  Mirrors `.feed-row--prestige .feed-row-item` in FeedGrid.astro exactly. The
+  breakpoint is 622px because that is where 90vw stops being the smaller of the
+  two (560 / 0.9).
+*/
+export const FEATURED_CARD_IMAGE_SIZES =
+  '(max-width: 622px) 90vw, ' +
+  '(min-width: 3400px) 860px, (min-width: 2560px) 760px, (min-width: 1920px) 660px, 560px';

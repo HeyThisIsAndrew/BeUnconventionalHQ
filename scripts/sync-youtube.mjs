@@ -168,6 +168,11 @@ export function planVideoSync(video, match, existingDoc, now = new Date()) {
     coverageType: existingDoc?.coverageType ?? '',
     series: existingDoc?.series ?? '',
     editorialNotes: existingDoc?.editorialNotes ?? '',
+    /* Ordering override. Publish order and episode order are different things:
+       the Lanterns ep 2 review went out after the ep 3 review, so by date the
+       row read 5, 4, 2, 3. Carried forward explicitly, like every editorial
+       field here, or a sync run would drop it. */
+    sortDate: existingDoc?.sortDate ?? '',
 
     // Taxonomy fields
     topics,
