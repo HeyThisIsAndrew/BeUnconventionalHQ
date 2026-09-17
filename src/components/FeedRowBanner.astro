@@ -12,32 +12,36 @@
  * the thing a streaming service's tentpole shelf actually has, which is the
  * title's own artwork rather than its name set in the site's typeface.
  *
- * ─── THE LOGO REPLACES THE LOCKUP, IT DOES NOT JOIN IT ──────────────────────
- * A series logo of the kind a studio ships already carries its publisher's mark
- * (Lanterns' has the DC roundel above the wordmark). The row heading below also
- * renders that roundel, and the eyebrow names the hub in words. Rendering all
- * three is the same repetition CLAUDE.md records on the event hero, where one
- * event's mark appeared three times on one screen.
+ * ─── THE BANNER IS ARTWORK. THE ROW STILL OWNS ITS HEADING ──────────────────
+ * This shipped once with the logo bottom-LEFT, standing in for the row's whole
+ * lockup: the eyebrow, the publisher badge, the divider and the title all moved
+ * up onto the artwork. The reasoning was that a studio logo already carries its
+ * publisher's mark, so drawing DC again beside it was repetition.
  *
- * So where a `logo` is supplied it stands in for the badge, the divider and the
- * title. The <h2> survives as screen-reader-only text: the row still has to
- * have a heading, it just does not need to be drawn twice.
+ * The owner's call, seeing it on the real art, is that it reads worse: the
+ * tentpole row then had a different heading treatment from every other row on
+ * the page, and the artwork was carrying text that belongs with the rail.
+ *
+ * So the banner is now just the art with the title's logo on the RIGHT, and the
+ * row head below it renders the same eyebrow / badge / title lockup it does
+ * everywhere else. The duplication is accepted deliberately: consistency across
+ * the shelves is worth more here than one fewer appearance of the mark.
  */
 import { Image } from 'astro:assets';
 
 interface Props {
   /** Key art, imported from src/assets/rows. Null renders nothing at all. */
   art: ImageMetadata | null;
-  /** The title's own logo. Null falls back to the title set in type. */
+  /** The title's own logo. Null renders the art alone. */
   logo?: ImageMetadata | null;
-  eyebrow: string;
+  /** Alt text for the logo, and nothing else: the visible heading is the row's. */
   title: string;
   /** `R, G, B` — the row's accent, for the wash under the lockup. Null where a
       row has no accent of its own; the CSS default covers it. */
   accentRgb?: string | null;
 }
 
-const { art, logo = null, eyebrow, title, accentRgb = null } = Astro.props;
+const { art, logo = null, title, accentRgb = null } = Astro.props;
 ---
 
 {art && (
@@ -60,25 +64,21 @@ const { art, logo = null, eyebrow, title, accentRgb = null } = Astro.props;
 
     <div class="feed-row-banner-scrim" aria-hidden="true"></div>
 
-    <div class="feed-row-banner-lockup">
-      <span class="feed-row-banner-eyebrow">{eyebrow}</span>
-      {logo ? (
-        <>
-          <Image
-            src={logo}
-            alt={title}
-            class="feed-row-banner-logo"
-            widths={[400, 800, 1200]}
-            sizes="(max-width: 899px) 60vw, 460px"
-            loading="lazy"
-            decoding="async"
-          />
-          <h2 class="sr-only">{title}</h2>
-        </>
-      ) : (
-        <h2 class="feed-row-banner-title">{title}</h2>
-      )}
-    </div>
+    {logo && (
+      <div class="feed-row-banner-lockup">
+        {/* No heading element here. The row head below carries the real <h2>,
+            so a second one would announce the same row twice. */}
+        <Image
+          src={logo}
+          alt={title}
+          class="feed-row-banner-logo"
+          widths={[400, 800, 1200]}
+          sizes="(max-width: 899px) 60vw, 460px"
+          loading="lazy"
+          decoding="async"
+        />
+      </div>
+    )}
   </div>
 )}
 
@@ -130,8 +130,10 @@ const { art, logo = null, eyebrow, title, accentRgb = null } = Astro.props;
     it. It has to reach alpha 1 and hold: at 0.95 a band of the art shows at the
     seam, which is the same failure CLAUDE.md records on the hub backdrops.
 
-    The horizontal one is legibility for the lockup, and it carries the row's
+    The horizontal one is legibility for the mark, and it carries the row's
     accent rather than plain black so the strip agrees with the wash below it.
+    It runs to the RIGHT, following the mark: it used to darken the left, which
+    is where the lockup was before the row took its heading back.
   */
   .feed-row-banner-scrim {
     position: absolute;
@@ -143,37 +145,32 @@ const { art, logo = null, eyebrow, title, accentRgb = null } = Astro.props;
         rgba(10, 10, 10, 0.72) 14%,
         rgba(10, 10, 10, 0.28) 34%,
         transparent 62%),
-      linear-gradient(to right,
-        rgba(6, 18, 14, 0.82) 0%,
-        rgba(6, 18, 14, 0.46) 26%,
-        rgba(6, 18, 14, 0.12) 48%,
+      linear-gradient(to left,
+        rgba(6, 18, 14, 0.78) 0%,
+        rgba(6, 18, 14, 0.42) 26%,
+        rgba(6, 18, 14, 0.10) 48%,
         transparent 68%),
-      radial-gradient(70% 90% at 14% 78%,
+      radial-gradient(70% 90% at 86% 72%,
         rgba(var(--banner-rgb, 16, 185, 129), 0.20) 0%,
         transparent 72%);
   }
 
+  /*
+    Right-hand end, bottom-aligned. Bottom rather than centred because the art's
+    right side is where the standing figure and the sun are: a mark across the
+    middle of it sits on the subject, and down here it sits on the water.
+
+    The gutter matches the page container's, so the mark lines up with the end of
+    the rail below rather than with the raw viewport edge.
+  */
   .feed-row-banner-lockup {
     position: absolute;
     left: 0;
     right: 0;
     bottom: clamp(0.85rem, 2vw, 1.6rem);
-    /* Matches the page container's gutter so the lockup lines up with the first
-       card in the rail below rather than with the viewport edge. */
     padding-inline: clamp(1rem, 4vw, 3rem);
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: clamp(0.4rem, 1vw, 0.75rem);
-  }
-
-  .feed-row-banner-eyebrow {
-    font-family: var(--font-body);
-    font-size: clamp(0.58rem, 1.1vw, 0.72rem);
-    font-weight: 700;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.82);
+    justify-content: flex-end;
   }
 
   /*
@@ -186,24 +183,12 @@ const { art, logo = null, eyebrow, title, accentRgb = null } = Astro.props;
     width: auto;
     max-width: min(78%, 460px);
     object-fit: contain;
-    object-position: left bottom;
-  }
-
-  /* The fallback where a title has no logo on file. */
-  .feed-row-banner-title {
-    margin: 0;
-    font-family: var(--font-display, sans-serif);
-    font-size: clamp(1.6rem, 4.5vw, 3.2rem);
-    font-weight: 900;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    color: #fff;
-    line-height: 1;
+    object-position: right bottom;
   }
 
   @media (max-width: 560px) {
     /* The art is 16:9 and this is a 2:1-ish crop on a phone, so the centre band
-       is all that survives. Pulling the lockup in keeps it off the edge. */
+       is all that survives. Pulling the mark in keeps it off the edge. */
     .feed-row-banner-lockup {
       padding-inline: 1.25rem;
     }

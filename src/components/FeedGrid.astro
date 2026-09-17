@@ -1296,17 +1296,6 @@ const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) :
   }
 
   /* The fallback, for a hub with no mark on file: its name as a lettermark. */
-  /*
-    With a banner above it the head has nothing on its left: the eyebrow and the
-    title are up on the artwork. `space-between` would then push the actions to
-    the right anyway, but only by accident of there being one child — stating it
-    means the row does not re-flow if anything is ever added back.
-  */
-  .feed-row-head--banner {
-    justify-content: flex-end;
-    padding-top: clamp(0.6rem, 1.4vw, 1rem);
-  }
-
   .prestige-badge {
     flex-shrink: 0;
     padding: 0.2rem 0.55rem;
@@ -1459,20 +1448,21 @@ const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) :
             <FeedRowBanner
               art={prestigeBannerArt}
               logo={prestigeBannerLogo}
-              eyebrow={prestigeEyebrow}
               title={prestigeRow.title}
               accentRgb={prestigeRow.accentRgb}
             />
           )}
 
-          <div
-            class:list={[
-              'feed-row-head',
-              'feed-row-head--prestige',
-              { 'feed-row-head--banner': !!prestigeBannerArt },
-            ]}
-          >
-            {!prestigeBannerArt && (
+          {/*
+            THE HEAD RENDERS ITS LOCKUP EVEN WHEN THERE IS ART ABOVE IT.
+
+            It shipped once gated on `!prestigeBannerArt`, with the eyebrow and
+            the title moved up onto the banner. That gave the tentpole row a
+            different heading treatment from every other row on the page, and
+            put text that belongs with the rail onto the artwork. Reverted on
+            the owner's call after seeing it on the real key art.
+          */}
+          <div class="feed-row-head feed-row-head--prestige">
             <div class="prestige-brand-lockup">
               <span class="prestige-eyebrow">{prestigeEyebrow}</span>
               <div class="prestige-title-group">
@@ -1491,7 +1481,6 @@ const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) :
                 <h2 class="feed-row-title prestige-title">{prestigeRow.title}</h2>
               </div>
             </div>
-            )}
 
             <div class="prestige-actions">
               {prestigeHub && (
