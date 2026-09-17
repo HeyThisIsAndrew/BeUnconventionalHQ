@@ -311,17 +311,23 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
       >
         <div class="hub-stage-mark hub-stage-mark--art">
            {/* Fallback image if no video */}
+           {/* alt="" ON PURPOSE. Both are decorative: the fill is a blurred,
+               darkened copy that only shows in the gutters, and the front one
+               repeats artwork the headline beside it already names. An empty
+               alt takes them out of the accessibility tree; omitting the
+               attribute entirely leaves them in it with no name, which is what
+               Lighthouse's image-alt audit was reporting. */}
            <img
               id="hero-image"
               src={itemBg}
+              alt=""
               class="hub-stage-art-fill"
-              
            />
            <img
               id="hero-image-front"
               src={itemBg}
+              alt=""
               class="hub-stage-art-img"
-              
            />
            
            
@@ -642,7 +648,7 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
        perception floor and read as static. 1.08/30s is ambient but alive —
        don't retune blind; verify any change with the 2s/1.5x debug values
        (see d1db593). */
-    animation: none; 30s ease-in-out infinite alternate;
+    animation: cinematic-hero-zoom 30s ease-in-out infinite alternate;
   }
   /* Scale never drops below 1, so the image always covers the wrapper — no
      exposed edges at any point in the cycle. */

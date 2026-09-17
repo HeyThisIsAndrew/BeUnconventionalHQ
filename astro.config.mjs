@@ -589,9 +589,20 @@ export default defineConfig({
   ],
 
   experimental: {
-    // Upgrades prefetch from fetch-only to the Speculation Rules API so
-    // hovered links are prerendered and parsed in Chromium-based browsers,
-    // making subsequent ClientRouter navigations instantaneous.
+    // OFF, and the comment here used to describe the opposite.
+    //
+    // On it upgrades prefetch from fetch-only to the Speculation Rules API, so
+    // a hovered link is prerendered and parsed in a hidden tab. Paired with
+    // `prefetchAll: true` above, that is EVERY link on the page, and on mobile
+    // the hover that triggers it is a touchstart. The hypothesis for the
+    // reported 1-2s delay between tapping a control and the transition
+    // starting is that Chrome holds the navigation until the speculative
+    // prerender of a heavy page reaches a presentable state.
+    //
+    // NOT YET CONFIRMED ON A DEVICE. It is a plausible cause with a cheap
+    // remedy: ClientRouter's own fetch still makes navigation fast, so turning
+    // this off costs little even if the delay turns out to be something else.
+    // Measure on real hardware before treating it as solved.
     clientPrerender: false,
     // Optimizes imported SVGs at build time using SVGO, eliminating redundant
     // metadata and whitespace without runtime client JS overhead.
