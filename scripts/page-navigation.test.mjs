@@ -523,9 +523,16 @@ test('a featured tile hands its show\'s artwork to the hero', () => {
 
   /* And the shelf must actually pass it, at a size fit for a hero backdrop
      rather than the 2560px master the banner uses. */
-  assert.match(grid, /const prestigeBrand = prestigeBannerArt/, 'the row must build the override');
-  assert.match(grid, /getImage\(\{ src: prestigeBannerArt, width: \d+ \}\)/, 'the backdrop must be resized');
-  assert.match(grid, /brandOverride=\{prestigeBrand\}/, 'the tiles must carry it');
+  /* `prestigeBrand` became `seriesBrand` when the shelf stopped being a
+     hardcoded constant and started reading the composition. The behaviour is
+     identical; only the identifier moved. */
+  assert.match(grid, /const seriesBrand = seriesBannerArt/, 'the shelf must build the override');
+  assert.match(grid, /getImage\(\{ src: seriesBannerArt, width: \d+ \}\)/, 'the backdrop must be resized');
+  assert.match(grid, /brandOverride=\{seriesBrand\}/, 'the tiles must carry it');
+
+  /* And the art must be found by CONVENTION rather than by name, or the shelf
+     is hardcoded again the moment a second series wants a banner. */
+  assert.match(grid, /rowArt\(`\$\{seriesRow\.slug\}-key-art`\)/, 'banner art is looked up from the series slug');
 });
 
 /*

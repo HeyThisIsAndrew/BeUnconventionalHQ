@@ -9,10 +9,24 @@ import { resolveEntity, hexToRgbTriple } from '../lib/entity-resolver';
 import { getHubMatchTags, matchVideosByTags } from '../lib/hub-coverage';
 import CommercialRotator from './CommercialRotator.astro';
 import FloatingPageNav from './FloatingPageNav.astro';
+import type { FeedComposition } from '../lib/feed-composition';
 
 export interface Props {
   page: any;
   allItems: any[];
+  /**
+   * 'rows'    every row this component can build, for the ARCHIVE routes
+   *           (/feed/videos, /feed/articles). Comprehensive by design.
+   * 'curated' the composed front door, for /feed. Each item placed once.
+   *
+   * The two are different jobs, so they are different modes rather than one
+   * render with a filter: the archive's job is to be complete and the front
+   * door's job is to be edited, and a switch that tried to be both would end up
+   * being neither.
+   */
+  mode?: 'rows' | 'curated';
+  /** Required in 'curated' mode. Built by composeFeed() on the page. */
+  composition?: FeedComposition | null;
 }
 
 /*
@@ -21,7 +35,8 @@ export interface Props {
   it: the flat grid that consumed `page.data` is gone, and the rows render from
   `allItems` — the whole feed, not a page of it.
 */
-const { allItems = [] } = Astro.props;
+const { allItems = [], mode = 'rows', composition = null } = Astro.props;
+const isCurated = mode === 'curated' && Boolean(composition);
 const safeAllItems = Array.isArray(allItems) ? allItems : [];
 
 /*
@@ -83,6 +98,10 @@ const hubEvents = getEventsLocal();
   and which `resolveEntity()` could not express on its own since it returns one
   best hub per item.
 */
+/* --color-accent in the global tokens. The last rung of the shelf's accent
+   chain, so a series with no accent and no usable hub colour is still lit. */
+const SITE_ACCENT = '#cc0000';
+
 const slugOfDoc = (doc: any) =>
   typeof doc?.slug === 'string' ? doc.slug : doc?.slug?.current ?? null;
 
@@ -131,27 +150,11 @@ const matchesHub = (item: any, slug: string) => {
 };
 
 /*
-  ─── A TAG MATCH HAS TO READ BOTH TAG FIELDS ───────────────────────────────
-
-  Videos carry `youtubeTags` (raw YouTube tags) and articles carry `tags`
-  (Substack post tags). They are different fields because they come from
-  different syncs, and an item only ever has one of them.
-
-  Reading `youtubeTags` alone made every tag-matched row video-only without
-  looking like it: the Lanterns row showed five videos and silently dropped the
-  two Lanterns articles, which are tagged "Lanterns" in `tags`. Nothing was
-  broken on screen, the row was just quietly incomplete.
-
-  Compared lower-case because the two sources disagree on case for the same
-  tag: YouTube has "lanterns", Substack has "Lanterns".
+  The `hasTag()` helper that stood here matched an item against a literal tag
+  name, and its only caller was the hardcoded Lanterns shelf. Series membership
+  is decided by `inSeries()` in src/lib/feed-composition.ts now, which reads the
+  editor's `series` field first and falls back to the same two tag fields.
 */
-const hasTag = (item: any, tag: string) => {
-  const wanted = tag.toLowerCase();
-  const pools = [item?.youtubeTags, item?.tags];
-  return pools.some(
-    (pool) => Array.isArray(pool) && pool.some((t: any) => String(t).toLowerCase() === wanted),
-  );
-};
 
 interface RowDef {
   id: string;
@@ -193,28 +196,31 @@ interface SectionDef {
 }
 
 /*
-  ─── THE TENTPOLE ROW SITS OUTSIDE THE SECTIONS ────────────────────────────
+  ─── THE FEATURED SERIES IS DATA NOW, NOT A CONSTANT ───────────────────────
 
-  Lanterns is a single title, not a franchise or a streamer, so it belongs to
-  none of the three sections below. It keeps its prestige treatment and leads
-  the page. Delete this one line to remove it; nothing else refers to it.
+  This was a `PRESTIGE_ROW` literal: `id: 'lanterns'`, an emerald hex typed in
+  by hand, asset basenames spelled out, and `match: (i) => hasTag(i, 'lanterns')`.
+  Pointing the shelf at another show meant editing this file and committing an
+  asset, which an editor cannot do.
+
+  The shelf now renders whatever `composeFeed()` selected (src/lib/feed-composition.ts),
+  which reads the `series` field an editor sets in the CMS. Nothing here knows
+  which series that is.
+
+  ─── ARTWORK IS A NAMING CONVENTION, NOT A TABLE ───────────────────────────
+
+  A series named "The Umbrella Academy" looks for
+  src/assets/rows/the-umbrella-academy-key-art.(jpg|png|webp) and
+  ...-logo.png. Drop the files in and the banner appears; leave them out and the
+  shelf renders its text lockup exactly as every other row does. No code change
+  either way, which is the whole requirement.
 */
-const PRESTIGE_ROW: RowDef = {
-  id: 'lanterns',
-  title: 'Lanterns',
-  variant: 'prestige',
-  /* The show's signature emerald. Named here because no hub document carries
-     it — `lanterns` is not a slug in the store. */
-  accentColor: '#10B981',
-  /*
-    Drop the files in as src/assets/rows/lanterns-key-art.(jpg|png|webp) and
-    lanterns-logo.png and the banner appears. Until then the shelf renders
-    exactly as it did before, with its text lockup.
-  */
-  bannerArt: 'lanterns-key-art',
-  bannerLogo: 'lanterns-logo',
-  match: (i) => hasTag(i, 'lanterns'),
-};
+const seriesSlug = (name: string) =>
+  String(name)
+    .toLowerCase()
+    .replace(/[\u2018\u2019']/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 
 /*
   ─── ROW ARTWORK, RESOLVED AT BUILD TIME ───────────────────────────────────
@@ -458,11 +464,108 @@ function spreadByArtwork(items: any[]): any[] {
   return out;
 }
 
-const prestigeRow = (() => {
-  const built = buildRow(PRESTIGE_ROW);
-  if (built.items.length === 0) return null;
-  return { ...built, items: spreadByArtwork(built.items) };
+/*
+  ─── THE SHELF, BUILT FROM THE COMPOSITION ─────────────────────────────────
+
+  `spreadByArtwork` still applies: the channel reuses one thumbnail across a run
+  of episode reviews, so a chronological series row put four visually identical
+  tiles side by side and read as a rendering fault rather than as four episodes.
+*/
+const seriesRow = (() => {
+  if (!isCurated || !composition?.series) return null;
+  const { name, items } = composition.series;
+  return { name, items: spreadByArtwork(items), slug: seriesSlug(name) };
 })();
+
+/*
+  ─── THE SHELF NAMES ITS OWN HUB ───────────────────────────────────────────
+
+  The badge, the Explore link and the second half of the eyebrow are resolved
+  from the row's own items. The shelf is driven by an editor's `series` value,
+  so hardcoding a hub here would mean pointing it at another show and shipping a
+  row that still named the old one.
+
+  THE ACCENT COMES FROM THAT HUB TOO. It used to be a hex constant typed into
+  this file for one show. A colour nobody can edit is not a theme, it is a
+  hardcode with a nicer name, so the wash now reads the hub's own `brandColor`,
+  which is already CMS-editable and already lights every other branded row.
+*/
+const seriesHub = seriesRow
+  ? seriesRow.items.reduce<ReturnType<typeof resolveEntity>>(
+      (found, item) => found ?? resolveEntity(item, { brands: hubBrands, events: hubEvents, urlFor }),
+      null,
+    )
+  : null;
+
+const seriesAccent = (() => {
+  /*
+    ─── THE SHELF IS THEMED FOR THE SHOW, NOT FOR ITS STUDIO ─────────────────
+
+    A series is not its hub. Lanterns is a DC property and DC's brandColor is
+    blue, but the show's own identity is emerald, and this shelf IS the show:
+    its key art above it, its logo on the banner, its episodes in the rail.
+    Resolving the wash from the hub alone turned it blue, which is the studio's
+    colour on the studio's row, not the show's on the show's.
+
+    Three rungs, each a real fallback rather than a guess:
+
+      1. `seriesAccent`, read from ANY member of the series, so the theme
+         survives the flagged item changing or being retired.
+      2. The hub's `brandColor`, which is how every other branded row on this
+         page is lit and is already CMS-editable.
+      3. The site accent, so the featured shelf is ALWAYS lit. An unlit shelf is
+         correct for an ordinary row whose brand is white, and wrong here: this
+         one has a banner and a lockup above it, and dropping the wash leaves a
+         half-finished treatment rather than a clean one.
+
+    White is skipped at rung 2 for the reason it is skipped everywhere else on
+    this page: over a near-black ground it is not an accent, it is grey fog.
+  */
+  const fromSeries = seriesRow?.items
+    .map((item: any) => (typeof item?.seriesAccent === 'string' ? item.seriesAccent.trim() : ''))
+    .find((hex: string) => /^#[0-9a-f]{6}$/i.test(hex));
+
+  const rawHub = (seriesHub as any)?.color;
+  const hubHex = typeof rawHub === 'string' ? rawHub : rawHub?.hex ?? null;
+  const usableHub = hubHex && hubHex.toLowerCase() !== '#ffffff' ? hubHex : null;
+
+  const hex = fromSeries || usableHub || SITE_ACCENT;
+  return { color: hex, rgb: hexToRgbTriple(hex) };
+})();
+
+/* "MAX ORIGINAL SERIES" is not ours to assert. The eyebrow names the hub we
+   actually resolved, and falls back to a neutral line when we resolved none. */
+const seriesEyebrow = seriesHub
+  ? `FEATURED SERIES \u2022 ${seriesHub.title.toUpperCase()}`
+  : 'FEATURED SERIES';
+
+/*
+  The banner is all-or-nothing. With key art the strip renders; without, the
+  shelf keeps the text lockup every other row has. There is deliberately no half
+  state where a logo floats over the page with no art behind it.
+*/
+const seriesBannerArt = seriesRow ? rowArt(`${seriesRow.slug}-key-art`) : null;
+const seriesBannerLogo = seriesBannerArt && seriesRow ? rowArt(`${seriesRow.slug}-logo`) : null;
+
+/*
+  ─── A FEATURED TILE CARRIES THE SHOW, NOT THE HUB ─────────────────────────
+
+  These items resolve to their hub, so promoting one into the spotlight hero
+  filled it with the hub's key art and roundel, under a banner showing the
+  show's own logo. The row and the hero it drives disagreed about what you were
+  looking at. Where the shelf has artwork of its own, its tiles hand that to the
+  hero instead. Sized here rather than passing the raw import: the hero backdrop
+  is a full-bleed plate and the 2560px master is waste.
+*/
+const seriesBrand = seriesBannerArt
+  ? {
+      title: seriesRow?.name,
+      hero: (await getImage({ src: seriesBannerArt, width: 1600 })).src,
+      logo: seriesBannerLogo
+        ? (await getImage({ src: seriesBannerLogo, width: 640 })).src
+        : undefined,
+    }
+  : null;
 
 /*
   ─── THE GLOBAL ROWS DE-DUPLICATE, AND ONLY THEY DO ────────────────────────
@@ -515,71 +618,75 @@ const feedSections = SECTION_DEFS
   })
   .filter((section) => section.rows.length > 0);
 
-const hasRows = Boolean(prestigeRow) || feedSections.length > 0;
+/*
+  The archive routes render every row this component can build. /feed does not
+  reach here at all: its sections are the curated levels below.
+*/
+const hasRows = !isCurated && feedSections.length > 0;
 
 /*
-  ─── THE TENTPOLE SHELF NAMES ITS OWN HUB ──────────────────────────────────
+  ─── THE CURATED LEVELS ────────────────────────────────────────────────────
 
-  The badge, the Explore link and the second half of the eyebrow are all
-  resolved from the row's own items rather than typed in as "DC". The shelf is
-  driven by one line in PRESTIGE_ROW, so hardcoding DC here would mean pointing
-  it at another show later and shipping a row that still said DC.
+  Rendered in editorial order, each from what `composeFeed()` handed over. A
+  level whose list is empty is dropped rather than shipped as a bare heading
+  over nothing, which is what "budgets are ceilings, not quotas" looks like at
+  render time.
 
-  The hub is taken from the first item that resolves to one, which for Lanterns
-  is DC (see resolveEntity: among hbo-max / dc-comics / warner-bros, the item's
-  own display tag decides). If nothing resolves, the badge, the divider and the
-  link are all omitted and the shelf degrades to its title alone.
+  These use the SAME `.feed-row` markup as the archive rows, deliberately: this
+  is an information-architecture pass, not a visual redesign, and a second set
+  of card and rail styles would be exactly the drift this file has been cleaned
+  of twice already.
 */
-const prestigeHub = prestigeRow
-  ? prestigeRow.items.reduce<ReturnType<typeof resolveEntity>>(
-      (found, item) => found ?? resolveEntity(item, { brands: hubBrands, events: hubEvents, urlFor }),
-      null,
-    )
-  : null;
-
-/* "MAX ORIGINAL SERIES" is not ours to assert — the distributor is whatever the
-   item's hubs say. The eyebrow names the hub we actually resolved, and falls
-   back to a neutral line when we resolved none. */
-const prestigeEyebrow = prestigeHub
-  ? `FEATURED SERIES \u2022 ${prestigeHub.title.toUpperCase()}`
-  : 'FEATURED SERIES';
+const curatedLevels = isCurated
+  ? [
+      { id: 'latest', title: 'The Latest', items: composition!.latest, cta: null },
+      {
+        id: 'videos',
+        title: 'Latest Videos',
+        items: composition!.videos,
+        cta: { href: '/feed/videos', label: 'VIEW ALL VIDEOS' },
+      },
+      {
+        id: 'articles',
+        title: 'Latest Articles',
+        items: composition!.articles,
+        cta: { href: '/feed/articles', label: 'VIEW ALL ARTICLES' },
+      },
+    ].filter((level) => level.items.length > 0)
+  : [];
 
 /*
-  The banner is all-or-nothing. With key art the strip renders and takes the
-  eyebrow and the title with it; without, the shelf keeps the text lockup it has
-  always had. There is deliberately no half state where a logo floats over the
-  page with no art behind it.
+  ─── EXPLORE IS NAVIGATION, NOT A SIXTH HELPING OF THE SAME STORIES ────────
+
+  This section used to be four more rows of cards drawn from the same list,
+  which is most of how one Lanterns review reached six placements. It carries
+  NO story cards now. Each tile is a destination with a count, and the count is
+  the only thing it borrows from the feed: how much is waiting there.
+
+  Destinations are the archive routes that already exist and are already
+  paginated. Nothing new was built to receive these links.
 */
-const prestigeBannerArt = prestigeRow ? rowArt(PRESTIGE_ROW.bannerArt) : null;
-const prestigeBannerLogo = prestigeBannerArt ? rowArt(PRESTIGE_ROW.bannerLogo) : null;
+const exploreTiles = isCurated
+  ? [
+      { id: 'film', label: 'Film', href: '/category/film', count: safeAllItems.filter((i) => hasTopic(i, 'film')).length },
+      { id: 'tv', label: 'TV', href: '/category/tv', count: safeAllItems.filter((i) => hasTopic(i, 'tv')).length },
+      { id: 'games', label: 'Games', href: '/category/games', count: safeAllItems.filter((i) => hasTopic(i, 'games')).length },
+      { id: 'events', label: 'Events', href: '/events', count: safeAllItems.filter((i) => hasTopic(i, 'events')).length },
+      { id: 'franchises', label: 'Franchises', href: '/featured', count: hubBrands.length },
+    ].filter((tile) => tile.count > 0)
+  : [];
 
-/*
-  ─── A FEATURED ROW'S TILES CARRY THE SHOW, NOT THE HUB ────────────────────
+const navItems = isCurated
+  ? [
+      ...(seriesRow ? [{ id: 'featured-series', text: 'Featured Series', level: 2 }] : []),
+      ...curatedLevels.map((l) => ({ id: l.id, text: l.title, level: 2 })),
+      ...(exploreTiles.length > 0 ? [{ id: 'explore', text: 'Explore', level: 2 }] : []),
+    ]
+  : feedSections.map((s) => ({ id: s.id, text: s.title, level: 2 }));
 
-  These items resolve to DC, because that is the hub that owns them, so
-  promoting one into the spotlight hero filled it with DC's key art and the DC
-  roundel — under a banner that says LANTERNS in the show's own logo. The row
-  and the hero it drives disagreed about what you were looking at.
-
-  Where the row has artwork of its own, its tiles hand that to the hero
-  instead. Sized here rather than passing the raw import: the hero backdrop is
-  a full-bleed plate, and shipping the 2560px master to it is the same waste
-  the entity resolver's own note is about.
-
-  Only the look and the name are overridden. The Explore CTA still points at
-  /featured/dc-comics, because the show has no page of its own.
-*/
-const prestigeBrand = prestigeBannerArt
-  ? {
-      title: prestigeRow?.title,
-      hero: (await getImage({ src: prestigeBannerArt, width: 1600 })).src,
-      logo: prestigeBannerLogo
-        ? (await getImage({ src: prestigeBannerLogo, width: 640 })).src
-        : undefined,
-    }
-  : null;
-
-const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
+/* In curated mode the archive sections are not built at all, so the page has
+   content when the composition produced any level. */
+const hasCuratedContent = Boolean(seriesRow) || curatedLevels.length > 0;
 ---
 
 <style>
@@ -663,6 +770,90 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
 
   .feed-section {
     margin-bottom: 3.5rem;
+  }
+
+  /*
+    ─── EXPLORE TILES ────────────────────────────────────────────────────────
+
+    Destinations, not stories. Deliberately built from the tokens already in
+    use on this page: the same hairline border as `.feed-section-head`, the
+    same uppercase tracking as `.feed-row-title`, the same accent-text red on
+    hover as `.feed-hub-link`. No new colour, no new type scale, no gradient
+    and no shadow, because this is an information-architecture pass.
+
+    `auto-fit` with a `minmax` floor rather than a fixed column count: five
+    tiles sit in one row on a desktop, wrap to two or three on a tablet and
+    stack on a phone, with no per-breakpoint rules to keep in step.
+  */
+  .feed-explore-grid {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+    gap: 1px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .feed-explore-tile {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 5.5rem;
+    padding: 1.25rem 1.1rem;
+    background: var(--color-surface, #111111);
+    color: inherit;
+    text-decoration: none;
+    transition: background 180ms ease, color 180ms ease;
+  }
+
+  .feed-explore-label {
+    font-family: var(--font-heading, 'Inter', sans-serif);
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .feed-explore-count {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-white-muted, #888888);
+    margin-inline-start: auto;
+  }
+
+  /* The arrow is the only thing that moves, and it moves the same 3px the
+     Explore links in the row headings already move. */
+  .feed-explore-arrow {
+    flex-shrink: 0;
+    transition: transform 180ms ease;
+  }
+
+  .feed-explore-tile:hover,
+  .feed-explore-tile:focus-visible {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--color-accent-text, #ef4444);
+  }
+
+  .feed-explore-tile:hover .feed-explore-arrow,
+  .feed-explore-tile:focus-visible .feed-explore-arrow {
+    transform: translateX(3px);
+  }
+
+  .feed-explore-tile:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: -2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .feed-explore-tile,
+    .feed-explore-arrow {
+      transition: none;
+    }
+    .feed-explore-tile:hover .feed-explore-arrow {
+      transform: none;
+    }
   }
 
   /*
@@ -1435,13 +1626,28 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
     min-width: 0;
   }
 
+  /*
+    ─── THE SHELF'S TYPE IS NEUTRAL, THE WASH CARRIES THE BRAND ──────────────
+
+    The eyebrow, title, divider and hub link were tinted with literal mint
+    hexes (#d7f7e6, #eafff4, rgba(215,247,230)) sampled from ONE show's key art,
+    and the title's glow fell back to that show's emerald. A shelf that can
+    point at any series cannot keep a colour that suits only one of them: the
+    day it pointed at something else, the mint would have stayed and read as a
+    bug nobody could find a cause for.
+
+    Colour comes from `--row-accent-rgb` now, which is the hub's own
+    CMS-editable `brandColor`, exactly like every other lit row on this page.
+    The type is plain white and lets the wash behind it do the work.
+  */
   .prestige-eyebrow {
     font-family: var(--font-body);
     font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.22em;
     text-transform: uppercase;
-    color: rgba(215, 247, 230, 0.7);
+    color: rgba(255, 255, 255, 0.72);
+    color: color-mix(in srgb, rgb(var(--row-accent-rgb, 204, 0, 0)) 20%, rgba(255, 255, 255, 0.78));
   }
 
   .prestige-title-group {
@@ -1500,7 +1706,7 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
     background: linear-gradient(
       to bottom,
       transparent,
-      rgba(215, 247, 230, 0.55),
+      color-mix(in srgb, rgb(var(--row-accent-rgb, 204, 0, 0)) 20%, rgba(255, 255, 255, 0.6)),
       transparent
     );
   }
@@ -1510,10 +1716,11 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
     font-size: clamp(1.15rem, 2.1vw, 1.7rem);
     font-weight: 900;
     letter-spacing: 0.1em;
-    color: #d7f7e6;
+    color: var(--color-white, #f0f0f0);
+    color: color-mix(in srgb, rgb(var(--row-accent-rgb, 204, 0, 0)) 18%, #ffffff);
     /* Reads the row's own accent so the mark and the wash behind it can never
        be two different greens. */
-    text-shadow: 0 0 24px rgba(var(--row-accent-rgb, 16, 185, 129), 0.6), 0 2px 18px rgba(0, 0, 0, 0.8);
+    text-shadow: 0 0 24px rgba(var(--row-accent-rgb, 204, 0, 0), 0.6), 0 2px 18px rgba(0, 0, 0, 0.8);
     margin: 0;
     min-width: 0;
   }
@@ -1535,13 +1742,15 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
     letter-spacing: 0.16em;
     text-transform: uppercase;
     text-decoration: none;
-    color: rgba(215, 247, 230, 0.82);
+    color: rgba(255, 255, 255, 0.8);
+    color: color-mix(in srgb, rgb(var(--row-accent-rgb, 204, 0, 0)) 18%, rgba(255, 255, 255, 0.86));
     transition: color 0.25s ease, transform 0.25s ease;
   }
 
   .prestige-hub-link:hover,
   .prestige-hub-link:focus-visible {
-    color: #eafff4;
+    color: #ffffff;
+    color: color-mix(in srgb, rgb(var(--row-accent-rgb, 204, 0, 0)) 10%, #ffffff);
   }
 
   .prestige-hub-link:focus-visible {
@@ -1605,129 +1814,162 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
     titles are h3. Nothing skips a level, which is what axe reports on.
   */}
 
-  {hasRows && (
+  {/*
+    ─── THE CURATED FRONT DOOR ───────────────────────────────────────────────
+
+    /feed only. Every item here was placed by composeFeed() and placed ONCE.
+    This template cannot reach `allItems` for story cards, which is the property
+    being protected: a view that can still re-query can still duplicate.
+  */}
+  {isCurated && hasCuratedContent && (
     <>
       <FloatingPageNav entries={navItems} />
-      <div id="feed-rows" data-hero-banner={prestigeBannerArt ? "" : undefined}>
-      {prestigeRow && (
-        <section
-          class="feed-row feed-row--prestige feed-row--accented"
-          data-row={prestigeRow.id}
-          style={`--row-accent-color: ${prestigeRow.accentColor}; --row-accent-rgb: ${prestigeRow.accentRgb};`}
-        >
-          {/*
-            The tentpole lockup. The plain word "LANTERNS" in green sans-serif
-            was doing none of the work a shelf like this does on a streaming
-            service: it named the show without saying whose it is, where it
-            airs, or where to go next.
+      <div id="feed-rows" data-hero-banner={seriesBannerArt ? "" : undefined}>
 
-            `prestigeHub` is resolved, not hardcoded — the badge, the eyebrow's
-            second half and the Explore link all come from whichever hub the
-            row's own items resolve to, so the day this shelf is pointed at a
-            different show it re-labels itself instead of lying about DC.
-          */}
-          {prestigeBannerArt && (
+      {seriesRow && (
+        <section
+          id="featured-series"
+          class="feed-row feed-row--prestige feed-row--accented"
+          data-row={seriesRow.slug}
+          style={`--row-accent-color: ${seriesAccent.color}; --row-accent-rgb: ${seriesAccent.rgb};`}
+        >
+          {seriesBannerArt && (
             <FeedRowBanner
-              art={prestigeBannerArt}
-              logo={prestigeBannerLogo}
-              title={prestigeRow.title}
-              eyebrow={prestigeEyebrow}
-              accentRgb={prestigeRow.accentRgb}
+              art={seriesBannerArt}
+              logo={seriesBannerLogo}
+              title={seriesRow.name}
+              eyebrow={seriesEyebrow}
+              accentRgb={seriesAccent.rgb}
             />
           )}
 
-          {/*
-            THE HEAD RENDERS ITS LOCKUP EVEN WHEN THERE IS ART ABOVE IT.
-
-            It shipped once gated on `!prestigeBannerArt`, with the eyebrow and
-            the title moved up onto the banner. That gave the tentpole row a
-            different heading treatment from every other row on the page, and
-            put text that belongs with the rail onto the artwork. Reverted on
-            the owner's call after seeing it on the real key art.
-          */}
           <div class="feed-row-head feed-row-head--prestige">
             <div class="prestige-brand-lockup">
-              <span class="prestige-eyebrow">{prestigeEyebrow}</span>
+              <span class="prestige-eyebrow">{seriesEyebrow}</span>
               <div class="prestige-title-group">
-                {prestigeHub?.logo ? (
-                  <img
-                    src={prestigeHub.logo}
-                    alt={prestigeHub.title}
-                    class="prestige-mark"
-                    loading="lazy"
-                    decoding="async"
-                  />
+                {seriesHub?.logo ? (
+                  <img src={seriesHub.logo} alt={seriesHub.title} class="prestige-mark" loading="lazy" decoding="async" />
                 ) : (
-                  prestigeHub && <span class="prestige-badge">{prestigeHub.title}</span>
+                  seriesHub && <span class="prestige-badge">{seriesHub.title}</span>
                 )}
-                {prestigeHub && <span class="prestige-divider" aria-hidden="true"></span>}
-                <h2 class="feed-row-title prestige-title">{prestigeRow.title}</h2>
+                {seriesHub && <span class="prestige-divider" aria-hidden="true"></span>}
+                <h2 class="feed-row-title prestige-title">{seriesRow.name}</h2>
               </div>
             </div>
 
             <div class="prestige-actions">
-              {prestigeHub && (
-                <a href={prestigeHub.url} class="prestige-hub-link">
-                  <span>EXPLORE {prestigeHub.title.toUpperCase()} HUB</span>
+              {seriesHub && (
+                <a href={seriesHub.url} class="prestige-hub-link">
+                  <span>EXPLORE {seriesHub.title.toUpperCase()} HUB</span>
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
                     <path d="M5 12h14M12 5l7 7-7 7" />
                   </svg>
                 </a>
               )}
-            <div class="feed-row-nav" aria-hidden="true">
-              <button type="button" class="feed-row-chevron" data-dir="-1" tabindex="-1">
-                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-                  <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" />
-                </svg>
-              </button>
-              <button type="button" class="feed-row-chevron" data-dir="1" tabindex="-1">
-                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-                  <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" />
-                </svg>
-              </button>
-            </div>
+              <div class="feed-row-nav" aria-hidden="true">
+                <button type="button" class="feed-row-chevron" data-dir="-1" tabindex="-1">
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                    <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" />
+                  </svg>
+                </button>
+                <button type="button" class="feed-row-chevron" data-dir="1" tabindex="-1">
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+                    <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
+
           <ul class="feed-row-rail" data-rail>
-            {prestigeRow.items.map((item: any, index: number) => (
+            {seriesRow.items.map((item: any, index: number) => (
               <li class="feed-row-item">
-                <ContentCard
-                  item={item}
-                  index={index}
-                  context="feed"
-                  variant="featured"
-                  brandOverride={prestigeBrand}
-                />
+                <ContentCard item={item} index={index} context="feed" variant="featured" brandOverride={seriesBrand} />
               </li>
             ))}
           </ul>
         </section>
       )}
 
-      {/*
-        ─── THE PRESTIGE BREAK ────────────────────────────────────────────────
-
-        One rotator, mounted between the tentpole shelf and the chronological
-        sections. That seam is the page's natural pause: the reader has just
-        finished the featured show and has not yet started browsing, so the
-        banner lands between two thoughts rather than interrupting one.
-
-        Exactly one per page, deliberately. The rotator binds by id
-        (#banner-rotator, #banner-progress) and to the first .yt-banner-wrapper
-        it finds, so a second instance would render and never rotate.
-
-        Wrapped in a real class, NOT `my-10 px-4 mx-auto`: Tailwind's spacing
-        utilities do nothing in this project. global-base.css carries an
-        unlayered `* { margin: 0; padding: 0 }`, and unlayered rules beat
-        @layer utilities regardless of specificity — the same trap that left the
-        feed's filter row flush against the hero with `mt-16` on it.
-      */}
-      {prestigeRow && (
+      {seriesRow && (
         <div class="feed-rotator-break">
           <CommercialRotator />
         </div>
       )}
 
+      {curatedLevels.map((level) => (
+        <section class="feed-section" id={level.id} data-section={level.id} aria-labelledby={`feed-section-${level.id}`}>
+          <div class="feed-section-head">
+            <h2 class="feed-section-title" id={`feed-section-${level.id}`}>{level.title}</h2>
+            {level.cta && (
+              <a href={level.cta.href} class="feed-hub-link">
+                <span>{level.cta.label}</span>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </a>
+            )}
+          </div>
+
+          <div class="feed-section-rows">
+            <section class="feed-row" data-row={level.id}>
+              <ul class="feed-row-rail" data-rail>
+                {level.items.map((item: any, index: number) => (
+                  <li class="feed-row-item">
+                    <ContentCard item={item} index={index} context="feed" />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </div>
+        </section>
+      ))}
+
+      {/*
+        ─── EXPLORE CARRIES NO STORIES ───────────────────────────────────────
+
+        Destinations and counts. Nothing here is a story card, which is the
+        whole point: this section used to be four more rows drawn from the same
+        list, and it is most of how one review reached six placements.
+      */}
+      {exploreTiles.length > 0 && (
+        <section class="feed-section" id="explore" data-section="explore" aria-labelledby="feed-section-explore">
+          <div class="feed-section-head">
+            <h2 class="feed-section-title" id="feed-section-explore">Explore The HQ</h2>
+          </div>
+          <ul class="feed-explore-grid">
+            {exploreTiles.map((tile) => (
+              <li>
+                <a class="feed-explore-tile" href={tile.href}>
+                  <span class="feed-explore-label">{tile.label}</span>
+                  <span class="feed-explore-count">
+                    {tile.count} {tile.id === 'franchises' ? (tile.count === 1 ? 'hub' : 'hubs') : (tile.count === 1 ? 'story' : 'stories')}
+                  </span>
+                  <svg class="feed-explore-arrow" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      </div>
+    </>
+  )}
+
+  {/*
+    ─── THE ARCHIVE ROWS ─────────────────────────────────────────────────────
+
+    /feed/videos and /feed/articles. Comprehensive by design: these are the
+    destinations the curated Feed's "VIEW ALL" links point at, so nothing the
+    front door demotes becomes unreachable.
+  */}
+  {hasRows && (
+    <>
+      <FloatingPageNav entries={navItems} />
+      <div id="feed-rows">
+      
       {feedSections.map((section) => (
         <section
           class="feed-section"
@@ -1870,8 +2112,13 @@ const navItems = feedSections.map(s => ({ id: s.id, text: s.title, level: 2 }));
 
     What remains is the honest empty state: if there is genuinely nothing to
     show, say so, rather than rendering an empty page with no explanation.
+
+    IT HAS TO ASK THE RIGHT QUESTION IN BOTH MODES. This read `!hasRows`, and
+    `hasRows` is false on the curated Feed BY DESIGN — that mode builds no
+    archive sections at all. So a fully populated front door printed "No content
+    found" under its last row. Each mode is asked about its own content.
   */}
-  {!hasRows && (
+  {(isCurated ? !hasCuratedContent : !hasRows) && (
     <EmptyState message={MESSAGES.noContent} actionLabel={LABELS.viewAllContent} actionHref="/feed" />
   )}
 </div>
