@@ -563,27 +563,27 @@ test('the contents rail tracks the section you jumped to', () => {
   assert.match(nav, /setActive\(id\);/, 'the clicked entry lights immediately');
 
   /*
-    ─── ONE MOVEMENT, AIMED AFTER THE LAYOUT SETTLES ─────────────────────────
+    ─── IT SWITCHES, IT DOES NOT TRAVEL ──────────────────────────────────────
 
-    The first attempt scrolled immediately and then again 350ms later to correct
-    for images landing above the fold. It corrected, and the reader saw TWO
-    jumps — reported as "it is not smoothly scrolling it jumps around".
+    Two animated versions were tried and both were worse than none. Scrolling
+    instantly then correcting 350ms later showed two jumps; scrolling smoothly
+    after a settle wait measured clean and still read as unsteady in use.
 
-    So the order is reversed: wait for the target to stop moving, then scroll
-    once. Measured on the reported case (1st entry -> 5th on the Resident Evil
-    article): 61 scroll events, 0 direction reversals, landing on target.
+    The owner chose the simple answer: switch to the selection. An instant jump
+    has no frames in which to stutter and nothing to tune. Aiming is kept,
+    because a native anchor resolves against the layout as it is at that
+    instant and the first click of a cold load landed 750px off.
   */
   assert.match(nav, /event\.preventDefault\(\)/, 'the browser jump is replaced by one we control');
-  assert.match(nav, /const whenStable = \(\) =>/, 'the target must stop moving before it is aimed at');
   assert.match(
     nav,
-    /behavior: reduced \? 'auto' : 'smooth'/,
-    'the movement is smooth, and instant only when motion is reduced',
+    /const jumpWhenAimed = \(attempt(: number)?\) =>/,
+    'the target must stop moving before it is aimed at',
   );
   assert.doesNotMatch(
     nav,
-    /jump\(\);\s*\n\s*window\.setTimeout\(\(\) => \{\s*\n\s*jump\(\);/,
-    'scrolling twice is what read as jumping around',
+    /behavior:\s*'smooth'/,
+    'no smooth scroll here — switching beat travelling, twice',
   );
   assert.match(
     nav,

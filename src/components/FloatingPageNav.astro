@@ -466,64 +466,45 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
         setActive(id);
 
         /*
-          ─── ONE MOVEMENT, AIMED AFTER THE LAYOUT HAS SETTLED ───────────────
+          ─── IT SWITCHES. IT DOES NOT TRAVEL ────────────────────────────────
 
-          The problem this solves is that a native anchor jump resolves against
-          the layout AS IT IS at that instant. On the first interaction with an
-          article the images above the fold have not finished laying out, so
-          everything below shifts down afterwards and the heading ends up far
-          below where it was aimed — measured at 842px against the ~90px its
-          `scroll-margin-top` asks for.
+          This went through two animated versions and both were worse than no
+          animation at all. Scrolling instantly and then correcting 350ms later
+          showed the reader two jumps; scrolling smoothly after waiting for
+          layout was correct in measurement and still read as unsteady in use.
 
-          The first attempt at this scrolled immediately and then scrolled AGAIN
-          350ms later to correct. It corrected, and it was worse: the reader saw
-          two jumps instead of one. Reported as "it is not smoothly scrolling it
-          jumps around".
+          The owner's call, and the right one: switch to the selection instead
+          of travelling to it. An instant jump has no frames in which to stutter,
+          no animation to be interrupted by a second click, and nothing to tune.
 
-          So the order is reversed. Wait for the target to stop moving, THEN
-          scroll once, smoothly. Stability is two consecutive frames-plus-a-beat
-          at the same document offset, capped so a page that never settles still
-          goes. The reader sees a single continuous movement that lands where it
-          was aimed, which is the whole point.
-
-          `scroll-margin-top` on the heading still supplies the offset under the
-          fixed navbar, so the number stays in the CSS where it belongs.
+          The one thing kept from those attempts is AIMING. A native anchor
+          resolves against the layout as it is at that instant, and on the first
+          click of a cold load the images above the fold have not finished
+          laying out — the target ended up at 842px against the ~90px its
+          `scroll-margin-top` asks for. So the jump waits for the heading to
+          stop moving, then goes once. The wait is ~8 frames at most, which is
+          not perceptible on a movement that is itself instant.
         */
         event.preventDefault();
 
-        const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         const offsetOf = () => heading.getBoundingClientRect().top + window.scrollY;
-
         let previous = offsetOf();
-        let settled = 0;
 
-        const go = () => heading.scrollIntoView({
-          behavior: reduced ? 'auto' : 'smooth',
-          block: 'start',
-        });
-
-        const whenStable = () => {
+        const jumpWhenAimed = (attempt: number) => {
           const now = offsetOf();
           /* Within a pixel counts as unmoved: sub-pixel layout rounding would
-             otherwise keep resetting the counter and the cap would always win. */
-          if (Math.abs(now - previous) <= 1) {
-            go();
-            window.setTimeout(syncFallback, reduced ? 0 : 600);
+             otherwise reset the counter every frame and the cap would always
+             be what fires. */
+          if (Math.abs(now - previous) <= 1 || attempt >= 8) {
+            heading.scrollIntoView({ block: 'start' });
+            syncFallback();
             return;
           }
           previous = now;
-          settled += 1;
-          /* ~8 frames. Long enough for images above to land, short enough that
-             the click never feels ignored. */
-          if (settled >= 8) {
-            go();
-            window.setTimeout(syncFallback, reduced ? 0 : 600);
-            return;
-          }
-          window.setTimeout(whenStable, 16);
+          window.setTimeout(() => jumpWhenAimed(attempt + 1), 16);
         };
 
-        whenStable();
+        jumpWhenAimed(0);
 
         /* The address bar should still say where the reader is. `replaceState`
            rather than assigning `location.hash`, which would re-trigger the

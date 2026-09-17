@@ -29,6 +29,34 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 /*
+  ─── A HERO THAT IS NOT A LETTERBOX SLIT ON A BIG MONITOR ──────────────────
+
+  The hero's height comes from its content, so it lands around 757px whatever
+  the screen. On a 3840px display that is a 5.05:1 box, and the artwork in it is
+  16:9. `object-fit: cover` then shows the full width and only 38% of the
+  picture's HEIGHT — a horizontal strip through the middle, which on most key
+  art is a band of background. Reported as "hero images are way too zoomed in I
+  don't even know what it is".
+
+  It is not zoom: the effective scale measured 1.09, so the overscan is behaving.
+  It is the aspect ratio of the slot. The only thing that shows more of a 16:9
+  picture in a full-bleed box is a taller box.
+
+  30vw is ~1152px at 3840, which lifts the visible slice from 38% to ~54%, and
+  is 53% of a 2160px screen — the proportion a hero has on any streaming
+  service. Capped at 1250px so an ultrawide does not get a hero taller than most
+  laptops are.
+
+  Only above 2560px. Below that the mismatch is mild and the content-driven
+  height is right; `min-height` means it can still grow for its content.
+*/
+@media (min-width: 2560px) {
+  .event-hero {
+    min-height: min(30vw, 1250px);
+  }
+}
+
+/*
   ─── THE SAME WIDTH AS THE PAGE BODY, INCLUDING ON A BIG MONITOR ───────────
 
   `.container` and `.container-page` are the same idea — the page's content
