@@ -21,6 +21,9 @@ export interface UnifiedVideo {
   badge1?: string;
   badge2?: string;
   badge3?: string;
+  /* The feed hero's editorial overrides. See the mapping below. */
+  customHeroLogo?: string;
+  customHeroBrandLabel?: string;
   tags?: string[];
   youtubeTags?: string[];
   date: string;
@@ -169,6 +172,22 @@ export function mapSanityVideo(doc: any, { categorize }: MapOptions = {}): Unifi
     seriesAccent: doc.seriesAccent,
     hubs: doc.hubs ?? [],
     editorialNotes: doc.editorialNotes,
+    /*
+      THE FEED HERO'S OVERRIDES, AND THEY HAVE NEVER ONCE WORKED.
+
+      FeedSpotlightHero.astro has read `customHeroLogo` and
+      `customHeroBrandLabel` for as long as they have existed, and this mapping
+      has never passed them, so the cascade they sit at the top of could not
+      fire whatever an editor put in the store. Not a regression: a path that
+      was dead the whole time, and silent about it, because a hero falling back
+      to the HQ crown looks exactly like a hero nobody has customised.
+
+      This is the third field on this line to be caught by the same whitelist
+      (see `editorial` and `sortDate` above), which is the argument for reading
+      those notes before adding a field anywhere else in this pipeline.
+    */
+    customHeroLogo: doc.customHeroLogo,
+    customHeroBrandLabel: doc.customHeroBrandLabel,
     /* The standfirst. Named here for the same whitelist reason as sortDate
        below: the sync can preserve it perfectly and it still never reaches a
        card unless this mapping copies it. */
