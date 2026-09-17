@@ -591,3 +591,66 @@ test('the contents rail tracks the section you jumped to', () => {
     'replaceState, not location.hash — the latter re-triggers the browser jump',
   );
 });
+
+test('the contents rail resolves position in ONE place', () => {
+  /*
+    ─── WHY THIS BROKE ON A 4K MONITOR ─────────────────────────────────────
+
+    The IntersectionObserver kept its own Set and highlighted the TOPMOST
+    intersecting target, deferring to the zone rule only when the Set emptied.
+    Two rules for one question, and they disagreed the moment the observed
+    elements got tall.
+
+    The ids are on the rail SECTIONS, ~424px each, not on the heading text. An
+    element intersects if ANY part of it is in the band, so a rail whose top had
+    already scrolled past the 80px line still intersected on its lower half and
+    won by being topmost.
+
+    Measured on /feed at 2560x1400, scrolled to the bottom after clicking TV:
+      film  top  13, bottom 437  -> observer picked this
+      tv    top 481, bottom 906  -> the section actually under the reader
+  */
+  const nav = read('src', 'components', 'FloatingPageNav.astro');
+  assert.match(nav, /const observer = new IntersectionObserver\(\s*\(\) => resolveActive\(\)/,
+    'the observer must report a change, not decide the answer');
+
+  /* CHECK THE CODE, NOT THE FILE. The comment above the scroll listener names
+     the Set it replaced, and naming it there is the point of a comment. */
+  const code = nav.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  assert.ok(!/activeHeadings/.test(code), 'its second rule and the Set behind it must be gone');
+});
+
+test('the last sections are reachable on a tall viewport', () => {
+  /*
+    The detection zone is the top half of the viewport and a section becomes
+    active by scrolling INTO it. The last sections never can: once the document
+    is at its end they sit wherever the page leaves them. At 3840x2160 the zone
+    floor is 1080px and TV landed below it, so clicking TV highlighted Games.
+  */
+  const nav = read('src', 'components', 'FloatingPageNav.astro');
+  assert.match(nav, /const atBottom =/, 'the end of the document is a position, not a non-event');
+  assert.match(nav, /scrollHeight - 2/, 'and it needs a tolerance, not an exact equality');
+});
+
+test('a click outranks geometry until the reader takes the page back', () => {
+  /*
+    At the end of a document several sections are on screen and none can scroll
+    further, so clicking Film and clicking TV land at the SAME scroll position.
+    No measurement can separate them. The reader's own click is the better
+    evidence, so it is pinned.
+
+    Released by a REAL gesture only. A plain `scroll` listener cannot make that
+    distinction — the click's own scrollIntoView() would clear the pin in the
+    frame it was set.
+  */
+  const nav = read('src', 'components', 'FloatingPageNav.astro');
+  assert.match(nav, /let pinnedId: string \| null = null;/);
+  assert.match(nav, /if \(pinnedId\) return;/, 'geometry must stand down while a pin is set');
+  assert.match(nav, /pinnedId = id;/, 'and the click must set it');
+
+  for (const gesture of ['wheel', 'touchmove', 'keydown']) {
+    assert.match(nav, new RegExp(`addEventListener\\('${gesture}'`), `${gesture} must release the pin`);
+  }
+  assert.ok(!/addEventListener\('scroll', releasePin/.test(nav),
+    'a scroll listener would clear the pin on the click\'s own jump');
+});

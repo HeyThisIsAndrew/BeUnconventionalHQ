@@ -592,7 +592,7 @@ export default defineConfig({
     // Upgrades prefetch from fetch-only to the Speculation Rules API so
     // hovered links are prerendered and parsed in Chromium-based browsers,
     // making subsequent ClientRouter navigations instantaneous.
-    clientPrerender: true,
+    clientPrerender: false,
     // Optimizes imported SVGs at build time using SVGO, eliminating redundant
     // metadata and whitespace without runtime client JS overhead.
     svgOptimizer: svgoOptimizer(),
