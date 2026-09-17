@@ -156,6 +156,40 @@
   width: calc(100% - 2.5rem);
 }
 
+/*
+  ─── THE CLICK IS ACKNOWLEDGED IN THE SAME FRAME ────────────────────────────
+
+  There was NO pressed state on a nav link. Measured on a warm, local
+  navigation: click at 0ms, document ready at 34ms, DOM swapped at 67ms, and
+  the underline did not move to the clicked item until 114ms — because
+  `updateActiveNavLinks()` runs on `astro:page-load`, which is the END of the
+  navigation. Until then nothing on screen changed at all.
+
+  That window is not fixed. It is however long the document takes to arrive, so
+  on a real connection with a cold cache it is the whole fetch — several
+  hundred milliseconds of a reader having tapped and seen nothing. Reported as
+  "there must never be a delay on click".
+
+  `:active` is the answer that cannot be late: it is pure paint, applied by the
+  compositor on the same frame as the press, and it does not care about the
+  network, the router, or how much JavaScript is queued behind it. `transition:
+  none` because a transition on the press state would reintroduce exactly the
+  lag this exists to remove.
+
+  `:active` is not enough on its own on a touch screen, where a tap is too
+  brief to register as a press — the script also moves the underline
+  optimistically on pointerdown. See Navbar.astro.
+*/
+#navbar nav ul li a:active {
+  color: var(--color-accent-text);
+  transition: none;
+}
+
+#navbar nav ul li a:active::after {
+  width: calc(100% - 2.5rem);
+  transition: none;
+}
+
 #navbar nav ul li a.active {
   color: var(--color-accent-text);
   text-shadow: 0 0 16px rgba(204, 0, 0, 0.45);

@@ -60,7 +60,27 @@ const isActive = (href: string) =>
         {
           navItems.map((item) => (
             <li class="nav-item">
-              <a href={`/${item.href}`} class:list={[{ active: isActive(item.href) }]}>
+              {/*
+                `viewport`, overriding the site-wide `tap` default.
+
+                The navbar is on screen from the first paint and never leaves,
+                so these five destinations are warmed immediately and a click
+                on any of them has no document to wait for. The global default
+                stays `tap` deliberately: `viewport` applied to everything
+                would pull every in-view link's document on a feed this long,
+                and those documents are 264-619KB.
+
+                This is also what repairs the desktop regression from moving
+                the default off `hover`: hovering used to give a head start of
+                however long the pointer rested, and `tap` gives only the
+                ~80ms between mousedown and click. Prefetching on sight gives
+                back more than either.
+              */}
+              <a
+                href={`/${item.href}`}
+                data-astro-prefetch="viewport"
+                class:list={[{ active: isActive(item.href) }]}
+              >
                 {item.label}
               </a>
             </li>
@@ -295,6 +315,52 @@ const isActive = (href: string) =>
       updateActiveNavLinks();
       document.addEventListener('astro:page-load', initNavObserver);
       document.addEventListener('astro:page-load', updateActiveNavLinks);
+
+      /*
+        ─── THE UNDERLINE MOVES ON PRESS, NOT WHEN THE PAGE ARRIVES ──────────
+
+        `updateActiveNavLinks` above runs on `astro:page-load`, the END of a
+        navigation. Measured warm and local, that was 114ms after the click,
+        and on a cold connection it is however long the document takes — the
+        reader presses a nav item and the navbar says nothing until the new
+        page is already there.
+
+        So the class moves immediately and the page catches up. It is a claim
+        about intent, not about state, and it is safe to be wrong: every
+        navigation ends in `updateActiveNavLinks()`, which recomputes from
+        `location.pathname` and corrects this if the navigation went somewhere
+        else or never happened at all.
+
+        `pointerdown`, not `click`: it fires before the browser has decided
+        whether this is a tap, a drag or a long-press, which is the earliest
+        moment a human can be told "yes, that one". Left button only, and
+        modifier-clicks are ignored because those open a new tab and this tab's
+        navbar should not move.
+
+        Delegated on the list rather than bound per link: ClientRouter swaps
+        the document, and the navbar is `transition:persist`, so per-link
+        binding would need re-binding rules this does not.
+      */
+      const navList = document.querySelector('.nav-list');
+      if (navList && !navList.dataset.pressBound) {
+        navList.dataset.pressBound = 'true';
+        /* Plain JS, no type casts: this block is an INLINE script, so nothing
+           strips TypeScript from it and an `as` cast reaches the browser as a
+           syntax error — which takes the whole navbar initialiser down with
+           it, active state and all. Found exactly that way. */
+        navList.addEventListener('pointerdown', (pe) => {
+          if (pe.button !== 0 || pe.ctrlKey || pe.metaKey || pe.shiftKey || pe.altKey) return;
+          const link = pe.target && pe.target.closest && pe.target.closest('.nav-item a');
+          if (!link) return;
+          const href = link.getAttribute('href');
+          if (!href || href.startsWith('#')) return;
+          if (new URL(link.href).pathname.replace(/\/$/, '') ===
+              window.location.pathname.replace(/\/$/, '')) return;
+          navList.querySelectorAll('.nav-item a.active').forEach((a) => a.classList.remove('active'));
+          link.classList.add('active');
+        });
+      }
+
       window['navbarObserverSetup'] = true;
     }
 
