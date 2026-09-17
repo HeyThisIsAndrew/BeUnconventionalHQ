@@ -454,6 +454,7 @@ try {
     await page.setViewport({ width: 390, height: 844 });
     await page.goto(`http://localhost:${port}/`, { waitUntil: 'networkidle0' });
     await new Promise((r) => setTimeout(r, 400));
+    console.log(await page.evaluate(() => document.body.innerHTML));
     await page.evaluate(() => document.querySelector('[data-splash-trigger]').click());
     await new Promise((r) => setTimeout(r, 1600));
 
