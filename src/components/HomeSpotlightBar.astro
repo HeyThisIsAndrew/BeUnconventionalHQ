@@ -167,22 +167,24 @@ const slides: Slide[] = [];
 if (newest) {
   const { src, srcset } = getCardImageSources(newest.image);
   const link = typeof newest.link === 'string' ? newest.link : '';
+  const isVideo = newest.type === 'video';
+  const destination = isVideo ? '/feed' : link;
+
   slides.push({
     key: 'latest',
     eyebrow: 'Latest',
     title: newest.title,
-    href: link,
-    cta: newest.type === 'video' ? 'Watch' : 'Read',
+    href: destination,
+    cta: isVideo ? 'Watch' : 'Read',
     art: src ? { src, srcset } : null,
     artFocus: 'thumbnail',
     accent: null,
     /*
-      The one destination here that can leave the site, and only because it has
-      to: a video's canonical home IS YouTube — there is no per-video page on
-      this site, and the Feed's own spotlight CTA goes to the same place. It
-      opens in a new tab so the reader still has the HQ behind them.
+      A video's canonical home is YouTube, but we no longer send the reader
+      there directly from the homepage. The Feed's hero is built to showcase
+      the latest video, so we deep-link to the feed where it is ready to play.
     */
-    external: /^https?:\/\//i.test(link) && !link.includes('beunconventionalhq.com'),
+    external: false,
   });
 }
 
