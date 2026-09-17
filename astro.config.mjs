@@ -491,9 +491,11 @@ export default defineConfig({
       getStaticPaths and are the same one-line risk to cover; the paginated
       /category/film/2 is the only page-2 that ever existed.
 
-      These do NOT collide with /feed/[...page]: paginate() only ever emits
-      numeric page segments (/feed/2, /feed/3), so no generated route claims
-      these paths. scripts/seo-routing.test.mjs pins that.
+      These do NOT collide with anything under /feed any more: the feed routes
+      are single pages (src/pages/feed/index.astro and friends) and no longer
+      generate numeric segments at all. They did not collide before either,
+      since paginate() only ever emitted numeric ones.
+      scripts/seo-routing.test.mjs pins that.
     */
     '/feed/film': '/category/film',
     '/feed/film/2': '/category/film/2',
@@ -503,6 +505,44 @@ export default defineConfig({
     // is the shape Search Console reports as a redirect chain.
     '/feed/gaming': '/category/games',
     '/feed/events': '/category/events',
+
+    /*
+      ─── THE FEED PAGINATION COLLAPSE ───────────────────────────────────────
+      /feed and /feed/videos used to paginate. Their rows render the whole set,
+      so a numbered page was a duplicate of the page before it, and once the
+      numbered links came out of FeedGrid nothing linked to them — but the
+      sitemap had already handed them to Google.
+
+      Same reasoning as the category rename above: the pages are gone, and a
+      URL Google knows must forward rather than 404, or the crawl equity it
+      holds is simply discarded.
+
+      This list is FROZEN, not a moving target. It is exactly what the last
+      paginated build emitted (verified against dist/client/feed), and since
+      neither route can generate a numeric segment any more, no new entry can
+      ever be needed. /feed/articles is absent on purpose: it never had enough
+      articles to reach a second page, so there is nothing Google could know.
+    */
+    '/feed/2': '/feed',
+    '/feed/3': '/feed',
+    '/feed/4': '/feed',
+    '/feed/videos/2': '/feed/videos',
+    '/feed/videos/3': '/feed/videos',
+
+    /*
+      ─── AND THE EVENTS PAGINATION COLLAPSE ─────────────────────────────────
+      Same story, same remedy. /events paged its upcoming list 12 at a time;
+      the list is a scroll container inside the page now
+      (UpcomingEventsList.astro) and there is no second document to go to.
+
+      One entry, because one numbered page is all that ever existed: verified
+      against dist/client/events of the last paginated build, which contains
+      `2` and nothing higher. 15 secondary events at a page size of 12 cannot
+      reach a third.
+
+      /events/archive is untouched and still paginates.
+    */
+    '/events/2': '/events',
 
     /*
       ─── THE GAMING → GAMES RENAME (#146) ───────────────────────────────────
@@ -528,7 +568,27 @@ export default defineConfig({
   // every linked page on a phone's data plan.
   prefetch: {
     prefetchAll: true,
-    defaultStrategy: 'hover',
+    /*
+      ─── 'tap', NOT 'hover' — A FINGER NEVER HOVERS ───────────────────────
+      `hover` binds mouseenter and focus. Neither exists on a touch screen, so
+      this setting meant DESKTOP got every destination pre-warmed and MOBILE
+      got nothing: every phone navigation paid the full document fetch inside
+      the transition, with the document being 264KB for an article and 619KB
+      for /feed. That asymmetry is the clearest reason the two platforms felt
+      so different, and it was in this line rather than in the animation.
+
+      Measured directly on one link before the change: `mouseenter` fired 1
+      prefetch request, `touchstart` fired 0.
+
+      `tap` binds touchstart and mousedown, so it covers BOTH input methods —
+      the phone gains the pre-warm, and the desktop keeps a (later, but still
+      useful) one on mousedown.
+
+      Not `viewport`, which prefetches every link as it scrolls into view: with
+      `prefetchAll` on a feed of this length that is a lot of documents of this
+      size pulled on a phone's data plan for links nobody touched.
+    */
+    defaultStrategy: 'tap',
   },
 
   // Astro Fonts API: Declares Syne and Inter with fallback metric overrides
@@ -564,10 +624,21 @@ export default defineConfig({
   ],
 
   experimental: {
-    // Upgrades prefetch from fetch-only to the Speculation Rules API so
-    // hovered links are prerendered and parsed in Chromium-based browsers,
-    // making subsequent ClientRouter navigations instantaneous.
-    clientPrerender: true,
+    // OFF, and the comment here used to describe the opposite.
+    //
+    // On it upgrades prefetch from fetch-only to the Speculation Rules API, so
+    // a hovered link is prerendered and parsed in a hidden tab. Paired with
+    // `prefetchAll: true` above, that is EVERY link on the page, and on mobile
+    // the hover that triggers it is a touchstart. The hypothesis for the
+    // reported 1-2s delay between tapping a control and the transition
+    // starting is that Chrome holds the navigation until the speculative
+    // prerender of a heavy page reaches a presentable state.
+    //
+    // NOT YET CONFIRMED ON A DEVICE. It is a plausible cause with a cheap
+    // remedy: ClientRouter's own fetch still makes navigation fast, so turning
+    // this off costs little even if the delay turns out to be something else.
+    // Measure on real hardware before treating it as solved.
+    clientPrerender: false,
     // Optimizes imported SVGs at build time using SVGO, eliminating redundant
     // metadata and whitespace without runtime client JS overhead.
     svgOptimizer: svgoOptimizer(),
@@ -740,6 +811,19 @@ export default defineConfig({
           '/feed/tv',
           '/feed/gaming',
           '/feed/events',
+          // The collapsed feed pagination (see `redirects` above). Same rule
+          // as every entry around it: these now forward to /feed and
+          // /feed/videos, and a redirect must never be advertised as a
+          // canonical destination.
+          '/feed/2',
+          '/feed/3',
+          '/feed/4',
+          '/feed/videos/2',
+          '/feed/videos/3',
+          // The collapsed EVENTS pagination. /events shows its whole upcoming
+          // list in a scroll container now, so /events/2 forwards to /events
+          // and must not be advertised as a destination.
+          '/events/2',
           // Renamed to /category/games and /intel/topic/games (#146). Same
           // rule: the sitemap advertises destinations, never sources.
           '/category/gaming',

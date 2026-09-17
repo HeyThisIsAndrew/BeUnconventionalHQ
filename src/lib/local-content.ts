@@ -114,6 +114,37 @@ export interface ImageSet {
  * @param aspect   Optional forced aspect ratio (w / h) for a cropped box.
  *                 Omit to keep the asset's own proportions.
  */
+/**
+ * The width ladder an asset can actually serve: every candidate below its
+ * native width, plus the native width itself as the top rung.
+ *
+ * This is the capping rule `buildImageSet` documents above, pulled out so the
+ * hero backdrops can use it too. They ship their own `srcset` rather than an
+ * ImageSet, because their `src` is deliberately the SMALL candidate (a
+ * mobile-first fallback) where buildImageSet's is the largest, and that is a
+ * real difference rather than an oversight. Without this they asked for a flat
+ * 2400 from assets that are 1920, which is the upscale the note above is
+ * about, and they could never ask for more than 2400 from the two that are
+ * 3840.
+ *
+ * An asset with no embedded dimensions (an arbitrary external URL) gets the
+ * ladder back untouched: there is nothing to cap against, and inventing a
+ * ceiling would be a guess.
+ */
+export function cappedWidths(source: any, widths: number[]): number[] {
+  /*
+    Two shapes reach this. A Sanity asset carries its size in its id, and
+    Astro's own ImageMetadata (a local import or an import.meta.glob entry)
+    carries a plain `.width`. The rule is the same for both and there is no
+    reason for the homepage band to own a second copy of it.
+  */
+  const nativeWidth =
+    typeof source?.width === 'number' ? source.width : getImageDimensions(source)?.width;
+  if (!nativeWidth) return [...widths].sort((a, b) => a - b);
+  const capped = Math.min(Math.max(...widths), nativeWidth);
+  return [...new Set(widths.filter((w) => w < capped).concat(capped))].sort((a, b) => a - b);
+}
+
 export function buildImageSet(
   source: any,
   { widths, aspect, quality = 80 }: { widths: number[]; aspect?: number; quality?: number },
@@ -130,10 +161,7 @@ export function buildImageSet(
     return src ? { src, srcset: '', width: 0, height: 0 } : null;
   }
 
-  const capped = Math.min(Math.max(...widths), native.width);
-  const candidates = [...new Set(widths.filter((w) => w < capped).concat(capped))].sort(
-    (a, b) => a - b,
-  );
+  const candidates = cappedWidths(source, widths);
 
   const at = (w: number) =>
     urlFor(source)
@@ -174,6 +202,64 @@ function withImageDimensions<T extends { logo?: any; heroImage?: any }>(doc: T):
 }
 
 /** Equivalent to `*[_type == "event"] | order(startDate desc)`. */
+/**
+ * The standard closing section rendered under every article.
+ *
+ * ─── A SINGLETON, AND WHY IT LIVES HERE ─────────────────────────────────────
+ * `src/data/articles.json` is owned by the Substack sync and must not be hand
+ * edited, so the outro cannot live with the posts. `videos.json` is the file
+ * the local CMS already writes, which makes `_type: 'articleOutro'` editable at
+ * /local-cms alongside events and featured brands — the whole point of moving
+ * this out of the body was that the copy can change without a code deploy.
+ *
+ * The DEFAULTS below are the live copy, not a placeholder. A missing or
+ * half-filled document falls back field by field rather than rendering a gap:
+ * this section appears on every article, so a blank one is worse than a stale
+ * one. Delete the document and the site still reads correctly.
+ *
+ * Links are LABEL + HREF fields with `{brand}`, `{substack}` and `{youtube}`
+ * tokens in the prose, rather than a rich-text blob. An editor can rewrite
+ * every sentence without touching markup, and nothing here is rendered with
+ * `set:html`.
+ */
+export interface ArticleOutro {
+  heading: string;
+  intro: string;
+  cta: string;
+  signOff: string;
+  brandLabel: string;
+  brandHref: string;
+  substackLabel: string;
+  substackHref: string;
+  youtubeLabel: string;
+  youtubeHref: string;
+}
+
+const ARTICLE_OUTRO_DEFAULTS: ArticleOutro = {
+  heading: 'Where Nerd Culture Gets Cinematic',
+  intro:
+    '{brand} is a publication for fans who love the craft behind the stories. If we are talking cinema, our content should look like cinema. We skip the clickbait and artificial outrage to focus on genuine conversations, unfiltered honesty, and independent analysis across Film, TV, Games, and Events.',
+  cta:
+    'If you want our full convention coverage, event photos, and articles delivered straight to your inbox, subscribe to our {substack}. Don\u2019t forget to check out the {youtube} for our long-form videos and event recaps as well. I\u2019ll see you there.',
+  signOff: 'BE YOURSELF. BE PASSIONATE. BE UNCONVENTIONAL.',
+  brandLabel: 'BE Unconventional HQ',
+  brandHref: 'https://beunconventionalhq.com/',
+  substackLabel: 'Substack publication',
+  substackHref: 'https://beunconventionalhq.substack.com/',
+  youtubeLabel: 'BE Unconventional HQ YouTube channel',
+  youtubeHref: 'https://www.youtube.com/@BeUnconventionalHQ',
+};
+
+export function getArticleOutro(): ArticleOutro {
+  const doc = (localVideos as any[]).find((d) => d?._type === 'articleOutro') ?? {};
+  const merged = { ...ARTICLE_OUTRO_DEFAULTS };
+  for (const key of Object.keys(ARTICLE_OUTRO_DEFAULTS) as (keyof ArticleOutro)[]) {
+    const value = doc[key];
+    if (typeof value === 'string' && value.trim()) merged[key] = value;
+  }
+  return merged;
+}
+
 export function getEventsLocal(): any[] {
   const showHidden = import.meta.env.DEV;
   return (localVideos as any[])

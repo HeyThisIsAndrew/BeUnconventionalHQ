@@ -56,11 +56,11 @@ const overlayItems = categories.map((c) => {
   scripts/e2e-category-modal.test.mjs asserts the overlay fills the viewport
   on BOTH routes, so this cannot silently regress again.
 */}
-<div class="quadrant-filter-container" id="quadrant-filter-wrapper">
-  <div id="global-type-row" class={`type-row-wrapper ${showTypes ? 'is-open' : ''}`}>
-    <div class="type-row-inner">
+<div class="quadrant-filter-container flex flex-col justify-center items-center w-full" id="quadrant-filter-wrapper">
+  <div id="global-type-row" class={`type-row-wrapper w-full ${showTypes ? 'is-open' : ''}`}>
+    <div class="type-row-inner w-full">
       <div class="mobile-top-bar">
-        <div class="filter-grid type-grid mobile-type-toggles">
+        <div class="filter-grid type-grid mobile-type-toggles" style="max-width: 480px;">
           {
             types.map((t) => {
               const isActive = currentPath.includes(t.href);
@@ -83,8 +83,8 @@ const overlayItems = categories.map((c) => {
         </div>
       </div>
 
-      <div class="filter-row desktop-type-row">
-        <div class="filter-grid type-grid">
+      <div class="filter-row desktop-type-row w-full">
+        <div class="filter-row-grid grid grid-cols-2 gap-[0.75rem] max-w-[800px] w-full">
           {
             types.map((t) => {
               const isActive = currentPath.includes(t.href);
@@ -113,8 +113,8 @@ const overlayItems = categories.map((c) => {
   {/* Mobile: one button + full-screen menu. Shared with /intel. */}
   <CategoryOverlay items={overlayItems} />
 
-  <div class="filter-row category-row desktop-category-row">
-    <div class="filter-grid">
+  <div class="filter-row category-row desktop-category-row w-full">
+    <div class="filter-row-grid grid grid-cols-4 gap-[0.75rem] max-w-[800px] w-full">
       {
         categories.map((c) => {
           const slug = c.toLowerCase();
@@ -143,18 +143,51 @@ const overlayItems = categories.map((c) => {
 
 
 <style>
+  /*
+    ─── TAILWIND MARGIN AND PADDING UTILITIES DO NOTHING IN THIS PROJECT ─────
+
+    This is the second thing to check whenever spacing here "just stops
+    working", and it is not obvious from the markup.
+
+    global-base.css carries an UNLAYERED `* { margin: 0; padding: 0 }` reset.
+    Tailwind v4 puts every utility inside `@layer utilities`. In the CSS
+    cascade, unlayered rules beat layered rules of the SAME origin no matter
+    what their specificity is, so `.mt-16` (specificity 0,1,0) loses to `*`
+    (specificity 0,0,0) purely on layer order.
+
+    So `mt-16 mb-12` on the wrapper and `mx-auto` on the rows computed to
+    margin 0 on every edge: the row sat flush against the hero above it and
+    the card grid below it, and its 800px measure was pinned to the left of a
+    1374px container instead of centred. Measured at 1440x900: 0px above, 0px
+    below, and a row starting at x=26 in a container running to x=1399.
+
+    Elsewhere in the codebase this is worked around with `!` (see `lg:!px-20`
+    in FeedSpotlightHero). Here the values simply live in real CSS, which is
+    where the ones this file replaced used to be.
+  */
   .quadrant-filter-container {
-    margin: 2rem 0 3rem;
-    display: flex;
-    flex-direction: column;
+    /* The `mt-16 mb-12` the utilities could not apply. */
+    margin: 4rem 0 3rem;
     gap: 2rem;
-    width: 100%;
   }
 
+  /*
+    A COLUMN flex container, so horizontal centring is `align-items`, not
+    `justify-content` — and not `mx-auto` on the child, for the reason above.
+    Without it a max-width row stretches from the left edge.
+  */
   .filter-row {
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 1rem;
+  }
+
+  /* Belt and braces on the rows' own measure: a scoped class beats the bare
+     `*` reset on specificity, and both are unlayered, so this one holds. */
+  .filter-row-grid,
+  .mobile-type-toggles {
+    margin-inline: auto;
   }
 
   .type-row-wrapper {
@@ -196,8 +229,7 @@ const overlayItems = categories.map((c) => {
     min-height: 0;
     padding-top: 10px;
     margin-top: -10px;
-    padding-inline: 24px;
-    margin-inline: -24px;
+    /* Removed padding/margin-inline to prevent horizontal blowout */
   }
 
   .filter-label {
@@ -213,6 +245,30 @@ const overlayItems = categories.map((c) => {
 
   .type-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  /*
+    Sleek styling inherited from the Intel page.
+    Reduces the physical scale of the filter buttons so they don't dominate the feed.
+  */
+  .quadrant-btn.cat-btn,
+  .quadrant-btn.type-btn {
+    padding: 0.85rem 0.5rem;
+    font-size: 0.85rem;
+    letter-spacing: 0.1em;
+  }
+
+  .quadrant-btn.type-btn {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  /* Override the default filter-grid to mirror the tighter Intel row layout */
+  .desktop-category-row .filter-grid,
+  .desktop-type-row .filter-grid {
+    gap: 0.75rem;
+    max-width: 800px;
+    margin: 0 auto;
   }
 
   /* .quadrant-btn and its hover/focus/active states moved to
@@ -237,9 +293,6 @@ const overlayItems = categories.map((c) => {
       justify-content: space-between;
       align-items: center;
       gap: 1rem;
-      position: sticky;
-      top: 80px;
-      z-index: 50;
       margin-bottom: 1rem;
     }
     .mobile-type-toggles {
@@ -250,7 +303,7 @@ const overlayItems = categories.map((c) => {
     .mobile-type-toggles .quadrant-btn {
       flex: 1;
       padding: 0.75rem 0.5rem;
-      font-size: 0.9rem;
+      font-size: 0.8rem; /* scaled down slightly for mobile */
     }
     .desktop-type-row {
       display: none;
@@ -259,116 +312,6 @@ const overlayItems = categories.map((c) => {
       display: none;
     }
   }
-
-  /* =========================================================================
-     LEGACY DIALOG STYLES (COMMENTED OUT FOR REVERT IF NEEDED)
-     ========================================================================= */
-  /*
-  #category-modal {
-    view-transition-name: cinematic-overlay;
-    background: transparent;
-    border: none;
-    margin: auto;
-    padding: 0;
-    max-width: 90vw;
-    width: 100%;
-  }
-
-  #category-modal[open] {
-    animation: fadeIn 0.3s ease-out forwards;
-  }
-
-  #category-modal::backdrop {
-    background: rgba(0, 0, 0, 0.8);
-    backdrop-filter: blur(8px);
-  }
-
-  #category-modal[open]::backdrop {
-    animation: fadeInBackdrop 0.3s ease-out forwards;
-  }
-
-  #category-modal:focus {
-    outline: none;
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; transform: scale(0.95) translateY(10px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
-  }
-
-  @keyframes fadeInBackdrop {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  #category-modal.closing {
-    animation: fadeOut 0.3s ease-in forwards;
-  }
-
-  #category-modal.closing::backdrop {
-    animation: fadeOutBackdrop 0.3s ease-in forwards;
-  }
-
-  @keyframes fadeOut {
-    from { opacity: 1; transform: scale(1) translateY(0); }
-    to { opacity: 0; transform: scale(0.95) translateY(10px); }
-  }
-
-  @keyframes fadeOutBackdrop {
-    from { opacity: 1; }
-    to { opacity: 0; }
-  }
-
-  #category-modal .modal-content {
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-  }
-
-  .close-btn {
-    position: absolute;
-    top: -3rem;
-    right: -1rem;
-    padding: 1rem;
-    background: transparent;
-    border: none;
-    color: white;
-    font-size: 2rem;
-    cursor: pointer;
-    opacity: 0.7;
-    transition: opacity 0.2s;
-  }
-  .close-btn:hover {
-    opacity: 1;
-  }
-
-  #category-modal .filter-grid {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1.5rem;
-    width: 100%;
-    max-width: 100%;
-  }
-
-  #category-modal .cat-btn {
-    background: rgba(20, 20, 20, 0.7);
-    backdrop-filter: blur(25px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow: 0 0 30px rgba(255, 255, 255, 0.05);
-    width: 60vw;
-    min-width: 280px;
-    max-width: 400px;
-    padding: 1.5rem;
-    font-size: 1.3rem;
-    letter-spacing: 0.1em;
-  }
-  */
 
   /* Full-screen overlay styles moved to styles/modules/filters.css so
      <CategoryOverlay /> can be shared by the Feed and /intel. */

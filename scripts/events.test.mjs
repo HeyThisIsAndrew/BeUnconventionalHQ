@@ -299,7 +299,7 @@ test('the /events display lockup is gone, but the page still has an h1', () => {
     reader, and a missing-h1 finding for the SEO audit that runs on every PR.
     So the heading survives as .sr-only and only the typography goes.
   */
-  const page = fs.readFileSync(new URL('../src/pages/events/[...page].astro', import.meta.url), 'utf8');
+  const page = fs.readFileSync(new URL('../src/pages/events/index.astro', import.meta.url), 'utf8');
 
   assert.doesNotMatch(page, /<PageTitle[\s\S]{0,80}SECTIONS\.events/,
     'the display lockup is back above the /events hero');
@@ -308,6 +308,142 @@ test('the /events display lockup is gone, but the page still has an h1', () => {
   /* Built from the same copy the lockup used, so the two cannot drift. */
   assert.match(page, /\{SECTIONS\.events\.primary\} \{SECTIONS\.events\.secondary\}/,
     'the heading text must come from SECTIONS.events, not a hardcoded string');
+});
+
+test('the upcoming list is scrolled by a rail, not by controls over the list', () => {
+  /*
+    The first version floated two buttons above the list's top-right corner,
+    where they sat on the "UPCOMING EVENTS" heading and the first row.
+
+    Docking them INSIDE the list is no better and is the obvious next idea: the
+    right-hand edge of every row already carries its own arrow and the left
+    carries the date badge. So the scroller reserves a gutter and the rail
+    stands in it — the rows are narrower by exactly that strip and nothing
+    overlaps anything. Measured at 1512x858: rail at x 930-974, rows ending at
+    911, heading ending at y 62 against a rail starting at 112.
+
+    The middle button is the year index. The arrows answer the wrong question
+    on a list spanning years: nudging 400px at a time to reach 2027 is the
+    paging this change removed.
+  */
+  const list = fs.readFileSync(
+    new URL('../src/components/UpcomingEventsList.astro', import.meta.url), 'utf8');
+  const code = list.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  assert.match(code, /\.uel-scroller \{[^}]*--uel-rail-gutter:/,
+    'the gutter the rail stands in must be a token the scroller reads');
+  assert.match(code, /\.uel-scroller \{[^}]*padding-right: var\(--uel-rail-gutter\)/,
+    'the rows must be narrowed by the gutter, or the rail is back on top of them');
+  assert.match(code, /\.uel-rail \{[^}]*flex-direction: column/,
+    'a vertical rail: up, index, down');
+
+  const order = ['data-uel-up', 'data-uel-index', 'data-uel-down']
+    .map((hook) => code.indexOf(hook));
+  assert.ok(order.every((i) => i > -1), 'all three controls must exist');
+  assert.deepEqual([...order].sort((a, b) => a - b), order, 'top to bottom: up, index, down');
+
+  /*
+    The panel opens INWARD. The rail is in the column's right-hand gutter, so
+    outward runs off the content column and, at md, under the sidebar.
+  */
+  assert.match(code, /\.uel-index-panel \{[^}]*right: calc\(100% \+/,
+    'the year panel must open over the list, not off the edge of the column');
+
+  /*
+    And the jump must move the CONTAINER, not the page. scrollIntoView() walks
+    every scrollable ancestor, so jumping to 2027 inside this box would also
+    scroll the document to bring the box into view — the jump the rail exists
+    to avoid. Verified in a browser: page scroll unchanged, container at 582.
+  */
+  assert.match(code, /viewport\.scrollTo\(\{/, 'the year jump must drive the container directly');
+  assert.ok(!/group\.scrollIntoView/.test(code),
+    'scrollIntoView here scrolls the page as well as the list');
+
+  /* Nothing to drive below the breakpoint, where the list stops scrolling. */
+  assert.match(code, /@media \(max-width: 767px\) \{[\s\S]*?\.uel-rail \{\s*display: none;/,
+    'the rail must go where the nested scroll goes');
+});
+
+test('the upcoming list feathers at whichever edge has more behind it', () => {
+  /*
+    The same idiom as the feed rails (`--fade-start` / `--fade-end` in
+    FeedGrid.astro), turned ninety degrees. PER EDGE, not both at once: a fade
+    at the top while already scrolled to the top dims the first row for nothing
+    and eats the top border of a row hovered there, which is the bug fixed
+    immediately before this one.
+
+    The custom properties default to 0px so the no-JS state is hard edges
+    rather than two permanently dimmed rows.
+  */
+  const list = fs.readFileSync(
+    new URL('../src/components/UpcomingEventsList.astro', import.meta.url), 'utf8');
+  const code = list.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  assert.match(code, /--fade-top: 0px;/, 'the fade must default to off');
+  assert.match(code, /--fade-bottom: 0px;/, 'both of them');
+  assert.match(code, /mask-image: linear-gradient\(\s*to bottom,[\s\S]*?var\(--fade-top\)[\s\S]*?var\(--fade-bottom\)/,
+    'the mask must read both edges independently');
+  assert.match(code, /setProperty\('--fade-top', atTop \? '0px'/,
+    'no top fade while the list is already at the top');
+  assert.match(code, /setProperty\('--fade-bottom', atEnd \? '0px'/,
+    'and none at the bottom once there is nothing below');
+  assert.match(code, /@media \(max-width: 767px\) \{[\s\S]*?mask-image: none;/,
+    'nothing scrolls below the breakpoint, so a mask there only dims rows');
+});
+
+test('the calendar tile has depth against the page', () => {
+  /*
+    A translucent panel on a near-black page reads as a slightly lighter
+    rectangle: the 1px border was all that separated it from the background,
+    and beside the events list — which has its own hover lift and glow — it
+    looked like part of the backdrop.
+  */
+  const cal = fs.readFileSync(
+    new URL('../src/components/MiniCalendarSidebar.astro', import.meta.url), 'utf8');
+  const rule = cal.match(/\.mini-calendar-wrapper \{[\s\S]*?\n  \}/);
+  assert.ok(rule, 'the wrapper rule is gone');
+  assert.match(rule[0], /box-shadow:\s*var\(--shadow-tile\)/,
+    'the tile must sit on the page, and via the shared token rather than its own copy');
+
+  /*
+    THE VALUE MOVED, so the assertion follows it. This was a literal here
+    until the same treatment was asked for on the Support The HQ rows, the
+    What We Cover tiles and the Highlights tiles — four more consumers is the
+    point at which it stops being a one-off and becomes a token. Checking only
+    the `var()` above would stop checking what the shadow actually is.
+  */
+  const base = fs.readFileSync(
+    new URL('../src/styles/global-base.css', import.meta.url), 'utf8');
+  const token = base.match(/--shadow-tile:[\s\S]*?;/);
+  assert.ok(token, '--shadow-tile is not defined');
+  const shadows = token[0].match(/rgba\(0, 0, 0, [\d.]+\)/g) || [];
+  assert.ok(shadows.length >= 2,
+    'a cast shadow that broad has no detectable start; it needs a tight one under the edge too');
+
+  /*
+    And every surface that was asked for reads the token. A tile that keeps
+    its own copy is how a shared treatment drifts apart one file at a time.
+  */
+  const consumers = [
+    ['src/styles/modules/referrals.css', /\.referral-item \{[\s\S]*?box-shadow: var\(--shadow-tile\)/],
+    ['src/styles/modules/home-cards.css', /\.cat \{[\s\S]*?box-shadow: var\(--shadow-tile\)/],
+    ['src/components/FeaturedHighlights.astro', /\.fh-row \{[\s\S]*?box-shadow: var\(--shadow-tile\)/],
+    ['src/components/FeaturedHighlights.astro', /\.fh-hero-card \{[\s\S]*?box-shadow: var\(--shadow-tile\)/],
+  ];
+  for (const [rel, re] of consumers) {
+    const src = fs.readFileSync(new URL('../' + rel, import.meta.url), 'utf8');
+    assert.match(src, re, `${rel} must read --shadow-tile, not a copy of it`);
+  }
+
+  /*
+    A hover that names only its glow REPLACES the depth, because box-shadow is
+    one property — the tile would drop flat at the moment it is pointed at.
+    Both hovers that add a brand glow must layer it on the token.
+  */
+  const cat = fs.readFileSync(
+    new URL('../src/styles/modules/home-cards.css', import.meta.url), 'utf8');
+  assert.match(cat, /\.cat:hover \{[\s\S]*?box-shadow: var\(--shadow-tile\), /,
+    'the category tile must keep its depth while hovered');
 });
 
 test('sunsetting the /events header did not touch any other route', () => {

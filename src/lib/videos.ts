@@ -21,6 +21,9 @@ export interface UnifiedVideo {
   badge1?: string;
   badge2?: string;
   badge3?: string;
+  /* The feed hero's editorial overrides. See the mapping below. */
+  customHeroLogo?: string;
+  customHeroBrandLabel?: string;
   tags?: string[];
   youtubeTags?: string[];
   date: string;
@@ -34,6 +37,8 @@ export interface UnifiedVideo {
   /** Raw ISO publish timestamp (Sanity only) — the Dispatch Log needs a real
    *  instant, not the display-string `date`. */
   publishedAt?: string;
+  /** Editorial ordering override. Changes row position, never the shown date. */
+  sortDate?: string;
   /** Marks which pipeline produced the entry. */
   source: 'sanity';
 
@@ -44,8 +49,44 @@ export interface UnifiedVideo {
   characters?: string[];
   coverageType?: string;
   series?: string;
+  /**
+   * Puts this item's SERIES on the Feed as a curated collection of its own.
+   *
+   * Strictly scoped to that. It is NOT a second `featured`: `featured` says
+   * this PIECE deserves elevated placement, this says this piece's SERIES
+   * deserves a dedicated shelf. Coupling them would mean unflagging a video to
+   * demote it silently killed a whole collection.
+   *
+   * Several series may be flagged at once; the Feed renders one collection per
+   * flagged series, most recently updated first. With none flagged it falls
+   * back to the most recently updated qualifying series, so the shelf is never
+   * empty because nobody has been into the CMS this week.
+   */
+  featuredSeries?: boolean;
+  /**
+   * The collection's own accent colour, overriding the hub's `brandColor`.
+   *
+   * A show is not its studio. Lanterns is a DC property and DC is blue, but
+   * the show's identity is emerald and the shelf is themed for the SHOW. Read
+   * from any member of the series, so it survives the flagged item changing.
+   */
+  seriesAccent?: string;
   hubs?: string[];
   editorialNotes?: string;
+  /**
+   * Words written FOR this site, overriding anything the platform supplied.
+   *
+   * Articles have carried this since the Substack sync (src/lib/articles.ts);
+   * videos had no equivalent, which is why every card and the hero fell back to
+   * a YouTube description written for a different audience. Same field name and
+   * same meaning on both, so `editorialPreview()` reads one path for either.
+   *
+   * Optional, and a video without one degrades to its title and metadata rather
+   * than to somebody's gear list.
+   */
+  editorial?: {
+    excerpt?: string;
+  };
   requiresReview?: boolean;
   manualTaxonomyOverride?: boolean;
   relatedMedia?: { title: string; mediaType: string }[];
@@ -125,8 +166,39 @@ export function mapSanityVideo(doc: any, { categorize }: MapOptions = {}): Unifi
     characters: doc.characters ?? [],
     coverageType: doc.coverageType,
     series: doc.series,
+    /* Named here as well as carried by the sync: this mapping is an explicit
+       whitelist, so a field missing from it never reaches the feed at all. */
+    featuredSeries: doc.featuredSeries ?? false,
+    seriesAccent: doc.seriesAccent,
     hubs: doc.hubs ?? [],
     editorialNotes: doc.editorialNotes,
+    /*
+      THE FEED HERO'S OVERRIDES, AND THEY HAVE NEVER ONCE WORKED.
+
+      FeedSpotlightHero.astro has read `customHeroLogo` and
+      `customHeroBrandLabel` for as long as they have existed, and this mapping
+      has never passed them, so the cascade they sit at the top of could not
+      fire whatever an editor put in the store. Not a regression: a path that
+      was dead the whole time, and silent about it, because a hero falling back
+      to the HQ crown looks exactly like a hero nobody has customised.
+
+      This is the third field on this line to be caught by the same whitelist
+      (see `editorial` and `sortDate` above), which is the argument for reading
+      those notes before adding a field anywhere else in this pipeline.
+    */
+    customHeroLogo: doc.customHeroLogo,
+    customHeroBrandLabel: doc.customHeroBrandLabel,
+    /* The standfirst. Named here for the same whitelist reason as sortDate
+       below: the sync can preserve it perfectly and it still never reaches a
+       card unless this mapping copies it. */
+    editorial: doc.editorial,
+    /*
+      Ordering override, and it has to be listed HERE as well as carried by the
+      sync. This mapping is an explicit whitelist, so a field the sync preserves
+      perfectly still never reaches the feed unless it is named on this line.
+      That is exactly how the first attempt at this silently did nothing.
+    */
+    sortDate: doc.sortDate || undefined,
     requiresReview: doc.requiresReview ?? false,
     manualTaxonomyOverride: doc.manualTaxonomyOverride ?? false,
     relatedMedia: doc.relatedMedia ?? [],

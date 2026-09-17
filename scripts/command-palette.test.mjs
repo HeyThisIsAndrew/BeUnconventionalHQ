@@ -640,5 +640,29 @@ test('defaultResults() guards against non-array searchData', () => {
   assert.match(paletteCode, /if \(!Array\.isArray\(searchData\)/);
 });
 
+test('the mobile origin is not undone by the open state', () => {
+  /*
+    The palette is `top: 50%` with `translate(-50%, -50%)` on desktop, and
+    `top: 5%` with `translate(-50%, 0)` below 640px. But the translate that
+    matters when the thing is on screen lives on `.cmd-palette[open]`, and a
+    media query adds NO specificity: `[open]` is (0,2,0) and the bare class is
+    (0,1,0), so the desktop centring won at every width whatever the order.
+
+    From 5%, pulling up half the panel's own height puts most of it off the
+    top of the screen. Reported from a phone as the search box displaying
+    wrong, with the results clipped to a strip and the keyboard already up.
+  */
+  const mobile = paletteCode.match(/@media \(max-width: 640px\) \{[\s\S]*?\n  \}/);
+  assert.ok(mobile, 'the mobile block is gone');
+  assert.match(mobile[0], /\.cmd-palette\[open\] \{[^}]*transform: translate\(-50%, 0\);/,
+    'the open state must be re-pointed at the mobile origin, not just the closed one');
+
+  const openRules = [...paletteCode.matchAll(/\.cmd-palette\[open\] \{([^}]*)\}/g)]
+    .map((m) => m[1])
+    .filter((body) => /transform:/.test(body));
+  assert.ok(openRules.length >= 2,
+    'there must be a mobile open-state transform as well as the desktop one');
+});
+
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.\n`);
 process.exit(failed === 0 ? 0 : 1);

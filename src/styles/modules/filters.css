@@ -167,6 +167,35 @@
    so a category list taller than a landscape viewport scrolls instead of
    overflowing past the unreachable start edge. Top padding clears the
    absolutely-positioned close button, which sits above this content. */
+/*
+  ─── WHAT ACTUALLY PUTS THE OVERLAY IN FRONT ────────────────────────────────
+
+  Not the z-index below. This overlay lives inside `#page-content`, which
+  carries `view-transition-name: page-main` (global-base.css) so ClientRouter
+  can slide the page: that forms a STACKING CONTEXT, and `#page-content` has no
+  z-index of its own, so it and everything sealed inside it paint beneath the
+  `<header>` at 100.
+
+  That is why the overlay opened UNDERNEATH the navbar, with the logo, the
+  search icon and the hamburger still painted over a full-screen black menu
+  that carries its own close button. Two sets of controls in the same corner,
+  and the X sat directly beneath the hamburger. Reported from a phone.
+
+  Raising the overlay's own z-index does not fix it and was tried: at 10000,
+  `document.elementsFromPoint()` over the logo still returned the header in
+  front of the overlay. A descendant cannot climb out of its ancestor's
+  stacking context, whatever number it gives itself.
+
+  So the CONTEXT is what moves, for exactly as long as this one overlay is
+  open. CategoryOverlay.astro puts the class on <html>; `modal-open` was not
+  reused because the search palette and the video lightbox share it and
+  neither wants the page lifted over the navbar.
+*/
+html.category-overlay-open #page-content {
+  position: relative;
+  z-index: 10000;
+}
+
 .category-fullscreen-overlay {
   position: fixed;
   top: 0;
@@ -174,6 +203,8 @@
   width: 100%;
   height: 100dvh;
   background: #000000;
+  /* Above the rest of the page. Getting above the NAVBAR is the block above
+     this rule, not this number. */
   z-index: 200;
   display: flex;
   flex-direction: column;

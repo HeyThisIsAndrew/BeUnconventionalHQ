@@ -1,6 +1,7 @@
 ---
 import { site } from '../data/site.js';
 import bannerImg from '../assets/banner.webp';
+import HomeSpotlightBar from './HomeSpotlightBar.astro';
 ---
 
 <section class="hero" data-nav-anchor>
@@ -147,10 +148,50 @@ import bannerImg from '../assets/banner.webp';
         calls preventDefault; if it never loads, the anchor is the fallback.
       */}
       <a href="#hq-content" class="hero-cta cta-button-primary" data-splash-trigger>
-        Explore The HQ
+        {/*
+          "Explore The HQ", and NOT "Enter The Feed".
+
+          This button does not go to /feed. It lifts the splash curtain and
+          drops the reader into the homepage at `#hq-content`, which is the
+          latest-coverage strip and then the category tiles. /feed is a real,
+          separate page in the navbar, so naming this one after it tells the
+          reader they have arrived somewhere they have not — and the site has
+          just spent a redesign making that page its own destination.
+
+          The design review's objection to "Explore" was that it sounds like it
+          opens a menu. That is a fair note about the verb, so the verb is what
+          changed: "Enter" is what this button physically does. The curtain
+          metaphor is not decoration either — splash.css describes the lift as
+          heavy fabric being raised, and you enter through a curtain.
+        */}
+        Enter The HQ
         <span class="hero-cta-chevron" aria-hidden="true"></span>
       </a>
     </div>
+  </div>
+
+  {/*
+    ─── THE CONTENT PREVIEW, IN THE HERO ─────────────────────────────────────
+
+    Floating at the foot of this section, over the artwork.
+
+    The homepage opens on a logo, a line and a button, and none of those say
+    whether anything has been published here. This does: the newest piece, the
+    featured series and the subscribe prompt, rotating, before the reader has
+    scrolled anything.
+
+    A SECOND instance of the same component runs lower down the page, between
+    What We Cover and Featured, as a full-bleed banner. That is deliberate and
+    it is safe: the rotator binds inside each `[data-spotlight]` root and scopes
+    every query to it, so the two keep their own clocks. Each carries its own
+    `label` so a screen reader can tell them apart.
+
+    It is the LAST child of `.hero`, so it paints over `.hero-overlay` and
+    `.hero-content` without needing to out-rank them by number, and `.hero`'s
+    `overflow: hidden` is what keeps it in the frame.
+  */}
+  <div class="hero-spotlight">
+    <HomeSpotlightBar variant="panel" label="Latest from the HQ" />
   </div>
 </section>
 

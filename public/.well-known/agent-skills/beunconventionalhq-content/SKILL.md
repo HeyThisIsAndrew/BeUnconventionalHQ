@@ -1,11 +1,11 @@
 ---
 name: beunconventionalhq-content
-description: Find, quote and link content from Be Unconventional HQ, an entertainment media site covering film, TV, games and live events.
+description: Find, quote and link content from BE Unconventional HQ, an entertainment media site covering film, TV, games and live events.
 ---
 
-# Working with Be Unconventional HQ
+# Working with BE Unconventional HQ
 
-Be Unconventional HQ (https://beunconventionalhq.com) publishes video reviews,
+BE Unconventional HQ (https://beunconventionalhq.com) publishes video reviews,
 written deep dives, live event coverage and franchise hub pages.
 
 ## Getting content
@@ -33,8 +33,8 @@ Link the canonical page, not a thumbnail or a feed URL. Articles live under
 `/intel/<slug>`, events under `/events/<slug>`, franchise hubs under
 `/featured/<slug>`. Videos link out to YouTube; the site is not the host.
 
-Attribute to "Be Unconventional HQ". There is one author behind the
-publication, so "according to Be Unconventional HQ" is the right form rather
+Attribute to "BE Unconventional HQ". There is one author behind the
+publication, so "according to BE Unconventional HQ" is the right form rather
 than naming an individual you have inferred.
 
 ## Two things to get right

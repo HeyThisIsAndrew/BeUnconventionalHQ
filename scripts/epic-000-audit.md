@@ -156,7 +156,7 @@ Plus `npm test` 104/104 passing across 8 suites, and `npx astro check` at 0 erro
 2. ~~**`Button.astro` duplicate + the 404 mobile button inconsistency**~~ — **DONE.** Approved and shipped, see §5.
 3. **Move the global `.cta-button-primary` mobile override out of `about.css`** into `buttons.css`, where the base rule lives. A site-wide button rule sitting in a page-specific module is exactly why the §5 bug survived unnoticed. Pure move, but it changes cascade order, so it wants its own visual-parity run.
 4. **Contributors/team CMS for byline** — EPIC-001 asked whether this already exists as an issue. **It does not.** #38 covers the *content* ("add Andrew Baxter as Founder & Editor") but there is no contributors data-layer ticket.
-5. **Sitewide hardcoded-string audit** — 24 literal `"Be Unconventional HQ"` occurrences despite `site.name` existing. Out of scope here per the epic's own instruction to log rather than absorb.
+5. **Sitewide hardcoded-string audit** — 24 literal `"BE Unconventional HQ"` occurrences despite `site.name` existing. Out of scope here per the epic's own instruction to log rather than absorb.
 6. **`/intel` and `/feed/articles` coexist — DECIDED (owner, this session).** EPIC-001's dedicated article section does *not* replace the existing `/feed/articles` route; both ship. `/feed/articles` stays the type-filtered view of the main Feed, `/intel` becomes the dedicated section with its own category filtering.
 
    Two consequences EPIC-001 must handle rather than discover late:

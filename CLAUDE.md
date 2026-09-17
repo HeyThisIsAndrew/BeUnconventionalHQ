@@ -1,4 +1,4 @@
-# Be Unconventional HQ — agent guide
+# BE Unconventional HQ — agent guide
 
 Cinematic entertainment-media site. Astro 7 (static output + `@astrojs/cloudflare`),
 Tailwind v4 (via `@tailwindcss/vite`). Video/short/live/event/featuredBrand content

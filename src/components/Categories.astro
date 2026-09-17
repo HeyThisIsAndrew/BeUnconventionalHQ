@@ -20,11 +20,28 @@ import { categories } from '../data/categories.js';
   (This comment sits OUTSIDE the map: a callback has to return a single
   element, so a comment beside the <a> makes it return two nodes and the file
   stops parsing.)
+
+  ─── WHERE THESE TILES POINT ───────────────────────────────────────────────
+
+  Film, TV and Games land on the Feed's own topic sections — /feed#film, #tv,
+  #games — which exist as `<section id>` in FeedGrid and are scrolled to on
+  arrival. Events keeps its own page: it is a different kind of thing, with
+  dates and venues, not a shelf of coverage.
+
+  NOTE for whoever revisits this: /category/<slug> was NOT broken. Those pages
+  build, render a hero and carry their own filters, and they are indexed. This
+  is a routing preference — send the reader into the one browsing surface
+  rather than to a parallel one — and the cost is that four indexed category
+  pages lose their entry point from the homepage. If the SEO matters more than
+  the consistency, the tiles are the thing to change back.
 */}
-<div class="cat-grid" style="max-width: 1536px; margin: 0 auto;">
+{/* No inline max-width: it beat the stylesheet and pinned the grid at 1536px
+    on every screen. The width is `var(--page-max)` in home-cards.css, which is
+    1536px below 1920 anyway, so this only ever cost the big screens. */}
+<div class="cat-grid">
   {
     categories.map((cat) => (
-      <a class="cat cat-stagger" href={cat.slug === 'events' ? '/events' : `/category/${cat.slug}`}>
+      <a class="cat cat-stagger" href={cat.slug === 'events' ? '/events' : `/feed#${cat.slug}`}>
         <Image src={cat.image} alt={cat.label} class="cat-bg-img" loading="lazy" decoding="async" />
         <span class="cat-overlay" />
         <span class="cat-body">

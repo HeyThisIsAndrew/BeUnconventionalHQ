@@ -35,7 +35,7 @@
 import PageTitle from './PageTitle.astro';
 import { SECTIONS, MESSAGES } from '../data/content.js';
 import NewsletterForm from './NewsletterForm.astro';
-/* Keeps "Be Unconventional HQ" from wrapping mid-name — see BrandText. */
+/* Keeps "BE Unconventional HQ" from wrapping mid-name — see BrandText. */
 import BrandText from './BrandText.astro';
 
 export interface Props {
@@ -50,9 +50,14 @@ const { subtitle = MESSAGES.subscribeSubtitle, variant = 'default' } = Astro.pro
 const isCompact = variant === 'compact';
 ---
 
+{/* `id` so an in-page link can reach it. The homepage spotlight bar's
+    subscribe slide points here rather than off the site — see
+    HomeSpotlightBar.astro, where every destination is internal on purpose. */}
 <section
+  id="subscribe"
   class:list={['subscribe-cta', { 'is-compact': isCompact, container: !isCompact, reveal: isCompact }]}
   data-delay={isCompact ? '400' : undefined}
+  style="scroll-margin-top: 7rem;"
 >
   <div class:list={['cta-band', { reveal: !isCompact }]}>
     <div class="subscribe-cta-copy">

@@ -210,4 +210,4 @@ Tags are matched strictly against your explicit YouTube tags or Substack tags. T
 
 ## License
 
-Private project. All rights reserved. © 2026 Be Unconventional HQ.
+Private project. All rights reserved. © 2026 BE Unconventional HQ.

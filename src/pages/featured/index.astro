@@ -503,8 +503,17 @@ ${activeFonts
 
                     <div class="deck-stack">
                       {categoryBrands.map((brand: Brand, bIndex: number) => {
+                        /*
+                          An OPEN deck card's key art is the largest unblurred
+                          picture on this page, and the ladder stopped at 1200.
+                          The page width steps up on wide screens now, so the
+                          card measures 2240px on a 4K display — a 1.87x upscale
+                          on artwork with no blur to hide it (verified: the
+                          element's computed filter is `none`).
+                        */
                         const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).auto('format').quality(78).url() : null;
                         const heroUrlMobile = brand.heroImage ? urlFor(brand.heroImage).width(600).auto('format').quality(70).url() : null;
+                        const heroUrlWide = brand.heroImage ? urlFor(brand.heroImage).width(2400).auto('format').quality(78).url() : null;
                         const metaCard = metaFor(brand);
                         return (
                           <a
@@ -531,8 +540,8 @@ ${activeFonts
                             {heroUrl ? (
                               <img
                                 src={heroUrl}
-                                srcset={`${heroUrlMobile} 600w, ${heroUrl} 1200w`}
-                                sizes="(max-width: 600px) 600px, 1200px"
+                                srcset={`${heroUrlMobile} 600w, ${heroUrl} 1200w, ${heroUrlWide} 2400w`}
+                                sizes="(max-width: 600px) 600px, (min-width: 1920px) 2250px, 1200px"
                                 alt={brand.title}
                                 loading={bIndex === 0 ? 'eager' : 'lazy'}
                                 fetchpriority={bIndex === 0 ? 'high' : 'auto'}
@@ -1578,11 +1587,83 @@ ${activeFonts
     });
   }
 
+  /*
+    ─── OPENING THE ACCORDION FROM A URL ─────────────────────────────────────
+
+    The markup expands `index === 0` and nothing else, so /featured#streaming
+    arrived with Streamers collapsed and the reader looking at Franchises. The
+    Feed links straight into these sections, so the hash has to mean something.
+
+    ─── THE HASH IS THE CATEGORY KEY, NOT ITS LABEL ─────────────────────────
+    Sections carry `data-category` values of `universes`, `streaming`,
+    `studios` and `gaming`, while the headings above them read "Franchises",
+    "Streamers", "Studios" and "Games". `universes`/"Franchises" is the pair
+    that catches people out, so the visible word is accepted as an alias rather
+    than quietly matching nothing.
+
+    Collapsing the others first keeps this identical to a click: the accordion
+    shows one section at a time, and an opened-by-URL section that left the
+    default one open would be a state no click can produce.
+  */
+  const HASH_TO_CATEGORY: Record<string, string> = {
+    franchises: 'universes',
+    streamers: 'streaming',
+    games: 'gaming',
+  };
+
+  function openSectionFromHash() {
+    const hash = window.location.hash.replace('#', '').toLowerCase();
+    if (!hash) return;
+
+    const category = HASH_TO_CATEGORY[hash] ?? hash;
+    const target = document.querySelector<HTMLElement>(
+      `.accordion-section[data-category="${CSS.escape(category)}"]`,
+    );
+    if (!target) return;
+
+    document.querySelectorAll<HTMLElement>('.accordion-section').forEach((section) => {
+      const isTarget = section === target;
+      section.classList.toggle('expanded', isTarget);
+      section.classList.toggle('collapsed', !isTarget);
+      section
+        .querySelector('.accordion-header')
+        ?.setAttribute('aria-expanded', String(isTarget));
+    });
+
+    /* The stage owns at most one player; the section that just opened is not
+       the one it was loaded for. */
+    syncTrailers();
+
+    /* After the expand transition has somewhere to scroll to. `start` is right
+       here, unlike the feed's rows: an accordion section IS the heading. */
+    const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    setTimeout(() => target.scrollIntoView({ behavior, block: 'start' }), 100);
+  }
+
+  /*
+    `astro:page-load` covers ARRIVING at a hash — the Feed's "Explore Streamers"
+    link, a pasted URL, a bookmark. It does not cover changing the hash while
+    already here: ClientRouter treats /featured#streaming -> /featured#universes
+    as an in-page anchor jump, not a navigation, so nothing re-runs and the
+    previously opened section stays open under the new URL. Reached by Back and
+    Forward as much as by clicking.
+
+    Bound once and re-bound defensively: the handler lives on `window`, which
+    ClientRouter does not replace between navigations.
+  */
+  const HASH_LISTENER_KEY = '__hqFeaturedHashListener';
+  const previousHashListener = (window as any)[HASH_LISTENER_KEY];
+  if (previousHashListener) window.removeEventListener('hashchange', previousHashListener);
+  (window as any)[HASH_LISTENER_KEY] = openSectionFromHash;
+  window.addEventListener('hashchange', openSectionFromHash);
+
   initAccordionAndDecks();
   initFontPicker();
+  openSectionFromHash();
   document.addEventListener('astro:page-load', () => {
     initAccordionAndDecks();
     initFontPicker();
+    openSectionFromHash();
   });
 </script>
 
@@ -2106,9 +2187,32 @@ ${activeFonts
     position: absolute;
     top: 50%;
     left: 0;
-    width: 85%;
+    /*
+      ─── IT STOPS GROWING WITH THE SCREEN ─────────────────────────────────
+
+      This was a flat `85%` of the stack, so on a 4K display the card reached
+      2101x1182 and the page became one enormous poster with a row of
+      thumbnails under it that had not grown at all. Reported as the image
+      being too massive and the tiles far too small beside it.
+
+      `min()` against a viewport width keeps the 85% on ordinary screens, where
+      it is the smaller of the two, and caps the card past about 2100px wide.
+      The filmstrip below is sized from the SAME `vw` basis, which is what
+      holds the two at a fixed ratio to each other instead of letting one
+      outrun the other.
+    */
+    width: min(85%, 48vw);
     aspect-ratio: 16 / 9;
     transform-origin: center center;
+    /*
+      DEAD, and left exactly as it was. Computed style on the active card at
+      3840x2160 reports `position: relative; top: 0; margin-top: 0` — a later
+      rule in this file re-lays the deck out and this declaration has not
+      applied in a long time. Replacing it with a `translate` that DID apply
+      moved the card 566px up the page. If the layout above ever comes back,
+      note that -24% is half the card's height as a share of the STACK's width,
+      so it is only correct while the width above is exactly 85%.
+    */
     margin-top: -24%; /* Half of 16/9 height to vertically center perfectly */
     border-radius: 0; 
     overflow: hidden;
@@ -2265,6 +2369,8 @@ ${activeFonts
   .deck-nav-track {
     width: 100%;
     box-sizing: border-box;
+    /* OVERRIDDEN. A later `.deck-nav-track` rule in this file sets the height
+       unconditionally, so this value never applies — see the note there. */
     height: 90px;
     margin-top: 1rem;
     display: flex;
@@ -2792,6 +2898,17 @@ ${activeFonts
       the middle of a black page. Give it the page's own black.
     */
     background: #050505;
+    /*
+      ─── AND TELL SAFARI THE FRAME ITSELF IS DARK ─────────────────────────
+
+      The background above paints the iframe ELEMENT. It does not reach the
+      document inside it, and on iOS Safari a cross-origin frame renders its
+      own `about:blank` on a white canvas until YouTube's CSS arrives, so the
+      white flashed over the black we just set. `color-scheme` is the one
+      property that crosses that boundary: it tells the embedded document
+      which canvas colour to default to before it has said anything itself.
+    */
+    color-scheme: dark;
   }
 
   /* Playing: video up, mark down but not out — it is the glow behind it. */
@@ -3456,16 +3573,59 @@ ${activeFonts
     }
 
     .deck-nav-track {
-      height: 66px;
+      /*
+        ─── THE THUMBNAILS HAVE TO GROW WITH THE DECK ──────────────────────
+
+        This was a flat 66px while `.deck-column` above it is `height: 100%` of
+        an accordion row that expands with the viewport. Measured at 3840x2160:
+        the deck is 1432px tall and the filmstrip under it was 66px — 4.6% of
+        it — which reads as a control somebody forgot to scale rather than as
+        navigation for the thing above it.
+
+        THIS IS THE DECLARATION THAT COUNTS. There is an earlier
+        `.deck-nav-track { height: 90px }` in this file, and despite its
+        indentation this rule is NOT inside a media query: it ships
+        unconditional, so it wins on source order at every viewport and the 90px
+        has never applied. Verified by reading the built CSS rather than the
+        source. Retune here, not there.
+
+        Clamped rather than pure vh so it cannot collapse on a short laptop
+        window or run away on a tall one.
+      */
+      /*
+        HEIGHT COMES FROM THE THUMBNAILS NOW, not from `vh`. It was
+        `clamp(66px, 7vh, 150px)` while the thumbs underneath it were a flat
+        84x46 at every width, so the track grew and the pictures in it did not:
+        at 3840x2160 the strip was 148px tall and each thumbnail was 46px of
+        that, floating in it.
+      */
+      height: auto;
       margin-top: 0.5rem;
-      padding: 6px 4%;
-      gap: 8px;
+      padding: 10px 4%;
+      gap: 12px;
       flex: 0 0 auto;
     }
 
     .deck-nav-thumb {
-      width: 84px;
-      height: 46px;
+      /*
+        ─── 20% OF THE CARD, AT EVERY WIDTH ────────────────────────────────
+
+        `.deck-card` is `min(85%, 48vw)` and this is `9.6vw`, which is exactly
+        a fifth of that — so once the card is on its vw branch, which is where
+        the complaint came from, the tile is 20% of the picture above it by
+        construction rather than by coincidence. Measured at 3840: card 1843
+        wide, thumb 360. At 1920: 922 and 184.
+
+        Clamped at both ends: 84px is where it started and is still right on a
+        small laptop, and past ~3750px a thumbnail large enough to be a poster
+        in its own right stops reading as navigation.
+
+        `aspect-ratio` rather than a second fixed number, so the two cannot
+        drift out of 16/9 the way 84x46 (1.83) already had.
+      */
+      width: clamp(84px, 9.6vw, 360px);
+      height: auto;
+      aspect-ratio: 16 / 9;
     }
 
     /* Hover tooltips are meaningless on touch and stick after a tap. */

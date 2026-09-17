@@ -137,10 +137,10 @@ const highlightedItems = [...selectedVideos, article].filter(Boolean).sort((a: a
     gap: 2rem;
   }
 
-  /* 55/45 Split on Desktop & Landscape Tablet */
+  /* 60/40 Split on Desktop & Landscape Tablet */
   @media (min-width: 768px) {
     .fh-layout {
-      grid-template-columns: 1.2fr 1fr;
+      grid-template-columns: 1.5fr 1fr;
       align-items: stretch; /* Forces equal height columns */
     }
   }
@@ -153,6 +153,17 @@ const highlightedItems = [...selectedVideos, article].filter(Boolean).sort((a: a
   /* Stack all cards perfectly on top of each other for a true cross-fade */
   .fh-hero-card {
     grid-area: 1 / 1;
+    /*
+      The same depth the rows beside it carry. It matters more here than
+      anywhere: the hero card and the four rows are one component, and giving
+      the small tiles a raised edge while the large one stayed flat would have
+      read as the big card sitting BEHIND its own list.
+
+      The cards are stacked in a single grid area and cross-faded, so every
+      one of them carries this and the shadow fades with the card it belongs
+      to rather than being painted once on the container.
+    */
+    box-shadow: var(--shadow-tile);
     /*
       The `min-width: 0` on .fh-left above is NOT enough on its own — this is
       the grid ITEM, and a grid item's default `min-width: auto` floors it at
@@ -245,6 +256,9 @@ const highlightedItems = [...selectedVideos, article].filter(Boolean).sort((a: a
     padding: 0.75rem;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(255, 255, 255, 0.05);
+    /* See --shadow-tile in global-base.css. `transition: all` below already
+       picks this up; only the resting value was missing. */
+    box-shadow: var(--shadow-tile);
     text-align: left;
     cursor: pointer;
     color: var(--color-white, #ffffff);

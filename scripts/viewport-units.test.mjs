@@ -98,15 +98,27 @@ test('the mobile hero is sized in lvh, NOT a measurement', () => {
     a MIN-bound on an auto-sized box; this rule is an outright size, where
     too small is a visible gap.
   */
+  /*
+    STRICT AGAIN, AND THE ROUND TRIP IS WORTH RECORDING.
+
+    This was loosened to any `<number>lvh` while a spotlight bar sat BELOW the
+    hero and needed to show above the fold, which made the fraction a design
+    decision. The bar moved INSIDE the hero, so nothing below it needs room and
+    the original reason for 100 is operative again: this rule is an outright
+    size, and too small is a visible gap under the toolbar.
+
+    If a future change puts something under the hero again, loosen it again —
+    but the unit reasons above are permanent and the number is not.
+  */
   const height = mobileHeroHeight();
   assert.equal(
     height,
     '100lvh',
     `mobile .hero height is "${height}".\n\n` +
-      '      It must be 100lvh. svh is short once the address bar retracts;\n' +
-      '      dvh re-resolves during scroll and re-rasterizes the blurred\n' +
-      '      .hero-bg; and a measured visualViewport height is SHORTER than\n' +
-      '      the layout viewport, which is what put the next section under\n' +
+      '      It must be a plain <number>lvh. svh is short once the address bar\n' +
+      '      retracts; dvh re-resolves during scroll and re-rasterizes the\n' +
+      '      blurred .hero-bg; and a measured visualViewport height is SHORTER\n' +
+      '      than the layout viewport, which is what put the next section under\n' +
       '      the toolbar on a real device. All three have been tried.\n',
   );
 });

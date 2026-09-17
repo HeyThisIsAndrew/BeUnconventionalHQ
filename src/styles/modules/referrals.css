@@ -79,9 +79,13 @@
   text-decoration: none;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.015);
+  /* Sits on the page rather than in it. See --shadow-tile in global-base.css
+     for why it is two shadows and not one. */
+  box-shadow: var(--shadow-tile);
   transition:
     border-color 0.3s ease,
     background-color 0.3s ease,
+    box-shadow 0.3s ease,
     transform 0.3s ease;
 }
 
@@ -89,6 +93,10 @@
   .referral-item:hover {
     border-color: rgba(204, 0, 0, 0.55);
     background: rgba(204, 0, 0, 0.06);
+    /* The brand glow is layered ON the depth, not instead of it: `box-shadow`
+       is a single property, so naming only the glow here would flatten the
+       tile back onto the page at the exact moment it is being pointed at. */
+    box-shadow: var(--shadow-tile), 0 0 24px -6px rgba(204, 0, 0, 0.35);
     transform: translateX(2px);
   }
 

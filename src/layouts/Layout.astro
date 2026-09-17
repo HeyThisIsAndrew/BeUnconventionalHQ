@@ -15,6 +15,10 @@ import logoImage from '../assets/logo.webp';
 import logoMark from '../assets/logo-mark.webp';
 import { getImage, Font } from 'astro:assets';
 
+/* The org logo a crawler is told to fetch. `logoImage.src` is never emitted
+   when compile-time image optimization is on — see the note in ContentCard. */
+const organizationLogoSrc = (await getImage({ src: logoImage, width: 512, format: 'webp', quality: 80 })).src;
+
 const {
   title = site.name,
   description = site.description,
@@ -78,7 +82,7 @@ const structuredData = {
       '@id': orgId,
       name: site.name,
       url: site.url,
-      logo: new URL(logoImage.src, site.url).toString(),
+      logo: new URL(organizationLogoSrc, site.url).toString(),
       description: site.description,
       sameAs: [
         site.socials.youtube,
@@ -170,6 +174,36 @@ const fallbackMark = await getImage({
     <ClientRouter />
     <script is:inline>
       document.documentElement.classList.add('js');
+
+      /*
+        ─── A BIG MONITOR IS A PROPERTY OF THE MONITOR, NOT OF THE WINDOW ────
+
+        The root font ladder in global-base.css steps on WINDOW width, and
+        window width cannot tell a 4K panel from a 1080p one. Half of a 3840px
+        monitor is a 1920px window, byte for byte identical to a maximised
+        window on a 1080p screen, so it took the 90% rung and rendered at
+        14.4px -- on a display whose pixels are half the physical size. The
+        report was that the 4K problem "is also present when the site is
+        occupying half of the 4K monitor", and it was right: nothing in CSS
+        could see the difference.
+
+        `screen.width` can. It reports the panel, not the window: measured
+        3840 while `innerWidth` was 1920. So it is read once here and published
+        as an attribute the stylesheet can branch on.
+
+        INLINE AND FIRST, for the same reason `--vv-height` is seeded inline
+        further down: this changes the root font size, so a class arriving
+        after first paint would reflow the entire page and charge it to CLS.
+
+        Plain ES5, no TypeScript syntax: an `is:inline` script is shipped to
+        the browser exactly as written and is never stripped, so a type
+        annotation here is a SyntaxError that takes the whole file down.
+      */
+      try {
+        if (window.screen && screen.width >= 3400) {
+          document.documentElement.setAttribute('data-screen-4k', '');
+        }
+      } catch (e) {}
 
       /*
         ─── THE REVEAL WATCHDOG ──────────────────────────────────────────────
@@ -406,7 +440,7 @@ const fallbackMark = await getImage({
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={image} />
   </head>
-  <body>
+  <body transition:animate="none">
     {/* In-app-browser escape hatch (#198). Styling and behaviour live in the
         component: it owns a fixed banner, an Android button instead of an
         automatic redirect, and an `astro:page-load` binding so it survives
@@ -416,6 +450,193 @@ const fallbackMark = await getImage({
     {/* Site-wide brand signature. Decorative, fixed, behind all content —
         see src/components/BrandGlow.astro for the performance reasoning. */}
     <BrandGlow />
+
+    {/*
+      ─── WHICH WAY IS THIS NAVIGATION GOING ──────────────────────────────────
+
+      The nav bar is an ORDER, not a set: Feed, Intel, Events, Featured, About.
+      Moving rightward along it should look like moving rightward. This stamps
+      the direction on <html> before the swap, and global-base.css turns that
+      into the slide.
+
+      `is:inline` and not a module: it has to be listening before the FIRST
+      navigation, and `astro:before-preparation` fires early enough that a
+      deferred module can miss it.
+
+      The direction is copied onto the INCOMING document in `before-swap`,
+      because the swap replaces <html>'s attributes along with everything else
+      — set it only on the outgoing one and it is gone by the time the
+      animation runs.
+    */}
+    <script is:inline>
+      (function () {
+        var NAV_ORDER = ['/', '/feed', '/intel', '/events', '/featured', '/about'];
+
+        function indexOfRoute(pathname) {
+          var clean = pathname.replace(/\/+$/, '') || '/';
+          var exact = NAV_ORDER.indexOf(clean);
+          if (exact !== -1) return exact;
+          /* A sub-route belongs to its section: /intel/some-article is Intel,
+             so moving to it from Feed still reads as going right. */
+          var section = '/' + clean.split('/')[1];
+          var prefix = NAV_ORDER.indexOf(section);
+          return prefix !== -1 ? prefix : NAV_ORDER.length;
+        }
+
+        /*
+          A paginated route's page number, so /events and /events/2 can be
+          recognised as the same place.
+        */
+        function baseOf(pathname) {
+          return pathname.replace(/\/+$/, '').replace(/\/\d+$/, '') || '/';
+        }
+
+        function directionFor(fromPath, toPath, fromHash, toHash) {
+          /* Same page: a hash, a filter, a spotlight swap. Not a journey. */
+          if (fromPath === toPath) return 'none';
+
+          /*
+            PAGING A LIST IS NOT TRAVELLING ANYWHERE.
+
+            /events -> /events/2 is the same page showing the next tiles, but it
+            is a real navigation, so it drove the full page transition and slid
+            the entire document sideways — header and all — to change a grid
+            halfway down it.
+
+            `page-rows` animates only the element that actually changed. The
+            page holds still.
+          */
+          if (baseOf(fromPath) === baseOf(toPath)) return 'page-rows';
+
+          /*
+            A LINK THAT NAMES A SECTION GOES DOWN, NOT SIDEWAYS.
+
+            The "What We Cover" tiles point at /feed#film, /feed#tv, /feed#games.
+            Along the nav that is one step right, so it slid sideways — and then
+            the feed scrolled down to the row. Two motions, two axes, reported as
+            "way too jarring".
+
+            Arriving at an anchor is a descent into the page, so it moves down.
+            Leaving one moves back up. This is checked before the nav order
+            because it is the more specific thing the link is saying.
+          */
+          if (toHash) return 'dive-down';
+          if (fromHash) return 'dive-up';
+
+          /*
+            INTEL FILTERS ARE IN-PLACE CROSSFADES, NOT SPATIAL NAVIGATION.
+            Navigating between /intel and /intel/topic/* changes the grid, not
+            the depth of the page. It must crossfade in place ('none') rather
+            than sliding sideways like an article descent.
+          */
+          var isIntelFilter = function(p) {
+            return p === '/intel' || p === '/intel/' || p.indexOf('/intel/topic/') === 0;
+          };
+          if (isIntelFilter(fromPath) && isIntelFilter(toPath)) {
+            return 'none';
+          }
+
+          var from = indexOfRoute(fromPath);
+          var to = indexOfRoute(toPath);
+
+          /* Within one section, depth decides: /intel -> /intel/<slug> is
+             going deeper, and coming back out is going back. */
+          if (from === to) {
+            if (toPath.indexOf(fromPath) === 0) return 'slide-forward';
+            if (fromPath.indexOf(toPath) === 0) return 'slide-backward';
+            return 'slide-forward';
+          }
+
+          return from < to ? 'slide-forward' : 'slide-backward';
+        }
+
+        document.addEventListener('astro:before-preparation', function (event) {
+          var direction;
+          /* Back and Forward mean what the button says, whatever the nav order
+             is — a reader pressing Back expects to go back. */
+          if (event.navigationType === 'traverse') {
+            /* Back out of an anchor the way you went in: if either end of the
+               traverse names a section, it is the same descent in reverse. */
+            if (event.from.hash && !event.to.hash) direction = 'dive-up';
+            else if (!event.from.hash && event.to.hash) direction = 'dive-down';
+            else direction = event.direction === 'back' ? 'slide-backward' : 'slide-forward';
+          } else {
+            direction = directionFor(
+              event.from.pathname,
+              event.to.pathname,
+              event.from.hash,
+              event.to.hash,
+            );
+          }
+          document.documentElement.dataset.pageTransition = direction;
+        });
+
+        /*
+          PAGING A LIST MUST NOT MOVE THE READER.
+
+          Astro resets scroll to the top on navigation. For a page-rows move
+          that is wrong twice over: the reader was looking at the list, and any
+          animated snapshot of it gets replayed at the top of the screen,
+          because a view transition positions its snapshots against the VIEWPORT
+          rather than the element's place in the document. That is what drew the
+          outgoing tiles over the hero.
+
+          So the position is captured before the swap and put back after it. The
+          list then updates under the reader's eyes, where it already was.
+        */
+        var rowsPending = false;
+
+        document.addEventListener('astro:before-swap', function (event) {
+          var direction = document.documentElement.dataset.pageTransition;
+          if (direction) event.newDocument.documentElement.dataset.pageTransition = direction;
+          /* A FLAG, NOT AN OFFSET. This captured window.scrollY and put it back
+             after the swap, which is what threw the reader to the bottom of a
+             shorter page. All the swap needs to know is that a pagination
+             happened; where to land is decided from the list itself below. */
+          rowsPending = direction === 'page-rows';
+        });
+
+        document.addEventListener('astro:after-swap', function () {
+          if (!rowsPending) return;
+          rowsPending = false;
+          /* Two frames: Astro's own scroll reset lands after the swap, so a
+             single rAF puts this back before it and is immediately undone. */
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+              /*
+                ─── LAND ON THE LIST, DO NOT RESTORE AN OFFSET ───────────────
+
+                This put back the exact `scrollY` captured before the swap, on
+                the theory that the list should update under the reader's eyes
+                where it already was. That is true only while both pages are
+                the same height.
+
+                They are not. The last page of a paginated list is usually
+                shorter, so an offset that was mid-list on page 1 is past the
+                end of page 2, and the browser clamps it to the bottom of the
+                document. Reported as: press Next and get thrown to the footer.
+
+                Even when it fits, restoring the offset leaves the reader
+                looking at the BOTTOM of a list whose items all just changed.
+                The top of the container is the honest answer to "show me the
+                next page", and it is the same answer at every page height.
+              */
+              var target = document.querySelector('[data-rows-target]');
+              if (target) target.scrollIntoView({ block: 'start', behavior: 'instant' });
+              else window.scrollTo({ top: 0, behavior: 'instant' });
+            });
+          });
+        });
+
+        /* Cleared once the animation has run, so a later in-page change does
+           not inherit the last navigation's direction. */
+        document.addEventListener('astro:page-load', function () {
+          setTimeout(function () {
+            delete document.documentElement.dataset.pageTransition;
+          }, 500);
+        });
+      })();
+    </script>
 
     <a href="#page-content" class="skip-link">Skip to main content</a>
     {
@@ -1083,8 +1304,16 @@ const fallbackMark = await getImage({
     <script>
       import { releaseScrollLock } from '../lib/scroll-lock';
 
+      let lastClickedLink: Element | null = null;
+      document.addEventListener('click', (e) => {
+        lastClickedLink = (e.target as Element).closest('a');
+      }, { capture: true });
+
       // Step 1: Strip mobile scroll locks BEFORE Astro takes its snapshot
-      document.addEventListener('astro:before-preparation', () => {
+      document.addEventListener('astro:before-preparation', (ev: any) => {
+        if (lastClickedLink && lastClickedLink.getAttribute('data-direction')) {
+          ev.direction = lastClickedLink.getAttribute('data-direction');
+        }
         /*
           One call replaces the hand-rolled teardown that used to live here
           (clear four inline styles, re-parse `body.style.top` to recover the

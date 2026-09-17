@@ -167,7 +167,40 @@ export function planVideoSync(video, match, existingDoc, now = new Date()) {
     characters: existingDoc?.characters ?? [],
     coverageType: existingDoc?.coverageType ?? '',
     series: existingDoc?.series ?? '',
+    /* Collection-level editorial. EDITORIAL class (hard rule 5): seeded by a
+       human, never written by this script, wiped on the next run if not carried. */
+    featuredSeries: existingDoc?.featuredSeries ?? false,
+    seriesAccent: existingDoc?.seriesAccent ?? '',
     editorialNotes: existingDoc?.editorialNotes ?? '',
+    /* The hand-written standfirst. EDITORIAL class (hard rule 5): seeded by a
+       human, never written by this script, and wiped on the next run if it is
+       not carried here. */
+    editorial: existingDoc?.editorial ?? undefined,
+    /* Ordering override. Publish order and episode order are different things:
+       the Lanterns ep 2 review went out after the ep 3 review, so by date the
+       row read 5, 4, 2, 3. Carried forward explicitly, like every editorial
+       field here, or a sync run would drop it. */
+    sortDate: existingDoc?.sortDate ?? '',
+    /*
+       ─── THE FEED HERO'S OVERRIDES, AND THE CHIP ─────────────────────────
+
+       These three were read by the site and carried by nobody, which is the
+       one combination this function cannot survive: the doc is REBUILT from
+       the fields named here, so anything absent is not merely un-updated, it
+       is erased.
+
+       It had already happened. `badge1` on the Coyote vs. Acme doc reads
+       "KETCHUP ENTERTAINMENT" on the feature branch and is GONE on main,
+       where the scheduled sync writes. That chip is the only thing naming the
+       distributor on /feed, and nothing reported it, because a field that
+       quietly becomes empty looks exactly like a field an editor never set.
+
+       `customHeroLogo` and `customHeroBrandLabel` had no value in the store
+       yet, so they had nothing to lose. They do now, and they would have been
+       wiped on the next run. */
+    badge1: existingDoc?.badge1 ?? '',
+    customHeroLogo: existingDoc?.customHeroLogo ?? '',
+    customHeroBrandLabel: existingDoc?.customHeroBrandLabel ?? '',
 
     // Taxonomy fields
     topics,

@@ -60,9 +60,9 @@ export const LIVE_TOOL = 'get_live_status';
 export const AGENT_TOOLS: AgentToolSchema[] = [
   {
     name: SEARCH_TOOL,
-    title: 'Search Be Unconventional HQ',
+    title: 'Search BE Unconventional HQ',
     description:
-      'Search everything published on Be Unconventional HQ: videos, articles, ' +
+      'Search everything published on BE Unconventional HQ: videos, articles, ' +
       'events and brand hubs. Returns titles with absolute URLs. Use this to ' +
       'answer questions about what the site covers, or to find the page for a ' +
       'specific topic, show, film, game or event.',
@@ -91,7 +91,7 @@ export const AGENT_TOOLS: AgentToolSchema[] = [
     name: EVENTS_TOOL,
     title: 'Upcoming events',
     description:
-      'List the events Be Unconventional HQ is covering that have not finished ' +
+      'List the events BE Unconventional HQ is covering that have not finished ' +
       'yet, soonest first, with their dates and status. Use this for questions ' +
       'about where the channel will be, or what is coming up.',
     annotations: { readOnlyHint: true, untrustedContentHint: true },
@@ -109,7 +109,7 @@ export const AGENT_TOOLS: AgentToolSchema[] = [
     name: LIVE_TOOL,
     title: 'Live right now?',
     description:
-      'Check whether Be Unconventional HQ is streaming live at this moment, and ' +
+      'Check whether BE Unconventional HQ is streaming live at this moment, and ' +
       'on which platform. This is the only tool here whose answer changes minute ' +
       'to minute, so prefer it over anything cached when the question is about now.',
     annotations: { readOnlyHint: true, untrustedContentHint: true },

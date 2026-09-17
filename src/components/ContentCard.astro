@@ -1,41 +1,101 @@
 ---
-import { getDisplayTags } from '../lib/tags';
+import { getDisplayTags, getDisplayTagSlots } from '../lib/tags';
+import { editorialPreview } from '../lib/editorial-text';
 
 import { parseVideoId } from '../lib/platforms/youtube';
-import { getCardImageSources, CARD_IMAGE_SIZES } from '../lib/card-images';
+import {
+  getCardImageSources,
+  CARD_IMAGE_SIZES,
+  HERO_CARD_IMAGE_SIZES,
+  FEATURED_CARD_IMAGE_SIZES,
+} from '../lib/card-images';
 import { LABELS } from '../data/content.js';
 import { CATEGORY_TAG_ALIASES, categoryTagAliases } from '../data/constants.js';
+import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-content';
+import { resolveEntity } from '../lib/entity-resolver';
 import logoImage from '../assets/logo-mark.webp';
 import { getImage } from 'astro:assets';
 
 export interface Props {
   item: any;
   index: number;
-  variant?: 'default' | 'hero';
+  /**
+   * 'hero'     the lead card in FeaturedHighlights, with its own treatment
+   * 'featured' a tile on the tentpole shelf: cinematic like the default, but
+   *            560px wide instead of 320, so it needs its own image `sizes`
+   * 'default'  a tile in the card grid or a browse row
+   */
+  variant?: 'default' | 'hero' | 'featured';
+  /**
+   * Which surface this card is on, and therefore what clicking it does.
+   *
+   *   'feed'    promotes the item into <FeedSpotlightHero /> above it
+   *   'hub'     plays it in the hub/event page's own stage
+   *   'default' opens the modal, or follows the link for an article
+   */
+  context?: 'feed' | 'hub' | 'default';
+  /**
+   * Artwork and name for the SHOW this card belongs to, overriding the hub
+   * `resolveEntity()` would otherwise resolve.
+   *
+   * The Lanterns tiles resolve to DC, because that is the hub that owns them,
+   * and promoting one into the spotlight hero therefore filled it with DC's
+   * key art and the DC roundel. On a shelf that has its own banner and its own
+   * logo directly above it, that is the wrong identity: the row says Lanterns
+   * and the hero it drives said DC.
+   *
+   * Only the fields given are replaced. `slug`, `url`, `type` and `color` stay
+   * as resolved, so the Explore CTA still goes to the hub — the show has no
+   * page of its own to send anyone to.
+   */
+  brandOverride?: { logo?: string; hero?: string; title?: string } | null;
 }
 
-const { item, index = 0, variant = 'default' } = Astro.props;
+const { item, index = 0, variant = 'default', context = 'default', brandOverride = null } = Astro.props;
 
 // Determine if this is the Largest Contentful Paint (LCP) element
 const isLCP = variant === 'hero' && index === 0;
 
 if (!item) return;
 
-let excerpt = '';
-let finalTags: string[] = [];
+/*
+  ─── THE CARD PRINTS THE PUBLICATION'S WORDS, NOT THE PLATFORM'S ────────────
 
-{
-  // Use preview/excerpt for articles, or description for videos
-  excerpt = item.preview || item.excerpt || item.description || '';
+  This was `item.preview || item.excerpt || item.description` with a pair of
+  inline hashtag strips after it, and it was wrong in three ways that only
+  showed up when the built page was measured:
 
-  finalTags = getDisplayTags(item);
+    - `preview` is an ARRAY of body paragraphs on an article, so the `||` chain
+      never reached `excerpt`, the Substack subtitle that is already a
+      standfirst. The array then stringified into the attribute below joining
+      paragraphs on a bare comma: "...its own distinct identity.,One of the
+      things I love most...". 49 cards on /feed shipped that.
+    - `description` is a raw YouTube description. 102 of 160 carried affiliate
+      links, gear lists or subscribe CTAs, and `amzn.to` appeared 219 times in
+      the HTML of a single page.
+    - The hashtag strips only caught a cluster at the very start or the very
+      end, and only on a string, so a video opening "#sinnersmovie #ryancoogler
+      🚨 Movie Review 🚨" kept everything after the first non-hashtag token.
 
-  // Clean up any HTML tags if present (e.g., from article excerpts)
-  if (typeof excerpt === 'string') {
-    // Strip HTML tags and any leading/trailing hashtags clusters
-    excerpt = excerpt.replace(/<[^>]*>?/gm, '').replace(/^(?:\s*#[\w-]+\s*)+/, '').replace(/(?:\s*#[\w-]+\s*)+$/, '').trim();
-  }
-}
+  `editorialPreview()` owns all of it now, and FeedSpotlightHero calls the same
+  function, so a tile and the hero it promotes into cannot describe one item
+  with two different sets of words.
+*/
+const excerpt = editorialPreview(item);
+/*
+  ─── THE METADATA PAIR KEEPS ITS SLOTS ──────────────────────────────────────
+
+  `getDisplayTags()` filters out the empty slots, so an item with no brand used
+  to print its editorial type in the brand's position. Rendered as discrete
+  spans instead, each one declaring which slot it is, the separator appearing
+  only between two labels that both exist.
+
+  The text and the " | " between them are unchanged, so a card with both slots
+  filled (36 of the 41 items on /feed) renders exactly as before. The five
+  without a brand stop claiming one.
+*/
+const tagSlots = getDisplayTagSlots(item);
+const finalTags = getDisplayTags(item);
 
 const isVideo = item.contentType === 'video' || item.type === 'video';
 const videoId = isVideo ? parseVideoId(item.link || '') : null;
@@ -107,15 +167,143 @@ const externalLinkProps = isExternalLink
   ? { target: '_blank', rel: 'noopener noreferrer' }
   : {};
 
-const CardWrapper = isPlayable ? 'div' : 'a';
-const wrapperProps = isPlayable
+// Feed context changes the action to spotlight swapping rather than normal links or modals
+/*
+  ─── WHAT A CLICK MEANS DEPENDS ON THE HERO ABOVE IT ────────────────────────
+
+  A hub or event page already has a stage that plays video, driven by
+  `data-hub-play`. A card there should feed THAT, not open the site-wide modal:
+  a popup over a page whose whole top half is a player reads as the page losing
+  its place — the same reasoning the stage's own rail carries in its markup.
+
+  Articles on those pages stay ordinary links, because the stage cannot show an
+  article.
+*/
+const isHubContext = context === 'hub';
+const hubPlayId = isHubContext ? (isPlayable ? videoId : item.link) : null;
+
+const dataAction = context === 'feed'
+  ? (isPlayable ? 'spotlight-video' : 'spotlight-article')
+  : isHubContext
+    ? undefined
+    : (isPlayable ? (variant === 'hero' ? 'inline-video' : 'open-video') : undefined);
+
+/*
+  The card's hub, carried to the Feed hero so a swap can repaint the logo and
+  the Explore button without looking anything up again.
+
+  This used to search featuredBrands ONLY and match on an exact title-to-tag
+  comparison, so every convention resolved to nothing: L.A. Comic Con, SDCC and
+  NYCC are `_type: 'event'` documents and were never in the list being searched.
+  `resolveEntity()` searches both types and knows the three ways an item can
+  name its hub. See src/lib/entity-resolver.ts.
+
+  `url` is part of the payload because the destination differs by type —
+  /featured/<slug> for a brand, /events/<slug> for an event — and the client has
+  no way to tell which it is holding otherwise.
+*/
+const entity = resolveEntity(item, {
+  brands: getFeaturedBrandsLocal(),
+  events: getEventsLocal(),
+  urlFor,
+});
+
+const brandData = entity
+  ? JSON.stringify({
+      slug: entity.slug,
+      url: entity.url,
+      type: entity.type,
+      /*
+        The show's identity wins over the hub's where one is supplied, and only
+        for the three things that are actually about the show: what it is
+        called and what it looks like. The destination stays the hub's, because
+        that is the page that exists.
+      */
+      title: brandOverride?.title || entity.title,
+      logo: brandOverride?.logo || entity.logo || undefined,
+      hero: brandOverride?.hero || entity.hero || undefined,
+      color: entity.color,
+    })
+  : undefined;
+
+/* A playable card on a hub page is a control, not a link: it drives the stage
+   in place rather than navigating. */
+const CardWrapper = isPlayable || context === 'feed' ? 'div' : 'a';
+
+/*
+  ─── THE FEED'S TILES ARE A DIFFERENT OBJECT ────────────────────────────────
+
+  Everywhere else on the site a card is an editorial card: a boxed panel with a
+  surface colour, a border and a "WATCH NOW" link at the bottom. In the Feed's
+  horizontal rows that reads as a blog roll laid on its side — on a streaming
+  shelf the artwork IS the object and the whole tile is the target.
+
+  A MODIFIER, not a second component: same markup, same data, same behaviour.
+  `context="feed"` is already how this component knows it is in a row, so the
+  cinematic treatment rides on it and /intel, /category and the hub pages are
+  untouched by construction.
+*/
+/*
+  Every card except the magazine hero is a slate now.
+
+  It shipped scoped to `context === 'feed'` so the Feed could be tried without
+  touching anything else, and that trial is over: the boxed card with 1.5rem of
+  padding and a "WATCH NOW" footer stayed on /intel, /category, the hub pages,
+  the event pages and the homepage, so the site had two card languages
+  depending on which route you were standing on.
+
+  `variant !== 'hero'` is the one exception. FeaturedHighlights renders its lead
+  item at `variant="hero"` with its own scale, excerpt and treatment, and that
+  card is a different object — it is the page's headline, not one tile among
+  several — so it keeps the styling written for it.
+*/
+const isCinematic = variant !== 'hero';
+
+/*
+  A `sizes` is a CLAIM ABOUT THE CSS, so each variant needs its own. Getting it
+  from a ternary is how the featured shelf ended up describing itself with the
+  320px grid's numbers while rendering 560px wide, and fetching a 360px
+  rendition into it. A map makes a new variant declare its width or fail to
+  compile rather than silently inherit the wrong one.
+*/
+const CARD_SIZES_FOR_VARIANT: Record<NonNullable<Props['variant']>, string> = {
+  hero: HERO_CARD_IMAGE_SIZES,
+  featured: FEATURED_CARD_IMAGE_SIZES,
+  default: CARD_IMAGE_SIZES,
+};
+
+const baseProps = {
+  class: `reveal video-card-home content-card w-full variant-${variant}${isCinematic ? ' content-card--cinematic' : ''}`,
+  'data-categories': filterAttr,
+  'data-type': isVideo ? 'video' : 'article',
+  'data-delay': index * 100,
+  'data-action': dataAction,
+  'data-image': cardImage,
+  'data-title': item.title,
+  'data-preview': excerpt,
+  'data-brand': brandData,
+  /*
+    The card's own display slots, carried so the Feed hero can show them when a
+    card is promoted into it. Recomputing them in the swap handler would mean a
+    second copy of the brand/type dictionaries in client JS; passing what the
+    card already resolved means the hero cannot disagree with the card it came
+    from. Absent when the item matched nothing, and the hero falls back to
+    VIDEO/ARTICLE in that case.
+  */
+  /* Per SLOT, not a joined string: the hero styles the brand chip with the
+     brand accent, and a joined string cannot tell it which chip that is. */
+  'data-tag-brand': tagSlots.brand || undefined,
+  'data-tag-type': tagSlots.type || undefined,
+  'data-tag-extra': tagSlots.extra || undefined,
+  /* Picked up by the hub/event stage's delegated play handler. */
+  'data-hub-play': hubPlayId ?? undefined,
+};
+
+const wrapperProps = (isPlayable || context === 'feed' || context === 'hub')
   ? {
-      class: `reveal video-card-home content-card w-full variant-${variant}`,
-      'data-delay': index * 100,
-      'data-type': 'video',
-      'data-categories': filterAttr,
+      ...baseProps,
       'data-video-id': videoId,
-      'data-action': variant === 'hero' ? 'inline-video' : 'open-video',
+      'data-href': cardHref, // store href for manual navigation if they click something inside the spotlight later
       role: 'button' as const,
       tabindex: 0,
       /*
@@ -136,12 +324,9 @@ const wrapperProps = isPlayable
       */
     }
   : {
+      ...baseProps,
       href: cardHref,
       ...externalLinkProps,
-      class: `reveal video-card-home content-card w-full variant-${variant}`,
-      'data-categories': filterAttr,
-      'data-type': isVideo ? 'video' : 'article',
-      'data-delay': index * 100
     };
 
 /*
@@ -281,12 +466,28 @@ if (isVideo && item.youtubeId) {
     thumbnails use, and reads as deliberate.
   */}
   <div class="content-card-media">
+    {isCinematic && (
+      /* The format, stated once, on the artwork. It replaces the CTA row the
+         tile no longer has, and sits over the image because that is the only
+         surface a borderless tile still owns. aria-hidden: the card's own
+         accessible name already says what it is. */
+      <span class="content-card-format" aria-hidden="true">{isVideo ? 'VIDEO' : 'ARTICLE'}</span>
+    )}
+    {variant === 'hero' && finalTags.length > 0 && (
+      <div class="content-card-hero-tags">
+        {tagSlots.brand && <span data-slot="brand">{tagSlots.brand}</span>}
+        {tagSlots.brand && tagSlots.type && <span class="tag-slot-sep" aria-hidden="true">{"\u00a0|\u00a0"}</span>}
+        {tagSlots.type && <span data-slot="type">{tagSlots.type}</span>}
+        {(tagSlots.brand || tagSlots.type) && tagSlots.extra && <span class="tag-slot-sep" aria-hidden="true">{"\u00a0|\u00a0"}</span>}
+        {tagSlots.extra && <span data-slot="extra">{tagSlots.extra}</span>}
+      </div>
+    )}
     {cardImage ? (
       <img
         class="content-card-img"
         src={cardImage}
         srcset={cardImageSrcset || undefined}
-        sizes={cardImageSrcset ? CARD_IMAGE_SIZES : undefined}
+        sizes={cardImageSrcset ? CARD_SIZES_FOR_VARIANT[variant] : undefined}
         alt={item.title}
         loading={isLCP ? 'eager' : 'lazy'}
         fetchpriority={isLCP ? 'high' : 'auto'}
@@ -332,19 +533,45 @@ if (isVideo && item.youtubeId) {
   </div>
 
   <div class="content-card-body">
+    {/*
+      ─── METADATA, THEN TITLE, THEN DESCRIPTION ───────────────────────────────
+
+      One order, everywhere, top to bottom. The tag line is the card's eyebrow:
+      it says what KIND of thing this is before the title says which thing, the
+      same way the hero's eyebrow does and the same way the section headings
+      read. It was rendering underneath the title.
+
+      This is a DOM reorder, not a visual one. `order:` or `flex-direction:
+      column-reverse` would have looked identical and left the reading order and
+      the tab order wrong, which is what a screen reader and a keyboard follow.
+    */}
     <div class="content-card-title-wrapper">
-      <h3 class="content-card-title">{item.title}</h3>
-      {finalTags.length > 0 && (
+      {variant !== 'hero' && finalTags.length > 0 && (
         <div class="content-card-dynamic-tags">
-          {finalTags.join(' | ')}
+          {tagSlots.brand && <span data-slot="brand">{tagSlots.brand}</span>}
+          {tagSlots.brand && tagSlots.type && <span class="tag-slot-sep" aria-hidden="true">{"\u00a0|\u00a0"}</span>}
+          {tagSlots.type && <span data-slot="type">{tagSlots.type}</span>}
+          {(tagSlots.brand || tagSlots.type) && tagSlots.extra && <span class="tag-slot-sep" aria-hidden="true">{"\u00a0|\u00a0"}</span>}
+          {tagSlots.extra && <span data-slot="extra">{tagSlots.extra}</span>}
         </div>
       )}
+      <h3 class="content-card-title">{item.title}</h3>
     </div>
 
     {variant === 'hero' && excerpt && (
       <p class="content-card-excerpt">{excerpt}</p>
     )}
     
+    {/*
+      The explicit CTA is omitted on a feed tile. The entire card is already the
+      control there — it is a <div role="button"> that promotes the item into
+      the hero — so a second "WATCH NOW" inside it was a target within a target,
+      and the one thing a reader could click that did not look clickable.
+
+      It stays everywhere else, where the card is a link in a grid and the words
+      are the affordance.
+    */}
+    {!isCinematic && (
     <span class="watch-now-btn" style="margin-top: auto;">
       {isVideo ? LABELS.watchNow : LABELS.readNow}
       {isVideo ? (
@@ -356,6 +583,7 @@ if (isVideo && item.youtubeId) {
       )}
       <span class="btn-underline" />
     </span>
+    )}
   </div>
 </CardWrapper>
 
@@ -503,6 +731,13 @@ if (isVideo && item.youtubeId) {
     gap: 0.3rem; /* ensures title pushes tags down safely */
   }
 
+  @media (max-width: 768px) {
+    :global(.content-card-title-wrapper) {
+      gap: 0.15rem;
+      margin-bottom: 0.3rem;
+    }
+  }
+
   :global(.content-card-title) {
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -527,10 +762,24 @@ if (isVideo && item.youtubeId) {
     min-height: 1.2rem;
     display: flex;
     align-items: center; /* Vertically center within the gap */
-    
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  :global(.content-card-hero-tags) {
+    position: absolute;
+    bottom: 1rem;
+    left: 1rem;
+    z-index: 5;
+    font-family: var(--font-body, 'Inter', sans-serif);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.9);
+    pointer-events: none;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
   }
 
 </style>

@@ -179,7 +179,9 @@ test('no height is pinned', () => {
 
 test('srcset ascends and descriptors match their widths', () => {
   const entries = parseSrcset(getCardImageSources(SUBSTACK_NO_WIDTH).srcset);
-  assert.equal(entries.length, 4);
+  /* Six since the cards grew: a featured tile is 860px on a 4K display, which
+     is ~1720 device pixels at 2x, so the ladder runs past 1200. */
+  assert.equal(entries.length, 6);
 
   let previous = 0;
   for (const { url, descriptor } of entries) {
@@ -232,10 +234,42 @@ test('the rewrite is idempotent', () => {
 console.log('\nsizes attribute:');
 
 test('CARD_IMAGE_SIZES covers every grid breakpoint', () => {
-  // Mirrors home-cards.css: 42vw phone row, 2-up to 1100px, 4-up capped 1536.
-  assert.match(CARD_IMAGE_SIZES, /max-width:\s*560px\)\s*42vw/);
+  // Mirrors home-cards.css: 42vw phone row, 2-up to 1100px, 4-up from 1536.
+  /* 90vw, not the old 42vw: below 560 the card is a full-width vertical slate,
+     not the horizontal row whose media took 42% of it. */
+  assert.match(CARD_IMAGE_SIZES, /max-width:\s*560px\)\s*90vw/);
   assert.match(CARD_IMAGE_SIZES, /max-width:\s*1100px\)\s*47vw/);
-  assert.match(CARD_IMAGE_SIZES, /min-width:\s*1536px\)\s*360px/);
+
+  /*
+    The desktop step is no longer a single 360px. `.container-page` steps up on
+    wide screens (--page-max), so a 4-up grid card is 366px at 1536 and 632px at
+    2600, and the feed's browse rows step with it too. Each desktop step must be
+    at least as large as the 4-up card at that container width, or the browser
+    fetches a smaller rendition and the card is soft.
+  */
+  const steps = [...CARD_IMAGE_SIZES.matchAll(/\(min-width:\s*(\d+)px\)\s*(\d+)px/g)]
+    .map(([, bp, px]) => [Number(bp), Number(px)]);
+  assert.ok(steps.length >= 4, `expected a desktop ladder, got: ${CARD_IMAGE_SIZES}`);
+
+  /* Largest first, or an earlier narrow match swallows every wider screen. */
+  const breakpoints = steps.map(([bp]) => bp);
+  assert.deepEqual(
+    breakpoints,
+    [...breakpoints].sort((a, b) => b - a),
+    `sizes must run largest-first, got ${breakpoints.join(', ')}`,
+  );
+
+  const containerAt = { 1536: 1536, 1920: 1920, 2560: 2240, 3400: 2600 };
+  for (const [bp, promised] of steps) {
+    const container = containerAt[bp];
+    if (!container) continue;
+    const fourUp = Math.round((container - 3 * 24) / 4);
+    assert.ok(
+      promised >= fourUp,
+      `at ${bp}px a 4-up card is ${fourUp}px but sizes promises ${promised}px`,
+    );
+  }
+
   assert.ok(CARD_IMAGE_SIZES.trim().endsWith('23vw'), CARD_IMAGE_SIZES);
 });
 
@@ -349,7 +383,7 @@ test('a cover with NO width transform still gets one, plus a srcset', () => {
   assert.match(src, /,w_\d+,c_limit\//, 'src must carry an inserted width cap');
   assert.ok(!/w_\d+.*w_\d+/.test(src.split('/https')[0]), 'exactly one width in the transform list');
   const widths = [...srcset.matchAll(/ (\d+)w/g)].map((m) => Number(m[1]));
-  assert.deepEqual(widths, [400, 600, 900, 1200]);
+  assert.deepEqual(widths, [400, 600, 900, 1200, 1600, 2000]);
 });
 
 test('the hero never routes a non-Substack cover through wsrv.nl', () => {
@@ -358,6 +392,239 @@ test('the hero never routes a non-Substack cover through wsrv.nl', () => {
   const s3 = 'https://substack-post-media.s3.amazonaws.com/public/images/a_3840x2160.png';
   assert.equal(isSubstackFetchUrl(s3), false);
   assert.match(getCardImageSources(s3).src, /wsrv\.nl/);
+});
+
+
+/*
+  ─── A `sizes` IS A CLAIM ABOUT THE CSS ─────────────────────────────────────
+
+  This has now gone wrong twice, both times by reusing a CORRECT string in a
+  place it does not describe:
+
+    the featured hero   360px promised, 768px box  -> 2.1x upscale
+    the featured shelf  360px promised, 560px box  -> 1.56x upscale
+
+  Both looked like an image-quality problem and were a sizing claim. So the
+  widths in the CSS and the widths in the `sizes` are asserted against each
+  other here rather than trusted to stay in step.
+*/
+import { readFileSync as _readFileSync } from 'node:fs';
+import { join as _join, dirname as _dirname } from 'node:path';
+import { fileURLToPath as _fileURLToPath } from 'node:url';
+
+const _here = _dirname(_fileURLToPath(import.meta.url));
+const _read = (...p) => _readFileSync(_join(_here, '..', ...p), 'utf8');
+
+/*
+  ─── THE TILE LADDER AND THE IMAGE LADDER ARE ONE DECISION ─────────────────
+
+  `--feed-card` / `--feed-card-featured` in modules/layout.css set how wide a
+  card renders. CARD_IMAGE_SIZES / FEATURED_CARD_IMAGE_SIZES tell the browser
+  how wide it will be, so it can pick a rendition. If the two disagree the
+  browser picks a smaller source and the card is visibly soft — an image bug
+  with a layout cause, and one that has now happened three times:
+
+    the featured hero    360px promised, 768px box
+    the featured shelf   360px promised, 560px box
+    the 4K browse rows   360px promised, 500px box
+
+  So this reads BOTH ladders out of the real files and requires every step to
+  match. Change a tile size without changing its `sizes` and this fails.
+*/
+test('every card width has a matching image size, at every step', () => {
+  const layout = _read('src', 'styles', 'modules', 'layout.css');
+  const images = _read('src', 'lib', 'card-images.ts');
+
+  /* Pull `--feed-card: 380px` etc, keyed by the enclosing min-width (0 = base). */
+  const ladder = (varName) => {
+    const found = new Map();
+    const re = new RegExp(`(?:@media \\(min-width:\\s*(\\d+)px\\)[\\s\\S]*?)?${varName}:\\s*(\\d+)px`, 'g');
+    let m;
+    while ((m = re.exec(layout))) found.set(Number(m[1] || 0), Number(m[2]));
+    return found;
+  };
+
+  const sizesOf = (constName) => {
+    const block = images.match(new RegExp(`${constName}\\s*=([\\s\\S]*?);`));
+    assert.ok(block, `${constName} must exist`);
+    const text = block[1];
+    const found = new Map();
+    for (const m of text.matchAll(/\(min-width:\s*(\d+)px\)\s*(\d+)px/g)) {
+      found.set(Number(m[1]), Number(m[2]));
+    }
+    /*
+      The trailing default. FEATURED_CARD_IMAGE_SIZES ends in a px value, which
+      is the base step; CARD_IMAGE_SIZES ends in `23vw`, which is a viewport
+      fraction and not comparable to a px ladder entry — at the base breakpoint
+      it resolves to 353px against a 320px card, so it covers, but it cannot be
+      read as a number here. A missing base entry therefore means "not stated in
+      px", not "wrong", and the caller skips it.
+    */
+    const tail = text.match(/,\s*'?\s*(\d+)px'/);
+    if (tail) found.set(0, Number(tail[1]));
+    return found;
+  };
+
+  for (const [cssVar, sizesConst] of [
+    ['--feed-card', 'CARD_IMAGE_SIZES'],
+    ['--feed-card-featured', 'FEATURED_CARD_IMAGE_SIZES'],
+  ]) {
+    const css = ladder(cssVar);
+    const declared = sizesOf(sizesConst);
+    assert.ok(css.size >= 2, `${cssVar} must have a ladder to compare against`);
+
+    /*
+      COVERING, not equal. `CARD_IMAGE_SIZES` also describes the 4-up card grid,
+      whose cards are wider than a feed row's at every step, so it legitimately
+      over-states the row. Over-stating fetches a slightly larger rendition and
+      is sharp; under-stating picks a smaller source and is soft. Only the
+      second is a bug, so only the second fails here.
+    */
+    for (const [breakpoint, width] of css) {
+      const promised = declared.get(breakpoint);
+
+      /* See sizesOf(): a `vw` fallback has no px step to compare. Every
+         BREAKPOINT step still must be stated and must cover. */
+      if (breakpoint === 0 && promised === undefined) continue;
+
+      assert.ok(
+        typeof promised === 'number',
+        `${sizesConst} has no step at min-width ${breakpoint || '(base)'}px, but ${cssVar} does`,
+      );
+      assert.ok(
+        promised >= width,
+        `${sizesConst} promises ${promised}px at min-width ${breakpoint || '(base)'}px ` +
+          `but ${cssVar} renders ${width}px — the image would be upscaled`,
+      );
+    }
+  }
+
+  /*
+    And the largest card must have a rendition big enough for a 2x screen.
+    860px at 2x is ~1720 device pixels; a ladder stopping at 1200 upscales it.
+  */
+  const widest = Math.max(...ladder('--feed-card-featured').values());
+  for (const name of ['SUBSTACK_WIDTHS', 'WSRV_WIDTHS']) {
+    const arr = images.match(new RegExp(`${name}\\s*=\\s*\\[([^\\]]+)\\]`));
+    assert.ok(arr, `${name} must exist`);
+    const top = Math.max(...arr[1].split(',').map((n) => Number(n.trim())));
+    assert.ok(
+      top >= widest * 2,
+      `${name} tops out at ${top}, below ${widest}px at 2x (${widest * 2})`,
+    );
+  }
+});
+
+test('the featured shelf describes its own width, not the grid\'s', () => {
+  const grid = _read('src', 'components', 'FeedGrid.astro');
+  const images = _read('src', 'lib', 'card-images.ts');
+  const card = _read('src', 'components', 'ContentCard.astro');
+
+  /* The shelf reads the shared ladder rather than hardcoding a width — the
+     step-by-step agreement with `sizes` is asserted in the test above. */
+  assert.match(
+    grid,
+    /\.feed-row--prestige \.feed-row-item\s*\{[^}]*var\(--feed-card-featured/,
+    'the featured shelf must read --feed-card-featured',
+  );
+  assert.match(
+    grid,
+    /\.feed-row-item\s*\{[^}]*var\(--feed-card,/,
+    'the browse rows must read --feed-card',
+  );
+  assert.ok(images.includes('FEATURED_CARD_IMAGE_SIZES'), 'the shelf needs its own sizes');
+
+  /*
+    And the shelf must ASK for it. The mapping is by variant rather than a
+    ternary precisely so a new variant cannot silently inherit the grid's.
+  */
+  assert.match(card, /CARD_SIZES_FOR_VARIANT/, 'sizes must be chosen by variant');
+  assert.match(card, /featured: FEATURED_CARD_IMAGE_SIZES/, 'the featured variant must map to its own');
+  /*
+    Matched on the ATTRIBUTE inside the tentpole row's block rather than on a
+    whole one-line element. The original assertion pinned the exact single-line
+    spelling and broke the moment the element was reformatted to take
+    `brandOverride` — a test failing on whitespace, not on behaviour.
+  */
+  /* The shelf was a hardcoded `prestigeRow`; it is a curated COLLECTION built
+     from the `series` field now. Same markup, same variant, same oversized
+     tiles; only the identifier moved. */
+  const shelfStart = grid.indexOf('collection.items.map');
+  assert.notEqual(shelfStart, -1, 'the collection shelf should still render its own items');
+  assert.match(
+    grid.slice(shelfStart, shelfStart + 900),
+    /variant="featured"/,
+    'a curated collection must render its cards as the featured variant',
+  );
+});
+
+/*
+  ─── SCALING TYPE MUST NOT SCALE CARD WIDTHS ────────────────────────────────
+
+  The root font-size steps up on wide monitors (80% -> 90% -> 100% -> 110%), so
+  every rem on the site grows with the screen. That is the point: the whole
+  layout is authored in rem and a 4K display was rendering a page built for a
+  1536px window.
+
+  The card widths must NOT follow. `sizes` is a px claim mirroring `--feed-card`
+  in modules/layout.css, and if that variable were expressed in rem it would
+  grow with the root while `sizes` stayed put — the browser would fetch a
+  rendition for the old width and every card would go soft. That is the same
+  failure this file already guards three times over, arriving by a new route.
+*/
+/*
+  ─── EVERY PAGE-LEVEL WRAPPER IS THE SAME WIDTH ─────────────────────────────
+
+  `.container` and `.container-page` are the same idea: the page's content
+  column. They disagreed — `.container` was a hard 1536px while
+  `.container-page` stepped up with the screen — and the navbar is a
+  `.container`. Measured on a 3840 display: the nav ran 1145 -> 2681 while the
+  rows under it ran 648 -> 3177, so the logo sat 497px inboard of the content
+  and the links clustered mid-screen.
+
+  Any new hard-coded page width is the same bug waiting to happen, so this
+  asserts that both read the variable rather than a number.
+*/
+test('the page wrappers all read --page-max, none hard-code a width', () => {
+  const layout = _read('src', 'styles', 'modules', 'layout.css');
+
+  for (const selector of ['.container', '.container-page']) {
+    const rule = layout.match(
+      new RegExp(`(^|\\n)\\${selector}\\s*\\{([^}]*)\\}`, 'm'),
+    );
+    assert.ok(rule, `${selector} must be declared in layout.css`);
+    assert.match(
+      rule[2],
+      /max-width:\s*var\(--page-max\)/,
+      `${selector} must read --page-max, not a fixed width`,
+    );
+  }
+});
+
+test('the card ladder is in px, so growing the root cannot desync the images', () => {
+  const layout = _read('src', 'styles', 'modules', 'layout.css');
+
+  for (const name of ['--page-max', '--feed-card', '--feed-card-featured']) {
+    const decls = [...layout.matchAll(new RegExp(`${name}:\\s*([^;]+);`, 'g'))].map((m) => m[1].trim());
+    assert.ok(decls.length >= 2, `${name} must have a ladder`);
+    for (const value of decls) {
+      assert.match(value, /^\d+px$/, `${name} must be px, got "${value}" — rem would track the root font`);
+    }
+  }
+
+  /* And the root ladder has to step where the page ladder does, or the
+     container and its type change size at different widths. */
+  const base = _read('src', 'styles', 'global-base.css');
+  const fontSteps = [...base.matchAll(/@media \(min-width:\s*(\d+)px\)\s*\{\s*html\s*\{\s*font-size:/g)]
+    .map((m) => Number(m[1]))
+    .filter((bp) => bp >= 1920);
+  const pageSteps = [...layout.matchAll(/@media \(min-width:\s*(\d+)px\)[\s\S]{0,200}?--page-max:/g)]
+    .map((m) => Number(m[1]));
+  assert.deepEqual(
+    fontSteps.sort((a, b) => a - b),
+    pageSteps.sort((a, b) => a - b),
+    'the root font and the page width must step at the same breakpoints',
+  );
 });
 
 

@@ -61,12 +61,17 @@ test('the left mark can be overridden without touching the stage', () => {
   for (const rel of HERO_COMPONENTS) {
     const code = heroSource(rel);
 
-    assert.match(code, /const heroLockupLogo = event\.heroLogo \|\| event\.logo;/,
-      `${rel} must resolve the left mark from heroLogo first. Without the override the four ` +
-        'PAX events render the same shared wordmark and read as one event four times.');
+    assert.match(code, /const overrideLogo = event\.customHeroLogo/,
+      `${rel} must check for customHeroLogo override first.`);
+    
+    assert.match(code, /const sourceTaxonomyLogo = event\.heroLogo \|\| event\.logo \|\| relatedBrand\?\.logo;/,
+      `${rel} must resolve taxonomy logo from heroLogo or logo.`);
 
-    assert.match(code, /class="hero-logo-wrap"[\s\S]{0,240}urlFor\(heroLockupLogo\)/,
-      `${rel}: the small top-left mark must render the RESOLVED lockup logo, not event.logo`);
+    assert.match(code, /const resolvedLogoSrc = overrideLogo \|\| taxonomyLogo \|\| fallbackLogoSrc;/,
+      `${rel} must implement the strict cascade (Override -> Taxonomy -> Default).`);
+
+    assert.match(code, /class="hero-logo-wrap"[\s\S]{0,240}src=\{resolvedLogoSrc\}/,
+      `${rel}: the small top-left mark must render the RESOLVED lockup logo.`);
 
     /*
       And the hero lockup's override reaches NOTHING else. `heroLogo` naming
@@ -75,7 +80,7 @@ test('the left mark can be overridden without touching the stage', () => {
     */
     const heroLogoUses = code.match(/event\.heroLogo/g) || [];
     assert.equal(heroLogoUses.length, 1,
-      `${rel}: heroLogo must be read exactly once, by heroLockupLogo. It is the override for ` +
+      `${rel}: heroLogo must be read exactly once, by taxonomyLogo. It is the override for ` +
         'the top-left slot alone.');
   }
 });
@@ -229,21 +234,63 @@ test('losing the blur means the request has to match the box', () => {
   }
 });
 
-test('the ghost follows whatever is in front of it', () => {
+test('the hero backdrop is one image, centred, covering', () => {
   /*
-    Crisp over a blown-up blurred copy of ITSELF is the lockup /featured uses.
-    In art mode there is no mark in front, so a logo-shaped glow around the
-    frame is a leftover of a lockup that is not there — and one more
-    appearance of the mark, which is the thing being removed.
+    ─── WHAT THIS REPLACED ──────────────────────────────────────────────────
+
+    This test used to assert that a blurred GHOST of the stage mark followed
+    whatever was in front of it — crisp over a blown-up blurred copy of itself,
+    the lockup /featured uses. That layer is gone.
+
+    It was a second copy of the hero's own picture, masked into the right-hand
+    side of the hero and feathered into the backdrop behind it. On a hand-picked
+    asset it reads as depth. On the real set it does not: two copies at two
+    scales put the same shapes on screen twice slightly out of register, worst
+    on line-work key art like PAX Unplugged's, and `background-size: contain`
+    left lit bare ground either side of itself on the 2.35:1 banners.
+
+    So the assertions are inverted. The hero is ONE image, and these are the
+    three things that keep it that way.
   */
   for (const rel of HERO_COMPONENTS) {
     const code = heroSource(rel);
-    assert.match(code, /const stageGhostSource = stageMarkUrl \? stageMarkLogo : \(stageArtUrl \? event\.heroImage : null\);/,
-      `${rel}: the ghost's source must follow the stage's`);
-    assert.match(code, /'hub-stage-plate--art': !stageMarkUrl/,
-      `${rel}: and key art has to cover rather than contain, so it needs the modifier`);
-    assert.doesNotMatch(code, /const stageGhostUrl = event\.logo/,
-      `${rel}: the ghost must not be pinned to the logo any more`);
+
+    assert.doesNotMatch(code, /class="hub-stage-bg"/,
+      `${rel}: the second backdrop layer must stay removed`);
+    assert.doesNotMatch(code, /const stageGhostUrl/,
+      `${rel}: and nothing should still be building a URL for it`);
+
+    /*
+      CENTRED, not biased high. Behind 9px of blur the subject is unreadable
+      anyway, so a vertical bias only crops differently on every asset: the
+      wide banners lost their bottom edge while the 16:9 stills lost nothing.
+    */
+    assert.match(code, /object-position: center;/,
+      `${rel}: one position for every image, whatever its aspect`);
+    assert.doesNotMatch(code, /object-position: center \d+%/,
+      `${rel}: a vertical bias is what made the crop asset-dependent`);
+
+    /*
+      THE OVERSCAN IS GONE, and this asserts that rather than deleting the
+      knowledge with it.
+
+      It was a blur allowance: a CSS blur mixes in the transparent pixels
+      outside its own element, so the outermost band is the least blurred part
+      of it, and a layer reaching the edge of the box has to be pushed past the
+      clip to hide that band. The plate no longer reaches the edge — it is
+      contained, and blurred 2px rather than 9 — so there is nothing to hide
+      and an overscan would only be a zoom.
+
+      What must not come back with it: an absolutely positioned box with left,
+      right AND width all non-auto drops its `right`, so `inset: -12%` shifted
+      the old plate left and left 12% of the hero bare down the right-hand edge
+      (measured at a 1009px hero: it ended at 928px).
+    */
+    const plate = code.slice(code.indexOf('.hero-backdrop-plate {'));
+    const decl = plate.slice(0, plate.indexOf('\n  }'));
+    assert.match(decl, /inset: 0;/, `${rel}: a contained plate has nothing to overscan past`);
+    assert.doesNotMatch(decl, /--plate-overscan|--fill-overscan/,
+      `${rel}: an overscan on a contained picture is a zoom, which is the bug this started as`);
   }
 });
 
@@ -273,7 +320,7 @@ test('the hero states the event\'s name once', () => {
     assert.match(code, /\{taglineText && <p class="hero-tagline">\{taglineText\}<\/p>\}/,
       `${rel}: the paragraph must not render at all when there is no tagline`);
 
-    assert.match(code, /<h1 class="hero-title-lockup">[\s\S]{0,400}?alt=\{event\.title\}/,
+    assert.match(code, /<h1 class="hero-title-lockup">[\s\S]{0,400}?alt=\{resolvedLabel\}/,
       `${rel}: the mark must BE the heading, and carry the name as its alt`);
     assert.doesNotMatch(code, /<h1 class="sr-only">\{event\.title\}<\/h1>/,
       `${rel}: the sr-only twin is gone; two elements naming the page is what was announced twice`);
@@ -437,8 +484,10 @@ test('the hub stage idles on the hub art, through getHubBackdrop', () => {
 
   assert.match(hubHero, /class:list=\{\['hub-stage-mark', \{ 'hub-stage-mark--art': !!stageArtUrl \}\]\}/,
     'art mode is a modifier on the existing idle layer, not a second layer');
-  assert.match(hubHero, /const stageGhostSource = stageMarkUrl/,
-    'the ghost must follow whatever is in front of it');
+  /* The ghost that used to follow it is gone with the second backdrop layer.
+     See 'the hero backdrop is one image, centred, covering' above. */
+  assert.doesNotMatch(hubHero, /const stageGhostSource/,
+    'the ghost layer must stay removed');
 });
 
 test('the hub placeholder is never cropped either', () => {
@@ -467,6 +516,167 @@ test('the hub mark is the heading', () => {
     'the sr-only twin is what got the name announced twice');
   assert.match(hubHero, /\.hero-title-lockup \{[^}]*margin: 0;[^}]*\}/,
     'a heading element brings a default margin the alt would shove the column down with');
+});
+
+test('the event art is never cropped, and never doubled', () => {
+  /*
+    TWO WRONG ANSWERS BEFORE THIS ONE, and the test has to forbid both.
+
+    `cover` is a crop. Measured at 3840x2160: the box is ~3840x665 against 16/9
+    key art, so 33% of the picture's height was on screen. Reported as "way too
+    zoomed in". It matters most on this art in particular — CLAUDE.md records
+    that L.A. Comic Con is 2.35:1 and SXSW 2.70:1 and both set the event's NAME
+    across the full width, so a crop removes the first and last letters of its
+    own title.
+
+    The fix for that was two copies of the file, one contained in front and one
+    covering behind to fill the gutters. That put the same artwork on screen
+    twice at two scales, which this project had ALREADY removed once and
+    written down — "two copies at two scales put the same shapes on screen
+    twice slightly out of register" — and it was reported again, correctly, as
+    the hero looking duplicated.
+
+    So: ONE image, contained, and the space beside it is the page's own dark,
+    shaped by a horizontal vignette on the scrim. The vignette lives on an
+    overlay rather than as a mask on the image because which edges the art
+    leaves bare depends on the box: a wide hero leaves gutters at the sides, a
+    phone leaves them top and bottom.
+  */
+  for (const rel of ['EventHero.astro', 'EventFeatured.astro', 'EventAnnouncement.astro']) {
+    const hero = heroSource(rel);
+
+    const plate = hero.match(/\.hero-backdrop-plate \{[^}]*\}/);
+    assert.ok(plate, `${rel}: no backdrop plate`);
+    assert.match(plate[0], /object-fit: contain;/, `${rel}: the art must not be cropped`);
+    assert.doesNotMatch(plate[0], /--plate-overscan/,
+      `${rel}: an overscan is a blur allowance for a layer that reaches the edge; a contained one does not`);
+
+    assert.ok(!/hero-backdrop-fill/.test(hero),
+      `${rel}: the second copy of the artwork is what read as a duplicate; it must stay gone`);
+
+    const plates = hero.match(/class="event-hero-bg-animated hero-backdrop-plate"/g) || [];
+    assert.equal(plates.length, 1, `${rel}: exactly one copy of the picture`);
+
+    /*
+      And the gutters must be filled by something. Without it the contained art
+      ends on a hard edge against flat black, which is a letterboxed video.
+    */
+    assert.match(hero, /linear-gradient\(\s*to right,[\s\S]{0,400}?transparent 38%/,
+      `${rel}: the horizontal vignette is what the removed second copy was doing`);
+  }
+});
+
+test('the /events chips carry the accent that says what the event is', () => {
+  /*
+    `hero-meta-tag--type` was in the markup and its rule was not: lifting the
+    hero into EventHero.astro took `.hero-meta-tag` and left both modifiers
+    behind, so all three chips rendered identically and the red border that
+    marks the event's KIND never appeared.
+  */
+  for (const rel of ['EventHero.astro', 'EventFeatured.astro', 'EventAnnouncement.astro']) {
+    const hero = heroSource(rel);
+    assert.match(hero, /\.hero-meta-tag--type \{[^}]*border-left: 2px solid rgba\(var\(--brand-rgb/,
+      `${rel}: the type chip must carry the brand accent`);
+    assert.match(hero, /\.hero-meta-tag--date \{[^}]*white-space: normal;/,
+      `${rel}: the date is the widest chip and must wrap rather than overflow a 320px screen`);
+  }
+});
+
+/*
+  ─── AND THE THIRD HERO: THE ONE ON THE /events INDEX ──────────────────────
+
+  /events used to render its featured event through `FeaturedEvent.astro`, a
+  CARD. Beside the real hero it had no backdrop plate, no eyebrow chips and no
+  logo lockup, it printed "UPCOMING" twice (the status pill renders a visible
+  label AND an sr-only one), and its key art was blown up edge to edge under
+  `object-fit: cover`. It is `EventHero.astro` now, and the card is deleted so
+  there is no second implementation to drift.
+*/
+const indexHero = stripComments(readSrc('src', 'components', 'EventHero.astro'));
+const eventsIndex = stripComments(readSrc('src', 'pages', 'events', 'index.astro'));
+
+test('the /events hero is the hero, not a card', () => {
+  assert.match(eventsIndex, /<EventHero event=\{featuredEvent\}/,
+    'the index must render the hero component');
+  assert.doesNotMatch(eventsIndex, /FeaturedEvent/,
+    'the card is gone; a reference to it means a second hero came back');
+
+  for (const marker of ['event-hero-bg-wrapper', 'hero-backdrop-plate', 'hub-stage-wash', 'hero-title-lockup']) {
+    assert.ok(indexHero.includes(marker), `the index hero is missing ${marker}`);
+  }
+});
+
+test('the /events hero says what, where and when — each of them once', () => {
+  const eyebrow = indexHero.match(/<div class="hero-eyebrow">[\s\S]*?<\/div>/);
+  assert.ok(eyebrow, 'no chip row');
+  assert.match(eyebrow[0], /\{eventTypeLabel\}/, 'what it is');
+  assert.match(eyebrow[0], /\{locationLabel\}/, 'where it is');
+  assert.match(eyebrow[0], /datetime=\{event\.startDate\}/, 'when it is, as a real <time>');
+  assert.doesNotMatch(indexHero, /esi-sr|sr-only/,
+    'the sr-only status twin is what printed UPCOMING a second time');
+});
+
+test('the /events hero is flush, and its copy still lands on the page column', () => {
+  const root = indexHero.match(/\.event-hero--index \{[^}]*\}/);
+  assert.ok(root, 'no index modifier');
+  assert.match(root[0], /margin-inline: calc\(50% - 50vw\);/, 'break out to the viewport');
+  assert.match(root[0], /padding-inline: calc\(50vw - 50%\);/,
+    'and put the SAME distance back, or the copy sits half a scrollbar off the column');
+
+  assert.match(indexHero, /\.event-hero--index \.event-hero-content \{[^}]*align-self: stretch;/,
+    'align-items: center on the overlay centres a shrink-wrapped copy block');
+  assert.match(indexHero, /\.event-hero--index \.hero-tagline \{[^}]*-webkit-line-clamp: 2;/,
+    'unclamped, the description set to nine lines and owned a whole phone screen');
+});
+
+test('the /events hero starts at the top, not 120px down it', () => {
+  /*
+    `.events-page` carries `padding-top: 120px` to clear the fixed navbar,
+    which is right for a page that opens on text and wrong for one that opens
+    on a hero: the hero ran edge to edge sideways and then began 120px down, so
+    a band of page background sat between the translucent header and the
+    artwork and the header had nothing to be translucent over.
+
+    Opt-in, exactly as `.feed-page.has-spotlight-hero` is, and for the reason
+    recorded beside that rule: removing the offset outright once took /intel
+    and /category/* with it and left their filter buttons under the header at
+    y=12px, reported as "the filter buttons are gone".
+
+    The two halves are asserted together because either alone is silent — a
+    class with no rule, or a rule no page claims.
+  */
+  const css = stripComments(readSrc('src', 'styles', 'modules', 'events.css'));
+  assert.match(css, /\.events-page\.has-spotlight-hero \{[^}]*padding-top: 0;/,
+    'the opt-out rule is missing');
+  assert.doesNotMatch(css, /\.events-page\.has-spotlight-hero \{[^}]*padding-bottom/,
+    'only the TOP offset is about the header; the page still needs its bottom');
+  assert.match(eventsIndex, /<main class="events-page has-spotlight-hero/,
+    'the index must claim the rule, or the band comes back');
+
+  /*
+    And the copy must still clear the header from the inside, since the artwork
+    now runs underneath it. Measured at 1512x858: chips at 109px against a
+    header ending at 67. At 390: 96 against 57.
+  */
+  assert.match(indexHero, /\.event-hero-overlay \{[^}]*padding-top: clamp\(/,
+    'without this the chips land under the navbar the hero just slid beneath');
+
+  const archive = stripComments(readSrc('src', 'pages', 'events', 'archive', '[...page].astro'));
+  assert.match(archive, /<main class="events-page flex-1/,
+    'the archive opens on a page title, so its 120px is still doing its job');
+});
+
+test('the /events hero defines the animation it asks for', () => {
+  assert.match(indexHero, /animation: cinematic-hero-zoom/, 'the slow push is the house treatment');
+  assert.match(indexHero, /@keyframes cinematic-hero-zoom \{/,
+    'Astro scopes this <style>; naming another component\'s keyframes silently does nothing');
+});
+
+test('the /events hero holds no iframe, which is why it may clip', () => {
+  assert.doesNotMatch(indexHero, /HeroTrailer|<iframe/,
+    'HARD RULE 2/3 — the trailer stage stays on the detail page');
+  assert.match(indexHero, /\.event-hero-bg-wrapper \{[^}]*overflow: hidden;/,
+    'the backdrop wrapper is the one thing that clips');
 });
 
 console.log(failed === 0 ? `\n✅ ${passed} passed, 0 failed.` : `\n❌ ${passed} passed, ${failed} failed.`);

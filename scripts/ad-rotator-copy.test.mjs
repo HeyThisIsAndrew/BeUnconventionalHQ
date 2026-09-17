@@ -59,6 +59,14 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
 
 const referrals = read('src/data/referrals.js');
+/*
+  The banner moved out of IntelLayout into its own component so the Feed could
+  mount the same one instead of a copy. `banner` is where its markup, styles and
+  script now live; `layout` is still read, but only for the one assertion that
+  is genuinely about the /intel PAGE rather than the banner: where the rotator
+  sits relative to the magazine and the video strip.
+*/
+const banner = read('src/components/CommercialRotator.astro');
 const layout = read('src/layouts/IntelLayout.astro');
 const tokens = read('src/styles/global-base.css');
 
@@ -191,12 +199,12 @@ test('the rotator reads bannerText, never the rail’s blurb', () => {
     not wrap.
   */
   assert.match(
-    layout,
+    banner,
     /full:\s*item\.bannerText\s*\?\?\s*item\.label/,
     'getBannerCopy must take its full string from bannerText, falling back to label',
   );
   assert.ok(
-    !/item\.blurb/.test(layout),
+    !/item\.blurb/.test(banner),
     'IntelLayout must not render item.blurb — that is the rail’s copy, not the banner’s',
   );
 });
@@ -204,8 +212,8 @@ test('the rotator reads bannerText, never the rail’s blurb', () => {
 console.log('\nThe responsive swap\n');
 
 test('both strings ship and CSS hides one with display', () => {
-  assert.match(layout, /<span class="banner-copy-full">/, 'the full string must be its own element');
-  assert.match(layout, /<span class="banner-copy-compact">/, 'the compact string must be its own element');
+  assert.match(banner, /<span class="banner-copy-full">/, 'the full string must be its own element');
+  assert.match(banner, /<span class="banner-copy-compact">/, 'the compact string must be its own element');
 
   /*
     `display` specifically. A clip, a zero width, `visibility: hidden` or an
@@ -213,7 +221,7 @@ test('both strings ship and CSS hides one with display', () => {
     slide gets read out twice.
   */
   assert.match(
-    layout,
+    banner,
     /\.banner-copy-compact\s*\{\s*display:\s*none;/,
     'the compact string must be display:none by default, so desktop shows the full one',
   );
@@ -227,7 +235,7 @@ test('the swap is inside a mobile media query and guarded on has-compact-copy', 
     empty. How the row is SPACED still changes at 768px; how long its copy can
     be is a different question with a different answer.
   */
-  const mobile = layout.slice(layout.indexOf('@media (max-width: 520px)'));
+  const mobile = banner.slice(banner.indexOf('@media (max-width: 520px)'));
   assert.match(
     mobile,
     /\.yt-banner-text\.has-compact-copy\s+\.banner-copy-full\s*\{\s*display:\s*none;/,
@@ -247,7 +255,7 @@ test('the swap is inside a mobile media query and guarded on has-compact-copy', 
   /* Every rule that hides the full string must be reached through the guard.
      Checked by looking at what precedes each `.banner-copy-full {`, so a new
      unguarded rule anywhere in the sheet fails this. */
-  for (const match of layout.matchAll(/([^\n]*)\.banner-copy-full\s*\{([^}]*)\}/g)) {
+  for (const match of banner.matchAll(/([^\n]*)\.banner-copy-full\s*\{([^}]*)\}/g)) {
     const [, selectorPrefix, body] = match;
     if (!/display:\s*none/.test(body)) continue;
     assert.match(
@@ -258,14 +266,14 @@ test('the swap is inside a mobile media query and guarded on has-compact-copy', 
     );
   }
   assert.match(
-    layout,
+    banner,
     /'has-compact-copy':\s*copy\.compact !== null/,
     'the class must be driven by whether the partner actually has compact copy',
   );
 });
 
 test('mobile chrome scales with the viewport instead of stepping', () => {
-  const mobile = layout.slice(layout.indexOf('@media (max-width: 768px)'));
+  const mobile = banner.slice(banner.indexOf('@media (max-width: 768px)'));
   assert.match(
     mobile,
     /grid-template-columns:\s*\n?\s*clamp\([^)]*\)\s*\n?\s*minmax\(0,\s*1fr\)/,
@@ -273,7 +281,7 @@ test('mobile chrome scales with the viewport instead of stepping', () => {
       'fixed logo column is what left 141px for 172px of text at 320px',
   );
   assert.ok(
-    !/@media \(max-width: 380px\)/.test(layout),
+    !/@media \(max-width: 380px\)/.test(banner),
     'the 380px tier is gone on purpose: fluid chrome covers it, and two sets of fixed ' +
       'numbers is how the 320-380px band got missed in the first place',
   );
@@ -295,7 +303,7 @@ test('the empty state renders in the magazine slot, above the rotator', () => {
   */
   const magazine = layout.indexOf('{hasMagazine && <IntelMagazine');
   const emptyState = layout.indexOf('<EmptyState');
-  const rotator = layout.indexOf('<div class="yt-banner-wrapper">');
+  const rotator = layout.indexOf('<CommercialRotator />');
   const videoStrip = layout.indexOf('id="intel-video-head"');
 
   assert.ok(magazine > 0 && emptyState > 0 && rotator > 0 && videoStrip > 0,
@@ -321,7 +329,7 @@ console.log('\nOne clock\n');
 test('nothing in the rotator runs on a timer', () => {
   /* Comments stripped first: this file's own explanation of the bug names the
      API that caused it, and matching that would fail for the wrong reason. */
-  const script = layout
+  const script = banner
     .slice(layout.indexOf('<script>'), layout.indexOf('</script>'))
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '');
@@ -331,7 +339,7 @@ test('nothing in the rotator runs on a timer', () => {
       'second one desynchronises the moment hover pauses only one of them',
   );
   assert.match(
-    layout,
+    banner,
     /progress\.addEventListener\('animationend', advance\)/,
     'the advance must be driven by the progress animation ending',
   );
@@ -339,16 +347,16 @@ test('nothing in the rotator runs on a timer', () => {
 
 test('the hold duration is declared once, in CSS', () => {
   assert.match(
-    layout,
+    banner,
     /--banner-hold:\s*8s;/,
     'the hold duration belongs on .yt-banner-wrapper as --banner-hold',
   );
   assert.match(
-    layout,
+    banner,
     /animation:\s*perimeterFill\s+var\(--banner-hold\)/,
     'the outline must read its duration from --banner-hold, not repeat the number',
   );
-  const holds = layout.match(/--banner-hold:/g) ?? [];
+  const holds = banner.match(/--banner-hold:/g) ?? [];
   assert.equal(holds.length, 1, `--banner-hold is declared ${holds.length} times; it must be one value`);
 });
 
@@ -361,18 +369,18 @@ test('the outline traces the whole box, clockwise from the top left', () => {
     reflow.
   */
   assert.match(
-    layout,
+    banner,
     /<rect class="banner-perimeter-rect"[^>]*x="0"[^>]*y="0"[^>]*width="100%"[^>]*height="100%"[^>]*pathLength="100"/,
     'the perimeter rect must cover the box from 0,0 with pathLength="100"',
   );
-  assert.match(layout, /stroke-dasharray:\s*100;/, 'one dash, one lap');
+  assert.match(banner, /stroke-dasharray:\s*100;/, 'one dash, one lap');
   assert.match(
-    layout,
+    banner,
     /stroke-dashoffset:\s*100;/,
     'the lap must start fully offset (empty) and draw in',
   );
   assert.match(
-    layout,
+    banner,
     /0%\s*\{\s*stroke-dashoffset:\s*100;[\s\S]*?100%\s*\{\s*stroke-dashoffset:\s*0;/,
     'the keyframes must run 100 -> 0, which is the clockwise direction',
   );
@@ -386,12 +394,12 @@ test('auto-pause is scoped to the rotator, not the whole wrapper', () => {
     directions.
   */
   assert.match(
-    layout,
+    banner,
     /\.banner-rotator-grid:hover \.banner-perimeter-rect,\s*\n\s*\.banner-rotator-grid:focus-within \.banner-perimeter-rect,\s*\n\s*\.yt-banner-wrapper\.is-paused \.banner-perimeter-rect/,
     'hover and focus pause must be scoped to .banner-rotator-grid, with .is-paused on the wrapper',
   );
   assert.ok(
-    !/\.yt-banner-wrapper:hover \.banner-perimeter-rect/.test(layout),
+    !/\.yt-banner-wrapper:hover \.banner-perimeter-rect/.test(banner),
     'the wrapper must not be the hover-pause scope: the pause control lives inside it',
   );
 });
@@ -409,41 +417,41 @@ test('the rotator stops while it is off screen', () => {
     the visitor stopped on purpose.
   */
   assert.match(
-    layout,
+    banner,
     /\.yt-banner-wrapper\.is-offscreen \.banner-perimeter-rect \{\s*animation-play-state: paused;/,
     'an off-screen banner must pause the outline, which is also the rotation clock',
   );
   assert.match(
-    layout,
+    banner,
     /new IntersectionObserver\(/,
     'visibility must be observed rather than polled',
   );
   assert.match(
-    layout,
+    banner,
     /wrapper\.classList\.toggle\('is-offscreen', !entry\.isIntersecting\)/,
     'the class must follow intersection directly',
   );
   assert.ok(
-    !/classList\.remove\('is-paused'\)/.test(layout),
+    !/classList\.remove\('is-paused'\)/.test(banner),
     'nothing in the visibility path may clear a user pause',
   );
   assert.match(
-    layout,
+    banner,
     /astro:before-swap', \(\) => visibility\.disconnect\(\)/,
     'the observer must be dropped on navigation, not left bound to a detached element',
   );
   assert.match(
-    layout,
+    banner,
     /if \('IntersectionObserver' in window\)/,
     'guard the API: without it the banner should simply keep running',
   );
 });
 
 test('there is a real pause control, revealed by script', () => {
-  assert.match(layout, /id="banner-pause"[^>]*hidden/, 'the control must ship hidden: no JS, no rotation, nothing to pause');
-  assert.match(layout, /pauseBtn\.hidden = false/, 'the script must reveal it');
+  assert.match(banner, /id="banner-pause"[^>]*hidden/, 'the control must ship hidden: no JS, no rotation, nothing to pause');
+  assert.match(banner, /pauseBtn\.hidden = false/, 'the script must reveal it');
   assert.match(
-    layout,
+    banner,
     /Resume the rotating links/,
     'the accessible name must say which way the toggle goes',
   );
@@ -459,17 +467,17 @@ test('hidden slides are inert in the markup and in the script', () => {
     without the script nothing rotates.
   */
   assert.match(
-    layout,
+    banner,
     /data-state="hidden-prev" data-meta=\{getAdMeta\(item\)\} inert aria-hidden="true"/,
     'ad slides must ship inert and aria-hidden',
   );
   assert.match(
-    layout,
+    banner,
     /slide\.inert = hidden;/,
     'the script must keep inert in step with the active slide',
   );
   assert.match(
-    layout,
+    banner,
     /if \(hidden\) slide\.setAttribute\('aria-hidden', 'true'\);\s*\n\s*else slide\.removeAttribute\('aria-hidden'\);/,
     'aria-hidden must be removed from the active slide, not set to "false" and left on',
   );
@@ -499,7 +507,7 @@ test('the disclosure clears AA, with no opacity undoing it', () => {
   const contrast = ratio(token('color-white-muted'), token('color-surface'));
   assert.ok(contrast >= 4.5, `--color-white-muted on --color-surface is ${contrast.toFixed(2)}:1`);
 
-  const block = layout.slice(layout.indexOf('.banner-meta-text {'));
+  const block = banner.slice(banner.indexOf('.banner-meta-text {'));
   const rule = block.slice(0, block.indexOf('}'));
   assert.match(rule, /color:\s*var\(--color-white-muted\)/, 'the disclosure must use the muted token');
 
@@ -522,17 +530,17 @@ test('each disclosure names the real relationship', () => {
     "would be its own kind of inaccuracy", and the same holds the other way.
     An affiliate slide has to say so.
   */
-  assert.match(layout, /if \(item\.offer\) return 'REFERRAL LINK';/, 'a referral offer is a referral link');
+  assert.match(banner, /if \(item\.offer\) return 'REFERRAL LINK';/, 'a referral offer is a referral link');
   assert.match(
-    layout,
+    banner,
     /if \(item\.affiliate === false\) return 'RECOMMENDATION';/,
     'a link that pays nothing must not borrow a word implying it does',
   );
-  assert.match(layout, /return 'AFFILIATE LINK';/, 'everything else is an affiliate link and says so');
+  assert.match(banner, /return 'AFFILIATE LINK';/, 'everything else is an affiliate link and says so');
 });
 
 test('the disclosure row is clickable where it has to be', () => {
-  const block = layout.slice(layout.indexOf('.banner-metadata-row {'));
+  const block = banner.slice(banner.indexOf('.banner-metadata-row {'));
   const rule = block.slice(0, block.indexOf('}'));
   assert.ok(
     !/pointer-events:\s*none/.test(rule),

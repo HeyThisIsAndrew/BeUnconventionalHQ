@@ -59,6 +59,37 @@ async function runTests() {
 */
 const SCOPE = '[data-coverage="hub"]';
 
+/*
+  ─── WAIT FOR THE FILTER, DO NOT GUESS HOW LONG IT TAKES ────────────────────
+
+  Every assertion below used to follow `setTimeout(r, 100)`. That was written
+  when the filter set `display` synchronously. It does not any more: hiding a
+  card fades it over FADE_MS (180ms) and only removes it from the layout once
+  it is invisible, which is the behaviour the owner asked for.
+
+  So the sleep was 100ms against a change that cannot complete in under 180ms —
+  a guaranteed failure rather than a flaky one, which is why CI had been red on
+  this suite across every run including a docs-only commit.
+
+  Waiting on the CONDITION instead of on a duration fixes it for good and
+  decouples the test from FADE_MS: retune the animation and this still passes.
+*/
+async function waitForFilter(page, scope, expectedType) {
+  await page.waitForFunction(
+    (sel, type) => {
+      const cards = [...document.querySelectorAll(`${sel} .content-card`)];
+      if (cards.length === 0) return false;
+      const visible = cards.filter((el) => el.style.display !== 'none');
+      /* Settled means: every visible card matches, and the ones that do not
+         have actually left the layout rather than merely started fading. */
+      return visible.length > 0 && visible.every((el) => el.getAttribute('data-type') === type);
+    },
+    { timeout: 5000 },
+    scope,
+    expectedType,
+  );
+}
+
 async function testFilterInteractions(page, contextName) {
   // Check if page has content
   const emptyState = await page.$('.empty-state');
@@ -94,7 +125,7 @@ async function testFilterInteractions(page, contextName) {
 
   // Test: Click Article Filter
   await page.evaluate(btn => btn.click(), articleBtn);
-  await new Promise(r => setTimeout(r, 100)); // wait for DOM update
+  await waitForFilter(page, SCOPE, 'article');
   
   let isArticleBtnActive = await page.evaluate(el => el.classList.contains('active'), articleBtn);
   assert.equal(isArticleBtnActive, true, `[${contextName}] Article button should be active`);
@@ -109,7 +140,7 @@ async function testFilterInteractions(page, contextName) {
 
   // Test: Click Video Filter
   await page.evaluate(btn => btn.click(), videoBtn);
-  await new Promise(r => setTimeout(r, 100)); // wait for DOM update
+  await waitForFilter(page, SCOPE, 'video');
   
   let isVideoBtnActive = await page.evaluate(el => el.classList.contains('active'), videoBtn);
   assert.equal(isVideoBtnActive, true, `[${contextName}] Video button should be active`);
@@ -133,7 +164,16 @@ async function testFilterInteractions(page, contextName) {
 
   // Click again to unfilter (all)
   await page.evaluate(btn => btn.click(), videoBtn);
-  await new Promise(r => setTimeout(r, 100));
+  /* Showing is the faster path — `display` is restored immediately and the
+     fade-in happens on the next frame — but it is still not synchronous, so
+     this waits for the count rather than assuming a frame has passed. */
+  await page.waitForFunction(
+    (sel, total) =>
+      [...document.querySelectorAll(`${sel} .content-card`)].filter((el) => el.style.display !== 'none').length === total,
+    { timeout: 5000 },
+    SCOPE,
+    cards.length,
+  );
 
   isVideoBtnActive = await page.evaluate(el => el.classList.contains('active'), videoBtn);
   assert.equal(isVideoBtnActive, false, `[${contextName}] Video button should toggle off`);

@@ -93,7 +93,25 @@ const featureSources = feature?.image ? getCardImageSources(feature.image) : nul
 /* Measured render size: 720x405 desktop, 326x183 mobile. The srcset offers
    400/600/900/1200, so this lets the browser take ~900 on a retina desktop and
    ~400-600 on a phone instead of one 1456px original for both. */
-const FEATURE_SIZES = '(max-width: 900px) 92vw, 720px';
+/*
+  ─── THE LEAD COLUMN IS NOT 720px ANY MORE ─────────────────────────────────
+
+  This was a flat 720px, which was the centre column's width while the page
+  capped at 1536. The page steps up on wide screens now (`--page-max`) and the
+  spread rebalances with it, so the column runs 957px at 1920 and 1162px at
+  3840 — and the browser, told 720, fetched a 720px rendition for a 1162px box.
+  Measured: a 1.61x upscale, on the largest picture on the page.
+
+  Largest-first, like every other `sizes` on the site: written the other way
+  round an earlier narrow match swallows every wider screen.
+
+  The numbers are the column's measured widths rounded up, and they track
+  `--page-max` in modules/layout.css together with the `.intel-magazine`
+  proportions in modules/intel.css. All three change at the same breakpoints.
+*/
+const FEATURE_SIZES =
+  '(max-width: 900px) 92vw, ' +
+  '(min-width: 3400px) 1180px, (min-width: 2560px) 1050px, (min-width: 1920px) 970px, 720px';
 
 /*
   EVERY article in the spread gets a rail tile — including the one currently

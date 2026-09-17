@@ -210,6 +210,21 @@ export default defineType({
       description:
         'DERIVED: hub assignments (Featured Brands / Events) recomputed from YouTube tags on every sync unless Manual Taxonomy Override is on. Hub pages pull their coverage from these references.',
     }),
+    defineField({
+      name: 'customHeroLogo',
+      title: 'Custom Hero Logo (Override)',
+      type: 'image',
+      fieldset: 'editorial',
+      options: { hotspot: true },
+      description: 'Optional. Overrides the brand/franchise taxonomy logo in the hero.',
+    }),
+    defineField({
+      name: 'customHeroBrandLabel',
+      title: 'Custom Hero Brand Label (Override)',
+      type: 'string',
+      fieldset: 'editorial',
+      description: 'Optional. Manually override the brand/franchise name text in the hero.',
+    }),
     defineField({ name: 'editorialNotes', title: 'Editorial Notes', type: 'text', rows: 3, fieldset: 'editorial' }),
   ],
   preview: {

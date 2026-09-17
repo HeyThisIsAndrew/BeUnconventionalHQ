@@ -227,7 +227,37 @@ try {
     desktop on BOTH the Feed and /intel.
   */
   const vis = await browser.newPage();
-  for (const route of ['/feed', '/intel']) {
+  /*
+    ─── AND THE FEED MUST NOT GROW ONE BACK ──────────────────────────────────
+
+    The route was swapped out of the loop below because the Feed deliberately
+    stopped rendering a filter row. Swapping it out silently would mean the
+    Feed could sprout one again — or have one restored by a well-meaning
+    revert — with nothing to catch it, so the removal is asserted rather than
+    merely un-tested.
+  */
+  for (const width of [1440, 390]) {
+    await vis.setViewport({ width, height: 900 });
+    await vis.goto(`http://localhost:${port}/feed`, { waitUntil: 'networkidle0' });
+    const feedFilters = await vis.evaluate(() => ({
+      wrapper: !!document.getElementById('quadrant-filter-wrapper'),
+      trigger: !!document.getElementById('open-categories-btn'),
+      buttons: document.querySelectorAll('.quadrant-btn').length,
+    }));
+    ok(
+      `/feed @${width}: no filter row (the rows replace it)`,
+      !feedFilters.wrapper && !feedFilters.trigger && feedFilters.buttons === 0,
+      JSON.stringify(feedFilters),
+    );
+  }
+
+  /*
+    /category/film stands in for /feed here. The Feed stopped rendering the
+    filter row when its horizontal rows took over that job, and this route
+    renders the same <QuadrantFilter />, so the responsive contract below is
+    still checked on both filter components rather than only on /intel's.
+  */
+  for (const route of ['/category/film', '/intel']) {
     for (const width of [1440, 390]) {
       await vis.setViewport({ width, height: 900 });
       await vis.goto(`http://localhost:${port}${route}`, { waitUntil: 'networkidle0' });

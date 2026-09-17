@@ -81,11 +81,38 @@ const { events } = Astro.props;
     padding: 0;
     max-width: 95vw;
     width: 800px;
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.3s ease, transform 0.3s ease, overlay 0.3s allow-discrete, display 0.3s allow-discrete;
+  }
+
+  #spanning-calendar-modal[open] {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  @starting-style {
+    #spanning-calendar-modal[open] {
+      opacity: 0;
+      transform: scale(0.95);
+    }
   }
 
   #spanning-calendar-modal::backdrop {
     background: rgba(0, 0, 0, 0.9);
     backdrop-filter: blur(10px);
+    opacity: 0;
+    transition: opacity 0.3s ease, overlay 0.3s allow-discrete, display 0.3s allow-discrete;
+  }
+
+  #spanning-calendar-modal[open]::backdrop {
+    opacity: 1;
+  }
+
+  @starting-style {
+    #spanning-calendar-modal[open]::backdrop {
+      opacity: 0;
+    }
   }
 
   /* It is only focusable so the dialog has somewhere to land (see the note in

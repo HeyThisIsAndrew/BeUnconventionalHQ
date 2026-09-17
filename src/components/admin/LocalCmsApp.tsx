@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { urlFor } from '../../lib/local-content.ts';
+import { COVERAGE_TYPES } from '../../lib/tags.ts';
 
-type DocType = 'video' | 'short' | 'live' | 'event' | 'featuredBrand' | 'topic' | 'article';
+type DocType = 'video' | 'short' | 'live' | 'event' | 'featuredBrand' | 'topic' | 'article' | 'articleOutro';
 
 type LocationInfo = { venue?: string; city?: string; region?: string; country?: string };
 
@@ -30,6 +31,11 @@ type Doc = {
   badge1?: string;
   badge2?: string;
   badge3?: string;
+  /* The /feed hero's editorial overrides. Only the newest video ever renders
+     them, but they are seeded on every video doc so an editor can set them
+     before the item reaches the top of the feed. */
+  customHeroLogo?: string;
+  customHeroBrandLabel?: string;
   durationSeconds?: number;
   isShort?: boolean;
   isLive?: boolean;
@@ -46,7 +52,11 @@ type Doc = {
   characters?: string[];
   coverageType?: string;
   series?: string;
+  featuredSeries?: boolean;
+  seriesAccent?: string;
   editorialNotes?: string;
+  /** Ordering override. Changes where the item sits in a row, not its date. */
+  sortDate?: string;
   topics?: string[];
   hubs?: string[];
   requiresReview?: boolean;
@@ -150,7 +160,7 @@ const getImageUrl = (image: any) => {
   return null;
 };
 
-const FILTERS = ['All', 'Videos', 'Shorts', 'Live', 'Events', 'Featured', 'Topics', 'Articles'] as const;
+const FILTERS = ['All', 'Videos', 'Shorts', 'Live', 'Events', 'Featured', 'Topics', 'Articles', 'Outro'] as const;
 type Filter = (typeof FILTERS)[number] | 'GlobalStatus';
 
 const FILTER_LABELS: Record<Filter, string> = {
@@ -162,6 +172,7 @@ const FILTER_LABELS: Record<Filter, string> = {
   Featured: 'Featured Brands',
   Topics: 'Topics',
   Articles: 'Articles',
+  Outro: 'Article Outro',
   GlobalStatus: 'Global Status',
 };
 
@@ -172,6 +183,9 @@ const FILTER_GROUPS: { label: string; filters: Filter[] }[] = [
   { label: 'Content', filters: ['All', 'Videos', 'Shorts', 'Live', 'Articles'] },
   { label: 'Hubs & Pages', filters: ['Events', 'Featured'] },
   { label: 'Taxonomy', filters: ['Topics'] },
+  /* The standard closing section under every article. One document, not a
+     list — it is site furniture, so there is nothing to create or delete. */
+  { label: 'Site Copy', filters: ['Outro'] },
 ];
 
 function slugify(value: string): string {
@@ -293,6 +307,12 @@ function makeBlankDoc(type: DocType): Doc {
     coverageType: '',
     series: '',
     editorialNotes: '',
+    sortDate: '',
+    /* Seeded empty for the same reason every other editorial field here is:
+       the sync rebuilds a doc from a named list, so a field that is absent is
+       erased rather than left alone. */
+    customHeroLogo: '',
+    customHeroBrandLabel: '',
     topics: [],
     hubs: [],
     requiresReview: true,
@@ -1023,7 +1043,7 @@ export default function LocalCmsApp() {
   };
 
   const filterCounts = useMemo(() => {
-    let counts = { All: 0, Videos: 0, Shorts: 0, Live: 0, Events: 0, Featured: 0, Topics: 0, Articles: 0 };
+    let counts = { All: 0, Videos: 0, Shorts: 0, Live: 0, Events: 0, Featured: 0, Topics: 0, Articles: 0, Outro: 0 };
     docs.forEach((d) => {
       const type = d.manualTypeOverride || d._type;
       if (['video', 'short', 'live'].includes(type as string)) counts.All++;
@@ -1034,6 +1054,7 @@ export default function LocalCmsApp() {
       if (type === 'featuredBrand' || d.featured === true) counts.Featured++;
       if (type === 'topic') counts.Topics++;
       if (type === 'article') counts.Articles++;
+      if (type === 'articleOutro') counts.Outro++;
     });
     return counts;
   }, [docs]);
@@ -1053,12 +1074,13 @@ export default function LocalCmsApp() {
         if (activeFilter === 'Featured') return type === 'featuredBrand' || d.featured === true;
         if (activeFilter === 'Topics') return type === 'topic';
         if (activeFilter === 'Articles') return type === 'article';
+        if (activeFilter === 'Outro') return type === 'articleOutro';
         return true;
       });
     }
     if (statusFilter) {
       list = list.filter((d) => {
-        if (d._type === 'topic' || d._type === 'article') return false;
+        if (d._type === 'topic' || d._type === 'article' || d._type === 'articleOutro') return false;
         const status = d.contentStatus || d.status;
         if (statusFilter === 'published') return status === 'published' || status === 'live' || status === 'completed';
         if (statusFilter === 'needs-review') return status === 'needs-review';
@@ -1074,7 +1096,7 @@ export default function LocalCmsApp() {
     let other = 0;
 
     docs.forEach((doc) => {
-      if (doc._type === 'topic' || doc._type === 'article') return;
+      if (doc._type === 'topic' || doc._type === 'article' || doc._type === 'articleOutro') return;
       
       const status = doc.contentStatus || doc.status;
       if (status === 'published' || status === 'live' || status === 'completed') published++;
@@ -1359,7 +1381,7 @@ export default function LocalCmsApp() {
 
               <div className="flex-1 p-5 sm:p-6">
                 {(selected._type === 'video' || selected._type === 'short' || selected._type === 'live') && (
-                  <VideoForm doc={selected} activeTab={activeTab} setActiveTab={setActiveTab} updateDoc={updateDoc} />
+                  <VideoForm doc={selected} activeTab={activeTab} setActiveTab={setActiveTab} updateDoc={updateDoc} assetLibrary={assetLibrary} onForgetAsset={forgetAsset} />
                 )}
                 {selected._type === 'event' && (
                   <EventForm doc={selected} allDocs={docs} assetLibrary={assetLibrary} onForgetAsset={forgetAsset} updateDoc={updateDoc} updateSlug={updateSlug} updateLocation={updateLocation} duplicateAsEdition={duplicateAsEdition} />
@@ -1373,11 +1395,81 @@ export default function LocalCmsApp() {
                 {selected._type === 'topic' && (
                   <TopicForm doc={selected} updateDoc={updateDoc} updateSlug={updateSlug} />
                 )}
+
+                {selected._type === 'articleOutro' && (
+                  <ArticleOutroForm doc={selected} updateDoc={updateDoc} />
+                )}
               </div>
             </>
           )}
         </div>
       </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The article outro — the standard closing section under every article.
+ *
+ * ─── PROSE AND LINKS ARE SEPARATE FIELDS ────────────────────────────────────
+ * The copy carries `{brand}`, `{substack}` and `{youtube}` tokens, and each one
+ * has its own label and href below. An editor can rewrite every sentence
+ * without touching markup, and the component never renders HTML it did not
+ * author — nothing here reaches the page through `set:html`.
+ *
+ * Leaving a field blank falls back to the built-in copy rather than rendering a
+ * gap (see ARTICLE_OUTRO_DEFAULTS in src/lib/local-content.ts). This section is
+ * on every article, so a blank one is worse than a stale one.
+ */
+function ArticleOutroForm({ doc, updateDoc }: { doc: Doc; updateDoc: (id: string, field: keyof Doc, value: any) => void }) {
+  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    updateDoc(doc._id, key as keyof Doc, e.target.value);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-white/50 leading-relaxed">
+        Rendered under every article. Use <code className="text-red-300">{'{brand}'}</code>,{' '}
+        <code className="text-red-300">{'{substack}'}</code> and{' '}
+        <code className="text-red-300">{'{youtube}'}</code> in the prose to place the links.
+        A blank field falls back to the built-in copy.
+      </p>
+
+      <Field label="Heading">
+        <input className={inputClass} value={(doc as any).heading || ''} onChange={set('heading')} />
+      </Field>
+
+      <Field label="Intro (the quoted paragraph)">
+        <textarea className={`${inputClass} min-h-[120px]`} value={(doc as any).intro || ''} onChange={set('intro')} />
+      </Field>
+
+      <Field label="Call to action paragraph">
+        <textarea className={`${inputClass} min-h-[120px]`} value={(doc as any).cta || ''} onChange={set('cta')} />
+      </Field>
+
+      <Field label="Sign-off (one line)">
+        <input className={inputClass} value={(doc as any).signOff || ''} onChange={set('signOff')} />
+      </Field>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Brand link label">
+          <input className={inputClass} value={(doc as any).brandLabel || ''} onChange={set('brandLabel')} />
+        </Field>
+        <Field label="Brand link URL">
+          <input className={inputClass} value={(doc as any).brandHref || ''} onChange={set('brandHref')} />
+        </Field>
+        <Field label="Substack link label">
+          <input className={inputClass} value={(doc as any).substackLabel || ''} onChange={set('substackLabel')} />
+        </Field>
+        <Field label="Substack link URL">
+          <input className={inputClass} value={(doc as any).substackHref || ''} onChange={set('substackHref')} />
+        </Field>
+        <Field label="YouTube link label">
+          <input className={inputClass} value={(doc as any).youtubeLabel || ''} onChange={set('youtubeLabel')} />
+        </Field>
+        <Field label="YouTube link URL">
+          <input className={inputClass} value={(doc as any).youtubeHref || ''} onChange={set('youtubeHref')} />
+        </Field>
       </div>
     </div>
   );
@@ -1610,11 +1702,19 @@ function VideoForm({
   activeTab,
   setActiveTab,
   updateDoc,
+  assetLibrary = [],
+  onForgetAsset,
 }: {
   doc: Doc;
   activeTab: string;
   setActiveTab: (t: string) => void;
   updateDoc: (id: string, field: keyof Doc, value: any) => void;
+  /* Threaded in so the hero override can upload and REUSE marks through the
+     same picker every other image field uses. Without it the only way to set
+     one would be to upload a duplicate of an asset already in the store,
+     which is the exact problem the picker was built to end. */
+  assetLibrary?: AssetEntry[];
+  onForgetAsset?: (ref: string) => void;
 }) {
   const update = (field: keyof Doc, value: any) => updateDoc(doc._id, field, value);
   return (
@@ -1638,6 +1738,52 @@ function VideoForm({
           )}
         </Field>
         <div className="@lg:col-span-full">
+          {/*
+            ─── THE FEED HERO OVERRIDE ────────────────────────────────────
+
+            /feed leads with the newest video, and its hero shows that item's
+            HUB mark: the brand or event it belongs to. When nothing resolves
+            it falls back to the BE Unconventional crown, which is right for
+            our own coverage and wrong when the piece is about somebody else's
+            title and they have no hub here.
+
+            That was the Coyote vs. Acme case: the distributor is Ketchup
+            Entertainment, which has no brand document, so the hero announced
+            the HQ over a film we were reviewing for them. Standing up a whole
+            hub for a distributor we have covered once is a much larger change
+            than the hero needs, and this is the smaller one.
+
+            Only the newest video renders it, so setting it on an older doc
+            does nothing visible today and everything the day it leads.
+          */}
+          <p className="text-sm font-bold text-white mb-2">Feed Hero Override</p>
+          <p className="text-xs text-gray-500 mb-3">
+            Only used while this is the newest video, and only on /feed. Leave both empty
+            and the hero uses the item's hub, then the BE Unconventional mark.
+          </p>
+          <div className="grid grid-cols-1 @sm:grid-cols-2 gap-4 mb-6">
+            <ImageUploadField
+              label="Hero Logo (optional)"
+              value={refOf(doc.customHeroLogo)}
+              onChange={(v) => update('customHeroLogo', v)}
+              library={assetLibrary}
+              onForgetAsset={onForgetAsset}
+              hint="Replaces the mark on the /feed hero. Use it when the piece is about a brand with no hub on this site. Upload a version that reads on a dark background: the hero sits on #111, so a black wordmark disappears."
+            />
+            <Field label="Hero Brand Label (optional)">
+              <input
+                type="text"
+                value={doc.customHeroBrandLabel || ''}
+                onChange={(e) => update('customHeroBrandLabel', e.target.value)}
+                className={inputClass}
+                placeholder="e.g. Ketchup Entertainment"
+              />
+              <p className="text-xs text-gray-500 mt-1.5">
+                The logo's alt text. Set it whenever you set a logo above, or a screen
+                reader is told the wrong company. Ignored while the logo is empty.
+              </p>
+            </Field>
+          </div>
           <p className="text-sm font-bold text-white mb-2">Visual Badge Overrides</p>
           <div className="grid grid-cols-1 @sm:grid-cols-3 gap-4">
             <Field label="Badge 1 (Brand)">
@@ -1800,6 +1946,47 @@ function VideoForm({
             <div className="@lg:col-span-full">
               <Field label="Series">
                 <input type="text" value={doc.series || ''} onChange={(e) => update('series', e.target.value)} className={inputClass} />
+                <p className="mt-1 text-xs text-neutral-500">
+                  Groups a run of coverage, e.g. "Lanterns". Items sharing this name can get their own Feed section.
+                </p>
+              </Field>
+            </div>
+            {/*
+              ─── A DEDICATED FEED SECTION FOR THIS SHOW ──────────────────────
+
+              Two decisions that belong to the SERIES, not to this item, which
+              is why they sit beside Series rather than beside Featured.
+              `featured` means "this piece deserves elevated placement"; these
+              mean "this piece's series gets its own shelf" and "that shelf is
+              themed like this". Coupling them would mean unflagging one video
+              to demote it silently killed an entire section.
+
+              Flag items from several different series and each gets its own
+              section, most recently updated first. Flag none and the Feed uses
+              the most recently updated series with a real run behind it.
+            */}
+            <div className="@lg:col-span-full">
+              <Toggle
+                label="Featured Series"
+                checked={doc.featuredSeries || false}
+                onChange={(v) => update('featuredSeries', v)}
+              />
+              <p className="mt-1 text-xs text-neutral-500">
+                Gives THIS ITEM'S SERIES its own section on the Feed. Not the same as Featured.
+              </p>
+            </div>
+            <div className="@lg:col-span-full">
+              <Field label="Series Accent Colour">
+                <input
+                  type="text"
+                  value={doc.seriesAccent || ''}
+                  onChange={(e) => update('seriesAccent', e.target.value)}
+                  placeholder="#10B981"
+                  className={inputClass}
+                />
+                <p className="mt-1 text-xs text-neutral-500">
+                  Hex. Themes the section for the show rather than its studio. Empty uses the hub's brand colour.
+                </p>
               </Field>
             </div>
             <div className="@lg:col-span-full">
@@ -1815,18 +2002,94 @@ function VideoForm({
 
         {activeTab === 'editorial' && (
           <div className="grid grid-cols-1 gap-5">
+            {/*
+              ─── WHAT THIS PIECE IS ─────────────────────────────────────────
+
+              The options come from COVERAGE_TYPES in src/lib/tags.ts, which is
+              the SAME list the renderer validates against. They were typed out
+              here once, and four of the eight values in that list disagreed
+              with it: "trailer", "breakdown" and "other" named nothing the
+              site could render, so choosing one set a field the metadata line
+              then ignored and fell back to guessing from raw YouTube tags.
+
+              The list is ordered by editorial priority, highest first. That
+              order is what the Feed uses to decide what leads the publication,
+              so it is deliberately not alphabetical.
+            */}
             <Field label="Coverage Type">
               <select value={doc.coverageType || ''} onChange={(e) => update('coverageType', e.target.value)} className={inputClass}>
                 <option value="">(None)</option>
-                <option value="review">Review</option>
-                <option value="reaction">Reaction</option>
-                <option value="trailer">Trailer</option>
-                <option value="breakdown">Breakdown</option>
-                <option value="vlog">Vlog</option>
-                <option value="interview">Interview</option>
-                <option value="news">News</option>
-                <option value="other">Other</option>
+                {COVERAGE_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type.charAt(0) + type.slice(1).toLowerCase()}
+                  </option>
+                ))}
               </select>
+              <p className="mt-1 text-xs text-neutral-500">
+                What the piece IS. Drives the metadata line and how the Feed ranks it.
+              </p>
+            </Field>
+
+            {/*
+              ─── THE SITE'S OWN WORDS FOR THIS VIDEO ────────────────────────
+
+              Without this the card and the spotlight hero fall back to the
+              YouTube description, which is written for a different audience and
+              carries subscribe CTAs, gear lists and affiliate links. Articles
+              have had this field since the Substack sync; videos had no
+              equivalent, and that was the one genuinely missing piece of the
+              editorial layer.
+
+              Optional. Left empty, the card shows its title and metadata and no
+              body text, which is honest. It is never overwritten by a sync.
+            */}
+            <Field label="Editorial Excerpt (Standfirst)">
+              <textarea
+                value={doc.editorial?.excerpt || ''}
+                onChange={(e) => {
+                  /* An empty excerpt is stored as an ABSENT key, not an empty
+                     string: `editorialPreview()` falls through on absent and
+                     would return '' for a stored empty one, which are the same
+                     result today but diverge the moment anything treats the
+                     field as "has the editor been here". */
+                  const next: NonNullable<Doc['editorial']> = { ...(doc.editorial || {}) };
+                  if (e.target.value) next.excerpt = e.target.value;
+                  else delete next.excerpt;
+                  update('editorial', Object.keys(next).length > 0 ? next : undefined);
+                }}
+                rows={3}
+                className={textareaClass}
+                placeholder="One or two sentences, in the publication's voice..."
+              />
+              <p className="mt-1 text-xs text-neutral-500">
+                Shown on cards and in the hero. Replaces the YouTube description entirely.
+              </p>
+            </Field>
+
+            {/*
+              ─── ORDER, NOT DATE ────────────────────────────────────────────
+
+              Publish order and episode order are different things. The Lanterns
+              episode 2 review went out the day AFTER the episode 3 review, so
+              every row it appears in read 5, 4, 2, 3.
+
+              This changes where the item sits in a row and nothing else. The
+              date on the card, in the metadata and in the feeds is still the
+              real publish date, because that is when it actually went out.
+
+              Left empty, the item orders by its publish date as before.
+            */}
+            <Field label="Order as if published on">
+              <input
+                type="date"
+                value={(doc.sortDate || '').slice(0, 10)}
+                onChange={(e) => update('sortDate', e.target.value)}
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-neutral-500">
+                Ordering only. Leave empty to use the publish date
+                {doc.publishedAt ? ` (${String(doc.publishedAt).slice(0, 10)})` : ''}.
+              </p>
             </Field>
 
             <Field label="Editorial Notes">

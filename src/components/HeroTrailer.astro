@@ -25,7 +25,7 @@ const poster = posterUrl || `https://i.ytimg.com/vi/${trailerId}/maxresdefault.j
 const posterFallback = `https://i.ytimg.com/vi/${trailerId}/hqdefault.jpg`;
 
 const base = `https://www.youtube-nocookie.com/embed/${trailerId}`;
-const mobileSrc = `${base}?playsinline=1&rel=0&modestbranding=1&loop=1&playlist=${trailerId}&enablejsapi=1`;
+const mobileSrc = `${base}?autoplay=1&playsinline=1&rel=0&modestbranding=1&loop=1&playlist=${trailerId}&enablejsapi=1`;
 const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&controls=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
 ---
 
@@ -114,6 +114,18 @@ const desktopSrc = `${base}?autoplay=1&mute=1&loop=1&playlist=${trailerId}&contr
     padding: 0 !important;
     transform: translateZ(0) !important;
     border: 0 !important;
+    /*
+      HARD RULE 2 — this file is protected, so this is a paint property and
+      nothing else: no lifecycle, no mounting, no per-breakpoint markup.
+
+      `.ht-root` is already `background: #000`, and that is behind the frame,
+      not in it. A cross-origin YouTube iframe paints its own canvas and on
+      iOS Safari that canvas is WHITE until YouTube's CSS loads, so the black
+      underneath never got a chance to show. `color-scheme` is the only
+      property that reaches the embedded document.
+    */
+    background: #000 !important;
+    color-scheme: dark !important;
   }
 
   /* --- Desktop poster --- */

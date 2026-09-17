@@ -171,6 +171,21 @@ export default defineType({
     }),
     defineField({ name: 'series', title: 'Series', type: 'string', fieldset: 'editorial', description: 'Editorial series this video belongs to.' }),
     defineField({
+      name: 'customHeroLogo',
+      title: 'Custom Hero Logo (Override)',
+      type: 'image',
+      fieldset: 'editorial',
+      options: { hotspot: true },
+      description: 'Optional. Overrides the brand/franchise taxonomy logo in the hero.',
+    }),
+    defineField({
+      name: 'customHeroBrandLabel',
+      title: 'Custom Hero Brand Label (Override)',
+      type: 'string',
+      fieldset: 'editorial',
+      description: 'Optional. Manually override the brand/franchise name text in the hero.',
+    }),
+    defineField({
       name: 'relatedMedia',
       title: 'Related Media',
       type: 'array',

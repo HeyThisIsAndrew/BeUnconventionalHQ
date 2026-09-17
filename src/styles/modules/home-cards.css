@@ -19,12 +19,29 @@
    together with the other two homepage rows. */
 .cat {
   position: relative;
-  min-height: 260px;
+  /*
+    A RATIO, NOT A FIXED HEIGHT. `min-height: 260px` was fine while the grid
+    was pinned at 1536px and every tile was about 340 wide. Once the grid was
+    routed through `--page-max` the tiles grew to 602px on a 3840 screen and
+    the height did not follow, so they became 602x260 letterboxes and
+    `object-fit: cover` on the sketches zoomed to fill the width and cropped
+    the crowns straight off the top.
+
+    4:3 is the shape they already were: 341x260 at the 1512 control is 1.31,
+    and 4/3 is 1.33, so the control moves by about 4px and every wider screen
+    grows in both directions at once. The min-height stays as a floor for the
+    single-column case at the narrow end.
+  */
+  aspect-ratio: 4 / 3;
+  min-height: 200px;
   display: flex;
   align-items: flex-end;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
   text-decoration: none;
+  /* See --shadow-tile in global-base.css. The transition below already
+     covered box-shadow; only the resting value was missing. */
+  box-shadow: var(--shadow-tile);
   transition:
     transform 0.3s ease,
     border-color 0.3s ease,
@@ -42,7 +59,10 @@
 .cat:hover {
   transform: translateY(-6px);
   border-color: var(--color-accent);
-  box-shadow: 0 8px 30px rgba(204, 0, 0, 0.15);
+  /* The red glow LAYERS on the depth. It used to be the whole declaration,
+     which meant hovering replaced the cast shadow with a glow and the tile
+     dropped flat at the moment it lifted — the two motions fought. */
+  box-shadow: var(--shadow-tile), 0 8px 30px rgba(204, 0, 0, 0.15);
 }
 .cat:hover .cat-bg-img {
   transform: scale(1.05);
@@ -238,7 +258,15 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1.5rem;
   width: 100%;
-  max-width: 1536px;
+  /*
+    THE TOKEN, NOT A HARDCODED 1536. This was a flat `max-width: 1536px` while
+    the rest of the page grid -- the hero column, the spotlight band's content
+    -- runs to `--page-max` (2600px). On a 3840px screen the tiles therefore
+    stopped growing a full 1000px before everything around them did, which is
+    the "tiles are now tiny" report: they were not shrinking, they were the
+    only thing on the page that had stopped.
+  */
+  max-width: var(--page-max, 1536px);
   margin-inline: auto;
 }
 
@@ -452,7 +480,15 @@
   transform: translateZ(0) !important;
   border: none !important;
   z-index: 0;
+  /*
+    `transparent` is deliberate — the card's own thumbnail sits behind this
+    and must show through while the player fades up. It is also why the frame
+    cannot simply be painted black: `color-scheme` is what stops the EMBEDDED
+    document defaulting to a white canvas on iOS Safari, without putting an
+    opaque layer over the thumbnail.
+  */
   background: transparent;
+  color-scheme: dark;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.5s ease;
@@ -626,4 +662,341 @@
     margin-top: 0;
   }
 
+}
+
+/* ===========================================================================
+   CINEMATIC FEED TILES  —  "the slate"
+   ---------------------------------------------------------------------------
+   Applied ONLY where ContentCard renders with context="feed" (the horizontal
+   rows). Everything is scoped under `.content-card--cinematic`, so the boxed
+   editorial card used by /intel, /category and the hub pages cannot be reached
+   by these rules.
+
+   ─── THE CARD HAS A BODY AGAIN, AND THAT WAS THE POINT ────────────────────
+   The first pass stripped the enclosure entirely and let the title float on the
+   page. That over-corrected: with no shared boundary the title and its artwork
+   stopped reading as one object, and the text lost its ground against the
+   row's ambient wash — worst on the prestige shelf, where the backdrop is lit.
+
+   What was actually wrong with the original card was never that it HAD a
+   container. It was 1.5rem of padding and a "WATCH NOW" footer link inside a
+   tile that is itself the click target. So the enclosure comes back and those
+   two do not: a tight tray under a full-bleed still.
+   ========================================================================== */
+
+.content-card.content-card--cinematic {
+  background: #111113;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  /*
+    The card clips, so the still meets its own corners with no inner margin.
+    Safe here specifically: a feed tile holds an <img> and never a YouTube
+    iframe — hard rule 3 forbids a clipping ancestor of an iframe, and the only
+    one on this page belongs to the hero, outside any card.
+  */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  /* Equal-height slates across a rail whose tiles have titles of different
+     lengths. The rail is a flex row, so the <li> already stretch. */
+  height: 100%;
+  padding: 0;
+  box-shadow: none;
+  transition:
+    transform 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+/* Full-bleed at the top of the slate. The border and radius live on the card
+   now, so the media carries neither — two of each is what made the old tile
+   look like a picture glued onto a box. */
+.content-card--cinematic .content-card-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: none;
+  border-radius: 0;
+  /*
+    ─── THE FLEX RESET IS WHAT MAKES aspect-ratio APPLY AT ALL ───────────────
+
+    Below 560px the BASE card turns into a horizontal row — media on the left at
+    `flex: 0 0 42%`, body on the right. The slate is a COLUMN, and in a column
+    flex container a flex-basis is a HEIGHT, so that inherited 42% was sizing
+    the artwork vertically and `aspect-ratio` never got a say.
+
+    Measured on a 375px phone: a 319px-wide card gave a 109px-tall media (42% of
+    262) instead of the 179px its own ratio asks for, and the 70px it saved
+    became dead space at the bottom of the tray — the "too much spacing" on
+    portrait tiles.
+
+    `align-self` goes back to stretch for the same reason: `center` is the row
+    layout's rule, and it left the artwork floating rather than filling.
+  */
+  flex: 0 0 auto;
+  align-self: stretch;
+}
+
+.content-card--cinematic .content-card-media img,
+.content-card--cinematic .content-card-media .content-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition:
+    transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 0.35s ease;
+}
+
+/* ─── THE TRAY ─────────────────────────────────────────────────────────────
+   0.85rem against the old 1.5rem. The hairline is barely there on purpose: it
+   separates the tray from the still without drawing a second border a few
+   pixels inside the card's own. */
+.content-card--cinematic .content-card-body {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  padding: 0.85rem 1rem;
+  background: #111113;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/*
+  The tray reads top-down now: metadata, title, description. Nothing inside is
+  bottom-pinned, so the wrapper no longer grows to create space for an auto
+  margin — that arrangement is what put a large gap between the title and the
+  tag line on a phone, which is the thing it was meant to tidy.
+*/
+.content-card--cinematic .content-card-title-wrapper {
+  min-height: 0;
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.content-card--cinematic .content-card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #f5f5f5;
+  /* The wrapper's `gap` owns the space between the eyebrow and the title now,
+     so the title carries no margin of its own — two sources of the same gap is
+     how it grew too large in the first place. */
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  /*
+    ─── TWO LINES OF ROOM, ALWAYS, AND THAT IS WHAT KILLS THE DEAD SPACE ─────
+
+    The card stretches to the tallest tile in its rail and the tray absorbs the
+    slack. While the tags were pinned to the bottom of the tray they filled it;
+    with the eyebrow moved to the top, that slack became 70px of visible empty
+    space under the title — measured on a 375px phone, a 151px tray holding
+    81px of content.
+
+    Reserving the second line makes every tray the same natural height, so the
+    tallest tile IS every tile and there is no slack left to absorb. It also
+    removes the ragged footer the old auto-margin was working around, without
+    an auto margin.
+  */
+  min-height: calc(2 * 1.35em);
+}
+
+/*
+  The description, where a variant renders one. Clamped to two lines for the
+  same reason the title is: the hero shows the full text when the card is
+  selected, so a long excerpt on the tile only makes the row taller.
+*/
+.content-card--cinematic .content-card-excerpt {
+  margin: 0.45rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.62);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/*
+  ─── PHONES GET THE TIGHT VERSION ────────────────────────────────────────
+
+  A portrait tile shows one card at a time, so every pixel between the eyebrow
+  and the title is one the artwork does not get. Reported as "way too much
+  vertical spacing between the title and the metadata".
+*/
+@media (max-width: 640px) {
+  .content-card--cinematic .content-card-body {
+    padding: 0.65rem 0.75rem;
+  }
+
+  .content-card--cinematic .content-card-title-wrapper {
+    gap: 0.2rem;
+  }
+
+  .content-card--cinematic .content-card-title {
+    font-size: 0.9rem;
+    line-height: 1.3;
+    min-height: calc(2 * 1.3em);
+  }
+
+  .content-card--cinematic .content-card-excerpt {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+  }
+}
+
+/* The tags are the footer now — `margin-top: auto` pins them to the bottom of
+   the tray so a one-line title and a two-line title still end on the same
+   baseline across a row. */
+/*
+  The eyebrow. `margin-top: auto` is gone with the old order — it pinned the
+  tags to the bottom of the tray, which is where the phone's title-to-metadata
+  gap came from.
+*/
+.content-card--cinematic .content-card-dynamic-tags {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 0;
+  order: 0;
+}
+
+/* ─── THE FORMAT PILL ─────────────────────────────────────────────────────
+   Bottom-left, over the artwork. Glass rather than a solid chip so it reads as
+   sitting on the image instead of punched into it. */
+.content-card--cinematic .content-card-format {
+  position: absolute;
+  left: 0.5rem;
+  bottom: 0.5rem;
+  z-index: 2;
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-family: var(--font-body, sans-serif);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.92);
+  pointer-events: none;
+}
+
+/* ─── HOVER ───────────────────────────────────────────────────────────────
+   The whole slate lifts; the still grows inside it. Scale is on the IMAGE and
+   the crop is on its parent, so the artwork moves and the tile's footprint in
+   the rail does not. */
+/*
+  The hover border is the BRAND RED, not a white glass edge.
+
+  This rule sits below `.video-card-home:hover { border-color: var(--color-accent) }`
+  in the same sheet, so the translucent white it used to set did not sit beside
+  that rule, it replaced it — the site's signature red hover was extinguished on
+  every card the moment the slate went site-wide.
+
+  `--color-accent` (#cc0000) is the right token precisely here: CLAUDE.md notes
+  it measures 3.21:1 and is therefore a BORDER AND GLOW colour only, never text
+  or an icon. This is a border and a glow.
+*/
+/*
+  ─── HOVER HAS TO BE UNMISSABLE, NOT TASTEFUL ─────────────────────────────
+
+  This was a 1px border going red, a 4px lift and a soft shadow. Reported as
+  "I hovered over it and couldn't tell", and that is a fair reading of the
+  measurements: #cc0000 is 3.21:1, so a single-pixel line of it on a dark card
+  sitting on a coloured row wash is close to invisible. Every part of the old
+  state was an edge effect.
+
+  So the whole tile responds now — a 2px ring, a deeper lift, a real shadow,
+  and the artwork itself brightening. The ring is the SAME language the centred
+  tile uses on a phone, so "the one you are pointing at" looks the same whether
+  it is a cursor or a thumb doing the pointing.
+
+  `outline` rather than a thicker border for the reason the mobile ring gives:
+  a border changes the box and would shift the tiles next to it on hover.
+*/
+.content-card--cinematic:hover,
+.content-card--cinematic:focus-within {
+  transform: translateY(-6px);
+  border-color: var(--color-accent, #cc0000);
+  outline: none;
+  box-shadow:
+    0 18px 38px rgba(0, 0, 0, 0.8),
+    0 0 15px rgba(var(--brand-rgb, 204, 0, 0), 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+
+.content-card--cinematic:hover .content-card-media img,
+.content-card--cinematic:focus-within .content-card-media img {
+  transform: scale(1.06);
+  /* The picture itself lifts out of the page, so the feedback is in the middle
+     of the tile and not only around its edge. */
+  filter: brightness(1.12);
+}
+
+.content-card--cinematic .content-card-media img {
+  filter: brightness(1);
+}
+
+/* The title brightens too: on a rail of dim tiles the one under the cursor
+   should read as the active one at a glance. */
+.content-card--cinematic:hover .content-card-title,
+.content-card--cinematic:focus-within .content-card-title {
+  color: #fff;
+}
+
+/* The play glyph blooms in rather than sitting there. Video tiles only: the
+   component renders the wrapper only when the item is playable. */
+.content-card--cinematic .play-button-wrapper {
+  opacity: 0;
+  transform: scale(0.88);
+  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.content-card--cinematic:hover .play-button-wrapper,
+.content-card--cinematic:focus-within .play-button-wrapper {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* A coarse pointer has no hover, so the glyph would never appear: it is simply
+   always on there rather than animated. */
+@media (hover: none) {
+  .content-card--cinematic .play-button-wrapper {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content-card--cinematic,
+  .content-card--cinematic .content-card-media img,
+  .content-card--cinematic .play-button-wrapper {
+    transition: none;
+  }
+
+  .content-card--cinematic:hover,
+  .content-card--cinematic:focus-within {
+    transform: none;
+  }
+
+  .content-card--cinematic:hover,
+  .content-card--cinematic:focus-within {
+    transform: none;
+  }
+
+  .content-card--cinematic:hover .content-card-media img,
+  .content-card--cinematic:focus-within .content-card-media img {
+    transform: none;
+  }
 }

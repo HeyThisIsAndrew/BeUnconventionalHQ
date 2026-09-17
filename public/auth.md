@@ -1,4 +1,4 @@
-# Using the Be Unconventional HQ APIs
+# Using the BE Unconventional HQ APIs
 
 ## There is no authentication, and nothing to register for
 

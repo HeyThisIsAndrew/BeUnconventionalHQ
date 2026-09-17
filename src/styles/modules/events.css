@@ -8,6 +8,36 @@
 }
 
 /*
+  ─── A FULL-BLEED HERO GOES UNDER THE HEADER, NOT BELOW IT ──────────────────
+
+  The 120px above clears the fixed navbar, which is right for a page that opens
+  on text. It is wrong for one that opens on a hero: the hero ran edge to edge
+  horizontally and then started 120px down, so a band of page background sat
+  between the translucent header and the artwork and the header had nothing to
+  be translucent over.
+
+  Same shape as `.feed-page.has-spotlight-hero` in FeedLayout.astro, and scoped
+  the same way for the same reason recorded there: removing the offset outright
+  once took /intel and /category/* with it, leaving their filter buttons in the
+  DOM but underneath the header at y=12px, reported as "the filter buttons are
+  gone". A page opts in by declaring it renders its own full-bleed element and
+  will handle the header itself.
+
+  `padding-top` only, unlike the feed's `padding: 0`. The bottom offset is not
+  about the header and this page has content that needs it.
+
+  /events/archive is the other `.events-page` and deliberately does NOT get
+  this: it opens on a page title, so its 120px is still doing the job.
+
+  The hero clears the header from the inside, via `.event-hero-overlay`'s
+  `padding-top: clamp(6rem, 4.5rem + 6vw, 8.5rem)`, so the copy never lands
+  under it even though the artwork does.
+*/
+.events-page.has-spotlight-hero {
+  padding-top: 0;
+}
+
+/*
   ─── ONE CARD, ONE SIZE, WHEREVER THE GRID IS ──────────────────────────────
 
   The track floor was 320px, which is smaller than an EventCard actually wants.
