@@ -568,7 +568,27 @@ export default defineConfig({
   // every linked page on a phone's data plan.
   prefetch: {
     prefetchAll: true,
-    defaultStrategy: 'hover',
+    /*
+      ─── 'tap', NOT 'hover' — A FINGER NEVER HOVERS ───────────────────────
+      `hover` binds mouseenter and focus. Neither exists on a touch screen, so
+      this setting meant DESKTOP got every destination pre-warmed and MOBILE
+      got nothing: every phone navigation paid the full document fetch inside
+      the transition, with the document being 264KB for an article and 619KB
+      for /feed. That asymmetry is the clearest reason the two platforms felt
+      so different, and it was in this line rather than in the animation.
+
+      Measured directly on one link before the change: `mouseenter` fired 1
+      prefetch request, `touchstart` fired 0.
+
+      `tap` binds touchstart and mousedown, so it covers BOTH input methods —
+      the phone gains the pre-warm, and the desktop keeps a (later, but still
+      useful) one on mousedown.
+
+      Not `viewport`, which prefetches every link as it scrolls into view: with
+      `prefetchAll` on a feed of this length that is a lot of documents of this
+      size pulled on a phone's data plan for links nobody touched.
+    */
+    defaultStrategy: 'tap',
   },
 
   // Astro Fonts API: Declares Syne and Inter with fallback metric overrides

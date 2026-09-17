@@ -234,6 +234,47 @@ html[data-page-transition='page-rows'] [data-rows-target] {
   }
 }
 
+/*
+  ─── NO PAGE ANIMATION ON A TOUCH DEVICE ────────────────────────────────────
+
+  The 350ms above is a FIXED cost. It does not get cheaper on a faster phone,
+  and it sits in front of the reader on every single navigation — on a handset,
+  where taps are the whole interaction model, that reads as the site being slow
+  rather than as the site being cinematic. Desktop keeps it.
+
+  `pointer: coarse`, not a width query and not user-agent sniffing: the
+  question is "is this a finger" and that is exactly what the media feature
+  answers. A narrow desktop window keeps the animation; a large tablet loses
+  it, which is the right call for both.
+
+  NOT `prefers-reduced-motion`, which already has its own block further down.
+  That setting is opt-in, almost nobody sets it, and it means something
+  different — "I have a vestibular reason to avoid motion", not "I am on a
+  phone". Conflating the two would have left the default mobile experience
+  untouched, which is the experience that was reported as slow.
+
+  ─── WHAT THIS DOES AND DOES NOT REMOVE ─────────────────────────────────────
+
+  It removes the 350ms wait. It does NOT remove the view transition itself:
+  ClientRouter still calls `startViewTransition()`, so the browser still
+  captures a snapshot of the outgoing page before swapping. On /feed that is a
+  1948-element, 619KB document, and the capture is not free. Measured on this
+  machine the router's own overhead is 10-60ms with no long tasks, so the
+  snapshot is not believed to be the problem — but it is the next thing to look
+  at if a real handset still feels slow after this, and the fix for THAT is to
+  stop ClientRouter intercepting on mobile, which is a bigger change and is not
+  being made on speculation.
+
+  `animation: none` rather than a 0s duration, so the transition finishes on
+  the next frame instead of running a zero-length one.
+*/
+@media (pointer: coarse) {
+  ::view-transition-old(page-main),
+  ::view-transition-new(page-main) {
+    animation: none !important;
+  }
+}
+
 /* An in-page action — a filter, a spotlight swap, a hash on the page you are
    already on — should crossfade smoothly without changing size or morphing. */
 html[data-page-transition='none']::view-transition-old(page-main) {
