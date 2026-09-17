@@ -115,10 +115,26 @@ test('an article prefers its own standfirst over its body', () => {
   for (const article of withBoth) {
     const preview = editorialPreview(article);
     assert.ok(!/\.,[A-Z“‘]/.test(preview), 'paragraphs must never be joined on a comma');
+    /*
+      An `editorial.excerpt` OUTRANKS the Substack subtitle, so the articles
+      carrying one are asserted against the override instead. This test read
+      every article against its subtitle until those overrides landed, and then
+      failed on exactly the thing it should have been proving: that a standfirst
+      written for this site wins.
+    */
+    const authored = String(article.editorial?.excerpt ?? '').trim();
+    const expected = authored || String(article.excerpt).trim();
     assert.ok(
-      preview.startsWith(String(article.excerpt).trim().slice(0, 24)),
-      `"${String(article.title).slice(0, 40)}" should lead with its subtitle, not its body`,
+      preview.startsWith(expected.slice(0, 24)),
+      `"${String(article.title).slice(0, 40)}" should lead with ${authored ? 'its editorial override' : 'its subtitle'}, not its body`,
     );
+  }
+
+  /* And the override has to actually reach the card. */
+  const overridden = articles.filter((a) => a.editorial?.excerpt);
+  assert.ok(overridden.length > 0, 'at least one article should carry an editorial standfirst');
+  for (const article of overridden) {
+    assert.equal(editorialPreview(article), String(article.editorial.excerpt).trim());
   }
 });
 

@@ -20,8 +20,10 @@
  * because the sync owns those and a write here would be overwritten or, worse,
  * would look authoritative until the next run.
  *
- * `featured` is NOT written even when a row carries it. Curation is the owner's
- * decision made in the CMS, not something a script infers from a proposal file.
+ * `featured` is written ONLY where the approved file says `featured: true`. It
+ * is never inferred, scored or derived from anything: no view count, no recency,
+ * no coverage type. Curation is the owner's decision, and this script's whole
+ * relationship to it is transcription.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -49,6 +51,14 @@ function stage(doc, field, value, label) {
   if (value === undefined || value === null || value === '') return;
   const current = field === 'editorial' ? doc.editorial?.excerpt : doc[field];
   const next = field === 'editorial' ? value.excerpt : value;
+  /*
+    An empty RESOLVED value is "this row says nothing about this field", not
+    "clear it". The row's editorial is an object, so the guard above sees a
+    truthy `{ excerpt: '' }` and lets it through; without this, five deliberately
+    blank excerpts each reported a change from empty to empty. Clearing a value
+    is `blankByDecision`, which is explicit.
+  */
+  if (next === undefined || next === null || next === '') return;
   if (current === next) return;
   changes.push({ id: doc._id, label, field: field === 'editorial' ? 'editorial.excerpt' : field, from: current || '(empty)', to: next });
   if (!EXECUTE) return;
@@ -72,6 +82,28 @@ for (const row of proposal.videos ?? []) {
   stage(doc, 'badge2', row.badge2, label);
   stage(doc, 'series', row.series, label);
   stage(doc, 'editorial', row.editorial, label);
+
+  /*
+    An excerpt blanked ON PURPOSE. `stage()` skips empty values so a row that
+    simply says nothing about a field leaves it alone, which is right for every
+    field except this one: five videos have source descriptions one or two lines
+    long, and the owner's decision was that no excerpt is better than an
+    invented one. That decision has to be able to CLEAR a value, so it is
+    handled here rather than by relaxing stage().
+  */
+  if (row.blankByDecision && doc.editorial?.excerpt) {
+    changes.push({ id: doc._id, field: 'editorial.excerpt', label, from: doc.editorial.excerpt, to: '(deliberately empty)' });
+    if (EXECUTE) {
+      const { excerpt, ...rest } = doc.editorial;
+      doc.editorial = Object.keys(rest).length > 0 ? rest : undefined;
+    }
+  }
+
+  /* Curation. Transcribed, never inferred. */
+  if (typeof row.featured === 'boolean' && Boolean(doc.featured) !== row.featured) {
+    changes.push({ id: doc._id, field: 'featured', label, from: String(Boolean(doc.featured)), to: String(row.featured) });
+    if (EXECUTE) doc.featured = row.featured;
+  }
   if (proposal.applyFranchises && row.franchise) {
     const next = [row.franchise];
     if (JSON.stringify(doc.franchises ?? []) !== JSON.stringify(next)) {
@@ -114,9 +146,22 @@ if (problems.length > 0) {
 const unreviewed = (proposal.videos ?? []).filter((v) => v.needsYourWords);
 if (unreviewed.length > 0) {
   console.log(`\n${unreviewed.length} excerpts are still flagged needsYourWords, meaning the source description`);
-  console.log('was too thin to compress and the draft is inference. They will be written as-is:');
+  console.log('was too thin to compress and the draft is inference. Blank them or rewrite them');
+  console.log('before running with --execute:');
   for (const v of unreviewed) console.log(`  ${v.title}`);
 }
+
+const blanked = (proposal.videos ?? []).filter((v) => v.blankByDecision);
+if (blanked.length > 0) {
+  console.log(`\n${blanked.length} excerpts are intentionally blank. Their cards render title and`);
+  console.log('metadata with no body text, which is the honest result for a source that says');
+  console.log('too little to summarise:');
+  for (const v of blanked) console.log(`  ${v.title}`);
+}
+
+const curated = (proposal.videos ?? []).filter((v) => v.featured === true);
+console.log(`\n${curated.length} video${curated.length === 1 ? '' : 's'} marked featured, transcribed from the approved file:`);
+for (const v of curated) console.log(`  ${v.title}`);
 
 if (!EXECUTE) {
   console.log('\nDRY RUN. Nothing written. Re-run with --execute to apply.');
