@@ -628,6 +628,43 @@ test('the /events hero is flush, and its copy still lands on the page column', (
     'unclamped, the description set to nine lines and owned a whole phone screen');
 });
 
+test('the /events hero starts at the top, not 120px down it', () => {
+  /*
+    `.events-page` carries `padding-top: 120px` to clear the fixed navbar,
+    which is right for a page that opens on text and wrong for one that opens
+    on a hero: the hero ran edge to edge sideways and then began 120px down, so
+    a band of page background sat between the translucent header and the
+    artwork and the header had nothing to be translucent over.
+
+    Opt-in, exactly as `.feed-page.has-spotlight-hero` is, and for the reason
+    recorded beside that rule: removing the offset outright once took /intel
+    and /category/* with it and left their filter buttons under the header at
+    y=12px, reported as "the filter buttons are gone".
+
+    The two halves are asserted together because either alone is silent — a
+    class with no rule, or a rule no page claims.
+  */
+  const css = stripComments(readSrc('src', 'styles', 'modules', 'events.css'));
+  assert.match(css, /\.events-page\.has-spotlight-hero \{[^}]*padding-top: 0;/,
+    'the opt-out rule is missing');
+  assert.doesNotMatch(css, /\.events-page\.has-spotlight-hero \{[^}]*padding-bottom/,
+    'only the TOP offset is about the header; the page still needs its bottom');
+  assert.match(eventsIndex, /<main class="events-page has-spotlight-hero/,
+    'the index must claim the rule, or the band comes back');
+
+  /*
+    And the copy must still clear the header from the inside, since the artwork
+    now runs underneath it. Measured at 1512x858: chips at 109px against a
+    header ending at 67. At 390: 96 against 57.
+  */
+  assert.match(indexHero, /\.event-hero-overlay \{[^}]*padding-top: clamp\(/,
+    'without this the chips land under the navbar the hero just slid beneath');
+
+  const archive = stripComments(readSrc('src', 'pages', 'events', 'archive', '[...page].astro'));
+  assert.match(archive, /<main class="events-page flex-1/,
+    'the archive opens on a page title, so its 120px is still doing its job');
+});
+
 test('the /events hero defines the animation it asks for', () => {
   assert.match(indexHero, /animation: cinematic-hero-zoom/, 'the slow push is the house treatment');
   assert.match(indexHero, /@keyframes cinematic-hero-zoom \{/,
