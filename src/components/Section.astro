@@ -24,7 +24,20 @@ interface Props {
 const {
   pt,
   pb,
-  maxWidth = '1536px',
+  /*
+    THE TOKEN, NOT A NUMBER. This defaulted to a hard '1536px' and wrote it as
+    an INLINE style, which outranks every stylesheet — including `.container`'s
+    own `max-width: var(--page-max)`. So `--page-max` stepping up to 1920, 2240
+    and 2600 on bigger screens did nothing on any page built from <Section>,
+    and on a 3840px monitor every section stopped growing 1000px before the
+    page around it did. That is the "tiles are now tiny" report: the tiles were
+    not shrinking, they were the only thing that had stopped.
+
+    `--page-max` is 1536px at its own base step (layout.css), so nothing below
+    1920 moves by a pixel. A caller that wants a specific width still passes
+    one.
+  */
+  maxWidth = 'var(--page-max, 1536px)',
   container = true,
   class: className = '',
   ...rest

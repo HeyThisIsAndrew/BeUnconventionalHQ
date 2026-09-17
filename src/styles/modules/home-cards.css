@@ -244,7 +244,15 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1.5rem;
   width: 100%;
-  max-width: 1536px;
+  /*
+    THE TOKEN, NOT A HARDCODED 1536. This was a flat `max-width: 1536px` while
+    the rest of the page grid -- the hero column, the spotlight band's content
+    -- runs to `--page-max` (2600px). On a 3840px screen the tiles therefore
+    stopped growing a full 1000px before everything around them did, which is
+    the "tiles are now tiny" report: they were not shrinking, they were the
+    only thing on the page that had stopped.
+  */
+  max-width: var(--page-max, 1536px);
   margin-inline: auto;
 }
 
