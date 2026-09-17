@@ -61,6 +61,7 @@ import { getCardImageSources, isSubstackFetchUrl } from '../../lib/card-images.t
 import { getFeaturedBrandsLocal } from '../../lib/local-content';
 import { findHubForItem } from '../../lib/hub-coverage';
 import logoImage from '../../assets/logo.webp';
+import { getImage } from 'astro:assets';
 
 /*
   STATIC, NOT ON-DEMAND. `export const prerender = false` was set here and it
@@ -237,7 +238,9 @@ const tocLandmarks = [
 ];
 
 const canonical = new URL(`${ARTICLE_SECTION.path}/${article.slug}`, site.url).toString();
-const logoUrl = new URL(logoImage.src, site.url).toString();
+/* Through getImage(): `logoImage.src` is never emitted under compile-time
+   image optimization, so the JSON-LD pointed a crawler at a 404. */
+const logoUrl = new URL((await getImage({ src: logoImage })).src, site.url).toString();
 const heroImage = article.image || logoUrl;
 
 const readableDate = new Date(article.isoDate).toLocaleDateString('en-US', {

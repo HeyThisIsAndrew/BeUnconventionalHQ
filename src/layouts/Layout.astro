@@ -15,6 +15,10 @@ import logoImage from '../assets/logo.webp';
 import logoMark from '../assets/logo-mark.webp';
 import { getImage, Font } from 'astro:assets';
 
+/* The org logo a crawler is told to fetch. `logoImage.src` is never emitted
+   when compile-time image optimization is on — see the note in ContentCard. */
+const organizationLogoSrc = (await getImage({ src: logoImage })).src;
+
 const {
   title = site.name,
   description = site.description,
@@ -78,7 +82,7 @@ const structuredData = {
       '@id': orgId,
       name: site.name,
       url: site.url,
-      logo: new URL(logoImage.src, site.url).toString(),
+      logo: new URL(organizationLogoSrc, site.url).toString(),
       description: site.description,
       sameAs: [
         site.socials.youtube,

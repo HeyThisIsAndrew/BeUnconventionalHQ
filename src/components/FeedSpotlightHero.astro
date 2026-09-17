@@ -6,6 +6,7 @@ import { editorialPreview } from '../lib/editorial-text';
 import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-content';
 import { resolveEntity } from '../lib/entity-resolver';
 import logoImage from '../assets/logo-mark.webp';
+import { getImage } from 'astro:assets';
 import { site } from '../data/site.js';
 
 interface Props {
@@ -55,7 +56,20 @@ const entity = resolveEntity(latestVideo, {
   urlFor,
 });
 
-const fallbackLogoSrc = logoImage.src;
+/*
+  ─── THE MARK MUST GO THROUGH getImage(), NOT `logoImage.src` ──────────────
+
+  Same trap ContentCard.astro documents at its watermark: with compile-time
+  image optimization on, Astro emits the TRANSFORMED renditions
+  (logo-mark.<hash>_<variant>.webp) and never the untransformed path that
+  `logoImage.src` resolves to. The reference looks right in the markup and
+  404s in the browser.
+
+  It was shipping on 27 built pages, and on /category/* and /events/* it was
+  the hero's VISIBLE logo rather than just the fallback attribute, so the
+  crown simply did not render.
+*/
+const fallbackLogoSrc = (await getImage({ src: logoImage })).src;
 
 /* The editorial override still outranks the taxonomy — see the CMS hero
    override cascade. Only the middle rung of it changed. */

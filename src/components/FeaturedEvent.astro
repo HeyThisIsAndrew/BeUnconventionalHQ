@@ -11,6 +11,7 @@ import { formatEventDateRange, formatLocation } from '../lib/events';
 import { buildImageSet } from '../lib/local-content';
 import EventStatusIndicator from './EventStatusIndicator.astro';
 import logoImage from '../assets/logo-mark.webp';
+import { getImage } from 'astro:assets';
 
 const { event } = Astro.props;
 const slug = event?.slug?.current ?? '';
@@ -37,7 +38,20 @@ const hero = buildImageSet(event?.heroImage, {
   quality: 60,
 });
 
-const fallbackLogoSrc = logoImage.src;
+/*
+  ─── THE MARK MUST GO THROUGH getImage(), NOT `logoImage.src` ──────────────
+
+  Same trap ContentCard.astro documents at its watermark: with compile-time
+  image optimization on, Astro emits the TRANSFORMED renditions
+  (logo-mark.<hash>_<variant>.webp) and never the untransformed path that
+  `logoImage.src` resolves to. The reference looks right in the markup and
+  404s in the browser.
+
+  It was shipping on 27 built pages, and on /category/* and /events/* it was
+  the hero's VISIBLE logo rather than just the fallback attribute, so the
+  crown simply did not render.
+*/
+const fallbackLogoSrc = (await getImage({ src: logoImage })).src;
 const overrideLogo = event?.customHeroLogo;
 const taxonomyLogo = event?.heroLogo || event?.logo;
 const sourceLogo = overrideLogo || taxonomyLogo;
