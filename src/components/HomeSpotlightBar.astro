@@ -56,6 +56,12 @@ interface SlideArt {
   srcset?: string;
 }
 
+interface OptimizedImage {
+  src: string;
+  width?: number | string;
+  height?: number | string;
+}
+
 interface Slide {
   key: string;
   eyebrow: string;
@@ -67,7 +73,7 @@ interface Slide {
   external: boolean;
   /** The HQ's own mark, for the slide that promotes the HQ rather than a
       piece of coverage. Sized, never the raw import — see the note below. */
-  mark?: string | null;
+  mark?: OptimizedImage | null;
   /**
    * WHAT KIND OF PICTURE IT IS, which decides where the band crops it.
    * A YouTube thumbnail and a key-art poster are composed differently and a
@@ -79,7 +85,7 @@ interface Slide {
    * The series' own title treatment, where one exists. A logo IS the title on
    * this slide, so it replaces the text rather than sitting beside it.
    */
-  logo?: string | null;
+  logo?: OptimizedImage | null;
 }
 
 interface Props {
@@ -147,7 +153,7 @@ const featuredArtSource = featuredSlug ? rowArt(`${featuredSlug}-key-art`) : nul
   being upsampled to 3840 — which would cost more bytes to look worse. Drop in
   a 3840 original and the top rung appears on its own.
 */
-const ART_WIDTHS = cappedWidths(featuredArtSource, [1600, 2400, 3840]);
+const ART_WIDTHS = cappedWidths(featuredArtSource, [600, 900, 1600, 2400, 3840]);
 const featuredArtAt = async (w: number) =>
   (await getImage({ src: featuredArtSource!, width: w, format: 'webp', quality: 78 })).src;
 /*
@@ -163,8 +169,11 @@ const featuredArtAt = async (w: number) =>
   softness reads as a bad asset rather than a small one.
 */
 const featuredLogoSource = featuredSlug ? rowArt(`${featuredSlug}-logo`) : null;
-const featuredLogo = featuredLogoSource
-  ? (await getImage({ src: featuredLogoSource, height: 160, format: 'webp', quality: 90 })).src
+const featuredLogoData = featuredLogoSource
+  ? await getImage({ src: featuredLogoSource, height: 160, format: 'webp', quality: 90 })
+  : null;
+const featuredLogo = featuredLogoData
+  ? { src: featuredLogoData.src, width: featuredLogoData.attributes.width, height: featuredLogoData.attributes.height }
   : null;
 
 const featuredArt = featuredArtSource
@@ -239,7 +248,8 @@ if (featured) {
   Astro only emits when something asks the pipeline to process the file, which
   is how the featured art 404'd on this same component.
 */
-const markSrc = (await getImage({ src: logoMark, height: 240, format: 'webp', quality: 82 })).src;
+const markData = await getImage({ src: logoMark, height: 240, format: 'webp', quality: 82 });
+const markObj = { src: markData.src, width: markData.attributes.width, height: markData.attributes.height };
 
 slides.push({
   key: 'subscribe',
@@ -251,7 +261,7 @@ slides.push({
   art: null,
   accent: null,
   external: false,
-  mark: markSrc,
+  mark: markObj,
 });
 
 /* Nothing to rotate through is not a failure: one slide renders as a static
@@ -315,7 +325,8 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
             srcset={slide.art.srcset || undefined}
             sizes={artSizes}
             alt=""
-            loading="eager"
+            loading={variant === 'banner' ? 'lazy' : 'eager'}
+            fetchpriority={variant === 'panel' && index === 0 ? 'high' : 'auto'}
             decoding="async"
           />
         )}
@@ -342,7 +353,15 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
               never says which series it is about.
             */}
             {slide.logo ? (
-              <img class="spotlight-logo" src={slide.logo} alt={slide.title} loading="eager" decoding="async" />
+              <img
+                class="spotlight-logo"
+                src={slide.logo.src}
+                width={slide.logo.width}
+                height={slide.logo.height}
+                alt={slide.title}
+                loading={variant === 'banner' ? 'lazy' : 'eager'}
+                decoding="async"
+              />
             ) : (
               <span class="spotlight-title">{slide.title}</span>
             )}
@@ -352,7 +371,16 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
             IN THE ROW, NOT PINNED OVER IT. See the note on `.spotlight-mark`.
           */}
           {slide.mark && (
-            <img class="spotlight-mark" src={slide.mark} alt="" aria-hidden="true" loading="eager" decoding="async" />
+            <img
+              class="spotlight-mark"
+              src={slide.mark.src}
+              width={slide.mark.width}
+              height={slide.mark.height}
+              alt=""
+              aria-hidden="true"
+              loading={variant === 'banner' ? 'lazy' : 'eager'}
+              decoding="async"
+            />
           )}
 
           <span class="spotlight-cta">
