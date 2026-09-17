@@ -402,10 +402,48 @@ test('the calendar tile has depth against the page', () => {
     new URL('../src/components/MiniCalendarSidebar.astro', import.meta.url), 'utf8');
   const rule = cal.match(/\.mini-calendar-wrapper \{[\s\S]*?\n  \}/);
   assert.ok(rule, 'the wrapper rule is gone');
-  assert.match(rule[0], /box-shadow:/, 'the tile must sit on the page, not in it');
-  const shadows = rule[0].match(/rgba\(0, 0, 0, [\d.]+\)/g) || [];
+  assert.match(rule[0], /box-shadow:\s*var\(--shadow-tile\)/,
+    'the tile must sit on the page, and via the shared token rather than its own copy');
+
+  /*
+    THE VALUE MOVED, so the assertion follows it. This was a literal here
+    until the same treatment was asked for on the Support The HQ rows, the
+    What We Cover tiles and the Highlights tiles — four more consumers is the
+    point at which it stops being a one-off and becomes a token. Checking only
+    the `var()` above would stop checking what the shadow actually is.
+  */
+  const base = fs.readFileSync(
+    new URL('../src/styles/global-base.css', import.meta.url), 'utf8');
+  const token = base.match(/--shadow-tile:[\s\S]*?;/);
+  assert.ok(token, '--shadow-tile is not defined');
+  const shadows = token[0].match(/rgba\(0, 0, 0, [\d.]+\)/g) || [];
   assert.ok(shadows.length >= 2,
     'a cast shadow that broad has no detectable start; it needs a tight one under the edge too');
+
+  /*
+    And every surface that was asked for reads the token. A tile that keeps
+    its own copy is how a shared treatment drifts apart one file at a time.
+  */
+  const consumers = [
+    ['src/styles/modules/referrals.css', /\.referral-item \{[\s\S]*?box-shadow: var\(--shadow-tile\)/],
+    ['src/styles/modules/home-cards.css', /\.cat \{[\s\S]*?box-shadow: var\(--shadow-tile\)/],
+    ['src/components/FeaturedHighlights.astro', /\.fh-row \{[\s\S]*?box-shadow: var\(--shadow-tile\)/],
+    ['src/components/FeaturedHighlights.astro', /\.fh-hero-card \{[\s\S]*?box-shadow: var\(--shadow-tile\)/],
+  ];
+  for (const [rel, re] of consumers) {
+    const src = fs.readFileSync(new URL('../' + rel, import.meta.url), 'utf8');
+    assert.match(src, re, `${rel} must read --shadow-tile, not a copy of it`);
+  }
+
+  /*
+    A hover that names only its glow REPLACES the depth, because box-shadow is
+    one property — the tile would drop flat at the moment it is pointed at.
+    Both hovers that add a brand glow must layer it on the token.
+  */
+  const cat = fs.readFileSync(
+    new URL('../src/styles/modules/home-cards.css', import.meta.url), 'utf8');
+  assert.match(cat, /\.cat:hover \{[\s\S]*?box-shadow: var\(--shadow-tile\), /,
+    'the category tile must keep its depth while hovered');
 });
 
 test('sunsetting the /events header did not touch any other route', () => {
