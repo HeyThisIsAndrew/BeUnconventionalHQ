@@ -30,7 +30,31 @@ const isHomePage = currentPath === '/';
 */
 ---
 
-<Layout title="BE Unconventional HQ" preloadImage={bannerImg.src}>
+{/*
+  `preconnect` is for wsrv.nl and nothing else. The hero's spotlight PANEL sits
+  inside `.hero` near its bottom edge, which puts it above the fold on a phone
+  (measured at 412x823: the panel art lands at y=626 of an 823px viewport), and
+  its "Latest" slide is a YouTube thumbnail routed through the wsrv.nl resizing
+  proxy by getCardImageSources(). That is a cold third-party origin, so the
+  image cannot begin downloading until DNS, TCP and TLS have all completed
+  against it — the exact three-round-trip problem the `preconnect` prop was
+  added for on /events, where it was worth roughly nine Lighthouse points.
+
+  Only wsrv.nl, deliberately. The `src` fallback points at i.ytimg.com, but the
+  img carries a `srcset`, and a browser that understands srcset never fetches
+  the `src` — so preconnecting i.ytimg.com would buy a handshake this page does
+  not use, which is what the prop's own note in Layout.astro warns against.
+
+  This does NOT make wsrv.nl safe to lean on further: see the note at the top of
+  src/lib/article-images.ts. A warm connection shortens the wait for a cold
+  transcode, it does not remove it. Article images are pre-built and committed
+  for that reason, and the durable fix here is the same one.
+*/}
+<Layout
+  title="BE Unconventional HQ"
+  preloadImage={bannerImg.src}
+  preconnect={['https://wsrv.nl']}
+>
   <main>
   <Hero />
 
