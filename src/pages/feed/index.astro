@@ -26,6 +26,13 @@ import FeedLayout from '../../layouts/FeedLayout.astro';
 import FeedSpotlightHero from '../../components/FeedSpotlightHero.astro';
 import { META, pageTitle } from '../../data/content.js';
 import { getAllFeedItems } from '../../lib/feed-items';
+
+import { getVideosUnified } from '../../lib/videos-source';
+import { feedSortTime } from '../../lib/feed-items';
+import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../../lib/local-content';
+import { resolveEntity } from '../../lib/entity-resolver';
+import { getCardImageSources } from '../../lib/card-images';
+
 import FeedGrid from '../../components/FeedGrid.astro';
 
 const allItems = await getAllFeedItems();
@@ -35,10 +42,21 @@ const allItems = await getAllFeedItems();
 const page = { data: allItems, currentPage: 1, url: { prev: undefined, next: undefined } };
 
 const title = pageTitle(META.feed.title);
+
+const videos = await getVideosUnified();
+const latestVideo = [...videos].sort((a, b) => feedSortTime(b) - feedSortTime(a))[0] || {};
+const entity = resolveEntity(latestVideo, { brands: getFeaturedBrandsLocal(), events: getEventsLocal(), urlFor });
+const brandHero = entity?.hero || null;
+const itemBgRaw = latestVideo.image || latestVideo.snippet?.thumbnails?.maxres?.url || latestVideo.snippet?.thumbnails?.high?.url || '';
+const heroBgRaw = brandHero || itemBgRaw;
+const { src: preloadImage, srcset: preloadImageSrcset } = getCardImageSources(heroBgRaw);
+
 const description = META.feed.description;
 ---
 
 <FeedLayout hasSpotlightHero={true}
+  preloadImage={preloadImage}
+  preloadImageSrcset={preloadImageSrcset}
   showFilters={false}
   title={title}
   description={description}
