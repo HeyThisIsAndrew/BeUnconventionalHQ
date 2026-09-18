@@ -58,6 +58,7 @@ interface SlideArt {
 
 interface OptimizedImage {
   src: string;
+  srcset?: string;
   width?: number | string;
   height?: number | string;
 }
@@ -153,7 +154,7 @@ const featuredArtSource = featuredSlug ? rowArt(`${featuredSlug}-key-art`) : nul
   being upsampled to 3840 — which would cost more bytes to look worse. Drop in
   a 3840 original and the top rung appears on its own.
 */
-const ART_WIDTHS = cappedWidths(featuredArtSource, [600, 900, 1600, 2400, 3840]);
+const ART_WIDTHS = cappedWidths(featuredArtSource, [400, 600, 750, 900, 1100, 1600, 2400, 3840]);
 const featuredArtAt = async (w: number) =>
   (await getImage({ src: featuredArtSource!, width: w, format: 'webp', quality: 78 })).src;
 /*
@@ -172,8 +173,17 @@ const featuredLogoSource = featuredSlug ? rowArt(`${featuredSlug}-logo`) : null;
 const featuredLogoData = featuredLogoSource
   ? await getImage({ src: featuredLogoSource, height: 160, format: 'webp', quality: 90 })
   : null;
-const featuredLogo = featuredLogoData
-  ? { src: featuredLogoData.src, width: featuredLogoData.attributes.width, height: featuredLogoData.attributes.height }
+const featuredLogo = featuredLogoData && featuredLogoSource
+  ? { 
+      src: featuredLogoData.src, 
+      srcset: [
+        `${(await getImage({ src: featuredLogoSource, height: 60, format: 'webp', quality: 90 })).src} 1.25x`,
+        `${(await getImage({ src: featuredLogoSource, height: 100, format: 'webp', quality: 90 })).src} 2x`,
+        `${featuredLogoData.src} 3x`
+      ].join(', '),
+      width: featuredLogoData.attributes.width, 
+      height: featuredLogoData.attributes.height 
+    }
   : null;
 
 const featuredArt = featuredArtSource
@@ -362,7 +372,7 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
             srcset={slide.art.srcset || undefined}
             sizes={artSizes}
             alt=""
-            loading={variant === 'banner' ? 'lazy' : 'eager'}
+            loading={index === 0 && variant === 'panel' ? 'eager' : 'lazy'}
             fetchpriority={variant === 'panel' && index === 0 ? 'high' : 'auto'}
             decoding="async"
           />
@@ -393,10 +403,12 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
               <img
                 class="spotlight-logo"
                 src={slide.logo.src}
+                srcset={slide.logo.srcset || undefined}
                 width={slide.logo.width}
                 height={slide.logo.height}
                 alt={slide.title}
-                loading={variant === 'banner' ? 'lazy' : 'eager'}
+                loading={index === 0 && variant === 'panel' ? 'eager' : 'lazy'}
+                fetchpriority={index === 0 && variant === 'panel' ? 'high' : 'auto'}
                 decoding="async"
               />
             ) : (
