@@ -668,6 +668,90 @@ import HomeSpotlightBar from './HomeSpotlightBar.astro';
         }
 
         /*
+          ─── A HASH LINK CLICKED WHILE THE CURTAIN IS STILL DOWN ────────────
+
+          `html.splash-armed { overflow: hidden }` (splash.css) freezes the
+          document. That is the whole point of the lock, but it also means an
+          in-page anchor clicked from inside the hero goes nowhere: the hash
+          lands and the document cannot move.
+
+          Reported as "the Subscribe slide on the spotlight does nothing on
+          iPad", and diagnosed on arrival as a WebKit bug in `scroll-behavior:
+          smooth` combined with `overflow-x: clip`. It is NOT that. It
+          reproduces in headless Chromium at 1440x900, 820x1180 and 412x823,
+          and the same click WORKS with both of those properties still set
+          once the curtain is up. The armed lock is the whole cause, so do not
+          "fix" this by loosening the `overflow-x: clip` on html/body — that
+          buys back the horizontal scrollbar those rules exist to prevent and
+          leaves this bug exactly where it was.
+
+          It skews to tablets and phones in reports because the spotlight
+          PANEL renders inside `.hero`, at thumb height, and stays tappable
+          for as long as the splash is armed — which on a desktop is usually
+          the half second before the reader scrolls.
+
+          `#subscribe` is the panel's only same-page destination today, but
+          this matches any `href="#..."` so the next one added is not a
+          second bug report.
+
+          Release the lock and scroll, rather than lifting the curtain first:
+          the reader asked for a named section, and playing a 900ms intro in
+          front of the scroll they asked for is the slower answer. The CTA is
+          the control that keeps the curtain, and it is handled above.
+
+          The hash is KEPT here, unlike the CTA's stripHash() path: it is a
+          destination the reader chose, so Back should return from it and a
+          reload should land on it. `shouldArm()` already declines to arm when
+          a hash is present, which is the behaviour this wants.
+        */
+        const hashLink = target.closest('a[href^="#"]') as HTMLAnchorElement | null;
+        if (hashLink && root.classList.contains('splash-armed')) {
+          const href = hashLink.getAttribute('href') || '';
+          const id = decodeURIComponent(href.slice(1));
+          const destination = id ? document.getElementById(id) : null;
+
+          /* No target means a bare "#" or a stale link. Leave it alone rather
+             than unlocking the page for a scroll that has nowhere to go. */
+          if (destination) {
+            event.preventDefault();
+            /* preventDefault alone is not enough: Astro's ClientRouter
+               handles same-document anchors itself, so the hash lands anyway
+               and its fragment scroll fights this one. Same reason the CTA
+               branch above stops propagation. See stripHash()'s note. */
+            event.stopPropagation();
+
+            disarm();
+            history.pushState(history.state, '', href);
+
+            /*
+              Next frame, and this is load-bearing. disarm() only removes the
+              class; `overflow: hidden` is still the COMPUTED value until
+              style is recalculated, so scrolling in this same tick targets a
+              document that cannot scroll yet and silently does nothing. This
+              is the trap scroll-to.ts documents at the property level, one
+              level up.
+            */
+            requestAnimationFrame(() => {
+              destination.scrollIntoView({
+                /*
+                  Stated explicitly, so it has to opt out of motion explicitly
+                  too: a JS `behavior: 'smooth'` overrides the CSS, including
+                  the media query that turns `scroll-behavior` off for a
+                  reader who asked for less movement.
+
+                  `block: 'start'` is what respects `scroll-padding-top`
+                  (112px in global-base.css), which is what clears the sticky
+                  navbar. Offsetting by hand here would duplicate that number.
+                */
+                behavior: reduceMotion() ? 'auto' : 'smooth',
+                block: 'start',
+              });
+            });
+            return;
+          }
+        }
+
+        /*
           ─── THE WORDMARK RETURNS TO THE TOP. THE LOGO DOES NOT. ────────────
 
           This used to match `#navbar a[href="/"]`, which is BOTH brand
