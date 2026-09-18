@@ -400,12 +400,42 @@ import HomeSpotlightBar from './HomeSpotlightBar.astro';
       return type === 'back_forward';
     }
 
-    function measureLift() {
+    /*
+      ─── THE MEASURE IS SPLIT FROM THE WRITE, ON PURPOSE ────────────────────
+
+      These two used to be one function, and arm() called it and then read
+      `root.clientWidth` on the next line. That ordering is a forced reflow:
+      writing `--splash-lift` is a custom property on the ROOT, custom
+      properties INHERIT, so the write invalidates style for the whole
+      document — and the clientWidth read immediately after has to flush the
+      layout it just dirtied to answer.
+
+      Lighthouse reported it under "Forced reflow" (unscored, so this buys no
+      points; it is a real 29ms of main thread on the mobile profile all the
+      same, at the worst possible moment: arm() runs during startup on the
+      homepage).
+
+      Kept as `readHeroHeight` + `writeLift` rather than fixed in place so the
+      read/write split is visible at the call site. measureLift() remains for
+      lift(), which legitimately does both at once.
+    */
+
+    /** READ ONLY. The hero's painted height, or null when there is no hero. */
+    function readHeroHeight(): number | null {
       const hero = document.querySelector('.hero') as HTMLElement | null;
       /* Measured, not assumed to be 100vh: a mobile address bar makes vh and
          the real painted height disagree, and being a few pixels out here
          shows up as a visible seam at the end of the lift. */
-      if (hero) root.style.setProperty('--splash-lift', `${hero.offsetHeight}px`);
+      return hero ? hero.offsetHeight : null;
+    }
+
+    /** WRITE ONLY. A null height means no hero, so nothing is published. */
+    function writeLift(height: number | null) {
+      if (height !== null) root.style.setProperty('--splash-lift', `${height}px`);
+    }
+
+    function measureLift() {
+      writeLift(readHeroHeight());
     }
 
     /*
@@ -436,9 +466,19 @@ import HomeSpotlightBar from './HomeSpotlightBar.astro';
       /* Already armed — do not take a second lock, or the counter never
          returns to zero and the page stays pinned forever. */
       if (root.classList.contains('splash-armed')) return;
-      measureLift();
-      /* Measure BEFORE hiding the scrollbar — afterwards this always reads 0. */
+      /*
+        BOTH READS FIRST, THEN BOTH WRITES. The order is the point — see the
+        note on readHeroHeight(). Interleaving them (measure, write, measure,
+        write) is what made this a forced reflow.
+
+        The gutter is still measured BEFORE the scrollbar is hidden, which is
+        what it always required: afterwards it always reads 0. Nothing here
+        hides it yet — `splash-armed` goes on at the end of this function.
+      */
+      const liftHeight = readHeroHeight();
       const gutter = Math.max(0, window.innerWidth - root.clientWidth);
+
+      writeLift(liftHeight);
       root.style.setProperty('--splash-gutter', `${gutter}px`);
 
       /*
@@ -561,7 +601,20 @@ import HomeSpotlightBar from './HomeSpotlightBar.astro';
         return;
       }
 
-      measureLift();
+      /*
+        Reuses the height already read into `distance` above rather than
+        calling measureLift(), which would query `.hero` and read its
+        offsetHeight a second time in the same function. The two are the same
+        measurement by construction — `distance` IS hero.offsetHeight whenever
+        there is a hero — so re-reading bought nothing.
+
+        `hero ? distance : null` rather than plain `distance`, because the two
+        differ in exactly one case: with no hero, `distance` falls back to
+        `window.innerHeight` while measureLift() published nothing at all.
+        Passing null keeps that, so `--splash-lift` is still never written from
+        a viewport guess.
+      */
+      writeLift(hero ? distance : null);
       root.classList.add('splash-lifting');
 
       const wrapper = document.getElementById('app-wrapper');
@@ -665,6 +718,90 @@ import HomeSpotlightBar from './HomeSpotlightBar.astro';
           window.scrollTo({ top: target, behavior: 'smooth' });
           stripHash();
           return;
+        }
+
+        /*
+          ─── A HASH LINK CLICKED WHILE THE CURTAIN IS STILL DOWN ────────────
+
+          `html.splash-armed { overflow: hidden }` (splash.css) freezes the
+          document. That is the whole point of the lock, but it also means an
+          in-page anchor clicked from inside the hero goes nowhere: the hash
+          lands and the document cannot move.
+
+          Reported as "the Subscribe slide on the spotlight does nothing on
+          iPad", and diagnosed on arrival as a WebKit bug in `scroll-behavior:
+          smooth` combined with `overflow-x: clip`. It is NOT that. It
+          reproduces in headless Chromium at 1440x900, 820x1180 and 412x823,
+          and the same click WORKS with both of those properties still set
+          once the curtain is up. The armed lock is the whole cause, so do not
+          "fix" this by loosening the `overflow-x: clip` on html/body — that
+          buys back the horizontal scrollbar those rules exist to prevent and
+          leaves this bug exactly where it was.
+
+          It skews to tablets and phones in reports because the spotlight
+          PANEL renders inside `.hero`, at thumb height, and stays tappable
+          for as long as the splash is armed — which on a desktop is usually
+          the half second before the reader scrolls.
+
+          `#subscribe` is the panel's only same-page destination today, but
+          this matches any `href="#..."` so the next one added is not a
+          second bug report.
+
+          Release the lock and scroll, rather than lifting the curtain first:
+          the reader asked for a named section, and playing a 900ms intro in
+          front of the scroll they asked for is the slower answer. The CTA is
+          the control that keeps the curtain, and it is handled above.
+
+          The hash is KEPT here, unlike the CTA's stripHash() path: it is a
+          destination the reader chose, so Back should return from it and a
+          reload should land on it. `shouldArm()` already declines to arm when
+          a hash is present, which is the behaviour this wants.
+        */
+        const hashLink = target.closest('a[href^="#"]') as HTMLAnchorElement | null;
+        if (hashLink && root.classList.contains('splash-armed')) {
+          const href = hashLink.getAttribute('href') || '';
+          const id = decodeURIComponent(href.slice(1));
+          const destination = id ? document.getElementById(id) : null;
+
+          /* No target means a bare "#" or a stale link. Leave it alone rather
+             than unlocking the page for a scroll that has nowhere to go. */
+          if (destination) {
+            event.preventDefault();
+            /* preventDefault alone is not enough: Astro's ClientRouter
+               handles same-document anchors itself, so the hash lands anyway
+               and its fragment scroll fights this one. Same reason the CTA
+               branch above stops propagation. See stripHash()'s note. */
+            event.stopPropagation();
+
+            disarm();
+            history.pushState(history.state, '', href);
+
+            /*
+              Next frame, and this is load-bearing. disarm() only removes the
+              class; `overflow: hidden` is still the COMPUTED value until
+              style is recalculated, so scrolling in this same tick targets a
+              document that cannot scroll yet and silently does nothing. This
+              is the trap scroll-to.ts documents at the property level, one
+              level up.
+            */
+            requestAnimationFrame(() => {
+              destination.scrollIntoView({
+                /*
+                  Stated explicitly, so it has to opt out of motion explicitly
+                  too: a JS `behavior: 'smooth'` overrides the CSS, including
+                  the media query that turns `scroll-behavior` off for a
+                  reader who asked for less movement.
+
+                  `block: 'start'` is what respects `scroll-padding-top`
+                  (112px in global-base.css), which is what clears the sticky
+                  navbar. Offsetting by hand here would duplicate that number.
+                */
+                behavior: reduceMotion() ? 'auto' : 'smooth',
+                block: 'start',
+              });
+            });
+            return;
+          }
         }
 
         /*
