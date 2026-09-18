@@ -82,10 +82,11 @@ test('the proxied ladder is offered in srcset', () => {
 test('maxresdefault offers all wsrv.nl proxy widths', () => {
   const entries = parseSrcset(getCardImageSources(MAXRES).srcset);
   assert.deepEqual(entries, [
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=400&output=webp&q=85&we', descriptor: '400w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=85&we', descriptor: '600w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=900&output=webp&q=85&we', descriptor: '900w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1200&output=webp&q=85&we', descriptor: '1200w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=400&output=webp&q=75&we', descriptor: '400w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=75&we', descriptor: '600w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=750&output=webp&q=75&we', descriptor: '750w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=900&output=webp&q=75&we', descriptor: '900w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1200&output=webp&q=75&we', descriptor: '1200w' },
   ]);
 });
 
@@ -208,9 +209,9 @@ test('no height is pinned', () => {
 
 test('srcset ascends and descriptors match their widths', () => {
   const entries = parseSrcset(getCardImageSources(SUBSTACK_NO_WIDTH).srcset);
-  /* Six since the cards grew: a featured tile is 860px on a 4K display, which
-     is ~1720 device pixels at 2x, so the ladder runs past 1200. */
-  assert.equal(entries.length, 6);
+  /* Seven since the cards grew: a featured tile is 860px on a 4K display, which
+     is ~1720 device pixels at 2x, so the ladder runs past 1200. We added 750w for mobile. */
+  assert.equal(entries.length, 7);
 
   let previous = 0;
   for (const { url, descriptor } of entries) {
@@ -411,7 +412,7 @@ test('a cover with NO width transform still gets one, plus a srcset', () => {
   assert.match(src, /,w_\d+,c_limit\//, 'src must carry an inserted width cap');
   assert.ok(!/w_\d+.*w_\d+/.test(src.split('/https')[0]), 'exactly one width in the transform list');
   const widths = [...srcset.matchAll(/ (\d+)w/g)].map((m) => Number(m[1]));
-  assert.deepEqual(widths, [400, 600, 900, 1200, 1600, 2000]);
+  assert.deepEqual(widths, [400, 600, 750, 900, 1200, 1600, 2000]);
 });
 
 test('the hero never routes a non-Substack cover through wsrv.nl', () => {
