@@ -1407,7 +1407,21 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
       with the footer in either direction.
     */
     bottom: calc(clamp(12px, 3vw, 28px) + var(--pip-lift, 0px));
-    width: min(360px, 42vw);
+    /*
+      ─── BIG ENOUGH FOR YOUTUBE'S OWN CHROME ────────────────────────────────
+
+      This was `min(360px, 42vw)`, which is 164x92 on a 390px phone. YouTube's
+      embedded player stops laying out properly somewhere around 200x113: below
+      that its overlay (title, channel, CC, pause, progress, logo, captions)
+      cannot fit the box, and the player rescales the video to make room for
+      it. Reported as the video being cropped WHILE the overlay is visible and
+      correcting itself when it fades -- which is that rescale arriving and
+      leaving, not our box changing shape.
+
+      The floor only binds on phones. Anything above about 524px wide still
+      gets 42vw, and the 360px ceiling is unchanged.
+    */
+    width: min(360px, max(220px, 42vw));
     aspect-ratio: 16 / 9;
     height: auto;
     inset-inline-start: auto;
