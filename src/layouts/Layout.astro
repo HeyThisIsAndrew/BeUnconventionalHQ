@@ -162,6 +162,22 @@ const fallbackMark = await getImage({
       before first paint depends on it.
     */}
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {/*
+      NO `fetchpriority` HERE. Astro's <Font> destructures exactly
+      `{ cssVariable, preload }` (node_modules/astro/components/Font.astro) and
+      emits a fixed `<link rel="preload" as="font" type=... crossorigin>`. Any
+      other prop is dropped on the floor, and passing one is a ts(2322) against
+      a 0-error baseline -- it was sitting in this file as an error rather than
+      as an optimisation.
+
+      It would not have bought anything either. The premise was that the fonts
+      lose a race to the Partytown third parties; measured in the built
+      document, the two font preloads are at bytes 687 and 1300 -- the first
+      two resources in the head -- against partytown at 7892, GTM at 8145,
+      facebook at 10539 and clarity at 190123. They already win by four
+      screenfuls of markup, and browsers fetch font preloads at high priority
+      regardless.
+    */}
     <Font cssVariable="--font-display" preload={true} />
     <Font cssVariable="--font-body" preload={true} />
     {/*

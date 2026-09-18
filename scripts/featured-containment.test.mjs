@@ -1033,7 +1033,13 @@ test('the hub trailer can be played again without a reload', () => {
     Slice from the stage's opening tag to its close and assert the button is
     not in there. Both failed placements were inside this element.
   */
-  const stageOpen = hub.indexOf('class="hero-trailer hub-stage animate-on-scroll"');
+  /* Matched on the class LIST, not on an exact attribute string. This read
+     `class="hero-trailer hub-stage animate-on-scroll"` verbatim, so removing
+     `animate-on-scroll` from the stage for LCP reasons -- a change with
+     nothing to do with what this test guards -- broke it, and the failure
+     said the markup had moved rather than that a class had. */
+  const stageMatch = /class="[^"]*\bhero-trailer\b[^"]*\bhub-stage\b[^"]*"/.exec(hub);
+  const stageOpen = stageMatch ? stageMatch.index : -1;
   assert.ok(stageOpen > 0, 'could not find the stage element; this test is no longer reading the markup');
   const stageMarkup = hub.slice(stageOpen, hub.indexOf('</section>', stageOpen));
   assert.ok(
