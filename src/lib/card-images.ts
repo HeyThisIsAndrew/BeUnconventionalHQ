@@ -65,21 +65,7 @@ function youtubeSources(url: string): CardImageSources {
   // upgrading it risks the placeholder.
   if (current !== 'maxresdefault') return { src: url, srcset: '' };
 
-  const at = (rendition: string) => url.replace(YT_RENDITION, `/${rendition}.jpg`);
-
-  // hqdefault as `src`: it is the smaller file and the one a srcset-ignoring
-  // browser should get, and unlike sddefault it exists for every video.
-  const src = at('hqdefault');
-
-  return {
-    src,
-    srcset: [
-      `${at('mqdefault')} ${YT_WIDTHS.mqdefault}w`,
-      `${src} ${YT_WIDTHS.hqdefault}w`,
-      `${at('sddefault')} ${YT_WIDTHS.sddefault}w`,
-      `${at('maxresdefault')} ${YT_WIDTHS.maxresdefault}w`,
-    ].join(', '),
-  };
+  return genericExternalSources(url);
 }
 
 /*
@@ -115,7 +101,21 @@ const YT_SAFE_RENDITIONS = new Set(['hqdefault', 'mqdefault', 'default']);
  * or below `hqdefault`. An empty return means "stop, this one is final".
  */
 export function youtubeFallbackSrc(raw: unknown): string {
-  const url = String(raw ?? '').trim();
+  let url = String(raw ?? '').trim();
+
+  // If wrapped in wsrv.nl proxy, extract the original URL
+  if (url.includes('wsrv.nl/?url=')) {
+    try {
+      const matchUrl = url.match(/url=([^&]+)/);
+      if (matchUrl) {
+        url = decodeURIComponent(matchUrl[1]);
+        if (!url.startsWith('http')) url = `https://${url}`;
+      }
+    } catch (e) {
+      // Ignore
+    }
+  }
+
   if (!url || !url.includes(YT_HOST)) return '';
 
   const match = url.match(YT_RENDITION);

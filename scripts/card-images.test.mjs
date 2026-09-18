@@ -64,18 +64,20 @@ console.log('YouTube renditions:');
 
 const MAXRES = 'https://i.ytimg.com/vi/zGA4XXAkE_s/maxresdefault.jpg';
 
-test('maxresdefault downgrades its src to hqdefault', () => {
+test('maxresdefault upgrades its src to wsrv.nl proxy', () => {
   const { src } = getCardImageSources(MAXRES);
-  assert.equal(src, 'https://i.ytimg.com/vi/zGA4XXAkE_s/hqdefault.jpg');
+  assert.equal(src, 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=85');
 });
 
-test('maxresdefault offers both renditions with true intrinsic widths', () => {
+test('maxresdefault offers all wsrv.nl proxy widths', () => {
   const entries = parseSrcset(getCardImageSources(MAXRES).srcset);
   assert.deepEqual(entries, [
-    { url: 'https://i.ytimg.com/vi/zGA4XXAkE_s/mqdefault.jpg', descriptor: '320w' },
-    { url: 'https://i.ytimg.com/vi/zGA4XXAkE_s/hqdefault.jpg', descriptor: '480w' },
-    { url: 'https://i.ytimg.com/vi/zGA4XXAkE_s/sddefault.jpg', descriptor: '640w' },
-    { url: 'https://i.ytimg.com/vi/zGA4XXAkE_s/maxresdefault.jpg', descriptor: '1280w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=400&output=webp&q=85', descriptor: '400w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=85', descriptor: '600w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=900&output=webp&q=85', descriptor: '900w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1200&output=webp&q=85', descriptor: '1200w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1600&output=webp&q=85', descriptor: '1600w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=2000&output=webp&q=85', descriptor: '2000w' },
   ]);
 });
 
@@ -84,9 +86,10 @@ test('the video id is preserved verbatim', () => {
   const { src, srcset } = getCardImageSources(
     'https://i.ytimg.com/vi/a-B_c1D2e3F/maxresdefault.jpg',
   );
-  assert.ok(src.includes('/vi/a-B_c1D2e3F/'), src);
+  // It is now url-encoded in the wsrv URL
+  assert.ok(src.includes('%2Fvi%2Fa-B_c1D2e3F%2F'), src);
   for (const { url } of parseSrcset(srcset)) {
-    assert.ok(url.includes('/vi/a-B_c1D2e3F/'), url);
+    assert.ok(url.includes('%2Fvi%2Fa-B_c1D2e3F%2F'), url);
   }
 });
 
@@ -220,7 +223,7 @@ test('surrounding whitespace is trimmed', () => {
   // ContentCard guarded this before the rewrite existed: an untrimmed
   // whitespace value still reaches <img src> and paints a broken box.
   const { src } = getCardImageSources(`  ${MAXRES}\n`);
-  assert.equal(src, 'https://i.ytimg.com/vi/zGA4XXAkE_s/hqdefault.jpg');
+  assert.equal(src, 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=85');
 });
 
 test('the rewrite is idempotent', () => {
@@ -333,13 +336,12 @@ test('the video id survives, and query strings are preserved', () => {
   );
 });
 
-test('it agrees with the src getCardImageSources already chose', () => {
-  /*
-    The build-time rewrite and the client-side recovery must land on the
-    same URL, or a retry would fetch a second distinct file and defeat the
-    cache. This is the whole reason the helper is shared.
-  */
-  assert.equal(youtubeFallbackSrc(MAXRES), getCardImageSources(MAXRES).src);
+test('extracts from wsrv.nl proxy URL', () => {
+  const proxied = 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600';
+  assert.equal(
+    youtubeFallbackSrc(proxied),
+    'https://i.ytimg.com/vi/zGA4XXAkE_s/hqdefault.jpg',
+  );
 });
 
 test('applying it twice is a no-op', () => {
