@@ -56,6 +56,27 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
 7. **Rearrange layouts with responsive CSS / grid areas, not JS reordering or
    duplicated per-breakpoint markup.**
 8. **See `scripts/astro-declined-features.md`** for why incremental builds, LQIP placeholders, and the Sanity content loader are explicitly declined. Do not re-propose them.
+9. **An in-page anchor clicked while the splash is armed needs `disarm()` first,
+   and this is NOT a WebKit bug.** `html.splash-armed { overflow: hidden }`
+   (splash.css) freezes the document by design, so a `href="#..."` clicked from
+   inside the hero sets its hash on a document that cannot move. It was twice
+   diagnosed as an iOS Safari fault in `scroll-behavior: smooth` combined with
+   `overflow-x: clip`, and a commit landed on main removing that `overflow-x`
+   from html/body (`eaf7b19`, whose message claims a fix it does not deliver —
+   the clip now lives on `#app-wrapper`, which is harmless, but it fixed
+   nothing). It reproduces in headless Chromium at 1440x900 as readily as on a
+   phone, and it works with BOTH those properties still applied once the
+   curtain is up. The handler is in Hero.astro's delegated splash listener; it
+   scrolls on the NEXT FRAME, because `disarm()` only drops the class and
+   `overflow: hidden` stays the computed value until style recalculates.
+10. **`.spotlight-slide` ships `opacity: 0; visibility: hidden`, so the first
+   slide's `is-current` must be rendered SERVER-SIDE** (`index === 0` in
+   HomeSpotlightBar.astro). When only the script applied it, the band was
+   blank without JS — measured on the built site, 0 of 3 slides visible in
+   both instances — and the homepage's LCP element (that slide's art) sat
+   decoded and hidden waiting for the bundle: LCP phases were load delay 13ms,
+   load duration 125ms, render delay **1016ms**. Never make the first slide's
+   visibility depend on JS again.
 
 ## Data flow
 

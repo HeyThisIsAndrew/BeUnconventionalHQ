@@ -291,9 +291,46 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
 
 <section class:list={['spotlight', `spotlight--${variant}`]} aria-label={label} data-spotlight>
   <div class="spotlight-frame">
+    {/*
+        ─── THE FIRST SLIDE SHIPS VISIBLE, FROM THE SERVER ───────────────────
+
+        `.spotlight-slide` rests at `opacity: 0; visibility: hidden` and only
+        `.is-current` lifts it. That class used to be applied ONLY by the
+        script, which cost two things:
+
+        1. THE BAND WAS BLANK WITHOUT JAVASCRIPT. Measured on the built site
+           with JS disabled: 0 of 3 slides visible, in BOTH instances. Not
+           degraded — empty. The markup was there and nothing could show it.
+        2. LCP WAITED ON THE MODULE. The homepage's LCP element is this
+           slide's art (CI confirms it, on main and on the branch). The image
+           was arriving at ~180ms and painting at ~1.2s: measured LCP phases
+           were load delay 13ms, load duration 125ms, and then RENDER DELAY
+           1016ms. Nothing was slow to fetch; the pixels sat decoded and
+           hidden while the browser fetched, parsed and ran the bundle, then
+           waited out a 0.5s fade.
+
+        Rendering the state here costs nothing and removes both. `show(0)`
+        produces exactly this — `is-current` on the first, `inert` and
+        `aria-hidden` on the rest — so the script's first call is now a no-op
+        rather than the thing that reveals the band, and no flash is possible
+        because nothing changes.
+
+        The transition does not fire on the first paint either: `is-current`
+        is present in the parsed HTML, so opacity has no previous value to
+        animate from. The cross-fade still runs on every LATER change, which
+        is the only place it was ever wanted.
+
+        `inert` and `aria-hidden` were ALREADY rendered here correctly, below.
+        Only the visibility class was missing, so this adds one class and
+        nothing else.
+    */}
     {slides.map((slide, index) => (
       <a
-        class:list={['spotlight-slide', { 'spotlight-slide--brand': !!slide.mark }]}
+        class:list={[
+          'spotlight-slide',
+          { 'spotlight-slide--brand': !!slide.mark },
+          { 'is-current': index === 0 },
+        ]}
         data-slide
         data-art-focus={slide.artFocus}
         href={slide.href}
