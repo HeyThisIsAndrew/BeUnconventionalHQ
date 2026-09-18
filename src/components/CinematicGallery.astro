@@ -84,7 +84,7 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
                 <img
                   src={sources.src}
                   srcset={sources.srcset}
-                  sizes="(max-width: 768px) 45vw, 240px"
+                  sizes="(max-width: 768px) 45vw, (max-width: 1919px) 240px, (max-width: 2559px) 290px, (max-width: 3399px) 340px, 390px"
                   alt={item.caption?.slice(0, 50) || 'Instagram Media'}
                   loading="lazy"
                   decoding="async"
@@ -669,12 +669,12 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
     the same number it would compute to (220 * 5/4).
   */
   .ig-carousel-tile {
-    flex: 0 0 220px; /* Locked width */
-    width: 220px;
-    min-width: 220px;
-    max-width: 220px;
+    flex: 0 0 var(--ig-card, 220px); /* Locked width */
+    width: var(--ig-card, 220px);
+    min-width: var(--ig-card, 220px);
+    max-width: var(--ig-card, 220px);
     aspect-ratio: 4 / 5; /* Forces the height to wrap perfectly */
-    height: 275px; /* 220px * (5/4) — WebKit will not resolve this from the ratio alone */
+    height: calc(var(--ig-card, 220px) * 1.25); /* width * (5/4) — WebKit will not resolve this from the ratio alone */
     scroll-snap-align: start;
     position: relative;
     text-decoration: none;
@@ -888,12 +888,12 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
        same `max-content` group as the tiles, so a label left to resolve its
        own size from `aspect-ratio` alone collapses in WebKit exactly the way
        the tiles did, and takes the rail's spacing with it. */
-    flex: 0 0 220px;
-    width: 220px;
-    min-width: 220px;
-    max-width: 220px;
+    flex: 0 0 var(--ig-card, 220px);
+    width: var(--ig-card, 220px);
+    min-width: var(--ig-card, 220px);
+    max-width: var(--ig-card, 220px);
     aspect-ratio: 4 / 5;
-    height: 275px;
+    height: calc(var(--ig-card, 220px) * 1.25);
     scroll-snap-align: center;
     position: relative;
     display: flex;

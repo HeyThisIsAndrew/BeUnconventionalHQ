@@ -245,7 +245,7 @@ const gallery = fs.readFileSync(path.join(ROOT, 'src/components/CinematicGallery
 const layout = fs.readFileSync(path.join(ROOT, 'src/styles/modules/layout.css'), 'utf8');
 
 test('tile width, gap and container cap are still what the derivation assumes', () => {
-  assert.match(gallery, /\.ig-carousel-tile\s*\{[^}]*flex:\s*0\s+0\s+220px/s, 'tile basis is 220px');
+  assert.match(gallery, /\.ig-carousel-tile\s*\{[^}]*flex:\s*0\s+0\s+(?:220px|var\(--ig-card,\s*220px\))/s, 'tile basis is 220px');
   assert.match(gallery, /\.ig-carousel-track\s*\{[^}]*gap:\s*1\.25rem/s, 'track gap is 1.25rem');
 
   /*

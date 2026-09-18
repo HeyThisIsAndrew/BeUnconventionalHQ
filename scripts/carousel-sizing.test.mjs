@@ -113,8 +113,8 @@ for (const [label, css, selector, w, h] of [
     for (const prop of ['width', 'min-width', 'max-width']) {
       assert.match(
         decl,
-        new RegExp(`(^|[;\\s])${prop}:\\s*${w}px`, 'm'),
-        `${selector} must declare ${prop}: ${w}px. A flex basis alone lets WebKit ` +
+        new RegExp(`(^|[;\\s])${prop}:\\s*(?:${w}px|var\\(--ig-card,\\s*${w}px\\))`, 'm'),
+        `${selector} must declare ${prop}: ${w}px or var(--ig-card). A flex basis alone lets WebKit ` +
           'resolve the box from an indefinite aspect ratio, which collapses it.',
       );
     }
@@ -124,8 +124,8 @@ for (const [label, css, selector, w, h] of [
     const decl = rule(css(), selector);
     assert.match(
       decl,
-      new RegExp(`(^|[;\\s])height:\\s*${h}px`, 'm'),
-      `${selector} must declare height: ${h}px (${w} * 5/4). aspect-ratio is the ` +
+      new RegExp(`(^|[;\\s])height:\\s*(?:${h}px|calc\\(var\\(--ig-card,\\s*${w}px\\)\\s*\\*\\s*1\\.25\\))`, 'm'),
+      `${selector} must declare height: ${h}px (${w} * 5/4) or calc(var(...) * 1.25). aspect-ratio is the ` +
         'statement of intent; WebKit will not resolve the box from it alone here.',
     );
   });
