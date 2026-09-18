@@ -72,7 +72,9 @@ test('maxresdefault downgrades its src to hqdefault', () => {
 test('maxresdefault offers both renditions with true intrinsic widths', () => {
   const entries = parseSrcset(getCardImageSources(MAXRES).srcset);
   assert.deepEqual(entries, [
+    { url: 'https://i.ytimg.com/vi/zGA4XXAkE_s/mqdefault.jpg', descriptor: '320w' },
     { url: 'https://i.ytimg.com/vi/zGA4XXAkE_s/hqdefault.jpg', descriptor: '480w' },
+    { url: 'https://i.ytimg.com/vi/zGA4XXAkE_s/sddefault.jpg', descriptor: '640w' },
     { url: 'https://i.ytimg.com/vi/zGA4XXAkE_s/maxresdefault.jpg', descriptor: '1280w' },
   ]);
 });

@@ -74,7 +74,9 @@ function youtubeSources(url: string): CardImageSources {
   return {
     src,
     srcset: [
+      `${at('mqdefault')} ${YT_WIDTHS.mqdefault}w`,
       `${src} ${YT_WIDTHS.hqdefault}w`,
+      `${at('sddefault')} ${YT_WIDTHS.sddefault}w`,
       `${at('maxresdefault')} ${YT_WIDTHS.maxresdefault}w`,
     ].join(', '),
   };
