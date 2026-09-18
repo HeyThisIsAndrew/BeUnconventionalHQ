@@ -401,8 +401,30 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
         is `hidden` in the markup and revealed by the script, because with no
         JS nothing rotates and a pause button for a static band is a lie.
       */}
+      {/*
+        Prev and Next are `hidden` for the same reason the pause button is, and
+        it is not the same reason as "no JS means no rotation". These move the
+        band by calling show(), which only exists in the script, so without it
+        they are two buttons that do nothing at all. The band is still readable
+        without them: slide one is rendered server-side.
+
+        They sit OUTSIDE `.spotlight-frame`, alongside the pause button, so a
+        press can never land on the active slide's full-bleed anchor.
+      */}
+      <button type="button" class="spotlight-nav" data-prev hidden aria-label="Previous highlight">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+      </button>
+
       <button type="button" class="spotlight-pause" data-pause hidden aria-label="Pause the highlights">
         <span class="spotlight-pause-glyph" data-pause-glyph aria-hidden="true"></span>
+      </button>
+
+      <button type="button" class="spotlight-nav" data-next hidden aria-label="Next highlight">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <path d="M9 18l6-6-6-6" />
+        </svg>
       </button>
 
       {/* The clock. Its animationend is what advances the slide. */}
@@ -869,6 +891,29 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
     align-items: center;
     gap: 0.75rem;
     margin-top: 0.6rem;
+    /*
+      ─── RESERVE THE CONTROL ROW'S HEIGHT BEFORE THE SCRIPT FILLS IT ────────
+
+      Every control in this row ships `hidden` and is revealed by the script,
+      so until then the row is only as tall as the 2px clock. Revealing them
+      takes it to 26px, and in the PANEL variant that is a visible jump rather
+      than a detail: `.hero-spotlight` is bottom-anchored inside the hero
+      (`position: absolute; bottom: clamp(...)`), so a row that grows pushes
+      everything above it UP the screen instead of down.
+
+      Measured on the homepage at 1440x900: the panel's frame moved from y=675
+      to y=651 at ~465ms, and desktop CLS was 0.0068 with the single pause
+      button. Adding prev and next to the same row tripled it to 0.0205 --
+      still inside Lighthouse's 0.1 "good" band, but a real regression and a
+      pointless one.
+
+      24px of nothing, reserved up front, removes the whole class of problem:
+      the row is its final height from first paint, so revealing one control
+      or three moves nothing at all. It is `min-height` rather than a fixed
+      `height` so the row can still grow if a control is ever added that does
+      not fit the 26px square.
+    */
+    min-height: 26px;
     /* Furniture belongs in the column even though the art does not, so it uses
        the same measurements the slide's inner does. */
     width: 100%;
@@ -877,7 +922,17 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
     padding-inline: clamp(1.25rem, calc(0.625rem + 2.5vw), 3rem);
   }
 
-  .spotlight-pause {
+  /*
+    ONE BOX FOR ALL THREE CONTROLS. Prev, pause and next share this rule rather
+    than `.spotlight-nav` carrying a copy of it, because the row's height is
+    set by whichever control is tallest: two rules drifting by a pixel would
+    move the clock and the whole band with it. The 26px square is also what
+    keeps the JS reveal free of any VERTICAL layout shift — the row is already
+    26px tall from the pause button alone, so unhiding two more changes only
+    how much width the `flex: 1` clock is given.
+  */
+  .spotlight-pause,
+  .spotlight-nav {
     flex: 0 0 auto;
     width: 26px;
     height: 26px;
@@ -891,17 +946,27 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
     cursor: pointer;
     transition: border-color 0.2s ease, color 0.2s ease;
   }
-  .spotlight-pause[hidden] {
+  .spotlight-pause[hidden],
+  .spotlight-nav[hidden] {
     display: none;
   }
   .spotlight-pause:hover,
-  .spotlight-pause:focus-visible {
+  .spotlight-pause:focus-visible,
+  .spotlight-nav:hover,
+  .spotlight-nav:focus-visible {
     border-color: var(--color-accent, #cc0000);
     color: var(--color-white, #f0f0f0);
   }
-  .spotlight-pause:focus-visible {
+  .spotlight-pause:focus-visible,
+  .spotlight-nav:focus-visible {
     outline: 2px solid var(--color-accent-text, #ef4444);
     outline-offset: 2px;
+  }
+  /* The chevron is drawn by the SVG's own stroke, so the button carries no
+     glyph rules of its own. `display: block` kills the inline baseline gap
+     that would otherwise push it a pixel off centre inside the 26px box. */
+  .spotlight-nav svg {
+    display: block;
   }
 
   /* Two bars, or one triangle. Drawn rather than an icon file: it is 26px and
@@ -1088,15 +1153,70 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
 
       show(0);
 
-      if (reduced || !progress || !controls) return;
-
+      /*
+        Restarting the clock is its own function and it GUARDS ITSELF, rather
+        than living below the reduced-motion return where it used to. Manual
+        navigation has to be able to call it from above that line, and a reader
+        on reduced motion has no clock to restart.
+      */
       const lap = () => {
+        if (reduced || !progress) return;
         progress.classList.remove('is-running');
         /* Force the style flush. Without it the remove and the add coalesce
            into no change and the animation never restarts. */
         void progress.offsetWidth;
         progress.classList.add('is-running');
       };
+
+      /*
+        ─── PREV / NEXT ARE WIRED ABOVE THE REDUCED-MOTION RETURN ────────────
+
+        Deliberately, and it is the one part of this that is not just "the same
+        as the pause button". Everything below that return is the CLOCK: the
+        7s animation, the pause button that stops it, the hover and focus
+        holds. A reader who asked for less motion gets none of it — which up
+        to now also meant they got slide one and no way to reach slides two or
+        three at all. The other slides were unreachable content, not slower
+        content.
+
+        These buttons are not motion. They move the band only when pressed, so
+        they belong to the part of the component that still exists for that
+        reader. The pause button stays below the line, because a control that
+        stops a clock that is not running is the same lie as a pause button on
+        a band with no JS.
+
+        lap() no-ops under reduced motion, so `step` is one path for both.
+      */
+      const prev = root.querySelector<HTMLButtonElement>('[data-prev]');
+      const next = root.querySelector<HTMLButtonElement>('[data-next]');
+
+      /*
+        The modulo is written with `+ slides.length` so going back from slide
+        one lands on the last slide rather than -1. Both directions wrap: the
+        band is a loop and a control that dead-ends at an edge would need a
+        disabled state the rotation itself never has.
+      */
+      const step = (delta: number) => {
+        show((index + delta + slides.length) % slides.length);
+        /*
+          Restart the clock, unconditionally, and that is correct even while
+          the reader has PAUSED. lap() re-adds `is-running`, but the paused
+          state lives in CSS (`.spotlight-controls.is-paused` sets
+          `animation-play-state: paused`), so the bar resets to zero and stays
+          frozen there. The slide advances, the clock does not resume, and no
+          JS flag has to be consulted to get that right.
+        */
+        lap();
+      };
+
+      if (prev && next) {
+        prev.hidden = false;
+        next.hidden = false;
+        prev.addEventListener('click', () => step(-1));
+        next.addEventListener('click', () => step(1));
+      }
+
+      if (reduced || !progress || !controls) return;
 
       progress.addEventListener('animationend', () => {
         show((index + 1) % slides.length);
