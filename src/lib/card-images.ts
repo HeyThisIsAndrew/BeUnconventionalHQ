@@ -232,7 +232,11 @@ export function isSubstackFetchUrl(raw: unknown): boolean {
   commonly 2048 wide, so the top of this ladder costs nothing to offer and the
   browser only fetches it on a screen that can actually use it.
 */
-const SUBSTACK_WIDTHS = [400, 600, 900, 1200, 1600, 2000];
+/* 800 for the same reason WSRV_WIDTHS has one: the 600->900 gap is exactly
+   where a phone lands. PageSpeed flagged a Substack card on the homepage at
+   840x473 delivered for a displayed 678x356, worth 21.0 KiB, and 678 has no
+   rung between 600 and 900 to take. */
+const SUBSTACK_WIDTHS = [400, 600, 800, 900, 1200, 1600, 2000];
 
 /** Width used for the plain `src` — covers a phone card at 2x. */
 const SUBSTACK_SRC_WIDTH = 600;
