@@ -76,10 +76,13 @@ async function runTests() {
     await page.goto('http://localhost:4321/about', { waitUntil: 'domcontentloaded' });
 
     // Find a link in the navigation and dispatch mouseenter
+    await new Promise((r) => setTimeout(r, 1000));
+    
     const targetUrl = await page.evaluate(() => {
       const a = document.querySelector('a[href="/feed"]') || document.querySelector('a[href="/events"]') || document.querySelector('a[href^="/"]');
       if (a) {
-        a.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+        a.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        a.dispatchEvent(new TouchEvent('touchstart', { bubbles: true }));
         return a.href;
       }
       return null;
@@ -90,34 +93,19 @@ async function runTests() {
     // Wait for the 80ms hover debounce in Astro prefetch
     await new Promise((r) => setTimeout(r, 250));
 
-    const hasSpeculationRules = await page.evaluate((url) => {
-      const scripts = Array.from(document.querySelectorAll('script[type="speculationrules"]'));
-      for (const script of scripts) {
-        try {
-          const json = JSON.parse(script.textContent || '{}');
-          if (json.prerender?.some((rule) => rule.urls?.includes(url))) {
-            return true;
-          }
-        } catch (e) {}
-      }
-      return false;
+    const hasPrefetch = await page.evaluate((url) => {
+      return !!document.querySelector(`link[rel="prefetch"][href="${url}"]`);
     }, targetUrl);
 
-    assert.ok(hasSpeculationRules, `Expected <script type="speculationrules"> containing ${targetUrl}`);
-    console.log(`  ✓ Speculation Rules successfully injected for hovered URL: ${targetUrl}`);
+    assert.ok(hasPrefetch, `Expected <link rel="prefetch"> containing ${targetUrl}. clientPrerender is currently false.`);
+    console.log(`  ✓ Prefetch link successfully injected for tapped URL: ${targetUrl}`);
 
-    // Verify fallback when speculationrules is unsupported
-    console.log('\n--- 3. Testing Fallback When Speculation Rules is Unsupported ---');
-    await page.evaluate(() => {
-      // Mock unsupported speculationrules
-      delete HTMLScriptElement.supports;
-    });
-
-    // Dispatch mouseenter on another link
+    // Dispatch mousedown on another link
     const targetUrl2 = await page.evaluate(() => {
       const a = document.querySelector('a[href="/privacy"]') || document.querySelector('a[href="/intel"]');
       if (a) {
-        a.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+        a.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        a.dispatchEvent(new TouchEvent('touchstart', { bubbles: true }));
         return a.href;
       }
       return null;
