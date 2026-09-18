@@ -4,6 +4,7 @@ import { parseVideoId } from '../lib/platforms/youtube';
 import { feedSortTime } from '../lib/feed-items';
 import { getDisplayTagSlots } from '../lib/tags';
 import { editorialPreview } from '../lib/editorial-text';
+import { getCardImageSources } from '../lib/card-images';
 import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-content';
 import { resolveEntity } from '../lib/entity-resolver';
 import logoImage from '../assets/logo-mark.webp';
@@ -135,8 +136,10 @@ const brandLabel = overrideLogo
     : 'BE Unconventional HQ';
 
 const brandHero = entity?.hero || '';
-const itemBg = latestVideo.thumbnail || latestVideo.image || '';
-const heroBg = brandHero || itemBg;
+const itemBgRaw = latestVideo.thumbnail || latestVideo.image || '';
+const heroBgRaw = brandHero || itemBgRaw;
+const { src: itemBg, srcset: itemBgSrcset } = getCardImageSources(itemBgRaw);
+const { src: heroBg, srcset: heroBgSrcset } = getCardImageSources(heroBgRaw);
 const heroTitle = latestVideo.title || '';
 /*
   ─── THE HERO AND THE CARDS MUST DESCRIBE AN ITEM THE SAME WAY ──────────────
@@ -226,6 +229,8 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
       <img
         id="hero-bg"
         src={heroBg}
+        srcset={heroBgSrcset || undefined}
+        sizes="100vw"
         alt=""
         class="event-hero-bg-animated hero-backdrop-plate"
         loading="eager"
@@ -276,6 +281,9 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
             alt={brandLabel} 
             class={`hero-logo`}
             data-fallback-logo={fallbackLogoSrc}
+            loading="eager"
+            fetchpriority="high"
+            decoding="async"
           />
           <h1 id="hero-title" class="hero-title leading-tight">{heroTitle}</h1>
           <p id="hero-description" class="hero-tagline">{heroDescription}</p>
@@ -374,14 +382,24 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
            <img
               id="hero-image"
               src={itemBg}
+              srcset={itemBgSrcset || undefined}
+              sizes="(max-width: 1023px) 100vw, 50vw"
               alt=""
               class="hub-stage-art-fill"
+              loading="eager"
+              fetchpriority="high"
+              decoding="sync"
            />
            <img
               id="hero-image-front"
               src={itemBg}
+              srcset={itemBgSrcset || undefined}
+              sizes="(max-width: 1023px) 100vw, 50vw"
               alt=""
               class="hub-stage-art-img"
+              loading="eager"
+              fetchpriority="high"
+              decoding="sync"
            />
            
            
@@ -436,7 +454,7 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
           pointer events while a pane is up.
         */}
         <div class="hub-stage-item active" id="hero-stage-item" style="z-index: 6;">
-          {itemBg && <img id="hero-stage-item-still" src={itemBg} alt="" class="hub-stage-item-still" />}
+          {itemBg && <img id="hero-stage-item-still" src={itemBg} srcset={itemBgSrcset || undefined} sizes="(max-width: 1023px) 100vw, 50vw" alt="" class="hub-stage-item-still" loading="eager" fetchpriority="high" decoding="sync" />}
           <span class="hub-stage-item-scrim"></span>
           <div class="hub-stage-item-copy">
             <span class="hub-stage-item-kind" id="hero-stage-item-kind">{heroKind}</span>
