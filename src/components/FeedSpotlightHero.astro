@@ -4,6 +4,7 @@ import { parseVideoId } from '../lib/platforms/youtube';
 import { feedSortTime } from '../lib/feed-items';
 import { getDisplayTagSlots } from '../lib/tags';
 import { editorialPreview } from '../lib/editorial-text';
+import { getCardImageSources } from '../lib/card-images';
 import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-content';
 import { resolveEntity } from '../lib/entity-resolver';
 import logoImage from '../assets/logo-mark.webp';
@@ -135,8 +136,10 @@ const brandLabel = overrideLogo
     : 'BE Unconventional HQ';
 
 const brandHero = entity?.hero || '';
-const itemBg = latestVideo.thumbnail || latestVideo.image || '';
-const heroBg = brandHero || itemBg;
+const itemBgRaw = latestVideo.thumbnail || latestVideo.image || '';
+const heroBgRaw = brandHero || itemBgRaw;
+const { src: itemBg, srcset: itemBgSrcset } = getCardImageSources(itemBgRaw);
+const { src: heroBg, srcset: heroBgSrcset } = getCardImageSources(heroBgRaw);
 const heroTitle = latestVideo.title || '';
 /*
   ─── THE HERO AND THE CARDS MUST DESCRIBE AN ITEM THE SAME WAY ──────────────
@@ -226,6 +229,8 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
       <img
         id="hero-bg"
         src={heroBg}
+        srcset={heroBgSrcset || undefined}
+        sizes="100vw"
         alt=""
         class="event-hero-bg-animated hero-backdrop-plate"
         loading="eager"
@@ -276,6 +281,9 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
             alt={brandLabel} 
             class={`hero-logo`}
             data-fallback-logo={fallbackLogoSrc}
+            loading="eager"
+            fetchpriority="high"
+            decoding="async"
           />
           <h1 id="hero-title" class="hero-title leading-tight">{heroTitle}</h1>
           <p id="hero-description" class="hero-tagline">{heroDescription}</p>
@@ -374,14 +382,24 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
            <img
               id="hero-image"
               src={itemBg}
+              srcset={itemBgSrcset || undefined}
+              sizes="(max-width: 1023px) 100vw, 50vw"
               alt=""
               class="hub-stage-art-fill"
+              loading="eager"
+              fetchpriority="high"
+              decoding="sync"
            />
            <img
               id="hero-image-front"
               src={itemBg}
+              srcset={itemBgSrcset || undefined}
+              sizes="(max-width: 1023px) 100vw, 50vw"
               alt=""
               class="hub-stage-art-img"
+              loading="eager"
+              fetchpriority="high"
+              decoding="sync"
            />
            
            
@@ -436,7 +454,7 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
           pointer events while a pane is up.
         */}
         <div class="hub-stage-item active" id="hero-stage-item" style="z-index: 6;">
-          {itemBg && <img id="hero-stage-item-still" src={itemBg} alt="" class="hub-stage-item-still" />}
+          {itemBg && <img id="hero-stage-item-still" src={itemBg} srcset={itemBgSrcset || undefined} sizes="(max-width: 1023px) 100vw, 50vw" alt="" class="hub-stage-item-still" loading="eager" fetchpriority="high" decoding="sync" />}
           <span class="hub-stage-item-scrim"></span>
           <div class="hub-stage-item-copy">
             <span class="hub-stage-item-kind" id="hero-stage-item-kind">{heroKind}</span>
@@ -1389,7 +1407,21 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
       with the footer in either direction.
     */
     bottom: calc(clamp(12px, 3vw, 28px) + var(--pip-lift, 0px));
-    width: min(360px, 42vw);
+    /*
+      ─── BIG ENOUGH FOR YOUTUBE'S OWN CHROME ────────────────────────────────
+
+      This was `min(360px, 42vw)`, which is 164x92 on a 390px phone. YouTube's
+      embedded player stops laying out properly somewhere around 200x113: below
+      that its overlay (title, channel, CC, pause, progress, logo, captions)
+      cannot fit the box, and the player rescales the video to make room for
+      it. Reported as the video being cropped WHILE the overlay is visible and
+      correcting itself when it fades -- which is that rescale arriving and
+      leaving, not our box changing shape.
+
+      The floor only binds on phones. Anything above about 524px wide still
+      gets 42vw, and the 360px ceiling is unchanged.
+    */
+    width: min(360px, max(220px, 42vw));
     aspect-ratio: 16 / 9;
     height: auto;
     inset-inline-start: auto;
@@ -2554,9 +2586,31 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
         if (hubStage) hubStage.classList.remove('is-playing');
       }
 
+      /*
+        ─── A NEW `src` MUST TAKE THE OLD `srcset` WITH IT ───────────────────
+
+        `srcset` WINS over `src`. These four images are rendered with one now,
+        for the LCP win on first paint, and the swap below only ever assigned
+        `.src` -- so selecting a tile changed the attribute and the browser
+        went on painting whichever candidate the old `srcset` had already
+        chosen. Reported as "hero does not update properly when selecting new
+        tile": the title, chips and copy all changed and the artwork did not,
+        so the hero described one item over another one's picture.
+
+        Clearing it costs nothing that matters. A swapped hero is the result of
+        a click, so it is never the LCP element, and this is what main does
+        today at every width: one URL, no ladder.
+      */
+      const setImageSrc = (el: HTMLImageElement | null, url: string) => {
+        if (!el || !url) return;
+        el.removeAttribute('srcset');
+        el.removeAttribute('sizes');
+        el.src = url;
+      };
+
       const backgroundSrc = brandHero || image;
-      if (heroImage && image) { heroImage.src = image; heroImage.style.opacity = '1'; }
-      if (heroImageFront && image) { heroImageFront.src = image; heroImageFront.style.opacity = '1'; }
+      if (heroImage && image) { setImageSrc(heroImage, image); heroImage.style.opacity = '1'; }
+      if (heroImageFront && image) { setImageSrc(heroImageFront, image); heroImageFront.style.opacity = '1'; }
 
       /*
         THE STAGE PANE FOLLOWS THE SWAP.
@@ -2573,7 +2627,7 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
       const stageItemKind = document.getElementById('hero-stage-item-kind');
       const stageItemTitle = document.getElementById('hero-stage-item-title');
       const stageItemAction = document.getElementById('hero-stage-item-action');
-      if (stageItemStill && image) stageItemStill.src = image;
+      if (stageItemStill && image) setImageSrc(stageItemStill, image);
       if (stageItemKind) stageItemKind.textContent = kind;
       if (stageItemTitle) stageItemTitle.textContent = title;
       /*
@@ -2619,7 +2673,7 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
 
       // Update background image
       if (heroBg && heroBg.tagName === 'IMG' && backgroundSrc) {
-        (heroBg as HTMLImageElement).src = backgroundSrc;
+        setImageSrc(heroBg as HTMLImageElement, backgroundSrc);
         (heroBg as HTMLImageElement).srcset = '';
       } else if (heroBg && heroBg.tagName === 'DIV' && backgroundSrc) {
         (heroBg as HTMLDivElement).style.backgroundImage = `url('${backgroundSrc}')`;
@@ -2647,7 +2701,25 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
         navbar included, is simply left alone.
       */
       const feedGridWrapper = document.getElementById('feed-grid-wrapper');
-      const isMobile = window.innerWidth < 768;
+      /*
+        ─── A PHONE IN LANDSCAPE IS STILL A PHONE ────────────────────────────
+
+        This was `window.innerWidth < 768`, and a phone held sideways reports
+        844 to 932. So rotating to landscape flipped it to false and the
+        DESKTOP branch ran on the phone: a whole-page `startViewTransition()`
+        snapshot, morphing a card from wherever it sat in the horizontal rail
+        all the way to the hero, while the smooth scroll below moved the page
+        under it. Reported as a "really jarring animation" that "actually
+        crashed the website once" -- a full-page snapshot plus a concurrent
+        scroll is exactly the shape of thing that exhausts a mobile tab.
+
+        Width alone cannot answer this question. `pointer: coarse` can, and it
+        is orientation-independent; the width test stays as the fallback for a
+        narrow desktop window. Same expression CinematicGallery.astro uses.
+      */
+      const isMobile =
+        window.matchMedia('(hover: none) and (pointer: coarse)').matches ||
+        window.innerWidth <= 768;
 
       if (!isMobile && (document as any).startViewTransition) {
         if (feedGridWrapper) feedGridWrapper.style.viewTransitionName = 'feed-grid-manual';
@@ -2661,6 +2733,29 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
         });
       } else {
         performDOMUpdate();
+      }
+
+      /*
+        BRING THE TAPPED CARD INTO ITS RAIL BEFORE LEAVING IT.
+
+        The rails scroll horizontally, so a card can be tapped while it is half
+        off the edge of the screen. Selecting it used to leave it there, which
+        is what made the swap read as something jumping out of nowhere: the
+        hero changed to an item the reader could only half see.
+
+        DONE ON THE RAIL, NOT WITH `scrollIntoView`. That method can move any
+        scrollable ancestor, including the document, and `block: 'nearest'` only
+        promises it will not move one that is already in view. This runs
+        alongside the scroll to the hero below, so "probably will not move the
+        page" is not good enough on the path that was crashing tabs. Setting
+        `scrollLeft` on the rail can move exactly one thing: the rail.
+      */
+      const rail = card.closest('[data-rail], .feed-row-rail') as HTMLElement | null;
+      if (rail && rail.scrollWidth > rail.clientWidth) {
+        const target =
+          card.offsetLeft - rail.clientWidth / 2 + card.offsetWidth / 2;
+        const max = rail.scrollWidth - rail.clientWidth;
+        rail.scrollTo({ left: Math.max(0, Math.min(target, max)), behavior: 'smooth' });
       }
 
       // Smooth scroll to top so the user sees the hero

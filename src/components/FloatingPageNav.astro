@@ -644,6 +644,52 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
       the boolean state didn't change! This debounced scroll listener catches 
       those teleports gracefully without polling layout geometry every frame.
     */
+    /*
+      ─── ARRIVING ON A HASH IS THE SAME STATEMENT AS CLICKING THE RAIL ───────
+
+      The pin above was set only by a click on this rail, so a reader arriving
+      from anywhere else got no pin and geometry was left to work it out. The
+      homepage category tiles land on /feed#film, /feed#games and so on, which
+      is exactly that case.
+
+      Geometry cannot work it out on a tall screen. The rule is "the last
+      heading above ZONE_TOP (80px)", and the trailing sections cannot reach
+      that line: at 3840x2160 the viewport is 2160 tall, so the page runs out
+      of scroll with the target still well down the screen. Measured on /feed
+      at that size, jumping to each section in turn:
+
+        streaming   heading lands at    0px   clears the line
+        studios     heading lands at    0px   clears the line
+        games       heading lands at   56px   clears the line
+        film        heading lands at  591px   does NOT -> "games" lit up
+        tv          heading lands at 1126px   does NOT -> "film" lit up
+
+      Which is the report: pick Film on the homepage and the rail says Games,
+      pick Games and it says Studios. Always the entry above, because that is
+      the last one that did clear the line.
+
+      The reader stated which section they wanted in the URL, so it is pinned
+      exactly as a click is and released the same way, by them scrolling.
+      `armReleaseWhenSettled()` is what stops the jump's own scrolling from
+      clearing the pin in the breath it was set.
+
+      Raising ZONE_TOP was the other candidate and is worse: it would move the
+      line for every section on every screen to fix the last two on one, and
+      the value it needs depends on viewport height, which is the thing that
+      varies.
+    */
+    const pinFromHash = () => {
+      const id = decodeURIComponent(location.hash.slice(1));
+      if (!id) return;
+      const link = links.find((candidate) => candidate.dataset.tocLink === id);
+      if (!link || !document.getElementById(id)) return;
+      pinnedId = id;
+      setActive(id);
+      armReleaseWhenSettled();
+    };
+    pinFromHash();
+    window.addEventListener('hashchange', pinFromHash);
+
     /* The reader taking the page back releases the pin. These fire only for
        input, never for scrollIntoView(), which is the distinction the pin
        needs and which a plain `scroll` listener cannot make — and not while

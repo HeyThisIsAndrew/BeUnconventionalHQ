@@ -46,7 +46,8 @@ export interface CardImageSources {
 const YT_HOST = 'i.ytimg.com';
 const YT_RENDITION = /\/(maxresdefault|sddefault|hqdefault|mqdefault|default)\.jpg/;
 
-/** Intrinsic width of each rendition, for `w` descriptors. */
+/** Intrinsic width of each rendition. The proxy ladder is capped against
+ *  `maxresdefault` here so it cannot ask for pixels the source has not got. */
 const YT_WIDTHS: Record<string, number> = {
   mqdefault: 320,
   hqdefault: 480,
@@ -65,18 +66,45 @@ function youtubeSources(url: string): CardImageSources {
   // upgrading it risks the placeholder.
   if (current !== 'maxresdefault') return { src: url, srcset: '' };
 
-  const at = (rendition: string) => url.replace(YT_RENDITION, `/${rendition}.jpg`);
+  /*
+    CAPPED AT THE SOURCE. `maxresdefault` is 1280x720 and no bigger, so the
+    1600 and 2000 rungs in WSRV_WIDTHS asked the proxy to UPSAMPLE it.
+    Measured against the real service: w=1600 returned a genuine 1600x900 at
+    210 KB and w=2000 a 2000x1125 at 282 KB, both visibly softer than the
+    source and the larger of them HEAVIER than the 258 KB original this
+    rewrite exists to avoid. A wide screen picked that rung, so the change
+    made desktop worse while making mobile better.
 
-  // hqdefault as `src`: it is the smaller file and the one a srcset-ignoring
-  // browser should get, and unlike sddefault it exists for every video.
-  const src = at('hqdefault');
+    Same rule as `cappedWidths()` in local-content.ts, and the same one
+    `buildImageSet` documents: never ask a CDN for more pixels than the asset
+    has. The cap is passed rather than applied to WSRV_WIDTHS itself, because
+    that ladder also serves sources which really are larger than 1280.
+  */
+  /*
+    ─── `src` STAYS hqdefault. THE RECOVERY DEPENDS ON IT. ───────────────────
 
+    The client-side recovery in Layout.astro builds its candidate list from
+    the `srcset` ALONE, and says why: "youtubeSources() already puts the
+    guaranteed hqdefault in `src` and offers maxresdefault only in `srcset`,
+    so the risky rendition is the one the browser PICKED". That invariant is
+    the whole design -- `src` is the floor it falls back TO, which is why it
+    has to be a rendition YouTube generates for every video.
+
+    Putting a proxied maxresdefault in `src` broke it silently. An image that
+    ends up with no srcset then has a risky `src`, an empty candidate list and
+    nothing to recover to, so a missing rendition stays on screen as the grey
+    placeholder. Measured: scripts/e2e-image-fallback.test.mjs goes 5/5 on
+    main to 3/5 with that change, and the failure reads "11 placeholder(s) but
+    only 10 marked".
+
+    So the ladder is offered where it belongs and the floor is left alone. The
+    browser still picks a proxied rendition for the LCP win; if that turns out
+    to be the placeholder, the recovery drops the srcset and lands on the
+    hqdefault that was in `src` the whole time.
+  */
   return {
-    src,
-    srcset: [
-      `${src} ${YT_WIDTHS.hqdefault}w`,
-      `${at('maxresdefault')} ${YT_WIDTHS.maxresdefault}w`,
-    ].join(', '),
+    src: url.replace(YT_RENDITION, '/hqdefault.jpg'),
+    srcset: genericExternalSources(url, YT_WIDTHS.maxresdefault).srcset,
   };
 }
 
@@ -113,7 +141,21 @@ const YT_SAFE_RENDITIONS = new Set(['hqdefault', 'mqdefault', 'default']);
  * or below `hqdefault`. An empty return means "stop, this one is final".
  */
 export function youtubeFallbackSrc(raw: unknown): string {
-  const url = String(raw ?? '').trim();
+  let url = String(raw ?? '').trim();
+
+  // If wrapped in wsrv.nl proxy, extract the original URL
+  if (url.includes('wsrv.nl/?url=')) {
+    try {
+      const matchUrl = url.match(/url=([^&]+)/);
+      if (matchUrl) {
+        url = decodeURIComponent(matchUrl[1]);
+        if (!url.startsWith('http')) url = `https://${url}`;
+      }
+    } catch (e) {
+      // Ignore
+    }
+  }
+
   if (!url || !url.includes(YT_HOST)) return '';
 
   const match = url.match(YT_RENDITION);
@@ -248,9 +290,18 @@ function substackSources(url: string): CardImageSources {
 /* Same reasoning as SUBSTACK_WIDTHS above: the cards are large enough now that
    a 1200px ceiling is an upscale on a 2x 4K display. */
 const WSRV_WIDTHS = [400, 600, 900, 1200, 1600, 2000];
+
+/** The ladder a source can actually fill: every rung at or below its own width.
+ *  Never empty — a source narrower than the smallest rung still gets that one,
+ *  because one slightly-too-large request beats no srcset at all. */
+function widthsFor(capWidth?: number): number[] {
+  if (!capWidth) return WSRV_WIDTHS;
+  const fit = WSRV_WIDTHS.filter((w) => w <= capWidth);
+  return fit.length ? fit : [WSRV_WIDTHS[0]];
+}
 const WSRV_SRC_WIDTH = 600;
 
-function genericExternalSources(url: string): CardImageSources {
+function genericExternalSources(url: string, capWidth?: number): CardImageSources {
   // Only process absolute external URLs
   if (!/^https?:\/\//i.test(url)) return { src: url, srcset: '' };
   
@@ -267,12 +318,32 @@ function genericExternalSources(url: string): CardImageSources {
   const urlWithoutProto = url.replace(/^https?:\/\//i, '');
   
   // q=85 for high photographic quality (prepping for Instagram), output=webp for modern format
-  const withWidth = (w: number) => 
-    `https://wsrv.nl/?url=${encodeURIComponent(urlWithoutProto)}&w=${w}&output=webp&q=85`;
+  /*
+    ─── `&we` IS LOAD-BEARING, NOT A TUNING FLAG ─────────────────────────────
+
+    "Without enlargement": never return more pixels than the source has.
+
+    It is here for the FALLBACK, not for bytes. YouTube answers a missing
+    rendition with its grey 120x90 "no thumbnail" body at HTTP 200, and the
+    recovery in Layout.astro detects that by its decoded size -- see the note
+    on YT_SAFE_RENDITIONS above. Ask the proxy for w=600 without `&we` and it
+    faithfully upscales that 120x90 body to 600x450, so the check can never
+    fire and a video with no maxresdefault shows a stretched grey blob for
+    ever instead of dropping to hqdefault. Measured both ways against the live
+    service: 600x450 without, 120x90 with. `scripts/e2e-image-fallback.test.mjs`
+    is what catches it.
+
+    It also makes upscaling impossible in general, which is the same guarantee
+    the width cap in youtubeSources() asks for. Keep both: the cap stops us
+    REQUESTING pixels that do not exist, and this stops the proxy inventing
+    them if a cap is ever missed.
+  */
+  const withWidth = (w: number) =>
+    `https://wsrv.nl/?url=${encodeURIComponent(urlWithoutProto)}&w=${w}&output=webp&q=85&we`;
 
   return {
     src: withWidth(WSRV_SRC_WIDTH),
-    srcset: WSRV_WIDTHS.map((w) => `${withWidth(w)} ${w}w`).join(', '),
+    srcset: widthsFor(capWidth).map((w) => `${withWidth(w)} ${w}w`).join(', '),
   };
 }
 

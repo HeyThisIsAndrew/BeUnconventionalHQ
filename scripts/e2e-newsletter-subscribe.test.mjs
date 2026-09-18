@@ -95,15 +95,15 @@ async function runTests() {
     */
     const [response] = await Promise.all([
       page.waitForResponse(
-        (res) => res.url().endsWith('/api/subscribe') && res.request().method() === 'POST',
+        (res) => res.url().includes('_actions/') && res.request().method() === 'POST',
         { timeout: 30000 },
       ),
       page.click('.newsletter-submit'),
     ]);
 
-    assert.equal(response.status(), 200, `Expected 200 from /api/subscribe, got ${response.status()}`);
-    const body = await response.json();
-    assert.equal(body.success, true, `Expected success:true, got ${JSON.stringify(body)}`);
+    assert.equal(response.status(), 200, `Expected 200 from actions.subscribe, got ${response.status()}`);
+    const text = await response.text();
+    assert.ok(text.includes('success') && text.includes('Subscribed successfully'), `Expected success string, got ${text}`);
 
     await page.waitForFunction(
       () => document.getElementById('newsletter-form').classList.contains('is-success'),
@@ -131,7 +131,7 @@ async function runTests() {
 
     const [secondResponse] = await Promise.all([
       page2.waitForResponse(
-        (res) => res.url().endsWith('/api/subscribe') && res.request().method() === 'POST',
+        (res) => res.url().includes('_actions/') && res.request().method() === 'POST',
         { timeout: 30000 },
       ),
       page2.click('.newsletter-submit'),

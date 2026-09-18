@@ -64,17 +64,44 @@ console.log('YouTube renditions:');
 
 const MAXRES = 'https://i.ytimg.com/vi/zGA4XXAkE_s/maxresdefault.jpg';
 
-test('maxresdefault downgrades its src to hqdefault', () => {
+/*
+  `src` is the floor the recovery falls back TO, so it must be a rendition
+  YouTube generates for every video. The proxied ladder lives in `srcset`.
+  Putting a proxied maxresdefault here took e2e-image-fallback from 5/5 to 3/5.
+*/
+test('src stays on the guaranteed hqdefault, never the proxy', () => {
   const { src } = getCardImageSources(MAXRES);
   assert.equal(src, 'https://i.ytimg.com/vi/zGA4XXAkE_s/hqdefault.jpg');
 });
 
-test('maxresdefault offers both renditions with true intrinsic widths', () => {
+test('the proxied ladder is offered in srcset', () => {
+  const { srcset } = getCardImageSources(MAXRES);
+  assert.ok(srcset.includes('wsrv.nl'), srcset);
+});
+
+test('maxresdefault offers all wsrv.nl proxy widths', () => {
   const entries = parseSrcset(getCardImageSources(MAXRES).srcset);
   assert.deepEqual(entries, [
-    { url: 'https://i.ytimg.com/vi/zGA4XXAkE_s/hqdefault.jpg', descriptor: '480w' },
-    { url: 'https://i.ytimg.com/vi/zGA4XXAkE_s/maxresdefault.jpg', descriptor: '1280w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=400&output=webp&q=85&we', descriptor: '400w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=85&we', descriptor: '600w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=900&output=webp&q=85&we', descriptor: '900w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1200&output=webp&q=85&we', descriptor: '1200w' },
   ]);
+});
+
+/*
+  The ladder STOPS at the source. maxresdefault is 1280x720, so 1600 and 2000
+  asked wsrv.nl to upsample: measured against the live service, w=2000 returned
+  a real 2000x1125 at 282 KB, heavier than the 258 KB original the proxy exists
+  to replace, and softer. A wide screen picked exactly that rung.
+*/
+test('no rung asks the proxy for more pixels than maxresdefault has', () => {
+  const entries = parseSrcset(getCardImageSources(MAXRES).srcset);
+  for (const { url, descriptor } of entries) {
+    const w = Number(descriptor.replace('w', ''));
+    assert.ok(w <= 1280, `${descriptor} upsamples a 1280px source: ${url}`);
+    assert.ok(url.includes(`&w=${w}&`), `descriptor ${descriptor} must match its own w= param: ${url}`);
+  }
 });
 
 test('the video id is preserved verbatim', () => {
@@ -82,9 +109,11 @@ test('the video id is preserved verbatim', () => {
   const { src, srcset } = getCardImageSources(
     'https://i.ytimg.com/vi/a-B_c1D2e3F/maxresdefault.jpg',
   );
+  // `src` is the raw hqdefault floor; the srcset rungs are proxied, so the id
+  // is url-encoded there and plain here.
   assert.ok(src.includes('/vi/a-B_c1D2e3F/'), src);
   for (const { url } of parseSrcset(srcset)) {
-    assert.ok(url.includes('/vi/a-B_c1D2e3F/'), url);
+    assert.ok(url.includes('%2Fvi%2Fa-B_c1D2e3F%2F'), url);
   }
 });
 
@@ -331,13 +360,12 @@ test('the video id survives, and query strings are preserved', () => {
   );
 });
 
-test('it agrees with the src getCardImageSources already chose', () => {
-  /*
-    The build-time rewrite and the client-side recovery must land on the
-    same URL, or a retry would fetch a second distinct file and defeat the
-    cache. This is the whole reason the helper is shared.
-  */
-  assert.equal(youtubeFallbackSrc(MAXRES), getCardImageSources(MAXRES).src);
+test('extracts from wsrv.nl proxy URL', () => {
+  const proxied = 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600';
+  assert.equal(
+    youtubeFallbackSrc(proxied),
+    'https://i.ytimg.com/vi/zGA4XXAkE_s/hqdefault.jpg',
+  );
 });
 
 test('applying it twice is a no-op', () => {
