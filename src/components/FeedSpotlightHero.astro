@@ -2687,7 +2687,25 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
         navbar included, is simply left alone.
       */
       const feedGridWrapper = document.getElementById('feed-grid-wrapper');
-      const isMobile = window.innerWidth < 768;
+      /*
+        ─── A PHONE IN LANDSCAPE IS STILL A PHONE ────────────────────────────
+
+        This was `window.innerWidth < 768`, and a phone held sideways reports
+        844 to 932. So rotating to landscape flipped it to false and the
+        DESKTOP branch ran on the phone: a whole-page `startViewTransition()`
+        snapshot, morphing a card from wherever it sat in the horizontal rail
+        all the way to the hero, while the smooth scroll below moved the page
+        under it. Reported as a "really jarring animation" that "actually
+        crashed the website once" -- a full-page snapshot plus a concurrent
+        scroll is exactly the shape of thing that exhausts a mobile tab.
+
+        Width alone cannot answer this question. `pointer: coarse` can, and it
+        is orientation-independent; the width test stays as the fallback for a
+        narrow desktop window. Same expression CinematicGallery.astro uses.
+      */
+      const isMobile =
+        window.matchMedia('(hover: none) and (pointer: coarse)').matches ||
+        window.innerWidth <= 768;
 
       if (!isMobile && (document as any).startViewTransition) {
         if (feedGridWrapper) feedGridWrapper.style.viewTransitionName = 'feed-grid-manual';
@@ -2701,6 +2719,24 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
         });
       } else {
         performDOMUpdate();
+      }
+
+      /*
+        BRING THE TAPPED CARD INTO ITS RAIL BEFORE LEAVING IT.
+
+        The rails scroll horizontally, so a card can be tapped while it is half
+        off the edge of the screen. Selecting it used to leave it there, which
+        is what made the swap read as something jumping out of nowhere: the
+        hero changed to an item the reader could only half see.
+
+        `inline: 'center'` moves it along its own rail only. `block: 'nearest'`
+        is the load-bearing half -- without it `scrollIntoView` also scrolls the
+        PAGE vertically to reach the card, which fights the scroll to the hero
+        immediately below and is the other half of the jarring movement.
+      */
+      const rail = card.closest('[data-rail], .feed-row-rail');
+      if (rail && rail.scrollWidth > rail.clientWidth) {
+        card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
       }
 
       // Smooth scroll to top so the user sees the hero
