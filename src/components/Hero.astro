@@ -400,12 +400,42 @@ import HomeSpotlightBar from './HomeSpotlightBar.astro';
       return type === 'back_forward';
     }
 
-    function measureLift() {
+    /*
+      ─── THE MEASURE IS SPLIT FROM THE WRITE, ON PURPOSE ────────────────────
+
+      These two used to be one function, and arm() called it and then read
+      `root.clientWidth` on the next line. That ordering is a forced reflow:
+      writing `--splash-lift` is a custom property on the ROOT, custom
+      properties INHERIT, so the write invalidates style for the whole
+      document — and the clientWidth read immediately after has to flush the
+      layout it just dirtied to answer.
+
+      Lighthouse reported it under "Forced reflow" (unscored, so this buys no
+      points; it is a real 29ms of main thread on the mobile profile all the
+      same, at the worst possible moment: arm() runs during startup on the
+      homepage).
+
+      Kept as `readHeroHeight` + `writeLift` rather than fixed in place so the
+      read/write split is visible at the call site. measureLift() remains for
+      lift(), which legitimately does both at once.
+    */
+
+    /** READ ONLY. The hero's painted height, or null when there is no hero. */
+    function readHeroHeight(): number | null {
       const hero = document.querySelector('.hero') as HTMLElement | null;
       /* Measured, not assumed to be 100vh: a mobile address bar makes vh and
          the real painted height disagree, and being a few pixels out here
          shows up as a visible seam at the end of the lift. */
-      if (hero) root.style.setProperty('--splash-lift', `${hero.offsetHeight}px`);
+      return hero ? hero.offsetHeight : null;
+    }
+
+    /** WRITE ONLY. A null height means no hero, so nothing is published. */
+    function writeLift(height: number | null) {
+      if (height !== null) root.style.setProperty('--splash-lift', `${height}px`);
+    }
+
+    function measureLift() {
+      writeLift(readHeroHeight());
     }
 
     /*
@@ -436,9 +466,19 @@ import HomeSpotlightBar from './HomeSpotlightBar.astro';
       /* Already armed — do not take a second lock, or the counter never
          returns to zero and the page stays pinned forever. */
       if (root.classList.contains('splash-armed')) return;
-      measureLift();
-      /* Measure BEFORE hiding the scrollbar — afterwards this always reads 0. */
+      /*
+        BOTH READS FIRST, THEN BOTH WRITES. The order is the point — see the
+        note on readHeroHeight(). Interleaving them (measure, write, measure,
+        write) is what made this a forced reflow.
+
+        The gutter is still measured BEFORE the scrollbar is hidden, which is
+        what it always required: afterwards it always reads 0. Nothing here
+        hides it yet — `splash-armed` goes on at the end of this function.
+      */
+      const liftHeight = readHeroHeight();
       const gutter = Math.max(0, window.innerWidth - root.clientWidth);
+
+      writeLift(liftHeight);
       root.style.setProperty('--splash-gutter', `${gutter}px`);
 
       /*
@@ -561,7 +601,20 @@ import HomeSpotlightBar from './HomeSpotlightBar.astro';
         return;
       }
 
-      measureLift();
+      /*
+        Reuses the height already read into `distance` above rather than
+        calling measureLift(), which would query `.hero` and read its
+        offsetHeight a second time in the same function. The two are the same
+        measurement by construction — `distance` IS hero.offsetHeight whenever
+        there is a hero — so re-reading bought nothing.
+
+        `hero ? distance : null` rather than plain `distance`, because the two
+        differ in exactly one case: with no hero, `distance` falls back to
+        `window.innerHeight` while measureLift() published nothing at all.
+        Passing null keeps that, so `--splash-lift` is still never written from
+        a viewport guess.
+      */
+      writeLift(hero ? distance : null);
       root.classList.add('splash-lifting');
 
       const wrapper = document.getElementById('app-wrapper');
