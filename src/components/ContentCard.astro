@@ -272,6 +272,25 @@ const CARD_SIZES_FOR_VARIANT: Record<NonNullable<Props['variant']>, string> = {
   default: CARD_IMAGE_SIZES,
 };
 
+/*
+  ─── THE EDITORIAL OVERRIDE TRAVELS WITH THE CARD ──────────────────────────
+
+  `data-brand` is only emitted when `resolveEntity()` finds a hub, and the
+  whole point of `customHeroLogo` is the case where there ISN'T one -- Coyote
+  vs. Acme is distributed by Ketchup Entertainment, which has no brand
+  document. So the card carried nothing, and clicking it swapped the hero to
+  the BE Unconventional crown while the SERVER-rendered hero for the same item
+  showed the Ketchup mark. Same item, two different logos depending on whether
+  you arrived or clicked.
+
+  Carried separately from `data-brand` rather than folded into it, because it
+  has to survive `entity` being null, which is exactly when it matters.
+*/
+const heroLogoOverride = (item as any).customHeroLogo
+  ? urlFor((item as any).customHeroLogo).url()
+  : null;
+const heroLabelOverride = (item as any).customHeroBrandLabel || null;
+
 const baseProps = {
   class: `reveal video-card-home content-card w-full variant-${variant}${isCinematic ? ' content-card--cinematic' : ''}`,
   'data-categories': filterAttr,
@@ -282,6 +301,8 @@ const baseProps = {
   'data-title': item.title,
   'data-preview': excerpt,
   'data-brand': brandData,
+  'data-hero-logo': heroLogoOverride || undefined,
+  'data-hero-brand-label': heroLabelOverride || undefined,
   /*
     The card's own display slots, carried so the Feed hero can show them when a
     card is promoted into it. Recomputing them in the swap handler would mean a
