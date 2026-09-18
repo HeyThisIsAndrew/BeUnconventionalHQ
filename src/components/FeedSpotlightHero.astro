@@ -2405,7 +2405,22 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
         }
       } catch(e) {}
       
-      const brandLogo = parsedBrand.logo || '';
+      /*
+        THE SAME CASCADE THE SERVER RENDERS: override, then hub, then crown.
+
+        This read the hub payload alone. `data-brand` is only present when
+        `resolveEntity()` found a hub, and `customHeroLogo` exists precisely
+        for items that have none -- so clicking Coyote vs. Acme swapped the
+        hero to the BE Unconventional crown while loading /feed fresh showed
+        the Ketchup Entertainment mark. Same item, two logos, depending on how
+        the reader got there.
+
+        `brandLogo` mirrors `overrideLogo || taxonomyLogo` at the top of this
+        file; the crown stays the last resort below.
+      */
+      const heroLogoOverride = card.getAttribute('data-hero-logo') || '';
+      const heroLabelOverride = card.getAttribute('data-hero-brand-label') || '';
+      const brandLogo = heroLogoOverride || parsedBrand.logo || '';
       const brandHero = parsedBrand.hero || '';
       /*
         `data-href` FIRST. A feed card is a <div role="button"> — ContentCard
@@ -2508,7 +2523,12 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
         /* Name the mark for a screen reader. The crown fallback is the site's
            own, so it is labelled as such rather than left with whatever hub the
            previous item happened to have. */
-        heroBrandLogo.alt = (brandLogo && parsedBrand.title) || 'BE Unconventional HQ';
+        /* The label follows whichever mark won, or a screen reader is told the
+           wrong company -- the same rule the server-rendered cascade uses. */
+        heroBrandLogo.alt =
+          (heroLogoOverride && (heroLabelOverride || parsedBrand.title)) ||
+          (brandLogo && parsedBrand.title) ||
+          'BE Unconventional HQ';
         heroBrandLogo.classList.remove('hidden');
       }
 
