@@ -126,7 +126,29 @@ async function runTests() {
     });
     await new Promise((r) => setTimeout(r, 1200)); // let loads + listener settle
 
-    const placeholderState = await page.evaluate(() => {
+    const placeholderState = await page.evaluate(async () => {
+      /*
+        Measured through a bare `Image()`, mirroring `measureTruePixels()` in
+        Layout.astro. `naturalWidth` on the live element is density-corrected,
+        and the correction runs BOTH ways: the same 120x90 body reports 73x55
+        on an element whose srcset promised 480w into a wide slot, and 128x96
+        on `#hero-bg`, whose top rung (1200w) is narrower than its 100vw slot.
+        The original `<=` absorbed the shrinking case and missed the growing
+        one — the same blind spot the production check had.
+
+        If this and Layout.astro ever diverge, this suite stops testing what
+        ships.
+      */
+      const truePixels = (img) =>
+        new Promise((resolve) => {
+          const url = img.currentSrc || img.getAttribute('src') || '';
+          if (!url) return resolve({ w: 0, h: 0 });
+          const probe = new Image();
+          probe.onload = () => resolve({ w: probe.naturalWidth, h: probe.naturalHeight });
+          probe.onerror = () => resolve({ w: 0, h: 0 });
+          probe.src = url;
+        });
+
       const imgs = Array.from(document.querySelectorAll('img')).filter(
         (i) =>
           (i.currentSrc || i.src || '').includes('i.ytimg.com') &&
@@ -139,7 +161,9 @@ async function runTests() {
         // 120x90 body reports 120x90 on a plain <img> and 73x55 on one whose
         // srcset promised 480w. Asserting equality here was wrong in exactly
         // the way the production check was.
-        decodedAsPlaceholder: imgs.filter((i) => i.naturalWidth <= 120 && i.naturalHeight <= 90).length,
+        decodedAsPlaceholder: (await Promise.all(imgs.map(truePixels))).filter(
+          (d) => d.w > 0 && d.w <= 120 && d.h > 0 && d.h <= 90,
+        ).length,
         markedFailed: imgs.filter((i) => {
           const p = i.parentElement;
           const c = p && p.tagName === 'PICTURE' ? p.parentElement : p;

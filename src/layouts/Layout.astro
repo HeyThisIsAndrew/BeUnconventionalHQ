@@ -1238,7 +1238,7 @@ const fallbackMark = await getImage({
       function sweepBrokenImages() {
         document.querySelectorAll('img').forEach((img) => {
           if (img.complete && img.naturalWidth === 0) handleUnusable(img);
-          else if (img.complete && isProviderPlaceholder(img)) handleUnusable(img);
+          else if (img.complete) isProviderPlaceholder(img, (yes) => { if (yes) handleUnusable(img); });
         });
       }
 
@@ -1270,16 +1270,58 @@ const fallbackMark = await getImage({
         at 320 wide, and `hqdefault` is 480. The one genuine 120x90 rendition,
         `default.jpg`, is excluded by URL.
       */
-      function isProviderPlaceholder(img: HTMLImageElement) {
+      /*
+        ─── naturalWidth IS DENSITY-CORRECTED. MEASURE THE FILE INSTEAD. ─────
+
+        The browser divides the decoded size by the density it inferred for the
+        candidate it chose: descriptor width over the slot it had to fill. The
+        note on `removeAttribute('srcset')` above already knows this, and the
+        threshold here was written as if the correction only ever SHRANK the
+        number. It does not.
+
+        Measured on /feed at a 1280 viewport: `#hero-bg` carries
+        `sizes="100vw"`, so its slot is 1280 while the ladder's top rung is
+        1200w. Density is 1200/1280 = 0.9375, BELOW 1, so YouTube's 120x90
+        placeholder reported 128x96 and sailed straight over `<= 120 && <= 90`.
+        The element was showing the grey "no thumbnail" box and the recovery
+        never fired.
+
+        Correcting the arithmetic back out was tried and is not reliable
+        enough: it depends on matching `currentSrc` to its candidate string and
+        on `clientWidth` being settled, and it silently over-corrects when
+        either is not true (measured: it took detection from 10 of 11 to 7).
+
+        A bare `Image()` has no srcset and no `sizes`, so nothing corrects it
+        and `naturalWidth` is the file's true pixels. It costs no network: the
+        URL is whatever the element already fetched, so it is served from
+        cache. Asynchronous, which is why the callers below take a callback.
+      */
+      function measureTruePixels(
+        img: HTMLImageElement,
+        done: (w: number, h: number) => void,
+      ) {
+        const url = img.currentSrc || img.getAttribute('src') || '';
+        if (!url) {
+          done(0, 0);
+          return;
+        }
+        const probe = new Image();
+        probe.onload = () => done(probe.naturalWidth, probe.naturalHeight);
+        probe.onerror = () => done(0, 0);
+        probe.src = url;
+      }
+
+      function isProviderPlaceholder(img: HTMLImageElement, done: (yes: boolean) => void) {
         const src = img.currentSrc || img.getAttribute('src') || '';
-        if (!src.includes('i.ytimg.com')) return false;
-        if (/\/default\.jpg/.test(src)) return false; // legitimately 120x90
-        return (
-          img.naturalWidth > 0 &&
-          img.naturalWidth <= 120 &&
-          img.naturalHeight > 0 &&
-          img.naturalHeight <= 90
-        );
+        if (!src.includes('i.ytimg.com')) {
+          done(false);
+          return;
+        }
+        if (/\/default\.jpg/.test(src)) {
+          done(false); // legitimately 120x90
+          return;
+        }
+        measureTruePixels(img, (w, h) => done(w > 0 && w <= 120 && h > 0 && h <= 90));
       }
 
       /*
@@ -1291,8 +1333,8 @@ const fallbackMark = await getImage({
         'load',
         (event) => {
           const target = event.target;
-          if (target instanceof HTMLImageElement && isProviderPlaceholder(target)) {
-            handleUnusable(target);
+          if (target instanceof HTMLImageElement) {
+            isProviderPlaceholder(target, (yes) => { if (yes) handleUnusable(target); });
           }
         },
         true
