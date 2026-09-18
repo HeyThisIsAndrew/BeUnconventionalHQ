@@ -2572,9 +2572,31 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
         if (hubStage) hubStage.classList.remove('is-playing');
       }
 
+      /*
+        ─── A NEW `src` MUST TAKE THE OLD `srcset` WITH IT ───────────────────
+
+        `srcset` WINS over `src`. These four images are rendered with one now,
+        for the LCP win on first paint, and the swap below only ever assigned
+        `.src` -- so selecting a tile changed the attribute and the browser
+        went on painting whichever candidate the old `srcset` had already
+        chosen. Reported as "hero does not update properly when selecting new
+        tile": the title, chips and copy all changed and the artwork did not,
+        so the hero described one item over another one's picture.
+
+        Clearing it costs nothing that matters. A swapped hero is the result of
+        a click, so it is never the LCP element, and this is what main does
+        today at every width: one URL, no ladder.
+      */
+      const setImageSrc = (el: HTMLImageElement | null, url: string) => {
+        if (!el || !url) return;
+        el.removeAttribute('srcset');
+        el.removeAttribute('sizes');
+        el.src = url;
+      };
+
       const backgroundSrc = brandHero || image;
-      if (heroImage && image) { heroImage.src = image; heroImage.style.opacity = '1'; }
-      if (heroImageFront && image) { heroImageFront.src = image; heroImageFront.style.opacity = '1'; }
+      if (heroImage && image) { setImageSrc(heroImage, image); heroImage.style.opacity = '1'; }
+      if (heroImageFront && image) { setImageSrc(heroImageFront, image); heroImageFront.style.opacity = '1'; }
 
       /*
         THE STAGE PANE FOLLOWS THE SWAP.
@@ -2591,7 +2613,7 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
       const stageItemKind = document.getElementById('hero-stage-item-kind');
       const stageItemTitle = document.getElementById('hero-stage-item-title');
       const stageItemAction = document.getElementById('hero-stage-item-action');
-      if (stageItemStill && image) stageItemStill.src = image;
+      if (stageItemStill && image) setImageSrc(stageItemStill, image);
       if (stageItemKind) stageItemKind.textContent = kind;
       if (stageItemTitle) stageItemTitle.textContent = title;
       /*
@@ -2637,7 +2659,7 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
 
       // Update background image
       if (heroBg && heroBg.tagName === 'IMG' && backgroundSrc) {
-        (heroBg as HTMLImageElement).src = backgroundSrc;
+        setImageSrc(heroBg as HTMLImageElement, backgroundSrc);
         (heroBg as HTMLImageElement).srcset = '';
       } else if (heroBg && heroBg.tagName === 'DIV' && backgroundSrc) {
         (heroBg as HTMLDivElement).style.backgroundImage = `url('${backgroundSrc}')`;

@@ -64,18 +64,28 @@ console.log('YouTube renditions:');
 
 const MAXRES = 'https://i.ytimg.com/vi/zGA4XXAkE_s/maxresdefault.jpg';
 
-test('maxresdefault upgrades its src to wsrv.nl proxy', () => {
+/*
+  `src` is the floor the recovery falls back TO, so it must be a rendition
+  YouTube generates for every video. The proxied ladder lives in `srcset`.
+  Putting a proxied maxresdefault here took e2e-image-fallback from 5/5 to 3/5.
+*/
+test('src stays on the guaranteed hqdefault, never the proxy', () => {
   const { src } = getCardImageSources(MAXRES);
-  assert.equal(src, 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=85');
+  assert.equal(src, 'https://i.ytimg.com/vi/zGA4XXAkE_s/hqdefault.jpg');
+});
+
+test('the proxied ladder is offered in srcset', () => {
+  const { srcset } = getCardImageSources(MAXRES);
+  assert.ok(srcset.includes('wsrv.nl'), srcset);
 });
 
 test('maxresdefault offers all wsrv.nl proxy widths', () => {
   const entries = parseSrcset(getCardImageSources(MAXRES).srcset);
   assert.deepEqual(entries, [
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=400&output=webp&q=85', descriptor: '400w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=85', descriptor: '600w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=900&output=webp&q=85', descriptor: '900w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1200&output=webp&q=85', descriptor: '1200w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=400&output=webp&q=85&we', descriptor: '400w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=85&we', descriptor: '600w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=900&output=webp&q=85&we', descriptor: '900w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1200&output=webp&q=85&we', descriptor: '1200w' },
   ]);
 });
 
@@ -99,8 +109,9 @@ test('the video id is preserved verbatim', () => {
   const { src, srcset } = getCardImageSources(
     'https://i.ytimg.com/vi/a-B_c1D2e3F/maxresdefault.jpg',
   );
-  // It is now url-encoded in the wsrv URL
-  assert.ok(src.includes('%2Fvi%2Fa-B_c1D2e3F%2F'), src);
+  // `src` is the raw hqdefault floor; the srcset rungs are proxied, so the id
+  // is url-encoded there and plain here.
+  assert.ok(src.includes('/vi/a-B_c1D2e3F/'), src);
   for (const { url } of parseSrcset(srcset)) {
     assert.ok(url.includes('%2Fvi%2Fa-B_c1D2e3F%2F'), url);
   }
@@ -236,7 +247,7 @@ test('surrounding whitespace is trimmed', () => {
   // ContentCard guarded this before the rewrite existed: an untrimmed
   // whitespace value still reaches <img src> and paints a broken box.
   const { src } = getCardImageSources(`  ${MAXRES}\n`);
-  assert.equal(src, 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=85');
+  assert.equal(src, 'https://i.ytimg.com/vi/zGA4XXAkE_s/hqdefault.jpg');
 });
 
 test('the rewrite is idempotent', () => {
