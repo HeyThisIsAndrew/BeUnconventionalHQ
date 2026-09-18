@@ -76,9 +76,22 @@ test('maxresdefault offers all wsrv.nl proxy widths', () => {
     { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=85', descriptor: '600w' },
     { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=900&output=webp&q=85', descriptor: '900w' },
     { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1200&output=webp&q=85', descriptor: '1200w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1600&output=webp&q=85', descriptor: '1600w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=2000&output=webp&q=85', descriptor: '2000w' },
   ]);
+});
+
+/*
+  The ladder STOPS at the source. maxresdefault is 1280x720, so 1600 and 2000
+  asked wsrv.nl to upsample: measured against the live service, w=2000 returned
+  a real 2000x1125 at 282 KB, heavier than the 258 KB original the proxy exists
+  to replace, and softer. A wide screen picked exactly that rung.
+*/
+test('no rung asks the proxy for more pixels than maxresdefault has', () => {
+  const entries = parseSrcset(getCardImageSources(MAXRES).srcset);
+  for (const { url, descriptor } of entries) {
+    const w = Number(descriptor.replace('w', ''));
+    assert.ok(w <= 1280, `${descriptor} upsamples a 1280px source: ${url}`);
+    assert.ok(url.includes(`&w=${w}&`), `descriptor ${descriptor} must match its own w= param: ${url}`);
+  }
 });
 
 test('the video id is preserved verbatim', () => {

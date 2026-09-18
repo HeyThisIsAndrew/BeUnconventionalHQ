@@ -46,7 +46,8 @@ export interface CardImageSources {
 const YT_HOST = 'i.ytimg.com';
 const YT_RENDITION = /\/(maxresdefault|sddefault|hqdefault|mqdefault|default)\.jpg/;
 
-/** Intrinsic width of each rendition, for `w` descriptors. */
+/** Intrinsic width of each rendition. The proxy ladder is capped against
+ *  `maxresdefault` here so it cannot ask for pixels the source has not got. */
 const YT_WIDTHS: Record<string, number> = {
   mqdefault: 320,
   hqdefault: 480,
@@ -65,7 +66,21 @@ function youtubeSources(url: string): CardImageSources {
   // upgrading it risks the placeholder.
   if (current !== 'maxresdefault') return { src: url, srcset: '' };
 
-  return genericExternalSources(url);
+  /*
+    CAPPED AT THE SOURCE. `maxresdefault` is 1280x720 and no bigger, so the
+    1600 and 2000 rungs in WSRV_WIDTHS asked the proxy to UPSAMPLE it.
+    Measured against the real service: w=1600 returned a genuine 1600x900 at
+    210 KB and w=2000 a 2000x1125 at 282 KB, both visibly softer than the
+    source and the larger of them HEAVIER than the 258 KB original this
+    rewrite exists to avoid. A wide screen picked that rung, so the change
+    made desktop worse while making mobile better.
+
+    Same rule as `cappedWidths()` in local-content.ts, and the same one
+    `buildImageSet` documents: never ask a CDN for more pixels than the asset
+    has. The cap is passed rather than applied to WSRV_WIDTHS itself, because
+    that ladder also serves sources which really are larger than 1280.
+  */
+  return genericExternalSources(url, YT_WIDTHS.maxresdefault);
 }
 
 /*
@@ -250,9 +265,18 @@ function substackSources(url: string): CardImageSources {
 /* Same reasoning as SUBSTACK_WIDTHS above: the cards are large enough now that
    a 1200px ceiling is an upscale on a 2x 4K display. */
 const WSRV_WIDTHS = [400, 600, 900, 1200, 1600, 2000];
+
+/** The ladder a source can actually fill: every rung at or below its own width.
+ *  Never empty — a source narrower than the smallest rung still gets that one,
+ *  because one slightly-too-large request beats no srcset at all. */
+function widthsFor(capWidth?: number): number[] {
+  if (!capWidth) return WSRV_WIDTHS;
+  const fit = WSRV_WIDTHS.filter((w) => w <= capWidth);
+  return fit.length ? fit : [WSRV_WIDTHS[0]];
+}
 const WSRV_SRC_WIDTH = 600;
 
-function genericExternalSources(url: string): CardImageSources {
+function genericExternalSources(url: string, capWidth?: number): CardImageSources {
   // Only process absolute external URLs
   if (!/^https?:\/\//i.test(url)) return { src: url, srcset: '' };
   
@@ -274,7 +298,7 @@ function genericExternalSources(url: string): CardImageSources {
 
   return {
     src: withWidth(WSRV_SRC_WIDTH),
-    srcset: WSRV_WIDTHS.map((w) => `${withWidth(w)} ${w}w`).join(', '),
+    srcset: widthsFor(capWidth).map((w) => `${withWidth(w)} ${w}w`).join(', '),
   };
 }
 
