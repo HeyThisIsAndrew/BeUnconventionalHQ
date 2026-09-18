@@ -2729,14 +2729,19 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
         is what made the swap read as something jumping out of nowhere: the
         hero changed to an item the reader could only half see.
 
-        `inline: 'center'` moves it along its own rail only. `block: 'nearest'`
-        is the load-bearing half -- without it `scrollIntoView` also scrolls the
-        PAGE vertically to reach the card, which fights the scroll to the hero
-        immediately below and is the other half of the jarring movement.
+        DONE ON THE RAIL, NOT WITH `scrollIntoView`. That method can move any
+        scrollable ancestor, including the document, and `block: 'nearest'` only
+        promises it will not move one that is already in view. This runs
+        alongside the scroll to the hero below, so "probably will not move the
+        page" is not good enough on the path that was crashing tabs. Setting
+        `scrollLeft` on the rail can move exactly one thing: the rail.
       */
-      const rail = card.closest('[data-rail], .feed-row-rail');
+      const rail = card.closest('[data-rail], .feed-row-rail') as HTMLElement | null;
       if (rail && rail.scrollWidth > rail.clientWidth) {
-        card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        const target =
+          card.offsetLeft - rail.clientWidth / 2 + card.offsetWidth / 2;
+        const max = rail.scrollWidth - rail.clientWidth;
+        rail.scrollTo({ left: Math.max(0, Math.min(target, max)), behavior: 'smooth' });
       }
 
       // Smooth scroll to top so the user sees the hero
