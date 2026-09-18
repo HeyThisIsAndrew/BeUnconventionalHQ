@@ -339,7 +339,7 @@ function genericExternalSources(url: string, capWidth?: number): CardImageSource
     them if a cap is ever missed.
   */
   const withWidth = (w: number) =>
-    `https://wsrv.nl/?url=${encodeURIComponent(urlWithoutProto)}&w=${w}&output=webp&q=85&we`;
+    `https://wsrv.nl/?url=${encodeURIComponent(urlWithoutProto)}&w=${w}&output=webp&q=75&we`;
 
   return {
     src: withWidth(WSRV_SRC_WIDTH),
