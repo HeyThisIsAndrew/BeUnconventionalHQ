@@ -1048,6 +1048,26 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
   }
   .cmd-palette-results {
     overflow-y: auto;
+    /*
+      ─── THE SCROLL STOPS HERE ───────────────────────────────────────────────
+
+      Reported on a phone: with the keyboard up, dragging the results scrolled
+      the whole view instead of the list.
+
+      It is NOT the page lock, which was the obvious suspect and is fine.
+      Verified at runtime with the palette open at 375px: `__hqScrollLock` is
+      published, `modal-open` is on <html>, and `body` computes
+      `position: fixed` — the iOS lock in ios-lock.css is doing its job.
+
+      It is scroll CHAINING. This element was `overscroll-behavior: auto`, so
+      once a drag reaches the top or bottom of the list the browser hands the
+      remaining momentum to whatever is behind it, which on a phone is the
+      whole overlay moving under the reader's finger. `contain` keeps the
+      gesture inside this box and stops it at the boundary, without the
+      side effects of `none` (which would also kill pull-to-refresh
+      elsewhere).
+    */
+    overscroll-behavior: contain;
     padding: 1rem;
     display: flex;
     flex-direction: column;
