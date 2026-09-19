@@ -368,14 +368,41 @@ const fallbackMark = await getImage({
       Both hints, deliberately. `preconnect` opens the connection; the
       `dns-prefetch` beside it is the fallback for browsers that ignore or
       drop the preconnect under memory pressure, and it costs a DNS lookup
-      that was going to happen anyway. `crossorigin` is required on the
-      preconnect for image origins — an anonymous-CORS image fetch uses a
-      different connection pool than a credentialed one, so a preconnect
-      without it warms a socket the image request will not reuse.
+      that was going to happen anyway.
+
+      ─── NO `crossorigin` HERE, AND THE RULE IS THE OPPOSITE OF WHAT THIS
+          NOTE USED TO SAY ────────────────────────────────────────────────
+
+      It read: "`crossorigin` is required on the preconnect for image origins
+      — an anonymous-CORS image fetch uses a different connection pool than a
+      credentialed one". The premise is right and the conclusion is backwards.
+      A plain `<img src>` with NO `crossorigin` attribute is not an
+      anonymous-CORS fetch: it goes out on the ordinary credentialed pool.
+      `<link rel="preconnect" crossorigin>` warms the ANONYMOUS pool, so it
+      warmed a socket none of these images would ever reuse.
+
+      Not a theory. PageSpeed Insights on the live homepage reported it
+      directly, under Preconnected origins:
+
+          https://wsrv.nl   "Unused preconnect. Check that the `crossorigin`
+                             attribute is used properly."
+
+      and then listed the same origin under Preconnect candidates with an
+      estimated LCP saving of 320ms — the hint was being paid for and
+      discarded in the same breath.
+
+      Every consumer of this prop is a plain `<img>`: wsrv.nl on `/` and
+      cdn.sanity.io on `/events`, neither of which carries a `crossorigin`
+      attribute. If an origin is ever added here whose fetches ARE
+      anonymous-CORS (a font, a `fetch()`, an `<img crossorigin>`), it needs
+      its own preconnect WITH the attribute — the two pools are separate and
+      one tag cannot warm both. Astro's `<Font preload>` already emits its own
+      correctly-credentialed preload for the font files, which is why nothing
+      here has to.
     */}
     {preconnect.map((origin: string) => (
       <>
-        <link rel="preconnect" href={origin} crossorigin />
+        <link rel="preconnect" href={origin} />
         <link rel="dns-prefetch" href={origin} />
       </>
     ))}

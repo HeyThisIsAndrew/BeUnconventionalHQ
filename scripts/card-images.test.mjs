@@ -82,10 +82,24 @@ test('the proxied ladder is offered in srcset', () => {
 test('maxresdefault offers all wsrv.nl proxy widths', () => {
   const entries = parseSrcset(getCardImageSources(MAXRES).srcset);
   assert.deepEqual(entries, [
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=400&output=webp&q=85&we', descriptor: '400w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=85&we', descriptor: '600w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=900&output=webp&q=85&we', descriptor: '900w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1200&output=webp&q=85&we', descriptor: '1200w' },
+    /*
+      TWO CHANGES MERGED HERE, from two branches that fixed different halves.
+
+      `q=75` (was 85) is the compression half: PageSpeed put 20.2 KiB on the
+      banner spotlight art alone under "Increasing the image compression factor
+      could improve this image's download size".
+
+      `800` is the ladder half. 412 CSS px at DPR 1.75 is 721 device px, which
+      had to take the 900 rung; the other branch used 750, which also clears
+      721 but drops a 390px phone at DPR 2 (780) back onto the 900. 800 clears
+      both, and it is the only rung added -- see the note on WSRV_WIDTHS for
+      why the ladder stays coarse.
+    */
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=400&output=webp&q=75&we', descriptor: '400w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=75&we', descriptor: '600w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=800&output=webp&q=75&we', descriptor: '800w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=900&output=webp&q=75&we', descriptor: '900w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1200&output=webp&q=75&we', descriptor: '1200w' },
   ]);
 });
 
@@ -208,9 +222,10 @@ test('no height is pinned', () => {
 
 test('srcset ascends and descriptors match their widths', () => {
   const entries = parseSrcset(getCardImageSources(SUBSTACK_NO_WIDTH).srcset);
-  /* Six since the cards grew: a featured tile is 860px on a 4K display, which
-     is ~1720 device pixels at 2x, so the ladder runs past 1200. */
-  assert.equal(entries.length, 6);
+  /* Seven since the cards grew: a featured tile is 860px on a 4K display, which
+     is ~1720 device pixels at 2x, so the ladder runs past 1200. The seventh is the
+     800w rung that closes the 600->900 gap a phone falls into. */
+  assert.equal(entries.length, 7);
 
   let previous = 0;
   for (const { url, descriptor } of entries) {
@@ -411,7 +426,7 @@ test('a cover with NO width transform still gets one, plus a srcset', () => {
   assert.match(src, /,w_\d+,c_limit\//, 'src must carry an inserted width cap');
   assert.ok(!/w_\d+.*w_\d+/.test(src.split('/https')[0]), 'exactly one width in the transform list');
   const widths = [...srcset.matchAll(/ (\d+)w/g)].map((m) => Number(m[1]));
-  assert.deepEqual(widths, [400, 600, 900, 1200, 1600, 2000]);
+  assert.deepEqual(widths, [400, 600, 800, 900, 1200, 1600, 2000]);
 });
 
 test('the hero never routes a non-Substack cover through wsrv.nl', () => {
