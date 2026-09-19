@@ -84,6 +84,9 @@ test('maxresdefault offers all wsrv.nl proxy widths', () => {
   assert.deepEqual(entries, [
     { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=400&output=webp&q=85&we', descriptor: '400w' },
     { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=85&we', descriptor: '600w' },
+    /* 800 closes the gap a phone falls into: 412 CSS px at DPR 1.75 is 721
+       device px, which used to take the 900. See the note on WSRV_WIDTHS. */
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=800&output=webp&q=85&we', descriptor: '800w' },
     { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=900&output=webp&q=85&we', descriptor: '900w' },
     { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1200&output=webp&q=85&we', descriptor: '1200w' },
   ]);

@@ -288,8 +288,30 @@ function substackSources(url: string): CardImageSources {
 
 /** Rendition widths for generic external proxy, smallest first. */
 /* Same reasoning as SUBSTACK_WIDTHS above: the cards are large enough now that
-   a 1200px ceiling is an upscale on a 2x 4K display. */
-const WSRV_WIDTHS = [400, 600, 900, 1200, 1600, 2000];
+   a 1200px ceiling is an upscale on a 2x 4K display.
+
+   ─── 800 EXISTS BECAUSE OF THE 600→900 GAP ON A PHONE ─────────────────────
+
+   A phone lands between the two rungs and therefore always took the 900.
+   PageSpeed Insights on the live homepage, emulating a Moto G Power
+   (412 CSS px at DPR 1.75 = 721 device px), flagged three images for it:
+
+     spotlight-art, banner variant   900x417 delivered for 721x405   17.9 KiB
+     content-card-img               900x506 delivered for 647x364   16.0 KiB
+     content-card-img               900x506 delivered for 647x364   14.6 KiB
+
+   all with the same note: "This image file is larger than it needs to be ...
+   Use responsive images to reduce the image download size." One rung at 800
+   covers every one of them, and the common DPR-2 widths under it (360x2=720,
+   390x2=780), without inventing a rung per device.
+
+   ONE rung, not three. Every width here is a distinct wsrv.nl URL and
+   therefore a distinct cold transcode the first time anyone asks for it — see
+   the note at the top of src/lib/article-images.ts for what a cold proxy costs
+   on a real phone. A finer ladder trades a warm-cache saving for a cold-cache
+   penalty, so the ladder stays coarse and only closes the gap that measurement
+   actually showed. */
+const WSRV_WIDTHS = [400, 600, 800, 900, 1200, 1600, 2000];
 
 /** The ladder a source can actually fill: every rung at or below its own width.
  *  Never empty — a source narrower than the smallest rung still gets that one,
