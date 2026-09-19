@@ -279,6 +279,80 @@ for (const rel of CTA_FILES) {
   });
 }
 
+console.log('\nThe hero action row:');
+
+/*
+  ─── ORDER IS FIXED: SUBSCRIBE, WATCH ON YOUTUBE, THEN THE REST ────────────
+
+  The two YouTube actions are a pair and must not be split. The hub CTA used
+  to be inserted straight after SUBSCRIBE, which put EXPLORE in the MIDDLE of
+  them, so the watch button moved depending on whether the loaded item
+  happened to have a hub. It is asserted in the MARKUP and in the swap
+  handler, because the row is rebuilt at runtime and only pinning both keeps
+  them agreeing.
+*/
+const HERO = read('src/components/FeedSpotlightHero.astro');
+
+test('the markup renders SUBSCRIBE, then the watch link, then the hub CTA', () => {
+  const subscribe = HERO.indexOf('feed-hero-youtube-btn');
+  const watch = HERO.indexOf('hero-watch-on-youtube');
+  const hub = HERO.indexOf('hero-featured-hub-btn');
+  assert.ok(subscribe > -1 && watch > -1 && hub > -1, 'all three buttons must exist');
+  assert.ok(subscribe < watch, 'SUBSCRIBE comes first');
+  assert.ok(watch < hub, 'the watch link comes before the hub CTA, never after it');
+});
+
+test('the swap handler inserts the watch link directly after SUBSCRIBE', () => {
+  const SRC = code(HERO);
+  assert.match(
+    SRC,
+    /subscribeBtn\.after\(watchBtn\)/,
+    'appending lands it after a hub button the same swap may have just inserted',
+  );
+});
+
+test('the swap handler inserts the hub CTA after the watch link', () => {
+  const SRC = code(HERO);
+  assert.match(
+    SRC,
+    /querySelector\('\.feed-hero-watch-btn'\) \|\| subscribe/,
+    'anchoring on SUBSCRIBE unconditionally puts EXPLORE between the two YouTube buttons',
+  );
+});
+
+test('the watch link shares the subscribe button design by selector, not by copy', () => {
+  const SRC = code(HERO);
+  /*
+    Both class names on ONE rule. A second block with the same declarations
+    would drift the moment a padding or border changed in only one of them,
+    which is how the site's two tag lists came to disagree.
+  */
+  assert.match(
+    SRC,
+    /\.feed-hero-youtube-btn,\s*\.feed-hero-watch-btn \{/,
+    'the two buttons must share one rule',
+  );
+  assert.match(
+    SRC,
+    /\.feed-hero-youtube-btn:hover,\s*\.feed-hero-youtube-btn:focus-visible,\s*\.feed-hero-watch-btn:hover,\s*\.feed-hero-watch-btn:focus-visible/,
+    'the hover and focus states are part of the design too',
+  );
+  assert.ok(
+    !/\.feed-hero-watch-btn \{[^}]*text-decoration:\s*underline/.test(SRC),
+    'the quiet underlined treatment is what this replaced',
+  );
+});
+
+test('the shared rule pins a line box, so the glyphless button is not shorter', () => {
+  const SRC = code(HERO);
+  const rule = SRC.slice(SRC.indexOf('.feed-hero-youtube-btn,'));
+  assert.match(
+    rule.slice(0, 600),
+    /line-height:\s*15px/,
+    'SUBSCRIBE is as tall as its 15px glyph: measured 30px against 27px without this',
+  );
+});
+
 console.log('\nHouse style:');
 
 test('no em dash in the copy either player shows a visitor', () => {

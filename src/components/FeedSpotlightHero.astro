@@ -345,12 +345,49 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
           </a>
 
           {/*
+            ─── THE WAY OUT OF THE STAGE ───────────────────────────────────────
+
+            SECOND in the row, directly after SUBSCRIBE. The row order is fixed
+            and deliberate: SUBSCRIBE, then WATCH ON YOUTUBE, then whatever the
+            item brings with it. The two YouTube actions read as a pair that
+            way, and the pair does not reshuffle between items, which is what
+            happened while the hub CTA sat between them: a hero with a hub put
+            EXPLORE in the middle and one without it did not, so the same
+            button moved depending on what was loaded.
+
+            It lives in the COPY column rather than over the stage because the
+            stage is `position: absolute; inset: 0` end to end, so anything
+            added there lands on top of YouTube's own controls, and because a
+            link pinned inside the frame disappears with it when the stage pops
+            out to PiP.
+
+            Rendered whenever the loaded item is a video, playing or not, for
+            the reason in the watchUrl note above: detection is the enhancement,
+            the door is the fix. FeedGrid's swap handler retargets, inserts and
+            removes it, and inserts the hub button AFTER it.
+          */}
+          {isVideo && watchUrl && (
+            <a
+              id="hero-watch-on-youtube"
+              class="feed-hero-watch-btn"
+              href={watchUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >Watch on YouTube</a>
+          )}
+
+          {/*
             ─── THE HUB CTA ────────────────────────────────────────────────────
 
             Sends the reader to the hero item's own hub: /featured/<slug> for a
             brand, /events/<slug> for a convention. The destination is decided
             server-side by resolveEntity(), so the two shapes of URL never have
             to be worked out in the browser.
+
+            LAST in the row, after SUBSCRIBE and WATCH ON YOUTUBE. It is the
+            one button here that depends on the item, so it goes where an
+            item-dependent button can appear and disappear without moving the
+            two that are always there.
 
             Rendered only when an entity actually resolved. It is omitted from
             the DOM entirely rather than hidden with a style, so there is no
@@ -377,30 +414,6 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
             </a>
           )}
 
-          {/*
-            ─── THE WAY OUT OF THE STAGE ───────────────────────────────────────
-
-            Last in the row, deliberately: it is the fallback, not a promotion,
-            and the two CTAs above it are what the hero is asking for. It lives
-            in the COPY column rather than over the stage because the stage is
-            `position: absolute; inset: 0` end to end, so anything added there
-            lands on top of YouTube's own controls, and because a link pinned
-            inside the frame disappears with it when the stage pops out to PiP.
-
-            Rendered whenever the loaded item is a video, playing or not, for
-            the reason in the watchUrl note above: detection is the enhancement,
-            the door is the fix. FeedGrid's swap handler retargets, inserts and
-            removes it alongside the hub button.
-          */}
-          {isVideo && watchUrl && (
-            <a
-              id="hero-watch-on-youtube"
-              class="feed-hero-watch-btn"
-              href={watchUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >Watch on YouTube</a>
-          )}
           </div>
 
           {/*
@@ -1191,37 +1204,6 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
   }
 
   /*
-    ─── THE ESCAPE LINK IS QUIET ON PURPOSE ──────────────────────────────────
-
-    It sits in the same row as SUBSCRIBE and EXPLORE, so it has to read as the
-    third thing there rather than a third call to action. Underlined text at
-    the muted token, no border and no box: the row still has exactly two
-    buttons in it.
-
-    --color-white-muted is #888888 on this surface, which CLAUDE.md records at
-    5.33:1. It clears AA, so the quiet treatment does not cost legibility.
-  */
-  .feed-hero-watch-btn {
-    display: inline-flex;
-    align-items: center;
-    margin-top: 0.15rem;
-    padding: 0.5rem 0.2rem;
-    color: var(--color-white-muted, #888888);
-    font-family: var(--font-body);
-    font-size: 0.62rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    text-decoration: underline;
-    text-underline-offset: 0.25em;
-    transition: color 0.25s ease;
-  }
-
-  .feed-hero-watch-btn:hover,
-  .feed-hero-watch-btn:focus-visible {
-    color: var(--color-white, #f0f0f0);
-  }
-
-  /*
     The note is an explanation, not a control, so it never joins the button
     row: it goes UNDER it at full width, where a sentence can wrap without
     stretching the flex row that holds the two CTAs. `[hidden]` is restated
@@ -1290,11 +1272,32 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
     }
   }
 
-  /* Recreated youtube button styling to match featured page */
-  .feed-hero-youtube-btn {
+  /*
+    ─── SUBSCRIBE AND WATCH ON YOUTUBE ARE ONE DESIGN ────────────────────────
+
+    Shared by SELECTOR, not by a second copy of the declarations. The escape
+    link shipped first as quiet underlined text on the reasoning that it was a
+    fallback rather than a third call to action, and next to a bordered
+    SUBSCRIBE that read as unstyled text rather than as restraint.
+
+    Listing both here is what keeps them one design. Copying the block and
+    keeping the two in step by hand is how `coverageTags` and
+    `youtubeSyncKeywords` drifted, and a padding or border change here would
+    silently apply to only one of the two buttons standing side by side.
+
+    Recreated to match the featured page.
+  */
+  .feed-hero-youtube-btn,
+  .feed-hero-watch-btn {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
+    /* Matches .feed-hero-youtube-glyph's height. SUBSCRIBE is as tall as its
+       glyph, not as tall as its text, so without this the button beside it
+       comes out 3px shorter: measured 30px against 27px at 1440x900. Set on
+       the shared rule rather than on the glyphless one, so the two cannot be
+       given different line boxes later. */
+    line-height: 15px;
     margin-top: 0.15rem; /* Matches .hub-stage-replay */
     padding: 0.5rem 1.05rem 0.5rem 0.9rem;
     border: 1px solid rgba(255, 255, 255, 0.28);
@@ -1311,7 +1314,9 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
   }
 
   .feed-hero-youtube-btn:hover,
-  .feed-hero-youtube-btn:focus-visible {
+  .feed-hero-youtube-btn:focus-visible,
+  .feed-hero-watch-btn:hover,
+  .feed-hero-watch-btn:focus-visible {
     border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.85);
     background: rgba(0, 0, 0, 0.5);
   }
@@ -1322,9 +1327,19 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
     flex-shrink: 0;
   }
 
-  .feed-hero-youtube-btn:focus-visible {
+  .feed-hero-youtube-btn:focus-visible,
+  .feed-hero-watch-btn:focus-visible {
     outline: 2px solid var(--color-accent-text, #ef4444);
     outline-offset: 3px;
+  }
+
+  /*
+    The one declaration the two do NOT share. SUBSCRIBE is padded tighter on
+    its left for the glyph that sits there; this button has no glyph, so the
+    same asymmetry would read as a box with its label pushed off centre.
+  */
+  .feed-hero-watch-btn {
+    padding-left: 1.05rem;
   }
 
   .hub-stage-mark-img {
@@ -2660,9 +2675,16 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
         does not is — rather than being parked at `display: none`, which would
         leave a link to nowhere in the tab order for every item with no hub.
 
-        Inserted after the SUBSCRIBE button so the two stay in their rendered
-        order, and stamped with the hero's scoped-style attribute: a node built
-        here carries none of Astro's `data-astro-cid-*`, and without it the
+        Inserted LAST, so the row keeps its rendered order: SUBSCRIBE, then
+        WATCH ON YOUTUBE, then this. It anchors off the watch link when there
+        is one and falls back to SUBSCRIBE when there is not (an article has no
+        watch page, so its link is removed). Anchoring off SUBSCRIBE
+        unconditionally is what put EXPLORE in the MIDDLE of the two YouTube
+        buttons, moving the second one depending on whether the loaded item
+        happened to have a hub.
+
+        Stamped with the hero's scoped-style attribute: a node built here
+        carries none of Astro's `data-astro-cid-*`, and without it the
         `.feed-hero-hub-btn` rules simply do not match. That was the bug that
         made rebuilt hero chips render as bare text.
       */
@@ -2695,7 +2717,9 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
           hubBtn.appendChild(glyph);
 
           carryScope(subscribe || hubRow, hubBtn);
-          subscribe ? subscribe.after(hubBtn) : hubRow.appendChild(hubBtn);
+          /* The watch link when it is there, SUBSCRIBE otherwise. */
+          const after = hubRow.querySelector('.feed-hero-watch-btn') || subscribe;
+          after ? after.after(hubBtn) : hubRow.appendChild(hubBtn);
         }
 
         if (hubBtn) {
@@ -2733,8 +2757,12 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
           watchBtn.target = '_blank';
           watchBtn.rel = 'noopener noreferrer';
           watchBtn.textContent = 'Watch on YouTube';
-          carryScope(hubRow.querySelector('.feed-hero-youtube-btn') || hubRow, watchBtn);
-          hubRow.appendChild(watchBtn);
+          const subscribeBtn = hubRow.querySelector('.feed-hero-youtube-btn');
+          carryScope(subscribeBtn || hubRow, watchBtn);
+          /* Straight after SUBSCRIBE. Appending would land it after a hub
+             button this same swap may have just inserted, which is the
+             rendered order backwards. */
+          subscribeBtn ? subscribeBtn.after(watchBtn) : hubRow.appendChild(watchBtn);
         }
         if (watchBtn) {
           watchBtn.href = `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
