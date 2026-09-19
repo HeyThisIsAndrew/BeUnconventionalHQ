@@ -139,3 +139,66 @@
     height: 44px;
   }
 }
+
+/*
+  ─── THE VIDEO MODAL'S WAY OUT ──────────────────────────────────────────────
+
+  A reader on /feed hit a Google sign-in prompt inside the player, signed in,
+  and the embed still refused. With only a Close button on screen that reads as
+  a broken site rather than as YouTube declining to serve an age-restricted
+  video to a third-party embed, which is what it is. See the note in
+  Layout.astro for why no player parameter can fix that.
+
+  The link is ALWAYS rendered, so it never depends on detecting the refusal.
+  `.video-modal-note` is `hidden` in the markup and revealed only when the
+  player reports an error, so the ordinary case is one quiet line rather than a
+  warning on every video.
+
+  Muted rather than accent-red at rest: this sits under every video that plays
+  perfectly well, and a red call-out there would read as an error on content
+  that has nothing wrong with it. `--color-accent-text` is the legible red
+  (5.02:1) for the hover, per the palette note in CLAUDE.md -- never
+  `--color-accent`, which is a border colour at 3.21:1.
+*/
+.video-modal-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+  text-align: center;
+}
+
+.video-modal-note {
+  margin: 0;
+  color: var(--color-white-muted, #888888);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  max-width: 46ch;
+}
+
+.video-modal-note[hidden] {
+  display: none;
+}
+
+.video-modal-watch {
+  color: var(--color-white-muted, #888888);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+  padding-bottom: 2px;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.video-modal-watch:hover,
+.video-modal-watch:focus-visible {
+  color: var(--color-accent-text, #ef4444);
+  border-color: var(--color-accent-text, #ef4444);
+}
+
+.video-modal-watch:focus-visible {
+  outline: 2px solid var(--color-accent-text, #ef4444);
+  outline-offset: 3px;
+}

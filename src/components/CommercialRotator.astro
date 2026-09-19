@@ -148,9 +148,34 @@ const getBannerCopy = (item: ReferralItem) => ({
       `hidden` and the script reveals it: with no JS nothing rotates, so
       there would be nothing for it to stop.
     */}
+    {/*
+      Prev and Next ship `hidden` for the same reason the pause button does:
+      they move the band by calling into this component's script, so without
+      it they are two buttons that do nothing. The band is still readable
+      without JS, because the first slide is rendered `data-state="active"`.
+
+      They sit either side of pause, in the disclosure row, OUTSIDE the
+      rotator itself. That placement is load-bearing rather than tidy: every
+      slide is a full-bleed <a> to a partner, so a control inside the frame
+      would be a click target sitting on top of a commercial link.
+    */}
+    <button type="button" class="banner-nav-btn" id="banner-prev" hidden>
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M15 18l-6-6 6-6" />
+      </svg>
+      <span class="sr-only">Previous link</span>
+    </button>
+
     <button type="button" class="banner-pause-btn" id="banner-pause" hidden>
       <span class="banner-pause-glyph" aria-hidden="true">&#10073;&#10073;</span>
       <span class="sr-only" id="banner-pause-label">Pause the rotating links</span>
+    </button>
+
+    <button type="button" class="banner-nav-btn" id="banner-next" hidden>
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M9 18l6-6-6-6" />
+      </svg>
+      <span class="sr-only">Next link</span>
     </button>
   </div>
 </div>
@@ -210,30 +235,74 @@ const getBannerCopy = (item: ReferralItem) => ({
       progress.classList.add('is-counting');
     };
 
-    const advance = () => {
-      const nextIndex = (index + 1) % slides.length;
+    /*
+      ─── ONE MOVE, EITHER DIRECTION ───────────────────────────────────────
+
+      This was `advance()`, hard-wired to +1 and to a downward flip. Manual
+      Previous needs the SAME state juggling with the two hidden states
+      swapped, so the direction is a parameter rather than a second copy of
+      the sequence: a copy is how the two would come to disagree about which
+      slide is `index` after a rapid press.
+
+      `delta` decides which side the incoming slide waits on. Forward, it is
+      snapped to the ceiling (`hidden-prev`) and the outgoing one drops to the
+      floor (`hidden-next`), which is the flip the clock has always produced.
+      Backward is the mirror of that, so Previous visibly runs the animation
+      in reverse rather than replaying Next with different content.
+    */
+    const go = (delta: number) => {
+      const nextIndex = (index + delta + slides.length) % slides.length;
+      if (nextIndex === index) return;
+
       const current = slides[index];
       const next = slides[nextIndex];
 
-      /* Snap the incoming slide to the ceiling with its transition off, so it
-         flips DOWN into view instead of rising back out of the floor it was
-         left on. */
+      const enterFrom = delta > 0 ? 'hidden-prev' : 'hidden-next';
+      const exitTo = delta > 0 ? 'hidden-next' : 'hidden-prev';
+
+      /* Snap the incoming slide to its starting side with the transition off,
+         so it flips INTO view instead of sliding back out of wherever it was
+         left. */
       next.style.transition = 'none';
-      next.dataset.state = 'hidden-prev';
+      next.dataset.state = enterFrom;
       void next.offsetWidth;
       next.style.transition = '';
 
-      current.dataset.state = 'hidden-next';
+      current.dataset.state = exitTo;
       next.dataset.state = 'active';
       setSlideHidden(current, true);
       setSlideHidden(next, false);
 
       index = nextIndex;
       metaLabel.textContent = next.dataset.meta ?? metaLabel.textContent;
+
+      /*
+        Restart the lap, and this is correct even while the reader has PAUSED.
+        startLap() re-adds `is-counting`, but the paused state lives in CSS on
+        `.is-paused`, so the outline resets to zero and stays frozen there. The
+        slide moves, the clock does not resume, and no JS flag is consulted to
+        get that right -- the same contract the pause button already relies on.
+      */
       startLap();
     };
 
+    const advance = () => go(1);
+
     progress.addEventListener('animationend', advance);
+
+    /*
+      Manual navigation, so a reader does not have to wait out an 8s lap to
+      see the next partner. Revealed here for the same reason the pause button
+      is: with no JS there is nothing for them to drive.
+    */
+    const prevBtn = document.getElementById('banner-prev');
+    const nextBtn = document.getElementById('banner-next');
+    if (prevBtn && nextBtn) {
+      prevBtn.hidden = false;
+      nextBtn.hidden = false;
+      prevBtn.addEventListener('click', () => go(-1));
+      nextBtn.addEventListener('click', () => go(1));
+    }
 
     /* The pause control. It only toggles a class: the stylesheet stops the
        outline, and the outline is the clock. */
@@ -611,7 +680,15 @@ const getBannerCopy = (item: ReferralItem) => ({
     pointer-events: none;
   }
 
-  .banner-pause-btn {
+  /*
+    ONE BOX FOR ALL THREE CONTROLS. Prev, pause and next share these rules
+    rather than the chevrons carrying a near-copy: the disclosure row's height
+    is set by whichever control is tallest, so two rules drifting by a pixel
+    would move the row and the banner above it. Adding a control is adding a
+    selector here, not a second block to keep in step.
+  */
+  .banner-pause-btn,
+  .banner-nav-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -628,9 +705,25 @@ const getBannerCopy = (item: ReferralItem) => ({
   }
 
   .banner-pause-btn:hover,
-  .banner-pause-btn:focus-visible {
+  .banner-pause-btn:focus-visible,
+  .banner-nav-btn:hover,
+  .banner-nav-btn:focus-visible {
     color: var(--color-white);
     border-color: var(--color-accent);
+  }
+
+  /* `display: block` kills the inline baseline gap that would otherwise push
+     the chevron a pixel off centre inside the 1.5rem box. */
+  .banner-nav-btn svg {
+    display: block;
+  }
+
+  /* The UA sheet's `[hidden]` is `display: none`, which the flex rule above
+     overrides, so both controls need it restated or they would be visible
+     with no script to drive them. */
+  .banner-pause-btn[hidden],
+  .banner-nav-btn[hidden] {
+    display: none;
   }
 
   .banner-pause-glyph {

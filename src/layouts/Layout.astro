@@ -817,6 +817,51 @@ const fallbackMark = await getImage({
             allowfullscreen
             title="YouTube video player"></iframe>
         </div>
+
+        {/*
+          ─── THE WAY OUT, AND WHY IT IS ALWAYS PRESENT ────────────────────
+
+          Reported from production: a reader on /feed met a Google sign-in
+          modal inside the player, signed in, and the iframe still refused to
+          play. They were stuck with nothing to click but Close.
+
+          That is not a bug in this site's markup. There is no `sandbox`
+          attribute on this iframe (or any other), and the site sends no COEP
+          or COOP header, so nothing here is stripping YouTube's cookies. Two
+          things combine instead:
+
+            1. The player is `youtube-nocookie.com`, whose entire purpose is
+               to NOT carry the viewer's YouTube session. Signing in through
+               a prompt it shows cannot hand it a session it is built to
+               refuse.
+            2. YouTube does not allow age-restricted videos to play in ANY
+               third-party embed. Private videos and ones whose owner
+               disabled embedding behave the same way. No player parameter
+               changes that: it is enforced at their end.
+
+          So the fix cannot be a parameter, and switching to youtube.com
+          would trade the privacy posture away and STILL not play an
+          age-restricted video. What the reader actually lacked was a door.
+
+          This link is rendered ALWAYS and its href is set every time the
+          modal opens, so the escape hatch does not depend on detecting the
+          failure. The note above it is the enhancement: it appears only when
+          the player tells us it refused, which explains WHY rather than
+          leaving a working-looking player that does nothing.
+        */}
+        <div class="video-modal-footer">
+          <p class="video-modal-note" id="modal-embed-note" hidden>
+            YouTube will not play this video in an embedded player. Age restricted
+            and private videos have to be watched on YouTube itself.
+          </p>
+          <a
+            class="video-modal-watch"
+            id="modal-watch-on-youtube"
+            href="https://www.youtube.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >Watch on YouTube</a>
+        </div>
       </div>
     </div>
 
@@ -899,6 +944,28 @@ const fallbackMark = await getImage({
             */
             lockScroll();
 
+            /*
+              The escape hatch, pointed at THIS video, before the player is
+              given a chance to refuse it. See the markup note: it is set
+              unconditionally rather than in an error handler, so a reader is
+              never trapped even if the refusal is never reported to us.
+
+              youtube.com here, deliberately, NOT youtube-nocookie.com: this
+              link leaves the site, and the whole point is to reach the one
+              place an age-restricted video will actually play.
+            */
+            const watchLink = document.getElementById('modal-watch-on-youtube');
+            if (watchLink) {
+              watchLink.setAttribute(
+                'href',
+                `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`,
+              );
+            }
+            /* Reset the explanation: it belongs to the previous video until
+               this one tells us otherwise. */
+            const embedNote = document.getElementById('modal-embed-note');
+            if (embedNote) embedNote.hidden = true;
+
             // ACTION 2.1 & 2.2: No autoplay, use rel=0 and modestbranding=1
             modalIframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1`;
             modal.classList.add('active');
@@ -960,6 +1027,66 @@ const fallbackMark = await getImage({
             lastFocused = null;
           }
         }
+
+        /*
+          ─── WHEN YOUTUBE SAYS NO, SAY SO ─────────────────────────────────
+
+          `enablejsapi=1` is already on the embed URL, which means the player
+          will talk back over postMessage once something asks it to listen.
+          The handshake is the `listening` message below; after it, the player
+          posts its events, and `onError` is the one that matters here:
+
+            2    the request contained an invalid parameter
+            5    the video cannot be played in an HTML5 player
+            100  the video is private, or has been removed
+            101  the owner does not allow embedded playback
+            150  the same as 101
+
+          101/150 is what an age-restricted video reports, and it is the case
+          that produced the trapped reader. Revealing the note turns a player
+          that looks broken into one that explains itself and points at the
+          link beside it.
+
+          This is an ENHANCEMENT, not the fix. The "Watch on YouTube" link is
+          set on every open regardless, because a detection that silently
+          fails to fire would put the reader straight back in the trap. If
+          YouTube ever changes this undocumented channel, the door still
+          works and only the explanation is lost.
+        */
+        window.addEventListener('message', (event) => {
+          /* Only the player's own origin, and only while its modal is open. */
+          if (event.origin !== 'https://www.youtube-nocookie.com') return;
+
+          const frame = document.getElementById('modal-iframe') as HTMLIFrameElement | null;
+          if (!frame || event.source !== frame.contentWindow) return;
+
+          let payload: any;
+          try {
+            payload = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+          } catch {
+            return; // Not JSON, so not a player event. Nothing to do.
+          }
+
+          if (payload && payload.event === 'onError') {
+            const note = document.getElementById('modal-embed-note');
+            if (note) note.hidden = false;
+          }
+        });
+
+        /*
+          The handshake has to be sent AFTER the player document has loaded,
+          which is why it hangs off the iframe's own load event rather than
+          firing beside the `src` assignment. `about:blank` fires load too, so
+          the src is checked before posting into it.
+        */
+        document.getElementById('modal-iframe')?.addEventListener('load', (event) => {
+          const frame = event.currentTarget as HTMLIFrameElement;
+          if (!frame.src.includes('youtube-nocookie.com')) return;
+          frame.contentWindow?.postMessage(
+            JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }),
+            'https://www.youtube-nocookie.com',
+          );
+        });
 
         // Global Event Delegation for Video Triggers
         if (!window.videoModalSetup) {
