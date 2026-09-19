@@ -96,7 +96,32 @@ console.log('\nThe homepage preload');
 
 check('index.astro preloads the banner through Layout', () => {
   const src = code(read('src/pages/index.astro'));
-  assert.match(src, /preloadImage=\{bannerImg\.src\}/, 'the banner preload is gone');
+  assert.match(src, /preloadImage=\{heroBanner\.src\}/, 'the banner preload is gone');
+});
+
+/*
+  The preload and the <img> must resolve to the SAME url, or the preload is a
+  second download rather than a head start. They used to share the raw import;
+  they now share `heroBanner` from src/lib/hero-banner.ts, which exists so the
+  two cannot drift. The backdrop is blurred 30px and is therefore requested
+  small -- see that module for the full reasoning.
+*/
+check('the hero <img> and the preload read the same derived banner', () => {
+  const hero = code(read('src/components/Hero.astro'));
+  const index = code(read('src/pages/index.astro'));
+  for (const [name, src] of [['Hero.astro', hero], ['index.astro', index]]) {
+    assert.match(
+      src,
+      /import \{ heroBanner \} from '(\.\.\/lib|\.\.\/\.\.\/lib)\/hero-banner'/,
+      `${name} must take the banner from src/lib/hero-banner.ts`,
+    );
+    assert.ok(
+      !/from '.*assets\/banner\.webp'/.test(src),
+      `${name} must not import the raw banner asset directly -- it ships unoptimised`,
+    );
+  }
+  assert.match(hero, /class="hero-bg-image"/);
+  assert.match(hero, /src=\{heroBanner\.src\}/, 'the hero <img> must use the derived src');
 });
 
 check('index.astro does not set response headers on a prerendered page', () => {
