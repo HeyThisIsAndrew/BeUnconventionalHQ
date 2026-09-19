@@ -880,6 +880,15 @@ const fallbackMark = await getImage({
     <script>
       import { lockScroll, unlockScroll } from '../lib/scroll-lock';
       import { keepFixedControlsTappable, publishViewportHeight } from '../lib/viewport-anchor';
+      import { initEmbedPause } from '../lib/embed-pause';
+
+      /* Every audible YouTube embed on the site pauses when the tab is hidden
+         and resumes when it comes back. Reported as duplicate audio: opening a
+         video in a NEW TAB from the homepage featured shelf left the shelf
+         playing behind it. Mounted here because it is site-wide, and self
+         guarded, so the page-load binding only re-sweeps for new frames. */
+      initEmbedPause();
+      document.addEventListener('astro:page-load', initEmbedPause);
 
       /* Bound once, site-wide: iOS Safari leaves fixed elements hit-tested at
          stale coordinates after it resizes the web view (its landscape tab bar

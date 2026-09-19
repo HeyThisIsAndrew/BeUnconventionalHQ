@@ -77,6 +77,36 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    decoded and hidden waiting for the bundle: LCP phases were load delay 13ms,
    load duration 125ms, render delay **1016ms**. Never make the first slide's
    visibility depend on JS again.
+11. **There is more than one YouTube player, and a fix to one is not a fix to
+   the site.** They are `#video-modal` (Layout.astro, opened by a card),
+   `#hero-iframe` (FeedSpotlightHero, the /feed hero stage), FeaturedHighlights
+   (homepage shelf, via the IFrame API), HeroTrailer, and the event/hub stages.
+   A reader trapped by a YouTube sign-in wall on /feed was "fixed" in the modal
+   alone, which was the one player he was not using. Both the escape hatch and
+   the `onError` note are asserted for BOTH named players in one file,
+   `scripts/embed-escape.test.mjs`, for the reason event-hero-lockup.test.mjs
+   gives. **No embed carries `autoplay=1` with sound.** The stage did and the
+   modal did not, and that was the only difference between the player that
+   walled him and the player that played for him on the same machine; an embed
+   that starts itself is what YouTube's bot check looks for, and it is decided
+   per viewer, so it reproduces for one reader and for nobody testing it. The
+   stage starts through the jsapi `playVideo` command instead, so the visitor
+   still gets one click. **The "Watch on YouTube" link is rendered ALWAYS**, never
+   gated on detecting the failure: a detector that silently stops firing puts
+   the reader back in the trap with nothing on screen saying so.
+12. **Pausing an embed belongs to `src/lib/embed-pause.ts` and nowhere else.**
+   Mounted once from Layout, it pauses every playing embed on
+   `document.hidden` and resumes only what it paused. Reported as duplicate
+   audio: a video opened in a new tab while the homepage shelf played on
+   behind it. FeaturedHighlights already paused on its own "Watch now" click
+   and still lost the case, because a middle click fires `auxclick` and "Open
+   link in new tab" from the context menu fires no click at all. **Pausing per
+   route is how you miss routes.** Two things it must never do: decide
+   muted-ness from the embed URL (HeroTrailer ships `mute=1` and then unmutes
+   by command, so the src lies about the sound) and touch the DOM on the
+   message path (a playing embed posts several `infoDelivery` messages a
+   second). HeroTrailer is sent standard commands from outside and is never
+   edited, per hard rule 2. `scripts/embed-pause.test.mjs` guards all of it.
 
 ## Data flow
 

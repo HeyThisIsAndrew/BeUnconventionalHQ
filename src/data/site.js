@@ -29,8 +29,27 @@ export const site = {
     { label: 'About', href: 'about' },
   ],
 
+  /*
+   * ─── THE CHANNEL HAS TWO URLs, AND BOTH BELONG HERE ──────────────────────
+   *
+   * `youtube` is the channel. `youtubeSubscribe` is the same channel with
+   * `?sub_confirmation=1`, which makes YouTube open its one-click subscribe
+   * dialog over the page instead of dropping the visitor on the channel and
+   * leaving them to find the button. Any CTA whose ASK is "subscribe" wants
+   * the second one; a link that merely points at the channel wants the first.
+   *
+   * Derived here rather than written out, and derived rather than assembled
+   * at each call site. It had been assembled at call sites: CommercialRotator
+   * carried the full URL with the parameter typed into it, and the /feed
+   * hero's SUBSCRIBE button pointed at the bare channel. Two copies of one
+   * handle, and the one place it mattered most was the one that lost the
+   * parameter. Neither file spells the handle out now.
+   */
   socials: {
     youtube: 'https://www.youtube.com/@BeUnconventionalHQ',
+    get youtubeSubscribe() {
+      return `${this.youtube}?sub_confirmation=1`;
+    },
     instagram: 'https://www.instagram.com/beunconventionalhq',
     tiktok: 'https://www.tiktok.com/@beunconventionalhq',
     threads: 'https://www.threads.com/@beunconventionalhq',

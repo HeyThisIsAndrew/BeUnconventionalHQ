@@ -60,6 +60,40 @@ const trailerId = parseVideoId(latestVideo.url || latestVideo.link || latestVide
 
 const isVideo = true;
 const heroKind = isVideo ? 'VIDEO' : 'ARTICLE';
+
+/*
+  ─── THE SUBSCRIBE BUTTON ASKS FOR THE CONFIRMATION SHEET ──────────────────
+
+  `?sub_confirmation=1` makes YouTube open its one-click subscribe dialog over
+  the channel instead of dropping the visitor on the channel page to find the
+  button themselves. CommercialRotator.astro has carried it since it was
+  written; this hero did not, so the site's most prominent subscribe CTA was
+  the one asking for the most work.
+
+  Both the handle AND the parameter come from src/data/site.js, which is the
+  one place either is written down. Assembling the URL here would put the
+  parameter in a second place, which is how this button came to be missing it
+  while the ad rotator had it: two call sites, one of them forgotten.
+*/
+const subscribeUrl = site.socials.youtubeSubscribe;
+
+/*
+  ─── THE STAGE NEEDS A DOOR, AND THIS IS THE PLAYER THAT NEEDED IT ─────────
+
+  The escape hatch shipped first on #video-modal (Layout.astro), the lightbox
+  a CARD opens. That was the wrong player: the reader who got trapped was on
+  /feed, and /feed's hero plays in THIS stage, which had no way out at all —
+  no link, no explanation, nothing but an embed that refused.
+
+  youtube-nocookie.com deliberately withholds the viewer's YouTube session, so
+  a video the player will not embed cannot be rescued by a parameter. The only
+  fix is a link to the real watch page, and it is rendered ALWAYS rather than
+  on detection: a detector that silently fails to fire puts the reader straight
+  back in the trap.
+*/
+const watchUrl = trailerId
+  ? `https://www.youtube.com/watch?v=${encodeURIComponent(trailerId)}`
+  : '';
 const heroSlots = getDisplayTagSlots(latestVideo);
 
 /*
@@ -299,7 +333,7 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
           */}
           <div class="feed-hero-actions">
           <a
-            href={site.socials.youtube}
+            href={subscribeUrl}
             target="_blank"
             rel="noopener noreferrer"
             class="feed-hero-youtube-btn"
@@ -342,7 +376,41 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
               </svg>
             </a>
           )}
+
+          {/*
+            ─── THE WAY OUT OF THE STAGE ───────────────────────────────────────
+
+            Last in the row, deliberately: it is the fallback, not a promotion,
+            and the two CTAs above it are what the hero is asking for. It lives
+            in the COPY column rather than over the stage because the stage is
+            `position: absolute; inset: 0` end to end, so anything added there
+            lands on top of YouTube's own controls, and because a link pinned
+            inside the frame disappears with it when the stage pops out to PiP.
+
+            Rendered whenever the loaded item is a video, playing or not, for
+            the reason in the watchUrl note above: detection is the enhancement,
+            the door is the fix. FeedGrid's swap handler retargets, inserts and
+            removes it alongside the hub button.
+          */}
+          {isVideo && watchUrl && (
+            <a
+              id="hero-watch-on-youtube"
+              class="feed-hero-watch-btn"
+              href={watchUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >Watch on YouTube</a>
+          )}
           </div>
+
+          {/*
+            Revealed only when the player itself reports onError. Explains a
+            stage that looks broken; the link above works either way.
+          */}
+          <p class="feed-hero-embed-note" id="hero-embed-note" hidden>
+            YouTube will not play this video in an embedded player. Watch it on
+            YouTube instead.
+          </p>
         </div>
 
 
@@ -1120,6 +1188,57 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
     flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
+  }
+
+  /*
+    ─── THE ESCAPE LINK IS QUIET ON PURPOSE ──────────────────────────────────
+
+    It sits in the same row as SUBSCRIBE and EXPLORE, so it has to read as the
+    third thing there rather than a third call to action. Underlined text at
+    the muted token, no border and no box: the row still has exactly two
+    buttons in it.
+
+    --color-white-muted is #888888 on this surface, which CLAUDE.md records at
+    5.33:1. It clears AA, so the quiet treatment does not cost legibility.
+  */
+  .feed-hero-watch-btn {
+    display: inline-flex;
+    align-items: center;
+    margin-top: 0.15rem;
+    padding: 0.5rem 0.2rem;
+    color: var(--color-white-muted, #888888);
+    font-family: var(--font-body);
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-decoration: underline;
+    text-underline-offset: 0.25em;
+    transition: color 0.25s ease;
+  }
+
+  .feed-hero-watch-btn:hover,
+  .feed-hero-watch-btn:focus-visible {
+    color: var(--color-white, #f0f0f0);
+  }
+
+  /*
+    The note is an explanation, not a control, so it never joins the button
+    row: it goes UNDER it at full width, where a sentence can wrap without
+    stretching the flex row that holds the two CTAs. `[hidden]` is restated
+    because `display: block` here would otherwise beat the UA rule.
+  */
+  .feed-hero-embed-note {
+    margin: 0.55rem 0 0;
+    max-width: 38ch;
+    display: block;
+    color: var(--color-white-muted, #888888);
+    font-family: var(--font-body);
+    font-size: 0.72rem;
+    line-height: 1.5;
+  }
+
+  .feed-hero-embed-note[hidden] {
+    display: none;
   }
 
   /*
@@ -2590,6 +2709,41 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
       }
 
       /*
+        ─── THE ESCAPE LINK FOLLOWS THE SWAP ──────────────────────────────────
+
+        Same lifecycle as the hub button above, and for the same reason: left
+        un-updated it would point at the PREVIOUS item, which is worse than
+        being absent because it looks like it works. An article has no watch
+        page at all, so the link is REMOVED rather than hidden — a `display:
+        none` anchor is still a tab stop pointing at the wrong video.
+
+        Rebuilt nodes are stamped with the hero's scoped-style attribute via
+        carryScope(); without it the .feed-hero-watch-btn rules do not match
+        and the link renders as bare text.
+      */
+      const heroNote = document.getElementById('hero-embed-note') as HTMLElement | null;
+      if (heroNote) heroNote.hidden = true;
+
+      let watchBtn = document.getElementById('hero-watch-on-youtube') as HTMLAnchorElement | null;
+      if (isVideo && videoId) {
+        if (!watchBtn && hubRow) {
+          watchBtn = document.createElement('a');
+          watchBtn.id = 'hero-watch-on-youtube';
+          watchBtn.className = 'feed-hero-watch-btn';
+          watchBtn.target = '_blank';
+          watchBtn.rel = 'noopener noreferrer';
+          watchBtn.textContent = 'Watch on YouTube';
+          carryScope(hubRow.querySelector('.feed-hero-youtube-btn') || hubRow, watchBtn);
+          hubRow.appendChild(watchBtn);
+        }
+        if (watchBtn) {
+          watchBtn.href = `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
+        }
+      } else if (watchBtn) {
+        watchBtn.remove();
+      }
+
+      /*
         No CTA to rebuild. The copy column's Play/Read button was removed (see
         the note in FeedSpotlightHero): the stage pane below carries the action
         for whatever item is loaded, so there is only one control to keep in
@@ -2813,7 +2967,74 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
       
       if (isCtaVideo && videoId) {
         e.preventDefault();
-        heroIframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
+        /*
+          ─── NO `autoplay=1`, AND THAT IS THE POINT ─────────────────────────
+
+          A reader on Chrome/Windows hit a YouTube SIGN-IN wall in this stage,
+          on a video that is not age restricted, that plays for everyone else,
+          and that played fine for him in this site's OTHER player — the card
+          lightbox in Layout.astro — on the same machine in the same session.
+
+          Two players, one site, one origin, one video, and one difference:
+          the lightbox asks for `?rel=0&modestbranding=1&enablejsapi=1` and
+          this stage asked for the same plus `autoplay=1`. An embed that
+          starts itself is the signature YouTube's bot check looks for, and
+          that check is decided per viewer, which is exactly why it reproduces
+          for one reader and for nobody testing it.
+
+          So the URL is now byte-identical to the player that works, and the
+          video is started through the jsapi instead (see below). If the wall
+          ever comes back on this stage, the URL is no longer what separates
+          the two and the next thing to look at is the viewer's side, not
+          this line.
+
+          `playsinline=1` is added, which the lightbox does not need: a full
+          screen takeover on iOS would tear this stage out from under the PiP
+          logic that owns it.
+        */
+        heroIframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1&playsinline=1`;
+
+        /*
+          ─── ASK THE PLAYER TO TALK BACK, THEN ASK IT TO PLAY ───────────────
+
+          `enablejsapi=1` was already on this URL and nothing had ever used it.
+          One postMessage opens the channel, after which the player posts its
+          events and `onError` is the one that matters:
+
+            2    the request contained an invalid parameter
+            5    the video cannot be played in an HTML5 player
+            100  the video is private, or has been removed
+            101  the owner does not allow embedded playback
+            150  the same as 101
+
+          `playVideo` on the same channel is what replaces `autoplay=1`, so
+          dropping that parameter costs the visitor nothing: it is still one
+          click on the stage's own Play button. The difference is that the
+          embed no longer ANNOUNCES an unattended start in its URL.
+
+          If YouTube refuses the command, the frame falls back to its ordinary
+          poster and play button, which is a video one tap away. That is worth
+          having whether or not the bot check was ever the cause, because the
+          state it replaces was a sign-in wall with no way past it.
+
+          `{ once: true }` and bound here rather than on the element at mount:
+          the handshake is only valid against the document this assignment is
+          loading, and the frame's previous load was `about:blank`, which fires
+          the same event with nothing to talk to.
+
+          None of this is the escape hatch. The "Watch on YouTube" link in the
+          copy column is rendered whether or not this channel ever answers.
+        */
+        heroIframe.addEventListener('load', () => {
+          const player = heroIframe.contentWindow;
+          if (!player) return;
+          const send = (payload: Record<string, unknown>) =>
+            player.postMessage(JSON.stringify(payload), 'https://www.youtube-nocookie.com');
+
+          send({ event: 'listening', id: 1, channel: 'widget' });
+          send({ event: 'command', func: 'playVideo', args: [], id: 1, channel: 'widget' });
+        }, { once: true });
+
         /* The iframe starts transparent so its about:blank document cannot
            flash above the stage still. Making only its parent visible leaves
            that transparent iframe over the dimmed art, which looks like the
@@ -2839,5 +3060,42 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
     
     (window as any)._spotlightPlayListener = playHandler;
     document.addEventListener('click', playHandler);
+
+    /*
+      ─── WHEN YOUTUBE SAYS NO, SAY SO ──────────────────────────────────────
+
+      Bound to `window`, which OUTLIVES a ClientRouter navigation, so it is
+      registered once and guarded rather than added per page-load the way the
+      two click handlers above are. It resolves #hero-iframe on every message
+      instead of closing over one, so it keeps working against the next page's
+      stage.
+
+      Origin-checked twice: the message has to come from the player's own
+      origin AND from this frame's contentWindow. Any page can postMessage to
+      any window, so the origin alone would let a third-party frame on the
+      same page raise this note.
+    */
+    if (!(window as any)._heroEmbedErrorBound) {
+      (window as any)._heroEmbedErrorBound = true;
+
+      window.addEventListener('message', (event: MessageEvent) => {
+        if (event.origin !== 'https://www.youtube-nocookie.com') return;
+
+        const frame = document.getElementById('hero-iframe') as HTMLIFrameElement | null;
+        if (!frame || event.source !== frame.contentWindow) return;
+
+        let payload: any;
+        try {
+          payload = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        } catch {
+          return; // Not JSON, so not a player event. Nothing to do.
+        }
+
+        if (payload && payload.event === 'onError') {
+          const note = document.getElementById('hero-embed-note') as HTMLElement | null;
+          if (note) note.hidden = false;
+        }
+      });
+    }
   });
 </script>
