@@ -179,6 +179,89 @@ for (const player of PLAYERS) {
   one click and the URL no longer announces an unattended start. This pins it:
   if the wall ever returns, the embed URL is not what separates the two.
 */
+/*
+  ─── THE THREE STAGES THAT WERE MISSED A SECOND TIME ───────────────────────
+
+  /featured/[slug], EventFeatured and EventAnnouncement each carry a trailer
+  stage, and none of them got the escape hatch when the /feed hero and the card
+  lightbox did. The first miss was "the modal is not the player he was using";
+  this was the same mistake one layer out.
+
+  They are asserted differently from the two above because they work
+  differently: the link is one shared rule and one shared wiring, and the three
+  files carry only the markup. So what is pinned here is that the markup is in
+  all three, that the wiring is mounted once, and that neither the rule nor the
+  behaviour has been copied into a file.
+*/
+console.log('\nThe event and hub stages have a way out too:');
+
+const STAGE_FILES = [
+  'src/pages/featured/[slug].astro',
+  'src/components/EventFeatured.astro',
+  'src/components/EventAnnouncement.astro',
+];
+
+for (const rel of STAGE_FILES) {
+  test(`${rel} renders the stage escape link`, () => {
+    const SRC = read(rel);
+    assert.match(SRC, /class="hub-stage-watch"/, 'this stage has no way out of a refused embed');
+    assert.match(SRC, /Watch on YouTube/);
+    assert.match(SRC, /rel="noopener noreferrer"/);
+  });
+
+  test(`${rel} does not carry its own copy of the wiring or the rule`, () => {
+    const SRC = code(read(rel));
+    assert.ok(
+      !/\.hub-stage-watch\s*\{/.test(SRC),
+      'the rule is global in styles/modules/stage-watch.css: a scoped copy in each of three triplets is how they drift',
+    );
+    assert.ok(
+      !/hub-stage-watch['"`]\)[\s\S]{0,120}?href\s*=/.test(SRC),
+      'the href is set by src/lib/stage-watch-link.ts, once, for all three',
+    );
+  });
+}
+
+test('the stage escape link is wired once, from Layout', () => {
+  const L = code(read('src/layouts/Layout.astro'));
+  assert.match(L, /import \{ initStageWatchLink \} from '\.\.\/lib\/stage-watch-link'/);
+  assert.match(L, /addEventListener\('astro:page-load',\s*initStageWatchLink\)/);
+});
+
+test('the wiring reads the id off the frame, not out of an event detail', () => {
+  const M = code(read('src/lib/stage-watch-link.ts'));
+  /*
+    There are FOUR src assignments in each of the three files, and the two
+    ambient ones have no id in scope at all: they hold a data-src. Threading an
+    id through twelve dispatches is twelve chances to miss one.
+  */
+  assert.match(M, /parseVideoId\(frame\?\.src/, 'the frame always knows what it is playing');
+  assert.ok(
+    !/detail\?\.videoId/.test(M),
+    'reading the detail misses the ambient trailer, which is what starts on its own',
+  );
+});
+
+test('the id is parsed by parseVideoId, never by hand', () => {
+  const M = code(read('src/lib/stage-watch-link.ts'));
+  assert.match(M, /import \{ parseVideoId \}/, 'CLAUDE.md: ids are never parsed with an inline regex');
+  assert.ok(!/\/embed\\\//.test(M), 'no hand-rolled embed regex');
+});
+
+test('parseVideoId recognises the host this site actually embeds from', () => {
+  const Y = read('src/lib/platforms/youtube.ts');
+  assert.match(
+    Y,
+    /youtube\(\?:-nocookie\)\?\\\.com/,
+    'every embed on this site is youtube-nocookie.com, which the parser used to miss entirely',
+  );
+  assert.match(
+    Y,
+    /\(\?:\^\|\\\/\\\/\|\\\.\)/,
+    'the host must be anchored, or evil-youtube.com parses as YouTube',
+  );
+});
+
 console.log('\nNeither player asks YouTube to start itself:');
 
 const EMBED_URL = (src) => {

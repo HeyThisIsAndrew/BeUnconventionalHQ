@@ -881,6 +881,7 @@ const fallbackMark = await getImage({
       import { lockScroll, unlockScroll } from '../lib/scroll-lock';
       import { keepFixedControlsTappable, publishViewportHeight } from '../lib/viewport-anchor';
       import { initEmbedPause } from '../lib/embed-pause';
+      import { initStageWatchLink } from '../lib/stage-watch-link';
 
       /* Every audible YouTube embed on the site pauses when the tab is hidden
          and resumes when it comes back. Reported as duplicate audio: opening a
@@ -889,6 +890,12 @@ const fallbackMark = await getImage({
          guarded, so the page-load binding only re-sweeps for new frames. */
       initEmbedPause();
       document.addEventListener('astro:page-load', initEmbedPause);
+
+      /* The event and hub stages' "Watch on YouTube" link. Mounted here for the
+         same reason: three near-identical stages, one wiring, so it cannot land
+         in two of them and look finished. Self-guarded. */
+      initStageWatchLink();
+      document.addEventListener('astro:page-load', initStageWatchLink);
 
       /* Bound once, site-wide: iOS Safari leaves fixed elements hit-tested at
          stale coordinates after it resizes the web view (its landscape tab bar
