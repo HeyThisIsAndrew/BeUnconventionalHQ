@@ -25,6 +25,7 @@ import { getReferralItems, referralRel } from '../data/referrals.js';
 /** @see src/data/referrals.js — the JSDoc typedef is the shape of a partner. */
 type ReferralItem = ReturnType<typeof getReferralItems>[number];
 import { BRAND_ICONS } from '../data/icons.js';
+import { site } from '../data/site.js';
 
 /* The rotator's slides after the YouTube one. getReferralItems() is what
    guarantees a partner parked with an empty href can never reach the banner,
@@ -66,7 +67,7 @@ const getBannerCopy = (item: ReferralItem) => ({
 <div class="yt-banner-wrapper">
   <div class="banner-rotator-grid" id="banner-rotator">
     {/* 1. The channel CTA. Always first, always the one that renders without JS. */}
-    <a href="https://youtube.com/@BeUnconventionalHQ?sub_confirmation=1" target="_blank" rel="noopener noreferrer" class="yt-subscribe-banner banner-slide" data-state="active" data-meta="YOUTUBE">
+    <a href={site.socials.youtubeSubscribe} target="_blank" rel="noopener noreferrer" class="yt-subscribe-banner banner-slide" data-state="active" data-meta="YOUTUBE">
       {/*
         SIZED. Unsized, <Image> emits the 414 KB original as the plain `src`
         and it downloaded in full on every page carrying this banner — 403 KB,

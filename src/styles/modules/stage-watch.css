@@ -1,0 +1,76 @@
+/*
+  ─── THE WAY OUT OF AN EVENT OR HUB STAGE ──────────────────────────────────
+
+  The same escape hatch the /feed hero stage and the card lightbox carry, on
+  the three players that were missed the first time: /featured/[slug], and the
+  EventFeatured and EventAnnouncement heroes on /events/[slug].
+
+  GLOBAL, not a scoped style in each of those three files. They are already
+  near-identical triplets, which is the condition CLAUDE.md keeps recording as
+  the cause of drift (two tag lists, two hero lockups, a fix landing in one of
+  two players). Three scoped copies of this rule would be a fourth instance of
+  the same mistake, so the rule is written once and the three files carry only
+  the markup.
+
+  It sits beside .hub-stage-sound in the stage's control strip, and like that
+  button it is a SIBLING of the iframe, never a wrapper: hard rule 3 forbids
+  any clipping ancestor of a YouTube embed.
+*/
+
+.hub-stage-watch {
+  position: absolute;
+  z-index: 7;
+  display: inline-flex;
+  align-items: center;
+  /* Matches .feed-hero-watch-btn: the glyphless button next to a glyphed one
+     is short without a line box of its own. */
+  line-height: 15px;
+  padding: 0.5rem 1.05rem;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--color-white, #f0f0f0);
+  font-family: var(--font-body);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.25s ease, background 0.25s ease;
+}
+
+.hub-stage-watch:hover,
+.hub-stage-watch:focus-visible {
+  border-color: rgba(var(--brand-rgb, 204, 0, 0), 0.85);
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.hub-stage-watch:focus-visible {
+  outline: 2px solid var(--color-accent-text, #ef4444);
+  outline-offset: 3px;
+}
+
+/*
+  `display: inline-flex` above would otherwise beat the UA's [hidden] rule, and
+  this link is hidden until something is actually playing: before that there is
+  no video for it to point at, and a link to nothing is worse than no link.
+*/
+.hub-stage-watch[hidden] {
+  display: none;
+}
+
+/*
+  Bottom left of the stage. .hub-stage-sound sits bottom RIGHT on all three of
+  these heroes, so the two controls do not collide, and neither lands under
+  YouTube's own bottom-right fullscreen control.
+*/
+.hub-stage-watch {
+  left: clamp(0.75rem, 2vw, 1.25rem);
+  bottom: clamp(0.75rem, 2vw, 1.25rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hub-stage-watch {
+    transition: none;
+  }
+}

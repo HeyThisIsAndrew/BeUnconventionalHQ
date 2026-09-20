@@ -74,8 +74,21 @@ export class YouTubeApiError extends Error {
 
 // ── Pure helpers (exported for unit testing; zero I/O) ───────────────────────
 
+/*
+  `youtube-nocookie.com` is matched too, and it is not a nicety: every embed on
+  this site is served from that host, so the canonical parser did not recognise
+  a single URL the site actually puts in an iframe. Anything reading an id back
+  off a live player had to hand-roll a regex, which is the exact scattering this
+  helper was written to end.
+
+  The host is ANCHORED to the start of the string, a `//` or a subdomain dot.
+  Without it the pattern matched anywhere in the input, so `evil-youtube.com`
+  and `notyoutube.com` parsed as YouTube and handed back an id. Nothing here
+  feeds a fetch, but this function's answer decides what gets embedded and what
+  a "Watch on YouTube" link points a visitor at.
+*/
 const VIDEO_ID_RE =
-  /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|live\/|watch\?(?:.*&)?v=))([A-Za-z0-9_-]{11})/;
+  /(?:^|\/\/|\.)(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:embed\/|v\/|shorts\/|live\/|watch\?(?:.*&)?v=))([A-Za-z0-9_-]{11})/;
 
 /**
  * Canonical 11-char video ID from any YouTube URL/ID form (watch, youtu.be,
