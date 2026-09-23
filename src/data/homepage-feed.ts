@@ -7,8 +7,8 @@
  * src/lib/homepage-feed.ts, which is where the shaping and the dealing live
  * (and where scripts/homepage-feed.test.mjs tests them).
  *
- * This file is only the binding to the real stores, plus the one editorial
- * choice the page makes: which story world the Featured section spotlights.
+ * This file is only the binding to the real stores. (Featured is dealt
+ * separately, from /feed's own featured shelf: src/data/homepage-featured.ts.)
  */
 import { getAllArticles, getPublishedArticles, articleHref, isExternalArticle, type ArticleRecord } from '../lib/articles';
 import { pickFeaturedHighlights } from '../lib/featured-highlights';
@@ -20,22 +20,11 @@ import {
   buildHomepageFeed,
   mapArticle,
   mapVideo,
-  type FeaturedWorldConfig,
   type HomepageFeed,
   type HomeStory,
   type MapDeps,
   type RawArticle,
 } from '../lib/homepage-feed';
-
-/**
- * The Featured section's story world. Change `match` (a whole word found in
- * a story's title or tags) and `title` to spotlight a different campaign.
- * If nothing matches, the section simply does not render.
- */
-export const FEATURED_WORLD: FeaturedWorldConfig = {
-  title: 'Lanterns',
-  match: 'lanterns',
-};
 
 const deps: MapDeps = {
   timeZone: PUBLISH_TIME_ZONE,
@@ -77,7 +66,10 @@ export function getHomepageFeed(): Promise<HomepageFeed> {
     } catch (err) {
       console.error('[homepage-feed] highlight picks unavailable:', err);
     }
-    return buildHomepageFeed(articles, videos, { featured: FEATURED_WORLD, heroPicks });
+    /* No `featured` world here: the Featured section mirrors /feed's own
+       featured shelf now (src/data/homepage-featured.ts), dealt after the
+       hero by the page. */
+    return buildHomepageFeed(articles, videos, { heroPicks });
   })();
   return cached;
 }

@@ -148,18 +148,19 @@
   margin-bottom: clamp(1.5rem, 3vw, 2.5rem);
 }
 .home-v4 .hsh-icon {
-  color: var(--home-chalk);
+  /* The section's ONE red: its chalk icon. */
+  color: var(--home-red-text);
   width: 30px;
   height: 30px;
 }
 .home-v4 .hsh-title {
+  /* White on every section, as the event and featured pages set their
+     headings. Intel used to be the only white one (a "one red per viewport"
+     exception under the hero), which read as an inconsistency (Andrew). */
   margin: 0;
   font: 800 clamp(1.3rem, 2.1vw, 1.85rem) / 1 var(--font-headline);
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--home-red-text);
-}
-.home-v4 .hsh--white .hsh-title {
   color: #fff;
 }
 .home-v4 .hsh-descriptor {
@@ -220,7 +221,11 @@
   gap: 6px;
   aspect-ratio: 16 / 7;
   min-height: 460px;
-  max-height: calc(100svh - var(--home-top) - 32px);
+  /* The MEASURED viewport (--vv-height, published by Layout and
+     viewport-anchor.ts), not 100svh: svh is a guess about the browser chrome
+     that is wrong after a rotation, which is the bug the old hero was
+     measured to fix. scripts/e2e-hero-viewport.test.mjs holds this. */
+  max-height: calc(var(--vv-height, 100svh) - var(--home-top) - 32px);
 }
 
 .home-v4 .acc-panel {
@@ -300,9 +305,26 @@
   padding: 0 0.5rem 2rem;
 }
 .home-v4 .acc-panel.is-open .acc-body {
+  --acc-pad: clamp(1.5rem, 4vw, 3.75rem);
   align-items: flex-start;
-  padding: clamp(1.5rem, 4vw, 3.75rem);
+  padding: var(--acc-pad);
   padding-bottom: clamp(2rem, 3.5vw, 3.25rem);
+}
+/* Desktop: the chips' fixed home, the open panel's top-left corner (see the
+   note at .acc-title-box). They anchor to the panel body (absolute), which
+   is why they live outside the animated copy block. */
+/* Only the open panel shows its chips (they sit outside .acc-content). */
+.home-v4 .acc-panel:not(.is-open) .acc-chips {
+  display: none;
+}
+@media (min-width: 768px) {
+  .home-v4 .acc-panel.is-open .acc-chips {
+    position: absolute;
+    top: var(--acc-pad);
+    left: var(--acc-pad);
+    right: calc(var(--acc-pad) + 3.5rem);
+    margin: 0;
+  }
 }
 
 .home-v4 .acc-trigger {
@@ -365,8 +387,13 @@
   }
   .home-v4 .acc-panel:not(.is-open) .acc-art {
     position: absolute;
-    left: 0.4rem;
-    right: 0.4rem;
+    /* A FIXED width, centred, never the strip's width: while a panel
+       animates from open to collapsed its strip is briefly hundreds of
+       pixels wide, and an art box sized to it stretched and re-cropped the
+       mark mid-transition (Andrew). Same size as the open panel's box, so
+       nothing about the mark changes except where it sits. */
+    left: calc(50% - (var(--strip) - 0.8rem) / 2);
+    width: calc(var(--strip) - 0.8rem);
     bottom: var(--art-foot);
     height: var(--art-box);
     overflow: hidden;
@@ -512,20 +539,21 @@
   border-left: 2px solid rgba(204, 0, 0, 0.9);
   color: rgba(255, 255, 255, 0.9);
 }
-/* ─── THE COPY BLOCK IS ONE FIXED HEIGHT ─────────────────────────────────
-   Chips, headline box, deck, button: the headline box always holds exactly
-   --title-lines lines and the deck exactly two, so the block is the same
-   height on every panel and the chips sit in the same place whichever story
-   is open (they used to ride up and down with the headline's length). A
-   short headline settles to the BOTTOM of its box, next to its deck; a long
-   one is cut with an ellipsis at the last line. */
+/* ─── THE CHIPS HAVE A FIXED HOME; THE COPY HUGS THE BOTTOM ──────────────
+   Desktop: the metadata chips are pinned to the open panel's TOP-LEFT
+   corner (below), so they sit in the same place on every panel whatever the
+   headline's length. The headline, deck and button stay together at the
+   bottom, sized to their own text: a short headline simply leaves less
+   text, not a hole. (The previous fix reserved a four-line headline box to
+   hold the chips still, and a one-line title like "L.A. Comic Con 2026"
+   then sat under three empty lines, which Andrew flagged.) The line clamps
+   stay as CAPS, so a long headline still cannot run away with the panel. */
 .home-v4 .acc-title-box {
   --title-lines: 4;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   font: 800 clamp(1.4rem, 2.15vw, 2.2rem) / 1.06 var(--font-headline);
-  height: calc(var(--title-lines) * 1.06em);
   margin: 0.2rem 0 0.9rem;
 }
 .home-v4 .acc-headline {
@@ -552,10 +580,9 @@
   inset: 0;
 }
 .home-v4 .acc-deck {
-  /* The feed hero's .hero-tagline: a billing block, not body copy. Always
-     two lines tall (see the copy block note above). */
+  /* The feed hero's .hero-tagline: a billing block, not body copy. At most
+     two lines. */
   margin: 0;
-  height: calc(2 * 1.7em);
   max-width: min(52ch, 100%);
   font: 500 0.95rem/1.7 var(--font-home);
   letter-spacing: 0.22em;
@@ -826,7 +853,7 @@
   /* Sized from the LONGEST WORD in the world's name (--fw-len, set by
      FeaturedWorld.astro): Syne 800 caps run ~1.15em each, measured on
      LANTERNS (9.15em for 8 letters), so 1.2em per letter fits the box
-     with room to spare, whatever name FEATURED_WORLD is given. */
+     with room to spare, whatever collection /feed features. */
   font: 800 clamp(1.8rem, calc(100cqi / (var(--fw-len, 8) * 1.2)), 6rem) / 0.92 var(--font-headline);
   text-transform: uppercase;
   letter-spacing: -0.01em;
@@ -834,6 +861,41 @@
   /* Never split a word: `anywhere` printed LANTERNS as LANTERN / S. */
   overflow-wrap: normal;
 }
+/* ─── THE ACCENT: the brand or IP's colour, a touch, never the text ─────
+   --fw-accent is set on the section only when the featured collection has a
+   colour of its own (seriesAccent, else its hub's brandColor); without it
+   these fall back to the site red. The TITLE stays white: the accent marks
+   the eyebrow, a short rule and the selected row, not the reading. */
+.home-v4 .featured-world {
+  --fw-accent-text: var(--fw-accent, var(--home-red-text));
+}
+.home-v4 .fw-eyebrow {
+  margin: 0;
+  font: 600 0.72rem/1.3 var(--font-home);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--fw-accent-text);
+}
+.home-v4 .fw-count {
+  color: var(--home-muted);
+}
+.home-v4 .fw-rule {
+  display: block;
+  width: 56px;
+  height: 2px;
+  margin-top: 0.9rem;
+  background: var(--fw-accent, var(--home-crimson));
+}
+/* The selected row takes the brand's tint instead of FeaturedHighlights'
+   hardcoded red. 0,4,0 beats the component's scoped 0,3,0. */
+.home-v4 .featured-world--branded .fh-row.is-active {
+  background: radial-gradient(circle at left, rgba(var(--fw-accent-rgb), 0.16) 0%, rgba(255, 255, 255, 0.02) 100%);
+  border-color: rgba(var(--fw-accent-rgb), 0.3);
+}
+.home-v4 .featured-world--branded .fh-row-progress {
+  box-shadow: 0 2px 15px rgba(var(--fw-accent-rgb), 0.7);
+}
+
 /* FeaturedHighlights brings its own top margin for the page it was built
    for; the lockup above owns the spacing here. */
 .home-v4 .featured-world .featured-highlights {

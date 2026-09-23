@@ -40,6 +40,10 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const splashCss = fs.readFileSync(path.join(ROOT, 'src/styles/modules/splash.css'), 'utf8');
 const hero = fs.readFileSync(path.join(ROOT, 'src/components/Hero.astro'), 'utf8');
+/* The reload reset and its hold-the-top guard moved out of Hero.astro into a
+   component both Hero and the new homepage mount; the assertions about them
+   read it there. */
+const guard = fs.readFileSync(path.join(ROOT, 'src/components/ReloadTopGuard.astro'), 'utf8');
 
 let passed = 0;
 let failed = 0;
@@ -131,6 +135,7 @@ console.log('\nEvery reset must JUMP, never animate:');
 */
 const SCROLLERS = [
   'src/components/Hero.astro',
+  'src/components/ReloadTopGuard.astro',
   'src/components/Navbar.astro',
   'src/lib/scroll-lock.ts',
   'src/lib/scroll-to.ts',
@@ -228,7 +233,7 @@ test('pinning scroll-behavior is always followed by a forced style recalc', () =
   );
 });
 
-test('the inline copy in Hero.astro matches the shared helper', () => {
+test('the inline copy in ReloadTopGuard.astro matches the shared helper', () => {
   /*
     Hero's reset must run during parse, before any bundle has loaded, so it
     cannot import jumpTo() and carries its own copy. Two copies drift; this
@@ -241,10 +246,12 @@ test('the inline copy in Hero.astro matches the shared helper', () => {
     'src/lib/scroll-to.ts must pin, flush, then scroll — in that order'
   );
   assert.match(
-    withoutComments(hero),
+    withoutComments(guard),
     /function jumpToTop\(\)[\s\S]{0,400}offsetHeight[\s\S]{0,120}window\.scrollTo/,
-    "Hero.astro's inline jumpToTop() has lost its forced recalc and now animates"
+    "ReloadTopGuard.astro's inline jumpToTop() has lost its forced recalc and now animates"
   );
+  assert.match(hero, /<ReloadTopGuard \/>/, 'Hero.astro must still mount the reload guard');
+  assert.match(fs.readFileSync(path.join(ROOT, 'src/pages/index.astro'), 'utf8'), /<ReloadTopGuard \/>/, 'the homepage must mount the reload guard');
 });
 
 test('a reload holds the top until the reader asks to leave it', () => {
@@ -257,13 +264,13 @@ test('a reload holds the top until the reader asks to leave it', () => {
     just stops the code being deleted.
   */
   assert.match(
-    hero,
+    guard,
     /isReload[\s\S]{0,3000}addEventListener\(\s*'scroll'/,
     'the reload path must keep a scroll listener that re-pins the top, not ' +
       'just fire a fixed number of resets'
   );
   assert.match(
-    hero,
+    guard,
     /touchstart[\s\S]{0,200}pointerdown|pointerdown[\s\S]{0,200}touchstart/,
     'the top-guard must release on the first real input, or it will fight a ' +
       'reader who scrolls immediately after refreshing'

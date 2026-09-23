@@ -113,16 +113,21 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
                 {panel.isNew && <span class="acc-new">New</span>}
               </button>
 
+              {/* A SIBLING of .acc-content, not inside it: the copy block runs a
+                  transform animation on open, and a transformed ancestor would
+                  become the chips' containing block, dragging them along with
+                  the copy instead of pinning them to the panel's corner. */}
+              {/* The feed hero's metadata row (FeedSpotlightHero .hero-meta-tag):
+                  one plate per fact, the category leading with the red rule.
+                  The category chip is aria-hidden because the panel's own
+                  trigger above already names it for assistive tech. */}
+              <p class="acc-chips">
+                <span class="acc-chip acc-chip--brand" aria-hidden="true">{panel.label}</span>
+                {story.kicker && <span class="acc-chip">{story.kicker}</span>}
+                {story.displayDate && <span class="acc-chip">{story.displayDate}</span>}
+              </p>
+
               <div class="acc-content" id={panelId} role="region" aria-labelledby={`${panelId}-trigger`}>
-                {/* The feed hero's metadata row (FeedSpotlightHero .hero-meta-tag):
-                    one plate per fact, the category leading with the red rule.
-                    The category chip is aria-hidden because the panel's own
-                    trigger above already names it for assistive tech. */}
-                <p class="acc-chips">
-                  <span class="acc-chip acc-chip--brand" aria-hidden="true">{panel.label}</span>
-                  {story.kicker && <span class="acc-chip">{story.kicker}</span>}
-                  {story.displayDate && <span class="acc-chip">{story.displayDate}</span>}
-                </p>
                 {/* A FIXED-height box, bottom-aligned: every panel's copy block is
                     the same height whatever the headline's length, so the
                     metadata chips above never move between panels (Andrew). */}

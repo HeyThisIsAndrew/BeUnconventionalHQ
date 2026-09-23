@@ -1,54 +1,65 @@
 ---
 /**
- * Featured: one curated story world, currently set by FEATURED_WORLD in
- * src/data/homepage-feed.ts.
+ * Featured: whatever /feed features, in the production featured box.
  *
- * The world's name as a title lockup, then the world's stories in
- * FeaturedHighlights: the production homepage's featured box (Andrew:
- * "inherit the design principles of the production version where the video
- * plays in the left column", "the preview should be within a box"). A
- * contained card on the left plays the selected video; picking a row on the
- * right replaces it. Reusing that component, not re-creating it, is the
- * point: it is one of the site's YouTube players (hard rule 11) and already
- * carries the "Watch on YouTube" escape link and the embed-pause contract
- * (hard rule 12), which a second implementation would have to re-earn.
+ * WHAT is decided by src/data/homepage-featured.ts: the feed's flagged
+ * collection (its first prestige shelf) or, with none, the site's featured
+ * content. The section links to that shelf on /feed ("Explore on the feed").
  *
- * This section no longer paints a full-bleed backdrop behind the columns:
- * it read as uncontained, and as broken.
+ * HOW it looks is FeaturedHighlights, production's featured box: a contained
+ * card on the left plays the selected video; picking a row on the right
+ * replaces it. Reusing it keeps the one player implementation and its
+ * hard-rule-11/12 safeguards (escape link, embed-pause) instead of a copy.
+ *
+ * THEME (Andrew): the site's type colours for the text, and a touch of the
+ * brand or IP's own colour where the collection has one: the eyebrow, the
+ * rule under it, and the selected row. `--fw-accent` / `--fw-accent-rgb`
+ * carry it; with no accent the section keeps the site's red.
  */
 import HomeSectionHeader from './HomeSectionHeader.astro';
 import FeaturedHighlights from '../FeaturedHighlights.astro';
-import type { FeaturedWorld } from '../../lib/homepage-feed';
+import type { HomeFeatured } from '../../data/homepage-featured';
 
 interface Props {
-  world: FeaturedWorld | null;
-  /** The world's stories in the feed's record shape, videos first. */
-  records: any[];
+  featured: HomeFeatured | null;
 }
 
-const { world, records } = Astro.props;
+const { featured } = Astro.props;
 /* Longest word, in letters: the title's size is derived from it (home.css). */
-const fwLen = world ? Math.max(4, ...world.title.split(/\s+/).map((w) => w.length)) : 8;
+const fwLen = featured?.title ? Math.max(4, ...featured.title.split(/\s+/).map((w) => w.length)) : 8;
+const accentStyle = featured?.accentHex
+  ? `--fw-accent: ${featured.accentHex}; --fw-accent-rgb: ${featured.accentRgb}; --color-accent: ${featured.accentHex};`
+  : undefined;
 ---
 
-{world && records.length > 0 && (
-  <section class="home-section featured-world" aria-labelledby="home-featured-title">
+{featured && featured.items.length > 0 && (
+  <section
+    class:list={['home-section', 'featured-world', { 'featured-world--branded': !!featured.accentHex }]}
+    aria-labelledby="home-featured-title"
+    style={accentStyle}
+  >
     <div class="home-container">
       <HomeSectionHeader
         icon="featured"
         id="home-featured-title"
         title="Featured"
         descriptor="The big picture"
+        href={featured.href}
+        linkLabel="Explore on the feed"
       />
 
       <div class="fw-lockup">
-        <p class="home-kicker fw-kicker">
-          Coverage · {world.total} {world.total === 1 ? 'piece' : 'pieces'}
+        <p class="fw-eyebrow">
+          {featured.eyebrow}
+          {featured.kind === 'collection' && featured.total > 1 && <span class="fw-count"> · {featured.total} pieces</span>}
         </p>
-        <p class="fw-title" aria-hidden="true" style={`--fw-len: ${fwLen}`}>{world.title}</p>
+        {featured.title && (
+          <p class="fw-title" aria-hidden="true" style={`--fw-len: ${fwLen}`}>{featured.title}</p>
+        )}
+        <span class="fw-rule" aria-hidden="true"></span>
       </div>
 
-      <FeaturedHighlights items={records} />
+      <FeaturedHighlights items={featured.items} />
     </div>
   </section>
 )}

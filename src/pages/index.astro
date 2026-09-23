@@ -4,6 +4,7 @@ import TakeoverBillboard from '../components/TakeoverBillboard.astro';
 import CommercialRotator from '../components/CommercialRotator.astro';
 import InstagramFeed from '../components/InstagramFeed.astro';
 import SubscribeCTA from '../components/SubscribeCTA.astro';
+import ReloadTopGuard from '../components/ReloadTopGuard.astro';
 import ChalkFilter from '../components/home/ChalkFilter.astro';
 import HeroAccordion from '../components/home/HeroAccordion.astro';
 import IntelSpread from '../components/home/IntelSpread.astro';
@@ -11,6 +12,7 @@ import FeaturedWorld from '../components/home/FeaturedWorld.astro';
 import WatchingRail from '../components/home/WatchingRail.astro';
 import HomeSectionHeader from '../components/home/HomeSectionHeader.astro';
 import { getHomepageFeed } from '../data/homepage-feed';
+import { getHomeFeatured, featuredKey } from '../data/homepage-featured';
 import { HERO_SIZES } from '../lib/homepage-feed';
 import { getArticleFeedItems } from '../lib/articles';
 import { getVideoItems } from '../lib/feed-items';
@@ -47,32 +49,36 @@ const feed = await getHomepageFeed();
 const heroImage = feed.hero[0]?.story;
 
 /*
-  The mini Intel magazine takes the newest articles the hero and Featured are
-  NOT already showing, so no story appears twice on one screen. Four: one
-  rail tile each side of the feature plus the feature's own tile, which is
-  what keeps a MINIATURE of the spread from running 900px tall.
+  ─── ONE STORY, ONE PLACE ──────────────────────────────────────────────────
+  Dealt in page order, each section skipping what the ones above it show:
+  hero -> Featured -> Intel -> the rail. Keys are `video:<id>` or the link.
+*/
+const heroKeys = new Set(
+  feed.hero.map(({ story }) => (story.type === 'video' && story.videoId ? `video:${story.videoId}` : story.url)),
+);
+
+/* Featured mirrors /feed's featured shelf (src/data/homepage-featured.ts). */
+const featured = await getHomeFeatured(heroKeys);
+const featuredKeys = new Set((featured?.items ?? []).map(featuredKey));
+const taken = new Set([...heroKeys, ...featuredKeys]);
+
+/*
+  The mini Intel magazine: the newest articles nothing above is showing.
+  Four: one rail tile each side of the feature plus the feature's own tile,
+  which is what keeps a MINIATURE of the spread from running 900px tall.
 */
 const INTEL_MINI_SIZE = 4;
-const onPage = new Set(
-  [...feed.hero.map((p) => p.story), ...(feed.featured ? [feed.featured.lead, ...feed.featured.items] : [])].map((s) => s.url),
-);
-const intelArticles = getArticleFeedItems().filter((a) => !onPage.has(a.link)).slice(0, INTEL_MINI_SIZE);
+const intelArticles = getArticleFeedItems().filter((a) => !taken.has(a.link)).slice(0, INTEL_MINI_SIZE);
 
 /* The rail renders the FEED's own card (ContentCard), which takes the feed's
    video records rather than HomeStory, so the rail's picks are looked up by
-   YouTube id, in the order the feed module chose them. */
+   YouTube id, in the order the feed module chose them. The builder already
+   skips the hero; Featured's videos are skipped here. */
 const videoById = new Map((await getVideoItems()).map((v: any) => [v.youtubeId, v]));
-const railVideos = feed.rail.map((s) => videoById.get(s.videoId)).filter(Boolean);
-
-/* Featured hands its world's stories to FeaturedHighlights, the production
-   featured box, which takes feed records too. Videos lead, so the box opens
-   on something that plays, as production's does. */
-const articleByLink = new Map(getArticleFeedItems().map((a) => [a.link, a]));
-const worldStories = feed.featured ? [feed.featured.lead, ...feed.featured.items] : [];
-const worldRecords = [
-  ...worldStories.filter((s) => s.type === 'video').map((s) => videoById.get(s.videoId)),
-  ...worldStories.filter((s) => s.type === 'article').map((s) => articleByLink.get(s.url)),
-].filter(Boolean);
+const railVideos = feed.rail
+  .filter((s) => !featuredKeys.has(`video:${s.videoId}`))
+  .map((s) => videoById.get(s.videoId))
+  .filter(Boolean);
 const preconnect = heroImage && /wsrv\.nl/.test(heroImage.imageSrcset || heroImage.image) ? ['https://wsrv.nl'] : [];
 ---
 
@@ -86,6 +92,8 @@ const preconnect = heroImage && /wsrv\.nl/.test(heroImage.imageSrcset || heroIma
   {/* data-nav-solid: the navbar keeps its layered, shadowed state at the
       top of this page too (Navbar.astro). */}
   <main class="home-v4" data-nav-solid>
+    {/* First thing in the page: a refresh lands at the top (was in Hero). */}
+    <ReloadTopGuard />
     <h1 class="sr-only">{site.name}: {site.tagline}</h1>
     <ChalkFilter />
 
@@ -95,7 +103,7 @@ const preconnect = heroImage && /wsrv\.nl/.test(heroImage.imageSrcset || heroIma
 
     <IntelSpread articles={intelArticles} />
 
-    <FeaturedWorld world={feed.featured} records={worldRecords} />
+    <FeaturedWorld featured={featured} />
 
     <div class="home-slot home-container">
       <CommercialRotator />

@@ -14,6 +14,7 @@ import {
   selectCollections,
   inSeries,
   accentFor,
+  seriesSlug,
   byNewest,
   HUB_CATEGORY_ORDER,
   RAIL_LIMIT,
@@ -178,12 +179,8 @@ const rowArt = (name?: string): ImageMetadata | null => {
   return hit ? hit[1].default : null;
 };
 
-const seriesSlug = (name: string) =>
-  String(name)
-    .toLowerCase()
-    .replace(/[\u2018\u2019']/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+/* seriesSlug() lives in src/lib/feed-rails.ts: the homepage links to these
+   rows by it, so there is one definition of a row's anchor. */
 
 /*
   `hubHref()` stood here, turning a row id into /featured/<slug> or

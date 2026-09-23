@@ -3,9 +3,9 @@
  * The homepage's ONE section header system:
  *   [chalk icon] + [section name] + [small-caps descriptor] + [1px hairline]
  *
- * `tone` exists for the red-balance rule (one red job per viewport): the
- * section directly under the hero, whose active edge and progress bar are
- * already red, sets its name in white.
+ * One treatment for every section: a white name, a red icon. (There used to
+ * be a `tone` prop that set only Intel's name in white; it made the headers
+ * disagree with each other and is gone.)
  */
 import ChalkIcon, { type ChalkIconName } from './ChalkIcon.astro';
 
@@ -15,16 +15,15 @@ interface Props {
   descriptor?: string;
   /** Heading id, for the section's aria-labelledby. */
   id: string;
-  tone?: 'red' | 'white';
   /** Optional right-aligned "view all" link. */
   href?: string;
   linkLabel?: string;
 }
 
-const { icon, title, descriptor, id, tone = 'red', href, linkLabel } = Astro.props;
+const { icon, title, descriptor, id, href, linkLabel } = Astro.props;
 ---
 
-<header class:list={['hsh', `hsh--${tone}`]}>
+<header class="hsh">
   <ChalkIcon name={icon} size={30} class="hsh-icon" />
   <h2 id={id} class="hsh-title">{title}</h2>
   {descriptor && <p class="hsh-descriptor">{descriptor}</p>}
