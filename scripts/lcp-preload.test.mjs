@@ -94,9 +94,9 @@ for (const { file, heroClass } of HERO_PAGES) {
 
 console.log('\nThe homepage preload');
 
-check('index.astro preloads the banner through Layout', () => {
+check('index.astro preloads the dynamic LCP image through Layout', () => {
   const src = code(read('src/pages/index.astro'));
-  assert.match(src, /preloadImage=\{heroBanner\.src\}/, 'the banner preload is gone');
+  assert.match(src, /preloadImage=\{lcpImage\.src\}/, 'the LCP preload is gone');
 });
 
 /*
@@ -106,10 +106,9 @@ check('index.astro preloads the banner through Layout', () => {
   two cannot drift. The backdrop is blurred 30px and is therefore requested
   small -- see that module for the full reasoning.
 */
-check('the hero <img> and the preload read the same derived banner', () => {
+check('the hero <img> reads the derived banner', () => {
   const hero = code(read('src/components/Hero.astro'));
-  const index = code(read('src/pages/index.astro'));
-  for (const [name, src] of [['Hero.astro', hero], ['index.astro', index]]) {
+  for (const [name, src] of [['Hero.astro', hero]]) {
     assert.match(
       src,
       /import \{ heroBanner \} from '(\.\.\/lib|\.\.\/\.\.\/lib)\/hero-banner'/,
