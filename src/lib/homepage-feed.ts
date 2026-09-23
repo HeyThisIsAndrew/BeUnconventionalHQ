@@ -354,14 +354,33 @@ export function buildHomepageFeed(
   };
   const free = (s: HomeStory) => !used.has(s.id);
 
-  /* 1. Featured world — pinned by an editor, so it claims first. The lead is
-        the newest ARTICLE in the world with an image (the section's backdrop
-        is its art); videos fill the cards. No lead, no section. */
+  /* 1. Hero, FIRST. Each category shows its newest story with art, article
+        OR video, whichever is more recent (Andrew: "variety amongst most
+        recent", "my latest TV piece is actually from Lanterns"). It used to
+        prefer articles and to run after Featured, which had already claimed
+        every Lanterns story, so the TV panel showed an older article. LATEST
+        is then the newest story left. A category with nothing to show drops
+        its panel rather than rendering an empty one. */
+  const withArt = (s: HomeStory) => Boolean(s.image);
+  const hero: HeroPanel[] = [];
+  const catKey: Record<HomeCategory, HeroPanel['key']> = { Film: 'film', TV: 'tv', Games: 'games', Events: 'events' };
+  for (const cat of HOME_CATEGORIES) {
+    const story = claim(all.find((s) => free(s) && withArt(s) && s.category === cat));
+    if (story) hero.push({ key: catKey[cat], label: HERO_LABELS[catKey[cat]], isNew: false, story });
+  }
+  const latest = claim(all.find((s) => free(s) && withArt(s)));
+  if (latest) hero.push({ key: 'latest', label: HERO_LABELS.latest, isNew: true, story: latest });
+
+  /* 2. Featured world, from what the hero left. The lead is the newest
+        ARTICLE in the world with an image, else its newest story with art;
+        videos fill the cards. No lead, no section. `total` still counts the
+        whole world, hero-borrowed stories included. */
   let featured: FeaturedWorld | null = null;
   const cfg = opts.featured;
   if (cfg && cfg.match) {
     const inWorld = all.filter((s) => wordMatch(s.matchText, cfg.match));
-    const lead = inWorld.find((s) => s.type === 'article' && s.image) ?? inWorld.find((s) => s.image);
+    const avail = inWorld.filter(free);
+    const lead = avail.find((s) => s.type === 'article' && s.image) ?? avail.find((s) => s.image);
     if (lead) {
       claim(lead);
       /* Cards: the other articles first (they are the rarer kind), then the
@@ -375,24 +394,6 @@ export function buildHomepageFeed(
       featured = { title: cfg.title, lead, items: picked, total: inWorld.length };
     }
   }
-
-  /* 2. Hero. LATEST is the newest story left in the pool, so it is always
-        true to its label; each category then takes its newest remaining
-        story with art. A category with nothing to show drops its panel
-        rather than rendering an empty one. */
-  const withArt = (s: HomeStory) => Boolean(s.image);
-  const latest = claim(all.find((s) => free(s) && withArt(s)));
-  const hero: HeroPanel[] = [];
-  const catKey: Record<HomeCategory, HeroPanel['key']> = { Film: 'film', TV: 'tv', Games: 'games', Events: 'events' };
-  for (const cat of HOME_CATEGORIES) {
-    /* Articles lead a category when one exists: the hero is editorial. */
-    const pick =
-      safeArticles.find((s) => free(s) && withArt(s) && s.category === cat) ??
-      safeVideos.find((s) => free(s) && withArt(s) && s.category === cat);
-    const story = claim(pick);
-    if (story) hero.push({ key: catKey[cat], label: HERO_LABELS[catKey[cat]], isNew: false, story });
-  }
-  if (latest) hero.push({ key: 'latest', label: HERO_LABELS.latest, isNew: true, story: latest });
 
   /* 3. Intel — the written side, articles only. */
   const intelPool = safeArticles.filter(free);

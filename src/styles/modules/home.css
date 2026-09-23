@@ -398,24 +398,40 @@
     transform: translateY(-3px);
   }
 }
-/* Open panel: the art is the panel's LOGO, at the feed hero's logo scale
-   (.hero-logo in FeedSpotlightHero, 84-180px), cropped out of the tile's
-   transparent margin the same way the strips crop it. At 72px it could not
-   be read (Andrew). */
-.home-v4 .acc-panel.is-open .acc-art {
-  width: clamp(150px, 12vw, 210px);
-  height: clamp(92px, 7.4vw, 128px);
-  overflow: hidden;
-}
-.home-v4 .acc-panel.is-open .acc-art:not(.acc-art--logo) img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transform: scale(1.22);
-}
-.home-v4 .acc-panel.is-open .acc-art--logo {
-  width: clamp(190px, 15vw, 260px);
-  height: auto;
+
+/* Open panel, desktop: the art does NOT move up into the copy. It keeps the
+   strip's box, size and baseline and sits in the bottom-right corner, so
+   opening a panel only slides it sideways (Andrew: the jump upwards was
+   jarring). The same crop as the strips, for the same reason. */
+@media (min-width: 768px) {
+  .home-v4 .acc-panel.is-open .acc-trigger {
+    margin: 0;
+  }
+  .home-v4 .acc-panel.is-open .acc-art,
+  .home-v4 .acc-panel.is-open .acc-art--logo {
+    position: absolute;
+    right: 1.25rem;
+    bottom: var(--art-foot);
+    width: calc(var(--strip) - 0.8rem);
+    height: var(--art-box);
+    overflow: hidden;
+  }
+  .home-v4 .acc-panel.is-open .acc-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scale(1.22);
+  }
+  .home-v4 .acc-panel.is-open .acc-art--logo img {
+    object-fit: contain;
+    transform: none;
+  }
+  .home-v4 .acc-panel.is-open .acc-new {
+    position: absolute;
+    right: calc(1.25rem + (var(--strip) - 0.8rem) / 2);
+    bottom: calc(var(--art-foot) + var(--art-box) + 0.6rem);
+    transform: translateX(50%);
+  }
 }
 .home-v4 .acc-label {
   font: 600 0.78rem/1 var(--font-home);

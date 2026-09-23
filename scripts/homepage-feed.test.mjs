@@ -118,7 +118,7 @@ test('no story appears in two sections', () => {
   assert.equal(new Set(ids).size, ids.length, `duplicate in ${ids.join(', ')}`);
 });
 
-test('hero panels keep the fixed order and LATEST is the newest story', () => {
+test('hero panels keep the fixed order; each takes its newest, LATEST the newest left', () => {
   const articles = [
     art(1, { category: 'Film' }),
     art(2, { category: 'TV' }),
@@ -128,9 +128,24 @@ test('hero panels keep the fixed order and LATEST is the newest story', () => {
   ];
   const feed = buildHomepageFeed(articles, []);
   assert.deepEqual(feed.hero.map((p) => p.key), ['film', 'tv', 'games', 'events', 'latest']);
+  assert.equal(feed.hero[0].story.id, 'article:g5', 'FILM shows the newest Film story');
   const latest = feed.hero.at(-1);
-  assert.equal(latest.story.id, 'article:g5');
+  assert.equal(latest.story.id, 'article:g1', 'LATEST is the newest story the categories left');
   assert.equal(latest.isNew, true);
+});
+
+test('a category takes its newest story whether article or video, even from the featured world', () => {
+  /* Andrew's report: the TV panel showed an older article while the newest
+     TV piece was a Lanterns video, because articles led every category and
+     Featured claimed the whole Lanterns world before the hero picked. */
+  const articles = [art(1, { category: 'TV' })];
+  const videos = [vid(1, { category: 'TV', title: 'Lanterns Episode 9', publishedAt: '2026-09-20T12:00:00Z' })];
+  const feed = buildHomepageFeed(articles, videos, { featured: { title: 'Lanterns', match: 'lanterns' } });
+  const tv = feed.hero.find((p) => p.key === 'tv');
+  assert.equal(tv.story.type, 'video');
+  assert.equal(tv.story.id, 'video:v1');
+  const ids = [...feed.hero.map((p) => p.story.id), ...(feed.featured ? [feed.featured.lead.id, ...feed.featured.items.map((s) => s.id)] : [])];
+  assert.equal(new Set(ids).size, ids.length, 'the hero and Featured never repeat a story');
 });
 
 test('a category with no stories drops its panel instead of rendering empty', () => {
@@ -139,7 +154,9 @@ test('a category with no stories drops its panel instead of rendering empty', ()
 });
 
 test('featured world matches whole words only and needs art for its lead', () => {
-  const articles = [art(1, { title: 'Lanternsmith weekly' }), art(2, { tags: ['Lanterns'] })];
+  /* g3 and g4 are newer, so the hero (which picks first) takes those and
+     leaves the world's own article for Featured. */
+  const articles = [art(1, { title: 'Lanternsmith weekly' }), art(2, { tags: ['Lanterns'] }), art(3), art(4)];
   const feed = buildHomepageFeed(articles, [], { featured: { title: 'Lanterns', match: 'lanterns' } });
   assert.equal(feed.featured.lead.id, 'article:g2');
   assert.equal(feed.featured.total, 1);
