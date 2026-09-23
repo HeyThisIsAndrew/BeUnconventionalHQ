@@ -9,6 +9,8 @@ import LatestArticles from '../components/LatestArticles.astro';
 import PromoBanner from '../components/PromoBanner.astro';
 import TakeoverBillboard from '../components/TakeoverBillboard.astro';
 import { getVideosUnified } from '../lib/videos-source';
+import { getAllFeedItems } from '../lib/feed-items';
+import { getCardImageSources } from '../lib/card-images';
 import PageTitle from '../components/PageTitle.astro';
 import ContentCard from '../components/ContentCard.astro';
 import { heroBanner } from '../lib/hero-banner';
@@ -20,6 +22,13 @@ import InstagramFeed from '../components/InstagramFeed.astro';
 // Get the current path, stripping trailing slashes for safety
 const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
 const isHomePage = currentPath === '/';
+
+// Calculate LCP image for preload. 
+// The LCP element is the first slide of the 'panel' variant of HomeSpotlightBar.
+const feedItems = await getAllFeedItems();
+const newestItem = feedItems.find((i: any) => i && i.type && i.title && i.image);
+const lcpImage = newestItem ? getCardImageSources(newestItem.image) : { src: heroBanner.src, srcset: undefined };
+const lcpSizes = '(min-width: 2737px) 2600px, 95vw';
 
 /*
   No `Astro.response.headers.set('Link', ...)` here. This page is prerendered
@@ -52,7 +61,9 @@ const isHomePage = currentPath === '/';
 */}
 <Layout
   title="BE Unconventional HQ"
-  preloadImage={heroBanner.src}
+  preloadImage={lcpImage.src}
+  preloadImageSrcset={lcpImage.srcset}
+  preloadImageSizes={lcpSizes}
   preconnect={['https://wsrv.nl']}
 >
   <main>
