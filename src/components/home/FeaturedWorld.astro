@@ -1,0 +1,110 @@
+---
+/**
+ * Featured: one curated story world, currently set by FEATURED_WORLD in
+ * src/data/homepage-feed.ts.
+ *
+ * Split layout: the world's title and its lead story on the left, a vertical
+ * stack of three horizontal story cards on the right. The lead's art spans the
+ * whole section and fades to the page black under the cards so they stay
+ * legible.
+ *
+ * The backdrop lives in its own clipping wrapper, a SIBLING of the content
+ * (the hard-rule-3 pattern). Nothing here embeds a player today; video cards
+ * open the site's shared #video-modal. The pattern is kept so that adding one
+ * later cannot put an iframe under a clipping ancestor.
+ */
+import ChalkIcon from './ChalkIcon.astro';
+import HomeSectionHeader from './HomeSectionHeader.astro';
+import type { FeaturedWorld } from '../../lib/homepage-feed';
+
+interface Props {
+  world: FeaturedWorld | null;
+}
+
+const { world } = Astro.props;
+const linkAttrs = (s: FeaturedWorld['lead']) =>
+  s.type === 'video'
+    ? { 'data-action': 'open-video', 'data-video-id': s.videoId }
+    : s.external
+      ? { target: '_blank', rel: 'noopener noreferrer' }
+      : {};
+---
+
+{world && (
+  <section class="home-section featured-world" aria-labelledby="home-featured-title">
+    <div class="home-container">
+      <HomeSectionHeader
+        icon="featured"
+        id="home-featured-title"
+        title="Featured"
+        descriptor="The big picture"
+      />
+    </div>
+
+    <div class="fw-stage">
+      <div class="fw-backdrop" aria-hidden="true">
+        {world.lead.image && (
+          <img
+            src={world.lead.image}
+            srcset={world.lead.imageSrcset || undefined}
+            sizes={world.lead.imageSrcset ? '100vw' : undefined}
+            alt=""
+            width="1280"
+            height="720"
+            loading="lazy"
+            decoding="async"
+          />
+        )}
+      </div>
+
+      <div class="home-container fw-grid">
+        <div class="fw-lead">
+          <p class="home-kicker fw-kicker">
+            Coverage · {world.total} {world.total === 1 ? 'piece' : 'pieces'}
+          </p>
+          <p class="fw-title" aria-hidden="true">{world.title}</p>
+          <h3 class="fw-headline">{world.lead.headline}</h3>
+          {world.lead.deck && <p class="fw-deck">{world.lead.deck}</p>}
+          <a class="home-btn" href={world.lead.url} {...linkAttrs(world.lead)}>
+            {world.lead.type === 'video' ? 'Watch the feature' : 'Read the feature'}
+            <ChalkIcon name="arrow-right" size={16} />
+          </a>
+        </div>
+
+        {world.items.length > 0 && (
+          <ul class="fw-cards">
+            {world.items.map((story) => (
+              <li>
+                <article class="fw-card">
+                  <div class="fw-card-media">
+                    {story.image && (
+                      <img
+                        src={story.image}
+                        srcset={story.imageSrcset || undefined}
+                        sizes={story.imageSrcset ? '(max-width: 767px) 38vw, 200px' : undefined}
+                        alt=""
+                        width="480"
+                        height="270"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    )}
+                    {story.type === 'video' && <span class="play-dot play-dot--sm" aria-hidden="true"><ChalkIcon name="play" size={14} /></span>}
+                  </div>
+                  <div class="fw-card-copy">
+                    <p class="home-kicker">
+                      {story.kicker}{story.duration && ` · ${story.duration}`}{story.readTime && ` · ${story.readTime}`}
+                    </p>
+                    <h4 class="fw-card-headline">
+                      <a href={story.url} class="stretched-link" {...linkAttrs(story)}>{story.headline}</a>
+                    </h4>
+                  </div>
+                </article>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  </section>
+)}

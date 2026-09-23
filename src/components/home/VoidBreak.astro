@@ -1,0 +1,38 @@
+---
+/**
+ * The void break: a full-width pause of pure #080808 between Intel and
+ * Featured, holding one chalk pull quote.
+ *
+ * The quote is a verbatim sentence from a real article's opening paragraphs
+ * (pickPullQuote in lib/homepage-feed.ts), attributed and linked to its
+ * source. No quote found, no break: the page never fills it with a slogan.
+ */
+import ChalkIcon from './ChalkIcon.astro';
+import type { PullQuote } from '../../lib/homepage-feed';
+
+interface Props {
+  quote: PullQuote | null;
+}
+
+const { quote } = Astro.props;
+---
+
+{quote && (
+  <aside class="void-break" aria-label="Pull quote">
+    <figure class="void-figure">
+      <ChalkIcon name="quote" size={48} class="void-mark" />
+      <blockquote class="void-quote">
+        <p>{quote.text}</p>
+      </blockquote>
+      <figcaption class="void-cite">
+        From{' '}
+        <a
+          href={quote.story.url}
+          {...(quote.story.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+        >
+          {quote.story.headline}
+        </a>
+      </figcaption>
+    </figure>
+  </aside>
+)}

@@ -1,0 +1,127 @@
+---
+/**
+ * Discovery: "The HQ Is Watching", a horizontal snap-scroll rail of the
+ * channel's long-form videos.
+ *
+ * The previous/next arrows sit OUTSIDE the scrolling track, so they never
+ * cover a card. Cards open the site's shared #video-modal through
+ * `data-action="open-video"` (Layout's delegated handler): no new YouTube
+ * player is added to the site (hard rule 11), and the href is the real
+ * YouTube URL so the card still works without JS.
+ */
+import ChalkIcon from './ChalkIcon.astro';
+import HomeSectionHeader from './HomeSectionHeader.astro';
+import type { HomeStory } from '../../lib/homepage-feed';
+
+interface Props {
+  items: HomeStory[];
+}
+
+const { items } = Astro.props;
+---
+
+{items.length > 0 && (
+  <section class="home-section watching" aria-labelledby="home-watching-title" data-rail>
+    <div class="home-container">
+      <HomeSectionHeader
+        icon="watching"
+        id="home-watching-title"
+        title="The HQ Is Watching"
+        descriptor="From the channel"
+        href="/feed/videos"
+        linkLabel="All videos"
+      />
+
+      <div class="rail">
+        <button type="button" class="rail-arrow rail-arrow--prev" data-rail-prev aria-label="Previous videos" disabled>
+          <ChalkIcon name="arrow-left" size={22} />
+        </button>
+
+        <ul class="rail-track" data-rail-track>
+          {items.map((story) => (
+            <li class="rail-item">
+              <article class="rail-card">
+                <div class="rail-media">
+                  {story.image && (
+                    <img
+                      src={story.image}
+                      srcset={story.imageSrcset || undefined}
+                      sizes={story.imageSrcset ? '(max-width: 767px) 75vw, 320px' : undefined}
+                      alt=""
+                      width="480"
+                      height="270"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  )}
+                  <span class="play-dot" aria-hidden="true"><ChalkIcon name="play" size={20} /></span>
+                  {story.duration && <span class="rail-duration">{story.duration}</span>}
+                </div>
+                {story.category && <p class="home-kicker">{story.category}</p>}
+                <h3 class="rail-headline">
+                  <a
+                    href={story.url}
+                    class="stretched-link"
+                    data-action="open-video"
+                    data-video-id={story.videoId}
+                  >
+                    {story.headline}
+                  </a>
+                </h3>
+              </article>
+            </li>
+          ))}
+        </ul>
+
+        <button type="button" class="rail-arrow rail-arrow--next" data-rail-next aria-label="Next videos">
+          <ChalkIcon name="arrow-right" size={22} />
+        </button>
+      </div>
+    </div>
+  </section>
+)}
+
+<script>
+  let cleanup: (() => void) | null = null;
+
+  function init() {
+    cleanup?.();
+    cleanup = null;
+    const root = document.querySelector<HTMLElement>('[data-rail]');
+    const track = root?.querySelector<HTMLElement>('[data-rail-track]');
+    const prev = root?.querySelector<HTMLButtonElement>('[data-rail-prev]');
+    const next = root?.querySelector<HTMLButtonElement>('[data-rail-next]');
+    if (!root || !track || !prev || !next) return;
+
+    const sync = () => {
+      const max = track.scrollWidth - track.clientWidth - 2;
+      prev.disabled = track.scrollLeft <= 2;
+      next.disabled = track.scrollLeft >= max;
+    };
+    const page = (dir: 1 | -1) => () => {
+      const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      track.scrollBy({ left: dir * track.clientWidth * 0.9, behavior: smooth ? 'smooth' : 'auto' });
+    };
+    const onPrev = page(-1);
+    const onNext = page(1);
+
+    prev.addEventListener('click', onPrev);
+    next.addEventListener('click', onNext);
+    track.addEventListener('scroll', sync, { passive: true });
+    window.addEventListener('resize', sync);
+    sync();
+
+    cleanup = () => {
+      prev.removeEventListener('click', onPrev);
+      next.removeEventListener('click', onNext);
+      track.removeEventListener('scroll', sync);
+      window.removeEventListener('resize', sync);
+    };
+  }
+
+  document.addEventListener('astro:page-load', init);
+  document.addEventListener('astro:before-swap', () => {
+    cleanup?.();
+    cleanup = null;
+  });
+</script>

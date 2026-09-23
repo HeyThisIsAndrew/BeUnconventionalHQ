@@ -60,10 +60,17 @@ const shouldRender = items.length >= minItems;
 
 {shouldRender && (
   <section class="instagram-feed-section container" aria-labelledby="instagram-feed-heading">
-    <div class="instagram-feed-header">
-      <h2 id="instagram-feed-heading" class="intel-break-title">Latest on Instagram</h2>
-    </div>
-    
+    {/* A page may supply its own header in the `header` slot (the homepage
+        does, to use its section header system). It must carry
+        id="instagram-feed-heading", which the section is labelled by. */}
+    {Astro.slots.has('header') ? (
+      <slot name="header" />
+    ) : (
+      <div class="instagram-feed-header">
+        <h2 id="instagram-feed-heading" class="intel-break-title">Latest on Instagram</h2>
+      </div>
+    )}
+
     <CinematicGallery items={items} profileUrl={site.socials.instagram} />
 
     <div class="latest-view-all animate-on-scroll">

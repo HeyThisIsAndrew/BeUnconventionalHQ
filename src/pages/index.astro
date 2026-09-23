@@ -1,181 +1,93 @@
 ---
-import { SECTIONS, LABELS } from '../data/content.js';
 import Layout from '../layouts/Layout.astro';
-import Hero from '../components/Hero.astro';
-import HomeSpotlightBar from '../components/HomeSpotlightBar.astro';
-import FeaturedHighlights from '../components/FeaturedHighlights.astro';
-import Categories from '../components/Categories.astro';
-import LatestArticles from '../components/LatestArticles.astro';
-import PromoBanner from '../components/PromoBanner.astro';
 import TakeoverBillboard from '../components/TakeoverBillboard.astro';
-import { getVideosUnified } from '../lib/videos-source';
-import PageTitle from '../components/PageTitle.astro';
-import ContentCard from '../components/ContentCard.astro';
-import { heroBanner } from '../lib/hero-banner';
-import SubscribeCTA from '../components/SubscribeCTA.astro';
-import Section from '../components/Section.astro';
-import SectionHeader from '../components/SectionHeader.astro';
+import CommercialRotator from '../components/CommercialRotator.astro';
 import InstagramFeed from '../components/InstagramFeed.astro';
-
-// Get the current path, stripping trailing slashes for safety
-const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
-const isHomePage = currentPath === '/';
+import SubscribeCTA from '../components/SubscribeCTA.astro';
+import ChalkFilter from '../components/home/ChalkFilter.astro';
+import HeroAccordion from '../components/home/HeroAccordion.astro';
+import IntelSpread from '../components/home/IntelSpread.astro';
+import VoidBreak from '../components/home/VoidBreak.astro';
+import FeaturedWorld from '../components/home/FeaturedWorld.astro';
+import WatchingRail from '../components/home/WatchingRail.astro';
+import HomeSectionHeader from '../components/home/HomeSectionHeader.astro';
+import { getHomepageFeed } from '../data/homepage-feed';
+import { site } from '../data/site.js';
+import '../styles/modules/home.css';
 
 /*
-  No `Astro.response.headers.set('Link', ...)` here. This page is prerendered
-  (static output), so there is no response object at request time and the call
-  was a silent no-op. The RFC 8288 Link header is set for `/*` in
-  `public/_headers`, which Cloudflare applies to the static asset, and
-  scripts/agent-discovery.test.mjs asserts it is there.
+  ─── THE HOMEPAGE (feat/homepage-v4) ──────────────────────────────────────
+
+  Every headline, deck, date and image below comes from ONE module,
+  src/data/homepage-feed.ts, which reads the real stores (articles.json,
+  videos.json). Nothing on this page types copy of its own except section
+  names.
+
+  Order, and why:
+    1. Hero accordion     Film, TV, Games, Events, Latest
+       Live billboard     hidden unless /api/live-status.json says we are live
+    2. Intel              the written side, as a magazine spread
+       Void break         one pull quote, a breath before the big picture
+    3. Featured           one curated story world
+       Ad rotator         the channel CTA + partners, a deliberate break
+                          between the editorial half and the video half
+    4. The HQ Is Watching the channel's long-form videos
+       Instagram          social proof, just before the ask
+       Subscribe          the page's one conversion point
+
+  ─── WHAT IS NOT HERE ANY MORE, AND WHY NOTHING WAS DELETED ───────────────
+  The splash curtain is gone because its arming lives inside Hero.astro, and
+  this page no longer mounts Hero. Hero.astro, HeroTrailer.astro (hard rule
+  2), HomeSpotlightBar, FeaturedHighlights, Categories, LatestArticles and
+  splash.css all stay on disk: other components and test suites still read
+  them, and deleting them is what white-screened the previous attempt.
 */
+const feed = await getHomepageFeed();
+const heroImage = feed.hero[0]?.story;
+const preconnect = heroImage && /wsrv\.nl/.test(heroImage.imageSrcset || heroImage.image) ? ['https://wsrv.nl'] : [];
 ---
 
-{/*
-  `preconnect` is for wsrv.nl and nothing else. The hero's spotlight PANEL sits
-  inside `.hero` near its bottom edge, which puts it above the fold on a phone
-  (measured at 412x823: the panel art lands at y=626 of an 823px viewport), and
-  its "Latest" slide is a YouTube thumbnail routed through the wsrv.nl resizing
-  proxy by getCardImageSources(). That is a cold third-party origin, so the
-  image cannot begin downloading until DNS, TCP and TLS have all completed
-  against it — the exact three-round-trip problem the `preconnect` prop was
-  added for on /events, where it was worth roughly nine Lighthouse points.
-
-  Only wsrv.nl, deliberately. The `src` fallback points at i.ytimg.com, but the
-  img carries a `srcset`, and a browser that understands srcset never fetches
-  the `src` — so preconnecting i.ytimg.com would buy a handshake this page does
-  not use, which is what the prop's own note in Layout.astro warns against.
-
-  This does NOT make wsrv.nl safe to lean on further: see the note at the top of
-  src/lib/article-images.ts. A warm connection shortens the wait for a cold
-  transcode, it does not remove it. Article images are pre-built and committed
-  for that reason, and the durable fix here is the same one.
-*/}
 <Layout
-  title="BE Unconventional HQ"
-  preloadImage={heroBanner.src}
-  preconnect={['https://wsrv.nl']}
+  title={site.name}
+  preloadImage={heroImage?.image || undefined}
+  preloadImageSrcset={heroImage?.imageSrcset || undefined}
+  preloadImageSizes={heroImage?.imageSrcset ? '(max-width: 767px) 100vw, 80vw' : undefined}
+  preconnect={preconnect}
 >
-  <main>
-  <Hero />
+  <main class="home-v4">
+    <h1 class="sr-only">{site.name}: {site.tagline}</h1>
+    <ChalkFilter />
 
-  {/* Route-based conditional rendering guardrail */}
-  {isHomePage && <TakeoverBillboard />}
+    <HeroAccordion panels={feed.hero} />
 
-  {
-    false && (
-      <PromoBanner
-        title="Final Space: The Ending"
-        subtitle="Olan Rogers finally gets to finish the story that captured our hearts. See why this is the most important release of the year."
-        videoId="CBUmFGi_NNI"
-        image="https://i.ytimg.com/vi/CBUmFGi_NNI/maxresdefault.jpg"
-      />
-    )
-  }
+    <TakeoverBillboard />
 
-  {/*
-    ─── HOMEPAGE SECTION ORDER ─────────────────────────────────────────────
-    Deliberate, and the reason is navigational rather than aesthetic:
+    <IntelSpread lead={feed.intel.lead} orbit={feed.intel.orbit} />
 
-      1. What We Cover   ("Explore The HQ")  — orientation. What IS this site?
-      2. Recent Videos   ("Latest From The Channel") — the newest work.
-      3. The Intel       — the written side.
+    <VoidBreak quote={feed.quote} />
 
-    Categories now come FIRST. A visitor landing here cold used to meet four
-    video tiles before anything told them what the site covers; leading with
-    the four category tiles answers that question before asking them to pick
-    an individual piece of content.
+    <FeaturedWorld world={feed.featured} />
 
-    To reorder again, move these <Section> blocks — the order on screen is
-    just their order in this file. The headings themselves are not written
-    here; they come from SECTIONS in src/data/content.js.
-  */}
-
-  {/*
-    `id="hq-content"` is the hero CTA's anchor target, and it is BACK on this
-    section.
-
-    It has to be the first thing BELOW the hero. It moved to the spotlight bar
-    while that bar sat between the hero and this section; the bar is inside the
-    hero now, so targeting it would ask the page to scroll to something that is
-    already on screen — which is the exact bug the note below records.
-
-    The CTA used to point at `#page-content`, which wraps <main> and therefore
-    starts at offset 0, so once the splash had been dismissed and the reader
-    scrolled back to the top, pressing the button "scrolled" to where they
-    already were and appeared to do nothing at all.
-  */}
-  <Section id="hq-content" pt="4rem" pb="6rem">
-    <SectionHeader>
-      {/* Copy lives in src/data/content.js -> SECTIONS.whatWeCover */}
-      <PageTitle {...SECTIONS.whatWeCover} />
-    </SectionHeader>
-    <Categories />
-
-    {/* Sits under the category tiles — they are the thing it invites you to
-        explore past. */}
-    <div class="latest-view-all animate-on-scroll">
-      <a href="/feed" class="view-all-link">{LABELS.viewAllContent} &rarr;</a>
-    </div>
-  </Section>
-
-  {/*
-    ─── THE SPOTLIGHT BANNER SITS BETWEEN THE TWO ────────────────────────────
-
-    Order on this page, and the reason for it:
-
-      1. Hero            who this is
-      2. What We Cover   orientation, the four pillars
-      3. THIS BANNER     what is actually on the site right now
-      4. Featured        the editorial shelf
-
-    It went through two wrong homes before this one. Under the hero, sized so a
-    slice peeked above the fold: a band cut off by the bottom of the screen
-    reads as a mistake, and it forced the hero to be shortened for something
-    that was not part of it. Then inside the hero, floating over the artwork,
-    which buried it in the splash.
-
-    Here it is a break between two sections — orientation above it, editorial
-    below — which is the one place a rotating promo does not compete with
-    either. It is deliberately NOT inside a <Section>: it runs edge to edge
-    like a hero, and Section is the page column.
-  */}
-  <HomeSpotlightBar variant="banner" label="More from the HQ" />
-
-  <Section pt="4rem" pb="6rem">
-    <SectionHeader>
-      <PageTitle {...SECTIONS.featuredHighlights} />
-    </SectionHeader>
-    <FeaturedHighlights />
-  </Section>
-
-  <Section pb="6rem">
-    <SectionHeader>
-      {/* Copy lives in src/data/content.js -> SECTIONS.recentVideos */}
-      <PageTitle {...SECTIONS.recentVideos} />
-    </SectionHeader>
-    {/* Four tiles: the row divides evenly into 2x2 on mobile landscape.
-        Column math is `.home-video-grid` in styles/modules/home-cards.css,
-        shared with the other two homepage rows. */}
-    <div class="home-video-grid">
-      {
-        (await getVideosUnified())
-          .slice(0, 4)
-          .map((video, index) => (
-            <ContentCard item={video} index={index} />
-          ))
-      }
+    <div class="home-slot home-container">
+      <CommercialRotator />
     </div>
 
-    {/* Matches the "View All Content" link under the category tiles. */}
-    <div class="latest-view-all animate-on-scroll">
-      <a href="/feed/videos" class="view-all-link">{LABELS.viewAllVideos} &rarr;</a>
+    <WatchingRail items={feed.rail} />
+
+    <div class="home-slot">
+      <InstagramFeed>
+        <HomeSectionHeader
+          slot="header"
+          icon="instagram"
+          id="instagram-feed-heading"
+          title="On Instagram"
+          descriptor="Latest from the feed"
+        />
+      </InstagramFeed>
     </div>
-  </Section>
 
-  <LatestArticles />
-
-  <InstagramFeed />
-
-  <SubscribeCTA />
+    <div class="home-slot">
+      <SubscribeCTA />
+    </div>
   </main>
 </Layout>
