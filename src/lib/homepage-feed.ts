@@ -337,7 +337,14 @@ export const HERO_LABELS: Record<HeroPanel['key'], string> = {
 export function buildHomepageFeed(
   articles: HomeStory[],
   videos: HomeStory[],
-  opts: { featured?: FeaturedWorldConfig | null; intelOrbit?: number; railLimit?: number } = {},
+  opts: {
+    featured?: FeaturedWorldConfig | null;
+    intelOrbit?: number;
+    railLimit?: number;
+    /** Story ids the category panels should show first (the production
+        Featured Highlights mix, src/lib/featured-highlights.ts). */
+    heroPicks?: string[];
+  } = {},
 ): HomepageFeed {
   const intelOrbit = opts.intelOrbit ?? 3;
   const railLimit = opts.railLimit ?? 10;
@@ -354,18 +361,21 @@ export function buildHomepageFeed(
   };
   const free = (s: HomeStory) => !used.has(s.id);
 
-  /* 1. Hero, FIRST. Each category shows its newest story with art, article
-        OR video, whichever is more recent (Andrew: "variety amongst most
-        recent", "my latest TV piece is actually from Lanterns"). It used to
-        prefer articles and to run after Featured, which had already claimed
-        every Lanterns story, so the TV panel showed an older article. LATEST
-        is then the newest story left. A category with nothing to show drops
-        its panel rather than rendering an empty one. */
+  /* 1. Hero, FIRST. Each category shows its `heroPicks` story when one of
+        them is in that category (the production Featured Highlights mix,
+        which Andrew prefers: a featured/recent video per category, the best
+        performer and the newest article), otherwise its newest story with
+        art, article or video. LATEST is then the newest story left. The hero
+        runs before Featured, which used to claim every Lanterns story first.
+        A category with nothing to show drops its panel rather than
+        rendering an empty one. */
   const withArt = (s: HomeStory) => Boolean(s.image);
   const hero: HeroPanel[] = [];
   const catKey: Record<HomeCategory, HeroPanel['key']> = { Film: 'film', TV: 'tv', Games: 'games', Events: 'events' };
+  const picked = new Set(Array.isArray(opts.heroPicks) ? opts.heroPicks : []);
+  const inCat = (cat: HomeCategory) => (s: HomeStory) => free(s) && withArt(s) && s.category === cat;
   for (const cat of HOME_CATEGORIES) {
-    const story = claim(all.find((s) => free(s) && withArt(s) && s.category === cat));
+    const story = claim(all.find((s) => picked.has(s.id) && inCat(cat)(s)) ?? all.find(inCat(cat)));
     if (story) hero.push({ key: catKey[cat], label: HERO_LABELS[catKey[cat]], isNew: false, story });
   }
   const latest = claim(all.find((s) => free(s) && withArt(s)));

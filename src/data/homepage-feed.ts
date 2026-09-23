@@ -10,7 +10,8 @@
  * This file is only the binding to the real stores, plus the one editorial
  * choice the page makes: which story world the Featured section spotlights.
  */
-import { getAllArticles, articleHref, isExternalArticle, type ArticleRecord } from '../lib/articles';
+import { getAllArticles, getPublishedArticles, articleHref, isExternalArticle, type ArticleRecord } from '../lib/articles';
+import { pickFeaturedHighlights } from '../lib/featured-highlights';
 import { getVideosUnified } from '../lib/videos-source';
 import { localArticleImage } from '../lib/article-images';
 import { getCardImageSources } from '../lib/card-images';
@@ -66,7 +67,17 @@ export function getHomepageFeed(): Promise<HomepageFeed> {
     } catch (err) {
       console.error('[homepage-feed] videos unavailable:', err);
     }
-    return buildHomepageFeed(articles, videos, { featured: FEATURED_WORLD });
+    /* The hero's category panels open on the production Featured
+       Highlights mix. Ids in HomeStory's own format (see mapArticle /
+       mapVideo), so the builder can match them without the raw records. */
+    let heroPicks: string[] = [];
+    try {
+      heroPicks = pickFeaturedHighlights(await getVideosUnified(), getPublishedArticles(), (a) => articleHref(a))
+        .map((item: any) => (item.youtubeId ? `video:${item.youtubeId}` : `article:${item.guid || item.slug || item.title}`));
+    } catch (err) {
+      console.error('[homepage-feed] highlight picks unavailable:', err);
+    }
+    return buildHomepageFeed(articles, videos, { featured: FEATURED_WORLD, heroPicks });
   })();
   return cached;
 }

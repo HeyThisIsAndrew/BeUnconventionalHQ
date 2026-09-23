@@ -512,9 +512,25 @@
   border-left: 2px solid rgba(204, 0, 0, 0.9);
   color: rgba(255, 255, 255, 0.9);
 }
+/* ─── THE COPY BLOCK IS ONE FIXED HEIGHT ─────────────────────────────────
+   Chips, headline box, deck, button: the headline box always holds exactly
+   --title-lines lines and the deck exactly two, so the block is the same
+   height on every panel and the chips sit in the same place whichever story
+   is open (they used to ride up and down with the headline's length). A
+   short headline settles to the BOTTOM of its box, next to its deck; a long
+   one is cut with an ellipsis at the last line. */
+.home-v4 .acc-title-box {
+  --title-lines: 4;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  font: 800 clamp(1.4rem, 2.15vw, 2.2rem) / 1.06 var(--font-headline);
+  height: calc(var(--title-lines) * 1.06em);
+  margin: 0.2rem 0 0.9rem;
+}
 .home-v4 .acc-headline {
-  margin: 0.55rem 0 0.9rem;
-  font: 800 clamp(1.55rem, 2.5vw, 2.5rem) / 1.04 var(--font-headline);
+  margin: 0;
+  font: inherit;
   text-transform: uppercase;
   /* `pretty`, not `balance`: balance evens the lines out across the WHOLE
      title and the clamp then hides the last one, which cut real ~90-char
@@ -522,7 +538,7 @@
      pathological title, not the expected case. */
   text-wrap: pretty;
   display: -webkit-box;
-  -webkit-line-clamp: 6;
+  -webkit-line-clamp: var(--title-lines);
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -536,15 +552,17 @@
   inset: 0;
 }
 .home-v4 .acc-deck {
-  /* The feed hero's .hero-tagline: a billing block, not body copy. */
+  /* The feed hero's .hero-tagline: a billing block, not body copy. Always
+     two lines tall (see the copy block note above). */
   margin: 0;
+  height: calc(2 * 1.7em);
   max-width: min(52ch, 100%);
   font: 500 0.95rem/1.7 var(--font-home);
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.62);
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -688,7 +706,8 @@
     width: 80px;
     height: auto;
   }
-  .home-v4 .acc-headline {
+  .home-v4 .acc-title-box {
+    --title-lines: 5;
     font-size: clamp(1.05rem, 4.5vw, 1.35rem);
   }
   .home-v4 .acc-deck {
@@ -819,49 +838,6 @@
    for; the lockup above owns the spacing here. */
 .home-v4 .featured-world .featured-highlights {
   margin-top: 0;
-}
-
-/* ━━━ PLAY BUTTON ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-/* Every video on this page uses the FEED's play glyph: the global
-   .play-button-wrapper / .cinematic-play-button in global-base.css, whose
-   red-glow hover is keyed on [data-play-hover]. This adds only what
-   ContentCard's `.content-card--cinematic` adds on the feed (home-cards.css):
-   invisible until hovered, always on where there is no hover. The rail and
-   Featured render ContentCard / FeaturedHighlights themselves and need
-   nothing from here; only the hero's video panel does. */
-.home-v4 .acc-panel .play-button-wrapper {
-  opacity: 0;
-  transform: scale(0.88);
-  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.home-v4 :is(.acc-panel.is-open:hover, .acc-panel.is-open:focus-within) .play-button-wrapper {
-  opacity: 1;
-  transform: scale(1);
-}
-/* A strip is not a video player: its glyph never shows. */
-.home-v4 .acc-panel:not(.is-open) .play-button-wrapper {
-  display: none;
-}
-/* The open panel's logo, chips and headline fill its left side and its
-   lower half, so the glyph centres in the clear top-right quarter of the
-   art. At the panel's centre it sat on the headline. */
-@media (min-width: 768px) {
-  .home-v4 .acc-panel .play-button-wrapper {
-    left: 50%;
-    bottom: 50%;
-  }
-}
-@media (hover: none) {
-  .home-v4 .acc-panel.is-open .play-button-wrapper {
-    opacity: 1;
-    transform: none;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .home-v4 .acc-panel .play-button-wrapper {
-    transition: none;
-  }
 }
 
 /* ━━━ 4. THE HQ IS WATCHING ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */

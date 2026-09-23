@@ -17,6 +17,7 @@ import {
   normalizeCategory,
   pickPullQuote,
 } from '../src/lib/homepage-feed.ts';
+import { pickFeaturedHighlights } from '../src/lib/featured-highlights.ts';
 
 let passed = 0;
 const test = (name, fn) => {
@@ -146,6 +147,38 @@ test('a category takes its newest story whether article or video, even from the 
   assert.equal(tv.story.id, 'video:v1');
   const ids = [...feed.hero.map((p) => p.story.id), ...(feed.featured ? [feed.featured.lead.id, ...feed.featured.items.map((s) => s.id)] : [])];
   assert.equal(new Set(ids).size, ids.length, 'the hero and Featured never repeat a story');
+});
+
+test('hero category panels open on heroPicks, and LATEST stays the newest story left', () => {
+  /* Andrew's preferred mix is the production Featured Highlights pick. An
+     older picked story beats a newer unpicked one in its category, and the
+     newest unpicked story is what LATEST shows. */
+  const articles = [art(1, { category: 'Events' })];
+  const videos = [
+    vid(1, { category: 'Film', title: 'Resident Evil We Were Wrong', publishedAt: '2026-09-01T12:00:00Z' }),
+    vid(2, { category: 'Film', title: 'Coyote vs Acme', publishedAt: '2026-09-16T12:00:00Z' }),
+  ];
+  const feed = buildHomepageFeed(articles, videos, { heroPicks: ['video:v1', 'article:g1'] });
+  assert.equal(feed.hero.find((p) => p.key === 'film').story.id, 'video:v1', 'the pick, not the newer Film video');
+  assert.equal(feed.hero.find((p) => p.key === 'events').story.id, 'article:g1');
+  assert.equal(feed.hero.find((p) => p.key === 'latest').story.id, 'video:v2', 'LATEST is the newest left');
+});
+
+test('pickFeaturedHighlights: featured first, distinct categories, best performer, newest article', () => {
+  const v = (id, category, day, extra = {}) => ({ youtubeId: id, category, publishedAt: `2026-09-${day}T12:00:00Z`, ...extra });
+  const videos = [
+    v('new1', 'Film', '20'),
+    v('new2', 'Film', '19'),
+    v('tv', 'TV', '10', { featured: true }),
+    v('games', 'Games', '05', { viewCount: 9000 }),
+    v('filmHit', 'Film', '04', { viewCount: 99000 }),
+  ];
+  const articles = [{ slug: 'la', title: 'L.A. Comic Con', isoDate: '2026-09-15T12:00:00Z' }, { slug: 'old', isoDate: '2026-01-01T12:00:00Z' }];
+  const picks = pickFeaturedHighlights(videos, articles, (a) => `/intel/${a.slug}`);
+  const ids = picks.map((p) => p.youtubeId || p.slug);
+  assert.deepEqual([...ids].sort(), ['games', 'la', 'new1', 'tv'].sort(), 'featured TV, newest Film, best Games (a new category beats a bigger Film hit), newest article');
+  assert.equal(picks.find((p) => p.slug === 'la').link, '/intel/la');
+  assert.deepEqual(pickFeaturedHighlights([], [], () => ''), [], 'empty stores, empty pick');
 });
 
 test('a category with no stories drops its panel instead of rendering empty', () => {

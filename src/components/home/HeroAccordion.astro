@@ -69,7 +69,6 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
             class:list={['acc-panel', { 'is-open': open }]}
             data-acc-panel
             data-key={panel.key}
-            data-play-hover={isVideo ? 'true' : undefined}
           >
             <div class="acc-media" aria-hidden="true">
               {story.image && (
@@ -84,15 +83,6 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
                   fetchpriority={open ? 'high' : 'low'}
                   decoding={open ? 'sync' : 'async'}
                 />
-              )}
-              {/* The feed's play glyph (global-base.css, [data-play-hover]):
-                  hidden until the open panel is hovered. */}
-              {isVideo && (
-                <div class="play-button-wrapper" aria-hidden="true">
-                  <div class="cinematic-play-button">
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32"><path d="M8 5v14l11-7z" /></svg>
-                  </div>
-                </div>
               )}
             </div>
 
@@ -133,19 +123,26 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
                   {story.kicker && <span class="acc-chip">{story.kicker}</span>}
                   {story.displayDate && <span class="acc-chip">{story.displayDate}</span>}
                 </p>
-                <h3 class="acc-headline">
-                  <a
-                    href={story.url}
-                    {...(isVideo
-                      ? { 'data-action': 'open-video', 'data-video-id': story.videoId }
-                      : story.external
-                        ? { target: '_blank', rel: 'noopener noreferrer' }
-                        : {})}
-                  >
-                    {story.headline}
-                  </a>
-                </h3>
-                {story.deck && <p class="acc-deck">{story.deck}</p>}
+                {/* A FIXED-height box, bottom-aligned: every panel's copy block is
+                    the same height whatever the headline's length, so the
+                    metadata chips above never move between panels (Andrew). */}
+                <div class="acc-title-box">
+                  <h3 class="acc-headline">
+                    {/* A video goes to /feed?play=<id>, which arrives with it
+                        promoted into the feed's own player, cued and one tap
+                        from playing: no modal (Andrew). An article is its
+                        ordinary link. */}
+                    <a
+                      href={isVideo && story.videoId ? `/feed?play=${encodeURIComponent(story.videoId)}` : story.url}
+                      {...(!isVideo && story.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                    >
+                      {story.headline}
+                    </a>
+                  </h3>
+                </div>
+                {/* Always rendered, even empty: its fixed two-line height is part
+                    of what keeps the chips in one place. */}
+                <p class="acc-deck">{story.deck}</p>
                 <p class="acc-cta" aria-hidden="true">
                   {isVideo ? `Watch${story.duration ? ` · ${story.duration}` : ''}` : `Read${story.readTime ? ` · ${story.readTime}` : ''}`}
                   <ChalkIcon name="arrow-right" size={16} />
