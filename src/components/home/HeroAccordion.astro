@@ -3,7 +3,9 @@
  * Homepage hero: the five-panel editorial accordion.
  *
  * FILM, TV, GAMES, EVENTS, LATEST — one expanded, the rest compressed to a
- * strip with a chalk icon over a horizontal label (never rotated text).
+ * strip: blurred art, a vertical label, and the category's chalk tile
+ * illustration at the foot (Andrew's call, from the reference mockup; the
+ * art is not cropped for a strip, so it is blurred rather than shown).
  *
  * ─── RENDERED OPEN ON THE SERVER ──────────────────────────────────────────
  * Panel 0's `is-open` and `aria-expanded="true"` are in the HTML. The script
@@ -22,8 +24,11 @@
  * first manual panel choice stops it for good (the toggle can restart it).
  * Off by default below 768px, and never with prefers-reduced-motion.
  */
+import { getImage } from 'astro:assets';
 import ChalkIcon from './ChalkIcon.astro';
 import { HERO_SIZES } from '../../lib/homepage-feed';
+import { categories } from '../../data/categories.js';
+import logoMark from '../../assets/logo-mark.webp';
 import type { HeroPanel } from '../../lib/homepage-feed';
 
 interface Props {
@@ -31,6 +36,22 @@ interface Props {
 }
 
 const { panels } = Astro.props;
+
+/*
+  Each strip's mark is the SAME chalk illustration as its "What We Cover"
+  tile (src/data/categories.js), so the hero and the tiles speak one visual
+  language. LATEST has no tile, so it carries the BE Unconventional mark.
+  Resized at build: the tile PNGs are 420px and logo-mark.webp is 414 KB.
+*/
+const tileArt = Object.fromEntries(categories.map((c) => [c.slug, c.image]));
+const artFor = async (key: string) => {
+  const src = key === 'latest' ? logoMark : tileArt[key];
+  if (!src) return null;
+  const width = key === 'latest' ? 320 : 240;
+  const img = await getImage({ src, width, format: 'webp' });
+  return { src: img.src, width, height: Math.round((width * src.height) / src.width) };
+};
+const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key, await artFor(p.key)])));
 ---
 
 {panels.length > 0 && (
@@ -74,7 +95,20 @@ const { panels } = Astro.props;
                 aria-controls={panelId}
                 data-acc-trigger
               >
-                <ChalkIcon name={panel.key} size={30} class="acc-icon" />
+                {art[panel.key] ? (
+                  <span class:list={['acc-art', { 'acc-art--logo': panel.key === 'latest' }]} aria-hidden="true">
+                    <img
+                      src={art[panel.key].src}
+                      alt=""
+                      width={art[panel.key].width}
+                      height={art[panel.key].height}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </span>
+                ) : (
+                  <ChalkIcon name={panel.key} size={30} class="acc-icon" />
+                )}
                 <span class="acc-label">{panel.label}</span>
                 {panel.isNew && <span class="acc-new">New</span>}
               </button>

@@ -210,7 +210,9 @@
 }
 
 .home-v4 .hero-acc-track {
-  --strip: clamp(84px, 7vw, 116px);
+  /* Wide enough to read the art behind a strip at all; 84-116px showed a
+     sliver nobody could identify. */
+  --strip: clamp(112px, 9.5vw, 156px);
   display: flex;
   gap: 6px;
   aspect-ratio: 16 / 7;
@@ -258,8 +260,15 @@
   transform: scale(1.04);
   transition: filter 0.6s ease, transform 1.4s ease;
 }
+.home-v4 .acc-panel:not(.is-open) .acc-media img {
+  /* Blurred: story art is framed for 16:9, never for a strip, so a sharp
+     sliver of it is unreadable noise. Blurred, it is colour and mood. The
+     panel already clips, so the overscan hides the soft blur edge. */
+  filter: blur(10px) grayscale(0.35) brightness(0.5);
+  transform: scale(1.18);
+}
 .home-v4 .acc-panel:hover:not(.is-open) .acc-media img {
-  filter: grayscale(0.4) brightness(0.6);
+  filter: blur(8px) grayscale(0.1) brightness(0.65);
 }
 .home-v4 .acc-panel.is-open .acc-media img {
   filter: none;
@@ -318,6 +327,58 @@
 .home-v4 .acc-trigger .chalk-icon {
   width: 30px;
   height: 30px;
+}
+/* The category's chalk tile illustration (LATEST: the BE mark). */
+.home-v4 .acc-art {
+  display: block;
+  flex: none;
+  line-height: 0;
+}
+.home-v4 .acc-art img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Desktop strip: vertical label centred, art at the foot. */
+@media (min-width: 768px) {
+  .home-v4 .acc-panel:not(.is-open) .acc-body {
+    justify-content: stretch;
+    padding: 1.25rem 0.5rem 1rem;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-trigger {
+    flex: 1;
+    justify-content: flex-end;
+    gap: 0.9rem;
+    width: 100%;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-label {
+    margin-block: auto;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: 0.95rem;
+    letter-spacing: 0.3em;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-art {
+    order: 3;
+    width: min(100%, 120px);
+    opacity: 0.92;
+    transition: transform 0.4s ease, opacity 0.4s ease;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-art--logo {
+    width: min(100%, 132px);
+  }
+  .home-v4 .acc-panel:hover:not(.is-open) .acc-art {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+/* Open panel: the art sits small beside the red label. */
+.home-v4 .acc-panel.is-open .acc-art {
+  width: 56px;
+}
+.home-v4 .acc-panel.is-open .acc-art--logo {
+  width: 84px;
 }
 .home-v4 .acc-label {
   font: 700 0.78rem/1 var(--font-home);
@@ -516,6 +577,14 @@
   .home-v4 .acc-trigger .chalk-icon {
     width: 26px;
     height: 26px;
+  }
+  .home-v4 .acc-art,
+  .home-v4 .acc-panel.is-open .acc-art {
+    width: 52px;
+  }
+  .home-v4 .acc-art--logo,
+  .home-v4 .acc-panel.is-open .acc-art--logo {
+    width: 72px;
   }
   .home-v4 .acc-headline {
     font-size: clamp(1.3rem, 6vw, 1.7rem);
