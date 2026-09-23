@@ -4,6 +4,18 @@ import { getVideosUnified } from '../lib/videos-source';
 import { getPublishedArticles, articleHref } from '../lib/articles';
 import { getCardImageSources } from '../lib/card-images';
 
+interface Props {
+  /**
+   * A curated set to show instead of the automatic pick below, in the order
+   * given. The homepage's Featured section passes one story world (e.g.
+   * Lanterns) so it gets THIS player, rows and safeguards (the escape link,
+   * embed-pause) rather than a second implementation of them. Items are in
+   * the feed's record shape (getVideoItems / getArticleFeedItems).
+   */
+  items?: any[];
+}
+const { items: curated } = Astro.props;
+
 const allVideos = await getVideosUnified();
 const allArticles = getPublishedArticles();
 
@@ -57,11 +69,12 @@ if (!bestPerforming && availableForBest.length > 0) {
 const selectedVideos = [...recentVideos, bestPerforming].filter(Boolean);
 
 // Mix them into a single highlighted list and sort by date descending
-const highlightedItems = [...selectedVideos, article].filter(Boolean).sort((a: any, b: any) => {
+const autoItems = [...selectedVideos, article].filter(Boolean).sort((a: any, b: any) => {
   const dateA = new Date(a.publishedAt || a.isoDate || a.date).getTime();
   const dateB = new Date(b.publishedAt || b.isoDate || b.date).getTime();
   return dateB - dateA;
 });
+const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean) : autoItems;
 ---
 
 <div class="featured-highlights animate-on-scroll">

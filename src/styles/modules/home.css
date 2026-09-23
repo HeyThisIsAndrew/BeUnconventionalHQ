@@ -779,146 +779,30 @@
 
 /* ━━━ 3. FEATURED WORLD ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-.home-v4 .fw-stage {
-  position: relative;
-  isolation: isolate;
-  padding-block: clamp(3rem, 7vw, 6.5rem);
-}
-/* The clipping backdrop is a SIBLING of the content (hard rule 3's pattern). */
-.home-v4 .fw-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  overflow: hidden;
-}
-.home-v4 .fw-backdrop img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center 30%;
-}
-.home-v4 .fw-backdrop::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(90deg, rgba(8, 8, 8, 0.7) 0%, rgba(8, 8, 8, 0.35) 34%, rgba(8, 8, 8, 0.9) 60%, #080808 78%),
-    linear-gradient(to bottom, #080808 0%, rgba(8, 8, 8, 0) 16%, rgba(8, 8, 8, 0) 78%, #080808 100%);
-}
-.home-v4 .fw-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
-  gap: clamp(2rem, 4vw, 4.5rem);
-  align-items: center;
-}
-.home-v4 .fw-lead {
-  max-width: 48rem;
-  /* The world's title sizes to THIS column (cqi below), so a single-word
-     name like LANTERNS fits whole instead of breaking mid-word. */
+/* The world's name, then FeaturedHighlights (its own styles, unchanged). */
+.home-v4 .fw-lockup {
+  /* The title sizes to this box (cqi, below). */
   container-type: inline-size;
+  max-width: 48rem;
+  margin-bottom: clamp(1rem, 2vw, 1.75rem);
 }
 .home-v4 .fw-title {
-  margin: 0.2rem 0 1rem;
+  margin: 0.2rem 0 0;
   /* Sized from the LONGEST WORD in the world's name (--fw-len, set by
      FeaturedWorld.astro): Syne 800 caps run ~1.15em each, measured on
-     LANTERNS (9.15em for 8 letters), so 1.2em per letter fits the column
+     LANTERNS (9.15em for 8 letters), so 1.2em per letter fits the box
      with room to spare, whatever name FEATURED_WORLD is given. */
   font: 800 clamp(1.8rem, calc(100cqi / (var(--fw-len, 8) * 1.2)), 6rem) / 0.92 var(--font-headline);
   text-transform: uppercase;
   letter-spacing: -0.01em;
   color: #fff;
-  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
-  /* Never split a word: `anywhere` (and then break-word, once the face
-     became Syne 800, which is wider) printed LANTERNS as LANTERN / S. The
-     cqi size above is what keeps an eight-letter name on one line. */
+  /* Never split a word: `anywhere` printed LANTERNS as LANTERN / S. */
   overflow-wrap: normal;
 }
-.home-v4 .fw-story-kicker {
-  margin: 0 0 0.5rem;
-}
-/* The SELECTED story's headline, so it leads like one (Syne, as the event
-   pages set theirs) rather than reading as a caption under the title. */
-.home-v4 .fw-headline {
-  margin: 0 0 0.75rem;
-  font: 700 clamp(1.25rem, 1.9vw, 1.75rem) / 1.2 var(--font-headline);
-  color: #fff;
-  text-wrap: pretty;
-}
-.home-v4 .fw-deck {
-  margin: 0 0 1.75rem;
-  font: 400 1rem/1.55 var(--font-home);
-  color: rgba(240, 240, 240, 0.86);
-}
-.home-v4 .fw-cards {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.home-v4 .fw-cards > li {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
-}
-.home-v4 .fw-cards > li:first-child {
-  border-top: 1px solid rgba(255, 255, 255, 0.09);
-}
-.home-v4 .fw-card {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
-  gap: 1rem;
-  align-items: center;
-  padding: 0.85rem 0.85rem 0.85rem 1rem;
-  color: var(--home-chalk);
-  text-decoration: none;
-  cursor: pointer;
-  transition: background-color 0.25s ease;
-}
-.home-v4 .fw-card:hover {
-  background: rgba(255, 255, 255, 0.04);
-}
-/* The tile on the stage: the same crimson edge the open hero panel wears. */
-.home-v4 .fw-card.is-active {
-  background: rgba(155, 0, 0, 0.14);
-  box-shadow: inset 4px 0 0 var(--home-crimson);
-  cursor: default;
-}
-.home-v4 .fw-card.is-active .fw-card-headline {
-  color: #fff;
-}
-.home-v4 .fw-card:focus-visible {
-  outline: 2px solid var(--home-crimson);
-  outline-offset: -2px;
-}
-.home-v4 .fw-card-copy {
-  display: grid;
-  gap: 0.35rem;
-}
-.home-v4 .fw-card-media {
-  position: relative;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  background: #111;
-}
-.home-v4 .fw-card-headline {
-  margin: 0;
-  color: rgba(240, 240, 240, 0.82);
-  font: 600 0.95rem/1.35 var(--font-home);
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-@media (max-width: 767px) {
-  .home-v4 .fw-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .home-v4 .fw-backdrop::after {
-    background:
-      linear-gradient(to bottom, #080808 0%, rgba(8, 8, 8, 0.45) 18%, rgba(8, 8, 8, 0.75) 45%, #080808 70%);
-  }
-  .home-v4 .fw-card {
-    grid-template-columns: minmax(0, 38%) minmax(0, 1fr);
-  }
+/* FeaturedHighlights brings its own top margin for the page it was built
+   for; the lockup above owns the spacing here. */
+.home-v4 .featured-world .featured-highlights {
+  margin-top: 0;
 }
 
 /* ━━━ PLAY BUTTON ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -927,14 +811,15 @@
    .play-button-wrapper / .cinematic-play-button in global-base.css, whose
    red-glow hover is keyed on [data-play-hover]. This adds only what
    ContentCard's `.content-card--cinematic` adds on the feed (home-cards.css):
-   invisible until hovered, always on where there is no hover. The rail's
-   cards are ContentCard itself and need nothing from here. */
-.home-v4 :is(.fw-card, .acc-panel) .play-button-wrapper {
+   invisible until hovered, always on where there is no hover. The rail and
+   Featured render ContentCard / FeaturedHighlights themselves and need
+   nothing from here; only the hero's video panel does. */
+.home-v4 .acc-panel .play-button-wrapper {
   opacity: 0;
   transform: scale(0.88);
   transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.home-v4 :is(.fw-card:hover, .fw-card:focus-visible, .acc-panel.is-open:hover, .acc-panel.is-open:focus-within) .play-button-wrapper {
+.home-v4 :is(.acc-panel.is-open:hover, .acc-panel.is-open:focus-within) .play-button-wrapper {
   opacity: 1;
   transform: scale(1);
 }
@@ -952,13 +837,13 @@
   }
 }
 @media (hover: none) {
-  .home-v4 :is(.fw-card, .acc-panel.is-open) .play-button-wrapper {
+  .home-v4 .acc-panel.is-open .play-button-wrapper {
     opacity: 1;
     transform: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .home-v4 :is(.fw-card, .acc-panel) .play-button-wrapper {
+  .home-v4 .acc-panel .play-button-wrapper {
     transition: none;
   }
 }

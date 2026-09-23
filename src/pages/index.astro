@@ -63,6 +63,16 @@ const intelArticles = getArticleFeedItems().filter((a) => !onPage.has(a.link)).s
    YouTube id, in the order the feed module chose them. */
 const videoById = new Map((await getVideoItems()).map((v: any) => [v.youtubeId, v]));
 const railVideos = feed.rail.map((s) => videoById.get(s.videoId)).filter(Boolean);
+
+/* Featured hands its world's stories to FeaturedHighlights, the production
+   featured box, which takes feed records too. Videos lead, so the box opens
+   on something that plays, as production's does. */
+const articleByLink = new Map(getArticleFeedItems().map((a) => [a.link, a]));
+const worldStories = feed.featured ? [feed.featured.lead, ...feed.featured.items] : [];
+const worldRecords = [
+  ...worldStories.filter((s) => s.type === 'video').map((s) => videoById.get(s.videoId)),
+  ...worldStories.filter((s) => s.type === 'article').map((s) => articleByLink.get(s.url)),
+].filter(Boolean);
 const preconnect = heroImage && /wsrv\.nl/.test(heroImage.imageSrcset || heroImage.image) ? ['https://wsrv.nl'] : [];
 ---
 
@@ -83,7 +93,7 @@ const preconnect = heroImage && /wsrv\.nl/.test(heroImage.imageSrcset || heroIma
 
     <IntelSpread articles={intelArticles} />
 
-    <FeaturedWorld world={feed.featured} />
+    <FeaturedWorld world={feed.featured} records={worldRecords} />
 
     <div class="home-slot home-container">
       <CommercialRotator />
