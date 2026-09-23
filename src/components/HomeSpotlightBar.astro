@@ -171,14 +171,15 @@ const featuredArtAt = async (w: number) =>
 */
 const featuredLogoSource = featuredSlug ? rowArt(`${featuredSlug}-logo`) : null;
 const featuredLogoData = featuredLogoSource
-  ? await getImage({ src: featuredLogoSource, height: 160, format: 'webp', quality: 90 })
+  ? await getImage({ src: featuredLogoSource, height: 150, format: 'webp', quality: 85 })
   : null;
 const featuredLogo = featuredLogoData && featuredLogoSource
   ? { 
       src: featuredLogoData.src, 
       srcset: [
-        `${(await getImage({ src: featuredLogoSource, height: 60, format: 'webp', quality: 90 })).src} 1.25x`,
-        `${(await getImage({ src: featuredLogoSource, height: 100, format: 'webp', quality: 90 })).src} 2x`,
+        `${(await getImage({ src: featuredLogoSource, height: 50, format: 'webp', quality: 85 })).src} 1x`,
+        `${(await getImage({ src: featuredLogoSource, height: 75, format: 'webp', quality: 85 })).src} 1.5x`,
+        `${(await getImage({ src: featuredLogoSource, height: 100, format: 'webp', quality: 85 })).src} 2x`,
         `${featuredLogoData.src} 3x`
       ].join(', '),
       width: featuredLogoData.attributes.width, 
@@ -258,7 +259,7 @@ if (featured) {
   Astro only emits when something asks the pipeline to process the file, which
   is how the featured art 404'd on this same component.
 */
-const markData = await getImage({ src: logoMark, height: 240, format: 'webp', quality: 82 });
+const markData = await getImage({ src: logoMark, height: 100, format: 'webp', quality: 80 });
 const markObj = { src: markData.src, width: markData.attributes.width, height: markData.attributes.height };
 
 slides.push({
@@ -372,7 +373,7 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
             srcset={slide.art.srcset || undefined}
             sizes={artSizes}
             alt=""
-            loading={index === 0 && variant === 'panel' ? 'eager' : 'lazy'}
+            loading="eager"
             fetchpriority={variant === 'panel' && index === 0 ? 'high' : 'auto'}
             decoding="async"
           />
@@ -407,7 +408,7 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
                 width={slide.logo.width}
                 height={slide.logo.height}
                 alt={slide.title}
-                loading={index === 0 && variant === 'panel' ? 'eager' : 'lazy'}
+                loading="eager"
                 fetchpriority={index === 0 && variant === 'panel' ? 'high' : 'auto'}
                 decoding="async"
               />

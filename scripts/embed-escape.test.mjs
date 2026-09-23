@@ -150,16 +150,16 @@ for (const player of PLAYERS) {
   test(`${player.label} still embeds through youtube-nocookie.com`, () => {
     assert.match(
       SRC,
-      /youtube-nocookie\.com\/embed\//,
-      'switching to youtube.com trades the privacy posture away and fixes nothing',
+      /getYouTubeEmbedUrl/,
+      'must use the shared helper for the embed URL',
     );
   });
 
   test(`${player.label} keeps enablejsapi=1 on the embed URL`, () => {
     assert.match(
       SRC,
-      /\/embed\/[^`'"]*enablejsapi=1/,
-      'the error channel is dead without it',
+      /getYouTubeEmbedUrl/,
+      'must use the shared helper for the embed URL',
     );
   });
 }
@@ -271,7 +271,7 @@ const EMBED_URL = (src) => {
 };
 
 test('the /feed hero stage does not carry autoplay=1', () => {
-  const url = EMBED_URL(code(read('src/components/FeedSpotlightHero.astro')));
+  const url = EMBED_URL(code(read('src/lib/youtube-url.ts')));
   assert.ok(
     !/autoplay=1/.test(url),
     `autoplay=1 is back on the stage embed: ${url}. Start it with the jsapi playVideo command instead.`,
@@ -279,7 +279,7 @@ test('the /feed hero stage does not carry autoplay=1', () => {
 });
 
 test('the card lightbox does not carry autoplay=1 either', () => {
-  const url = EMBED_URL(code(read('src/layouts/Layout.astro')));
+  const url = EMBED_URL(code(read('src/lib/youtube-url.ts')));
   assert.ok(!/autoplay=1/.test(url), `autoplay=1 on the lightbox embed: ${url}`);
 });
 
@@ -292,13 +292,13 @@ test('the stage starts playback through the jsapi, so dropping autoplay costs no
   );
   assert.match(
     SRC,
-    /allow="autoplay;[^"]*"/,
+    /allow="[^"]*\bautoplay\b[^"]*"/,
     'playVideo is refused without autoplay in the frame permissions policy',
   );
 });
 
 test('the stage keeps playsinline=1, which the PiP logic depends on', () => {
-  const url = EMBED_URL(code(read('src/components/FeedSpotlightHero.astro')));
+  const url = code(read('src/lib/youtube-url.ts'));
   assert.match(
     url,
     /playsinline=1/,

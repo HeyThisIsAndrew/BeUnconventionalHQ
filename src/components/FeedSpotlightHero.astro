@@ -494,7 +494,8 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
             data-pending-video={trailerId || undefined}
             title=""
             tabindex="-1"
-            allow="autoplay; encrypted-media"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+            allowfullscreen
             style="opacity: 0; pointer-events: none;"
           ></iframe>
 
@@ -2445,6 +2446,7 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
 </style>
 
 <script>
+  import { getYouTubeEmbedUrl } from '../lib/youtube-url';
   /*
     ─── THE HERO OWNS ITS OWN SWAP ───────────────────────────────────────────
 
@@ -3020,7 +3022,7 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
           screen takeover on iOS would tear this stage out from under the PiP
           logic that owns it.
         */
-        heroIframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1&playsinline=1`;
+        heroIframe.src = getYouTubeEmbedUrl(videoId, true);
 
         /*
           ─── ASK THE PLAYER TO TALK BACK, THEN ASK IT TO PLAY ───────────────
