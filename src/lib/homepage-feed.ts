@@ -123,6 +123,28 @@ export function normalizeCategory(raw: unknown): HomeCategory | null {
 }
 
 /** First sentence of a YouTube description, capped. Real copy, just shorter. */
+/**
+ * An article preview cut to a FIXED character budget, so every article in a
+ * fixed-height slot (the homepage's mini Intel spread) takes the same room
+ * and the slot never grows when a reader swaps articles. Paragraphs are
+ * joined into one run, cut at the last whole word inside the budget, and
+ * closed with an ellipsis only when something was actually cut.
+ * Pure and DOM-free: the server render and the swap script both call it.
+ */
+export function clipPreview(paragraphs: unknown, max: number): string {
+  const list = Array.isArray(paragraphs) ? paragraphs : [];
+  const text = list
+    .map((p) => (typeof p === 'string' ? p.trim() : ''))
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ');
+  if (!text || !(max > 0) || text.length <= max) return text;
+  const cut = text.slice(0, max + 1);
+  const lastSpace = cut.lastIndexOf(' ');
+  const head = (lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : text.slice(0, max)).replace(/[\s,;:.!?\-]+$/, '');
+  return `${head}…`;
+}
+
 export function firstSentence(text: unknown, max = 180): string {
   const s = str(text).split(/\n/)[0] ?? '';
   const m = s.match(/^.*?[.!?](?=\s|$)/);

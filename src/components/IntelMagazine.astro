@@ -48,6 +48,7 @@ import { Image } from 'astro:assets';
 import logoImage from '../assets/logo-mark.webp';
 import { LABELS } from '../data/content.js';
 import { articlePreview } from '../lib/articles';
+import { clipPreview } from '../lib/homepage-feed';
 import { getDisplayTags } from '../lib/tags';
 
 import { getCardImageSources } from '../lib/card-images.js';
@@ -71,6 +72,15 @@ interface Props {
 
 const { articles, compact = false } = Astro.props;
 const FeatureHeading = compact ? 'h3' : 'h2';
+/*
+  In the compact spread every article's lede is cut to the SAME character
+  count, so the centre is the same height whichever article is in it and the
+  section never grows on a swap (Andrew's rule). The swap script reads the
+  budget from `data-excerpt-chars` and cuts with the same clipPreview().
+*/
+const COMPACT_EXCERPT_CHARS = 170;
+const ledeOf = (a: MagazineArticle) =>
+  compact ? [clipPreview(articlePreview(a), COMPACT_EXCERPT_CHARS)] : articlePreview(a);
 
 /*
   The newest article opens the spread in the centre.
@@ -171,7 +181,11 @@ const activeSlug = feature?.slug ?? '';
 {
   /* No articles at all → render nothing. The page shows an <EmptyState />. */
   feature && (
-    <section class:list={['intel-magazine', { 'intel-magazine--compact': compact }]} aria-label="Featured articles">
+    <section
+      class:list={['intel-magazine', { 'intel-magazine--compact': compact }]}
+      aria-label="Featured articles"
+      data-excerpt-chars={compact ? COMPACT_EXCERPT_CHARS : undefined}
+    >
       <MagazineRail side="left" articles={leftRail} activeSlug={activeSlug} />
 
       {/*
@@ -256,7 +270,7 @@ const activeSlug = feature?.slug ?? '';
               legally contain other paragraphs.
             */}
             <div class="intel-feature-excerpt" id="intel-feature-excerpt">
-              {articlePreview(feature).map((paragraph) => <p>{paragraph}</p>)}
+              {ledeOf(feature).map((paragraph) => <p>{paragraph}</p>)}
             </div>
 
             {/* "Read More" rather than "Read Now": the excerpt above is a
@@ -275,6 +289,8 @@ const activeSlug = feature?.slug ?? '';
 }
 
 <script>
+  import { clipPreview } from '../lib/homepage-feed';
+
   /*
     Magazine centre-swap.
 
@@ -345,11 +361,15 @@ const activeSlug = feature?.slug ?? '';
         an RSS feed originally, it can never execute as markup here.
       */
       if (excerpt) {
+        const paragraphs = (data.preview ?? '')
+          .split('\n\n')
+          .map((text) => text.trim())
+          .filter(Boolean);
+        /* The compact (homepage) spread cuts every lede to one budget. */
+        const budget = Number(feature!.closest<HTMLElement>('.intel-magazine')?.dataset.excerptChars);
+        const lede = budget > 0 ? [clipPreview(paragraphs, budget)] : paragraphs;
         excerpt.replaceChildren(
-          ...(data.preview ?? '')
-            .split('\n\n')
-            .map((text) => text.trim())
-            .filter(Boolean)
+          ...lede
             .map((text) => {
               const p = document.createElement('p');
               p.textContent = text;
