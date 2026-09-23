@@ -494,15 +494,6 @@ if (isVideo && item.youtubeId) {
          accessible name already says what it is. */
       <span class="content-card-format" aria-hidden="true">{isVideo ? 'VIDEO' : 'ARTICLE'}</span>
     )}
-    {variant === 'hero' && finalTags.length > 0 && (
-      <div class="content-card-hero-tags">
-        {tagSlots.brand && <span data-slot="brand">{tagSlots.brand}</span>}
-        {tagSlots.brand && tagSlots.type && <span class="tag-slot-sep" aria-hidden="true">{"\u00a0|\u00a0"}</span>}
-        {tagSlots.type && <span data-slot="type">{tagSlots.type}</span>}
-        {(tagSlots.brand || tagSlots.type) && tagSlots.extra && <span class="tag-slot-sep" aria-hidden="true">{"\u00a0|\u00a0"}</span>}
-        {tagSlots.extra && <span data-slot="extra">{tagSlots.extra}</span>}
-      </div>
-    )}
     {cardImage ? (
       <img
         class="content-card-img"
@@ -567,7 +558,14 @@ if (isVideo && item.youtubeId) {
       the tab order wrong, which is what a screen reader and a keyboard follow.
     */}
     <div class="content-card-title-wrapper">
-      {variant !== 'hero' && finalTags.length > 0 && (
+      {/*
+        Every variant, the hero included. The hero used to lay this line over
+        its artwork (`.content-card-hero-tags`), where it collided with the
+        player's captions and the watermark once a video played; it reads in
+        the body now, metadata -> title -> description -> link, like every
+        other tile (Andrew).
+      */}
+      {finalTags.length > 0 && (
         <div class="content-card-dynamic-tags">
           {tagSlots.brand && <span data-slot="brand">{tagSlots.brand}</span>}
           {tagSlots.brand && tagSlots.type && <span class="tag-slot-sep" aria-hidden="true">{"\u00a0|\u00a0"}</span>}
@@ -788,19 +786,5 @@ if (isVideo && item.youtubeId) {
     text-overflow: ellipsis;
   }
 
-  :global(.content-card-hero-tags) {
-    position: absolute;
-    bottom: 1rem;
-    left: 1rem;
-    z-index: 5;
-    font-family: var(--font-body, 'Inter', sans-serif);
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.9);
-    pointer-events: none;
-    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
-  }
 
 </style>
