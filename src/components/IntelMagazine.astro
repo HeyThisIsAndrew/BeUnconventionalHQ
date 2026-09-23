@@ -514,7 +514,15 @@ const activeSlug = feature?.slug ?? '';
           already accounted for by the global `scroll-padding-top`, so the
           headline lands just below the chrome rather than under it.
         */
-        feature!.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        /*
+          A host can name a larger block to bring into view instead, with
+          `data-magazine-scroll-anchor`: the homepage's mini spread sits
+          under its own "INTEL" heading, and scrolling to the feature put
+          that heading under the navbar (Andrew: the label must stay
+          visible). /intel sets nothing, so it behaves exactly as above.
+        */
+        const anchor = feature!.closest<HTMLElement>('[data-magazine-scroll-anchor]') ?? feature!;
+        anchor.scrollIntoView({ block: 'start', behavior: 'smooth' });
       });
     });
 
