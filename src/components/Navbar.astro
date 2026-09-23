@@ -250,12 +250,9 @@ const isActive = (href: string) =>
       scrollHandler = () => {
         if (window['__hqScrollLock'] && window['__hqScrollLock'].isLocked()) return;
         const scroll = window.scrollY || document.documentElement.scrollTop;
-        /* A page can ask for the layered, shadowed bar (with the wordmark)
-           at EVERY scroll position by carrying `data-nav-solid` anywhere in
-           it. The homepage does: Andrew wants the bar to sit over the site
-           from the first frame, not only after 100px of scroll. */
-        const solid = !!document.querySelector('[data-nav-solid]');
-        updateVisibility(solid || scroll > 100);
+        /* The wordmark slides in past 100px on EVERY page. (The layered bar
+           itself no longer depends on this: see #navbar in navbar.css.) */
+        updateVisibility(scroll > 100);
       };
       
       window.addEventListener('scroll', scrollHandler, { passive: true });
