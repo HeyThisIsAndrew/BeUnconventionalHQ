@@ -26,6 +26,13 @@
 export type HomeCategory = 'Film' | 'TV' | 'Games' | 'Events';
 export const HOME_CATEGORIES: HomeCategory[] = ['Film', 'TV', 'Games', 'Events'];
 
+/**
+ * `sizes` for the hero accordion's art. index.astro's preload and the open
+ * panel's <img> must both read THIS, or the browser runs two different
+ * selections and downloads the art twice (#191, scripts/lcp-preload.test.mjs).
+ */
+export const HERO_SIZES = '(max-width: 767px) 100vw, 80vw';
+
 export interface ImageSources {
   src: string;
   srcset: string;

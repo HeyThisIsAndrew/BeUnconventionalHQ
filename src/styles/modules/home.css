@@ -57,6 +57,12 @@
 .home-v4 > [hidden] + * {
   margin-top: 0;
 }
+/* The hero is the first VISIBLE block, but the sr-only <h1> and the chalk
+   filter <svg> precede it, so `* + *` handed it a section gap on top of
+   --home-top: a 115px dead band under the navbar at 1440px. */
+.home-v4 > .hero-acc {
+  margin-top: 0;
+}
 
 .home-v4 .home-container {
   width: 100%;
@@ -346,7 +352,9 @@
 .home-v4 .acc-content {
   position: relative;
   display: none;
-  max-width: 40rem;
+  /* The site's root font is 12.8px, so 40rem was only 512px here: long
+     editorial titles in the expanded face ran to five lines and clipped. */
+  max-width: 48rem;
 }
 .home-v4 .acc-panel.is-open .acc-content {
   display: block;
@@ -364,11 +372,15 @@
 }
 .home-v4 .acc-headline {
   margin: 0.55rem 0 0.9rem;
-  font: 400 clamp(1.55rem, 2.7vw, 2.75rem) / 1.04 var(--font-headline);
+  font: 400 clamp(1.55rem, 2.5vw, 2.5rem) / 1.04 var(--font-headline);
   text-transform: uppercase;
-  text-wrap: balance;
+  /* `pretty`, not `balance`: balance evens the lines out across the WHOLE
+     title and the clamp then hides the last one, which cut real ~90-char
+     headlines off mid-sentence at 1440px. The clamp is a safety net for a
+     pathological title, not the expected case. */
+  text-wrap: pretty;
   display: -webkit-box;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 6;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -775,15 +787,20 @@
 }
 .home-v4 .fw-lead {
   max-width: 40rem;
+  /* The world's title sizes to THIS column (cqi below), so a single-word
+     name like LANTERNS fits whole instead of breaking mid-word. */
+  container-type: inline-size;
 }
 .home-v4 .fw-title {
   margin: 0.2rem 0 1rem;
-  font: 400 clamp(2.6rem, 6.6vw, 6.4rem) / 0.92 var(--font-headline);
+  font: 400 clamp(2.2rem, 14cqi, 6.4rem) / 0.92 var(--font-headline);
   text-transform: uppercase;
   letter-spacing: -0.01em;
   color: #fff;
   text-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
-  overflow-wrap: anywhere;
+  /* Last resort only, for a name too long for any size in the clamp.
+     `anywhere` split LANTERNS as LANTERN / S. */
+  overflow-wrap: break-word;
 }
 .home-v4 .fw-headline {
   margin: 0 0 0.6rem;
@@ -972,6 +989,11 @@
 .home-v4 .home-slot > :is(section, div) {
   margin-top: 0;
   margin-bottom: 0;
+}
+/* The rotator pads itself 64px top and bottom for pages that have no rhythm
+   of their own; here --home-gap already spaces it, and the two stacked. */
+.home-v4 .home-slot > .yt-banner-wrapper {
+  padding-block: 0;
 }
 .home-v4 .home-slot .instagram-feed-section {
   margin-bottom: 0;

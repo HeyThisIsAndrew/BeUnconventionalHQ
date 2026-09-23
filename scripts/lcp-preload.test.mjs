@@ -94,32 +94,47 @@ for (const { file, heroClass } of HERO_PAGES) {
 
 console.log('\nThe homepage preload');
 
-check('index.astro preloads the banner through Layout', () => {
+/*
+  The homepage's LCP element is the hero accordion's OPEN panel art
+  (feat/homepage-v4), not the old Hero.astro banner. The preload must read the
+  same story, the same srcset and the same `sizes` constant as that <img>, or
+  it is a second download rather than a head start (the #191 bug above).
+*/
+check('index.astro preloads the open hero panel through Layout', () => {
   const src = code(read('src/pages/index.astro'));
-  assert.match(src, /preloadImage=\{heroBanner\.src\}/, 'the banner preload is gone');
+  const layout = src.match(/<Layout[\s\S]*?>/);
+  assert.ok(layout, 'no <Layout> opening tag found');
+  assert.match(src, /const heroImage = feed\.hero\[0\]\?\.story/, 'the preload no longer reads panel 0');
+  assert.match(layout[0], /preloadImage=\{heroImage\?\.image/, 'the hero preload is gone');
+  assert.match(layout[0], /preloadImageSrcset=\{heroImage\?\.imageSrcset/, 'the preload lost its srcset');
+  assert.match(layout[0], /preloadImageSizes=\{[^}]*HERO_SIZES/, 'the preload must use HERO_SIZES');
+});
+
+check('the open panel <img> reads the same srcset and HERO_SIZES', () => {
+  const acc = code(read('src/components/home/HeroAccordion.astro'));
+  const index = code(read('src/pages/index.astro'));
+  for (const [name, src] of [['HeroAccordion.astro', acc], ['index.astro', index]]) {
+    assert.match(
+      src,
+      /import \{ HERO_SIZES \} from '(\.\.\/lib|\.\.\/\.\.\/lib)\/homepage-feed'/,
+      `${name} must take HERO_SIZES from src/lib/homepage-feed.ts`,
+    );
+    assert.ok(!/HERO_SIZES\s*=/.test(src), `${name} redeclares HERO_SIZES locally`);
+  }
+  assert.match(acc, /const open = index === 0/, 'panel 0 must be the one rendered open');
+  assert.match(acc, /srcset=\{story\.imageSrcset/);
+  assert.match(acc, /sizes=\{[^}]*HERO_SIZES/);
 });
 
 /*
-  The preload and the <img> must resolve to the SAME url, or the preload is a
-  second download rather than a head start. They used to share the raw import;
-  they now share `heroBanner` from src/lib/hero-banner.ts, which exists so the
-  two cannot drift. The backdrop is blurred 30px and is therefore requested
-  small -- see that module for the full reasoning.
+  Hero.astro is no longer mounted on the homepage but stays on disk (deleting
+  still-imported components white-screened v3). While it exists, its <img>
+  keeps taking the derived banner, not the raw unoptimised asset.
 */
-check('the hero <img> and the preload read the same derived banner', () => {
+check('Hero.astro still reads the derived banner', () => {
   const hero = code(read('src/components/Hero.astro'));
-  const index = code(read('src/pages/index.astro'));
-  for (const [name, src] of [['Hero.astro', hero], ['index.astro', index]]) {
-    assert.match(
-      src,
-      /import \{ heroBanner \} from '(\.\.\/lib|\.\.\/\.\.\/lib)\/hero-banner'/,
-      `${name} must take the banner from src/lib/hero-banner.ts`,
-    );
-    assert.ok(
-      !/from '.*assets\/banner\.webp'/.test(src),
-      `${name} must not import the raw banner asset directly -- it ships unoptimised`,
-    );
-  }
+  assert.match(hero, /import \{ heroBanner \} from '(\.\.\/lib|\.\.\/\.\.\/lib)\/hero-banner'/);
+  assert.ok(!/from '.*assets\/banner\.webp'/.test(hero), 'Hero.astro imports the raw banner asset');
   assert.match(hero, /class="hero-bg-image"/);
   assert.match(hero, /src=\{heroBanner\.src\}/, 'the hero <img> must use the derived src');
 });

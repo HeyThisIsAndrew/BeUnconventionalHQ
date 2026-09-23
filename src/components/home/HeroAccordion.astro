@@ -23,6 +23,7 @@
  * Off by default below 768px, and never with prefers-reduced-motion.
  */
 import ChalkIcon from './ChalkIcon.astro';
+import { HERO_SIZES } from '../../lib/homepage-feed';
 import type { HeroPanel } from '../../lib/homepage-feed';
 
 interface Props {
@@ -30,7 +31,6 @@ interface Props {
 }
 
 const { panels } = Astro.props;
-const HERO_SIZES = '(max-width: 767px) 100vw, 80vw';
 ---
 
 {panels.length > 0 && (
@@ -172,7 +172,10 @@ const HERO_SIZES = '(max-width: 767px) 100vw, 80vw';
 
     function frame(now: number) {
       if (!last) last = now;
-      const dt = now - last;
+      /* Capped: rAF does not run in a hidden tab, so the first frame back
+         would otherwise count the whole time away and flip the panel the
+         instant the reader returns. */
+      const dt = Math.min(now - last, 100);
       last = now;
       if (running()) {
         elapsed += dt;
