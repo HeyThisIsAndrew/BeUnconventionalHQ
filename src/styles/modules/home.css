@@ -914,9 +914,16 @@
   display: flex;
   gap: clamp(0.9rem, 1.5vw, 1.25rem);
   margin: 0;
-  padding: 0 0 0.25rem;
+  /* Room for ContentCard's -6px hover lift and its shadow, as the feed's own
+     rail gives it (FeedGrid .feed-row-rail), so locking the Y axis below
+     never clips a raised card. */
+  padding: 0.75rem 0 1.5rem;
   list-style: none;
   overflow-x: auto;
+  /* Locked vertically. `overflow-x: auto` alone computes overflow-y to auto
+     too, so the lifted card made the row scroll up and down inside itself
+     and cut the card's top off (Andrew). */
+  overflow-y: hidden;
   scroll-snap-type: x mandatory;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
