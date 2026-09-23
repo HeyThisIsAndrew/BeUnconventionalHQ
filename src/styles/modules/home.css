@@ -33,8 +33,12 @@
   --home-gap: 64px;
   /* Clears the fixed navbar, which sits over the top of this page. */
   --home-top: 84px;
-  --font-headline: 'Special Gothic Expanded One', 'Arial Black', system-ui, sans-serif;
-  --font-home: 'Archivo', system-ui, sans-serif;
+  /* The site's own faces, as the events and featured pages set them (Andrew:
+     those pages are the reference for a cinematic homepage). Syne ships
+     600-800 and Inter 400-600 (astro.config.mjs `fonts`), so every weight
+     below stays inside those ranges rather than asking for a synthesised one. */
+  --font-headline: var(--font-display), 'Syne', system-ui, sans-serif;
+  --font-home: var(--font-body), 'Inter', system-ui, sans-serif;
 
   background: var(--home-bg);
   color: var(--color-white, #f0f0f0);
@@ -89,7 +93,6 @@
 .home-v4 .stretched-link:focus-visible {
   outline: none;
 }
-.home-v4 :is(.intel-lead, .orbit-card, .fw-card, .rail-card):has(.stretched-link:focus-visible),
 .home-v4 .acc-content:has(.acc-headline a:focus-visible) {
   outline: 2px solid var(--home-crimson);
   outline-offset: 3px;
@@ -99,7 +102,7 @@
 
 .home-v4 .home-kicker {
   margin: 0 0 0.45rem;
-  font: 700 0.7rem/1.2 var(--font-home);
+  font: 600 0.7rem/1.2 var(--font-home);
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--home-red-text);
@@ -119,7 +122,7 @@
   padding: 0.95rem 1.4rem;
   background: var(--home-crimson);
   color: #fff;
-  font: 700 0.78rem/1 var(--font-home);
+  font: 600 0.78rem/1 var(--font-home);
   letter-spacing: 0.18em;
   text-transform: uppercase;
   text-decoration: none;
@@ -151,8 +154,8 @@
 }
 .home-v4 .hsh-title {
   margin: 0;
-  font: 400 clamp(1.3rem, 2.1vw, 1.85rem) / 1 var(--font-headline);
-  letter-spacing: 0.01em;
+  font: 800 clamp(1.3rem, 2.1vw, 1.85rem) / 1 var(--font-headline);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--home-red-text);
 }
@@ -176,7 +179,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  font: 700 0.72rem/1 var(--font-home);
+  font: 600 0.72rem/1 var(--font-home);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--home-chalk);
@@ -212,7 +215,7 @@
 .home-v4 .hero-acc-track {
   /* Wide enough to read the art behind a strip at all; 84-116px showed a
      sliver nobody could identify. */
-  --strip: clamp(112px, 9.5vw, 156px);
+  --strip: clamp(128px, 11vw, 180px);
   display: flex;
   gap: 6px;
   aspect-ratio: 16 / 7;
@@ -340,48 +343,82 @@
   height: auto;
 }
 
-/* Desktop strip: vertical label centred, art at the foot. */
+/* Desktop strip. Every strip puts its label and its art at the SAME
+   coordinates, so the five read as one aligned row whatever the word or the
+   art's shape: the label is centred on the strip, the art sits in a
+   same-sized box pinned the same distance from the foot. Both are absolutely
+   placed against .acc-body, so neither can push the other around (in flow,
+   LATEST's taller label and its NEW tag moved everything). */
 @media (min-width: 768px) {
-  .home-v4 .acc-panel:not(.is-open) .acc-body {
-    justify-content: stretch;
-    padding: 1.25rem 0.5rem 1rem;
-  }
-  .home-v4 .acc-panel:not(.is-open) .acc-trigger {
-    flex: 1;
-    justify-content: flex-end;
-    gap: 0.9rem;
-    width: 100%;
+  .home-v4 .hero-acc-track {
+    --art-box: 104px;
+    --art-foot: 1.4rem;
   }
   .home-v4 .acc-panel:not(.is-open) .acc-label {
-    margin-block: auto;
+    position: absolute;
+    top: 50%;
+    left: 50%;
     writing-mode: vertical-rl;
-    transform: rotate(180deg);
+    transform: translate(-50%, -50%) rotate(180deg);
     font-size: 0.95rem;
     letter-spacing: 0.3em;
   }
   .home-v4 .acc-panel:not(.is-open) .acc-art {
-    order: 3;
-    width: min(100%, 120px);
-    opacity: 0.92;
+    position: absolute;
+    left: 0.4rem;
+    right: 0.4rem;
+    bottom: var(--art-foot);
+    height: var(--art-box);
+    overflow: hidden;
+    opacity: 0.95;
     transition: transform 0.4s ease, opacity 0.4s ease;
   }
-  .home-v4 .acc-panel:not(.is-open) .acc-art--logo {
-    width: min(100%, 132px);
+  /* The tile PNGs are square with a wide transparent margin round the chalk
+     blob, which is what made them look small and clipped. Cover crops the
+     empty top and bottom and the scale eats the empty sides. */
+  .home-v4 .acc-panel:not(.is-open) .acc-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scale(1.22);
+  }
+  /* The BE mark is a wide wordmark with no margin: shown whole. */
+  .home-v4 .acc-panel:not(.is-open) .acc-art--logo img {
+    object-fit: contain;
+    transform: none;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-new {
+    position: absolute;
+    left: 50%;
+    bottom: calc(var(--art-foot) + var(--art-box) + 0.6rem);
+    transform: translateX(-50%);
   }
   .home-v4 .acc-panel:hover:not(.is-open) .acc-art {
     opacity: 1;
     transform: translateY(-3px);
   }
 }
-/* Open panel: the art sits small beside the red label. */
+/* Open panel: the art sits small beside the red label, cropped out of
+   the tile's transparent margin the same way the strips crop it. */
 .home-v4 .acc-panel.is-open .acc-art {
-  width: 56px;
+  width: 72px;
+  height: 46px;
+  overflow: hidden;
+}
+.home-v4 .acc-panel.is-open .acc-art:not(.acc-art--logo) img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.22);
+}
+.home-v4 .acc-panel.is-open .acc-art--logo {
+  height: auto;
 }
 .home-v4 .acc-panel.is-open .acc-art--logo {
   width: 84px;
 }
 .home-v4 .acc-label {
-  font: 700 0.78rem/1 var(--font-home);
+  font: 600 0.78rem/1 var(--font-home);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -390,7 +427,7 @@
   padding: 0.25rem 0.45rem;
   background: var(--home-blood);
   color: #fff;
-  font: 700 0.58rem/1 var(--font-home);
+  font: 600 0.58rem/1 var(--font-home);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -433,7 +470,7 @@
 }
 .home-v4 .acc-headline {
   margin: 0.55rem 0 0.9rem;
-  font: 400 clamp(1.55rem, 2.5vw, 2.5rem) / 1.04 var(--font-headline);
+  font: 800 clamp(1.55rem, 2.5vw, 2.5rem) / 1.04 var(--font-headline);
   text-transform: uppercase;
   /* `pretty`, not `balance`: balance evens the lines out across the WHOLE
      title and the clamp then hides the last one, which cut real ~90-char
@@ -471,7 +508,7 @@
   margin: 1.4rem 0 0;
   padding-bottom: 0.35rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.35);
-  font: 700 0.74rem/1 var(--font-home);
+  font: 600 0.74rem/1 var(--font-home);
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: #fff;
@@ -580,14 +617,23 @@
   }
   .home-v4 .acc-art,
   .home-v4 .acc-panel.is-open .acc-art {
-    width: 52px;
+    width: 64px;
+    height: 40px;
+    overflow: hidden;
+  }
+  .home-v4 .acc-art:not(.acc-art--logo) img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scale(1.22);
   }
   .home-v4 .acc-art--logo,
   .home-v4 .acc-panel.is-open .acc-art--logo {
-    width: 72px;
+    width: 80px;
+    height: auto;
   }
   .home-v4 .acc-headline {
-    font-size: clamp(1.3rem, 6vw, 1.7rem);
+    font-size: clamp(1.05rem, 4.5vw, 1.35rem);
   }
   .home-v4 .acc-deck {
     font-size: 0.95rem;
@@ -611,173 +657,32 @@
 
 /* ━━━ 2. INTEL ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-.home-v4 .intel-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
-  gap: clamp(1.5rem, 3vw, 3rem);
-  align-items: start;
-}
-
-.home-v4 .intel-lead {
-  position: relative;
-}
-.home-v4 .intel-lead-media {
-  position: relative;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  background: #111;
-}
-.home-v4 .intel-lead-media img,
-.home-v4 .orbit-media img,
-.home-v4 .fw-card-media img,
-.home-v4 .rail-media img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.8s ease;
-}
-.home-v4 .intel-lead:hover .intel-lead-media img,
-.home-v4 .orbit-card:hover .orbit-media img,
-.home-v4 .fw-card:hover .fw-card-media img,
-.home-v4 .rail-card:hover .rail-media img {
-  transform: scale(1.04);
-}
-.home-v4 .intel-lead-media::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to top, rgba(8, 8, 8, 0.95) 0%, rgba(8, 8, 8, 0.55) 40%, rgba(8, 8, 8, 0) 70%);
-}
-.home-v4 .intel-lead-copy {
-  position: absolute;
-  inset: auto 0 0 0;
-  padding: clamp(1.25rem, 2.5vw, 2rem);
-  max-width: 44rem;
-}
-.home-v4 .intel-lead-headline {
-  margin: 0 0 0.6rem;
-  font: 400 clamp(1.25rem, 2vw, 1.9rem) / 1.08 var(--font-headline);
-  text-transform: uppercase;
-  text-wrap: balance;
-}
-.home-v4 .intel-lead-headline a,
-.home-v4 .orbit-headline a,
-.home-v4 .fw-card-headline a,
-.home-v4 .rail-headline a {
-  color: #fff;
-  text-decoration: none;
-}
-.home-v4 .intel-lead-deck {
+/* The /intel spread itself (IntelMagazine + intel.css), shrunk. Only SIZE
+   is overridden here; layout, rails and the centre swap stay intel.css's,
+   so the two pages cannot drift apart. */
+.home-v4 .intel-magazine--compact {
   margin: 0;
-  font: 400 0.98rem/1.5 var(--font-home);
-  color: rgba(240, 240, 240, 0.84);
 }
-
-/* The chalk margin note. Styled text, not an image. */
-.home-v4 .chalk-note {
-  position: absolute;
-  top: -1.1rem;
-  right: 1rem;
-  z-index: 2;
-  display: flex;
-  align-items: flex-end;
-  gap: 0.2rem;
-  margin: 0;
-  padding: 0.3rem 0.7rem;
-  background: rgba(8, 8, 8, 0.82);
-  font: italic 600 1.02rem/1 var(--font-home);
-  letter-spacing: 0.02em;
-  color: var(--home-chalk);
-  transform: rotate(-4deg);
-  pointer-events: none;
+.home-v4 .intel-magazine--compact .intel-feature-excerpt {
+  --excerpt-lines: 5;
 }
-.home-v4 .chalk-note .chalk-icon {
-  width: 30px;
-  height: 30px;
-  margin-bottom: -1.3rem;
-  transform: scaleX(-1);
+.home-v4 .intel-magazine--compact .intel-feature-title {
+  font-size: clamp(1.3rem, 1.9vw, 1.9rem);
 }
-
-.home-v4 .intel-orbit {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.home-v4 .intel-orbit-item {
-  padding-block: 1.15rem;
-  border-bottom: 1px solid var(--home-rule);
-}
-.home-v4 .intel-orbit-item:first-child {
-  padding-top: 0;
-}
-.home-v4 .orbit-card {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 42%) minmax(0, 1fr);
-  gap: 1rem;
-  align-items: center;
-}
-.home-v4 .orbit-media {
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  background: #111;
-}
-.home-v4 .orbit-headline {
-  margin: 0;
-  font: 700 1rem/1.3 var(--font-home);
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.home-v4 .orbit-num {
-  display: none;
-}
-
 @media (max-width: 767px) {
-  .home-v4 .intel-grid {
-    grid-template-columns: minmax(0, 1fr);
+  .home-v4 .intel-magazine--compact .intel-feature-excerpt {
+    --excerpt-lines: 3;
   }
-  .home-v4 .intel-lead-media::after {
-    display: none;
-  }
-  .home-v4 .intel-lead-copy {
-    position: static;
-    padding: 1rem 0 0;
-  }
-  .home-v4 .chalk-note {
-    top: -0.9rem;
-    right: 0.5rem;
-    font-size: 0.92rem;
-  }
-  .home-v4 .intel-orbit {
-    display: grid;
+  /* intel.css drops the rails to one column at 640px, which on a phone made
+     the mini spread 2,400px tall. Kept two-up, with tighter tiles. */
+  .home-v4 .intel-magazine--compact .intel-rail {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1.25rem 1rem;
   }
-  .home-v4 .intel-orbit-item,
-  .home-v4 .intel-orbit-item:first-child {
-    padding: 0;
-    border: 0;
+  .home-v4 .intel-magazine--compact .intel-rail-item {
+    padding: 1rem 0.75rem;
   }
-  .home-v4 .orbit-card {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.6rem;
-    align-items: start;
-  }
-  .home-v4 .orbit-num {
-    display: block;
-    position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 2;
-    padding: 0.3rem 0.45rem;
-    background: var(--home-bg);
-    font: 400 0.8rem/1 var(--font-headline);
-    color: var(--home-chalk);
-  }
-  .home-v4 .orbit-headline {
-    font-size: 0.92rem;
+  .home-v4 .intel-magazine--compact .intel-rail-title {
+    font-size: 0.9rem;
   }
 }
 
@@ -804,7 +709,8 @@
 }
 .home-v4 .void-quote p {
   margin: 0;
-  font: italic 500 clamp(1.3rem, 2.5vw, 2.05rem) / 1.38 var(--font-home);
+  font: 600 clamp(1.35rem, 2.6vw, 2.2rem) / 1.3 var(--font-headline);
+  letter-spacing: 0.01em;
   color: var(--home-chalk);
   text-wrap: balance;
 }
@@ -855,26 +761,37 @@
   align-items: center;
 }
 .home-v4 .fw-lead {
-  max-width: 40rem;
+  max-width: 48rem;
   /* The world's title sizes to THIS column (cqi below), so a single-word
      name like LANTERNS fits whole instead of breaking mid-word. */
   container-type: inline-size;
 }
 .home-v4 .fw-title {
   margin: 0.2rem 0 1rem;
-  font: 400 clamp(2.2rem, 14cqi, 6.4rem) / 0.92 var(--font-headline);
+  /* Sized from the LONGEST WORD in the world's name (--fw-len, set by
+     FeaturedWorld.astro): Syne 800 caps run ~1.15em each, measured on
+     LANTERNS (9.15em for 8 letters), so 1.2em per letter fits the column
+     with room to spare, whatever name FEATURED_WORLD is given. */
+  font: 800 clamp(1.8rem, calc(100cqi / (var(--fw-len, 8) * 1.2)), 6rem) / 0.92 var(--font-headline);
   text-transform: uppercase;
   letter-spacing: -0.01em;
   color: #fff;
   text-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
-  /* Last resort only, for a name too long for any size in the clamp.
-     `anywhere` split LANTERNS as LANTERN / S. */
-  overflow-wrap: break-word;
+  /* Never split a word: `anywhere` (and then break-word, once the face
+     became Syne 800, which is wider) printed LANTERNS as LANTERN / S. The
+     cqi size above is what keeps an eight-letter name on one line. */
+  overflow-wrap: normal;
 }
+.home-v4 .fw-story-kicker {
+  margin: 0 0 0.5rem;
+}
+/* The SELECTED story's headline, so it leads like one (Syne, as the event
+   pages set theirs) rather than reading as a caption under the title. */
 .home-v4 .fw-headline {
-  margin: 0 0 0.6rem;
-  font: 700 1.15rem/1.35 var(--font-home);
+  margin: 0 0 0.75rem;
+  font: 700 clamp(1.25rem, 1.9vw, 1.75rem) / 1.2 var(--font-headline);
   color: #fff;
+  text-wrap: pretty;
 }
 .home-v4 .fw-deck {
   margin: 0 0 1.75rem;
@@ -898,7 +815,31 @@
   grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
   gap: 1rem;
   align-items: center;
-  padding-block: 1rem;
+  padding: 0.85rem 0.85rem 0.85rem 1rem;
+  color: var(--home-chalk);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.25s ease;
+}
+.home-v4 .fw-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+/* The tile on the stage: the same crimson edge the open hero panel wears. */
+.home-v4 .fw-card.is-active {
+  background: rgba(155, 0, 0, 0.14);
+  box-shadow: inset 4px 0 0 var(--home-crimson);
+  cursor: default;
+}
+.home-v4 .fw-card.is-active .fw-card-headline {
+  color: #fff;
+}
+.home-v4 .fw-card:focus-visible {
+  outline: 2px solid var(--home-crimson);
+  outline-offset: -2px;
+}
+.home-v4 .fw-card-copy {
+  display: grid;
+  gap: 0.35rem;
 }
 .home-v4 .fw-card-media {
   position: relative;
@@ -908,6 +849,7 @@
 }
 .home-v4 .fw-card-headline {
   margin: 0;
+  color: rgba(240, 240, 240, 0.82);
   font: 600 0.95rem/1.35 var(--font-home);
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -958,7 +900,6 @@
 .home-v4 .play-dot--sm .chalk-icon {
   margin-left: 2px;
 }
-.home-v4 .rail-card:hover .play-dot,
 .home-v4 .fw-card:hover .play-dot {
   background: rgba(155, 0, 0, 0.75);
   transform: translate(-50%, -50%) scale(1.06);
@@ -987,35 +928,15 @@
   display: none;
 }
 .home-v4 .rail-item {
-  flex: 0 0 clamp(240px, 22vw, 340px);
+  /* The feed rail's own sizing (.feed-row-item in FeedGrid.astro), so the
+     card is the feed's card at the feed's size. */
+  flex: 0 0 auto;
+  width: min(85vw, var(--feed-card, 320px));
+  display: flex;
   scroll-snap-align: start;
 }
-.home-v4 .rail-card {
-  position: relative;
-}
-.home-v4 .rail-media {
-  position: relative;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  background: #111;
-  margin-bottom: 0.8rem;
-}
-.home-v4 .rail-duration {
-  position: absolute;
-  right: 0.5rem;
-  bottom: 0.5rem;
-  padding: 0.2rem 0.4rem;
-  background: rgba(8, 8, 8, 0.85);
-  font: 600 0.72rem/1 var(--font-home);
-  color: #fff;
-}
-.home-v4 .rail-headline {
-  margin: 0;
-  font: 700 0.98rem/1.3 var(--font-home);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.home-v4 .rail-item > * {
+  width: 100%;
 }
 .home-v4 .rail-arrow {
   display: grid;
@@ -1039,11 +960,12 @@
 }
 
 @media (max-width: 767px) {
+  .home-v4 .hsh-title {
+    font-size: 1.15rem;
+    letter-spacing: 0.06em;
+  }
   .home-v4 .rail {
     gap: 0.4rem;
-  }
-  .home-v4 .rail-item {
-    flex-basis: 72vw;
   }
   .home-v4 .rail-arrow {
     width: 34px;

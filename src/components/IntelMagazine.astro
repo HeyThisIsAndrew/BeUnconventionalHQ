@@ -59,9 +59,18 @@ type MagazineArticle = ArticleRecord & { link: string; isExternal: boolean };
 interface Props {
   /** Newest first. The first article becomes the opening centre feature. */
   articles: MagazineArticle[];
+  /**
+   * The homepage's miniature of this spread. Below the fold there, so the
+   * feature image must not load eagerly at high priority (it would compete
+   * with the hero, the homepage's real LCP), and it sits under the section's
+   * own <h2>, so its title is an <h3>. Size is `.intel-magazine--compact`
+   * in src/styles/modules/home.css.
+   */
+  compact?: boolean;
 }
 
-const { articles } = Astro.props;
+const { articles, compact = false } = Astro.props;
+const FeatureHeading = compact ? 'h3' : 'h2';
 
 /*
   The newest article opens the spread in the centre.
@@ -162,7 +171,7 @@ const activeSlug = feature?.slug ?? '';
 {
   /* No articles at all → render nothing. The page shows an <EmptyState />. */
   feature && (
-    <section class="intel-magazine" aria-label="Featured articles">
+    <section class:list={['intel-magazine', { 'intel-magazine--compact': compact }]} aria-label="Featured articles">
       <MagazineRail side="left" articles={leftRail} activeSlug={activeSlug} />
 
       {/*
@@ -195,8 +204,8 @@ const activeSlug = feature?.slug ?? '';
               alt={feature.image ? `Cover image for ${feature.title}` : ''}
               width="1456"
               height="816"
-              loading="eager"
-              fetchpriority="high"
+              loading={compact ? 'lazy' : 'eager'}
+              fetchpriority={compact ? 'auto' : 'high'}
               hidden={!feature.image}
             />
             <div
@@ -231,7 +240,7 @@ const activeSlug = feature?.slug ?? '';
             </span>
 
             {/* h2: the page <h1> is the "THE INTEL" title in the header. */}
-            <h2 class="intel-feature-title" id="intel-feature-title">{feature.title}</h2>
+            <FeatureHeading class="intel-feature-title" id="intel-feature-title">{feature.title}</FeatureHeading>
 
             {/*
               THE LEDE — several real paragraphs, not a one-line teaser.

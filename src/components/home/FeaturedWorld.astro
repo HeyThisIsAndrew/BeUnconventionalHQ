@@ -3,10 +3,16 @@
  * Featured: one curated story world, currently set by FEATURED_WORLD in
  * src/data/homepage-feed.ts.
  *
- * Split layout: the world's title and its lead story on the left, a vertical
- * stack of three horizontal story cards on the right. The lead's art spans the
- * whole section and fades to the page black under the cards so they stay
- * legible.
+ * Split layout: the world's title and the SELECTED story on the left, the
+ * world's stories as tiles on the right. Picking a tile swaps the main
+ * feature in place, like the homepage "featured box" on the live site and the
+ * /intel magazine (Andrew's call). The lead is a tile too, so a reader can
+ * always get back to it.
+ *
+ * Progressive enhancement, the IntelMagazine pattern: every tile is a real
+ * <a href>, so without JS a tile simply opens its story; the script
+ * intercepts the click and repaints the stage from the tile's data-*.
+ * A video tile SELECTS on click; the main button is what opens #video-modal.
  *
  * The backdrop lives in its own clipping wrapper, a SIBLING of the content
  * (the hard-rule-3 pattern). Nothing here embeds a player today; video cards
@@ -28,10 +34,17 @@ const linkAttrs = (s: FeaturedWorld['lead']) =>
     : s.external
       ? { target: '_blank', rel: 'noopener noreferrer' }
       : {};
+const kickerOf = (s: FeaturedWorld['lead']) =>
+  [s.kicker, s.duration, s.readTime].filter(Boolean).join(' · ');
+const ctaOf = (s: FeaturedWorld['lead']) => (s.type === 'video' ? 'Watch the feature' : 'Read the feature');
+/* The lead is the first tile, so the stage can always be put back. */
+const tiles = world ? [world.lead, ...world.items] : [];
+/* Longest word, in letters: the title's size is derived from it (home.css). */
+const fwLen = world ? Math.max(4, ...world.title.split(/\s+/).map((w) => w.length)) : 8;
 ---
 
 {world && (
-  <section class="home-section featured-world" aria-labelledby="home-featured-title">
+  <section class="home-section featured-world" aria-labelledby="home-featured-title" data-fw>
     <div class="home-container">
       <HomeSectionHeader
         icon="featured"
@@ -43,68 +56,151 @@ const linkAttrs = (s: FeaturedWorld['lead']) =>
 
     <div class="fw-stage">
       <div class="fw-backdrop" aria-hidden="true">
-        {world.lead.image && (
-          <img
-            src={world.lead.image}
-            srcset={world.lead.imageSrcset || undefined}
-            sizes={world.lead.imageSrcset ? '100vw' : undefined}
-            alt=""
-            width="1280"
-            height="720"
-            loading="lazy"
-            decoding="async"
-          />
-        )}
+        <img
+          data-fw-img
+          src={world.lead.image || undefined}
+          srcset={world.lead.imageSrcset || undefined}
+          sizes="100vw"
+          alt=""
+          width="1280"
+          height="720"
+          loading="lazy"
+          decoding="async"
+          hidden={!world.lead.image}
+        />
       </div>
 
       <div class="home-container fw-grid">
-        <div class="fw-lead">
+        <div class="fw-lead" aria-live="polite">
           <p class="home-kicker fw-kicker">
             Coverage · {world.total} {world.total === 1 ? 'piece' : 'pieces'}
           </p>
-          <p class="fw-title" aria-hidden="true">{world.title}</p>
-          <h3 class="fw-headline">{world.lead.headline}</h3>
-          {world.lead.deck && <p class="fw-deck">{world.lead.deck}</p>}
-          <a class="home-btn" href={world.lead.url} {...linkAttrs(world.lead)}>
-            {world.lead.type === 'video' ? 'Watch the feature' : 'Read the feature'}
+          <p class="fw-title" aria-hidden="true" style={`--fw-len: ${fwLen}`}>{world.title}</p>
+          <p class="home-kicker fw-story-kicker" data-fw-kicker>{kickerOf(world.lead)}</p>
+          <h3 class="fw-headline" data-fw-headline>{world.lead.headline}</h3>
+          <p class="fw-deck" data-fw-deck hidden={!world.lead.deck}>{world.lead.deck}</p>
+          <a class="home-btn" data-fw-cta href={world.lead.url} {...linkAttrs(world.lead)}>
+            <span data-fw-cta-label>{ctaOf(world.lead)}</span>
             <ChalkIcon name="arrow-right" size={16} />
           </a>
         </div>
 
-        {world.items.length > 0 && (
-          <ul class="fw-cards">
-            {world.items.map((story) => (
-              <li>
-                <article class="fw-card">
-                  <div class="fw-card-media">
-                    {story.image && (
-                      <img
-                        src={story.image}
-                        srcset={story.imageSrcset || undefined}
-                        sizes={story.imageSrcset ? '(max-width: 767px) 38vw, 200px' : undefined}
-                        alt=""
-                        width="480"
-                        height="270"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    )}
-                    {story.type === 'video' && <span class="play-dot play-dot--sm" aria-hidden="true"><ChalkIcon name="play" size={14} /></span>}
-                  </div>
-                  <div class="fw-card-copy">
-                    <p class="home-kicker">
-                      {story.kicker}{story.duration && ` · ${story.duration}`}{story.readTime && ` · ${story.readTime}`}
-                    </p>
-                    <h4 class="fw-card-headline">
-                      <a href={story.url} class="stretched-link" {...linkAttrs(story)}>{story.headline}</a>
-                    </h4>
-                  </div>
-                </article>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ul class="fw-cards">
+          {tiles.map((story, index) => (
+            <li>
+              <a
+                href={story.url}
+                class:list={['fw-card', { 'is-active': index === 0 }]}
+                aria-current={index === 0 ? 'true' : undefined}
+                data-fw-tile
+                data-url={story.url}
+                data-type={story.type}
+                data-video-id={story.videoId || undefined}
+                data-external={story.external ? 'true' : undefined}
+                data-image={story.image}
+                data-srcset={story.imageSrcset}
+                data-kicker={kickerOf(story)}
+                data-headline={story.headline}
+                data-deck={story.deck}
+                data-cta={ctaOf(story)}
+                {...(story.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+              >
+                <span class="fw-card-media">
+                  {story.image && (
+                    <img
+                      src={story.image}
+                      srcset={story.imageSrcset || undefined}
+                      sizes={story.imageSrcset ? '(max-width: 767px) 38vw, 200px' : undefined}
+                      alt=""
+                      width="480"
+                      height="270"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  )}
+                  {story.type === 'video' && <span class="play-dot play-dot--sm" aria-hidden="true"><ChalkIcon name="play" size={14} /></span>}
+                </span>
+                <span class="fw-card-copy">
+                  <span class="home-kicker">{kickerOf(story)}</span>
+                  <span class="fw-card-headline">{story.headline}</span>
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   </section>
 )}
+
+<script>
+  let teardown: (() => void) | null = null;
+
+  function initFeaturedWorld() {
+    teardown?.();
+    teardown = null;
+    const root = document.querySelector<HTMLElement>('[data-fw]');
+    if (!root) return;
+    const q = <T extends Element>(sel: string) => root.querySelector<T>(sel);
+    const img = q<HTMLImageElement>('[data-fw-img]');
+    const kicker = q<HTMLElement>('[data-fw-kicker]');
+    const headline = q<HTMLElement>('[data-fw-headline]');
+    const deck = q<HTMLElement>('[data-fw-deck]');
+    const cta = q<HTMLAnchorElement>('[data-fw-cta]');
+    const ctaLabel = q<HTMLElement>('[data-fw-cta-label]');
+    const tiles = Array.from(root.querySelectorAll<HTMLAnchorElement>('[data-fw-tile]'));
+    if (!cta || tiles.length === 0) return;
+
+    function paint(tile: HTMLAnchorElement) {
+      const d = tile.dataset;
+      if (img) {
+        img.hidden = !d.image;
+        if (d.srcset) img.srcset = d.srcset;
+        else img.removeAttribute('srcset');
+        if (d.image) img.src = d.image;
+      }
+      if (kicker) kicker.textContent = d.kicker ?? '';
+      if (headline) headline.textContent = d.headline ?? '';
+      if (deck) {
+        deck.textContent = d.deck ?? '';
+        deck.hidden = !d.deck;
+      }
+      cta!.href = d.url ?? '#';
+      /* The main button carries whichever behaviour the story needs: a video
+         opens the shared #video-modal (Layout's delegated handler), an
+         external article a new tab, an internal one a plain navigation. */
+      for (const a of ['data-action', 'data-video-id', 'target', 'rel']) cta!.removeAttribute(a);
+      if (d.type === 'video' && d.videoId) {
+        cta!.setAttribute('data-action', 'open-video');
+        cta!.setAttribute('data-video-id', d.videoId);
+      } else if (d.external === 'true') {
+        cta!.target = '_blank';
+        cta!.rel = 'noopener noreferrer';
+      }
+      if (ctaLabel) ctaLabel.textContent = d.cta ?? '';
+      tiles.forEach((t) => {
+        const on = t === tile;
+        t.classList.toggle('is-active', on);
+        if (on) t.setAttribute('aria-current', 'true');
+        else t.removeAttribute('aria-current');
+      });
+    }
+
+    const onClick = (e: MouseEvent) => {
+      /* A modified click (new tab, new window) keeps its native meaning. */
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const tile = e.currentTarget as HTMLAnchorElement;
+      e.preventDefault();
+      if (tile.classList.contains('is-active')) return;
+      paint(tile);
+    };
+    tiles.forEach((t) => t.addEventListener('click', onClick));
+    teardown = () => tiles.forEach((t) => t.removeEventListener('click', onClick));
+  }
+
+  document.addEventListener('astro:page-load', initFeaturedWorld);
+  document.addEventListener('astro:before-swap', () => {
+    teardown?.();
+    teardown = null;
+  });
+</script>

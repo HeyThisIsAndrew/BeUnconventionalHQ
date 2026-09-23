@@ -1,7 +1,11 @@
 ---
 import { site } from '../data/site.js';
 import { Image } from 'astro:assets';
-import logoImage from '../assets/logo.webp';
+/* The PRE-CROPPED mark, not logo.webp: that file is a 2000x2000 square whose
+   artwork fills ~42% of it, so at navbar height the wordmark itself rendered
+   about 19px tall and could not be read (reported by Andrew). Same reasoning
+   as ArticleThumb.astro and Layout.astro, which already use this file. */
+import logoImage from '../assets/logo-mark.webp';
 
 const currentPath = Astro.url.pathname;
 /* Navigation comes from site.nav (src/data/site.js) so the navbar and the
@@ -23,7 +27,7 @@ const isActive = (href: string) =>
   <div class="container nav-inner">
     <div class="nav-brand-group">
       <a href="/" class="nav-logo">
-        <Image src={logoImage} alt="BE Unconventional HQ" width={150} height={150} widths={[65, 130, 150]} sizes="(max-width: 768px) 65px, 150px" loading="eager" />
+        <Image src={logoImage} alt="BE Unconventional HQ" widths={[110, 150, 220, 300]} sizes="(max-width: 768px) 110px, 150px" loading="eager" />
       </a>
       <a
         href="/"

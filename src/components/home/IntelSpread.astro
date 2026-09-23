@@ -1,30 +1,31 @@
 ---
 /**
- * Intel: the living magazine spread.
+ * Intel: a miniature of the /intel magazine spread.
  *
- * One dominant 16:9 lead on the left, three pieces orbiting on the right.
- * Below 768px the lead goes full width and the orbit becomes a two-column
- * mini grid with numbered labels (01, 02, 03), from the same markup.
+ * Not a homepage-only layout. It is the SAME IntelMagazine component /intel
+ * opens with (Andrew: "a miniature version of the magazine style we have on
+ * the intel page"), so a click on a rail tile swaps the centre feature here
+ * exactly as it does there, and a fix to one is a fix to both. `compact`
+ * only lazy-loads its image, drops its title to an <h3> under the header
+ * below, and scales it down (`.intel-magazine--compact`, home.css).
  *
- * The chalk margin note on the lead is real data, never a slogan: the
- * review's own score when it states one, otherwise its reading time.
+ * IntelMagazine binds by element id, so there must never be two on a page.
+ * /intel and / are separate pages, so there are not.
  */
-import ChalkIcon from './ChalkIcon.astro';
 import HomeSectionHeader from './HomeSectionHeader.astro';
-import type { HomeStory } from '../../lib/homepage-feed';
+import IntelMagazine from '../IntelMagazine.astro';
 import { ARTICLE_SECTION } from '../../data/sections.js';
+import type { getArticleFeedItems } from '../../lib/articles';
 
 interface Props {
-  lead: HomeStory | null;
-  orbit: HomeStory[];
+  /** Newest first, already cleared of anything the hero or Featured shows. */
+  articles: ReturnType<typeof getArticleFeedItems>;
 }
 
-const { lead, orbit } = Astro.props;
-const note = lead ? (lead.score ? `Scored ${lead.score}` : lead.readTime) : '';
-const ext = (s: HomeStory) => (s.external ? { target: '_blank', rel: 'noopener noreferrer' } : {});
+const { articles } = Astro.props;
 ---
 
-{lead && (
+{articles.length > 0 && (
   <section class="home-section intel-spread" aria-labelledby="home-intel-title">
     <div class="home-container">
       <HomeSectionHeader
@@ -36,74 +37,7 @@ const ext = (s: HomeStory) => (s.external ? { target: '_blank', rel: 'noopener n
         href={ARTICLE_SECTION.path}
         linkLabel="All Intel"
       />
-
-      <div class="intel-grid">
-        <article class="intel-lead">
-          <div class="intel-lead-media">
-            {lead.image && (
-              <img
-                src={lead.image}
-                srcset={lead.imageSrcset || undefined}
-                sizes={lead.imageSrcset ? '(max-width: 767px) 92vw, 58vw' : undefined}
-                alt=""
-                width="1280"
-                height="720"
-                loading="lazy"
-                decoding="async"
-              />
-            )}
-          </div>
-          <div class="intel-lead-copy">
-            <p class="home-kicker">{lead.kicker}{lead.category && lead.category !== lead.kicker ? ` · ${lead.category}` : ''}</p>
-            <h3 class="intel-lead-headline">
-              <a href={lead.url} class="stretched-link" {...ext(lead)}>{lead.headline}</a>
-            </h3>
-            {lead.deck && <p class="intel-lead-deck">{lead.deck}</p>}
-            <p class="home-meta">
-              {lead.displayDate}{lead.readTime && ` · ${lead.readTime}`}
-            </p>
-          </div>
-          {note && (
-            <p class="chalk-note" aria-hidden="true">
-              <span>{note}</span>
-              <ChalkIcon name="note-arrow" size={34} />
-            </p>
-          )}
-        </article>
-
-        {orbit.length > 0 && (
-          <ol class="intel-orbit">
-            {orbit.map((story, i) => (
-              <li class="intel-orbit-item">
-                <article class="orbit-card">
-                  <span class="orbit-num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-                  <div class="orbit-media">
-                    {story.image && (
-                      <img
-                        src={story.image}
-                        srcset={story.imageSrcset || undefined}
-                        sizes={story.imageSrcset ? '(max-width: 767px) 45vw, 240px' : undefined}
-                        alt=""
-                        width="480"
-                        height="270"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    )}
-                  </div>
-                  <div class="orbit-copy">
-                    <p class="home-kicker">{story.kicker}</p>
-                    <h3 class="orbit-headline">
-                      <a href={story.url} class="stretched-link" {...ext(story)}>{story.headline}</a>
-                    </h3>
-                    <p class="home-meta">{story.displayDate}{story.readTime && ` · ${story.readTime}`}</p>
-                  </div>
-                </article>
-              </li>
-            ))}
-          </ol>
-        )}
-      </div>
+      <IntelMagazine articles={articles} compact />
     </div>
   </section>
 )}

@@ -13,6 +13,8 @@ import WatchingRail from '../components/home/WatchingRail.astro';
 import HomeSectionHeader from '../components/home/HomeSectionHeader.astro';
 import { getHomepageFeed } from '../data/homepage-feed';
 import { HERO_SIZES } from '../lib/homepage-feed';
+import { getArticleFeedItems } from '../lib/articles';
+import { getVideoItems } from '../lib/feed-items';
 import { site } from '../data/site.js';
 import '../styles/modules/home.css';
 
@@ -45,6 +47,24 @@ import '../styles/modules/home.css';
 */
 const feed = await getHomepageFeed();
 const heroImage = feed.hero[0]?.story;
+
+/*
+  The mini Intel magazine takes the newest articles the hero and Featured are
+  NOT already showing, so no story appears twice on one screen. Four: one
+  rail tile each side of the feature plus the feature's own tile, which is
+  what keeps a MINIATURE of the spread from running 900px tall.
+*/
+const INTEL_MINI_SIZE = 4;
+const onPage = new Set(
+  [...feed.hero.map((p) => p.story), ...(feed.featured ? [feed.featured.lead, ...feed.featured.items] : [])].map((s) => s.url),
+);
+const intelArticles = getArticleFeedItems().filter((a) => !onPage.has(a.link)).slice(0, INTEL_MINI_SIZE);
+
+/* The rail renders the FEED's own card (ContentCard), which takes the feed's
+   video records rather than HomeStory, so the rail's picks are looked up by
+   YouTube id, in the order the feed module chose them. */
+const videoById = new Map((await getVideoItems()).map((v: any) => [v.youtubeId, v]));
+const railVideos = feed.rail.map((s) => videoById.get(s.videoId)).filter(Boolean);
 const preconnect = heroImage && /wsrv\.nl/.test(heroImage.imageSrcset || heroImage.image) ? ['https://wsrv.nl'] : [];
 ---
 
@@ -63,7 +83,7 @@ const preconnect = heroImage && /wsrv\.nl/.test(heroImage.imageSrcset || heroIma
 
     <TakeoverBillboard />
 
-    <IntelSpread lead={feed.intel.lead} orbit={feed.intel.orbit} />
+    <IntelSpread articles={intelArticles} />
 
     <VoidBreak quote={feed.quote} />
 
@@ -73,7 +93,7 @@ const preconnect = heroImage && /wsrv\.nl/.test(heroImage.imageSrcset || heroIma
       <CommercialRotator />
     </div>
 
-    <WatchingRail items={feed.rail} />
+    <WatchingRail items={railVideos} />
 
     <div class="home-slot">
       <InstagramFeed>
