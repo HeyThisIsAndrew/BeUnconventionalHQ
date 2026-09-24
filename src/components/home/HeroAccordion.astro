@@ -533,8 +533,9 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
       if (!mobile.matches) panels.forEach(sharpen);
     };
     const whenIdle = () => {
-      if ('requestIdleCallback' in window) idle = window.requestIdleCallback(sharpenAll, { timeout: 3000 });
-      else idleTimer = window.setTimeout(sharpenAll, 1000);
+      /* Older Safari has no requestIdleCallback. */
+      if (typeof window.requestIdleCallback === 'function') idle = window.requestIdleCallback(sharpenAll, { timeout: 3000 });
+      else idleTimer = setTimeout(sharpenAll, 1000) as unknown as number;
     };
     if (document.readyState === 'complete') whenIdle();
     else window.addEventListener('load', whenIdle, { once: true });
