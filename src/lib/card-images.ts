@@ -102,9 +102,11 @@ function youtubeSources(url: string): CardImageSources {
     to be the placeholder, the recovery drops the srcset and lands on the
     hqdefault that was in `src` the whole time.
   */
+  const proxied = genericExternalSources(url, YT_WIDTHS.maxresdefault).srcset;
   return {
     src: url.replace(YT_RENDITION, '/hqdefault.jpg'),
-    srcset: genericExternalSources(url, YT_WIDTHS.maxresdefault).srcset,
+    // Supply the exact original maxres asset directly to avoid proxy downsampling/re-compression at the 1280w rung
+    srcset: proxied ? `${proxied}, ${url} ${YT_WIDTHS.maxresdefault}w` : `${url} ${YT_WIDTHS.maxresdefault}w`,
   };
 }
 
@@ -315,7 +317,7 @@ function substackSources(url: string): CardImageSources {
    on a real phone. A finer ladder trades a warm-cache saving for a cold-cache
    penalty, so the ladder stays coarse and only closes the gap that measurement
    actually showed. */
-const WSRV_WIDTHS = [400, 600, 800, 900, 1200, 1600, 2000];
+const WSRV_WIDTHS = [400, 600, 800, 900, 1200, 1600, 2000, 2400, 3840];
 
 /** The ladder a source can actually fill: every rung at or below its own width.
  *  Never empty — a source narrower than the smallest rung still gets that one,
@@ -323,6 +325,7 @@ const WSRV_WIDTHS = [400, 600, 800, 900, 1200, 1600, 2000];
 function widthsFor(capWidth?: number): number[] {
   if (!capWidth) return WSRV_WIDTHS;
   const fit = WSRV_WIDTHS.filter((w) => w <= capWidth);
+  if (capWidth && !fit.includes(capWidth)) fit.push(capWidth);
   return fit.length ? fit : [WSRV_WIDTHS[0]];
 }
 const WSRV_SRC_WIDTH = 600;
@@ -365,7 +368,7 @@ function genericExternalSources(url: string, capWidth?: number): CardImageSource
     them if a cap is ever missed.
   */
   const withWidth = (w: number) =>
-    `https://wsrv.nl/?url=${encodeURIComponent(urlWithoutProto)}&w=${w}&output=webp&q=75&we`;
+    `https://wsrv.nl/?url=${encodeURIComponent(urlWithoutProto)}&w=${w}&output=webp&q=85&we`;
 
   return {
     src: withWidth(WSRV_SRC_WIDTH),

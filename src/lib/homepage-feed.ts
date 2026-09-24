@@ -31,7 +31,7 @@ export const HOME_CATEGORIES: HomeCategory[] = ['Film', 'TV', 'Games', 'Events']
  * panel's <img> must both read THIS, or the browser runs two different
  * selections and downloads the art twice (#191, scripts/lcp-preload.test.mjs).
  */
-export const HERO_SIZES = '(max-width: 767px) 100vw, 80vw';
+export const HERO_SIZES = '100vw';
 
 export interface ImageSources {
   src: string;
