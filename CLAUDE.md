@@ -43,6 +43,10 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
 3. **No `overflow: hidden` on any ancestor of a YouTube iframe** — iOS Safari
    renders the iframe as a black box. Isolate clipping to sibling background
    wrappers (see `.event-hero-bg-wrapper` in the `[slug]` pages).
+   `content-visibility: auto` clips too (it implies paint containment): the
+   homepage's below-the-fold sections use it for the mobile layout cost, and
+   each drops it via `:has(iframe)`; Featured (a player host) is never in the
+   list. `scripts/home-content-visibility.test.mjs` guards it.
 4. **Never assign an iframe `src = ''`** — it resolves to the current page URL
    and silently reloads the site inside the iframe. Use `'about:blank'`.
 5. **`videos.json` docs have THREE field classes** (epic #34, pivoted off Sanity):

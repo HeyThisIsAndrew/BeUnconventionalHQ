@@ -75,6 +75,57 @@
   padding-inline: var(--home-gutter);
 }
 
+/* ─── BELOW THE FOLD IS NOT LAID OUT UNTIL IT IS NEAR ─────────────────────
+   The mobile main-thread cost was layout, not CSS size and not script:
+   measured under Lighthouse's phone throttling, deleting every unused CSS
+   rule moved the score 1 point, while the long tasks were full layout
+   passes over ~1,500 layout objects, most of them sections nobody can see
+   yet (on a phone everything from Intel down starts below 1,000px; on
+   desktop the Instagram marquee alone is 1,683 elements). With
+   `content-visibility: auto` on the sections below, same lab, median of
+   five: score 85 -> 93, TBT 551 -> 301ms, LCP 1.77 -> 1.65s.
+
+   The sizes are each section's measured height (phone / desktop), there only
+   to hold the scrollbar and anchor positions until a section first renders;
+   `auto` then keeps the real height it rendered at.
+
+   IT CLIPS. `content-visibility: auto` implies paint containment, which cuts
+   off anything painted outside the box, like `overflow: hidden`. So only
+   sections measured to paint nothing past their edges are listed. Featured
+   and Inside HQ are left out on purpose: Featured's cards cast a shadow ~56px
+   below the section and Inside HQ's portrait frame hangs 5-13px past it,
+   both of which containment would slice off (and they are 143 and 26
+   elements, not where the cost is). On a phone the Instagram carousel is
+   full-bleed and overhangs its slot by 4px a side, but the slot is already
+   the full viewport width and #app-wrapper clips x, so nothing visible is
+   lost. Check a new section's overflow before adding it here.
+
+   HARD RULE 3. A clipping ancestor turns a YouTube frame into a black box on
+   iOS Safari. Featured, which hosts FeaturedHighlights' player, is out for
+   that reason too, and any listed section that ever holds an iframe drops
+   containment the moment the frame is in it. `:has()` is safe to lean on:
+   every browser that knows `content-visibility` also knows `:has()`.
+
+   The hero and the banner under it are NOT here: they are the first screen,
+   and skipping their layout would only delay the LCP it is protecting. */
+.home-v4 > :is(.intel-spread, .watching, .home-slot) {
+  content-visibility: auto;
+}
+.home-v4 > :is(.intel-spread, .watching, .home-slot):has(iframe) {
+  content-visibility: visible;
+}
+.home-v4 > .intel-spread { contain-intrinsic-size: auto 1000px; }
+.home-v4 > .watching { contain-intrinsic-size: auto 390px; }
+.home-v4 > .home-slot--ad { contain-intrinsic-size: auto 115px; }
+.home-v4 > .home-slot--instagram { contain-intrinsic-size: auto 410px; }
+.home-v4 > .home-slot--subscribe { contain-intrinsic-size: auto 430px; }
+@media (min-width: 768px) {
+  .home-v4 > .intel-spread { contain-intrinsic-size: auto 700px; }
+  .home-v4 > .watching { contain-intrinsic-size: auto 370px; }
+  .home-v4 > .home-slot--instagram { contain-intrinsic-size: auto 470px; }
+  .home-v4 > .home-slot--subscribe { contain-intrinsic-size: auto 350px; }
+}
+
 /* ─── focus ─────────────────────────────────────────────────────────── */
 
 .home-v4 :focus-visible {
