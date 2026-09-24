@@ -84,11 +84,6 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
                   decoding={open ? 'sync' : 'async'}
                 />
               )}
-              {isVideo && story.videoId && (
-                <button type="button" class="acc-play-btn" data-play-video={story.videoId} aria-label="Play Video">
-                  <ChalkIcon name="play" size={48} />
-                </button>
-              )}
             </div>
 
             <div class="acc-body">
@@ -153,9 +148,13 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
                 {/* Always rendered, even empty: its fixed two-line height is part
                     of what keeps the chips in one place. */}
                 <p class="acc-deck">{story.deck}</p>
-                <p class="acc-cta cta-button-primary" aria-hidden="true">
+                <button 
+                  type="button" 
+                  class="acc-cta cta-button-primary" 
+                  {...(isVideo ? { 'data-play-video': story.videoId } : {})}
+                >
                   {isVideo ? `Watch${story.duration ? ` · ${story.duration}` : ''}` : `Read${story.readTime ? ` · ${story.readTime}` : ''}`}
-                </p>
+                </button>
               </div>
             </div>
 
@@ -314,7 +313,7 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
       const btn = e.currentTarget as HTMLButtonElement;
       const videoId = btn.dataset.playVideo;
       if (!videoId) return;
-      const mediaDiv = btn.closest('.acc-media');
+      const mediaDiv = btn.closest('.acc-panel')?.querySelector('.acc-media');
       if (!mediaDiv) return;
       
       const iframe = document.createElement('iframe');
