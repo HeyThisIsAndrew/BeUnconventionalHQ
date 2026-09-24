@@ -47,6 +47,12 @@
   bottom breathing room", in every orientation, after a rotation, after a
   client-side navigation, and never moved by a chrome collapse. The
   --vv-height publishing contract itself is asserted unchanged.
+
+  UPDATED: desktop is now a fixed share of the viewport (75vh, so the
+  spotlight band fits under it), and it is PHONE LANDSCAPE, a short landscape
+  viewport, where the hero is sized from --vv-height: the open story plus
+  its stack of four fill the screen under the navbar exactly, `height:
+  calc(var(--vv-height) - var(--home-top) - 8px)`. That is what `cap` reads.
 */
 import { launchTestBrowser } from './e2e-browser.mjs';
 import { startPreviewServer } from './e2e-server.mjs';
@@ -66,8 +72,8 @@ async function measure(page) {
       vh: window.innerHeight,
       vvHeight: vvRaw,
       /* What the cap SHOULD be if it reads the measured viewport. */
-      expectedCap: Math.round(parseFloat(vvRaw || String(window.innerHeight)) - homeTop - 32),
-      cap: Math.round(parseFloat(cs.maxHeight)),
+      expectedCap: Math.round(parseFloat(vvRaw || String(window.innerHeight)) - homeTop - 8),
+      cap: Math.round(parseFloat(cs.height)),
       trackHeight: Math.round(track.getBoundingClientRect().height),
     };
   });
@@ -272,12 +278,12 @@ async function runTests() {
 
         const hero = document.querySelector('.hero-acc-track');
         let resizes = 0;
-        let last = getComputedStyle(hero).maxHeight;
+        let last = getComputedStyle(hero).height;
         for (let i = 0; i < 25; i++) {
           vv.dispatchEvent(new Event('scroll'));
           vv.dispatchEvent(new Event('resize'));
           await new Promise((r) => requestAnimationFrame(r));
-          const h = getComputedStyle(hero).maxHeight;
+          const h = getComputedStyle(hero).height;
           if (h !== last) resizes++;
           last = h;
         }
