@@ -8,6 +8,7 @@ import CommercialRotator from '../components/CommercialRotator.astro';
 import ReloadTopGuard from '../components/ReloadTopGuard.astro';
 import ChalkFilter from '../components/home/ChalkFilter.astro';
 import HeroAccordion from '../components/home/HeroAccordion.astro';
+import InsideHQ from '../components/home/InsideHQ.astro';
 import IntelSpread from '../components/home/IntelSpread.astro';
 import FeaturedWorld from '../components/home/FeaturedWorld.astro';
 import WatchingRail from '../components/home/WatchingRail.astro';
@@ -97,8 +98,11 @@ const preconnect = heroImage && /wsrv\.nl/.test(heroImage.imageSrcset || heroIma
 
     <HeroAccordion panels={feed.hero} />
 
-    {/* The switching banner immediately below the hero */}
-    <HomeSpotlightBar variant="banner" label="More from the HQ" />
+    {/* The switching banner immediately below the hero. It skips every story
+        the hero, Intel and Featured show, so it never repeats one of them a
+        scroll later: it was opening on the hero's LATEST, then (skipping only
+        the hero) on Intel's lead. */}
+    <HomeSpotlightBar variant="banner" label="More from the HQ" exclude={[...taken, ...intelArticles.map((a) => a.link)]} />
 
     <IntelSpread articles={intelArticles} />
 
@@ -110,6 +114,8 @@ const preconnect = heroImage && /wsrv\.nl/.test(heroImage.imageSrcset || heroIma
       <CommercialRotator />
     </div>
 
+    <InsideHQ />
+
     <WatchingRail items={railVideos} />
 
     <div class="home-slot">
@@ -119,7 +125,7 @@ const preconnect = heroImage && /wsrv\.nl/.test(heroImage.imageSrcset || heroIma
           icon="instagram"
           id="instagram-feed-heading"
           title="On Instagram"
-          descriptor="Latest from the feed"
+          descriptor="Clips, takes &amp; reactions"
         />
       </InstagramFeed>
     </div>

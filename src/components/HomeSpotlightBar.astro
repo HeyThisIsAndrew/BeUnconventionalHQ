@@ -93,12 +93,23 @@ interface Props {
   variant?: 'panel' | 'banner';
   /** Distinguishes the two instances for a screen reader. */
   label?: string;
+  /**
+   * Stories already on screen above this bar, as `video:<id>` or the link
+   * (the homepage's keys). The homepage mounts the banner straight under the
+   * hero, whose LATEST panel is the newest story, so the band opened on the
+   * same story one scroll later. Its first slide is the newest story NOT in
+   * this set, named "Also new" when it had to skip one.
+   */
+  exclude?: string[];
 }
 
-const { variant = 'banner', label = 'Highlights' } = Astro.props;
+const { variant = 'banner', label = 'Highlights', exclude = [] } = Astro.props;
 
 const items = await getAllFeedItems();
-const [newest] = items;
+const shown = new Set(exclude);
+const keyOf = (i: any) => (i?.youtubeId ? `video:${i.youtubeId}` : String(i?.link ?? ''));
+const newest = items.find((i: any) => !shown.has(keyOf(i)));
+const skippedNewest = !!items[0] && newest !== items[0];
 
 /*
   The featured series, derived the same way the Feed derives it — the CMS's
@@ -219,7 +230,7 @@ if (newest) {
 
   slides.push({
     key: 'latest',
-    eyebrow: 'Latest',
+    eyebrow: skippedNewest ? 'Also new' : 'Latest',
     title: newest.title,
     href: destination,
     cta: isVideo ? 'Watch' : 'Read',

@@ -173,8 +173,23 @@
 .home-v4 .hsh-rule {
   flex: 1 1 60px;
   min-width: 40px;
-  height: 1px;
-  background: var(--home-rule);
+  height: 10px;
+  overflow: visible;
+}
+.home-v4 .hsh-rule path {
+  fill: none;
+  stroke: var(--home-chalk);
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  filter: url(#hq-chalk);
+}
+.home-v4 .hsh-rule-stroke {
+  stroke-width: 1.6;
+  opacity: 0.32;
+}
+.home-v4 .hsh-rule-echo {
+  stroke-width: 1;
+  opacity: 0.14;
 }
 .home-v4 .hsh-link {
   display: inline-flex;
@@ -1339,6 +1354,150 @@
    for; the lockup above owns the spacing here. */
 .home-v4 .featured-world .featured-highlights {
   margin-top: 0;
+}
+
+/* ━━━ THE AD ROTATOR, SLIMMED ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* CommercialRotator pads itself 4rem top and bottom for pages that have no
+   section rhythm; here the page's own --home-gap already separates it, so the
+   two stacked into ~190px of empty band either side of a one-line box. On
+   this page it is a strip: no wrapper padding, a shorter box. */
+.home-v4 .home-slot .yt-banner-wrapper {
+  padding-block: 0;
+}
+.home-v4 .home-slot .yt-subscribe-banner {
+  padding-block: 1.25rem;
+}
+/* The progress outline is an <svg height="100%"> in the slides' grid cell,
+   and in an auto-height row that resolves to the SVG default of 150px, so
+   the box could never be shorter than 150 whatever its padding. Taken out
+   of flow here, it traces whatever height the slide has. */
+.home-v4 .home-slot .banner-rotator-grid {
+  position: relative;
+}
+.home-v4 .home-slot .banner-perimeter {
+  position: absolute;
+  inset: 0;
+}
+
+/* ━━━ INSIDE THE HQ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* The founder, the principle and the motto (InsideHQ.astro). The one place
+   on the page that is a person talking, so it is set like a pull page from
+   a magazine: a taped-up portrait in a chalk frame, one big line, the motto
+   written on the board. */
+.home-v4 .ihq-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: clamp(2rem, 5vw, 5rem);
+  align-items: center;
+}
+.home-v4 .ihq-portrait {
+  position: relative;
+  margin: 0;
+  transform: rotate(-2deg);
+}
+.home-v4 .ihq-photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  filter: grayscale(0.25) contrast(1.05);
+}
+/* The chalk outline, drawn on its own layer a few pixels off the photo, so
+   it reads as drawn around the picture rather than as a border on it. */
+.home-v4 .ihq-frame {
+  position: absolute;
+  inset: -10px -12px -10px -8px;
+  border: 2px solid rgba(236, 232, 223, 0.55);
+  filter: url(#hq-chalk);
+  transform: rotate(3deg);
+  pointer-events: none;
+}
+/* Tape on the top edge. */
+.home-v4 .ihq-portrait::before {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  top: -14px;
+  left: 50%;
+  width: 96px;
+  height: 26px;
+  background: rgba(236, 232, 223, 0.16);
+  border: 1px solid rgba(236, 232, 223, 0.12);
+  backdrop-filter: blur(2px);
+  transform: translateX(-50%) rotate(-4deg);
+}
+.home-v4 .ihq-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 1rem;
+  font: 600 0.7rem/1.2 var(--font-home);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--home-muted);
+}
+.home-v4 .ihq-caption a {
+  font: 800 1rem/1.1 var(--font-headline);
+  letter-spacing: 0.08em;
+  color: #fff;
+  text-decoration: none;
+}
+.home-v4 .ihq-caption a:hover {
+  color: var(--home-red-text);
+}
+.home-v4 .ihq-principle {
+  margin: 0;
+  max-width: 24ch;
+  font: 800 clamp(1.7rem, 2.6vw, 3.2rem) / 1.04 var(--font-headline);
+  text-transform: uppercase;
+  color: #fff;
+  text-wrap: balance;
+}
+.home-v4 .ihq-body {
+  margin: 1.4rem 0 0;
+  max-width: 58ch;
+  font: 400 1.05rem/1.7 var(--font-home);
+  color: rgba(255, 255, 255, 0.68);
+}
+/* Written on the board: the chalk filter on the TEXT, chalk-white, the last
+   line in the site's legible red. */
+.home-v4 .ihq-motto {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 1.1rem;
+  row-gap: 0.2rem;
+  margin: 2rem 0 0;
+  font: 800 clamp(1rem, 1.6vw, 1.5rem) / 1.2 var(--font-headline);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--home-chalk);
+  filter: url(#hq-chalk);
+}
+.home-v4 .ihq-motto-last {
+  color: var(--home-red-text);
+}
+@media (max-width: 767px) {
+  .home-v4 .ihq-grid {
+    grid-template-columns: 1fr;
+    gap: 2.25rem;
+  }
+  .home-v4 .ihq-portrait {
+    width: min(60vw, 260px);
+    margin-inline: auto;
+  }
+  .home-v4 .ihq-caption {
+    align-items: center;
+    text-align: center;
+  }
+  .home-v4 .ihq-principle {
+    font-size: clamp(1.6rem, 7.5vw, 2.2rem);
+  }
+  .home-v4 .ihq-motto {
+    flex-direction: column;
+  }
 }
 
 /* ━━━ 4. THE HQ IS WATCHING ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
