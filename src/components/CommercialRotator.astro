@@ -73,8 +73,23 @@ const getBannerCopy = (item: ReferralItem) => ({
         and it downloaded in full on every page carrying this banner — 403 KB,
         the single heaviest request on /feed, for an element that renders at
         48px tall. `height={96}` is 2x that.
+
+        WIDTHS AND SIZES, because height alone left Astro's default `sizes`
+        ("(min-width: 209px) 209px"), which claims a 209px slot at every
+        width. On a phone the logo is `clamp(36px, 12vw, 78px)` wide (see the
+        768px block below), about 49px at 412, so PageSpeed's Moto G fetched
+        the 418w file (26.6 KiB) for a 49x23 box. The slots below are the CSS
+        ones; 210 is 2x the 105px desktop box.
       */}
-      <Image src={logoImage} alt="Be Unconventional" class="yt-banner-logo" height={96} quality={70} />
+      <Image
+        src={logoImage}
+        alt="Be Unconventional"
+        class="yt-banner-logo"
+        height={96}
+        widths={[120, 210]}
+        sizes="(max-width: 649px) 12vw, (max-width: 768px) 78px, 105px"
+        quality={70}
+      />
       {/*
         Same responsive swap as the ad slides, and for the same reason:
         measured at 320px, "Subscribe on YouTube" rendered 187px wide into a

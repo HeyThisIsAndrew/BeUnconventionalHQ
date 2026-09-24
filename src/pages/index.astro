@@ -81,7 +81,14 @@ const railVideos = feed.rail
   .filter((s) => !featuredKeys.has(`video:${s.videoId}`))
   .map((s) => videoById.get(s.videoId))
   .filter(Boolean);
-const preconnect = heroImage && /wsrv\.nl/.test(heroImage.imageSrcset || heroImage.image) ? ['https://wsrv.nl'] : [];
+/*
+  No preconnect to wsrv.nl. The hero's own `<link rel="preload">` is in the
+  same <head>, one line above where Layout would print the preconnect, so the
+  preload opens that connection at the same moment and the hint adds nothing.
+  PageSpeed kept reporting it as "Unused preconnect" (with and without
+  `crossorigin`; see the note in Layout.astro), because the socket it warmed
+  was never the one the image used.
+*/
 ---
 
 <Layout
@@ -89,7 +96,6 @@ const preconnect = heroImage && /wsrv\.nl/.test(heroImage.imageSrcset || heroIma
   preloadImage={heroImage?.image || undefined}
   preloadImageSrcset={heroImage?.imageSrcset || undefined}
   preloadImageSizes={heroImage?.imageSrcset ? HERO_SIZES : undefined}
-  preconnect={preconnect}
 >
   <main class="home-v4">
     <h1 class="sr-only">{site.name}: {site.tagline}</h1>

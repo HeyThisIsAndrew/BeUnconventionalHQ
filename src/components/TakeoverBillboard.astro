@@ -253,6 +253,20 @@ import { SOCIAL_ICONS } from '../data/icons.js';
     requestIdleCallback with a timeout, not a bare setTimeout: on a busy page it
     yields until the main thread is free, and the timeout guarantees it still
     runs on browsers where idle never arrives.
+
+    ─── AND IDLE WAS NOT LATE ENOUGH ────────────────────────────────────────
+    PageSpeed (mobile, 73) still put this request on the critical path at
+    2,502ms, the longest chain on the page, with an LCP of 6.2s. On a first
+    load `astro:page-load` fires as soon as the module scripts have run,
+    well before `load`, and an idle period arrives almost at once. Lighthouse's
+    simulated LCP counts every request that STARTED before the observed LCP,
+    so an edge route that answers in ~2.5s lands inside the LCP estimate even
+    though nothing above the fold waits on it.
+
+    So a first load now waits for `load`, then for a frame to be presented
+    (two rAFs: the first runs before the paint, the second after it), and only
+    then asks for idle. The hero is painted by then. A client-side navigation
+    arrives with `readyState` already 'complete' and goes straight through.
   */
   function scheduleTakeoverCheck() {
     if ('requestIdleCallback' in window) {
@@ -262,5 +276,12 @@ import { SOCIAL_ICONS } from '../data/icons.js';
     }
   }
 
-  document.addEventListener('astro:page-load', scheduleTakeoverCheck);
+  function afterFirstPaint() {
+    requestAnimationFrame(() => requestAnimationFrame(scheduleTakeoverCheck));
+  }
+
+  document.addEventListener('astro:page-load', () => {
+    if (document.readyState === 'complete') afterFirstPaint();
+    else window.addEventListener('load', afterFirstPaint, { once: true });
+  });
 </script>
