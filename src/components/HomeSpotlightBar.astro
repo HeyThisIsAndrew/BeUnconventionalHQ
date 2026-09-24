@@ -47,7 +47,8 @@
 import { getImage } from 'astro:assets';
 import logoMark from '../assets/logo-mark.webp';
 import { getAllFeedItems } from '../lib/feed-items';
-import { cappedWidths } from '../lib/local-content';
+import { cappedWidths, getEventsLocal, buildImageSet } from '../lib/local-content';
+import { getEventStatus, formatEventDateRange } from '../lib/events';
 import { getCardImageSources } from '../lib/card-images';
 import { selectCollections } from '../lib/feed-rails';
 
@@ -101,9 +102,18 @@ interface Props {
    * this set, named "Also new" when it had to skip one.
    */
   exclude?: string[];
+  /**
+   * What the first slide promotes. 'latest' (the default) is the newest
+   * story; 'event' is the next event on the calendar, the one happening now
+   * if there is one, else the soonest upcoming, falling back to 'latest' when
+   * none is scheduled. The homepage uses 'event' (Andrew): the page already
+   * carries plenty of stories, and the band is the one place it always
+   * advertises what the HQ is covering next.
+   */
+  lead?: 'latest' | 'event';
 }
 
-const { variant = 'banner', label = 'Highlights', exclude = [] } = Astro.props;
+const { variant = 'banner', label = 'Highlights', exclude = [], lead = 'latest' } = Astro.props;
 
 const items = await getAllFeedItems();
 const shown = new Set(exclude);
@@ -217,7 +227,49 @@ const featuredAccent =
 
 const slides: Slide[] = [];
 
-if (newest) {
+/*
+  ─── THE NEXT EVENT ─────────────────────────────────────────────────────────
+  Through the site's own event helpers, so it agrees with /events: dates are
+  compared as YYYY-MM-DD strings in the reference timezone (hard rule 1),
+  cancelled and finished events are skipped, and a live one beats the soonest
+  upcoming. Decided at build time, like /events: a deploy refreshes it.
+*/
+const nextEvent = lead === 'event'
+  ? (() => {
+      const open = getEventsLocal()
+        .filter((e: any) => e?.startDate && e?.slug?.current)
+        .map((e: any) => ({ e, status: getEventStatus(e) }))
+        .filter(({ status }) => status === 'live' || status === 'upcoming')
+        .sort((a, b) =>
+          a.status === b.status
+            ? String(a.e.startDate).localeCompare(String(b.e.startDate))
+            : a.status === 'live' ? -1 : 1,
+        );
+      return open[0] ?? null;
+    })()
+  : null;
+
+if (nextEvent) {
+  const { e: event, status } = nextEvent;
+  const when = formatEventDateRange(event.startDate, event.endDate);
+  /* The whole key art, never cropped: the thumbnail treatment shows the
+     picture entire at the band's edge over a blurred fill, which matters
+     here because event art often sets the event's name across its width. */
+  const hero = buildImageSet(event.heroImage, { widths: [480, 800, 1200, 1600] });
+  slides.push({
+    key: 'event',
+    eyebrow: status === 'live' ? `Happening now · ${when}` : `Next event · ${when}`,
+    title: event.title,
+    href: `/events/${event.slug.current}`,
+    cta: 'Event details',
+    art: hero?.src ? { src: hero.src, srcset: hero.srcset || undefined } : null,
+    artFocus: 'thumbnail',
+    accent: null,
+    external: false,
+  });
+}
+
+if (newest && !nextEvent) {
   const { src, srcset } = getCardImageSources(newest.image);
   const link = typeof newest.link === 'string' ? newest.link : '';
   const isVideo = newest.type === 'video';
