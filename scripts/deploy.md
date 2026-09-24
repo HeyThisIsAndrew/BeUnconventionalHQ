@@ -2,9 +2,20 @@
 
 **Production deploys from GitHub Actions: `.github/workflows/deploy.yml`.**
 It builds `main`, deploys it to the Cloudflare Worker `beunconventionalhq`
-with wrangler, then fetches https://beunconventionalhq.com/ until the page's
+with wrangler, then fetches the Worker until the page's
 `<meta name="build-sha">` matches the commit it deployed, and **fails** (so
 GitHub emails the owner) if it never does.
+
+The check reads the Worker's workers.dev address
+(https://beunconventionalhq.heythisisandrewb.workers.dev), not the domain.
+The domain is behind Cloudflare's bot protection, which returns 403 to every
+request from a GitHub runner: the first run deployed correctly and then
+failed all 20 checks on that alone. It is the same Worker and the same
+version. The domain is still probed once afterwards, as information only
+(403 = bot protection, fine; 404 on `/api/live-status.json` = the domain is
+not on this Worker, which is a real problem and logs a warning). Do not
+"fix" the check by pointing it back at the domain, or by loosening bot
+protection for it.
 
 It runs on every push to `main`, after every content-sync workflow, daily at
 07:05 UTC (the Shorts shelf rotates by build date), and by hand from
