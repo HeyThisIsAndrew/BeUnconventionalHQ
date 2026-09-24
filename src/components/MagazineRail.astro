@@ -58,9 +58,11 @@ interface Props {
    * visible with JavaScript disabled.
    */
   activeSlug?: string;
+  /** Inside the homepage's compact spread: thumbs take smaller `sizes`. */
+  compact?: boolean;
 }
 
-const { side, articles, activeSlug = '' } = Astro.props;
+const { side, articles, activeSlug = '', compact = false } = Astro.props;
 ---
 
 <div class:list={['intel-rail', `intel-rail-${side}`]}>
@@ -86,7 +88,7 @@ const { side, articles, activeSlug = '' } = Astro.props;
         data-external={article.isExternal ? 'true' : 'false'}
       >
         <div class="intel-rail-thumb">
-          <ArticleThumb image={article.image} title={article.title} size="rail" decorative />
+          <ArticleThumb image={article.image} title={article.title} size="rail" decorative compact={compact} />
         </div>
 
         <div class="intel-rail-copy">

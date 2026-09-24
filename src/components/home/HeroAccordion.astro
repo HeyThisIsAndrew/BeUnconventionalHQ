@@ -26,7 +26,7 @@
  */
 import { getImage } from 'astro:assets';
 import ChalkIcon from './ChalkIcon.astro';
-import { HERO_SIZES, newUntil } from '../../lib/homepage-feed';
+import { HERO_SIZES, HERO_CLOSED_SIZES, newUntil } from '../../lib/homepage-feed';
 import { categories } from '../../data/categories.js';
 import logoMark from '../../assets/logo-mark.webp';
 import type { HeroPanel } from '../../lib/homepage-feed';
@@ -50,11 +50,19 @@ const artFor = async (key: string) => {
   /* Built for a 2x screen. The strip shows a tile ~220px wide once its
      crop and scale are counted, so 240 was soft on every Retina display;
      420 is the tile PNGs' full size (asking for more only upsamples). The
-     BE mark is a 1981px source, so it gets a true 2x of its ~170px box. */
+     BE mark is a 1981px source, so it gets a true 2x of its ~170px box.
+     Phones show the tile at ~76px (the mark ~96px), so the 240 rung serves
+     them; the full-size file was a third of the hero's own bytes there. */
   const want = key === 'latest' ? 480 : 420;
   const width = Math.min(want, src.width);
-  const img = await getImage({ src, width, format: 'webp', quality: 90 });
-  return { src: img.src, width, height: Math.round((width * src.height) / src.width) };
+  const rungs = [...new Set([Math.min(240, width), width])];
+  const imgs = await Promise.all(rungs.map((w) => getImage({ src, width: w, format: 'webp', quality: 90 })));
+  return {
+    src: imgs[imgs.length - 1].src,
+    srcset: imgs.map((img, i) => `${img.src} ${rungs[i]}w`).join(', '),
+    width,
+    height: Math.round((width * src.height) / src.width),
+  };
 };
 const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key, await artFor(p.key)])));
 ---
@@ -80,7 +88,7 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
                 <img
                   src={story.image}
                   srcset={story.imageSrcset || undefined}
-                  sizes={story.imageSrcset ? HERO_SIZES : undefined}
+                  sizes={story.imageSrcset ? (open ? HERO_SIZES : HERO_CLOSED_SIZES) : undefined}
                   alt=""
                   width="1280"
                   height="720"
@@ -124,6 +132,8 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
                   <span class:list={['acc-art', { 'acc-art--logo': panel.key === 'latest' }]} aria-hidden="true">
                     <img
                       src={art[panel.key].src}
+                      srcset={art[panel.key].srcset}
+                      sizes={panel.key === 'latest' ? '(max-width: 767px) 100px, 170px' : '(max-width: 767px) 80px, 170px'}
                       alt=""
                       width={art[panel.key].width}
                       height={art[panel.key].height}
@@ -232,6 +242,7 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
 <script>
   import { getYouTubeEmbedUrl } from '../../lib/youtube-url';
   import { playWhenReady } from '../../lib/youtube-start';
+  import { HERO_SIZES } from '../../lib/homepage-feed';
 
   const DURATION = 7000;
   /* Phones in either orientation: rotation is off by default (the toggle
@@ -272,6 +283,14 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
       if (fill) fill.style.transform = `scaleX(${Math.min(1, Math.max(0, ratio))})`;
     }
 
+    /* A closed panel's art is rendered at HERO_CLOSED_SIZES (the small rung,
+       because it shows blurred); an opened one needs the full ladder. The
+       browser keeps painting the small image until the larger one arrives. */
+    function sharpen(panel: HTMLElement) {
+      const img = panel.querySelector<HTMLImageElement>('.acc-media img');
+      if (img?.srcset && img.sizes !== HERO_SIZES) img.sizes = HERO_SIZES;
+    }
+
     function open(index: number, { focus = false } = {}) {
       const next = (index + panels.length) % panels.length;
       if (next !== current) {
@@ -282,6 +301,7 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
         stopVideo();
         current = next;
         panels[current].classList.add('is-open');
+        sharpen(panels[current]);
         triggers[current].setAttribute('aria-expanded', 'true');
       }
       elapsed = 0;
@@ -503,7 +523,26 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
 
     syncToggle();
 
+    /* Desktop shows every strip and rotates through them, so once the page
+       has loaded (the LCP image is long done) and gone idle, fetch the full
+       art for all of them: a click or a rotation never opens onto a soft
+       image. Phones sharpen only the panel the reader opens. */
+    let idle = 0;
+    let idleTimer = 0;
+    const sharpenAll = () => {
+      if (!mobile.matches) panels.forEach(sharpen);
+    };
+    const whenIdle = () => {
+      if ('requestIdleCallback' in window) idle = window.requestIdleCallback(sharpenAll, { timeout: 3000 });
+      else idleTimer = window.setTimeout(sharpenAll, 1000);
+    };
+    if (document.readyState === 'complete') whenIdle();
+    else window.addEventListener('load', whenIdle, { once: true });
+
     teardown = () => {
+      window.removeEventListener('load', whenIdle);
+      if (idle) window.cancelIdleCallback(idle);
+      clearTimeout(idleTimer);
       cancelAnimationFrame(raf);
       raf = 0;
       visibility.disconnect();

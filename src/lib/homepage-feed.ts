@@ -33,6 +33,16 @@ export const HOME_CATEGORIES: HomeCategory[] = ['Film', 'TV', 'Games', 'Events']
  */
 export const HERO_SIZES = '100vw';
 
+/**
+ * `sizes` for a CLOSED panel's art. A closed strip shows its art blurred
+ * (home.css), so full resolution buys nothing, and at HERO_SIZES four closed
+ * strips fetched ~1280px images alongside the LCP image and slowed it under
+ * Lighthouse's throttling. 130px picks the smallest rung on any screen. The
+ * script sets HERO_SIZES when a panel opens (and on desktop, once the page is
+ * idle, so a click never opens onto a soft image).
+ */
+export const HERO_CLOSED_SIZES = '130px';
+
 export interface ImageSources {
   src: string;
   srcset: string;

@@ -34,6 +34,14 @@ export interface Props {
    */
   imageSizes?: string;
   /**
+   * Whether this card's image is the page's LCP candidate (eager, high
+   * priority). Defaults to the hero variant's first card, which was right
+   * when FeaturedHighlights opened a page; the homepage mounts it far below
+   * the fold, where an eager high-priority image only competes with the real
+   * LCP image for bandwidth, so it passes false.
+   */
+  lcp?: boolean;
+  /**
    * Which surface this card is on, and therefore what clicking it does.
    *
    *   'feed'    promotes the item into <FeedSpotlightHero /> above it
@@ -58,10 +66,10 @@ export interface Props {
   brandOverride?: { logo?: string; hero?: string; title?: string } | null;
 }
 
-const { item, index = 0, variant = 'default', context = 'default', brandOverride = null, imageSizes } = Astro.props;
+const { item, index = 0, variant = 'default', context = 'default', brandOverride = null, imageSizes, lcp } = Astro.props;
 
 // Determine if this is the Largest Contentful Paint (LCP) element
-const isLCP = variant === 'hero' && index === 0;
+const isLCP = lcp ?? (variant === 'hero' && index === 0);
 
 if (!item) return;
 
@@ -538,6 +546,8 @@ if (isVideo && item.youtubeId) {
           alt="" 
           class="video-watermark-logo" 
           aria-hidden="true" 
+          loading="lazy"
+          decoding="async"
         />
       </span>
     )}

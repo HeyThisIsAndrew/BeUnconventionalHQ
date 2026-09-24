@@ -48,9 +48,14 @@ interface Props {
    * article), so alt is empty and screen readers skip it.
    */
   decorative?: boolean;
+  /**
+   * A rail thumb inside the homepage's compact spread, which is narrower than
+   * /intel's at most widths (measured below), so it takes its own `sizes`.
+   */
+  compact?: boolean;
 }
 
-const { image, title, size = 'rail', id, decorative = false } = Astro.props;
+const { image, title, size = 'rail', id, decorative = false, compact = false } = Astro.props;
 
 const isFeature = size === 'feature';
 /*
@@ -107,7 +112,18 @@ const THUMB_SIZES =
   '(max-width: 560px) 75vw, (max-width: 900px) 45vw, ' +
   '(min-width: 3400px) 640px, (min-width: 2560px) 530px, (min-width: 1920px) 410px, 320px';
 
-const SIZES = isFeature ? FEATURE_SIZES : THUMB_SIZES;
+/*
+  The homepage's compact spread (IntelMagazine `compact`), measured the same
+  way: 390 -> 155px, 700 -> 298, 1024 -> 433, 1440 -> 284, 1920 -> 395,
+  2560 -> 533, 3840 -> 647. THUMB_SIZES claimed 75vw on a phone, so a 155px
+  box fetched a rendition for 293px (x DPR), all eight of them, while the
+  page's LCP image was still loading.
+*/
+const COMPACT_THUMB_SIZES =
+  '(max-width: 560px) 42vw, (max-width: 1100px) 45vw, ' +
+  '(min-width: 3400px) 650px, (min-width: 2560px) 540px, (min-width: 1920px) 400px, 300px';
+
+const SIZES = isFeature ? FEATURE_SIZES : compact ? COMPACT_THUMB_SIZES : THUMB_SIZES;
 
 ---
 

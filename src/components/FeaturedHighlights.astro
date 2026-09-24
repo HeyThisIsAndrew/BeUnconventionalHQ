@@ -17,8 +17,11 @@ interface Props {
   /** The lead card's image `sizes`, where this box is laid out wider than
       on production's homepage (ContentCard `imageSizes`). */
   heroImageSizes?: string;
+  /** False where the box sits below the fold: its lead image is then lazy
+      and normal priority, not the page's LCP candidate (ContentCard `lcp`). */
+  leadIsLcp?: boolean;
 }
-const { items: curated, heroImageSizes } = Astro.props;
+const { items: curated, heroImageSizes, leadIsLcp = true } = Astro.props;
 
 const allVideos = await getVideosUnified();
 const allArticles = getPublishedArticles();
@@ -35,7 +38,7 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
     <div class="fh-left">
       {highlightedItems.map((item, index) => (
         <div class={`fh-hero-card ${index === 0 ? 'active' : ''}`} data-index={index}>
-          <ContentCard item={item} index={index} variant="hero" imageSizes={heroImageSizes} />
+          <ContentCard item={item} index={index} variant="hero" imageSizes={heroImageSizes} lcp={leadIsLcp ? undefined : false} />
         </div>
       ))}
     </div>

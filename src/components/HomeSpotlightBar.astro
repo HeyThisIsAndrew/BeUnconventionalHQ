@@ -432,7 +432,10 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
           The cost is small and bounded: three images, the same three URLs in
           both instances of this bar, and every one of them is on screen within
           seven seconds of the page settling. A slide that arrives blank is the
-          worse trade.
+          worse trade. Eager is not URGENT, though: everything but the panel's
+          first slide is `fetchpriority="low"`, because on the homepage the
+          whole band sits below the fold and eager-at-auto made it compete
+          with the hero art (the LCP image) for bandwidth.
         */}
         {/* The banner's thumbnail slides: a blurred fill behind the picture
             (same file, one fetch). See `.spotlight-art--fill`. */}
@@ -445,6 +448,7 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
             alt=""
             aria-hidden="true"
             loading="eager"
+            fetchpriority="low"
             decoding="async"
           />
         )}
@@ -456,7 +460,7 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
             sizes={artSizes}
             alt=""
             loading="eager"
-            fetchpriority={variant === 'panel' && index === 0 ? 'high' : 'auto'}
+            fetchpriority={variant === 'panel' && index === 0 ? 'high' : 'low'}
             decoding="async"
           />
         )}
@@ -491,7 +495,7 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
                 height={slide.logo.height}
                 alt={slide.title}
                 loading="eager"
-                fetchpriority={index === 0 && variant === 'panel' ? 'high' : 'auto'}
+                fetchpriority={index === 0 && variant === 'panel' ? 'high' : 'low'}
                 decoding="async"
               />
             ) : (
