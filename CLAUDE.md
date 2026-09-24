@@ -161,12 +161,15 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    playing and marks it NOT to be resumed on return (the reader went to
    watch it on YouTube; `leftForLink` survives a PLAYING report already in
    flight), and a frame scrolled out of the viewport is paused, resuming on
-   the way back only if it autoplays (`autoplay=1` in its src: a background
-   loop), never a video the reader started. Components may stop their own
-   rotation timers on scroll, never their players: FeaturedHighlights used
-   to pause and play its own. Since the hub/event stages stopped carrying
-   `autoplay=1`, nothing on them resumes on scroll-back, the ambient trailer
-   included (it plays once and hands over anyway). `scripts/embed-pause.test.mjs` guards all of it.
+   the way back only if it is a BACKGROUND embed, never a video the reader
+   started. Background means `data-embed-ambient="1"` on the frame, set by
+   whoever starts it on the reader's behalf: FeaturedHighlights' muted preview
+   (on `onReady`) and a hub/event stage when it loads its trailer (cleared when
+   the reader picks a video). It used to mean `autoplay=1` in the src, which
+   hard rule 11 has removed from every live player; a src that still carries
+   it also counts. Components may stop their own rotation timers on scroll,
+   never their players: FeaturedHighlights used to pause and play its own.
+   `scripts/embed-pause.test.mjs` guards all of it.
 
 ## Data flow
 
