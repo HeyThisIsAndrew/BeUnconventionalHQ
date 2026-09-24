@@ -93,7 +93,16 @@ export async function getHomeFeatured(exclude: Set<string> = new Set()): Promise
 
   /* No flagged collection (or the hero already shows all of it). */
   const pool = all.filter(free).sort(byNewest);
-  const items = [...pool.filter((i) => i?.featured === true), ...pool.filter((i) => i?.featured !== true)].slice(0, MAX_ITEMS);
+  let baseItems = [...pool.filter((i) => i?.featured === true), ...pool.filter((i) => i?.featured !== true)];
+  
+  if (baseItems.length > 0) {
+    const leadSeries = baseItems[0]?.series;
+    if (leadSeries) {
+      baseItems = baseItems.filter((i) => inSeries(i, leadSeries));
+    }
+  }
+  
+  const items = baseItems.slice(0, MAX_ITEMS);
   if (items.length === 0) return null;
   return {
     kind: 'site',

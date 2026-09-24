@@ -245,6 +245,9 @@
   --strip: clamp(128px, 11vw, 180px);
   display: flex;
   gap: 6px;
+  width: 100%;
+  max-width: 100vw;
+  overflow: hidden;
   aspect-ratio: 16 / 7;
   min-height: 460px;
   /* The MEASURED viewport (--vv-height, published by Layout and
@@ -317,7 +320,7 @@
 .home-v4 .acc-panel.is-open .acc-media::after {
   background:
     linear-gradient(90deg, rgba(8, 8, 8, 0.94) 0%, rgba(8, 8, 8, 0.7) 32%, rgba(8, 8, 8, 0.15) 62%, rgba(8, 8, 8, 0) 80%),
-    linear-gradient(to top, rgba(8, 8, 8, 0.85) 0%, rgba(8, 8, 8, 0) 45%);
+    linear-gradient(to top, #000 0%, rgba(0, 0, 0, 0.8) 50%, transparent 100%);
 }
 
 .home-v4 .acc-body {
@@ -629,25 +632,15 @@
   overflow: hidden;
 }
 .home-v4 .acc-cta {
-  /* The feed hero's outlined button (.feed-hero-hub-btn). A visual only:
-     the headline's stretched link is what the panel click follows. */
   display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
   margin: 1.4rem 0 0;
-  padding: 0.6rem 1rem 0.6rem 1.1rem;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(0, 0, 0, 0.32);
-  font: 600 0.68rem/1 var(--font-home);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #fff;
-  transition: border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+  transition: all 0.2s ease;
 }
+
 .home-v4 .acc-panel.is-open:hover .acc-cta {
-  border-color: rgba(204, 0, 0, 0.85);
-  background: rgba(0, 0, 0, 0.5);
-  box-shadow: 0 0 18px rgba(204, 0, 0, 0.28);
+  background-color: var(--color-white);
+  color: var(--color-black);
+  transform: translateY(-2px);
 }
 
 .home-v4 .acc-progress {
@@ -715,44 +708,68 @@
     min-height: 0;
     max-height: none;
   }
-  .home-v4 .acc-panel,
+  .home-v4 .acc-panel {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    /* Center text and logo when collapsed */
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+    position: relative;
+    z-index: 1;
+  }
   .home-v4 .acc-panel.is-open {
     flex: none;
     display: flex;
     flex-direction: column;
+    /* Jump to top UX */
+    order: -1;
+    z-index: 10;
+    /* Heavily constrain overall height */
+    max-height: 50vh;
   }
   .home-v4 .acc-panel.is-open .acc-media {
     position: relative;
     inset: auto;
     aspect-ratio: 16 / 9;
+    height: 100%;
   }
   .home-v4 .acc-panel.is-open .acc-media::after {
-    background: linear-gradient(to top, rgba(8, 8, 8, 0.8) 0%, rgba(8, 8, 8, 0) 50%);
+    background: linear-gradient(to top, rgba(8, 8, 8, 0.9) 0%, rgba(8, 8, 8, 0) 50%);
   }
-  .home-v4 .acc-body,
-  .home-v4 .acc-panel.is-open .acc-body {
+  .home-v4 .acc-body {
     position: relative;
     inset: auto;
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
     min-height: 60px;
     padding: 0.85rem 1rem;
+    width: 100%;
   }
   .home-v4 .acc-panel.is-open .acc-body {
-    padding: 1.1rem 1rem 1.6rem;
+    padding: 1.1rem 1rem 1.2rem;
     background: #0d0d0d;
+    align-items: flex-start;
   }
   .home-v4 .acc-trigger {
     flex-direction: row;
     gap: 0.75rem;
     padding: 0;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+  }
+  /* Hide the trigger (logo) completely when expanded, as requested */
+  .home-v4 .acc-panel.is-open .acc-trigger {
+    display: none;
   }
   .home-v4 .acc-trigger .chalk-icon {
     width: 26px;
     height: 26px;
   }
-  .home-v4 .acc-art,
-  .home-v4 .acc-panel.is-open .acc-art {
+  .home-v4 .acc-art {
     width: 64px;
     height: 40px;
     overflow: hidden;
@@ -763,26 +780,20 @@
     object-fit: cover;
     transform: scale(1.22);
   }
-  .home-v4 .acc-art--logo,
-  .home-v4 .acc-panel.is-open .acc-art--logo {
+  .home-v4 .acc-art--logo {
     width: 80px;
     height: auto;
   }
   .home-v4 .acc-title-box {
-    --title-lines: 5;
+    /* Strict clamping: Title max 2 lines */
+    --title-lines: 2;
     font-size: clamp(1.05rem, 4.5vw, 1.35rem);
   }
   .home-v4 .acc-deck {
     font-size: 0.8rem;
     letter-spacing: 0.14em;
-  }
-  .home-v4 .acc-panel.is-open .acc-art {
-    width: 132px;
-    height: 80px;
-  }
-  .home-v4 .acc-panel.is-open .acc-art--logo {
-    width: 170px;
-    height: auto;
+    /* Strict clamping: Description max 1 line */
+    -webkit-line-clamp: 1;
   }
   .home-v4 .acc-toggle {
     top: calc(var(--home-top) + 10px);
