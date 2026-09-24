@@ -288,12 +288,12 @@ export function initEmbedPause() {
     they press play. Background means `data-embed-ambient="1"` on the frame,
     set by whoever starts it on the reader's behalf (the homepage Featured
     preview, a hub/event stage's trailer). It used to mean `autoplay=1` in the
-    src, and those players no longer carry it: an embed that starts itself is
-    what YouTube's bot check looks for (hard rule 11). `autoplay=1` still
-    counts, for anything that has it. Never reads `mute` (the rule above).
+    src, and no player carries that any more: an embed that starts itself is
+    what YouTube's bot check looks for (hard rule 11), and the global QA sweep
+    fails the build if any shipped script so much as contains the string.
+    Never reads `mute` (the rule above).
   */
-  const isAmbient = (frame: HTMLIFrameElement) =>
-    frame.dataset.embedAmbient === '1' || (frame.src || '').includes('autoplay=1');
+  const isAmbient = (frame: HTMLIFrameElement) => frame.dataset.embedAmbient === '1';
 
   viewObserver = new IntersectionObserver((records) => {
     for (const record of records) {

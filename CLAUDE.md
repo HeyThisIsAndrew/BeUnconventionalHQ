@@ -170,8 +170,8 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    whoever starts it on the reader's behalf: FeaturedHighlights' muted preview
    (on `onReady`) and a hub/event stage when it loads its trailer (cleared when
    the reader picks a video). It used to mean `autoplay=1` in the src, which
-   hard rule 11 has removed from every live player; a src that still carries
-   it also counts. Components may stop their own rotation timers on scroll,
+   hard rule 11 has removed from every live player (and the global QA sweep
+   fails the build if a shipped script contains it). Components may stop their own rotation timers on scroll,
    never their players: FeaturedHighlights used to pause and play its own.
    `scripts/embed-pause.test.mjs` guards all of it.
 
@@ -460,16 +460,32 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
 
 ## Conventions
 
-- **`npm run check:images` runs over the BUILT site** (CI, after the build):
-  at most one `fetchpriority="high"` image per page, and no unresized
-  original from Sanity (`cdn.sanity.io/images/...` with no query) or from
-  Substack's S3 bucket. `npm test` reads source and cannot see these: they
-  only exist once a component renders real data. It caught four "high"
-  images on /featured, a 3364px logo at high priority on /feed (a
-  `customHeroLogo` requested with a bare `.url()`: always size it), and the
-  hub/event rails loading 3840px originals as ~106px thumbnails. Use
-  `getCardImageSources()` for any external image, and a `sizes` measured
-  from the box, not copied from the card grid.
+- **The global QA sweep (`npm run test:dist`, `scripts/e2e-global-qa-sweep.test.mjs`)
+  runs over the BUILT site**, in CI straight after the build and again in
+  the e2e job. It exists because a fix to one component kept missing its
+  siblings, and a source test only sees the component in front of it. Nine
+  rules, every page: (1) at most one `fetchpriority="high"` image, and its
+  preload is the same request; (2) no unresized Sanity or Substack-S3
+  original; (3) a srcset's largest file covers its `sizes` at 2x, evaluated
+  per window width the way the browser does (blurred plates and committed
+  article renditions capped at their original are exempt); (4) no YouTube
+  frame or shipped script asks YouTube to start itself (`autoplay=1` or
+  `autoplay: 1`), and every YouTube frame allows fullscreen, and no
+  `src=""`; (5) exactly one `<h1>` (the print documents are exempt); (6)
+  nothing focusable inside `aria-hidden` content unless `inert` or
+  `tabindex="-1"` (closed modals and overlays carry `inert`, toggled with
+  `aria-hidden`); (7) every `<img>` has an `alt`; (8) every
+  `target="_blank"` link has `rel="noopener"`; (9) no em dash in visitor
+  copy (article bodies are the author's own writing and are exempt). It
+  runs in about a second. **Two rules were deliberately NOT adopted**, see
+  the file's header: "aria-hidden + tabindex=-1 must also be inert" would
+  break the homepage rail's visible, clickable loop clones, and "no `sizes`
+  may top out near 635px" misreads `sizes` (CSS px, which the browser
+  multiplies by density itself). When it fails, fix the COMPONENT, then
+  look for its siblings: the failure lists every page a problem is on.
+  Always size a `customHeroLogo` (`.height(320)`), use
+  `getCardImageSources()` for external images, and measure `sizes` from the
+  box, never copy the card grid's.
 
 - `docs/` is **gitignored** — put operator docs in `scripts/*.md`.
 - Offline test suites live in `scripts/*.test.mjs`, run by plain `node`

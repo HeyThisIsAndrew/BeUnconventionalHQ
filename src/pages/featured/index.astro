@@ -46,13 +46,38 @@ const sortedCategories = Object.keys(groupedBrands).sort((a, b) => {
   return indexA - indexB;
 });
 
-let firstHeroUrl = null;
-if (sortedCategories.length > 0) {
-  const firstCategoryBrands = groupedBrands[sortedCategories[0]];
-  if (firstCategoryBrands && firstCategoryBrands.length > 0 && firstCategoryBrands[0].heroImage) {
-    firstHeroUrl = urlFor(firstCategoryBrands[0].heroImage).width(600).auto('format').quality(70).url(); // Preload the mobile-sized one to speed up mobile LCP
-  }
+/* Gaming's rows run PlayStation, Nintendo, Xbox. Sorted HERE, before the
+   preload below reads the first card, so the preload and the deck cannot
+   name different images (it used to be sorted inside the render). */
+if (groupedBrands.gaming) {
+  const gamingOrder = ['playstation', 'nintendo', 'xbox'];
+  groupedBrands.gaming = [...groupedBrands.gaming].sort((a: Brand, b: Brand) => {
+    const aIdx = gamingOrder.indexOf(a.slug?.current || '');
+    const bIdx = gamingOrder.indexOf(b.slug?.current || '');
+    if (aIdx === -1 && bIdx === -1) return 0;
+    if (aIdx === -1) return 1;
+    if (bIdx === -1) return -1;
+    return aIdx - bIdx;
+  });
 }
+
+/*
+  ONE builder for a deck card's image, used by the card AND the LCP preload.
+  The preload used to name the 600px file alone while the card chose among
+  600/1200/2400 by `sizes`, so on a desktop the front card downloaded twice
+  (the global QA sweep, rule 1). Same srcset, same sizes, one request.
+*/
+const DECK_CARD_SIZES = '(max-width: 600px) 600px, (min-width: 1920px) 2250px, 1200px';
+const deckCardSources = (heroImage: any) => {
+  if (!heroImage) return null;
+  const at = (w: number, q: number) => urlFor(heroImage).width(w).auto('format').quality(q).url();
+  const mobile = at(600, 70);
+  const regular = at(1200, 78);
+  const wide = at(2400, 78);
+  return { src: regular, srcset: `${mobile} 600w, ${regular} 1200w, ${wide} 2400w`, sizes: DECK_CARD_SIZES };
+};
+
+const firstHero = sortedCategories.length > 0 ? deckCardSources(groupedBrands[sortedCategories[0]]?.[0]?.heroImage) : null;
 
 interface BrandMeta {
   color: string;
@@ -396,7 +421,9 @@ ${activeFonts
 
 <Layout
   title="Featured Hubs"
-  preloadImage={firstHeroUrl}
+  preloadImage={firstHero?.src}
+  preloadImageSrcset={firstHero?.srcset}
+  preloadImageSizes={firstHero?.sizes}
   /*
     fonts.gstatic.com is where the font FILE comes from, and with
     `display=optional` the browser only has ~100ms to get it before it gives up
@@ -434,18 +461,7 @@ ${activeFonts
         style={`--rows: ${sortedCategories.length};`}
       >
         {sortedCategories.map((category, index) => {
-          let categoryBrands = groupedBrands[category];
-          if (category === 'gaming') {
-            const gamingOrder = ['playstation', 'nintendo', 'xbox'];
-            categoryBrands = categoryBrands.sort((a: Brand, b: Brand) => {
-              const aIdx = gamingOrder.indexOf(a.slug?.current || '');
-              const bIdx = gamingOrder.indexOf(b.slug?.current || '');
-              if (aIdx === -1 && bIdx === -1) return 0;
-              if (aIdx === -1) return 1;
-              if (bIdx === -1) return -1;
-              return aIdx - bIdx;
-            });
-          }
+          const categoryBrands = groupedBrands[category]; // gaming pre-sorted above
 
           const isExpanded = index === 0;
 
@@ -514,9 +530,8 @@ ${activeFonts
                           on artwork with no blur to hide it (verified: the
                           element's computed filter is `none`).
                         */
-                        const heroUrl = brand.heroImage ? urlFor(brand.heroImage).width(1200).auto('format').quality(78).url() : null;
-                        const heroUrlMobile = brand.heroImage ? urlFor(brand.heroImage).width(600).auto('format').quality(70).url() : null;
-                        const heroUrlWide = brand.heroImage ? urlFor(brand.heroImage).width(2400).auto('format').quality(78).url() : null;
+                        const deckArt = deckCardSources(brand.heroImage);
+                        const heroUrl = deckArt?.src ?? null;
                         const metaCard = metaFor(brand);
                         return (
                           <a
@@ -547,8 +562,8 @@ ${activeFonts
                             {heroUrl ? (
                               <img
                                 src={heroUrl}
-                                srcset={`${heroUrlMobile} 600w, ${heroUrl} 1200w, ${heroUrlWide} 2400w`}
-                                sizes="(max-width: 600px) 600px, (min-width: 1920px) 2250px, 1200px"
+                                srcset={deckArt!.srcset}
+                                sizes={deckArt!.sizes}
                                 alt=""
                                 loading={bIndex === 0 ? 'eager' : 'lazy'}
                                 fetchpriority={bIndex === 0 ? (isExpanded ? 'high' : 'low') : 'auto'}

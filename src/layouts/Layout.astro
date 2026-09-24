@@ -794,6 +794,7 @@ const fallbackMark = await getImage({
     <!-- Unified Video Modal -->
     <div
       id="video-modal"
+      inert
       class="modal-overlay"
       aria-hidden="true"
       role="dialog"
@@ -987,6 +988,11 @@ const fallbackMark = await getImage({
             modalIframe.src = getYouTubeEmbedUrl(videoId);
             modal.classList.add('active');
             modal.setAttribute('aria-hidden', 'false');
+            /* `inert` moves with aria-hidden: closed, the modal's Close button,
+               frame and Watch link must not be reachable by Tab while a screen
+               reader is told the modal is not there (axe aria-hidden-focus;
+               the global QA sweep, rule 6). Removed BEFORE the focus below. */
+            modal.removeAttribute('inert');
             document.getElementById('app-wrapper')?.setAttribute('inert', '');
 
             const closeBtn = modal.querySelector<HTMLElement>('.modal-close');
@@ -1011,6 +1017,7 @@ const fallbackMark = await getImage({
 
             modal.classList.remove('active');
             modal.setAttribute('aria-hidden', 'true');
+            modal.setAttribute('inert', '');
             document.getElementById('app-wrapper')?.removeAttribute('inert');
             // 'about:blank', NOT '' — an empty src resolves to the current
             // page URL, silently reloading the whole site inside the hidden
@@ -1565,6 +1572,7 @@ const fallbackMark = await getImage({
         if (videoModal) {
           videoModal.classList.remove('active');
           videoModal.setAttribute('aria-hidden', 'true');
+          videoModal.setAttribute('inert', '');
           const iframe = videoModal.querySelector('#modal-iframe') as HTMLIFrameElement | null;
           if (iframe) iframe.src = 'about:blank';
         }

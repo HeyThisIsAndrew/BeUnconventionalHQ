@@ -112,10 +112,13 @@ jobs:
       - name: Production build
         run: npm run build
 
-      # One high-priority image per page, and no unresized Sanity or Substack
-      # originals anywhere in the built site (scripts/built-images.check.mjs).
-      - name: Check built images
-        run: npm run check:images
+      # The global QA sweep: nine site-wide rules over every built page (one
+      # high-priority image, no unresized originals, srcset covers sizes, no
+      # self-starting or non-fullscreen YouTube frame, one h1, nothing
+      # focusable in hidden content, alt on every image, rel=noopener, no em
+      # dashes in copy). Seconds, no browser. scripts/e2e-global-qa-sweep.test.mjs
+      - name: Global QA sweep (built site)
+        run: npm run test:dist
 
       - name: Generate SEO Audit SARIF
         run: |

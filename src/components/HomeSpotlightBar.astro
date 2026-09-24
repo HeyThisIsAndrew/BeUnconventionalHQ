@@ -366,6 +366,14 @@ const rotates = slides.length > 1;
   attribute and falls back to 100vw, and that failure is silent.
 */
 const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 95vw';
+/* A banner slide shown in THUMBNAIL focus draws its art whole, beside the
+   copy: full width on a phone, a fixed 400px box from 768 up (measured at
+   768, 1440, 1920 and 2560). At '100vw' it asked for a 1600px file for that
+   400px box. The blurred fill behind it takes the SAME value, so the two
+   stay one download. */
+const THUMB_ART_SIZES = '(max-width: 767px) 100vw, 400px';
+const sizesFor = (slide: { artFocus?: string }) =>
+  variant === 'banner' && slide.artFocus === 'thumbnail' ? THUMB_ART_SIZES : artSizes;
 ---
 
 <section class:list={['spotlight', `spotlight--${variant}`]} aria-label={label} data-spotlight>
@@ -444,7 +452,7 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
             class="spotlight-art spotlight-art--fill"
             src={slide.art.src}
             srcset={slide.art.srcset || undefined}
-            sizes={artSizes}
+            sizes={sizesFor(slide)}
             alt=""
             aria-hidden="true"
             loading="eager"
@@ -457,7 +465,7 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
             class="spotlight-art"
             src={slide.art.src}
             srcset={slide.art.srcset || undefined}
-            sizes={artSizes}
+            sizes={sizesFor(slide)}
             alt=""
             loading="eager"
             fetchpriority={variant === 'panel' && index === 0 ? 'high' : 'low'}
