@@ -73,6 +73,13 @@ const PLAYERS = [
     watchId: 'hero-watch-on-youtube',
     noteId: 'hero-embed-note',
   },
+  {
+    label: 'the homepage hero accordion (.acc-video-iframe, HeroAccordion.astro)',
+    file: 'src/components/home/HeroAccordion.astro',
+    frameId: 'acc-video-iframe',
+    watchId: 'hero-acc-watch-on-youtube',
+    noteId: 'data-embed-note',
+  },
 ];
 
 console.log('Every YouTube player has a way out:');
@@ -197,9 +204,19 @@ console.log('\nThe event and hub stages have a way out too:');
 
 const STAGE_FILES = [
   'src/pages/featured/[slug].astro',
-  'src/components/EventFeatured.astro',
-  'src/components/EventAnnouncement.astro',
 ];
+
+/*
+  EXCEPT THE EVENT STAGES, BY THE OWNER'S DECISION. An event page is the HQ's
+  hub for somebody else's event, and a link out to that event's YouTube
+  channel works against it (Andrew). The trade is known: a refused embed on
+  an event stage has no door. Pinned so the link is not "restored" as a fix.
+*/
+for (const rel of ['src/components/EventFeatured.astro', 'src/components/EventAnnouncement.astro']) {
+  test(`${rel} deliberately carries no stage escape link`, () => {
+    assert.ok(!/class="hub-stage-watch"/.test(code(read(rel))), 'the owner removed this link from event heroes');
+  });
+}
 
 for (const rel of STAGE_FILES) {
   test(`${rel} renders the stage escape link`, () => {
@@ -281,6 +298,13 @@ test('the /feed hero stage does not carry autoplay=1', () => {
 test('the card lightbox does not carry autoplay=1 either', () => {
   const url = EMBED_URL(code(read('src/lib/youtube-url.ts')));
   assert.ok(!/autoplay=1/.test(url), `autoplay=1 on the lightbox embed: ${url}`);
+});
+
+test('the homepage hero player does not carry autoplay=1, or leave nocookie', () => {
+  const SRC = code(read('src/components/home/HeroAccordion.astro'));
+  assert.ok(!/autoplay=1/.test(SRC), 'autoplay=1 is back on the homepage hero embed');
+  assert.ok(!/youtube\.com\/embed\//.test(SRC), 'the homepage hero embeds from youtube.com, not the nocookie helper');
+  assert.match(SRC, /func:\s*'playVideo'/, 'the hero starts through the jsapi playVideo command');
 });
 
 test('the stage starts playback through the jsapi, so dropping autoplay costs no click', () => {

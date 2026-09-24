@@ -157,17 +157,44 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
                 {/* Always rendered, even empty: its fixed two-line height is part
                     of what keeps the chips in one place. */}
                 <p class="acc-deck">{story.deck}</p>
-                <button 
-                  type="button" 
-                  class="acc-cta cta-button-primary" 
-                  {...(isVideo ? { 'data-play-video': story.videoId } : {})}
-                >
-                  {isVideo ? `Watch${story.duration ? ` · ${story.duration}` : ''}` : `Read${story.readTime ? ` · ${story.readTime}` : ''}`}
-                </button>
+                {/* A video's CTA plays it here, in the panel (the headline still
+                    deep-links to /feed). An article's is a label the headline's
+                    stretched link already covers, so it is not a second control:
+                    it used to be a <button> with no handler, which did nothing. */}
+                {isVideo ? (
+                  <button type="button" class="acc-cta cta-button-primary" data-play-video={story.videoId}>
+                    {`Watch${story.duration ? ` · ${story.duration}` : ''}`}
+                  </button>
+                ) : (
+                  <span class="acc-cta cta-button-primary" aria-hidden="true">
+                    {`Read${story.readTime ? ` · ${story.readTime}` : ''}`}
+                  </span>
+                )}
               </div>
             </div>
 
             <div class="acc-progress" aria-hidden="true"><span class="acc-progress-fill"></span></div>
+
+            {/* The inline player's door (hard rule 11): a "Watch on YouTube"
+                link for the video this panel plays, rendered for every video
+                panel and shown for as long as the player is up, never gated
+                on detecting a failure. The note under it is the enhancement:
+                it explains an onError, it does not rescue. A direct child of
+                the panel, so it stacks above the player. */}
+            {isVideo && story.videoId && (
+              <div class="acc-player-bar">
+                <button type="button" class="acc-player-close" data-close-video>Close video</button>
+                <p class="acc-embed-note" data-embed-note hidden>This video can't play here.</p>
+                <a
+                  class="hero-acc-watch-on-youtube"
+                  href={`https://www.youtube.com/watch?v=${encodeURIComponent(story.videoId)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Watch on YouTube
+                </a>
+              </div>
+            )}
           </article>
         );
       })}
@@ -181,8 +208,12 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
 )}
 
 <script>
+  import { getYouTubeEmbedUrl } from '../../lib/youtube-url';
+
   const DURATION = 7000;
-  const MOBILE = '(max-width: 767px)';
+  /* Phones in either orientation: rotation is off by default (the toggle
+     starts it). The landscape query matches home.css's stacked layout. */
+  const MOBILE = '(max-width: 767px), (orientation: landscape) and (max-height: 520px)';
   const REDUCED = '(prefers-reduced-motion: reduce)';
 
   let teardown: (() => void) | null = null;
@@ -225,9 +256,7 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
         panels[current].classList.remove('is-open');
         triggers[current].setAttribute('aria-expanded', 'false');
         
-        const oldIframe = panels[current].querySelector('.acc-video-iframe');
-        if (oldIframe) oldIframe.remove();
-        
+        stopVideo();
         current = next;
         panels[current].classList.add('is-open');
         triggers[current].setAttribute('aria-expanded', 'true');
@@ -312,32 +341,102 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
       syncToggle();
     };
 
-    const playBtns = root.querySelectorAll<HTMLButtonElement>('[data-play-video]');
+    /*
+      ─── THE INLINE PLAYER ──────────────────────────────────────────────────
+      One frame at a time, in the open panel. The rules it keeps:
+        - youtube-nocookie with enablejsapi (getYouTubeEmbedUrl), and NO
+          autoplay=1: it starts by the jsapi playVideo command, as the /feed
+          stage does (hard rule 11). The click is still the one click.
+        - embed-pause.ts pauses it on a hidden tab; nothing here does (rule 12).
+        - Hard rule 3: the panel and the track clip, and a clipping ancestor
+          renders a YouTube frame as a black box on iOS Safari, so both drop
+          their clip while it plays (`is-playing`). Nothing animates then:
+          a panel change stops the player first.
+    */
+    let playerFrame: HTMLIFrameElement | null = null;
+
+    function stopVideo() {
+      if (!playerFrame) return;
+      const panel = playerFrame.closest<HTMLElement>('[data-acc-panel]');
+      const media = playerFrame.parentElement;
+      playerFrame.remove();
+      playerFrame = null;
+      media?.setAttribute('aria-hidden', 'true');
+      panel?.classList.remove('is-playing');
+      panel?.querySelector<HTMLElement>('[data-embed-note]')?.setAttribute('hidden', '');
+      root!.classList.remove('is-playing');
+    }
+
     const onPlay = (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
       stopped = true;
       syncToggle();
-      
-      const btn = e.currentTarget as HTMLButtonElement;
+
+      const btn = e.currentTarget as HTMLElement;
       const videoId = btn.dataset.playVideo;
-      if (!videoId) return;
-      const mediaDiv = btn.closest('.acc-panel')?.querySelector('.acc-media');
-      if (!mediaDiv) return;
-      
+      const panel = btn.closest<HTMLElement>('[data-acc-panel]');
+      const media = panel?.querySelector<HTMLElement>('.acc-media');
+      if (!videoId || !panel || !media) return;
+      /* A second click must not stack a second player (two audio tracks). */
+      if (playerFrame && playerFrame.parentElement === media) return;
+      stopVideo();
+
       const iframe = document.createElement('iframe');
       iframe.className = 'acc-video-iframe';
-      iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&rel=0`;
-      iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+      iframe.title = 'YouTube video player';
+      iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen';
       iframe.allowFullscreen = true;
-      mediaDiv.appendChild(iframe);
+      iframe.addEventListener('load', () => {
+        const player = iframe.contentWindow;
+        if (!player) return;
+        const send = (payload: Record<string, unknown>) =>
+          player.postMessage(JSON.stringify(payload), 'https://www.youtube-nocookie.com');
+        send({ event: 'listening', id: 1, channel: 'widget' });
+        send({ event: 'command', func: 'playVideo', args: [], id: 1, channel: 'widget' });
+      }, { once: true });
+      iframe.src = getYouTubeEmbedUrl(videoId, true);
+
+      media.removeAttribute('aria-hidden');
+      media.appendChild(iframe);
+      playerFrame = iframe;
+      panel.classList.add('is-playing');
+      root.classList.add('is-playing');
+      panel.querySelector<HTMLElement>('[data-close-video]')?.focus({ preventScroll: true });
     };
+
+    const onClose = () => {
+      const panel = playerFrame?.closest<HTMLElement>('[data-acc-panel]');
+      stopVideo();
+      panel?.querySelector<HTMLElement>('[data-play-video].acc-cta')?.focus({ preventScroll: true });
+    };
+
+    /* The note is shown only on the player's own onError, from its own frame. */
+    const onMessage = (event: MessageEvent) => {
+      if (!playerFrame) return;
+      if (event.origin !== 'https://www.youtube-nocookie.com') return;
+      if (event.source !== playerFrame.contentWindow) return;
+      let payload: any;
+      try {
+        payload = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      } catch {
+        return;
+      }
+      if (payload && payload.event === 'onError') {
+        playerFrame.closest('[data-acc-panel]')?.querySelector<HTMLElement>('[data-embed-note]')?.removeAttribute('hidden');
+      }
+    };
+
+    const playBtns = root.querySelectorAll<HTMLElement>('[data-play-video]');
+    const closeBtns = root.querySelectorAll<HTMLButtonElement>('[data-close-video]');
 
     triggers.forEach((t) => {
       t.addEventListener('click', onClick);
       t.addEventListener('keydown', onKey);
     });
     playBtns.forEach((btn) => btn.addEventListener('click', onPlay));
+    closeBtns.forEach((btn) => btn.addEventListener('click', onClose));
+    window.addEventListener('message', onMessage);
     toggle?.addEventListener('click', onToggle);
     root.addEventListener('mouseenter', onEnter);
     root.addEventListener('mouseleave', onLeave);
@@ -359,6 +458,9 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
         t.removeEventListener('keydown', onKey);
       });
       playBtns.forEach((btn) => btn.removeEventListener('click', onPlay));
+      closeBtns.forEach((btn) => btn.removeEventListener('click', onClose));
+      window.removeEventListener('message', onMessage);
+      stopVideo();
       toggle?.removeEventListener('click', onToggle);
       root.removeEventListener('mouseenter', onEnter);
       root.removeEventListener('mouseleave', onLeave);

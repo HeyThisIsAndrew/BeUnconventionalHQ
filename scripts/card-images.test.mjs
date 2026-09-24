@@ -100,7 +100,6 @@ test('maxresdefault offers all wsrv.nl proxy widths', () => {
     { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=800&output=webp&q=85&we', descriptor: '800w' },
     { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=900&output=webp&q=85&we', descriptor: '900w' },
     { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1200&output=webp&q=85&we', descriptor: '1200w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1280&output=webp&q=85&we', descriptor: '1280w' },
     { url: 'https://i.ytimg.com/vi/zGA4XXAkE_s/maxresdefault.jpg', descriptor: '1280w' },
   ]);
 });

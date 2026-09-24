@@ -216,16 +216,39 @@
   transform: scaleX(1);
 }
 
+/* Phones: two tidy rows. The icon and title on the first; the descriptor
+   and the link sharing the second, the link right-aligned. Wrapping the flex
+   row instead left the link on a line of its own between the title and the
+   descriptor, which read as clutter (Andrew). */
 @media (max-width: 767px) {
+  .home-v4 .hsh {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'icon title title'
+      'desc desc link';
+    align-items: center;
+    column-gap: 0.7rem;
+    row-gap: 0.55rem;
+  }
+  .home-v4 .hsh-icon {
+    grid-area: icon;
+  }
+  .home-v4 .hsh-title {
+    grid-area: title;
+  }
   .home-v4 .hsh-descriptor {
-    order: 5;
-    flex-basis: 100%;
+    grid-area: desc;
+    font-size: 0.62rem;
+    letter-spacing: 0.18em;
   }
   .home-v4 .hsh-rule {
     display: none;
   }
   .home-v4 .hsh-link {
-    margin-left: auto;
+    grid-area: link;
+    justify-self: end;
+    padding-bottom: 2px;
   }
 }
 
@@ -365,10 +388,68 @@
 
 .home-v4 .acc-video-iframe {
   position: absolute;
-  inset: 0;
+  inset: 0 0 var(--player-bar, 44px) 0;
   width: 100%;
-  height: 100%;
+  height: calc(100% - var(--player-bar, 44px));
+  border: 0;
+  background: #000;
   z-index: 15;
+}
+/* Hard rule 3: no clipping ancestor while a frame is up. Nothing animates
+   while it plays (a panel change stops the player first), so dropping the
+   clip costs nothing; the open panel's art is hidden under the frame. */
+.home-v4 .hero-acc.is-playing .hero-acc-track,
+.home-v4 .acc-panel.is-playing {
+  overflow: visible;
+}
+.home-v4 .acc-panel.is-playing .acc-media img,
+.home-v4 .acc-panel.is-playing .acc-progress,
+.home-v4 .acc-panel.is-playing .acc-play-overlay {
+  display: none;
+}
+/* The player's door: Close and "Watch on YouTube", under the frame. */
+.home-v4 .acc-player-bar {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 16;
+  display: none;
+  align-items: center;
+  gap: 1rem;
+  height: var(--player-bar, 44px);
+  padding: 0 1rem 0 1.25rem;
+  background: #080808;
+  font: 600 0.7rem/1 var(--font-home);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.home-v4 .acc-panel.is-playing .acc-player-bar {
+  display: flex;
+}
+.home-v4 .acc-player-close {
+  padding: 0.5rem 0;
+  border: 0;
+  background: none;
+  color: var(--home-chalk);
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+.home-v4 .acc-embed-note {
+  margin: 0;
+  color: var(--home-muted);
+  letter-spacing: 0.08em;
+  text-transform: none;
+}
+.home-v4 .hero-acc-watch-on-youtube {
+  margin-left: auto;
+  color: var(--home-red-text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.home-v4 .acc-player-close:hover,
+.home-v4 .hero-acc-watch-on-youtube:hover {
+  color: #fff;
 }
 
 .home-v4 .acc-body {
@@ -396,7 +477,10 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  z-index: 10;
+  /* Under .acc-body (z 2), whose empty space passes clicks through to it:
+     at z 10 it lay over the headline link and the Watch button, so every
+     click on the open panel played the video and the headline never linked. */
+  z-index: 1;
 }
 /* Only pointer-events when expanded, so it doesn't intercept the trigger click */
 .home-v4 .acc-panel:not(.is-open) .acc-play-overlay {
@@ -724,8 +808,15 @@
 }
 .home-v4 .acc-cta {
   display: inline-flex;
+  /* Above the headline's stretched link, so Watch plays here rather than
+     following the link to /feed. The Read label sits under it on purpose. */
+  position: relative;
+  z-index: 1;
   margin: 1.4rem 0 0;
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.2, 1);
+}
+.home-v4 span.acc-cta {
+  pointer-events: none;
 }
 .home-v4 .acc-panel.is-open:hover .acc-cta {
   background-color: var(--color-accent, #cc0000);
@@ -792,11 +883,19 @@
 
 /* Phones: the same panels stack into a vertical accordion. */
 @media (max-width: 767px) {
+  .home-v4 {
+    /* The phone navbar is ~57px; 84px left a dead band under it. */
+    --home-top: 64px;
+  }
   .home-v4 .hero-acc-track {
     flex-direction: column;
     gap: 4px;
     aspect-ratio: auto;
     min-height: 0;
+    /* Sized by its rows. The desktop height (a share of the viewport) clipped
+       the stack after the second row, so GAMES, EVENTS and LATEST were cut
+       off below the open panel (Andrew). */
+    height: auto;
     max-height: none;
   }
   .home-v4 .acc-panel {
@@ -818,14 +917,18 @@
     /* Jump to top UX */
     order: -1;
     z-index: 10;
-    /* Heavily constrain overall height */
-    max-height: 50vh;
   }
   .home-v4 .acc-panel.is-open .acc-media {
     position: relative;
     inset: auto;
+    width: 100%;
     aspect-ratio: 16 / 9;
-    height: 100%;
+    /* Short phones: the art gives way first, so all five rows still fit. */
+    max-height: 30svh;
+  }
+  /* A closed row is one line: its art and its label. */
+  .home-v4 .acc-panel:not(.is-open) {
+    height: 52px;
   }
   .home-v4 .acc-panel.is-open .acc-media::after {
     background: linear-gradient(to top, rgba(8, 8, 8, 0.9) 0%, rgba(8, 8, 8, 0) 50%);
@@ -835,12 +938,14 @@
     inset: auto;
     align-items: center;
     justify-content: center;
-    min-height: 60px;
-    padding: 0.85rem 1rem;
+    min-height: 0;
+    height: 100%;
+    padding: 0 1rem;
     width: 100%;
   }
   .home-v4 .acc-panel.is-open .acc-body {
-    padding: 1.1rem 1rem 1.2rem;
+    height: auto;
+    padding: 0.9rem 1rem 1rem;
     background: #0d0d0d;
     align-items: flex-start;
   }
@@ -889,6 +994,177 @@
   .home-v4 .acc-toggle {
     top: calc(var(--home-top) + 10px);
     right: calc(var(--home-gutter) + 10px);
+  }
+  .home-v4 .acc-chips {
+    margin-bottom: 0.6rem;
+  }
+  .home-v4 .acc-cta {
+    margin-top: 0.8rem;
+    padding: 0.7rem 1.4rem;
+  }
+  .home-v4 .acc-video-iframe {
+    inset: 0;
+    height: 100%;
+  }
+  .home-v4 .acc-player-bar {
+    position: relative;
+    inset: auto;
+  }
+}
+
+/* ─── PHONE LANDSCAPE: the open story left, the other four stacked right ──
+   Five side-by-side strips at 390px tall left the open panel a narrow
+   column the strips outweighed (Andrew). Here the SAME five panels go on a
+   grid (hard rule 7: no second markup): the open one spans the left column,
+   and the rest auto-place, in their own order, into a single right-hand
+   column of four. Choosing one swaps it: it takes the left, and the story it
+   replaced drops back into the stack. Keyed on a short landscape viewport,
+   so it catches phones either side of the 768px desktop line. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .home-v4 {
+    --home-top: 60px;
+  }
+  .home-v4 .hero-acc-track {
+    --stack-w: clamp(170px, 30%, 260px);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--stack-w);
+    grid-template-rows: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    aspect-ratio: auto;
+    min-height: 0;
+    height: calc(var(--vv-height, 100svh) - var(--home-top) - 8px);
+    max-height: none;
+  }
+  .home-v4 .acc-panel,
+  .home-v4 .acc-panel:not(.is-open),
+  .home-v4 .acc-panel.is-open {
+    display: block;
+    grid-column: 2;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    text-align: left;
+  }
+  .home-v4 .acc-panel.is-open {
+    grid-column: 1;
+    grid-row: 1 / -1;
+  }
+
+  /* Both kinds of panel are art with copy laid over it. */
+  .home-v4 .acc-media,
+  .home-v4 .acc-panel.is-open .acc-media {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    aspect-ratio: auto;
+    max-height: none;
+  }
+  .home-v4 .acc-body,
+  .home-v4 .acc-panel.is-open .acc-body {
+    position: absolute;
+    inset: 0;
+    height: auto;
+    background: none;
+  }
+
+  /* The stack: one row per story, its chalk art then its label. */
+  .home-v4 .acc-panel:not(.is-open) .acc-body {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 0.75rem;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-trigger {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 0.7rem;
+    width: 100%;
+    padding: 0;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-art {
+    position: static;
+    width: 52px;
+    height: 34px;
+    overflow: hidden;
+    transform: none;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scale(1.22);
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-art--logo img {
+    object-fit: contain;
+    transform: none;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-label {
+    position: static;
+    writing-mode: horizontal-tb;
+    transform: none;
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+  }
+  .home-v4 .acc-panel:hover:not(.is-open) .acc-label {
+    letter-spacing: 0.2em;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-new {
+    position: static;
+    margin-left: auto;
+    transform: none;
+  }
+
+  /* The open story: the desktop panel's treatment, scaled to 330px. */
+  .home-v4 .acc-panel.is-open .acc-media::after {
+    background:
+      linear-gradient(90deg, rgba(8, 8, 8, 0.9) 0%, rgba(8, 8, 8, 0.55) 45%, rgba(8, 8, 8, 0) 80%),
+      linear-gradient(to top, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.4) 40%, transparent 65%);
+  }
+  .home-v4 .acc-panel.is-open .acc-body {
+    justify-content: flex-end;
+    align-items: flex-start;
+    padding: 1rem 1.25rem 1.1rem 1.5rem;
+  }
+  .home-v4 .acc-panel.is-open .acc-trigger {
+    display: none;
+  }
+  .home-v4 .acc-panel.is-open .acc-chips {
+    position: static;
+    margin: 0 0 0.5rem;
+  }
+  .home-v4 .acc-chip {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.6rem;
+  }
+  .home-v4 .acc-content {
+    max-width: 34rem;
+  }
+  .home-v4 .acc-title-box {
+    --title-lines: 2;
+    margin: 0 0 0.4rem;
+    font-size: clamp(1.1rem, 2.6vw, 1.45rem);
+  }
+  .home-v4 .acc-deck {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    -webkit-line-clamp: 1;
+  }
+  .home-v4 .acc-cta {
+    margin-top: 0.7rem;
+    padding: 0.6rem 1.2rem;
+  }
+  .home-v4 .acc-video-iframe {
+    inset: 0 0 var(--player-bar, 44px) 0;
+    height: calc(100% - var(--player-bar, 44px));
+  }
+  .home-v4 .acc-player-bar {
+    position: absolute;
+    inset: auto 0 0 0;
+  }
+  /* Over the open story's corner, not over the stack. */
+  .home-v4 .acc-toggle {
+    top: calc(var(--home-top) + 10px);
+    right: calc(var(--stack-w, 30%) + 14px);
   }
 }
 

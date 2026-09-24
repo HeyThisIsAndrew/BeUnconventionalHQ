@@ -84,7 +84,13 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    A reader trapped by a YouTube sign-in wall on /feed was "fixed" in the modal
    alone, which was the one player he was not using. Fixing that then covered
    two players and stopped, so the hub and event stages went a second round
-   without a door: **the escape hatch is on all FIVE**, and
+   without a door: **the escape hatch is on every player EXCEPT the two event
+   stages** (EventFeatured, EventAnnouncement), which the owner removed on
+   purpose: an event page is the HQ's hub for someone else's event, not a
+   funnel to that event's YouTube channel, and the link sat over the player.
+   A refused embed there has no door; that trade is accepted, so do not
+   "restore" it. The homepage hero accordion's inline player is the sixth and
+   carries one. Otherwise
    `scripts/embed-escape.test.mjs` asserts every one of them in a single file,
    for the reason event-hero-lockup.test.mjs gives. The three stages
    (`/featured/[slug]`, EventFeatured, EventAnnouncement) are near-identical

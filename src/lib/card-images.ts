@@ -102,11 +102,18 @@ function youtubeSources(url: string): CardImageSources {
     to be the placeholder, the recovery drops the srcset and lands on the
     hqdefault that was in `src` the whole time.
   */
-  const proxied = genericExternalSources(url, YT_WIDTHS.maxresdefault).srcset;
+  /* The top rung is the original maxresdefault, not a proxied re-encode of it
+     at the same width. Only one: a srcset with two candidates at the same
+     `w` is a parse error and the browser drops the second, so appending the
+     original after the proxy's 1280w rung made it dead weight. */
+  const top = YT_WIDTHS.maxresdefault;
+  const proxied = (genericExternalSources(url, top).srcset ?? '')
+    .split(', ')
+    .filter((c) => c && !c.endsWith(` ${top}w`))
+    .join(', ');
   return {
     src: url.replace(YT_RENDITION, '/hqdefault.jpg'),
-    // Supply the exact original maxres asset directly to avoid proxy downsampling/re-compression at the 1280w rung
-    srcset: proxied ? `${proxied}, ${url} ${YT_WIDTHS.maxresdefault}w` : `${url} ${YT_WIDTHS.maxresdefault}w`,
+    srcset: proxied ? `${proxied}, ${url} ${top}w` : `${url} ${top}w`,
   };
 }
 
