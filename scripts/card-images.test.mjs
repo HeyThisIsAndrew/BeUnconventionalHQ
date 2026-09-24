@@ -95,11 +95,13 @@ test('maxresdefault offers all wsrv.nl proxy widths', () => {
       both, and it is the only rung added -- see the note on WSRV_WIDTHS for
       why the ladder stays coarse.
     */
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=400&output=webp&q=75&we', descriptor: '400w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=75&we', descriptor: '600w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=800&output=webp&q=75&we', descriptor: '800w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=900&output=webp&q=75&we', descriptor: '900w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1200&output=webp&q=75&we', descriptor: '1200w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=400&output=webp&q=85&we', descriptor: '400w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=85&we', descriptor: '600w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=800&output=webp&q=85&we', descriptor: '800w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=900&output=webp&q=85&we', descriptor: '900w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1200&output=webp&q=85&we', descriptor: '1200w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1280&output=webp&q=85&we', descriptor: '1280w' },
+    { url: 'https://i.ytimg.com/vi/zGA4XXAkE_s/maxresdefault.jpg', descriptor: '1280w' },
   ]);
 });
 
@@ -114,7 +116,11 @@ test('no rung asks the proxy for more pixels than maxresdefault has', () => {
   for (const { url, descriptor } of entries) {
     const w = Number(descriptor.replace('w', ''));
     assert.ok(w <= 1280, `${descriptor} upsamples a 1280px source: ${url}`);
-    assert.ok(url.includes(`&w=${w}&`), `descriptor ${descriptor} must match its own w= param: ${url}`);
+    if (url.includes('wsrv.nl')) {
+      assert.ok(url.includes(`&w=${w}&`), `descriptor ${descriptor} must match its own w= param: ${url}`);
+    } else {
+      assert.ok(url.includes('maxresdefault.jpg'), `direct fallback must be maxresdefault: ${url}`);
+    }
   }
 });
 
@@ -127,7 +133,11 @@ test('the video id is preserved verbatim', () => {
   // is url-encoded there and plain here.
   assert.ok(src.includes('/vi/a-B_c1D2e3F/'), src);
   for (const { url } of parseSrcset(srcset)) {
-    assert.ok(url.includes('%2Fvi%2Fa-B_c1D2e3F%2F'), url);
+    if (url.includes('wsrv.nl')) {
+      assert.ok(url.includes('%2Fvi%2Fa-B_c1D2e3F%2F'), url);
+    } else {
+      assert.ok(url.includes('/vi/a-B_c1D2e3F/'), url);
+    }
   }
 });
 
