@@ -262,5 +262,11 @@ import { SOCIAL_ICONS } from '../data/icons.js';
     }
   }
 
-  document.addEventListener('astro:page-load', scheduleTakeoverCheck);
+  document.addEventListener('astro:page-load', () => {
+    if (document.readyState === 'complete') {
+      scheduleTakeoverCheck();
+    } else {
+      window.addEventListener('load', scheduleTakeoverCheck, { once: true });
+    }
+  });
 </script>

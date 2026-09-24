@@ -273,6 +273,7 @@ function substackSources(url: string): CardImageSources {
   const withWidth = (width: number) => {
     const out: string[] = [];
     let sawWidth = false;
+    let sawFAuto = false;
 
     for (const part of transforms) {
       if (/^w_\d+$/.test(part)) {
@@ -283,11 +284,13 @@ function substackSources(url: string): CardImageSources {
       } else if (part === 'q_auto:good' || part === 'q_auto') {
         out.push('q_auto:eco');
       } else {
+        if (part === 'f_auto') sawFAuto = true;
         out.push(part);
       }
     }
 
     if (!sawWidth) out.push(`w_${width}`);
+    if (!sawFAuto) out.push('f_auto');
     out.push('c_limit');
 
     return `${prefix}${out.join(',')}${original}`;
@@ -375,7 +378,7 @@ function genericExternalSources(url: string, capWidth?: number): CardImageSource
     them if a cap is ever missed.
   */
   const withWidth = (w: number) =>
-    `https://wsrv.nl/?url=${encodeURIComponent(urlWithoutProto)}&w=${w}&output=webp&q=85&we`;
+    `https://wsrv.nl/?url=${encodeURIComponent(urlWithoutProto)}&w=${w}&output=webp&q=75&af=1&we`;
 
   return {
     src: withWidth(WSRV_SRC_WIDTH),
