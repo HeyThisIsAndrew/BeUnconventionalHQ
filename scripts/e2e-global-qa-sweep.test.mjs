@@ -240,6 +240,19 @@ for (const file of pages) {
     if (!/noopener/.test(a.getAttribute('rel') || '')) fail('8 new-tab links rel=noopener', route, (a.getAttribute('href') || '').slice(0, 80));
   }
 
+  /* 10. Every "Watch on YouTube" link starts with the YouTube mark, the
+         footer's own (SOCIAL_ICONS.YouTube). The six of them drifted into
+         three different treatments before this rule existed. */
+  for (const a of doc.querySelectorAll('a')) {
+    if (!/watch on youtube/i.test(a.text)) continue;
+    const first = a.querySelector('.yt-mark');
+    if (!first || !first.querySelector('svg')) {
+      fail('10 Watch on YouTube carries the YouTube mark', route, `.${(a.getAttribute('class') || 'a').split(/\s+/)[0]} has no .yt-mark`);
+    } else if (a.childNodes.find((n) => n.nodeType === 1) !== first) {
+      fail('10 Watch on YouTube carries the YouTube mark', route, `.${(a.getAttribute('class') || 'a').split(/\s+/)[0]}: the mark must come first`);
+    }
+  }
+
   /* 9. No em dash in anything a visitor reads (house style, CLAUDE.md):
         text nodes outside script/style, and alt / title / aria-label /
         meta description values. */
@@ -296,4 +309,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`✓ Global QA sweep: ${pages.length} built pages pass all nine site-wide rules.`);
+console.log(`✓ Global QA sweep: ${pages.length} built pages pass all ten site-wide rules.`);

@@ -10,6 +10,7 @@ import { resolveEntity } from '../lib/entity-resolver';
 import logoImage from '../assets/logo-mark.webp';
 import { getImage } from 'astro:assets';
 import { site } from '../data/site.js';
+import { SOCIAL_ICONS } from '../data/icons.js';
 
 interface Props {
   /**
@@ -379,8 +380,12 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
               href={watchUrl}
               target="_blank"
               rel="noopener noreferrer"
-            >Watch on YouTube</a>
+            ><span class="yt-mark" aria-hidden="true" set:html={SOCIAL_ICONS.YouTube} /><span>Watch on YouTube</span></a>
           )}
+          {/* The same mark for the button the swap script builds when a card
+              promotes a video into a hero that had none: cloned, so the
+              script never carries its own copy of the logo. */}
+          <template id="yt-mark-template"><span class="yt-mark" aria-hidden="true" set:html={SOCIAL_ICONS.YouTube} /></template>
 
           {/*
             ─── THE HUB CTA ────────────────────────────────────────────────────
@@ -2765,7 +2770,13 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
           watchBtn.className = 'feed-hero-watch-btn';
           watchBtn.target = '_blank';
           watchBtn.rel = 'noopener noreferrer';
-          watchBtn.textContent = 'Watch on YouTube';
+          /* Prefaced with the YouTube mark, like every Watch on YouTube link
+             (the global QA sweep, rule 10): cloned from the template. */
+          const mark = (document.getElementById('yt-mark-template') as HTMLTemplateElement | null)?.content.cloneNode(true);
+          if (mark) watchBtn.appendChild(mark);
+          const label = document.createElement('span');
+          label.textContent = 'Watch on YouTube';
+          watchBtn.appendChild(label);
           const subscribeBtn = hubRow.querySelector('.feed-hero-youtube-btn');
           carryScope(subscribeBtn || hubRow, watchBtn);
           /* Straight after SUBSCRIBE. Appending would land it after a hub

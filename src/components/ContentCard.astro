@@ -335,13 +335,26 @@ const baseProps = {
   'data-hub-play': hubPlayId ?? undefined,
 };
 
+/*
+  ─── A HERO CARD IS A PLAYER WITH TWO CONTROLS, NOT ONE BUTTON ─────────────
+  FeaturedHighlights plays a hero card inline, and its "Watch now" must be a
+  real link to YouTube: the player's way out (CLAUDE.md hard rule 11), and
+  the thing a reader clicking a label that carries the YouTube mark expects.
+  A link cannot live inside a role="button" (axe nested-interactive), so on
+  a hero video card the CARD is not the button: its play mark is a real
+  <button> (keyboard; mouse clicks still land on the card as before, the mark
+  has pointer-events: none) and "Watch now" is the <a>. Both sit inside the
+  card element FeaturedHighlights binds, so its click handler is unchanged
+  apart from letting the link navigate.
+*/
+const isHeroPlayer = variant === 'hero' && isPlayable;
+
 const wrapperProps = (isPlayable || context === 'feed' || context === 'hub')
   ? {
       ...baseProps,
       'data-video-id': videoId,
       'data-href': cardHref, // store href for manual navigation if they click something inside the spotlight later
-      role: 'button' as const,
-      tabindex: 0,
+      ...(isHeroPlayer ? {} : { role: 'button' as const, tabindex: 0 }),
       /*
         NO `aria-label` HERE — it is what broke `label-content-name-mismatch`.
 
@@ -475,7 +488,7 @@ if (isVideo && item.youtubeId) {
     Label in Name needs: the name becomes "Play video: <everything visible>",
     which still contains every word a reader can see.
   */}
-  {isPlayable && <span class="sr-only">Play video:</span>}
+  {isPlayable && !isHeroPlayer && <span class="sr-only">Play video:</span>}
   {/*
     Every style here is a class, not an inline `style` attribute.
 
@@ -552,7 +565,15 @@ if (isVideo && item.youtubeId) {
       </span>
     )}
 
-    {isVideo && (
+    {isVideo && (isHeroPlayer ? (
+      <button type="button" class="play-button-wrapper play-button-wrapper--control" aria-label={`Play video here: ${item.title}`}>
+        <span class="cinematic-play-button" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        </span>
+      </button>
+    ) : (
       <div class="play-button-wrapper" aria-hidden="true">
         <div class="cinematic-play-button">
           <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
@@ -560,7 +581,7 @@ if (isVideo && item.youtubeId) {
           </svg>
         </div>
       </div>
-    )}
+    ))}
   </div>
 
   <div class="content-card-body">
@@ -609,7 +630,22 @@ if (isVideo && item.youtubeId) {
       It stays everywhere else, where the card is a link in a grid and the words
       are the affordance.
     */}
-    {!isCinematic && (
+    {!isCinematic && isHeroPlayer && (
+    <a
+      class="watch-now-btn"
+      style="margin-top: auto;"
+      href={`https://www.youtube.com/watch?v=${encodeURIComponent(videoId!)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {LABELS.watchNow}<span class="sr-only"> on YouTube</span>
+      <svg class="youtube-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+        <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+      </svg>
+      <span class="btn-underline" />
+    </a>
+    )}
+    {!isCinematic && !isHeroPlayer && (
     <span class="watch-now-btn" style="margin-top: auto;">
       {isVideo ? LABELS.watchNow : LABELS.readNow}
       {isVideo ? (
@@ -626,6 +662,23 @@ if (isVideo && item.youtubeId) {
 </CardWrapper>
 
 <style>
+  /* The hero card's play mark as a real <button> (see isHeroPlayer): it keeps
+     the .play-button-wrapper geometry and loses the UA button chrome. The
+     focus ring is inset so the media's own clip does not cut it off. */
+  .play-button-wrapper--control {
+    background: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .play-button-wrapper--control:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: -4px;
+  }
+
   .content-card-excerpt {
     font-family: var(--font-body, 'Inter', sans-serif);
     font-size: 0.95rem;

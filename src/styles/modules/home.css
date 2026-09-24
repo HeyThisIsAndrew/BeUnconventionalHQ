@@ -481,8 +481,29 @@
 .home-v4 .acc-panel.is-video-shown .acc-video-iframe {
   opacity: 1;
 }
-.home-v4 .acc-panel.is-playing .acc-media img {
+/* EXACTLY the panel's box, at once. Reported as a flash: the art "stretched
+   beyond the selected view" as the video started. Two things overhung the
+   panel the instant is-playing dropped its clip: the hover zoom (1.06)
+   easing back to 1 over the art's 1.4s transform transition, and the
+   desktop sizing, where the art is --open-w wide and centred, which is
+   wider than the panel whenever a neighbouring strip is hover-widened.
+   Measured: up to 23px outside the panel on every frame until the video
+   showed. So in this state the art stops being a wider centred plate: it
+   is the panel's own box, no translate, no zoom, no transition. */
+/* `.is-open.is-playing`, not `.is-playing`: the open panel's hover rule
+   (`.is-open:hover`, zoom 1.06) is one class more specific, and the reader's
+   pointer IS on the panel at the moment of the click, so the lighter
+   selector lost exactly when it mattered. */
+.home-v4 .acc-panel.is-open.is-playing .acc-media img {
   --zoom: 1;
+  --img-x: 0;
+  left: 0;
+  width: 100%;
+  transition: none;
+}
+.home-v4 .acc-panel.is-open.is-playing .acc-media::after {
+  width: 100%;
+  transition: none;
 }
 .home-v4 .acc-panel.is-video-shown .acc-media img,
 .home-v4 .acc-panel.is-playing .acc-progress,

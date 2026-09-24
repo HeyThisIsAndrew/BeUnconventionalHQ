@@ -93,10 +93,13 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    carries one, rendered always but HIDDEN on phone portrait (also the
    owner's call: the portrait hero was too busy, and the embed shows
    YouTube's own logo link). FeaturedHighlights (the homepage Featured box) went
-   without one until the site-wide audit: its link sits UNDER the lead card,
-   never inside it (the card is a `role="button"`, so a link in it is a
-   nested control), and `syncWatchLink()` keeps it on the active card's
-   video, hidden for an article. Otherwise
+   without one until the site-wide audit: its door is the lead card's own
+   "Watch now" (with the YouTube mark), a real link to the video on YouTube.
+   A link cannot sit in a `role="button"` (axe nested-interactive), so a hero
+   video card (`isHeroPlayer` in ContentCard) is NOT the button: its play
+   mark is a real `<button>` and the card's inline-play handler ignores
+   clicks on links. A second link under the card duplicated it and was
+   removed (the owner's call). Otherwise
    `scripts/embed-escape.test.mjs` asserts every one of them in a single file,
    for the reason event-hero-lockup.test.mjs gives. The three stages
    (`/featured/[slug]`, EventFeatured, EventAnnouncement) are near-identical
@@ -463,7 +466,7 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
 - **The global QA sweep (`npm run test:dist`, `scripts/e2e-global-qa-sweep.test.mjs`)
   runs over the BUILT site**, in CI straight after the build and again in
   the e2e job. It exists because a fix to one component kept missing its
-  siblings, and a source test only sees the component in front of it. Nine
+  siblings, and a source test only sees the component in front of it. Ten
   rules, every page: (1) at most one `fetchpriority="high"` image, and its
   preload is the same request; (2) no unresized Sanity or Substack-S3
   original; (3) a srcset's largest file covers its `sizes` at 2x, evaluated
@@ -476,7 +479,10 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   `tabindex="-1"` (closed modals and overlays carry `inert`, toggled with
   `aria-hidden`); (7) every `<img>` has an `alt`; (8) every
   `target="_blank"` link has `rel="noopener"`; (9) no em dash in visitor
-  copy (article bodies are the author's own writing and are exempt). It
+  copy (article bodies are the author's own writing and are exempt); (10)
+  every "Watch on YouTube" link starts with the YouTube mark
+  (`.yt-mark`, the footer's `SOCIAL_ICONS.YouTube`, styled once in
+  global-base.css). It
   runs in about a second. **Two rules were deliberately NOT adopted**, see
   the file's header: "aria-hidden + tabindex=-1 must also be inert" would
   break the homepage rail's visible, clickable loop clones, and "no `sizes`

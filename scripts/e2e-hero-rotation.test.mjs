@@ -135,6 +135,41 @@ async function runTests() {
       console.log('  - skipped the video path: the open panel has no video');
     }
 
+    /* THE PLAY FLASH: the panel drops its clip while a video plays (hard
+       rule 3), and the art, hover-zoomed and sized to --open-w, spilled up
+       to 23px past the panel until the video showed. Clicked with the
+       pointer ON the panel, as a reader does, since the hover zoom was the
+       half a scripted click missed. */
+    await page.goto(`${BASE}/`, { waitUntil: 'load' });
+    await wait(1200);
+    const cta = await page.$('.acc-panel.is-open .acc-cta[data-play-video]');
+    if (cta) {
+      const box = await cta.boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await wait(1600); // let the hover zoom settle
+      await page.evaluate(() => {
+        window.__spill = [];
+        const t0 = performance.now();
+        const tick = () => {
+          const p = document.querySelector('.acc-panel.is-open');
+          const img = p?.querySelector('.acc-media img');
+          if (p?.classList.contains('is-playing') && img && getComputedStyle(img).display !== 'none') {
+            const a = p.getBoundingClientRect(), c = img.getBoundingClientRect();
+            window.__spill.push(Math.max(a.left - c.left, c.right - a.right, a.top - c.top, c.bottom - a.bottom, 0));
+          }
+          if (performance.now() - t0 < 2000) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+      await page.mouse.down();
+      await page.mouse.up();
+      await wait(2200);
+      const spill = await page.evaluate(() => window.__spill);
+      assert.ok(spill.length > 0, 'the panel never entered its playing state');
+      assert.ok(Math.max(...spill) <= 1, `the art spilled ${Math.max(...spill).toFixed(1)}px past the panel as the video started`);
+      pass(`pressing Play never lets the art spill past the panel (${spill.length} frames checked)`);
+    }
+
     await page.close();
     console.log(`\n✅ Hero Rotation E2E tests passed (${passed} checks).`);
   } catch (error) {

@@ -4,7 +4,6 @@ import { getVideosUnified } from '../lib/videos-source';
 import { getPublishedArticles, articleHref } from '../lib/articles';
 import { getCardImageSources } from '../lib/card-images';
 import { pickFeaturedHighlights } from '../lib/featured-highlights';
-import { parseVideoId } from '../lib/platforms/youtube';
 
 interface Props {
   /**
@@ -32,11 +31,6 @@ const allArticles = getPublishedArticles();
 const autoItems = pickFeaturedHighlights(allVideos, allArticles, articleHref);
 const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean) : autoItems;
 
-/* The first card's video, for the escape link below (server-rendered, so it
-   is right before any script runs). The script keeps it on the active card. */
-const firstItem: any = highlightedItems[0];
-const firstVideoId =
-  firstItem && (firstItem.type === 'video' || firstItem.contentType === 'video') ? parseVideoId(firstItem.link || '') : null;
 ---
 
 <div class="featured-highlights animate-on-scroll">
@@ -48,30 +42,6 @@ const firstVideoId =
           <ContentCard item={item} index={index} variant="hero" imageSizes={heroImageSizes} lcp={leadIsLcp ? undefined : false} />
         </div>
       ))}
-      {/*
-        ─── THE WAY OUT (CLAUDE.md hard rule 11) ──────────────────────────
-        The lead card is a player, and every player but the event stages
-        carries a door to YouTube: a refused embed (the sign-in wall) leaves
-        a card that does nothing when clicked, since the frame only fades in
-        once it is PLAYING. It sits UNDER the card, never in it: the card is
-        a role="button", and a link inside it is a nested control (axe
-        nested-interactive). Names the ACTIVE card's video and is hidden for
-        an article, kept current by activateIndex() below. Rendered always,
-        never on detecting a failure.
-      */}
-      <a
-        class="fh-watch-yt"
-        data-fh-watch
-        href={firstVideoId ? `https://www.youtube.com/watch?v=${encodeURIComponent(firstVideoId)}` : 'https://www.youtube.com/'}
-        target="_blank"
-        rel="noopener noreferrer"
-        hidden={!firstVideoId}
-      >
-        <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false">
-          <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" />
-        </svg>
-        <span>Watch on YouTube</span>
-      </a>
     </div>
     
     <!-- Right Side: 50% width, vertical list -->
@@ -125,35 +95,6 @@ const firstVideoId =
 </div>
 
 <style>
-  /* Quiet, under the lead card: the same small caps as the card's own
-     labels, brightening to the accent on hover. */
-  .fh-watch-yt {
-    justify-self: start;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    margin-top: 0.85rem;
-    min-height: 24px;
-    font-size: 0.68rem;
-    font-weight: 600;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.62);
-    text-decoration: none;
-    transition: color 0.25s ease;
-  }
-  .fh-watch-yt:hover,
-  .fh-watch-yt:focus-visible {
-    color: var(--color-accent-text, #ef4444);
-  }
-  .fh-watch-yt:focus-visible {
-    outline: 2px solid var(--color-accent-text, #ef4444);
-    outline-offset: 3px;
-  }
-  .fh-watch-yt[hidden] {
-    display: none;
-  }
-
   .featured-highlights {
     width: 100%;
     margin-top: 1rem;
@@ -585,24 +526,8 @@ const firstVideoId =
       section.querySelectorAll('.video-watermark-logo').forEach((logo: any) => logo.style.opacity = '0');
     }
 
-    /* The escape link follows the active card: its video, or hidden for an
-       article. The id comes off the card's own data-video-id (ContentCard). */
-    const watchLink = section.querySelector<HTMLAnchorElement>('[data-fh-watch]');
-    function syncWatchLink(index: number) {
-      if (!watchLink) return;
-      const card = Array.from(heroCards).find((c) => c.getAttribute('data-index') === String(index));
-      const id = card?.querySelector<HTMLElement>('[data-video-id]')?.dataset.videoId;
-      if (!id) {
-        watchLink.hidden = true;
-        return;
-      }
-      watchLink.href = `https://www.youtube.com/watch?v=${encodeURIComponent(id)}`;
-      watchLink.hidden = false;
-    }
-
     function activateIndex(index: number) {
       if (index < 0 || index >= rows.length) return;
-      syncWatchLink(Number(rows[index].getAttribute('data-index')));
       accumulatedTime = 0;
       slideStartTime = Date.now();
       
@@ -903,6 +828,11 @@ const firstVideoId =
            `a.watch-now-btn`. That element is a <span> in ContentCard, so the
            branch could never run; and pausing on an outbound click belongs to
            src/lib/embed-pause.ts, which does it for every target=_blank link.) */
+
+        /* The card's "Watch now" is a real link to YouTube (the player's way
+           out, hard rule 11; see isHeroPlayer in ContentCard): let it
+           navigate, and do not start the inline player behind it. */
+        if ((e.target as Element | null)?.closest?.('a[href]')) return;
 
         e.preventDefault();
         e.stopPropagation();

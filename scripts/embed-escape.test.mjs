@@ -313,18 +313,22 @@ test('parseVideoId recognises the host this site actually embeds from', () => {
   );
 });
 
-test('the homepage Featured box (FeaturedHighlights) has its way out, outside the card', () => {
-  /* A player with no door: a refused embed left the lead card doing nothing
-     when clicked. The link sits UNDER the card, because the card is a
-     role="button" and a link inside it is a nested control (axe). */
+test('the homepage Featured box (FeaturedHighlights) has its way out: the card\'s own Watch now', () => {
+  /* The lead card's "Watch now" (with the YouTube mark) is a real link to the
+     video on YouTube. It cannot sit inside a role="button" (axe nested-
+     interactive), so a hero video card is not one: its play mark is the
+     <button>. A second link under the card duplicated it, and was removed. */
+  const CARD = code(read('src/components/ContentCard.astro'));
   const FH = code(read('src/components/FeaturedHighlights.astro'));
-  const link = FH.match(/<a[\s\S]*?class="fh-watch-yt"[\s\S]*?>/)?.[0] ?? '';
-  assert.ok(link, 'the Featured box has no Watch on YouTube link');
+  assert.match(CARD, /const isHeroPlayer = variant === 'hero' && isPlayable/);
+  assert.match(CARD, /isHeroPlayer \? \{\} : \{ role: 'button'/, 'a hero video card must not be role=button');
+  const link = CARD.match(/<a\s+class="watch-now-btn"[\s\S]*?>/)?.[0] ?? '';
+  assert.match(link, /href=\{`https:\/\/www\.youtube\.com\/watch\?v=/, 'Watch now must link to the video on YouTube');
   assert.match(link, /target="_blank"/);
   assert.match(link, /rel="noopener noreferrer"/);
-  assert.match(FH, /Watch on YouTube/);
-  assert.ok(FH.indexOf('class="fh-watch-yt"') > FH.indexOf('<ContentCard'), 'the link must follow the cards');
-  assert.match(FH, /function syncWatchLink/, 'the link must follow the active card');
+  assert.match(CARD, /<button type="button" class="play-button-wrapper play-button-wrapper--control"/, 'the play mark must be a real button');
+  assert.ok(!/fh-watch-yt/.test(FH), 'the duplicate link under the card is back');
+  assert.match(FH, /closest\?\.\('a\[href\]'\)\) return;/, 'the inline player must let the link navigate');
 });
 
 console.log('\nEvery player the site builds can go fullscreen:');
