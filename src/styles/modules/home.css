@@ -813,20 +813,31 @@
    Same construct as FeedSpotlightHero's .hero-meta-tag: translucent ground,
    hairline, 0.68rem / 0.2em uppercase. The category leads with the red rule
    and brighter type, as the feed's brand tag does. */
+/* ONE ROW, AND A CHIP THAT DOES NOT FIT LEAVES WHOLE. The chips are the
+   story's brand, format and date, and a brand runs long ("SONY PICTURES",
+   "KETCHUP ENTERTAINMENT"): measured on a 390px phone they overran the panel
+   by up to 85px, and with `nowrap` the date was sliced mid-word. So the row
+   wraps but is exactly one chip tall and clips: whatever would start a second
+   line (the date first, being last) disappears entirely, and only where it
+   would not have fitted. Size the chips through these two properties, never
+   `font-size` or `padding` directly, or the row height stops matching. */
 .home-v4 .acc-chips {
+  --chip-fs: 0.68rem;
+  --chip-py: 0.4rem;
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   white-space: nowrap;
   overflow: hidden;
+  max-height: calc(var(--chip-fs) * 1.2 + 2 * var(--chip-py) + 2px);
   gap: 0.5rem;
   margin: 0 0 1.1rem;
 }
 .home-v4 .acc-chip {
   display: inline-block;
-  padding: 0.4rem 0.8rem;
+  padding: var(--chip-py) 0.8rem;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  font: 600 0.68rem/1.2 var(--font-home);
+  font: 600 var(--chip-fs)/1.2 var(--font-home);
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.62);
@@ -864,8 +875,8 @@
   .home-v4 .acc-deck {
     font-size: clamp(0.95rem, 0.6vw, 1.25rem);
   }
-  .home-v4 .acc-chip {
-    font-size: 0.75rem;
+  .home-v4 .acc-chips {
+    --chip-fs: 0.75rem;
   }
 }
 .home-v4 .acc-headline {
@@ -1322,9 +1333,12 @@
     position: static;
     margin: 0 0 0.5rem;
   }
+  .home-v4 .acc-chips {
+    --chip-fs: 0.6rem;
+    --chip-py: 0.3rem;
+  }
   .home-v4 .acc-chip {
-    padding: 0.3rem 0.6rem;
-    font-size: 0.6rem;
+    padding-inline: 0.6rem;
   }
   .home-v4 .acc-content {
     max-width: 34rem;

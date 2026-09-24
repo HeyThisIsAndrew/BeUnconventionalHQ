@@ -72,6 +72,21 @@ const vid = (n, over = {}) =>
     deps,
   );
 
+test('hero chips carry the /feed metadata pair, never "Video"', () => {
+  /* WHOSE and WHAT (getDisplayTagSlots, src/lib/tags.ts), as on /feed. The
+     chips used to read FILM | VIDEO: the row label and the play button. */
+  const v = vid(1, { badge1: 'SONY PICTURES', coverageType: 'REACTION' });
+  assert.equal(v.brand, 'SONY PICTURES');
+  assert.equal(v.kicker, 'REACTION');
+  const tagged = vid(2, { youtubeTags: ['Lanterns', 'Lanterns Review'] });
+  assert.equal(tagged.brand, 'DC');
+  assert.equal(tagged.kicker, 'REVIEW');
+  const bare = vid(3);
+  assert.equal(bare.brand, '');
+  assert.equal(bare.kicker, '', 'an unclassified video must not fall back to "Video"');
+  assert.equal(art(4, { contentType: 'Review' }).kicker, 'REVIEW');
+});
+
 test('empty stores build an empty page, not a crash', () => {
   const feed = buildHomepageFeed([], [], { featured: { title: 'Lanterns', match: 'lanterns' } });
   assert.deepEqual(feed.hero, []);

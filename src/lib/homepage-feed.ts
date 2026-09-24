@@ -23,6 +23,8 @@
  * the hero; then Intel; then the rail.
  */
 
+import { getDisplayTagSlots } from './tags.ts';
+
 export type HomeCategory = 'Film' | 'TV' | 'Games' | 'Events';
 export const HOME_CATEGORIES: HomeCategory[] = ['Film', 'TV', 'Games', 'Events'];
 
@@ -51,8 +53,15 @@ export interface ImageSources {
 export interface HomeStory {
   id: string;
   category: HomeCategory | null;
-  /** The small label above a headline: the piece's kind (Review, Analysis…). */
+  /**
+   * The piece's format (REVIEW, ANALYSIS, REACTION…), or ''. From
+   * getDisplayTagSlots() (src/lib/tags.ts), the same pair the /feed hero
+   * shows, so a story is labelled identically on both pages. Never "Video":
+   * the play button already says that.
+   */
   kicker: string;
+  /** Whose it is: the studio, franchise or platform (SONY PICTURES, DC…), or ''. */
+  brand: string;
   headline: string;
   deck: string;
   image: string;
@@ -217,10 +226,12 @@ export function mapArticle(a: RawArticle, deps: MapDeps): HomeStory | null {
       ? `${Number(a.score.value)}/${Number(a.score.best)}`
       : '';
   const t = toTime(a.isoDate);
+  const slots = getDisplayTagSlots(a);
   return {
     id: `article:${str(a.guid) || str(a.slug) || headline}`,
     category,
-    kicker: str(a.contentType) || category || 'Intel',
+    kicker: slots.type || str(a.contentType) || category || 'Intel',
+    brand: slots.brand,
     headline,
     deck: str(a.excerpt),
     image: str(img.src),
@@ -247,10 +258,12 @@ export function mapVideo(v: RawVideo, deps: MapDeps): HomeStory | null {
   const rawImage = str(v.thumbnail) || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
   const img = deps.videoImage(rawImage);
   const t = toTime(v.publishedAt);
+  const slots = getDisplayTagSlots(v);
   return {
     id: `video:${id}`,
     category: normalizeCategory(v.category),
-    kicker: 'Video',
+    kicker: slots.type,
+    brand: slots.brand,
     headline,
     deck: firstSentence(v.description),
     image: str(img.src),

@@ -159,11 +159,18 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
                   become the chips' containing block, dragging them along with
                   the copy instead of pinning them to the panel's corner. */}
               {/* The feed hero's metadata row (FeedSpotlightHero .hero-meta-tag):
-                  one plate per fact, the category leading with the red rule.
-                  The category chip is aria-hidden because the panel's own
-                  trigger above already names it for assistive tech. */}
+                  one plate per fact, WHOSE it is then WHAT it is, from the
+                  same getDisplayTagSlots() pair (SONY PICTURES | REACTION).
+                  It used to read the panel's category and "Video" (FILM |
+                  VIDEO), which the row label and the play button already say.
+                  A story with no brand falls back to its category, and that
+                  chip alone is aria-hidden: the trigger above names it. */}
               <p class="acc-chips">
-                <span class="acc-chip acc-chip--brand" aria-hidden="true">{panel.label}</span>
+                {story.brand ? (
+                  <span class="acc-chip acc-chip--brand">{story.brand}</span>
+                ) : (
+                  <span class="acc-chip acc-chip--brand" aria-hidden="true">{panel.label}</span>
+                )}
                 {story.kicker && <span class="acc-chip">{story.kicker}</span>}
                 {story.displayDate && <span class="acc-chip">{story.displayDate}</span>}
               </p>
