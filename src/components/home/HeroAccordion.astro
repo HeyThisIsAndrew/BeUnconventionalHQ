@@ -70,7 +70,7 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
             data-acc-panel
             data-key={panel.key}
           >
-            <div class="acc-media" aria-hidden="true">
+            <div class="acc-media" aria-hidden="true" data-video-wrapper={isVideo ? story.videoId : undefined}>
               {story.image && (
                 <img
                   src={story.image}
@@ -83,6 +83,11 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
                   fetchpriority={open ? 'high' : 'low'}
                   decoding={open ? 'sync' : 'async'}
                 />
+              )}
+              {isVideo && story.videoId && (
+                <button type="button" class="acc-play-btn" data-play-video={story.videoId} aria-label="Play Video">
+                  <ChalkIcon name="play" size={48} />
+                </button>
               )}
             </div>
 
@@ -211,6 +216,10 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
         setFill(0);
         panels[current].classList.remove('is-open');
         triggers[current].setAttribute('aria-expanded', 'false');
+        
+        const oldIframe = panels[current].querySelector('.acc-video-iframe');
+        if (oldIframe) oldIframe.remove();
+        
         current = next;
         panels[current].classList.add('is-open');
         triggers[current].setAttribute('aria-expanded', 'true');
@@ -295,10 +304,32 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
       syncToggle();
     };
 
+    const playBtns = root.querySelectorAll<HTMLButtonElement>('[data-play-video]');
+    const onPlay = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      stopped = true;
+      syncToggle();
+      
+      const btn = e.currentTarget as HTMLButtonElement;
+      const videoId = btn.dataset.playVideo;
+      if (!videoId) return;
+      const mediaDiv = btn.closest('.acc-media');
+      if (!mediaDiv) return;
+      
+      const iframe = document.createElement('iframe');
+      iframe.className = 'acc-video-iframe';
+      iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&rel=0`;
+      iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+      iframe.allowFullscreen = true;
+      mediaDiv.appendChild(iframe);
+    };
+
     triggers.forEach((t) => {
       t.addEventListener('click', onClick);
       t.addEventListener('keydown', onKey);
     });
+    playBtns.forEach((btn) => btn.addEventListener('click', onPlay));
     toggle?.addEventListener('click', onToggle);
     root.addEventListener('mouseenter', onEnter);
     root.addEventListener('mouseleave', onLeave);
@@ -319,6 +350,7 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
         t.removeEventListener('click', onClick);
         t.removeEventListener('keydown', onKey);
       });
+      playBtns.forEach((btn) => btn.removeEventListener('click', onPlay));
       toggle?.removeEventListener('click', onToggle);
       root.removeEventListener('mouseenter', onEnter);
       root.removeEventListener('mouseleave', onLeave);
