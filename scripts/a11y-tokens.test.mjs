@@ -149,9 +149,16 @@ test('a hidden subtree is out of the TAB order, and inert only where nothing is 
       'area, and inert disables pointer events, so the tiles stop being clickable. This exact ' +
       'regression reached production. Use tabindex="-1" on the links instead.',
   );
+  /* Every group after the FIRST: groups 3-5 were once the only hidden ones,
+     so group 2 was a second readable, tabbable copy of every post on desktop. */
   assert.match(
     galleryCode,
-    /tabindex=\{groupIndex > 2 \? -1 : undefined\}/,
+    /aria-hidden=\{groupIndex > 1 \? "true" : undefined\}/,
+    'every marquee group after the first must be aria-hidden, or each post is announced twice',
+  );
+  assert.match(
+    galleryCode,
+    /tabindex=\{groupIndex > 1 \? -1 : undefined\}/,
     'the duplicate marquee groups must take their links out of the tab order with tabindex="-1"',
   );
   assert.match(
@@ -159,11 +166,6 @@ test('a hidden subtree is out of the TAB order, and inert only where nothing is 
     /clone\.querySelectorAll\('a'\)\.forEach\(\(a\) => a\.setAttribute\('tabindex', '-1'\)\)/,
     'the JS-cloned groups must too — there are up to ten of them, and they are the ones axe ' +
       'actually flagged',
-  );
-  assert.match(
-    galleryCode,
-    /aria-hidden=\{groupIndex > 2 \? "true" : undefined\}/,
-    'duplicates must still be hidden from screen readers, or the same posts are announced 15 times',
   );
 
   /*
