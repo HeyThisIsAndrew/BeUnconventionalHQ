@@ -20,9 +20,14 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
   the legacy RSS/scrape cache and its `refresh-content` script are deleted
   (see "Data flow"). Content comes from `npm run sync` and is committed.
 - `npm run deploy` — wrangler deploy of the built worker (`dist/server`).
-  Production target is **Cloudflare Workers** (git-connected Workers Builds),
-  NOT Pages — Pages serves only `dist/client` and 404s every `/api/*` route
-  (@astrojs/cloudflare v13 is Workers-only). Runbook: `scripts/live-status.md`.
+  Production target is **Cloudflare Workers**, NOT Pages — Pages serves only
+  `dist/client` and 404s every `/api/*` route (@astrojs/cloudflare v13 is
+  Workers-only). **Production deploys from GitHub Actions**
+  (`.github/workflows/deploy.yml`), not Cloudflare Workers Builds, whose
+  queue stuck on 2026-09-24 and left the site on a pre-merge version with
+  nothing saying so. The workflow stamps the commit into the page
+  (`<meta name="build-sha">`) and FAILS unless production serves it
+  afterwards. Runbook: `scripts/deploy.md`.
 
 ## Hard rules (learned the expensive way)
 
