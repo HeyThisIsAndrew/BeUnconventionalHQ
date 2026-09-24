@@ -282,6 +282,10 @@ async function runTests() {
         for (let i = 0; i < 25; i++) {
           vv.dispatchEvent(new Event('scroll'));
           vv.dispatchEvent(new Event('resize'));
+          /* iOS ALSO fires a window resize when its toolbar collapses (every
+             scroll, in landscape). Republishing on it was the reported
+             jitter: the hero stack jumped and nearly doubled mid-scroll. */
+          window.dispatchEvent(new Event('resize'));
           await new Promise((r) => requestAnimationFrame(r));
           const h = getComputedStyle(hero).height;
           if (h !== last) resizes++;

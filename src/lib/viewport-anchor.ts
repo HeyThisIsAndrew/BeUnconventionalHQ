@@ -256,8 +256,31 @@ export function keepFixedControlsTappable(): void {
     }
   };
 
+  /*
+    ─── A WINDOW RESIZE IS NOT A ROTATION ───────────────────────────────────
+    iOS Safari fires window `resize` whenever its toolbar collapses or
+    expands, and in landscape it does that on every scroll. Listening to
+    `resize` unconditionally republished --vv-height mid-scroll, which is the
+    exact jitter the note above rules out: reported on an iPhone in
+    landscape, the hero stack jumped and nearly doubled in height as the
+    reader scrolled. A rotation (or a desktop window resize) changes the
+    WIDTH; a chrome collapse changes only the height. So a resize republishes
+    only when the width moved, and otherwise just re-hit-tests the fixed
+    controls, which is what a collapse actually needs.
+  */
+  let lastWidth = window.innerWidth;
+  const onWindowResize = () => {
+    const width = window.innerWidth;
+    if (width === lastWidth) {
+      schedule();
+      return;
+    }
+    lastWidth = width;
+    refreshUntilSettled();
+  };
+
   window.addEventListener('orientationchange', refreshUntilSettled);
-  window.addEventListener('resize', refreshUntilSettled);
+  window.addEventListener('resize', onWindowResize);
 
   publishViewportHeight();
   
