@@ -237,6 +237,7 @@
   max-width: 100vw;
   margin-inline: auto;
   padding: var(--home-top) 0 0;
+  z-index: 10;
 }
 
 .home-v4 .hero-acc-track {
@@ -250,11 +251,10 @@
   overflow: hidden;
   aspect-ratio: 16 / 7;
   min-height: 460px;
-  /* The MEASURED viewport (--vv-height, published by Layout and
-     viewport-anchor.ts), not 100svh: svh is a guess about the browser chrome
-     that is wrong after a rotation, which is the bug the old hero was
-     measured to fix. scripts/e2e-hero-viewport.test.mjs holds this. */
-  max-height: calc(var(--vv-height, 100svh) - var(--home-top) - 32px);
+  /* Cap height on massive screens (4K) so the next section is visible */
+  max-height: clamp(460px, 75vh, 800px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
 }
 
 .home-v4 .acc-panel {
