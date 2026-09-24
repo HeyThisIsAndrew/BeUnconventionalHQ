@@ -371,6 +371,20 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
           seven seconds of the page settling. A slide that arrives blank is the
           worse trade.
         */}
+        {/* The banner's thumbnail slides: a blurred fill behind the picture
+            (same file, one fetch). See `.spotlight-art--fill`. */}
+        {slide.art && variant === 'banner' && slide.artFocus === 'thumbnail' && (
+          <img
+            class="spotlight-art spotlight-art--fill"
+            src={slide.art.src}
+            srcset={slide.art.srcset || undefined}
+            sizes={artSizes}
+            alt=""
+            aria-hidden="true"
+            loading="eager"
+            decoding="async"
+          />
+        )}
         {slide.art && (
           <img
             class="spotlight-art"
@@ -791,6 +805,34 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
 
   [data-art-focus='keyart'] .spotlight-art {
     object-position: center 53%;
+  }
+
+  /*
+    ─── THE BANNER NEVER ZOOMS A THUMBNAIL ────────────────────────────────────
+    A YouTube thumbnail is 1280x720 at most. Covering a full-bleed band of
+    roughly 6:1 with it cropped away two thirds of its height and upscaled
+    the rest: at 1440px on a 2x screen the band needed 2880 pixels of width
+    from a 1280 file (measured, 0.44x), which is the soft "eyes only" strip.
+    So on the banner a thumbnail is shown WHOLE, at the band's height, against
+    its right edge, and a blurred copy of the same file fills the band behind
+    it (same src and srcset: one fetch painted twice). Key art is 2560px and
+    keeps the full bleed. The left edge of the sharp copy feathers into the
+    fill so there is no seam; mask, not filter, on the <img> (hard rule 6).
+  */
+  .spotlight--banner [data-art-focus='thumbnail'] .spotlight-art:not(.spotlight-art--fill) {
+    inset: 0 0 0 auto;
+    width: auto;
+    height: 100%;
+    aspect-ratio: 16 / 9;
+    max-width: 100%;
+    object-fit: cover;
+    object-position: center;
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 22%);
+    mask-image: linear-gradient(to right, transparent 0%, #000 22%);
+  }
+  .spotlight-art--fill {
+    filter: blur(28px) brightness(0.55) saturate(1.1);
+    transform: scale(1.15);
   }
 
   /*

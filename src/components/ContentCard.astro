@@ -27,6 +27,13 @@ export interface Props {
    */
   variant?: 'default' | 'hero' | 'featured';
   /**
+   * The image `sizes`, for a surface that lays the variant out at a
+   * different width than its usual home. The homepage's Featured box is the
+   * 'hero' variant at up to 1513px wide, where the variant's own claim tops
+   * out at 850px, so big screens were handed an image half the size.
+   */
+  imageSizes?: string;
+  /**
    * Which surface this card is on, and therefore what clicking it does.
    *
    *   'feed'    promotes the item into <FeedSpotlightHero /> above it
@@ -51,7 +58,7 @@ export interface Props {
   brandOverride?: { logo?: string; hero?: string; title?: string } | null;
 }
 
-const { item, index = 0, variant = 'default', context = 'default', brandOverride = null } = Astro.props;
+const { item, index = 0, variant = 'default', context = 'default', brandOverride = null, imageSizes } = Astro.props;
 
 // Determine if this is the Largest Contentful Paint (LCP) element
 const isLCP = variant === 'hero' && index === 0;
@@ -375,9 +382,11 @@ const wrapperProps = (isPlayable || context === 'feed' || context === 'hub')
 */
 const watermark = await getImage({
   src: logoImage,
-  height: 72,
+  /* 144, not 72: the hero card shows it 36px tall, and the homepage audit
+     measured it at up to 72px, so 72 was 1x on any Retina screen. */
+  height: 144,
   format: 'webp',
-  quality: 70,
+  quality: 80,
 });
 
 /*
@@ -499,7 +508,7 @@ if (isVideo && item.youtubeId) {
         class="content-card-img"
         src={cardImage}
         srcset={cardImageSrcset || undefined}
-        sizes={cardImageSrcset ? CARD_SIZES_FOR_VARIANT[variant] : undefined}
+        sizes={cardImageSrcset ? (imageSizes ?? CARD_SIZES_FOR_VARIANT[variant]) : undefined}
         alt={item.title}
         loading={isLCP ? 'eager' : 'lazy'}
         fetchpriority={isLCP ? 'high' : 'auto'}
@@ -524,8 +533,8 @@ if (isVideo && item.youtubeId) {
       <span class="video-watermark" aria-hidden="true">
         <img 
           src={watermark.src} 
-          width={watermark.attributes.width}
-          height={watermark.attributes.height}
+          width={Math.round(watermark.attributes.width / 2)}
+          height={Math.round(watermark.attributes.height / 2)}
           alt="" 
           class="video-watermark-logo" 
           aria-hidden="true" 
@@ -679,7 +688,10 @@ if (isVideo && item.youtubeId) {
     pointer-events: none;
   }
 
-  .video-watermark-logo {
+  /* Qualified by its wrapper: the cinematic card's
+     `.content-card-media img { height: 100% }` outranked a bare class, so
+     the mark rendered at the FILE's size, whatever that was. */
+  .video-watermark .video-watermark-logo {
     display: block;
     width: auto;
     height: 24px;
@@ -695,7 +707,7 @@ if (isVideo && item.youtubeId) {
     right: auto;
   }
 
-  :global(.variant-hero) .video-watermark-logo {
+  :global(.variant-hero) .video-watermark .video-watermark-logo {
     height: 36px;
   }
 

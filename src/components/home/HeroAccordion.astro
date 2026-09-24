@@ -41,14 +41,19 @@ const { panels } = Astro.props;
   Each strip's mark is the SAME chalk illustration as its "What We Cover"
   tile (src/data/categories.js), so the hero and the tiles speak one visual
   language. LATEST has no tile, so it carries the BE Unconventional mark.
-  Resized at build: the tile PNGs are 420px and logo-mark.webp is 414 KB.
+  Resized at build (see artFor): the tile PNGs are 420px and logo-mark.webp is 414 KB.
 */
 const tileArt = Object.fromEntries(categories.map((c) => [c.slug, c.image]));
 const artFor = async (key: string) => {
   const src = key === 'latest' ? logoMark : tileArt[key];
   if (!src) return null;
-  const width = key === 'latest' ? 320 : 240;
-  const img = await getImage({ src, width, format: 'webp' });
+  /* Built for a 2x screen. The strip shows a tile ~220px wide once its
+     crop and scale are counted, so 240 was soft on every Retina display;
+     420 is the tile PNGs' full size (asking for more only upsamples). The
+     BE mark is a 1981px source, so it gets a true 2x of its ~170px box. */
+  const want = key === 'latest' ? 480 : 420;
+  const width = Math.min(want, src.width);
+  const img = await getImage({ src, width, format: 'webp', quality: 90 });
   return { src: img.src, width, height: Math.round((width * src.height) / src.width) };
 };
 const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key, await artFor(p.key)])));

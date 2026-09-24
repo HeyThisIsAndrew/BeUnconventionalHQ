@@ -14,8 +14,11 @@ interface Props {
    * the feed's record shape (getVideoItems / getArticleFeedItems).
    */
   items?: any[];
+  /** The lead card's image `sizes`, where this box is laid out wider than
+      on production's homepage (ContentCard `imageSizes`). */
+  heroImageSizes?: string;
 }
-const { items: curated } = Astro.props;
+const { items: curated, heroImageSizes } = Astro.props;
 
 const allVideos = await getVideosUnified();
 const allArticles = getPublishedArticles();
@@ -32,7 +35,7 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
     <div class="fh-left">
       {highlightedItems.map((item, index) => (
         <div class={`fh-hero-card ${index === 0 ? 'active' : ''}`} data-index={index}>
-          <ContentCard item={item} index={index} variant="hero" />
+          <ContentCard item={item} index={index} variant="hero" imageSizes={heroImageSizes} />
         </div>
       ))}
     </div>
