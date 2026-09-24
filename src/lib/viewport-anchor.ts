@@ -119,8 +119,11 @@ let bound = false;
 export function publishViewportHeight(): void {
   const vv = window.visualViewport;
   const height = Math.round((vv && vv.height) || window.innerHeight);
-  if (height > 0) {
-    document.documentElement.style.setProperty('--vv-height', `${height}px`);
+  const value = `${height}px`;
+  /* Same rule as --vv-top: an unchanged value is not rewritten, because any
+     write to a custom property on <html> restyles the whole document. */
+  if (height > 0 && document.documentElement.style.getPropertyValue('--vv-height') !== value) {
+    document.documentElement.style.setProperty('--vv-height', value);
   }
 }
 
@@ -152,9 +155,24 @@ export function keepFixedControlsTappable(): void {
     lastGeometry = geometry;
 
     /* Publish the offset even when it is 0 — a stylesheet reading
-       `var(--vv-top)` should get a real length rather than falling back. */
-    const offsetTop = Math.max(0, Math.round(vv.offsetTop));
-    document.documentElement.style.setProperty('--vv-top', `${offsetTop}px`);
+       `var(--vv-top)` should get a real length rather than falling back.
+
+       ONLY WHEN IT CHANGED. This runs on every visualViewport event, which
+       on iOS arrives continuously while Safari's toolbar animates during a
+       scroll, and a custom property written on <html> invalidates the style
+       of every element on the page, even when the value is the same. That
+       is a whole-document style pass per scroll frame for a number that is
+       almost always 0 (reported: landscape iPhone, jittery through the
+       entire homepage). */
+    /* Compared with what is actually on <html>, not a cached copy: a
+       ClientRouter navigation wipes <html>'s inline style, and a cache would
+       then never rewrite it. Reading an inline property is free (no style
+       recalc), unlike writing one. */
+    const offsetTop = `${Math.max(0, Math.round(vv.offsetTop))}px`;
+    const rootStyle = document.documentElement.style;
+    if (rootStyle.getPropertyValue('--vv-top') !== offsetTop) {
+      rootStyle.setProperty('--vv-top', offsetTop);
+    }
 
     if (!geometryChanged) return;
 
