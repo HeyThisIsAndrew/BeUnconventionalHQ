@@ -259,10 +259,11 @@ export function keepFixedControlsTappable(): void {
   window.addEventListener('orientationchange', refreshUntilSettled);
   window.addEventListener('resize', refreshUntilSettled);
 
+  publishViewportHeight();
+  
   if (typeof requestIdleCallback !== 'undefined') {
     requestIdleCallback(() => refresh());
   } else {
-    setTimeout(refresh, 0);
+    setTimeout(refresh, 200);
   }
-  publishViewportHeight();
 }

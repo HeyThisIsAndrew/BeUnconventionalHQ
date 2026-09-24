@@ -879,6 +879,7 @@ const fallbackMark = await getImage({
     */}
     <script>
       import { lockScroll, unlockScroll } from '../lib/scroll-lock';
+      import { getYouTubeEmbedUrl } from '../lib/youtube-url';
       import { keepFixedControlsTappable, publishViewportHeight } from '../lib/viewport-anchor';
       import { initEmbedPause } from '../lib/embed-pause';
       import { initStageWatchLink } from '../lib/stage-watch-link';
@@ -983,7 +984,7 @@ const fallbackMark = await getImage({
             if (embedNote) embedNote.hidden = true;
 
             // ACTION 2.1 & 2.2: No autoplay, use rel=0 and modestbranding=1
-            modalIframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1`;
+            modalIframe.src = getYouTubeEmbedUrl(videoId);
             modal.classList.add('active');
             modal.setAttribute('aria-hidden', 'false');
             document.getElementById('app-wrapper')?.setAttribute('inert', '');
