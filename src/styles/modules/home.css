@@ -746,6 +746,9 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
+.home-v4 .acc-new[hidden] {
+  display: none;
+}
 .home-v4 .acc-new {
   padding: 0.25rem 0.45rem;
   background: var(--home-blood);
@@ -1117,6 +1120,31 @@
   .home-v4 .acc-panel:not(.is-open) {
     height: 72px;
   }
+  /* Closed rows: every logo flush left, every label centred in the row
+     (Andrew: centring the logo+label pair per row stepped the logos into a
+     pyramid, since the words differ in length). Three columns, the outer two
+     equal, so the label is centred whatever the logo's width; NEW, when a
+     story has it, starts right after the label. */
+  .home-v4 .acc-panel:not(.is-open) .acc-trigger {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: 0.75rem;
+    width: 100%;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-trigger > :first-child {
+    justify-self: start;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-label {
+    grid-column: 2;
+    justify-self: center;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-new {
+    grid-column: 3;
+    justify-self: start;
+    margin: 0;
+  }
+
   /* A closed row's chips are only faded out, and in this stacked layout they
      are in flow: they took the row's lower half and pushed the art and label
      up. Out of flow here, the pair sits centred. */
@@ -1308,6 +1336,35 @@
   .home-v4 .acc-player-bar {
     position: absolute;
     inset: auto 0 0 0;
+  }
+  /* Closed rows: every logo flush left, every label centred in the row
+     (the same rule as phone portrait). Three columns, the outer two
+     equal, so the label is centred whatever the logo's width; NEW, when a
+     story has it, starts right after the label. */
+  .home-v4 .acc-panel:not(.is-open) .acc-trigger {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: 0.75rem;
+    width: 100%;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-trigger > :first-child {
+    justify-self: start;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-label {
+    grid-column: 2;
+    justify-self: center;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-new {
+    grid-column: 3;
+    justify-self: start;
+    margin: 0;
+  }
+
+  /* The closed rows' chips are only faded out and would share the row with
+     the trigger, squeezing logo and label together. */
+  .home-v4 .acc-panel:not(.is-open) .acc-chips {
+    display: none;
   }
   /* Over the open story's corner, not over the stack. */
   .home-v4 .acc-toggle {

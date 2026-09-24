@@ -268,10 +268,24 @@ export interface FeaturedWorldConfig {
   match: string;
 }
 
+/**
+ * How long a story counts as NEW on the hero: 24 hours from going live
+ * (Andrew). It used to be a permanent tag on LATEST, which just repeated
+ * the word next to it.
+ */
+export const NEW_FOR_MS = 24 * 60 * 60 * 1000;
+
+/** When a story stops being NEW, in epoch ms, or null with no usable date.
+ *  The page is static and served for days after a build, so this is
+ *  rendered as data and the BROWSER decides (HeroAccordion's script). */
+export function newUntil(publishDate: string): number | null {
+  const t = Date.parse(publishDate);
+  return Number.isFinite(t) ? t + NEW_FOR_MS : null;
+}
+
 export interface HeroPanel {
   key: 'film' | 'tv' | 'games' | 'events' | 'latest';
   label: string;
-  isNew: boolean;
   story: HomeStory;
 }
 
@@ -376,10 +390,10 @@ export function buildHomepageFeed(
   const inCat = (cat: HomeCategory) => (s: HomeStory) => free(s) && withArt(s) && s.category === cat;
   for (const cat of HOME_CATEGORIES) {
     const story = claim(all.find((s) => picked.has(s.id) && inCat(cat)(s)) ?? all.find(inCat(cat)));
-    if (story) hero.push({ key: catKey[cat], label: HERO_LABELS[catKey[cat]], isNew: false, story });
+    if (story) hero.push({ key: catKey[cat], label: HERO_LABELS[catKey[cat]], story });
   }
   const latest = claim(all.find((s) => free(s) && withArt(s)));
-  if (latest) hero.push({ key: 'latest', label: HERO_LABELS.latest, isNew: true, story: latest });
+  if (latest) hero.push({ key: 'latest', label: HERO_LABELS.latest, story: latest });
 
   /* 2. Featured world, from what the hero left. The lead is the newest
         ARTICLE in the world with an image, else its newest story with art;

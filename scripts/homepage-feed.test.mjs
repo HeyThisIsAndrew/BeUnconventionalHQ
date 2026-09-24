@@ -16,6 +16,8 @@ import {
   readTimeFromHtml,
   normalizeCategory,
   pickPullQuote,
+  newUntil,
+  NEW_FOR_MS,
 } from '../src/lib/homepage-feed.ts';
 import { pickFeaturedHighlights } from '../src/lib/featured-highlights.ts';
 
@@ -132,7 +134,7 @@ test('hero panels keep the fixed order; each takes its newest, LATEST the newest
   assert.equal(feed.hero[0].story.id, 'article:g5', 'FILM shows the newest Film story');
   const latest = feed.hero.at(-1);
   assert.equal(latest.story.id, 'article:g1', 'LATEST is the newest story the categories left');
-  assert.equal(latest.isNew, true);
+  assert.equal('isNew' in latest, false, 'NEW is decided in the browser from newUntil(), not baked into the build');
 });
 
 test('a category takes its newest story whether article or video, even from the featured world', () => {
@@ -225,6 +227,14 @@ test('the homepage sources its copy from the content module, not literals', () =
 test('the homepage does not mount the splash hero', () => {
   const page = fs.readFileSync(new URL('../src/pages/index.astro', import.meta.url), 'utf8');
   assert.doesNotMatch(page, /import Hero from/, 'the splash is sunset; Hero.astro stays on disk, unmounted');
+});
+
+test('NEW lasts 24 hours from the publish time, and needs a real date', () => {
+  const t = Date.parse('2026-09-20T15:00:00.000Z');
+  assert.equal(NEW_FOR_MS, 24 * 60 * 60 * 1000);
+  assert.equal(newUntil('2026-09-20T15:00:00.000Z'), t + NEW_FOR_MS);
+  assert.equal(newUntil(''), null);
+  assert.equal(newUntil('not a date'), null);
 });
 
 console.log(process.exitCode ? `FAILED (${passed} passed)` : `All ${passed} tests passed.`);

@@ -116,7 +116,7 @@ check('the open panel <img> reads the same srcset and HERO_SIZES', () => {
   for (const [name, src] of [['HeroAccordion.astro', acc], ['index.astro', index]]) {
     assert.match(
       src,
-      /import \{ HERO_SIZES \} from '(\.\.\/lib|\.\.\/\.\.\/lib)\/homepage-feed'/,
+      /import \{[^}]*\bHERO_SIZES\b[^}]*\} from '(\.\.\/lib|\.\.\/\.\.\/lib)\/homepage-feed'/,
       `${name} must take HERO_SIZES from src/lib/homepage-feed.ts`,
     );
     assert.ok(!/HERO_SIZES\s*=/.test(src), `${name} redeclares HERO_SIZES locally`);

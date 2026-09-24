@@ -26,7 +26,7 @@
  */
 import { getImage } from 'astro:assets';
 import ChalkIcon from './ChalkIcon.astro';
-import { HERO_SIZES } from '../../lib/homepage-feed';
+import { HERO_SIZES, newUntil } from '../../lib/homepage-feed';
 import { categories } from '../../data/categories.js';
 import logoMark from '../../assets/logo-mark.webp';
 import type { HeroPanel } from '../../lib/homepage-feed';
@@ -135,7 +135,13 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
                   <ChalkIcon name={panel.key} size={30} class="acc-icon" />
                 )}
                 <span class="acc-label">{panel.label}</span>
-                {panel.isNew && <span class="acc-new">New</span>}
+                {/* NEW for 24 hours after the story goes live, on any panel.
+                    Rendered hidden with its deadline; the script below shows
+                    it only while that is still ahead, because this page is
+                    built once and then served for days. */}
+                {newUntil(story.publishDate) && (
+                  <span class="acc-new" data-new-until={newUntil(story.publishDate)} hidden>New</span>
+                )}
               </button>
 
               {/* A SIBLING of .acc-content, not inside it: the copy block runs a
@@ -518,6 +524,15 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
     };
   }
 
+  /* NEW tags: shown only while their 24 hours are still running. */
+  function showFreshTags() {
+    const now = Date.now();
+    document.querySelectorAll<HTMLElement>('[data-hero-acc] [data-new-until]').forEach((tag) => {
+      tag.hidden = !(Number(tag.dataset.newUntil) > now);
+    });
+  }
+
+  document.addEventListener('astro:page-load', showFreshTags);
   document.addEventListener('astro:page-load', init);
   document.addEventListener('astro:before-swap', () => {
     teardown?.();
