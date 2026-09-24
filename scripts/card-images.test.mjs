@@ -681,4 +681,27 @@ test('the card ladder is in px, so growing the root cannot desync the images', (
 
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);
+/*
+  A per-item logo override (`customHeroLogo`) is a Sanity asset, and `.url()`
+  on its own asks for the ORIGINAL: Ketchup Entertainment's is a 3364x1091
+  PNG, which /feed fetched at high priority beside its LCP image. The event
+  templates sized it; FeedSpotlightHero and ContentCard did not (the site-wide
+  audit, 2026-09). Every call site must size it.
+*/
+{
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+  const walk = (d) => fs.readdirSync(path.join(root, d), { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? walk(path.join(d, e.name)) : /\.(astro|ts)$/.test(e.name) ? [path.join(d, e.name)] : []);
+  const offenders = walk('src').filter((rel) =>
+    /urlFor\([^)]*customHeroLogo\)\.url\(\)/.test(fs.readFileSync(path.join(root, rel), 'utf8')));
+  if (offenders.length) {
+    console.error(`  ✗ customHeroLogo requested at full size in: ${offenders.join(', ')}`);
+    process.exit(1);
+  }
+  console.log('  ✓ every customHeroLogo is requested at a size, never the original');
+}
+
 process.exit(failed === 0 ? 0 : 1);
+

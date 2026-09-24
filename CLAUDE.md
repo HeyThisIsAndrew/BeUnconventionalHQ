@@ -92,7 +92,11 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    "restore" it. The homepage hero accordion's inline player is the sixth and
    carries one, rendered always but HIDDEN on phone portrait (also the
    owner's call: the portrait hero was too busy, and the embed shows
-   YouTube's own logo link). Otherwise
+   YouTube's own logo link). FeaturedHighlights (the homepage Featured box) went
+   without one until the site-wide audit: its link sits UNDER the lead card,
+   never inside it (the card is a `role="button"`, so a link in it is a
+   nested control), and `syncWatchLink()` keeps it on the active card's
+   video, hidden for an article. Otherwise
    `scripts/embed-escape.test.mjs` asserts every one of them in a single file,
    for the reason event-hero-lockup.test.mjs gives. The three stages
    (`/featured/[slug]`, EventFeatured, EventAnnouncement) are near-identical
@@ -455,6 +459,17 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   the YouTube quota gate (search.list = 100 units). See `scripts/live-status.md`.
 
 ## Conventions
+
+- **`npm run check:images` runs over the BUILT site** (CI, after the build):
+  at most one `fetchpriority="high"` image per page, and no unresized
+  original from Sanity (`cdn.sanity.io/images/...` with no query) or from
+  Substack's S3 bucket. `npm test` reads source and cannot see these: they
+  only exist once a component renders real data. It caught four "high"
+  images on /featured, a 3364px logo at high priority on /feed (a
+  `customHeroLogo` requested with a bare `.url()`: always size it), and the
+  hub/event rails loading 3840px originals as ~106px thumbnails. Use
+  `getCardImageSources()` for any external image, and a `sizes` measured
+  from the box, not copied from the card grid.
 
 - `docs/` is **gitignored** — put operator docs in `scripts/*.md`.
 - Offline test suites live in `scripts/*.test.mjs`, run by plain `node`

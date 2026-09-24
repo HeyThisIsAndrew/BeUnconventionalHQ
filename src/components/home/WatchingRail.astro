@@ -20,6 +20,12 @@
  * carries a duplicate of either. Phones keep a plain finite swipe.
  */
 import ChalkIcon from './ChalkIcon.astro';
+
+/* A rail card is a FIXED width, not the grid's share of the page, so the
+   grid's CARD_IMAGE_SIZES (90vw on a phone, 47vw on a tablet) was wrong for
+   it both ways. Measured: 304-318px up to 1536, 378 at 1920, 438 at 2560,
+   498 at 3840. */
+const RAIL_IMAGE_SIZES = '(min-width: 3400px) 500px, (min-width: 2560px) 440px, (min-width: 1920px) 380px, 320px';
 import HomeSectionHeader from './HomeSectionHeader.astro';
 import ContentCard from '../ContentCard.astro';
 
@@ -51,7 +57,7 @@ const { items } = Astro.props;
         <ul class="rail-track" data-watching-track>
           {items.map((item, index) => (
             <li class="rail-item" data-watching-item>
-              <ContentCard item={item} index={index} />
+              <ContentCard item={item} index={index} imageSizes={RAIL_IMAGE_SIZES} />
             </li>
           ))}
         </ul>

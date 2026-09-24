@@ -313,6 +313,20 @@ test('parseVideoId recognises the host this site actually embeds from', () => {
   );
 });
 
+test('the homepage Featured box (FeaturedHighlights) has its way out, outside the card', () => {
+  /* A player with no door: a refused embed left the lead card doing nothing
+     when clicked. The link sits UNDER the card, because the card is a
+     role="button" and a link inside it is a nested control (axe). */
+  const FH = code(read('src/components/FeaturedHighlights.astro'));
+  const link = FH.match(/<a[\s\S]*?class="fh-watch-yt"[\s\S]*?>/)?.[0] ?? '';
+  assert.ok(link, 'the Featured box has no Watch on YouTube link');
+  assert.match(link, /target="_blank"/);
+  assert.match(link, /rel="noopener noreferrer"/);
+  assert.match(FH, /Watch on YouTube/);
+  assert.ok(FH.indexOf('class="fh-watch-yt"') > FH.indexOf('<ContentCard'), 'the link must follow the cards');
+  assert.match(FH, /function syncWatchLink/, 'the link must follow the active card');
+});
+
 console.log('\nEvery player the site builds can go fullscreen:');
 
 /*

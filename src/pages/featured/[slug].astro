@@ -12,6 +12,7 @@ import InstagramFeed from '../../components/InstagramFeed.astro';
 import { getHubTopicKeywords } from '../../lib/instagram-topic';
 import { parseVideoId } from '../../lib/platforms/youtube';
 import { collectHubCoverage } from '../../lib/hub-coverage';
+import { getCardImageSources } from '../../lib/card-images';
 
 export async function getStaticPaths() {
   // `defined(slug.current)` filtering happens in getFeaturedBrandsLocal, so a
@@ -185,6 +186,24 @@ function pickHeroItems(items: any[]): any[] {
   return items.slice(0, HERO_ITEM_LIMIT);
 }
 const heroItems = pickHeroItems(unifiedContent);
+
+/*
+  ─── THE RAIL AND ITS PANES GET RENDITIONS, NEVER ORIGINALS ────────────────
+
+  Both used `item.image ?? item.thumbnail` straight, so a Substack cover went
+  out as the raw S3 upload: 3840x2160 for a ~106px rail thumbnail on the Marvel
+  and Sony hubs (the site-wide audit, 2026-09). Every other card on these
+  pages already goes through getCardImageSources(); this is the same helper,
+  once per item, shared by the pane and the rail so they request the same
+  files. scripts/built-images.check.mjs fails the build on a raw original.
+
+  STAGE_PANE_SIZES: the pane fills the stage (full width on phones, 760px at
+  most beside the copy). RAIL_THUMB_SIZES: a thumbnail is ~106px, and 160px
+  leaves room for the widest rail layout.
+*/
+const heroItemArt = heroItems.map((item: any) => getCardImageSources(item.image ?? item.thumbnail ?? ''));
+const STAGE_PANE_SIZES = '(max-width: 1023px) 100vw, 760px';
+const RAIL_THUMB_SIZES = '160px';
 
 /*
   The stage's frame has to exist if ANYTHING can play in it, not just when the
@@ -668,7 +687,7 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
               */
               return (
                 <div class="hub-stage-item" data-index={i} aria-hidden="true" inert>
-                  {still && <img src={still} alt="" class="hub-stage-item-still" loading="lazy" />}
+                  {still && <img src={heroItemArt[i].src || still} srcset={heroItemArt[i].srcset || undefined} sizes={heroItemArt[i].srcset ? STAGE_PANE_SIZES : undefined} alt="" class="hub-stage-item-still" loading="lazy" />}
                   <span class="hub-stage-item-scrim"></span>
                   <div class="hub-stage-item-copy">
                     <span class="hub-stage-item-kind">{isVideo ? 'Video' : 'Article'}</span>
@@ -767,7 +786,7 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
                     aria-pressed="false"
                   >
                     {(item.image ?? item.thumbnail) ? (
-                      <img src={item.image ?? item.thumbnail} alt="" class="hub-rail-thumb" loading="lazy" />
+                      <img src={heroItemArt[i].src || (item.image ?? item.thumbnail)} srcset={heroItemArt[i].srcset || undefined} sizes={heroItemArt[i].srcset ? RAIL_THUMB_SIZES : undefined} alt="" class="hub-rail-thumb" loading="lazy" />
                     ) : (
                       <span class="hub-rail-thumb hub-rail-thumb--empty"></span>
                     )}

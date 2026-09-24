@@ -53,8 +53,12 @@ const isCompact = variant === 'compact';
 {/* `id` so an in-page link can reach it. The homepage spotlight bar's
     subscribe slide points here rather than off the site — see
     HomeSpotlightBar.astro, where every destination is internal on purpose. */}
+{/* Named, so the <section> is a landmark (axe `region`): on /events and
+    every other page that mounts it after </main>, the form was content in
+    no landmark at all, which a screen reader's landmark list skips. */}
 <section
   id="subscribe"
+  aria-label="Newsletter"
   class:list={['subscribe-cta', { 'is-compact': isCompact, container: !isCompact, reveal: isCompact }]}
   data-delay={isCompact ? '400' : undefined}
   style="scroll-margin-top: 7rem;"

@@ -425,6 +425,9 @@ ${activeFonts
   )}
   <style is:inline set:html={fontCss}></style>
   <main class="featured-directory-page" data-title-font={IS_DEV ? 'demo' : PROD_FONT}>
+    {/* The page is the accordion, with no visible title, but it still needs
+        its one h1 (axe page-has-heading-one): the rows' h2s sit under it. */}
+    <h1 class="sr-only">Featured Hubs</h1>
     {sortedCategories.length > 0 ? (
       <div
         class="accordion-container animate-on-scroll"
@@ -535,16 +538,20 @@ ${activeFonts
                               marked lazy, which tells the browser to
                               deprioritise exactly the image the score is
                               measured on. Eager and high priority for that
-                              one; everything behind it stays lazy.
+                              one; everything behind it stays lazy. Only the
+                              OPEN row's front card is above the fold: the
+                              collapsed rows' front cards stay eager (a row
+                              must not open blank) but low priority, or four
+                              "high" images split the bandwidth the LCP needs.
                             */}
                             {heroUrl ? (
                               <img
                                 src={heroUrl}
                                 srcset={`${heroUrlMobile} 600w, ${heroUrl} 1200w, ${heroUrlWide} 2400w`}
                                 sizes="(max-width: 600px) 600px, (min-width: 1920px) 2250px, 1200px"
-                                alt={brand.title}
+                                alt=""
                                 loading={bIndex === 0 ? 'eager' : 'lazy'}
-                                fetchpriority={bIndex === 0 ? 'high' : 'auto'}
+                                fetchpriority={bIndex === 0 ? (isExpanded ? 'high' : 'low') : 'auto'}
                                 decoding={bIndex === 0 ? 'sync' : 'async'}
                                 class="deck-card-image"
                               />

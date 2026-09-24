@@ -15,6 +15,7 @@ import { buildEventDescription, buildEventTitleName, buildEventSchema } from '..
 import { pageTitle } from '../data/content.js';
 import logoImage from '../assets/logo-mark.webp';
 import { getImage } from 'astro:assets';
+import { getCardImageSources } from '../lib/card-images';
 
 const {
   event,
@@ -235,6 +236,24 @@ function pickHeroItems(items: any[]) {
   return items.slice(0, HERO_ITEM_LIMIT);
 }
 const heroItems = pickHeroItems(unifiedContent);
+
+/*
+  ─── THE RAIL AND ITS PANES GET RENDITIONS, NEVER ORIGINALS ────────────────
+
+  Both used `item.image ?? item.thumbnail` straight, so a Substack cover went
+  out as the raw S3 upload: 3840x2160 for a ~106px rail thumbnail on the Marvel
+  and Sony hubs (the site-wide audit, 2026-09). Every other card on these
+  pages already goes through getCardImageSources(); this is the same helper,
+  once per item, shared by the pane and the rail so they request the same
+  files. scripts/built-images.check.mjs fails the build on a raw original.
+
+  STAGE_PANE_SIZES: the pane fills the stage (full width on phones, 760px at
+  most beside the copy). RAIL_THUMB_SIZES: a thumbnail is ~106px, and 160px
+  leaves room for the widest rail layout.
+*/
+const heroItemArt = heroItems.map((item: any) => getCardImageSources(item.image ?? item.thumbnail ?? ''));
+const STAGE_PANE_SIZES = '(max-width: 1023px) 100vw, 760px';
+const RAIL_THUMB_SIZES = '160px';
 
 const hasPlayableVideo =
   !!trailerId ||
@@ -711,7 +730,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
               */
               return (
                 <div class="hub-stage-item" data-index={i} aria-hidden="true" inert>
-                  {still && <img src={still} alt="" class="hub-stage-item-still" loading="lazy" />}
+                  {still && <img src={heroItemArt[i].src || still} srcset={heroItemArt[i].srcset || undefined} sizes={heroItemArt[i].srcset ? STAGE_PANE_SIZES : undefined} alt="" class="hub-stage-item-still" loading="lazy" />}
                   <span class="hub-stage-item-scrim"></span>
                   <div class="hub-stage-item-copy">
                     <span class="hub-stage-item-kind">{isVideo ? 'Video' : 'Article'}</span>
@@ -810,7 +829,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
                     aria-pressed="false"
                   >
                     {(item.image ?? item.thumbnail) ? (
-                      <img src={item.image ?? item.thumbnail} alt="" class="hub-rail-thumb" loading="lazy" />
+                      <img src={heroItemArt[i].src || (item.image ?? item.thumbnail)} srcset={heroItemArt[i].srcset || undefined} sizes={heroItemArt[i].srcset ? RAIL_THUMB_SIZES : undefined} alt="" class="hub-rail-thumb" loading="lazy" />
                     ) : (
                       <span class="hub-rail-thumb hub-rail-thumb--empty"></span>
                     )}
@@ -873,7 +892,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
           {/* Section: About */}
           <section id="event-description" class="scroll-mt-32 intel-break">
             <div class="intel-break-head">
-              <h3 class="intel-break-title">ABOUT</h3>
+              <h2 class="intel-break-title">ABOUT</h2>
             </div>
             <div class="article-body event-editorial-body">
               {event.description || event.body ? (
@@ -902,7 +921,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
           {/* Section: Event Details & Venue */}
           <section id="event-details" class="scroll-mt-32 intel-break">
             <div class="intel-break-head">
-              <h3 class="intel-break-title">DETAILS</h3>
+              <h2 class="intel-break-title">DETAILS</h2>
             </div>
             
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-12 border-b border-white/10" style="padding-top: 2.5rem; padding-bottom: 2.5rem;">
@@ -928,7 +947,12 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
                   )}
                   {event.signUpLink && (
                     <div class="mt-2 flex items-start">
+                      {/* A <dl> may hold only dt/dd groups (axe definition-list):
+                          the button is the definition of a sr-only term. */}
+                      <dt class="sr-only">Tickets</dt>
+                      <dd>
                       <a href={event.signUpLink} target="_blank" rel="noopener noreferrer" class="cta-button-primary w-auto inline-flex px-8 py-3">Tickets / RSVP</a>
+                      </dd>
                     </div>
                   )}
                 </dl>
@@ -960,7 +984,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
           {unifiedContent.length > 0 && (
             <section id="event-coverage" class="scroll-mt-32 intel-break" data-coverage="event">
               <div class="intel-break-head">
-                <h3 class="intel-break-title">COVERAGE</h3>
+                <h2 class="intel-break-title">COVERAGE</h2>
               </div>
 
               {showCoverageFilters && (

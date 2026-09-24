@@ -145,7 +145,10 @@ const fallbackLogoSrc = (await getImage({ src: logoImage, height: 360, format: '
   the taxonomy and then to the HQ crown, so a half-finished edit never breaks
   the page.
 */
-const overrideLogo = latestVideo.customHeroLogo ? urlFor(latestVideo.customHeroLogo).url() : null;
+/* Sized exactly as EventAnnouncement/EventFeatured size theirs (320px tall,
+   2x the tallest this mark is shown). `.url()` alone asked for the original:
+   Ketchup's is a 3364x1091 PNG, fetched at high priority beside the LCP. */
+const overrideLogo = latestVideo.customHeroLogo ? urlFor(latestVideo.customHeroLogo).height(320).auto('format').url() : null;
 const taxonomyLogo = entity?.logo || null;
 const brandLogo = overrideLogo || taxonomyLogo || fallbackLogoSrc;
 
@@ -316,7 +319,6 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
             class={`hero-logo`}
             data-fallback-logo={fallbackLogoSrc}
             loading="eager"
-            fetchpriority="high"
             decoding="async"
           />
           <h1 id="hero-title" class="hero-title leading-tight">{heroTitle}</h1>

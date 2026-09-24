@@ -112,6 +112,11 @@ jobs:
       - name: Production build
         run: npm run build
 
+      # One high-priority image per page, and no unresized Sanity or Substack
+      # originals anywhere in the built site (scripts/built-images.check.mjs).
+      - name: Check built images
+        run: npm run check:images
+
       - name: Generate SEO Audit SARIF
         run: |
           npx astro-seo-audit@0.3.3 --dir dist/client --baseline .astro-seo-audit-baseline.json --fail-on none --format sarif --output seo-audit.sarif || true
