@@ -145,6 +145,12 @@ const fallbackMark = await getImage({
         a module script before anything else got a chance to render. */}
     <meta charset="utf-8" />
     <meta name="robots" content="max-image-preview:large" />
+    {/* Which commit this page was built from, so the deploy workflow can
+        PROVE production updated (.github/workflows/deploy.yml). Set only by
+        that workflow's build (PUBLIC_BUILD_SHA); absent elsewhere. A build
+        stuck in Cloudflare's queue left the live site on a pre-merge version
+        with nothing anywhere saying so. */}
+    {import.meta.env.PUBLIC_BUILD_SHA && <meta name="build-sha" content={import.meta.env.PUBLIC_BUILD_SHA} />}
     {/*
       ─── BEFORE ANY SCRIPT THAT MEASURES THE VIEWPORT ───────────────────────
       This used to sit ~100 lines further down, after the inline script that
