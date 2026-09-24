@@ -24,11 +24,15 @@ import { getAllFeedItems } from '../lib/feed-items';
 import { selectCollections, inSeries, accentFor, byNewest, seriesSlug } from '../lib/feed-rails';
 import { resolveEntity, hexToRgbTriple } from '../lib/entity-resolver';
 import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-content';
+import { rowArt } from '../lib/row-art';
 
 export interface HomeFeatured {
   kind: 'collection' | 'site';
   /** The collection's name ("Lanterns"); null for the site fallback. */
   title: string | null;
+  /** The show's own logo (src/assets/rows/<slug>-logo.*), shown instead of a
+      typeset title. The feed's rule: only when its key art exists too. */
+  logo: ImageMetadata | null;
   eyebrow: string;
   /** Where "Explore on the feed" goes. */
   href: string;
@@ -78,11 +82,13 @@ export async function getHomeFeatured(exclude: Set<string> = new Set()): Promise
       const hubHex = typeof rawHub === 'string' ? rawHub : rawHub?.hex ?? null;
       const usableHub = hubHex && hubHex.toLowerCase() !== '#ffffff' ? hubHex : null;
       const accentHex = accentFor(members) || usableHub || null;
+      const slug = seriesSlug(chosen.name);
       return {
         kind: 'collection',
         title: chosen.name,
+        logo: rowArt(`${slug}-key-art`) ? rowArt(`${slug}-logo`) : null,
         eyebrow: hub ? `Featured series • ${hub.title}` : 'Featured series',
-        href: `/feed#${seriesSlug(chosen.name)}`,
+        href: `/feed#${slug}`,
         accentHex,
         accentRgb: accentHex ? hexToRgbTriple(accentHex) : null,
         total: members.length,
@@ -98,6 +104,7 @@ export async function getHomeFeatured(exclude: Set<string> = new Set()): Promise
   return {
     kind: 'site',
     title: null,
+    logo: null,
     eyebrow: 'Featured on the HQ',
     href: '/feed',
     accentHex: null,

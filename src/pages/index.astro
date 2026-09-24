@@ -1,7 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import TakeoverBillboard from '../components/TakeoverBillboard.astro';
-import CommercialRotator from '../components/CommercialRotator.astro';
+import HomeSpotlightBar from '../components/HomeSpotlightBar.astro';
 import InstagramFeed from '../components/InstagramFeed.astro';
 import SubscribeCTA from '../components/SubscribeCTA.astro';
 import ReloadTopGuard from '../components/ReloadTopGuard.astro';
@@ -32,8 +32,8 @@ import '../styles/modules/home.css';
        Live billboard     hidden unless /api/live-status.json says we are live
     2. Intel              the written side, as a magazine spread
     3. Featured           one curated story world
-       Ad rotator         the channel CTA + partners, a deliberate break
-                          between the editorial half and the video half
+       Spotlight band     HomeSpotlightBar's banner: the HQ's own promotion,
+                          a break between the editorial half and the video half
     4. The HQ Is Watching the channel's long-form videos
        Instagram          social proof, just before the ask
        Subscribe          the page's one conversion point
@@ -41,7 +41,7 @@ import '../styles/modules/home.css';
   ─── WHAT IS NOT HERE ANY MORE, AND WHY NOTHING WAS DELETED ───────────────
   The splash curtain is gone because its arming lives inside Hero.astro, and
   this page no longer mounts Hero. Hero.astro, HeroTrailer.astro (hard rule
-  2), HomeSpotlightBar, FeaturedHighlights, Categories, LatestArticles and
+  2), Categories, LatestArticles, CommercialRotator and
   splash.css all stay on disk: other components and test suites still read
   them, and deleting them is what white-screened the previous attempt.
 */
@@ -103,8 +103,12 @@ const preconnect = heroImage && /wsrv\.nl/.test(heroImage.imageSrcset || heroIma
 
     <FeaturedWorld featured={featured} />
 
-    <div class="home-slot home-container">
-      <CommercialRotator />
+    {/* The homepage's promotional band is HomeSpotlightBar's full-bleed
+        banner (Andrew prefers it to CommercialRotator here): a rotating band
+        of the HQ's own promotion, the featured series and the subscribe ask.
+        Its first slide is rendered current on the server (hard rule 10). */}
+    <div class="home-slot home-slot--bleed">
+      <HomeSpotlightBar variant="banner" label="Highlights from the HQ" />
     </div>
 
     <WatchingRail items={railVideos} />

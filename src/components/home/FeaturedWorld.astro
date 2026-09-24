@@ -16,6 +16,7 @@
  * rule under it, and the selected row. `--fw-accent` / `--fw-accent-rgb`
  * carry it; with no accent the section keeps the site's red.
  */
+import { Image } from 'astro:assets';
 import HomeSectionHeader from './HomeSectionHeader.astro';
 import FeaturedHighlights from '../FeaturedHighlights.astro';
 import type { HomeFeatured } from '../../data/homepage-featured';
@@ -53,7 +54,20 @@ const accentStyle = featured?.accentHex
           {featured.eyebrow}
           {featured.kind === 'collection' && featured.total > 1 && <span class="fw-count"> · {featured.total} pieces</span>}
         </p>
-        {featured.title && (
+        {/* The show's own logo where it has one (the same file the /feed
+            shelf uses); the typeset name only when it does not. The logo
+            carries the name as its alt, the typeset title is decorative. */}
+        {featured.logo ? (
+          <Image
+            src={featured.logo}
+            alt={featured.title ?? ''}
+            class="fw-logo"
+            widths={[420, 840]}
+            sizes="(max-width: 767px) 70vw, 420px"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : featured.title && (
           <p class="fw-title" aria-hidden="true" style={`--fw-len: ${fwLen}`}>{featured.title}</p>
         )}
         <span class="fw-rule" aria-hidden="true"></span>

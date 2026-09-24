@@ -209,7 +209,12 @@ if (newest) {
   const { src, srcset } = getCardImageSources(newest.image);
   const link = typeof newest.link === 'string' ? newest.link : '';
   const isVideo = newest.type === 'video';
-  const destination = isVideo ? '/feed' : link;
+  /* A video goes to /feed?play=<id>: the feed promotes that video into its
+     own stage on arrival, cued one tap from playing (the /feed page's
+     promoteFromQuery). Plain /feed opened on whatever the feed was
+     featuring instead of the video this slide names. */
+  const videoId = typeof (newest as any).youtubeId === 'string' ? (newest as any).youtubeId : '';
+  const destination = isVideo ? (videoId ? `/feed?play=${encodeURIComponent(videoId)}` : '/feed') : link;
 
   slides.push({
     key: 'latest',

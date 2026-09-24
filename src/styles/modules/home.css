@@ -275,12 +275,51 @@
   filter: blur(10px) grayscale(0.35) brightness(0.5);
   transform: scale(1.18);
 }
-.home-v4 .acc-panel:hover:not(.is-open) .acc-media img {
-  filter: blur(8px) grayscale(0.1) brightness(0.65);
-}
 .home-v4 .acc-panel.is-open .acc-media img {
   filter: none;
   transform: scale(1);
+}
+
+/* ─── HOVER: something you can SEE (Andrew: "I can barely tell") ─────────
+   A collapsed strip PEEKS: it widens a little, its art pushes in and
+   sharpens most of the way, a crimson frame and a glow rising from its foot
+   light up, and its label brightens and opens its tracking. The open panel
+   slowly pushes its art in and lifts its exposure. Motion only where the
+   reader has not asked for less; the light changes apply regardless. */
+.home-v4 .acc-panel:hover:not(.is-open) .acc-media img {
+  filter: blur(2.5px) grayscale(0) brightness(0.82);
+}
+.home-v4 .acc-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    inset 0 0 0 1px rgba(230, 0, 0, 0.6),
+    inset 0 -120px 90px -60px rgba(230, 0, 0, 0.38);
+  transition: opacity 0.35s ease;
+}
+.home-v4 .acc-panel:hover:not(.is-open)::after,
+.home-v4 .acc-panel:not(.is-open):focus-within::after {
+  opacity: 1;
+}
+.home-v4 .acc-panel.is-open:hover .acc-media img {
+  filter: brightness(1.08);
+}
+@media (hover: hover) and (min-width: 768px) {
+  .home-v4 .acc-panel:hover:not(.is-open) {
+    flex-basis: calc(var(--strip) + 28px);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .home-v4 .acc-panel:hover:not(.is-open) .acc-media img {
+    transform: scale(1.3);
+  }
+  .home-v4 .acc-panel.is-open:hover .acc-media img {
+    transform: scale(1.06);
+  }
 }
 .home-v4 .acc-media::after {
   content: '';
@@ -398,7 +437,15 @@
     height: var(--art-box);
     overflow: hidden;
     opacity: 0.95;
-    transition: transform 0.4s ease, opacity 0.4s ease;
+    /* `left` rides the panel's own flex curve, so the mark GLIDES between
+       its strip position and its open-panel corner in both directions. It
+       used to be `left` here and `right` when open: two different
+       properties cannot interpolate, so the mark snapped, which read worst
+       on a right-to-left change (Andrew). */
+    transition:
+      left 0.7s cubic-bezier(0.65, 0, 0.35, 1),
+      transform 0.4s ease,
+      opacity 0.4s ease;
   }
   /* The tile PNGs are square with a wide transparent margin round the chalk
      blob, which is what made them look small and clipped. Cover crops the
@@ -419,10 +466,19 @@
     left: 50%;
     bottom: calc(var(--art-foot) + var(--art-box) + 0.6rem);
     transform: translateX(-50%);
+    transition: left 0.7s cubic-bezier(0.65, 0, 0.35, 1);
   }
   .home-v4 .acc-panel:hover:not(.is-open) .acc-art {
     opacity: 1;
-    transform: translateY(-3px);
+    transform: translateY(-6px) scale(1.06);
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-label {
+    transition: color 0.3s ease, letter-spacing 0.4s ease, text-shadow 0.3s ease;
+  }
+  .home-v4 .acc-panel:hover:not(.is-open) .acc-label {
+    color: #fff;
+    letter-spacing: 0.42em;
+    text-shadow: 0 0 18px rgba(230, 0, 0, 0.7);
   }
 }
 
@@ -437,11 +493,16 @@
   .home-v4 .acc-panel.is-open .acc-art,
   .home-v4 .acc-panel.is-open .acc-art--logo {
     position: absolute;
-    right: 1.25rem;
+    /* Bottom-right corner, expressed as `left` (never `right`) so it can
+       animate from and to the strip's centred `left` above. */
+    left: calc(100% - (var(--strip) - 0.8rem) - 1.25rem);
     bottom: var(--art-foot);
     width: calc(var(--strip) - 0.8rem);
     height: var(--art-box);
     overflow: hidden;
+    transition:
+      left 0.7s cubic-bezier(0.65, 0, 0.35, 1),
+      opacity 0.4s ease;
   }
   .home-v4 .acc-panel.is-open .acc-art img {
     width: 100%;
@@ -455,9 +516,10 @@
   }
   .home-v4 .acc-panel.is-open .acc-new {
     position: absolute;
-    right: calc(1.25rem + (var(--strip) - 0.8rem) / 2);
+    left: calc(100% - 1.25rem - (var(--strip) - 0.8rem) / 2);
     bottom: calc(var(--art-foot) + var(--art-box) + 0.6rem);
-    transform: translateX(50%);
+    transform: translateX(-50%);
+    transition: left 0.7s cubic-bezier(0.65, 0, 0.35, 1);
   }
 }
 .home-v4 .acc-label {
@@ -758,6 +820,8 @@
 @media (prefers-reduced-motion: reduce) {
   .home-v4 .acc-panel,
   .home-v4 .acc-media img,
+  .home-v4 .acc-art,
+  .home-v4 .acc-new,
   .home-v4 .acc-panel::before {
     transition: none;
   }
@@ -847,6 +911,12 @@
   container-type: inline-size;
   max-width: 48rem;
   margin-bottom: clamp(1rem, 2vw, 1.75rem);
+}
+.home-v4 .fw-logo {
+  display: block;
+  width: min(420px, 70vw);
+  height: auto;
+  margin: 0.6rem 0 0;
 }
 .home-v4 .fw-title {
   margin: 0.2rem 0 0;
@@ -984,11 +1054,6 @@
 .home-v4 .home-slot > :is(section, div) {
   margin-top: 0;
   margin-bottom: 0;
-}
-/* The rotator pads itself 64px top and bottom for pages that have no rhythm
-   of their own; here --home-gap already spaces it, and the two stacked. */
-.home-v4 .home-slot > .yt-banner-wrapper {
-  padding-block: 0;
 }
 .home-v4 .home-slot .instagram-feed-section {
   margin-bottom: 0;

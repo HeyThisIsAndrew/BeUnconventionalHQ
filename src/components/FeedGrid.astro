@@ -2,6 +2,7 @@
 import ContentCard from './ContentCard.astro';
 import FeedRowBanner from './FeedRowBanner.astro';
 import { getImage } from 'astro:assets';
+import { rowArt } from '../lib/row-art';
 import EmptyState from './EmptyState.astro';
 import { LABELS, MESSAGES } from '../data/content.js';
 import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-content';
@@ -166,18 +167,7 @@ const SITE_ACCENT = '#cc0000';
   not an error by design: a build that failed because an editor had not uploaded
   artwork yet would be a worse trade than a shelf that renders plain.
 */
-const ROW_ART = import.meta.glob<{ default: ImageMetadata }>(
-  '/src/assets/rows/*.{jpg,jpeg,png,webp,avif}',
-  { eager: true },
-);
-
-const rowArt = (name?: string): ImageMetadata | null => {
-  if (!name) return null;
-  const hit = Object.entries(ROW_ART).find(
-    ([path]) => path.split('/').pop()?.replace(/\.[^.]+$/, '') === name,
-  );
-  return hit ? hit[1].default : null;
-};
+/* rowArt() lives in src/lib/row-art.ts, shared with the homepage. */
 
 /* seriesSlug() lives in src/lib/feed-rails.ts: the homepage links to these
    rows by it, so there is one definition of a row's anchor. */
