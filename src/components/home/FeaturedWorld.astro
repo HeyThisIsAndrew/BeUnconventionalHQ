@@ -16,32 +16,16 @@
  * rule under it, and the selected row. `--fw-accent` / `--fw-accent-rgb`
  * carry it; with no accent the section keeps the site's red.
  */
+import { Image } from 'astro:assets';
 import HomeSectionHeader from './HomeSectionHeader.astro';
 import FeaturedHighlights from '../FeaturedHighlights.astro';
 import type { HomeFeatured } from '../../data/homepage-featured';
-import type { ImageMetadata } from 'astro';
-
-const ROW_LOGOS = import.meta.glob<{ default: ImageMetadata }>(
-  '/src/assets/rows/*-logo.{jpg,jpeg,png,webp,avif}',
-  { eager: true }
-);
-
-function getLogo(title: string | null): ImageMetadata | null {
-  if (!title) return null;
-  const normalized = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  const targetName = `${normalized}-logo`;
-  const hit = Object.entries(ROW_LOGOS).find(
-    ([path]) => path.split('/').pop()?.replace(/\.[^.]+$/, '') === targetName
-  );
-  return hit ? hit[1].default : null;
-}
 
 interface Props {
   featured: HomeFeatured | null;
 }
 
 const { featured } = Astro.props;
-const logoObj = getLogo(featured?.title || null);
 /* Longest word, in letters: the title's size is derived from it (home.css). */
 const fwLen = featured?.title ? Math.max(4, ...featured.title.split(/\s+/).map((w) => w.length)) : 8;
 const accentStyle = featured?.accentHex
@@ -66,12 +50,22 @@ const accentStyle = featured?.accentHex
       />
 
       <div class="fw-lockup">
-
-        {logoObj ? (
-          <img src={logoObj.src} width={logoObj.width} height={logoObj.height} alt={featured.title || ''} loading="lazy" class="fw-logo-img" />
-        ) : featured.title ? (
+        {/* The show's own logo where it has one (the same file the /feed
+            shelf uses); the typeset name only when it does not. The logo
+            carries the name as its alt, the typeset title is decorative. */}
+        {featured.logo ? (
+          <Image
+            src={featured.logo}
+            alt={featured.title ?? ''}
+            class="fw-logo"
+            widths={[420, 840]}
+            sizes="(max-width: 767px) 70vw, 420px"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : featured.title && (
           <p class="fw-title" aria-hidden="true" style={`--fw-len: ${fwLen}`}>{featured.title}</p>
-        ) : null}
+        )}
         <span class="fw-rule" aria-hidden="true"></span>
       </div>
 
