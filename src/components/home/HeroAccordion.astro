@@ -53,11 +53,14 @@ const artFor = async (key: string) => {
      420 is the tile PNGs' full size (asking for more only upsamples). The
      BE mark is a 1981px source, so it gets a true 2x of its ~170px box.
      Phones show the tile at ~76px (the mark ~96px), so the 240 rung serves
-     them; the full-size file was a third of the hero's own bytes there. */
+     them; the full-size file was a third of the hero's own bytes there.
+     Quality 80, not 90: PageSpeed flagged the BE mark's 240 rung (14 KiB) as
+     compressible by 9.7 KiB, and these are chalk marks drawn under a strip's
+     label, not photographs. */
   const want = key === 'latest' ? 480 : 420;
   const width = Math.min(want, src.width);
   const rungs = [...new Set([Math.min(240, width), width])];
-  const imgs = await Promise.all(rungs.map((w) => getImage({ src, width: w, format: 'webp', quality: 90 })));
+  const imgs = await Promise.all(rungs.map((w) => getImage({ src, width: w, format: 'webp', quality: 80 })));
   return {
     src: imgs[imgs.length - 1].src,
     srcset: imgs.map((img, i) => `${img.src} ${rungs[i]}w`).join(', '),
