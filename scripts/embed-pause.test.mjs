@@ -150,9 +150,44 @@ test('it resumes only what it paused', () => {
   );
   assert.match(
     MODULE,
-    /if \(entry\.playing\) entry\.pausedByUs = false/,
+    /if \(entry\.playing\) \{?\s*entry\.pausedByUs = false/,
     'a reader pressing play themselves takes ownership of the state back',
   );
+});
+
+/*
+  ─── LEAVING BY A LINK, AND SCROLLING AWAY ────────────────────────────────
+  Reported as the homepage going on playing behind the reader: a video that
+  was scrolled out of view kept its sound, and one left for YouTube by
+  "Watch on YouTube" was resumed by this module when the reader came back.
+  Both live HERE, and FeaturedHighlights no longer pauses or plays its own
+  player on scroll (it only stops and starts its rotation timer).
+*/
+test('an external-link click pauses, and the video is not resumed on return', () => {
+  assert.match(MODULE, /closest\?\.\('a\[target="_blank"\]'\)/, 'target=_blank links are the trigger');
+  assert.match(MODULE, /entry\.leftForLink = 'pausing'/);
+  assert.match(
+    MODULE,
+    /entry\.pausedByUs = entry\.leftForLink === 'none'/,
+    'a tab-hide after leaving by a link must not mark the video for resume',
+  );
+});
+
+test('a frame scrolled out of view is paused; only an autoplaying one resumes', () => {
+  assert.match(MODULE, /new IntersectionObserver\(/);
+  assert.match(MODULE, /viewObserver!?\.observe\(frame\)/, 'every tracked frame is observed from sweep()');
+  assert.match(MODULE, /entry\.pausedByScroll = true/);
+  assert.match(MODULE, /includes\('autoplay=1'\)\) send\(frame, PLAY\)/, 'only an autoplaying embed resumes');
+});
+
+test('FeaturedHighlights leaves its video alone on scroll', () => {
+  const fh = code(read('src/components/FeaturedHighlights.astro'));
+  const io = fh.slice(fh.indexOf("if ('IntersectionObserver' in window)"));
+  const block = io.slice(0, io.indexOf('observer.observe(section)'));
+  assert.ok(block.length > 0, 'the rotation observer is still there');
+  assert.ok(!/pauseVideo|playVideo/.test(block), 'pausing an embed belongs to embed-pause.ts (hard rule 12)');
+  assert.match(block, /stopAutoPlay\(\)/);
+  assert.match(block, /startAutoPlay\(\)/);
 });
 
 test('commands are posted to the embed origin, never "*"', () => {

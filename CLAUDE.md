@@ -141,7 +141,17 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    by command, so the src lies about the sound) and touch the DOM on the
    message path (a playing embed posts several `infoDelivery` messages a
    second). HeroTrailer is sent standard commands from outside and is never
-   edited, per hard rule 2. `scripts/embed-pause.test.mjs` guards all of it.
+   edited, per hard rule 2. It also owns the two other ways a video plays on
+   behind the reader: a click on any `target="_blank"` link pauses what is
+   playing and marks it NOT to be resumed on return (the reader went to
+   watch it on YouTube; `leftForLink` survives a PLAYING report already in
+   flight), and a frame scrolled out of the viewport is paused, resuming on
+   the way back only if it autoplays (`autoplay=1` in its src: a background
+   loop), never a video the reader started. Components may stop their own
+   rotation timers on scroll, never their players: FeaturedHighlights used
+   to pause and play its own. Known consequence: the event/hub stages put
+   `autoplay=1` in the src of a reader-started video too, so those resume on
+   scroll-back. `scripts/embed-pause.test.mjs` guards all of it.
 
 ## Data flow
 

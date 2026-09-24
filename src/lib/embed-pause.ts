@@ -50,6 +50,25 @@
  * sent the same standard `pauseVideo` and `playVideo` commands the stage
  * already sends its own player from the PiP close button, and its src is
  * never reassigned, which is the operation that would restart it.
+ *
+ * ─── TWO MORE WAYS A VIDEO GOES ON PLAYING BEHIND THE READER ───────────────
+ *
+ * 1. LEAVING BY AN EXTERNAL LINK. A `target="_blank"` link ("Watch on
+ *    YouTube", Instagram, a partner) opens a tab and the page is hidden, so
+ *    the rule above paused the video, and then RESUMED it on return: the
+ *    reader who went to watch it on YouTube came back to it playing here. A
+ *    click on such a link now pauses what is playing and marks it as not
+ *    ours to resume (see `leftForLink`).
+ * 2. SCROLLING AWAY. A video scrolled out of the viewport kept playing,
+ *    audible and uncontrollable. Each frame is observed; leaving the
+ *    viewport pauses it. Coming back resumes only an AUTOPLAYING embed (a
+ *    background loop, whose `src` carries `autoplay=1`); a video the reader
+ *    started stays paused for them to press play again. That test reads
+ *    `autoplay`, never `mute` (see above): it asks whether the embed starts
+ *    itself, not whether it is audible.
+ *
+ * Pausing belongs here and nowhere else (CLAUDE.md hard rule 12):
+ * FeaturedHighlights used to pause and resume its own player on scroll.
  */
 
 /** The two origins a YouTube embed can be served from on this site. */
@@ -61,8 +80,19 @@ const PLAYING = 1;
 type FrameState = {
   /** Last state the player reported. */
   playing: boolean;
-  /** True only while THIS module is the reason it is paused. */
+  /** True only while THIS module is the reason it is paused (tab hidden). */
   pausedByUs: boolean;
+  /** Paused because it left the viewport. */
+  pausedByScroll: boolean;
+  /**
+   * The reader left by an external link while this played, so it must not be
+   * resumed for them. 'pausing' until the player reports it stopped, then
+   * 'paused' until the reader presses play again ('none'). The first step
+   * exists because the pause is asynchronous: a PLAYING report already in
+   * flight can land after the click and before the tab is hidden, and must
+   * not turn the tab-hide pause back into a resumable one.
+   */
+  leftForLink: 'none' | 'pausing' | 'paused';
 };
 
 const frames = new WeakMap<HTMLIFrameElement, FrameState>();
@@ -117,7 +147,7 @@ function listen(frame: HTMLIFrameElement) {
  */
 function track(frame: HTMLIFrameElement) {
   if (frames.has(frame)) return;
-  frames.set(frame, { playing: false, pausedByUs: false });
+  frames.set(frame, { playing: false, pausedByUs: false, pausedByScroll: false, leftForLink: 'none' });
   /* Not `{ once: true }`: several of these frames are re-sourced when a hero
      swaps item or a toggle rebuilds the URL, and each new document needs its
      own handshake. */
@@ -127,10 +157,18 @@ function track(frame: HTMLIFrameElement) {
   listen(frame);
 }
 
+/** Watches every tracked frame's visibility (created in initEmbedPause). */
+let viewObserver: IntersectionObserver | null = null;
+
 function sweep() {
   tracked = playableFrames();
   tracked.forEach(track);
+  /* observe() is idempotent per element, so re-sweeps cost nothing. */
+  if (viewObserver) tracked.forEach((frame) => viewObserver!.observe(frame));
 }
+
+const PAUSE = { event: 'command', func: 'pauseVideo', args: [], id: 1, channel: 'widget' };
+const PLAY = { event: 'command', func: 'playVideo', args: [], id: 1, channel: 'widget' };
 
 /**
  * Coalesce sweeps to one per frame.
@@ -184,9 +222,16 @@ export function initEmbedPause() {
     const entry = frames.get(frame);
     if (!entry) return;
     entry.playing = state === PLAYING;
+    /* The external-link pause has taken; the next PLAYING after it is the
+       reader pressing play again, which hands the video back to them. */
+    if (entry.leftForLink === 'pausing' && !entry.playing) entry.leftForLink = 'paused';
+    else if (entry.leftForLink === 'paused' && entry.playing) entry.leftForLink = 'none';
     /* A reader who presses play themselves owns the state again, so a later
        return to the tab must not treat it as ours to resume. */
-    if (entry.playing) entry.pausedByUs = false;
+    if (entry.playing) {
+      entry.pausedByUs = false;
+      entry.pausedByScroll = false;
+    }
   });
 
   document.addEventListener('visibilitychange', () => {
@@ -196,9 +241,10 @@ export function initEmbedPause() {
       for (const frame of tracked) {
         const entry = frames.get(frame);
         if (!entry || !entry.playing) continue;
-        send(frame, { event: 'command', func: 'pauseVideo', args: [], id: 1, channel: 'widget' });
+        send(frame, PAUSE);
         entry.playing = false;
-        entry.pausedByUs = true;
+        /* Not ours to resume if the reader left by an external link. */
+        entry.pausedByUs = entry.leftForLink === 'none';
       }
       return;
     }
@@ -206,8 +252,65 @@ export function initEmbedPause() {
     for (const frame of tracked) {
       const entry = frames.get(frame);
       if (!entry || !entry.pausedByUs) continue;
-      send(frame, { event: 'command', func: 'playVideo', args: [], id: 1, channel: 'widget' });
+      send(frame, PLAY);
       entry.pausedByUs = false;
+    }
+  });
+
+  /*
+    ─── AN EXTERNAL LINK PAUSES, AND THE VIDEO STAYS PAUSED ─────────────────
+    Capture phase, so it runs before anything that might stop the click.
+    Pauses what is playing and hands it back to the reader: when they return
+    from YouTube (or Instagram, or a partner) the video is where they left
+    it, not playing on its own.
+  */
+  document.addEventListener(
+    'click',
+    (event: MouseEvent) => {
+      const link = (event.target as Element | null)?.closest?.('a[target="_blank"]');
+      if (!link) return;
+      for (const frame of tracked) {
+        const entry = frames.get(frame);
+        if (!entry || !entry.playing) continue;
+        send(frame, PAUSE);
+        entry.playing = false;
+        entry.pausedByUs = false;
+        entry.leftForLink = 'pausing';
+      }
+    },
+    true,
+  );
+
+  /*
+    ─── SCROLLED OUT OF VIEW, PAUSED ─────────────────────────────────────────
+    A playing frame that leaves the viewport is paused. On its way back, an
+    autoplaying embed (a background loop: `autoplay=1` in its src) resumes;
+    anything the reader started stays paused until they press play. Reads
+    `autoplay`, never `mute` (the rule above).
+  */
+  viewObserver = new IntersectionObserver((records) => {
+    for (const record of records) {
+      const frame = record.target as HTMLIFrameElement;
+      /* A removed frame (the homepage hero drops its player on every panel
+         switch) is let go, not observed for the rest of the session. */
+      if (!frame.isConnected) {
+        viewObserver?.unobserve(frame);
+        continue;
+      }
+      const entry = frames.get(frame);
+      if (!entry || originOf(frame) === null) continue;
+
+      if (!record.isIntersecting) {
+        if (!entry.playing) continue;
+        send(frame, PAUSE);
+        entry.playing = false;
+        entry.pausedByScroll = true;
+        continue;
+      }
+
+      if (!entry.pausedByScroll) continue;
+      entry.pausedByScroll = false;
+      if ((frame.src || '').includes('autoplay=1')) send(frame, PLAY);
     }
   });
 

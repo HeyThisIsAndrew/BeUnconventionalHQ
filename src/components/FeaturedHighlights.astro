@@ -814,14 +814,10 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
     const inlineVideoButtons = section.querySelectorAll('[data-action="inline-video"]');
     inlineVideoButtons.forEach(button => {
       button.addEventListener('click', (e) => {
-        // If the user clicked the secondary outbound link, let it navigate instead of playing inline
-        if ((e.target as Element).closest('a.watch-now-btn')) {
-          // Pause the video so it doesn't keep playing in the background tab
-          if (activePlayer && typeof activePlayer.pauseVideo === 'function') {
-            activePlayer.pauseVideo();
-          }
-          return;
-        }
+        /* (A branch here used to pause the player on a click on an
+           `a.watch-now-btn`. That element is a <span> in ContentCard, so the
+           branch could never run; and pausing on an outbound click belongs to
+           src/lib/embed-pause.ts, which does it for every target=_blank link.) */
 
         e.preventDefault();
         e.stopPropagation();
@@ -933,40 +929,22 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
       window.addEventListener('resize', remeasureWhenSettled, { passive: true });
     }
 
-    // IntersectionObserver to pause video and autoplay when out of view
+    /*
+      Scrolled out of view: stop the CAROUSEL ROTATION; back in view: restart
+      it. The VIDEO is not touched here: pausing an embed belongs to
+      src/lib/embed-pause.ts and nowhere else (CLAUDE.md hard rule 12). That
+      module pauses this player when it leaves the viewport and, because this
+      shelf's player autoplays (playerVars autoplay: 1), resumes it on the way
+      back; the player's own onStateChange above then restores the inline UI.
+    */
     if ('IntersectionObserver' in window) {
       const observer = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
           if (!entry.isIntersecting) {
-            // Scrolled out of view: pause the video and stop autoplay
-            if (activePlayer && typeof activePlayer.pauseVideo === 'function') {
-              activePlayer.pauseVideo();
-            }
             if (!isPaused) {
                stopAutoPlay();
             }
           } else {
-            // Scrolled into view: resume video and autoplay
-            if (activePlayer && typeof activePlayer.playVideo === 'function') {
-              activePlayer.playVideo();
-              
-              // If the user was manually watching the video (isPaused is true), restore the UI instantly
-              if (isPaused) {
-                const row = rows[currentIndex];
-                const mediaContainer = row?.querySelector('.content-card-media');
-                if (mediaContainer) {
-                  mediaContainer.classList.add('is-playing-inline');
-                  const iframe = mediaContainer.querySelector('iframe');
-                  if (iframe) {
-                    iframe.style.pointerEvents = 'auto';
-                    iframe.style.transition = 'none';
-                    iframe.style.opacity = '1';
-                  }
-                  const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
-                  if (logo) logo.style.opacity = '0.8';
-                }
-              }
-            }
             if (!isPaused) {
               startAutoPlay();
             }
