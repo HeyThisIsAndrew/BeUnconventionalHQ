@@ -283,11 +283,18 @@ export function initEmbedPause() {
 
   /*
     ─── SCROLLED OUT OF VIEW, PAUSED ─────────────────────────────────────────
-    A playing frame that leaves the viewport is paused. On its way back, an
-    autoplaying embed (a background loop: `autoplay=1` in its src) resumes;
-    anything the reader started stays paused until they press play. Reads
-    `autoplay`, never `mute` (the rule above).
+    A playing frame that leaves the viewport is paused. On its way back, a
+    BACKGROUND embed resumes; anything the reader started stays paused until
+    they press play. Background means `data-embed-ambient="1"` on the frame,
+    set by whoever starts it on the reader's behalf (the homepage Featured
+    preview, a hub/event stage's trailer). It used to mean `autoplay=1` in the
+    src, and those players no longer carry it: an embed that starts itself is
+    what YouTube's bot check looks for (hard rule 11). `autoplay=1` still
+    counts, for anything that has it. Never reads `mute` (the rule above).
   */
+  const isAmbient = (frame: HTMLIFrameElement) =>
+    frame.dataset.embedAmbient === '1' || (frame.src || '').includes('autoplay=1');
+
   viewObserver = new IntersectionObserver((records) => {
     for (const record of records) {
       const frame = record.target as HTMLIFrameElement;
@@ -310,7 +317,7 @@ export function initEmbedPause() {
 
       if (!entry.pausedByScroll) continue;
       entry.pausedByScroll = false;
-      if ((frame.src || '').includes('autoplay=1')) send(frame, PLAY);
+      if (isAmbient(frame)) send(frame, PLAY);
     }
   });
 

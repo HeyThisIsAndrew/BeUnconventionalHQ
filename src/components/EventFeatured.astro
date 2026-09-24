@@ -1314,6 +1314,9 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
           finalSrc = finalSrc.replace('mute=1', 'mute=0');
         }
         
+        /* The trailer is started on the reader's behalf, so embed-pause
+           resumes it on scroll-back (a reader's own pick is not). */
+        frame.dataset.embedAmbient = '1';
         frame.src = finalSrc;
         startStage(frame);
         stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: !tryWithSound } }));
@@ -1771,6 +1774,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
 
         const withSound = !soundBlocked();
         
+        delete frame.dataset.embedAmbient;
         frame.src = embedUrl(id, !withSound);
         startStage(frame);
         stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: !withSound } }));

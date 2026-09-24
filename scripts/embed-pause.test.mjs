@@ -177,7 +177,9 @@ test('a frame scrolled out of view is paused; only an autoplaying one resumes', 
   assert.match(MODULE, /new IntersectionObserver\(/);
   assert.match(MODULE, /viewObserver!?\.observe\(frame\)/, 'every tracked frame is observed from sweep()');
   assert.match(MODULE, /entry\.pausedByScroll = true/);
-  assert.match(MODULE, /includes\('autoplay=1'\)\) send\(frame, PLAY\)/, 'only an autoplaying embed resumes');
+  assert.match(MODULE, /if \(isAmbient\(frame\)\) send\(frame, PLAY\)/, 'only a background embed resumes');
+  /* Background is MARKED, since those players no longer carry autoplay=1. */
+  assert.match(MODULE, /dataset\.embedAmbient === '1'/);
 });
 
 test('FeaturedHighlights leaves its video alone on scroll', () => {

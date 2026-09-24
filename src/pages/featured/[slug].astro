@@ -2311,6 +2311,9 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
           finalSrc = finalSrc.replace('mute=1', 'mute=0');
         }
         
+        /* The trailer is started on the reader's behalf, so embed-pause
+           resumes it on scroll-back (a reader's own pick is not). */
+        frame.dataset.embedAmbient = '1';
         frame.src = finalSrc;
         startStage(frame);
         stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: !tryWithSound } }));
@@ -2768,6 +2771,7 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
 
         const withSound = !soundBlocked();
         
+        delete frame.dataset.embedAmbient;
         frame.src = embedUrl(id, !withSound);
         startStage(frame);
         stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: !withSound } }));

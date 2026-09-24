@@ -639,8 +639,10 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
                   width: '100%',
                   height: '100%',
                   videoId: videoId,
+                  /* No `autoplay: 1`: an embed that starts itself is what
+                     YouTube's bot check looks for (CLAUDE.md hard rule 11).
+                     onReady's playVideo below starts it, muted. */
                   playerVars: {
-                    autoplay: 1,
                     controls: 0,
                     mute: 1,
                     modestbranding: 1,
@@ -652,6 +654,10 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
                   },
                   events: {
                     onReady: (e: any) => {
+                      /* A background preview: embed-pause resumes it when it
+                         scrolls back into view (hard rule 12). */
+                      const iframe = e.target.getIframe?.();
+                      if (iframe) iframe.dataset.embedAmbient = '1';
                       e.target.playVideo();
                     },
                     onStateChange: (e: any) => {
@@ -937,7 +943,7 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
       it. The VIDEO is not touched here: pausing an embed belongs to
       src/lib/embed-pause.ts and nowhere else (CLAUDE.md hard rule 12). That
       module pauses this player when it leaves the viewport and, because this
-      shelf's player autoplays (playerVars autoplay: 1), resumes it on the way
+      shelf's player is a background preview (data-embed-ambient), resumes it on the way
       back; the player's own onStateChange above then restores the inline UI.
     */
     if ('IntersectionObserver' in window) {
