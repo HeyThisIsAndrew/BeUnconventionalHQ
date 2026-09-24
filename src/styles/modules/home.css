@@ -1026,6 +1026,72 @@
   }
 }
 
+/* The play glyph is a phone-portrait control (below); desktop keeps the
+   Watch button and no glyph over the art (Andrew). */
+.home-v4 .acc-play-glyph {
+  display: none;
+}
+
+/* ─── PHONE PORTRAIT: less on screen (Andrew: "way too busy") ────────────
+   The art is the play control: the feed's YouTube-shaped glyph, white with
+   the site's red glow, centred on the open story's art until it plays. So
+   the Watch button goes, and so does the player's Close / Watch on YouTube
+   bar: the embed carries YouTube's own logo link, and tapping another row
+   stops the player. (Owner's call, recorded against CLAUDE.md hard rule 11.)
+   The rows get the room back: 52px was too small to tap and to read. */
+@media (max-width: 767px) and (orientation: portrait) {
+  .home-v4 .acc-panel:not(.is-open) {
+    height: 72px;
+  }
+  /* A closed row's chips are only faded out, and in this stacked layout they
+     are in flow: they took the row's lower half and pushed the art and label
+     up. Out of flow here, the pair sits centred. */
+  .home-v4 .acc-panel:not(.is-open) .acc-chips {
+    display: none;
+  }
+  .home-v4 .acc-art {
+    width: 76px;
+    height: 48px;
+  }
+  .home-v4 .acc-art--logo {
+    width: 96px;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-label {
+    font-size: 0.9rem;
+  }
+  .home-v4 .acc-cta,
+  .home-v4 .acc-panel.is-playing .acc-player-bar {
+    display: none;
+  }
+  .home-v4 .acc-panel.is-open .acc-body {
+    padding-bottom: 1.2rem;
+  }
+  .home-v4 .acc-panel.is-open .acc-play-overlay {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .home-v4 .acc-panel:not(.is-open) .acc-play-overlay {
+    display: none;
+  }
+  .home-v4 .acc-panel.is-open .acc-play-glyph {
+    display: block;
+    width: 68px;
+    height: 68px;
+    color: #fff;
+    opacity: 0.92;
+    filter: drop-shadow(0 0 14px rgba(204, 0, 0, 0.95)) drop-shadow(0 0 28px rgba(204, 0, 0, 0.7));
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+  .home-v4 .acc-play-glyph path {
+    fill: currentColor;
+  }
+  .home-v4 .acc-play-overlay:active .acc-play-glyph {
+    transform: scale(0.94);
+    opacity: 1;
+  }
+}
+
 /* ─── PHONE LANDSCAPE: the open story left, the other four stacked right ──
    Five side-by-side strips at 390px tall left the open panel a narrow
    column the strips outweighed (Andrew). Here the SAME five panels go on a

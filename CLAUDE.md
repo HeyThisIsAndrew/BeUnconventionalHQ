@@ -90,7 +90,9 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    funnel to that event's YouTube channel, and the link sat over the player.
    A refused embed there has no door; that trade is accepted, so do not
    "restore" it. The homepage hero accordion's inline player is the sixth and
-   carries one. Otherwise
+   carries one, rendered always but HIDDEN on phone portrait (also the
+   owner's call: the portrait hero was too busy, and the embed shows
+   YouTube's own logo link). Otherwise
    `scripts/embed-escape.test.mjs` asserts every one of them in a single file,
    for the reason event-hero-lockup.test.mjs gives. The three stages
    (`/featured/[slug]`, EventFeatured, EventAnnouncement) are near-identical
