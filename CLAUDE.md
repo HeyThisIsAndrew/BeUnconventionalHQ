@@ -84,7 +84,22 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    A reader trapped by a YouTube sign-in wall on /feed was "fixed" in the modal
    alone, which was the one player he was not using. Fixing that then covered
    two players and stopped, so the hub and event stages went a second round
-   without a door: **the escape hatch is on all FIVE**, and
+   without a door: **the escape hatch is on every player EXCEPT the two event
+   stages** (EventFeatured, EventAnnouncement), which the owner removed on
+   purpose: an event page is the HQ's hub for someone else's event, not a
+   funnel to that event's YouTube channel, and the link sat over the player.
+   A refused embed there has no door; that trade is accepted, so do not
+   "restore" it. The homepage hero accordion's inline player is the sixth and
+   carries one, rendered always but HIDDEN on phone portrait (also the
+   owner's call: the portrait hero was too busy, and the embed shows
+   YouTube's own logo link). FeaturedHighlights (the homepage Featured box) went
+   without one until the site-wide audit: its door is the lead card's own
+   "Watch now" (with the YouTube mark), a real link to the video on YouTube.
+   A link cannot sit in a `role="button"` (axe nested-interactive), so a hero
+   video card (`isHeroPlayer` in ContentCard) is NOT the button: its play
+   mark is a real `<button>` and the card's inline-play handler ignores
+   clicks on links. A second link under the card duplicated it and was
+   removed (the owner's call). Otherwise
    `scripts/embed-escape.test.mjs` asserts every one of them in a single file,
    for the reason event-hero-lockup.test.mjs gives. The three stages
    (`/featured/[slug]`, EventFeatured, EventAnnouncement) are near-identical
@@ -102,15 +117,40 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    that starts itself is what YouTube's bot check looks for, and it is decided
    per viewer, so it reproduces for one reader and for nobody testing it. The
    stage starts through the jsapi `playVideo` command instead, so the visitor
-   still gets one click. **The three hub/event stages are a KNOWN REMAINING
-   EXPOSURE, deliberately left alone**: they try `autoplay=1&mute=0` first and
-   fall back to muted when the browser refuses, and that negotiation encodes a
-   fix that shipped broken once ("never unmute a video that is ALREADY
-   running"). Do not convert them to the jsapi start without real-device
-   testing of the sound-blocked path; the escape link covers the symptom
-   meanwhile. **The "Watch on YouTube" link is rendered ALWAYS**, never
+   still gets one click. **That command must wait for the player's `onReady`**:
+   both heroes once sent it on the iframe's `load` event, which fires a few
+   hundred ms before YouTube's player inside the frame is listening, so it
+   was dropped and every reader pressed play twice. The homepage hero and the
+   /feed hero now start through `src/lib/youtube-start.ts` (`playWhenReady`),
+   which handshakes until the player answers, asks on `onReady`, retries until
+   PLAYING, and keeps the frame transparent until then; a new player should
+   use it too. iOS Safari may still refuse an unmuted start that is not inside
+   the reader's own gesture, which leaves YouTube's own play button: one more
+   tap, never a dead end. `scripts/youtube-start.test.mjs` guards the helper.
+   **The three hub/event stages (`/featured/[slug]`, EventFeatured,
+   EventAnnouncement) now start through `playWhenReady` too** (owner's call,
+   2026-09): no src on them carries `autoplay=1`, the ambient trailer
+   included, and each of their FOUR frame loads is followed by
+   `startStage(frame)`. They still try sound first on a press and reload muted
+   if the player has not reached PLAYING within `HUB_START_GRACE_MS` (3s,
+   longer than the old 1.5s because the start now waits for `onReady`), and
+   they still never unmute a video that is ALREADY running. That muted
+   fallback is the path to test on a real iPhone. **Every YouTube frame the
+   site writes must allow fullscreen**: the fullscreen fix once landed on two
+   players and left these three with `allow="autoplay; encrypted-media"`, so
+   YouTube's fullscreen button was dead on every hub and event hero.
+   `scripts/embed-escape.test.mjs` asserts both over every file that writes an
+   iframe, and fails when a new one is added without being listed. **The "Watch on YouTube" link is rendered ALWAYS**, never
    gated on detecting the failure: a detector that silently stops firing puts
-   the reader back in the trap with nothing on screen saying so.
+   the reader back in the trap with nothing on screen saying so. **On the hub
+   stage (`/featured/[slug]`) it lives in the hero's action row beside Play
+   trailer, never over the stage**: as stage chrome it sat bottom left, which
+   is where every rail pane puts its own Play / Read button, and the two
+   overlapped at every width. It names the video the stage is SHOWING (the
+   active rail pane's video, else the frame's) and is hidden for an article
+   pane and for the hub's own TRAILER. The trailer exception is the owner's
+   call ("the trailer is its own thing"); it is decided by content, not by
+   detecting a failure, so it does not break the rule above.
 12. **Pausing an embed belongs to `src/lib/embed-pause.ts` and nowhere else.**
    Mounted once from Layout, it pauses every playing embed on
    `document.hidden` and resumes only what it paused. Reported as duplicate
@@ -123,7 +163,20 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    by command, so the src lies about the sound) and touch the DOM on the
    message path (a playing embed posts several `infoDelivery` messages a
    second). HeroTrailer is sent standard commands from outside and is never
-   edited, per hard rule 2. `scripts/embed-pause.test.mjs` guards all of it.
+   edited, per hard rule 2. It also owns the two other ways a video plays on
+   behind the reader: a click on any `target="_blank"` link pauses what is
+   playing and marks it NOT to be resumed on return (the reader went to
+   watch it on YouTube; `leftForLink` survives a PLAYING report already in
+   flight), and a frame scrolled out of the viewport is paused, resuming on
+   the way back only if it is a BACKGROUND embed, never a video the reader
+   started. Background means `data-embed-ambient="1"` on the frame, set by
+   whoever starts it on the reader's behalf: FeaturedHighlights' muted preview
+   (on `onReady`) and a hub/event stage when it loads its trailer (cleared when
+   the reader picks a video). It used to mean `autoplay=1` in the src, which
+   hard rule 11 has removed from every live player (and the global QA sweep
+   fails the build if a shipped script contains it). Components may stop their own rotation timers on scroll,
+   never their players: FeaturedHighlights used to pause and play its own.
+   `scripts/embed-pause.test.mjs` guards all of it.
 
 ## Data flow
 
@@ -409,6 +462,36 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   the YouTube quota gate (search.list = 100 units). See `scripts/live-status.md`.
 
 ## Conventions
+
+- **The global QA sweep (`npm run test:dist`, `scripts/e2e-global-qa-sweep.test.mjs`)
+  runs over the BUILT site**, in CI straight after the build and again in
+  the e2e job. It exists because a fix to one component kept missing its
+  siblings, and a source test only sees the component in front of it. Ten
+  rules, every page: (1) at most one `fetchpriority="high"` image, and its
+  preload is the same request; (2) no unresized Sanity or Substack-S3
+  original; (3) a srcset's largest file covers its `sizes` at 2x, evaluated
+  per window width the way the browser does (blurred plates and committed
+  article renditions capped at their original are exempt); (4) no YouTube
+  frame or shipped script asks YouTube to start itself (`autoplay=1` or
+  `autoplay: 1`), and every YouTube frame allows fullscreen, and no
+  `src=""`; (5) exactly one `<h1>` (the print documents are exempt); (6)
+  nothing focusable inside `aria-hidden` content unless `inert` or
+  `tabindex="-1"` (closed modals and overlays carry `inert`, toggled with
+  `aria-hidden`); (7) every `<img>` has an `alt`; (8) every
+  `target="_blank"` link has `rel="noopener"`; (9) no em dash in visitor
+  copy (article bodies are the author's own writing and are exempt); (10)
+  every "Watch on YouTube" link starts with the YouTube mark
+  (`.yt-mark`, the footer's `SOCIAL_ICONS.YouTube`, styled once in
+  global-base.css). It
+  runs in about a second. **Two rules were deliberately NOT adopted**, see
+  the file's header: "aria-hidden + tabindex=-1 must also be inert" would
+  break the homepage rail's visible, clickable loop clones, and "no `sizes`
+  may top out near 635px" misreads `sizes` (CSS px, which the browser
+  multiplies by density itself). When it fails, fix the COMPONENT, then
+  look for its siblings: the failure lists every page a problem is on.
+  Always size a `customHeroLogo` (`.height(320)`), use
+  `getCardImageSources()` for external images, and measure `sizes` from the
+  box, never copy the card grid's.
 
 - `docs/` is **gitignored** — put operator docs in `scripts/*.md`.
 - Offline test suites live in `scripts/*.test.mjs`, run by plain `node`

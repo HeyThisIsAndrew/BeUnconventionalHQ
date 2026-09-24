@@ -95,11 +95,12 @@ test('maxresdefault offers all wsrv.nl proxy widths', () => {
       both, and it is the only rung added -- see the note on WSRV_WIDTHS for
       why the ladder stays coarse.
     */
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=400&output=webp&q=75&we', descriptor: '400w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=75&we', descriptor: '600w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=800&output=webp&q=75&we', descriptor: '800w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=900&output=webp&q=75&we', descriptor: '900w' },
-    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1200&output=webp&q=75&we', descriptor: '1200w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=400&output=webp&q=85&we', descriptor: '400w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=600&output=webp&q=85&we', descriptor: '600w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=800&output=webp&q=85&we', descriptor: '800w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=900&output=webp&q=85&we', descriptor: '900w' },
+    { url: 'https://wsrv.nl/?url=i.ytimg.com%2Fvi%2FzGA4XXAkE_s%2Fmaxresdefault.jpg&w=1200&output=webp&q=85&we', descriptor: '1200w' },
+    { url: 'https://i.ytimg.com/vi/zGA4XXAkE_s/maxresdefault.jpg', descriptor: '1280w' },
   ]);
 });
 
@@ -114,7 +115,11 @@ test('no rung asks the proxy for more pixels than maxresdefault has', () => {
   for (const { url, descriptor } of entries) {
     const w = Number(descriptor.replace('w', ''));
     assert.ok(w <= 1280, `${descriptor} upsamples a 1280px source: ${url}`);
-    assert.ok(url.includes(`&w=${w}&`), `descriptor ${descriptor} must match its own w= param: ${url}`);
+    if (url.includes('wsrv.nl')) {
+      assert.ok(url.includes(`&w=${w}&`), `descriptor ${descriptor} must match its own w= param: ${url}`);
+    } else {
+      assert.ok(url.includes('maxresdefault.jpg'), `direct fallback must be maxresdefault: ${url}`);
+    }
   }
 });
 
@@ -127,7 +132,11 @@ test('the video id is preserved verbatim', () => {
   // is url-encoded there and plain here.
   assert.ok(src.includes('/vi/a-B_c1D2e3F/'), src);
   for (const { url } of parseSrcset(srcset)) {
-    assert.ok(url.includes('%2Fvi%2Fa-B_c1D2e3F%2F'), url);
+    if (url.includes('wsrv.nl')) {
+      assert.ok(url.includes('%2Fvi%2Fa-B_c1D2e3F%2F'), url);
+    } else {
+      assert.ok(url.includes('/vi/a-B_c1D2e3F/'), url);
+    }
   }
 });
 
@@ -672,4 +681,27 @@ test('the card ladder is in px, so growing the root cannot desync the images', (
 
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);
+/*
+  A per-item logo override (`customHeroLogo`) is a Sanity asset, and `.url()`
+  on its own asks for the ORIGINAL: Ketchup Entertainment's is a 3364x1091
+  PNG, which /feed fetched at high priority beside its LCP image. The event
+  templates sized it; FeedSpotlightHero and ContentCard did not (the site-wide
+  audit, 2026-09). Every call site must size it.
+*/
+{
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+  const walk = (d) => fs.readdirSync(path.join(root, d), { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? walk(path.join(d, e.name)) : /\.(astro|ts)$/.test(e.name) ? [path.join(d, e.name)] : []);
+  const offenders = walk('src').filter((rel) =>
+    /urlFor\([^)]*customHeroLogo\)\.url\(\)/.test(fs.readFileSync(path.join(root, rel), 'utf8')));
+  if (offenders.length) {
+    console.error(`  ✗ customHeroLogo requested at full size in: ${offenders.join(', ')}`);
+    process.exit(1);
+  }
+  console.log('  ✓ every customHeroLogo is requested at a size, never the original');
+}
+
 process.exit(failed === 0 ? 0 : 1);
+

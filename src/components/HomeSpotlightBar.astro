@@ -47,7 +47,8 @@
 import { getImage } from 'astro:assets';
 import logoMark from '../assets/logo-mark.webp';
 import { getAllFeedItems } from '../lib/feed-items';
-import { cappedWidths } from '../lib/local-content';
+import { cappedWidths, getEventsLocal, buildImageSet } from '../lib/local-content';
+import { getEventStatus, formatEventDateRange } from '../lib/events';
 import { getCardImageSources } from '../lib/card-images';
 import { selectCollections } from '../lib/feed-rails';
 
@@ -93,12 +94,32 @@ interface Props {
   variant?: 'panel' | 'banner';
   /** Distinguishes the two instances for a screen reader. */
   label?: string;
+  /**
+   * Stories already on screen above this bar, as `video:<id>` or the link
+   * (the homepage's keys). The homepage mounts the banner straight under the
+   * hero, whose LATEST panel is the newest story, so the band opened on the
+   * same story one scroll later. Its first slide is the newest story NOT in
+   * this set, named "Also new" when it had to skip one.
+   */
+  exclude?: string[];
+  /**
+   * What the first slide promotes. 'latest' (the default) is the newest
+   * story; 'event' is the next event on the calendar, the one happening now
+   * if there is one, else the soonest upcoming, falling back to 'latest' when
+   * none is scheduled. The homepage uses 'event' (Andrew): the page already
+   * carries plenty of stories, and the band is the one place it always
+   * advertises what the HQ is covering next.
+   */
+  lead?: 'latest' | 'event';
 }
 
-const { variant = 'banner', label = 'Highlights' } = Astro.props;
+const { variant = 'banner', label = 'Highlights', exclude = [], lead = 'latest' } = Astro.props;
 
 const items = await getAllFeedItems();
-const [newest] = items;
+const shown = new Set(exclude);
+const keyOf = (i: any) => (i?.youtubeId ? `video:${i.youtubeId}` : String(i?.link ?? ''));
+const newest = items.find((i: any) => !shown.has(keyOf(i)));
+const skippedNewest = !!items[0] && newest !== items[0];
 
 /*
   The featured series, derived the same way the Feed derives it — the CMS's
@@ -206,15 +227,62 @@ const featuredAccent =
 
 const slides: Slide[] = [];
 
-if (newest) {
+/*
+  ─── THE NEXT EVENT ─────────────────────────────────────────────────────────
+  Through the site's own event helpers, so it agrees with /events: dates are
+  compared as YYYY-MM-DD strings in the reference timezone (hard rule 1),
+  cancelled and finished events are skipped, and a live one beats the soonest
+  upcoming. Decided at build time, like /events: a deploy refreshes it.
+*/
+const nextEvent = lead === 'event'
+  ? (() => {
+      const open = getEventsLocal()
+        .filter((e: any) => e?.startDate && e?.slug?.current)
+        .map((e: any) => ({ e, status: getEventStatus(e) }))
+        .filter(({ status }) => status === 'live' || status === 'upcoming')
+        .sort((a, b) =>
+          a.status === b.status
+            ? String(a.e.startDate).localeCompare(String(b.e.startDate))
+            : a.status === 'live' ? -1 : 1,
+        );
+      return open[0] ?? null;
+    })()
+  : null;
+
+if (nextEvent) {
+  const { e: event, status } = nextEvent;
+  const when = formatEventDateRange(event.startDate, event.endDate);
+  /* The whole key art, never cropped: the thumbnail treatment shows the
+     picture entire at the band's edge over a blurred fill, which matters
+     here because event art often sets the event's name across its width. */
+  const hero = buildImageSet(event.heroImage, { widths: [480, 800, 1200, 1600] });
+  slides.push({
+    key: 'event',
+    eyebrow: status === 'live' ? `Happening now · ${when}` : `Next event · ${when}`,
+    title: event.title,
+    href: `/events/${event.slug.current}`,
+    cta: 'Event details',
+    art: hero?.src ? { src: hero.src, srcset: hero.srcset || undefined } : null,
+    artFocus: 'thumbnail',
+    accent: null,
+    external: false,
+  });
+}
+
+if (newest && !nextEvent) {
   const { src, srcset } = getCardImageSources(newest.image);
   const link = typeof newest.link === 'string' ? newest.link : '';
   const isVideo = newest.type === 'video';
-  const destination = isVideo ? '/feed' : link;
+  /* A video goes to /feed?play=<id>: the feed promotes that video into its
+     own stage on arrival, cued one tap from playing (the /feed page's
+     promoteFromQuery). Plain /feed opened on whatever the feed was
+     featuring instead of the video this slide names. */
+  const videoId = typeof (newest as any).youtubeId === 'string' ? (newest as any).youtubeId : '';
+  const destination = isVideo ? (videoId ? `/feed?play=${encodeURIComponent(videoId)}` : '/feed') : link;
 
   slides.push({
     key: 'latest',
-    eyebrow: 'Latest',
+    eyebrow: skippedNewest ? 'Also new' : 'Latest',
     title: newest.title,
     href: destination,
     cta: isVideo ? 'Watch' : 'Read',
@@ -298,6 +366,14 @@ const rotates = slides.length > 1;
   attribute and falls back to 100vw, and that failure is silent.
 */
 const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 95vw';
+/* A banner slide shown in THUMBNAIL focus draws its art whole, beside the
+   copy: full width on a phone, a fixed 400px box from 768 up (measured at
+   768, 1440, 1920 and 2560). At '100vw' it asked for a 1600px file for that
+   400px box. The blurred fill behind it takes the SAME value, so the two
+   stay one download. */
+const THUMB_ART_SIZES = '(max-width: 767px) 100vw, 400px';
+const sizesFor = (slide: { artFocus?: string }) =>
+  variant === 'banner' && slide.artFocus === 'thumbnail' ? THUMB_ART_SIZES : artSizes;
 ---
 
 <section class:list={['spotlight', `spotlight--${variant}`]} aria-label={label} data-spotlight>
@@ -364,17 +440,35 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
           The cost is small and bounded: three images, the same three URLs in
           both instances of this bar, and every one of them is on screen within
           seven seconds of the page settling. A slide that arrives blank is the
-          worse trade.
+          worse trade. Eager is not URGENT, though: everything but the panel's
+          first slide is `fetchpriority="low"`, because on the homepage the
+          whole band sits below the fold and eager-at-auto made it compete
+          with the hero art (the LCP image) for bandwidth.
         */}
+        {/* The banner's thumbnail slides: a blurred fill behind the picture
+            (same file, one fetch). See `.spotlight-art--fill`. */}
+        {slide.art && variant === 'banner' && slide.artFocus === 'thumbnail' && (
+          <img
+            class="spotlight-art spotlight-art--fill"
+            src={slide.art.src}
+            srcset={slide.art.srcset || undefined}
+            sizes={sizesFor(slide)}
+            alt=""
+            aria-hidden="true"
+            loading="eager"
+            fetchpriority="low"
+            decoding="async"
+          />
+        )}
         {slide.art && (
           <img
             class="spotlight-art"
             src={slide.art.src}
             srcset={slide.art.srcset || undefined}
-            sizes={artSizes}
+            sizes={sizesFor(slide)}
             alt=""
             loading="eager"
-            fetchpriority={variant === 'panel' && index === 0 ? 'high' : 'auto'}
+            fetchpriority={variant === 'panel' && index === 0 ? 'high' : 'low'}
             decoding="async"
           />
         )}
@@ -409,7 +503,7 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
                 height={slide.logo.height}
                 alt={slide.title}
                 loading="eager"
-                fetchpriority={index === 0 && variant === 'panel' ? 'high' : 'auto'}
+                fetchpriority={index === 0 && variant === 'panel' ? 'high' : 'low'}
                 decoding="async"
               />
             ) : (
@@ -507,28 +601,13 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
   /* The banner is a break between two sections and needs air around it. The
      panel is positioned by the hero and must not add margins of its own. */
   .spotlight--banner {
-    margin-block: clamp(3rem, 6vh, 5rem);
+    margin-top: 0;
+    margin-bottom: var(--home-gap);
   }
 
-  /*
-    ─── THE BANNER NEEDS HEIGHT TO EARN ITS WIDTH ──────────────────────────
-
-    Full bleed against a height driven by one line of type is fine at 1512 and
-    absurd at 3840: the band became roughly 13:1 and `object-fit: cover` threw
-    away everything but a horizontal strip, which on the Coyote art was the
-    eyes and nothing else.
-
-    ON THE FRAME, NOT ON THE SECTION. The section is just a wrapper; the frame
-    is what has the height and what the art is sized against, so a min-height
-    on the section would have added empty page under the band and cropped the
-    picture exactly as hard.
-
-    12vw tracks the width that is causing the problem, and 450px stops it
-    before the band starts competing with the hero. Below about 1500px the
-    frame's own clamp is already taller, so nothing changes at laptop sizes.
-  */
   .spotlight--banner .spotlight-frame {
-    min-height: clamp(180px, 12vw, 450px);
+    height: 25vh;
+    min-height: 25vh;
   }
 
   .spotlight-frame {
@@ -801,6 +880,34 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
 
   [data-art-focus='keyart'] .spotlight-art {
     object-position: center 53%;
+  }
+
+  /*
+    ─── THE BANNER NEVER ZOOMS A THUMBNAIL ────────────────────────────────────
+    A YouTube thumbnail is 1280x720 at most. Covering a full-bleed band of
+    roughly 6:1 with it cropped away two thirds of its height and upscaled
+    the rest: at 1440px on a 2x screen the band needed 2880 pixels of width
+    from a 1280 file (measured, 0.44x), which is the soft "eyes only" strip.
+    So on the banner a thumbnail is shown WHOLE, at the band's height, against
+    its right edge, and a blurred copy of the same file fills the band behind
+    it (same src and srcset: one fetch painted twice). Key art is 2560px and
+    keeps the full bleed. The left edge of the sharp copy feathers into the
+    fill so there is no seam; mask, not filter, on the <img> (hard rule 6).
+  */
+  .spotlight--banner [data-art-focus='thumbnail'] .spotlight-art:not(.spotlight-art--fill) {
+    inset: 0 0 0 auto;
+    width: auto;
+    height: 100%;
+    aspect-ratio: 16 / 9;
+    max-width: 100%;
+    object-fit: cover;
+    object-position: center;
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 22%);
+    mask-image: linear-gradient(to right, transparent 0%, #000 22%);
+  }
+  .spotlight-art--fill {
+    filter: blur(28px) brightness(0.55) saturate(1.1);
+    transform: scale(1.15);
   }
 
   /*

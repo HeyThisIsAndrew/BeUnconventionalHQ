@@ -112,6 +112,14 @@ jobs:
       - name: Production build
         run: npm run build
 
+      # The global QA sweep: nine site-wide rules over every built page (one
+      # high-priority image, no unresized originals, srcset covers sizes, no
+      # self-starting or non-fullscreen YouTube frame, one h1, nothing
+      # focusable in hidden content, alt on every image, rel=noopener, no em
+      # dashes in copy). Seconds, no browser. scripts/e2e-global-qa-sweep.test.mjs
+      - name: Global QA sweep (built site)
+        run: npm run test:dist
+
       - name: Generate SEO Audit SARIF
         run: |
           npx astro-seo-audit@0.3.3 --dir dist/client --baseline .astro-seo-audit-baseline.json --fail-on none --format sarif --output seo-audit.sarif || true

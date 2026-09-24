@@ -133,7 +133,14 @@ const socialLinks = [
                   {/* Matches the article tiles directly below, which were
                       already lazy — these sit in the same grid, at the same
                       scroll depth, and were the only ones still eager. */}
-                  <img src={video.thumbnail} alt={video.title} loading="lazy" decoding="async" />
+                  <img
+                    src={getCardImageSources(video.thumbnail).src || video.thumbnail}
+                    srcset={getCardImageSources(video.thumbnail).srcset || undefined}
+                    sizes="(max-width: 899px) 92vw, 280px"
+                    alt={video.title}
+                    loading="lazy"
+                    decoding="async"
+                  />
                   <span class="links-bento-badge">VIDEO</span>
                 </div>
                 <div class="links-bento-content">
@@ -153,7 +160,7 @@ const socialLinks = [
                   <img
                     src={getCardImageSources(article.image).src || article.image}
                     srcset={getCardImageSources(article.image).srcset || undefined}
-                    sizes="(max-width: 900px) 45vw, 320px"
+                    sizes="(max-width: 899px) 92vw, 280px"
                     alt={article.title}
                     loading="lazy"
                     decoding="async"
@@ -219,6 +226,7 @@ const socialLinks = [
     id="qr-modal"
     class="qr-modal-overlay"
     aria-hidden="true"
+    inert
     role="dialog"
     aria-modal="true"
   >
@@ -261,6 +269,7 @@ const socialLinks = [
     const openModal = () => {
       modal.classList.add('is-active');
       modal.setAttribute('aria-hidden', 'false');
+      modal.removeAttribute('inert');
       lockScroll();
       // Focus close button for accessibility
       setTimeout(() => closeBtn.focus(), 100);
@@ -269,6 +278,7 @@ const socialLinks = [
     const closeModal = () => {
       modal.classList.remove('is-active');
       modal.setAttribute('aria-hidden', 'true');
+      modal.setAttribute('inert', '');
       unlockScroll();
       trigger.focus();
     };

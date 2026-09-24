@@ -90,3 +90,39 @@ const description = META.feed.description;
   <FeedSpotlightHero slot="hero" />
   <FeedGrid page={page} allItems={allItems} />
 </FeedLayout>
+
+<script>
+  /*
+    ─── `/feed?play=<youtubeId>`: ARRIVE WITH A VIDEO ON THE STAGE ─────────
+
+    The homepage links its videos here instead of opening the site-wide modal
+    (Andrew: "use the modal as little as possible"). On arrival this finds the
+    feed card for that video and clicks it, which runs FeedSpotlightHero's own
+    swap handler: the video is promoted into the /feed hero, exactly as if the
+    reader had picked it from a rail, and the page is at the top.
+
+    It deliberately does NOT press the stage's Play button as well. Starting
+    an embed nobody clicked is the signature YouTube's bot check walls (hard
+    rule 11), and a browser refuses sound to a page that has not been clicked
+    yet in any case. So the reader lands on the video, cued, one tap from
+    playing, which is the same one click every other video on the site takes.
+
+    The param is then dropped from the URL, so a reload or a shared link shows
+    the plain feed rather than re-promoting on every visit.
+  */
+  function promoteFromQuery() {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('play');
+    if (!id || !/^[A-Za-z0-9_-]{11}$/.test(id)) return;
+    const card = document.querySelector<HTMLElement>(
+      `[data-action="spotlight-video"][data-video-id="${CSS.escape(id)}"]`,
+    );
+    params.delete('play');
+    const query = params.toString();
+    /* `history.state`, never null: see stripHash() in Hero.astro. */
+    history.replaceState(history.state, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
+    card?.click();
+  }
+
+  document.addEventListener('astro:page-load', promoteFromQuery);
+</script>

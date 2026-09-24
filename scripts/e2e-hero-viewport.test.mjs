@@ -36,6 +36,24 @@
   the hero exactly fills the NEW viewport, and a burst of chrome-collapse
   events resizes the hero zero times.
 */
+/*
+  ─── THE HOMEPAGE HERO CHANGED (feat/homepage-v4) ─────────────────────────
+  The full-viewport `.hero` this suite measured is no longer mounted: the
+  homepage opens on the hero accordion, which is not viewport-tall. What it
+  inherits is the same contract in the one place it applies: from 768px up
+  its height is CAPPED by the measured viewport, `--vv-height`, not by a
+  guessed unit. So "the hero exactly fills the viewport" became "the hero's
+  cap is exactly the measured viewport, minus the navbar clearance and its
+  bottom breathing room", in every orientation, after a rotation, after a
+  client-side navigation, and never moved by a chrome collapse. The
+  --vv-height publishing contract itself is asserted unchanged.
+
+  UPDATED: desktop is now a fixed share of the viewport (75vh, so the
+  spotlight band fits under it), and it is PHONE LANDSCAPE, a short landscape
+  viewport, where the hero is sized from --vv-height: the open story plus
+  its stack of four fill the screen under the navbar exactly, `height:
+  calc(var(--vv-height) - var(--home-top) - 8px)`. That is what `cap` reads.
+*/
 import { launchTestBrowser } from './e2e-browser.mjs';
 import { startPreviewServer } from './e2e-server.mjs';
 import assert from 'node:assert/strict';
@@ -45,14 +63,18 @@ const LANDSCAPE = { width: 844, height: 390, hasTouch: true, isMobile: true };
 
 async function measure(page) {
   return page.evaluate(() => {
-    const hero = document.querySelector('.hero');
-    const r = hero.getBoundingClientRect();
+    const track = document.querySelector('.hero-acc-track');
+    const home = document.querySelector('.home-v4');
+    const vvRaw = document.documentElement.style.getPropertyValue('--vv-height');
+    const homeTop = parseFloat(getComputedStyle(home).getPropertyValue('--home-top'));
+    const cs = getComputedStyle(track);
     return {
       vh: window.innerHeight,
-      heroHeight: Math.round(r.height),
-      heroBottom: Math.round(r.bottom),
-      heroTop: Math.round(r.top),
-      vvHeight: document.documentElement.style.getPropertyValue('--vv-height'),
+      vvHeight: vvRaw,
+      /* What the cap SHOULD be if it reads the measured viewport. */
+      expectedCap: Math.round(parseFloat(vvRaw || String(window.innerHeight)) - homeTop - 8),
+      cap: Math.round(parseFloat(cs.height)),
+      trackHeight: Math.round(track.getBoundingClientRect().height),
     };
   });
 }
@@ -100,13 +122,8 @@ async function runTests() {
       await page.goto('http://localhost:4321/', { waitUntil: 'networkidle2' });
       await new Promise((r) => setTimeout(r, 900));
 
-      const before = await measure(page);
-      assert.equal(
-        before.heroBottom,
-        before.vh,
-        `On load in portrait the hero ends at ${before.heroBottom} but the ` +
-          `viewport is ${before.vh} tall.`
-      );
+      /* Portrait phones stack the accordion (no cap below 768px), so the
+         cap is asserted once the page has rotated into the desktop layout. */
 
       await page.setViewport(LANDSCAPE);
       await page.evaluate(() => window.dispatchEvent(new Event('orientationchange')));
@@ -127,15 +144,13 @@ async function runTests() {
       );
 
       assert.equal(
-        after.heroBottom,
-        after.vh,
-        `After rotating to landscape the hero ends at ${after.heroBottom} but ` +
-          `the viewport is ${after.vh} tall — ` +
-          `${after.heroBottom < after.vh
-            ? `a ${after.vh - after.heroBottom}px gap, so the next section shows underneath`
-            : `${after.heroBottom - after.vh}px of overflow, so the centred content is pushed down`}.`
+        after.cap,
+        after.expectedCap,
+        `After rotating to landscape the hero's cap is ${after.cap}px but the ` +
+          `measured viewport gives ${after.expectedCap}px. It is reading a ` +
+          `guessed or stale height, not --vv-height.`
       );
-      pass(`rotation portrait -> landscape: hero fills exactly (${after.heroHeight}px)`);
+      pass(`rotation portrait -> landscape: hero cap follows the measured viewport (${after.cap}px)`);
       await page.close();
     }
 
@@ -154,13 +169,12 @@ async function runTests() {
         await page.evaluate(() => window.dispatchEvent(new Event('orientationchange')));
         await new Promise((r) => setTimeout(r, 900));
         const m = await measure(page);
-        assert.equal(
-          m.heroBottom,
-          m.vh,
-          `Rotating to ${label}: hero ends at ${m.heroBottom}, viewport is ${m.vh}.`
-        );
+        assert.equal(m.vvHeight, `${m.vh}px`, `Rotating to ${label}: --vv-height is ${m.vvHeight}, viewport is ${m.vh}.`);
+        if (vp.width >= 768) {
+          assert.equal(m.cap, m.expectedCap, `Rotating to ${label}: cap ${m.cap}px, measured viewport gives ${m.expectedCap}px.`);
+        }
       }
-      pass('rotating back and forth keeps the hero exact in both orientations');
+      pass('rotating back and forth republishes the measured height, and the cap follows it');
       await page.close();
     }
 
@@ -220,10 +234,10 @@ async function runTests() {
         '--vv-height was wiped by navigating back to the homepage.'
       );
       assert.equal(
-        back.heroBottom,
-        back.vh,
-        `After navigating back home the hero ends at ${back.heroBottom} but the ` +
-          `viewport is ${back.vh} tall.`
+        back.cap,
+        back.expectedCap,
+        `After navigating back home the hero's cap is ${back.cap}px but the ` +
+          `measured viewport gives ${back.expectedCap}px.`
       );
       pass('--vv-height survives client-side navigation away and back');
       await page.close();
@@ -262,14 +276,18 @@ async function runTests() {
           get: () => real - 60,
         });
 
-        const hero = document.querySelector('.hero');
+        const hero = document.querySelector('.hero-acc-track');
         let resizes = 0;
-        let last = hero.getBoundingClientRect().height;
+        let last = getComputedStyle(hero).height;
         for (let i = 0; i < 25; i++) {
           vv.dispatchEvent(new Event('scroll'));
           vv.dispatchEvent(new Event('resize'));
+          /* iOS ALSO fires a window resize when its toolbar collapses (every
+             scroll, in landscape). Republishing on it was the reported
+             jitter: the hero stack jumped and nearly doubled mid-scroll. */
+          window.dispatchEvent(new Event('resize'));
           await new Promise((r) => requestAnimationFrame(r));
-          const h = hero.getBoundingClientRect().height;
+          const h = getComputedStyle(hero).height;
           if (h !== last) resizes++;
           last = h;
         }
@@ -290,7 +308,7 @@ async function runTests() {
         0,
         `The hero resized ${result.resizes} time(s) across 25 chrome-collapse ` +
           `events (visualViewport.height reporting 60px shorter). Resizing the ` +
-          `hero on those re-rasterizes the blurred .hero-bg — the exact jitter ` +
+          `hero on those is the exact jitter ` +
           `100dvh was rejected for, reintroduced by hand. --vv-height must be ` +
           `republished on rotation ONLY.`
       );

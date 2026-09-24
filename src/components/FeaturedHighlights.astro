@@ -3,65 +3,34 @@ import ContentCard from './ContentCard.astro';
 import { getVideosUnified } from '../lib/videos-source';
 import { getPublishedArticles, articleHref } from '../lib/articles';
 import { getCardImageSources } from '../lib/card-images';
+import { pickFeaturedHighlights } from '../lib/featured-highlights';
+
+interface Props {
+  /**
+   * A curated set to show instead of the automatic pick below, in the order
+   * given. The homepage's Featured section passes one story world (e.g.
+   * Lanterns) so it gets THIS player, rows and safeguards (the escape link,
+   * embed-pause) rather than a second implementation of them. Items are in
+   * the feed's record shape (getVideoItems / getArticleFeedItems).
+   */
+  items?: any[];
+  /** The lead card's image `sizes`, where this box is laid out wider than
+      on production's homepage (ContentCard `imageSizes`). */
+  heroImageSizes?: string;
+  /** False where the box sits below the fold: its lead image is then lazy
+      and normal priority, not the page's LCP candidate (ContentCard `lcp`). */
+  leadIsLcp?: boolean;
+}
+const { items: curated, heroImageSizes, leadIsLcp = true } = Astro.props;
 
 const allVideos = await getVideosUnified();
 const allArticles = getPublishedArticles();
 
-// Pick the first published article
-let article = allArticles.length > 0 ? allArticles[0] : null;
-if (article) {
-  // Override the Substack link with the local Intel page link
-  article = { ...article, link: articleHref(article) };
-}
+// The pick itself lives in src/lib/featured-highlights.ts, shared with the
+// homepage hero's category panels.
+const autoItems = pickFeaturedHighlights(allVideos, allArticles, articleHref);
+const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean) : autoItems;
 
-// 1. Manually featured videos take absolute priority
-const recentVideos = allVideos.filter(v => v.featured).slice(0, 2);
-const usedCategories = new Set<string>(recentVideos.map(v => v.category));
-
-// Then fill up to 2 with the most recent videos (preferably from distinct categories to ensure variety)
-for (const video of allVideos) {
-  if (recentVideos.length >= 2) break;
-  if (!recentVideos.some(v => v.youtubeId === video.youtubeId)) {
-    if (!usedCategories.has(video.category) || recentVideos.length === 0) {
-      recentVideos.push(video);
-      usedCategories.add(video.category);
-    }
-  }
-}
-
-// If we couldn't find distinct categories to fill to 2, just fill with the next most recent
-if (recentVideos.length < 2) {
-  for (const video of allVideos) {
-    if (recentVideos.length >= 2) break;
-    if (!recentVideos.some(v => v.youtubeId === video.youtubeId)) {
-      recentVideos.push(video);
-    }
-  }
-}
-
-// 2. Best performing video (highest viewCount) that isn't already selected, and ideally from a new category
-let bestPerforming = null;
-const availableForBest = allVideos.filter(v => !recentVideos.some(rv => rv.youtubeId === v.youtubeId));
-
-// Sort available videos by viewCount
-availableForBest.sort((a, b) => ((b as any).viewCount || 0) - ((a as any).viewCount || 0));
-
-// Try to find one from an unused category first
-bestPerforming = availableForBest.find(v => !usedCategories.has(v.category));
-
-// Fallback to highest views regardless of category
-if (!bestPerforming && availableForBest.length > 0) {
-  bestPerforming = availableForBest[0];
-}
-
-const selectedVideos = [...recentVideos, bestPerforming].filter(Boolean);
-
-// Mix them into a single highlighted list and sort by date descending
-const highlightedItems = [...selectedVideos, article].filter(Boolean).sort((a: any, b: any) => {
-  const dateA = new Date(a.publishedAt || a.isoDate || a.date).getTime();
-  const dateB = new Date(b.publishedAt || b.isoDate || b.date).getTime();
-  return dateB - dateA;
-});
 ---
 
 <div class="featured-highlights animate-on-scroll">
@@ -70,7 +39,7 @@ const highlightedItems = [...selectedVideos, article].filter(Boolean).sort((a: a
     <div class="fh-left">
       {highlightedItems.map((item, index) => (
         <div class={`fh-hero-card ${index === 0 ? 'active' : ''}`} data-index={index}>
-          <ContentCard item={item} index={index} variant="hero" />
+          <ContentCard item={item} index={index} variant="hero" imageSizes={heroImageSizes} lcp={leadIsLcp ? undefined : false} />
         </div>
       ))}
     </div>
@@ -671,8 +640,10 @@ const highlightedItems = [...selectedVideos, article].filter(Boolean).sort((a: a
                   width: '100%',
                   height: '100%',
                   videoId: videoId,
+                  /* No `autoplay: 1`: an embed that starts itself is what
+                     YouTube's bot check looks for (CLAUDE.md hard rule 11).
+                     onReady's playVideo below starts it, muted. */
                   playerVars: {
-                    autoplay: 1,
                     controls: 0,
                     mute: 1,
                     modestbranding: 1,
@@ -684,6 +655,10 @@ const highlightedItems = [...selectedVideos, article].filter(Boolean).sort((a: a
                   },
                   events: {
                     onReady: (e: any) => {
+                      /* A background preview: embed-pause resumes it when it
+                         scrolls back into view (hard rule 12). */
+                      const iframe = e.target.getIframe?.();
+                      if (iframe) iframe.dataset.embedAmbient = '1';
                       e.target.playVideo();
                     },
                     onStateChange: (e: any) => {
@@ -849,14 +824,15 @@ const highlightedItems = [...selectedVideos, article].filter(Boolean).sort((a: a
     const inlineVideoButtons = section.querySelectorAll('[data-action="inline-video"]');
     inlineVideoButtons.forEach(button => {
       button.addEventListener('click', (e) => {
-        // If the user clicked the secondary outbound link, let it navigate instead of playing inline
-        if ((e.target as Element).closest('a.watch-now-btn')) {
-          // Pause the video so it doesn't keep playing in the background tab
-          if (activePlayer && typeof activePlayer.pauseVideo === 'function') {
-            activePlayer.pauseVideo();
-          }
-          return;
-        }
+        /* (A branch here used to pause the player on a click on an
+           `a.watch-now-btn`. That element is a <span> in ContentCard, so the
+           branch could never run; and pausing on an outbound click belongs to
+           src/lib/embed-pause.ts, which does it for every target=_blank link.) */
+
+        /* The card's "Watch now" is a real link to YouTube (the player's way
+           out, hard rule 11; see isHeroPlayer in ContentCard): let it
+           navigate, and do not start the inline player behind it. */
+        if ((e.target as Element | null)?.closest?.('a[href]')) return;
 
         e.preventDefault();
         e.stopPropagation();
@@ -968,40 +944,22 @@ const highlightedItems = [...selectedVideos, article].filter(Boolean).sort((a: a
       window.addEventListener('resize', remeasureWhenSettled, { passive: true });
     }
 
-    // IntersectionObserver to pause video and autoplay when out of view
+    /*
+      Scrolled out of view: stop the CAROUSEL ROTATION; back in view: restart
+      it. The VIDEO is not touched here: pausing an embed belongs to
+      src/lib/embed-pause.ts and nowhere else (CLAUDE.md hard rule 12). That
+      module pauses this player when it leaves the viewport and, because this
+      shelf's player is a background preview (data-embed-ambient), resumes it on the way
+      back; the player's own onStateChange above then restores the inline UI.
+    */
     if ('IntersectionObserver' in window) {
       const observer = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
           if (!entry.isIntersecting) {
-            // Scrolled out of view: pause the video and stop autoplay
-            if (activePlayer && typeof activePlayer.pauseVideo === 'function') {
-              activePlayer.pauseVideo();
-            }
             if (!isPaused) {
                stopAutoPlay();
             }
           } else {
-            // Scrolled into view: resume video and autoplay
-            if (activePlayer && typeof activePlayer.playVideo === 'function') {
-              activePlayer.playVideo();
-              
-              // If the user was manually watching the video (isPaused is true), restore the UI instantly
-              if (isPaused) {
-                const row = rows[currentIndex];
-                const mediaContainer = row?.querySelector('.content-card-media');
-                if (mediaContainer) {
-                  mediaContainer.classList.add('is-playing-inline');
-                  const iframe = mediaContainer.querySelector('iframe');
-                  if (iframe) {
-                    iframe.style.pointerEvents = 'auto';
-                    iframe.style.transition = 'none';
-                    iframe.style.opacity = '1';
-                  }
-                  const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
-                  if (logo) logo.style.opacity = '0.8';
-                }
-              }
-            }
             if (!isPaused) {
               startAutoPlay();
             }

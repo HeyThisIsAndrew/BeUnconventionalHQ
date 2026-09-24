@@ -102,9 +102,18 @@ function youtubeSources(url: string): CardImageSources {
     to be the placeholder, the recovery drops the srcset and lands on the
     hqdefault that was in `src` the whole time.
   */
+  /* The top rung is the original maxresdefault, not a proxied re-encode of it
+     at the same width. Only one: a srcset with two candidates at the same
+     `w` is a parse error and the browser drops the second, so appending the
+     original after the proxy's 1280w rung made it dead weight. */
+  const top = YT_WIDTHS.maxresdefault;
+  const proxied = (genericExternalSources(url, top).srcset ?? '')
+    .split(', ')
+    .filter((c) => c && !c.endsWith(` ${top}w`))
+    .join(', ');
   return {
     src: url.replace(YT_RENDITION, '/hqdefault.jpg'),
-    srcset: genericExternalSources(url, YT_WIDTHS.maxresdefault).srcset,
+    srcset: proxied ? `${proxied}, ${url} ${top}w` : `${url} ${top}w`,
   };
 }
 
@@ -315,7 +324,7 @@ function substackSources(url: string): CardImageSources {
    on a real phone. A finer ladder trades a warm-cache saving for a cold-cache
    penalty, so the ladder stays coarse and only closes the gap that measurement
    actually showed. */
-const WSRV_WIDTHS = [400, 600, 800, 900, 1200, 1600, 2000];
+const WSRV_WIDTHS = [400, 600, 800, 900, 1200, 1600, 2000, 2400, 3840];
 
 /** The ladder a source can actually fill: every rung at or below its own width.
  *  Never empty — a source narrower than the smallest rung still gets that one,
@@ -323,6 +332,7 @@ const WSRV_WIDTHS = [400, 600, 800, 900, 1200, 1600, 2000];
 function widthsFor(capWidth?: number): number[] {
   if (!capWidth) return WSRV_WIDTHS;
   const fit = WSRV_WIDTHS.filter((w) => w <= capWidth);
+  if (capWidth && !fit.includes(capWidth)) fit.push(capWidth);
   return fit.length ? fit : [WSRV_WIDTHS[0]];
 }
 const WSRV_SRC_WIDTH = 600;
@@ -365,7 +375,7 @@ function genericExternalSources(url: string, capWidth?: number): CardImageSource
     them if a cap is ever missed.
   */
   const withWidth = (w: number) =>
-    `https://wsrv.nl/?url=${encodeURIComponent(urlWithoutProto)}&w=${w}&output=webp&q=75&we`;
+    `https://wsrv.nl/?url=${encodeURIComponent(urlWithoutProto)}&w=${w}&output=webp&q=85&we`;
 
   return {
     src: withWidth(WSRV_SRC_WIDTH),

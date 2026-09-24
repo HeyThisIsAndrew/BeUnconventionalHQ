@@ -12,6 +12,8 @@ import InstagramFeed from '../../components/InstagramFeed.astro';
 import { getHubTopicKeywords } from '../../lib/instagram-topic';
 import { parseVideoId } from '../../lib/platforms/youtube';
 import { collectHubCoverage } from '../../lib/hub-coverage';
+import { getCardImageSources } from '../../lib/card-images';
+import { SOCIAL_ICONS } from '../../data/icons.js';
 
 export async function getStaticPaths() {
   // `defined(slug.current)` filtering happens in getFeaturedBrandsLocal, so a
@@ -185,6 +187,24 @@ function pickHeroItems(items: any[]): any[] {
   return items.slice(0, HERO_ITEM_LIMIT);
 }
 const heroItems = pickHeroItems(unifiedContent);
+
+/*
+  ─── THE RAIL AND ITS PANES GET RENDITIONS, NEVER ORIGINALS ────────────────
+
+  Both used `item.image ?? item.thumbnail` straight, so a Substack cover went
+  out as the raw S3 upload: 3840x2160 for a ~106px rail thumbnail on the Marvel
+  and Sony hubs (the site-wide audit, 2026-09). Every other card on these
+  pages already goes through getCardImageSources(); this is the same helper,
+  once per item, shared by the pane and the rail so they request the same
+  files. The global QA sweep (scripts/e2e-global-qa-sweep.test.mjs) fails CI on a raw original.
+
+  STAGE_PANE_SIZES: the pane fills the stage (full width on phones, 760px at
+  most beside the copy). RAIL_THUMB_SIZES: a thumbnail is ~106px, and 160px
+  leaves room for the widest rail layout.
+*/
+const heroItemArt = heroItems.map((item: any) => getCardImageSources(item.image ?? item.thumbnail ?? ''));
+const STAGE_PANE_SIZES = '(max-width: 1023px) 100vw, 760px';
+const RAIL_THUMB_SIZES = '160px';
 
 /*
   The stage's frame has to exist if ANYTHING can play in it, not just when the
@@ -434,6 +454,40 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
                 </button>
               )}
 
+              {hasPlayableVideo && (
+                /*
+                  ─── THE WAY OUT OF THE STAGE, BESIDE PLAY TRAILER ──────────
+
+                  The escape hatch the /feed hero and the card lightbox carry:
+                  youtube-nocookie.com withholds the viewer's YouTube session,
+                  so a video the player refuses to embed can only be rescued by
+                  a link to the real watch page.
+
+                  It used to sit INSIDE the stage, bottom left, and that is the
+                  corner where every rail pane puts its own Play / Read button,
+                  so on phones and desktop alike the two overlapped (Andrew,
+                  from an iPhone). Out here, in the row with Play trailer, it
+                  cannot overlap anything the stage shows.
+
+                  It names the video the STAGE IS SHOWING, which
+                  src/lib/stage-watch-link.ts works out and keeps current: the
+                  rail pane's video while a pane is up, the frame's video while
+                  one plays. It is hidden for the hub's TRAILER (the owner's
+                  call: the trailer is its own thing, and Play trailer is its
+                  control) and for an article pane, which has no video.
+                */
+                <a
+                  class="hero-action-btn hub-stage-watch"
+                  href="https://www.youtube.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  hidden
+                >
+                  <span class="yt-mark" aria-hidden="true" set:html={SOCIAL_ICONS.YouTube} />
+                  <span>Watch on YouTube</span>
+                </a>
+              )}
+
               {associatedUpcomingEvents.length > 0 && (
                 /*
                   ─── THE HERO JUMP LINK ─────────────────────────────────────
@@ -551,12 +605,13 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
                 <iframe
                   class="hub-stage-iframe"
                   src="about:blank"
-                  data-src={`https://www.youtube-nocookie.com/embed/${trailerId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&disablekb=1&iv_load_policy=3&cc_load_policy=0&controls=0&enablejsapi=1`}
+                  data-src={`https://www.youtube-nocookie.com/embed/${trailerId}?mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&disablekb=1&iv_load_policy=3&cc_load_policy=0&controls=0&enablejsapi=1`}
                   title=""
                   aria-hidden="true"
                   tabindex="-1"
                   loading="lazy"
-                  allow="autoplay; encrypted-media"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                  allowfullscreen
                 ></iframe>
               </div>
             )}
@@ -589,36 +644,6 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
                 <span class="hub-stage-sound-label">Sound</span>
               </button>
             )}
-
-            {/*
-              ─── THE WAY OUT OF THIS STAGE ──────────────────────────────────
-
-              The same escape hatch the /feed hero and the card lightbox carry.
-              youtube-nocookie.com deliberately withholds the viewer's YouTube
-              session, so a video the player refuses to embed cannot be
-              rescued by a parameter: the only fix is a link to the real watch
-              page. A reader hit a sign-in wall in one of this site's stages
-              with nothing on screen offering a way past it, and these three
-              were missed when that was first addressed.
-
-              Hidden until something is actually playing, because before that
-              there is no video for it to point at. src/lib/stage-watch-link.ts
-              sets the href off the `hub:sourcechange` event this stage already
-              dispatches, reading the id back off the frame; its rule is in
-              styles/modules/stage-watch.css, global rather than scoped,
-              because these three stages are triplets and a third copy of
-              anything is how they drift.
-
-              A SIBLING of the video, never a child: hard rule 3 means nothing
-              may wrap the iframe in a clipping box.
-            */}
-            <a
-              class="hub-stage-watch"
-              href="https://www.youtube.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              hidden
-            >Watch on YouTube</a>
 
             {/*
               ONE PANE PER FEATURED ITEM, hidden until its rail card is picked.
@@ -661,7 +686,7 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
               */
               return (
                 <div class="hub-stage-item" data-index={i} aria-hidden="true" inert>
-                  {still && <img src={still} alt="" class="hub-stage-item-still" loading="lazy" />}
+                  {still && <img src={heroItemArt[i].src || still} srcset={heroItemArt[i].srcset || undefined} sizes={heroItemArt[i].srcset ? STAGE_PANE_SIZES : undefined} alt="" class="hub-stage-item-still" loading="lazy" />}
                   <span class="hub-stage-item-scrim"></span>
                   <div class="hub-stage-item-copy">
                     <span class="hub-stage-item-kind">{isVideo ? 'Video' : 'Article'}</span>
@@ -760,7 +785,7 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
                     aria-pressed="false"
                   >
                     {(item.image ?? item.thumbnail) ? (
-                      <img src={item.image ?? item.thumbnail} alt="" class="hub-rail-thumb" loading="lazy" />
+                      <img src={heroItemArt[i].src || (item.image ?? item.thumbnail)} srcset={heroItemArt[i].srcset || undefined} sizes={heroItemArt[i].srcset ? RAIL_THUMB_SIZES : undefined} alt="" class="hub-rail-thumb" loading="lazy" />
                     ) : (
                       <span class="hub-rail-thumb hub-rail-thumb--empty"></span>
                     )}
@@ -1420,6 +1445,12 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
     is-playing anyway).
   */
   .hero-grid-container:has(.hub-stage.is-playing) .hub-stage-replay {
+    display: none;
+  }
+
+  /* `display: inline-flex` above would otherwise beat the UA's [hidden]
+     rule, and the Watch link is hidden whenever the stage shows no video. */
+  .hero-action-btn[hidden] {
     display: none;
   }
 
@@ -2123,6 +2154,39 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
 </style>
 
 <script>
+  import { playWhenReady } from '../../lib/youtube-start';
+
+  /*
+    ─── NOTHING ON THIS STAGE STARTS ITSELF ──────────────────────────────────
+
+    Every video here, the ambient trailer included, used to carry
+    `autoplay=1` in its src, and a reader-started one `autoplay=1&mute=0`.
+    An embed that starts itself is what YouTube's bot check looks for, and it
+    is what walled a reader behind a sign-in prompt (CLAUDE.md hard rule 11).
+    The /feed and homepage heroes stopped doing it; these three stages were
+    the known remaining exposure. Now the src never asks, and playWhenReady()
+    (src/lib/youtube-start.ts) sends the jsapi `playVideo` once the player
+    says it is ready, and retries until it is PLAYING.
+
+    One start in flight per stage: a new source cancels the last one's
+    retries, and unloading the frame cancels them too.
+
+    HUB_START_GRACE_MS is how long a start is given before "it did not play"
+    is believed (sound refused, so fall back to muted). Longer than the old
+    1.5s, because the start now waits for the player's onReady instead of
+    beginning the moment the frame loads.
+  */
+  const HUB_START_GRACE_MS = 3000;
+  let cancelStageStart: (() => void) | null = null;
+  const stopStageStart = () => {
+    cancelStageStart?.();
+    cancelStageStart = null;
+  };
+  const startStage = (frame: HTMLIFrameElement) => {
+    stopStageStart();
+    cancelStageStart = playWhenReady(frame);
+  };
+
   /* ══════════════════════════════════════════════════════════════════════
      THE MARK DISSOLVES TO THE TRAILER — AND ONLY IF IT REALLY PLAYS.
 
@@ -2181,6 +2245,7 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
       window.removeEventListener('message', onMessage);
       stage.classList.remove('is-playing');
       /* HARD RULE 4: 'about:blank', never ''. */
+      stopStageStart();
       if (frame.src !== 'about:blank') frame.src = 'about:blank';
       /*
         THE STAGE IS EMPTY NOW — SAY SO.
@@ -2264,7 +2329,11 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
           finalSrc = finalSrc.replace('mute=1', 'mute=0');
         }
         
+        /* The trailer is started on the reader's behalf, so embed-pause
+           resumes it on scroll-back (a reader's own pick is not). */
+        frame.dataset.embedAmbient = '1';
         frame.src = finalSrc;
+        startStage(frame);
         stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: !tryWithSound } }));
         
         window.addEventListener('message', onMessage);
@@ -2280,9 +2349,10 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
               try { sessionStorage.setItem('hub-sound-blocked', '1'); } catch {}
               let mutedSrc = `${src}&origin=${encodeURIComponent(window.location.origin)}`;
               frame.src = mutedSrc;
+              startStage(frame);
               stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: true } }));
             }
-          }, 1500));
+          }, HUB_START_GRACE_MS));
         }
 
         /* Never started: blocked autoplay, blocked domain, embedding disabled.
@@ -2368,6 +2438,7 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
 
       /* Unload the trailer rather than hiding it. HARD RULE 4: about:blank. */
       const frame = stage.querySelector<HTMLIFrameElement>('.hub-stage-iframe');
+      stopStageStart();
       if (frame && frame.src !== 'about:blank') frame.src = 'about:blank';
       stage.classList.remove('is-playing');
       stage.classList.remove('is-chosen-video');
@@ -2601,7 +2672,7 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
 
     const embedUrl = (id: string, muted: boolean) =>
       `https://www.youtube-nocookie.com/embed/${id}` +
-      `?autoplay=1&mute=${muted ? '1' : '0'}&enablejsapi=1&rel=0&modestbranding=1&playsinline=1` +
+      `?mute=${muted ? '1' : '0'}&enablejsapi=1&rel=0&modestbranding=1&playsinline=1` +
       /* `origin` is required for the jsapi handshake and is only knowable at
          runtime. Without it the player never answers, and "did it start?"
          below could never be answered either. */
@@ -2718,15 +2789,18 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
 
         const withSound = !soundBlocked();
         
+        delete frame.dataset.embedAmbient;
         frame.src = embedUrl(id, !withSound);
+        startStage(frame);
         stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: !withSound } }));
         if (!withSound) return;
 
-        if (await didStart(frame, HUB_SOUND_GRACE_MS)) return;
+        if (await didStart(frame, HUB_START_GRACE_MS)) return;
         if (token !== playToken) return; // superseded while we waited
 
         rememberSoundBlocked();
         frame.src = embedUrl(id, true);
+        startStage(frame);
         stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: true } }));
       });
     });

@@ -9,15 +9,20 @@
   top: 0;
   left: 0;
   z-index: 100;
-  background: rgba(10, 10, 10, 0.92);
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  transition: background 0.3s ease, border-color 0.3s ease;
-}
-
-[data-home="true"] #navbar:not(.scrolled) {
-  background: transparent;
-  border-bottom: 1px solid rgba(255, 255, 255, 0);
+  /*
+    The LAYERED bar is the bar, on every page and at every scroll position:
+    the divider and the drop shadow that seat it over the site used to arrive
+    only with `.scrolled`, so every page opened on a flatter bar that
+    "changed" as the wordmark slid in (Andrew). `.scrolled` now means one
+    thing only: the BE UNCONVENTIONAL HQ wordmark is showing
+    (nav-identity.css). The homepage's transparent-at-top override went with
+    the splash curtain it served.
+  */
+  background: rgba(10, 10, 10, 0.85);
+  backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
+  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 .nav-inner {
   display: flex !important;
@@ -48,18 +53,6 @@
 }
 
 #navbar:hover {
-  background: rgba(20, 20, 20, 0.75);
-  box-shadow: 0 4px 40px rgba(204, 0, 0, 0.08);
-}
-
-#navbar.scrolled {
-  background: rgba(10, 10, 10, 0.85);
-  backdrop-filter: blur(24px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
-}
-
-#navbar.scrolled:hover {
   background: rgba(25, 25, 25, 0.95);
   box-shadow: 0 4px 40px rgba(204, 0, 0, 0.12);
 }
@@ -82,9 +75,11 @@
 }
 
 .nav-logo img {
-  height: clamp(36px, 2.5vw + 27px, 45px); /* fluid: 36px small phones -> 45px from ~720px */
+  /* The cropped wordmark is ~2.2:1, so this is ~105px x 48px on desktop and
+     ~84px x 38px on a small phone: the words are legible at both. */
+  height: clamp(38px, 2vw + 30px, 48px);
   width: auto;
-  max-width: 200px;
+  max-width: 240px;
   flex-shrink: 0 !important;
   object-fit: contain;
   display: block;

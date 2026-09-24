@@ -209,6 +209,19 @@ export function selectCollections(items: any[]): Array<{ name: string; reason: s
 }
 
 /** The collection's accent, read from ANY member so it outlives one document. */
+/**
+ * A collection's row id on /feed, and so its anchor: `/feed#<seriesSlug>`
+ * scrolls to that shelf (FeedGrid's scrollToHashRow). Shared with the
+ * homepage's Featured section, which links there, so the two cannot drift.
+ */
+export function seriesSlug(name: string): string {
+  return String(name)
+    .toLowerCase()
+    .replace(/[\u2018\u2019']/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 export function accentFor(members: any[]): string | null {
   const hex = members
     .map((i: any) => (typeof i?.seriesAccent === 'string' ? i.seriesAccent.trim() : ''))

@@ -33,6 +33,7 @@ import { getCardImageSources } from '../lib/card-images.js';
   to its real content box, so the box size IS the mark size.
 */
 import logoImage from '../assets/logo-mark.webp';
+import { INTEL_FEATURE_SIZES } from '../lib/intel-sizes';
 
 interface Props {
   /** Cover image URL. Empty/missing triggers the branded fallback. */
@@ -48,9 +49,14 @@ interface Props {
    * article), so alt is empty and screen readers skip it.
    */
   decorative?: boolean;
+  /**
+   * A rail thumb inside the homepage's compact spread, which is narrower than
+   * /intel's at most widths (measured below), so it takes its own `sizes`.
+   */
+  compact?: boolean;
 }
 
-const { image, title, size = 'rail', id, decorative = false } = Astro.props;
+const { image, title, size = 'rail', id, decorative = false, compact = false } = Astro.props;
 
 const isFeature = size === 'feature';
 /*
@@ -99,15 +105,24 @@ const sources = getCardImageSources(image);
   `sizes` takes the FIRST matching condition, so a narrow query placed after a
   wide one never runs.
 */
-const FEATURE_SIZES =
-  '(max-width: 900px) 92vw, ' +
-  '(min-width: 3400px) 1180px, (min-width: 2560px) 1050px, (min-width: 1920px) 970px, 720px';
+const FEATURE_SIZES = INTEL_FEATURE_SIZES;
 
 const THUMB_SIZES =
   '(max-width: 560px) 75vw, (max-width: 900px) 45vw, ' +
   '(min-width: 3400px) 640px, (min-width: 2560px) 530px, (min-width: 1920px) 410px, 320px';
 
-const SIZES = isFeature ? FEATURE_SIZES : THUMB_SIZES;
+/*
+  The homepage's compact spread (IntelMagazine `compact`), measured the same
+  way: 390 -> 155px, 700 -> 298, 1024 -> 433, 1440 -> 284, 1920 -> 395,
+  2560 -> 533, 3840 -> 647. THUMB_SIZES claimed 75vw on a phone, so a 155px
+  box fetched a rendition for 293px (x DPR), all eight of them, while the
+  page's LCP image was still loading.
+*/
+const COMPACT_THUMB_SIZES =
+  '(max-width: 560px) 42vw, (max-width: 1100px) 45vw, ' +
+  '(min-width: 3400px) 650px, (min-width: 2560px) 540px, (min-width: 1920px) 400px, 300px';
+
+const SIZES = isFeature ? FEATURE_SIZES : compact ? COMPACT_THUMB_SIZES : THUMB_SIZES;
 
 ---
 

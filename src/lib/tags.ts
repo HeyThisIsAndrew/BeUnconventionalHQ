@@ -92,6 +92,10 @@ const BRAND_PATTERNS: Array<{ label: string; regex: RegExp }> = [
   { label: 'DISNEY', regex: /DISNEY/ },
   { label: 'SONY PICTURES', regex: /SONYPICTURES/ },
   { label: 'PLAYSTATION', regex: /\bSONY\b|PLAYSTATION|PS5|PS4/ },
+  /* Ahead of WARNER BROS, and never folded into it: Ketchup Entertainment is
+     its own distributor. Coyote vs. Acme is tagged both, because its review
+     is about Warner writing the film off, and it is Ketchup's film. */
+  { label: 'KETCHUP ENTERTAINMENT', regex: /KETCHUPENTERTAINMENT/ },
   { label: 'WARNER BROS', regex: /WARNER|WB/ },
   { label: 'HBO', regex: /HBO|^MAX$|HBOMAX/ },
   { label: 'UNIVERSAL PICTURES', regex: /UNIVERSAL/ },

@@ -48,10 +48,12 @@ import { Image } from 'astro:assets';
 import logoImage from '../assets/logo-mark.webp';
 import { LABELS } from '../data/content.js';
 import { articlePreview } from '../lib/articles';
+import { clipPreview } from '../lib/homepage-feed';
 import { getDisplayTags } from '../lib/tags';
 
 import { getCardImageSources } from '../lib/card-images.js';
 import type { ArticleRecord } from '../lib/articles';
+import { INTEL_FEATURE_SIZES } from '../lib/intel-sizes';
 
 
 type MagazineArticle = ArticleRecord & { link: string; isExternal: boolean };
@@ -59,9 +61,27 @@ type MagazineArticle = ArticleRecord & { link: string; isExternal: boolean };
 interface Props {
   /** Newest first. The first article becomes the opening centre feature. */
   articles: MagazineArticle[];
+  /**
+   * The homepage's miniature of this spread. Below the fold there, so the
+   * feature image must not load eagerly at high priority (it would compete
+   * with the hero, the homepage's real LCP), and it sits under the section's
+   * own <h2>, so its title is an <h3>. Size is `.intel-magazine--compact`
+   * in src/styles/modules/home.css.
+   */
+  compact?: boolean;
 }
 
-const { articles } = Astro.props;
+const { articles, compact = false } = Astro.props;
+const FeatureHeading = compact ? 'h3' : 'h2';
+/*
+  In the compact spread every article's lede is cut to the SAME character
+  count, so the centre is the same height whichever article is in it and the
+  section never grows on a swap (Andrew's rule). The swap script reads the
+  budget from `data-excerpt-chars` and cuts with the same clipPreview().
+*/
+const COMPACT_EXCERPT_CHARS = 170;
+const ledeOf = (a: MagazineArticle) =>
+  compact ? [clipPreview(articlePreview(a), COMPACT_EXCERPT_CHARS)] : articlePreview(a);
 
 /*
   The newest article opens the spread in the centre.
@@ -109,9 +129,7 @@ const featureSources = feature?.image ? getCardImageSources(feature.image) : nul
   `--page-max` in modules/layout.css together with the `.intel-magazine`
   proportions in modules/intel.css. All three change at the same breakpoints.
 */
-const FEATURE_SIZES =
-  '(max-width: 900px) 92vw, ' +
-  '(min-width: 3400px) 1180px, (min-width: 2560px) 1050px, (min-width: 1920px) 970px, 720px';
+const FEATURE_SIZES = INTEL_FEATURE_SIZES;
 
 /*
   EVERY article in the spread gets a rail tile — including the one currently
@@ -162,8 +180,12 @@ const activeSlug = feature?.slug ?? '';
 {
   /* No articles at all → render nothing. The page shows an <EmptyState />. */
   feature && (
-    <section class="intel-magazine" aria-label="Featured articles">
-      <MagazineRail side="left" articles={leftRail} activeSlug={activeSlug} />
+    <section
+      class:list={['intel-magazine', { 'intel-magazine--compact': compact }]}
+      aria-label="Featured articles"
+      data-excerpt-chars={compact ? COMPACT_EXCERPT_CHARS : undefined}
+    >
+      <MagazineRail side="left" articles={leftRail} activeSlug={activeSlug} compact={compact} />
 
       {/*
         The swappable centre.
@@ -195,8 +217,8 @@ const activeSlug = feature?.slug ?? '';
               alt={feature.image ? `Cover image for ${feature.title}` : ''}
               width="1456"
               height="816"
-              loading="eager"
-              fetchpriority="high"
+              loading={compact ? 'lazy' : 'eager'}
+              fetchpriority={compact ? 'auto' : 'high'}
               hidden={!feature.image}
             />
             <div
@@ -231,7 +253,7 @@ const activeSlug = feature?.slug ?? '';
             </span>
 
             {/* h2: the page <h1> is the "THE INTEL" title in the header. */}
-            <h2 class="intel-feature-title" id="intel-feature-title">{feature.title}</h2>
+            <FeatureHeading class="intel-feature-title" id="intel-feature-title">{feature.title}</FeatureHeading>
 
             {/*
               THE LEDE — several real paragraphs, not a one-line teaser.
@@ -247,7 +269,7 @@ const activeSlug = feature?.slug ?? '';
               legally contain other paragraphs.
             */}
             <div class="intel-feature-excerpt" id="intel-feature-excerpt">
-              {articlePreview(feature).map((paragraph) => <p>{paragraph}</p>)}
+              {ledeOf(feature).map((paragraph) => <p>{paragraph}</p>)}
             </div>
 
             {/* "Read More" rather than "Read Now": the excerpt above is a
@@ -260,12 +282,14 @@ const activeSlug = feature?.slug ?? '';
         </a>
       </article>
 
-      <MagazineRail side="right" articles={rightRail} activeSlug={activeSlug} />
+      <MagazineRail side="right" articles={rightRail} activeSlug={activeSlug} compact={compact} />
     </section>
   )
 }
 
 <script>
+  import { clipPreview } from '../lib/homepage-feed';
+
   /*
     Magazine centre-swap.
 
@@ -336,11 +360,15 @@ const activeSlug = feature?.slug ?? '';
         an RSS feed originally, it can never execute as markup here.
       */
       if (excerpt) {
+        const paragraphs = (data.preview ?? '')
+          .split('\n\n')
+          .map((text) => text.trim())
+          .filter(Boolean);
+        /* The compact (homepage) spread cuts every lede to one budget. */
+        const budget = Number(feature!.closest<HTMLElement>('.intel-magazine')?.dataset.excerptChars);
+        const lede = budget > 0 ? [clipPreview(paragraphs, budget)] : paragraphs;
         excerpt.replaceChildren(
-          ...(data.preview ?? '')
-            .split('\n\n')
-            .map((text) => text.trim())
-            .filter(Boolean)
+          ...lede
             .map((text) => {
               const p = document.createElement('p');
               p.textContent = text;
@@ -485,7 +513,15 @@ const activeSlug = feature?.slug ?? '';
           already accounted for by the global `scroll-padding-top`, so the
           headline lands just below the chrome rather than under it.
         */
-        feature!.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        /*
+          A host can name a larger block to bring into view instead, with
+          `data-magazine-scroll-anchor`: the homepage's mini spread sits
+          under its own "INTEL" heading, and scrolling to the feature put
+          that heading under the navbar (Andrew: the label must stay
+          visible). /intel sets nothing, so it behaves exactly as above.
+        */
+        const anchor = feature!.closest<HTMLElement>('[data-magazine-scroll-anchor]') ?? feature!;
+        anchor.scrollIntoView({ block: 'start', behavior: 'smooth' });
       });
     });
 

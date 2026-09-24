@@ -730,6 +730,9 @@ test('a URL with no manifest entry keeps its SOURCE untouched', () => {
     assert.ok(!/srcset=/.test(out), `no srcset without a rendition: ${html}`);
     assert.match(out, /loading="lazy"/);
     assert.match(out, /decoding="async"/);
+    /* Every image carries an alt (axe image-alt); an author's own is kept. */
+    assert.match(out, /\salt="/, `an image left with no alt: ${html}`);
+    if (/alt="x"/.test(html)) assert.match(out, /alt="x"/, 'an existing alt must never be replaced');
   }
 
   // No `src` at all means there is nothing to do, so it stays byte-identical.

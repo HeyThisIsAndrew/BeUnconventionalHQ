@@ -73,6 +73,13 @@ const PLAYERS = [
     watchId: 'hero-watch-on-youtube',
     noteId: 'hero-embed-note',
   },
+  {
+    label: 'the homepage hero accordion (.acc-video-iframe, HeroAccordion.astro)',
+    file: 'src/components/home/HeroAccordion.astro',
+    frameId: 'acc-video-iframe',
+    watchId: 'hero-acc-watch-on-youtube',
+    noteId: 'data-embed-note',
+  },
 ];
 
 console.log('Every YouTube player has a way out:');
@@ -135,16 +142,22 @@ for (const player of PLAYERS) {
   });
 
   test(`${player.label} sends the listening handshake`, () => {
+    /* Inline, or through the shared starter (src/lib/youtube-start.ts),
+       which is checked for the same two things below. */
+    const H = /playWhenReady\(/.test(SRC) ? code(read('src/lib/youtube-start.ts')) : SRC;
     assert.match(
-      SRC,
+      H,
       /event:\s*'listening'/,
       "without the handshake the player never posts events and onError never arrives",
     );
     assert.match(
-      SRC,
-      /postMessage\([\s\S]{0,200}?'https:\/\/www\.youtube-nocookie\.com'/,
+      H,
+      /postMessage\([\s\S]{0,200}?(PLAYER_ORIGIN|'https:\/\/www\.youtube-nocookie\.com')/,
       'the handshake must be targeted at the player origin, never "*"',
     );
+    if (H !== SRC) {
+      assert.match(H, /const PLAYER_ORIGIN = 'https:\/\/www\.youtube-nocookie\.com'/);
+    }
   });
 
   test(`${player.label} still embeds through youtube-nocookie.com`, () => {
@@ -197,16 +210,40 @@ console.log('\nThe event and hub stages have a way out too:');
 
 const STAGE_FILES = [
   'src/pages/featured/[slug].astro',
-  'src/components/EventFeatured.astro',
-  'src/components/EventAnnouncement.astro',
 ];
+
+/*
+  EXCEPT THE EVENT STAGES, BY THE OWNER'S DECISION. An event page is the HQ's
+  hub for somebody else's event, and a link out to that event's YouTube
+  channel works against it (Andrew). The trade is known: a refused embed on
+  an event stage has no door. Pinned so the link is not "restored" as a fix.
+*/
+for (const rel of ['src/components/EventFeatured.astro', 'src/components/EventAnnouncement.astro']) {
+  test(`${rel} deliberately carries no stage escape link`, () => {
+    assert.ok(!/class="hub-stage-watch"/.test(code(read(rel))), 'the owner removed this link from event heroes');
+  });
+}
 
 for (const rel of STAGE_FILES) {
   test(`${rel} renders the stage escape link`, () => {
     const SRC = read(rel);
-    assert.match(SRC, /class="hub-stage-watch"/, 'this stage has no way out of a refused embed');
+    assert.match(SRC, /class="[^"]*\bhub-stage-watch\b[^"]*"/, 'this stage has no way out of a refused embed');
     assert.match(SRC, /Watch on YouTube/);
     assert.match(SRC, /rel="noopener noreferrer"/);
+  });
+
+  /*
+    It sat inside the stage, bottom left, where every rail pane puts its own
+    Play / Read button, and the two overlapped on phones and desktop (Andrew,
+    from an iPhone). It belongs in the action row beside Play trailer.
+  */
+  test(`${rel} puts the escape link in the action row, not over the stage`, () => {
+    const SRC = code(read(rel));
+    const row = SRC.slice(SRC.indexOf('<div class="hero-actions">'));
+    const stageAt = SRC.indexOf('class="hero-trailer hub-stage"');
+    const linkAt = SRC.search(/class="[^"]*\bhub-stage-watch\b/);
+    assert.ok(row && /\bhub-stage-watch\b/.test(row.slice(0, row.indexOf('</div>'))), 'the link is not in .hero-actions');
+    assert.ok(stageAt > linkAt, 'the link is rendered inside (after the opening of) the stage again');
   });
 
   test(`${rel} does not carry its own copy of the wiring or the rule`, () => {
@@ -242,6 +279,20 @@ test('the wiring reads the id off the frame, not out of an event detail', () => 
   );
 });
 
+test('the link names the video on screen, and never the hub trailer', () => {
+  const M = code(read('src/lib/stage-watch-link.ts'));
+  /* A rail pane is up: its video (or nothing, for an article). The frame is
+     unloaded then, so reading the frame alone would hide the link exactly
+     when a video is being offered. */
+  assert.match(M, /classList\.contains\('is-item'\)/);
+  assert.match(M, /\[data-hub-play\]/);
+  /* The owner's call: the trailer is its own thing, and Play trailer is its
+     control. The link is for the hub's coverage. */
+  assert.match(M, /stage\.dataset\.trailer/);
+  /* Pane switches dispatch no hub:sourcechange, so the stage is watched. */
+  assert.match(M, /new MutationObserver/);
+});
+
 test('the id is parsed by parseVideoId, never by hand', () => {
   const M = code(read('src/lib/stage-watch-link.ts'));
   assert.match(M, /import \{ parseVideoId \}/, 'CLAUDE.md: ids are never parsed with an inline regex');
@@ -262,7 +313,96 @@ test('parseVideoId recognises the host this site actually embeds from', () => {
   );
 });
 
+test('the homepage Featured box (FeaturedHighlights) has its way out: the card\'s own Watch now', () => {
+  /* The lead card's "Watch now" (with the YouTube mark) is a real link to the
+     video on YouTube. It cannot sit inside a role="button" (axe nested-
+     interactive), so a hero video card is not one: its play mark is the
+     <button>. A second link under the card duplicated it, and was removed. */
+  const CARD = code(read('src/components/ContentCard.astro'));
+  const FH = code(read('src/components/FeaturedHighlights.astro'));
+  assert.match(CARD, /const isHeroPlayer = variant === 'hero' && isPlayable/);
+  assert.match(CARD, /isHeroPlayer \? \{\} : \{ role: 'button'/, 'a hero video card must not be role=button');
+  const link = CARD.match(/<a\s+class="watch-now-btn"[\s\S]*?>/)?.[0] ?? '';
+  assert.match(link, /href=\{`https:\/\/www\.youtube\.com\/watch\?v=/, 'Watch now must link to the video on YouTube');
+  assert.match(link, /target="_blank"/);
+  assert.match(link, /rel="noopener noreferrer"/);
+  assert.match(CARD, /<button type="button" class="play-button-wrapper play-button-wrapper--control"/, 'the play mark must be a real button');
+  assert.ok(!/fh-watch-yt/.test(FH), 'the duplicate link under the card is back');
+  assert.match(FH, /closest\?\.\('a\[href\]'\)\) return;/, 'the inline player must let the link navigate');
+});
+
+console.log('\nEvery player the site builds can go fullscreen:');
+
+/*
+  The fullscreen fix (a269f27d) landed on the /feed hero and the card modal
+  only. The hub stage and both event stages kept `allow="autoplay;
+  encrypted-media"` with no `allowfullscreen`, so YouTube's fullscreen button
+  was dead on every /featured and /events hero (Andrew, on the DC hub). So
+  this is asserted over EVERY iframe the site writes, not a list of players:
+  a new player is covered the day it is added.
+*/
+const IFRAME_FILES = [
+  'src/layouts/Layout.astro',
+  'src/components/FeedSpotlightHero.astro',
+  'src/components/HeroTrailer.astro',
+  'src/components/home/HeroAccordion.astro',
+  'src/components/EventFeatured.astro',
+  'src/components/EventAnnouncement.astro',
+  'src/pages/featured/[slug].astro',
+];
+for (const rel of IFRAME_FILES) {
+  test(`${rel}: every iframe allows fullscreen`, () => {
+    const SRC = code(read(rel));
+    /* Google Tag Manager's <noscript> frame is not a player. */
+    const tags = (SRC.match(/<iframe\b[\s\S]*?>/g) ?? []).filter((t) => !/googletagmanager/.test(t));
+    for (const tag of tags) {
+      assert.ok(/\ballowfullscreen\b/i.test(tag), `an <iframe> without allowfullscreen: ${tag.slice(0, 80)}`);
+    }
+    const built = SRC.split(/createElement\('iframe'\)/).length - 1;
+    const granted = (SRC.match(/allowFullscreen\s*=\s*true|setAttribute\('allowfullscreen'/g) ?? []).length;
+    assert.ok(granted >= built, `${built} iframe(s) built in script, ${granted} granted fullscreen`);
+    assert.ok(tags.length + built > 0, 'no iframe found: update IFRAME_FILES');
+  });
+}
+
+test('no other file writes an iframe the list above does not cover', () => {
+  const walk = (dir) =>
+    fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true }).flatMap((d) =>
+      d.isDirectory() ? walk(path.join(dir, d.name)) : /\.(astro|ts|tsx)$/.test(d.name) ? [path.join(dir, d.name)] : [],
+    );
+  const writers = walk('src').filter((rel) => /<iframe\b|createElement\('iframe'\)/.test(code(read(rel))));
+  /* articles-transform READS Substack's iframes (a regex) and replaces them;
+     it writes none. */
+  const READERS = ['src/lib/articles-transform.ts'];
+  const missing = writers
+    .map((rel) => rel.split(path.sep).join('/'))
+    .filter((rel) => !IFRAME_FILES.includes(rel) && !READERS.includes(rel));
+  assert.deepEqual(missing, [], 'a new player: add it to IFRAME_FILES so its fullscreen is checked');
+});
+
 console.log('\nNeither player asks YouTube to start itself:');
+
+/*
+  The hub stage and both event stages were CLAUDE.md's "known remaining
+  exposure": the ambient trailer carried autoplay=1 and a reader's press
+  loaded autoplay=1&mute=0. They now start through playWhenReady() like the
+  two heroes. Pinned per file, since the three are triplets and a fix that
+  lands in one of them is how they drift.
+*/
+for (const rel of ['src/pages/featured/[slug].astro', 'src/components/EventFeatured.astro', 'src/components/EventAnnouncement.astro']) {
+  test(`${rel}: no embed asks to start itself; playWhenReady starts it`, () => {
+    const SRC = code(read(rel));
+    const urls = SRC.match(/youtube-nocookie\.com\/embed\/[^`'"]*[`'"][^;]*/g) ?? [];
+    assert.ok(urls.length >= 2, 'expected the trailer and the pressed-play embed URLs');
+    for (const url of urls) assert.ok(!/autoplay=1/.test(url), `autoplay=1 is back: ${url.slice(0, 90)}`);
+    assert.match(SRC, /import \{ playWhenReady \} from '[./]+lib\/youtube-start'/);
+    const assigns = (SRC.match(/frame\.src = (?:finalSrc|mutedSrc|embedUrl\()/g) ?? []).length;
+    const starts = (SRC.match(/startStage\(frame\)/g) ?? []).length;
+    assert.equal(assigns, 4, 'the four places this stage loads a video');
+    assert.equal(starts, assigns, 'every video this stage loads must be started by playWhenReady');
+  });
+}
+
 
 const EMBED_URL = (src) => {
   const m = src.match(/youtube-nocookie\.com\/embed\/[^`'"]*/);
@@ -283,11 +423,18 @@ test('the card lightbox does not carry autoplay=1 either', () => {
   assert.ok(!/autoplay=1/.test(url), `autoplay=1 on the lightbox embed: ${url}`);
 });
 
+test('the homepage hero player does not carry autoplay=1, or leave nocookie', () => {
+  const SRC = code(read('src/components/home/HeroAccordion.astro'));
+  assert.ok(!/autoplay=1/.test(SRC), 'autoplay=1 is back on the homepage hero embed');
+  assert.ok(!/youtube\.com\/embed\//.test(SRC), 'the homepage hero embeds from youtube.com, not the nocookie helper');
+  assert.match(SRC, /playWhenReady\(/, 'the hero starts through the shared jsapi starter (youtube-start.ts)');
+});
+
 test('the stage starts playback through the jsapi, so dropping autoplay costs no click', () => {
   const SRC = code(read('src/components/FeedSpotlightHero.astro'));
   assert.match(
     SRC,
-    /func:\s*'playVideo'/,
+    /playWhenReady\(/,
     'without this the stage needs a second click on YouTube\'s own play button',
   );
   assert.match(
@@ -296,6 +443,34 @@ test('the stage starts playback through the jsapi, so dropping autoplay costs no
     'playVideo is refused without autoplay in the frame permissions policy',
   );
 });
+
+/*
+  ─── THE DOUBLE PRESS ───────────────────────────────────────────────────────
+  Both heroes posted `playVideo` on the iframe's `load` event, which fires
+  when the embed document loads, a few hundred ms before YouTube's player
+  inside it is listening (measured: load ~3800ms, onReady ~4100ms). The
+  command was dropped, the player sat cued, and the reader pressed play
+  twice. The shared starter waits for onReady; neither hero may go back to
+  sending the command on `load`.
+*/
+test('the shared starter waits for the player to be ready before playVideo', () => {
+  const S = code(read('src/lib/youtube-start.ts'));
+  assert.match(S, /event\.origin !== PLAYER_ORIGIN/, 'messages must come from the player origin');
+  assert.match(S, /event\.source !== frame\.contentWindow/, 'and from THIS frame');
+  assert.match(S, /payload\.event === 'onReady'/, 'playVideo waits for onReady');
+  assert.ok(!/autoplay=1/.test(S), 'the starter never uses autoplay=1');
+});
+
+for (const rel of ['src/components/home/HeroAccordion.astro', 'src/components/FeedSpotlightHero.astro']) {
+  test(`${rel} does not send playVideo on the frame's load event`, () => {
+    const SRC = code(read(rel));
+    assert.ok(
+      !/addEventListener\('load'[\s\S]{0,400}?playVideo/.test(SRC),
+      'playVideo on `load` reaches the frame before the player listens: the double press',
+    );
+    assert.match(SRC, /import \{ playWhenReady \} from '(\.\.\/)+lib\/youtube-start'/);
+  });
+}
 
 test('the stage keeps playsinline=1, which the PiP logic depends on', () => {
   const url = code(read('src/lib/youtube-url.ts'));

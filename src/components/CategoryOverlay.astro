@@ -80,6 +80,7 @@ const { items, buttonLabel = LABELS.categories } = Astro.props;
   aria-modal="true"
   aria-label="Categories"
   aria-hidden="true"
+  inert
 >
   <button
     class="close-fullscreen-btn nav-toggle menu-open"
@@ -151,6 +152,7 @@ const { items, buttonLabel = LABELS.categories } = Astro.props;
       if (!overlay.classList.contains('is-open')) return;
       overlay.classList.remove('is-open');
       overlay.setAttribute('aria-hidden', 'true');
+      overlay.setAttribute('inert', '');
       document.documentElement.classList.remove('category-overlay-open');
       unlockScroll();
       if (openBtn) {
@@ -162,6 +164,7 @@ const { items, buttonLabel = LABELS.categories } = Astro.props;
     function open(overlay: HTMLElement, openBtn: HTMLElement | null, closeBtn: HTMLElement | null) {
       overlay.classList.add('is-open');
       overlay.setAttribute('aria-hidden', 'false');
+      overlay.removeAttribute('inert');
       /*
         ─── A CLASS ON <html>, BECAUSE z-index CANNOT REACH THE NAVBAR ───────
 

@@ -142,6 +142,13 @@ export function rewriteBodyImages(
     */
     if (!/\sloading=/i.test(out)) out = out.replace(/<img\b/i, '<img loading="lazy"');
     if (!/\sdecoding=/i.test(out)) out = out.replace(/<img\b/i, '<img decoding="async"');
+    /*
+      Every image needs an `alt`, even an empty one (axe image-alt, critical).
+      Substack's gallery images arrive with none, so a screen reader announced
+      each by its URL; SubstackGallery then wraps them in a button already
+      named "View image full screen". An author's own alt is never touched.
+    */
+    if (!/\salt=/i.test(out)) out = out.replace(/<img\b/i, '<img alt=""');
 
     return out;
   });

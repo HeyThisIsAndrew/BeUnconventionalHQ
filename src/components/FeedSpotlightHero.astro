@@ -10,6 +10,7 @@ import { resolveEntity } from '../lib/entity-resolver';
 import logoImage from '../assets/logo-mark.webp';
 import { getImage } from 'astro:assets';
 import { site } from '../data/site.js';
+import { SOCIAL_ICONS } from '../data/icons.js';
 
 interface Props {
   /**
@@ -145,7 +146,10 @@ const fallbackLogoSrc = (await getImage({ src: logoImage, height: 360, format: '
   the taxonomy and then to the HQ crown, so a half-finished edit never breaks
   the page.
 */
-const overrideLogo = latestVideo.customHeroLogo ? urlFor(latestVideo.customHeroLogo).url() : null;
+/* Sized exactly as EventAnnouncement/EventFeatured size theirs (320px tall,
+   2x the tallest this mark is shown). `.url()` alone asked for the original:
+   Ketchup's is a 3364x1091 PNG, fetched at high priority beside the LCP. */
+const overrideLogo = latestVideo.customHeroLogo ? urlFor(latestVideo.customHeroLogo).height(320).auto('format').url() : null;
 const taxonomyLogo = entity?.logo || null;
 const brandLogo = overrideLogo || taxonomyLogo || fallbackLogoSrc;
 
@@ -316,10 +320,13 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
             class={`hero-logo`}
             data-fallback-logo={fallbackLogoSrc}
             loading="eager"
-            fetchpriority="high"
             decoding="async"
           />
-          <h1 id="hero-title" class="hero-title leading-tight">{heroTitle}</h1>
+          {/* h2, not h1: the page's one h1 is its own title (FeedLayout's "The
+              Feed" / the category name). This is the featured STORY, which
+              changes with every card clicked, and it made /feed, its two
+              sub-feeds and every category page ship two h1s. */}
+          <h2 id="hero-title" class="hero-title leading-tight">{heroTitle}</h2>
           <p id="hero-description" class="hero-tagline">{heroDescription}</p>
           {/*
             ─── THE ACTION ROW ─────────────────────────────────────────────────
@@ -373,8 +380,12 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
               href={watchUrl}
               target="_blank"
               rel="noopener noreferrer"
-            >Watch on YouTube</a>
+            ><span class="yt-mark" aria-hidden="true" set:html={SOCIAL_ICONS.YouTube} /><span>Watch on YouTube</span></a>
           )}
+          {/* The same mark for the button the swap script builds when a card
+              promotes a video into a hero that had none: cloned, so the
+              script never carries its own copy of the logo. */}
+          <template id="yt-mark-template"><span class="yt-mark" aria-hidden="true" set:html={SOCIAL_ICONS.YouTube} /></template>
 
           {/*
             ─── THE HUB CTA ────────────────────────────────────────────────────
@@ -2447,6 +2458,7 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
 
 <script>
   import { getYouTubeEmbedUrl } from '../lib/youtube-url';
+  import { playWhenReady } from '../lib/youtube-start';
   /*
     ─── THE HERO OWNS ITS OWN SWAP ───────────────────────────────────────────
 
@@ -2758,7 +2770,13 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
           watchBtn.className = 'feed-hero-watch-btn';
           watchBtn.target = '_blank';
           watchBtn.rel = 'noopener noreferrer';
-          watchBtn.textContent = 'Watch on YouTube';
+          /* Prefaced with the YouTube mark, like every Watch on YouTube link
+             (the global QA sweep, rule 10): cloned from the template. */
+          const mark = (document.getElementById('yt-mark-template') as HTMLTemplateElement | null)?.content.cloneNode(true);
+          if (mark) watchBtn.appendChild(mark);
+          const label = document.createElement('span');
+          label.textContent = 'Watch on YouTube';
+          watchBtn.appendChild(label);
           const subscribeBtn = hubRow.querySelector('.feed-hero-youtube-btn');
           carryScope(subscribeBtn || hubRow, watchBtn);
           /* Straight after SUBSCRIBE. Appending would land it after a hub
@@ -3055,21 +3073,30 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
           None of this is the escape hatch. The "Watch on YouTube" link in the
           copy column is rendered whether or not this channel ever answers.
         */
-        heroIframe.addEventListener('load', () => {
-          const player = heroIframe.contentWindow;
-          if (!player) return;
-          const send = (payload: Record<string, unknown>) =>
-            player.postMessage(JSON.stringify(payload), 'https://www.youtube-nocookie.com');
-
-          send({ event: 'listening', id: 1, channel: 'widget' });
-          send({ event: 'command', func: 'playVideo', args: [], id: 1, channel: 'widget' });
-        }, { once: true });
+        /*
+          The handshake and the play command now go through
+          src/lib/youtube-start.ts, which waits for the player to report
+          ready before asking it to play. Sending both on `load` (as this did)
+          reached the frame before YouTube's player was listening, so the
+          command was dropped and the reader had to press play twice.
+        */
+        /* One start in flight per frame: a new play (or a swap to another
+           video) cancels the last, and the reveal checks the frame still
+           holds THIS video, so a stop or swap inside the wait is never
+           followed by a late reveal of a frame that has moved on. */
+        (window as any)._heroStartCancel?.();
+        const startedSrc = heroIframe.src;
+        (window as any)._heroStartCancel = playWhenReady(heroIframe, {
+          onReady: () => {
+            if (heroIframe.src === startedSrc) heroIframe.style.opacity = '1';
+          },
+        });
 
         /* The iframe starts transparent so its about:blank document cannot
-           flash above the stage still. Making only its parent visible leaves
-           that transparent iframe over the dimmed art, which looks like the
-           video never appeared. */
-        heroIframe.style.opacity = '1';
+           flash above the stage still, and it STAYS transparent until the
+           player is ready (playWhenReady's onReady above, which also fires
+           after 3s if the player never answers, so it cannot stay hidden).
+           Revealing it at once flashed the blank frame over the hero art. */
         heroIframe.style.pointerEvents = 'auto';
         
         const hubStage = document.querySelector('.hub-stage');
@@ -3082,8 +3109,6 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
             */
             hubStage.classList.remove('is-item');
             hubStage.classList.add('is-playing');
-        } else {
-            heroIframe.style.opacity = '1'; // Fallback
         }
       }
     };

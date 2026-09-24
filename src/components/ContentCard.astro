@@ -27,6 +27,21 @@ export interface Props {
    */
   variant?: 'default' | 'hero' | 'featured';
   /**
+   * The image `sizes`, for a surface that lays the variant out at a
+   * different width than its usual home. The homepage's Featured box is the
+   * 'hero' variant at up to 1513px wide, where the variant's own claim tops
+   * out at 850px, so big screens were handed an image half the size.
+   */
+  imageSizes?: string;
+  /**
+   * Whether this card's image is the page's LCP candidate (eager, high
+   * priority). Defaults to the hero variant's first card, which was right
+   * when FeaturedHighlights opened a page; the homepage mounts it far below
+   * the fold, where an eager high-priority image only competes with the real
+   * LCP image for bandwidth, so it passes false.
+   */
+  lcp?: boolean;
+  /**
    * Which surface this card is on, and therefore what clicking it does.
    *
    *   'feed'    promotes the item into <FeedSpotlightHero /> above it
@@ -51,10 +66,10 @@ export interface Props {
   brandOverride?: { logo?: string; hero?: string; title?: string } | null;
 }
 
-const { item, index = 0, variant = 'default', context = 'default', brandOverride = null } = Astro.props;
+const { item, index = 0, variant = 'default', context = 'default', brandOverride = null, imageSizes, lcp } = Astro.props;
 
 // Determine if this is the Largest Contentful Paint (LCP) element
-const isLCP = variant === 'hero' && index === 0;
+const isLCP = lcp ?? (variant === 'hero' && index === 0);
 
 if (!item) return;
 
@@ -287,7 +302,7 @@ const CARD_SIZES_FOR_VARIANT: Record<NonNullable<Props['variant']>, string> = {
   has to survive `entity` being null, which is exactly when it matters.
 */
 const heroLogoOverride = (item as any).customHeroLogo
-  ? urlFor((item as any).customHeroLogo).url()
+  ? urlFor((item as any).customHeroLogo).height(320).auto('format').url()
   : null;
 const heroLabelOverride = (item as any).customHeroBrandLabel || null;
 
@@ -320,13 +335,26 @@ const baseProps = {
   'data-hub-play': hubPlayId ?? undefined,
 };
 
+/*
+  ─── A HERO CARD IS A PLAYER WITH TWO CONTROLS, NOT ONE BUTTON ─────────────
+  FeaturedHighlights plays a hero card inline, and its "Watch now" must be a
+  real link to YouTube: the player's way out (CLAUDE.md hard rule 11), and
+  the thing a reader clicking a label that carries the YouTube mark expects.
+  A link cannot live inside a role="button" (axe nested-interactive), so on
+  a hero video card the CARD is not the button: its play mark is a real
+  <button> (keyboard; mouse clicks still land on the card as before, the mark
+  has pointer-events: none) and "Watch now" is the <a>. Both sit inside the
+  card element FeaturedHighlights binds, so its click handler is unchanged
+  apart from letting the link navigate.
+*/
+const isHeroPlayer = variant === 'hero' && isPlayable;
+
 const wrapperProps = (isPlayable || context === 'feed' || context === 'hub')
   ? {
       ...baseProps,
       'data-video-id': videoId,
       'data-href': cardHref, // store href for manual navigation if they click something inside the spotlight later
-      role: 'button' as const,
-      tabindex: 0,
+      ...(isHeroPlayer ? {} : { role: 'button' as const, tabindex: 0 }),
       /*
         NO `aria-label` HERE — it is what broke `label-content-name-mismatch`.
 
@@ -375,9 +403,11 @@ const wrapperProps = (isPlayable || context === 'feed' || context === 'hub')
 */
 const watermark = await getImage({
   src: logoImage,
-  height: 72,
+  /* 144, not 72: the hero card shows it 36px tall, and the homepage audit
+     measured it at up to 72px, so 72 was 1x on any Retina screen. */
+  height: 144,
   format: 'webp',
-  quality: 70,
+  quality: 80,
 });
 
 /*
@@ -458,7 +488,7 @@ if (isVideo && item.youtubeId) {
     Label in Name needs: the name becomes "Play video: <everything visible>",
     which still contains every word a reader can see.
   */}
-  {isPlayable && <span class="sr-only">Play video:</span>}
+  {isPlayable && !isHeroPlayer && <span class="sr-only">Play video:</span>}
   {/*
     Every style here is a class, not an inline `style` attribute.
 
@@ -494,21 +524,12 @@ if (isVideo && item.youtubeId) {
          accessible name already says what it is. */
       <span class="content-card-format" aria-hidden="true">{isVideo ? 'VIDEO' : 'ARTICLE'}</span>
     )}
-    {variant === 'hero' && finalTags.length > 0 && (
-      <div class="content-card-hero-tags">
-        {tagSlots.brand && <span data-slot="brand">{tagSlots.brand}</span>}
-        {tagSlots.brand && tagSlots.type && <span class="tag-slot-sep" aria-hidden="true">{"\u00a0|\u00a0"}</span>}
-        {tagSlots.type && <span data-slot="type">{tagSlots.type}</span>}
-        {(tagSlots.brand || tagSlots.type) && tagSlots.extra && <span class="tag-slot-sep" aria-hidden="true">{"\u00a0|\u00a0"}</span>}
-        {tagSlots.extra && <span data-slot="extra">{tagSlots.extra}</span>}
-      </div>
-    )}
     {cardImage ? (
       <img
         class="content-card-img"
         src={cardImage}
         srcset={cardImageSrcset || undefined}
-        sizes={cardImageSrcset ? CARD_SIZES_FOR_VARIANT[variant] : undefined}
+        sizes={cardImageSrcset ? (imageSizes ?? CARD_SIZES_FOR_VARIANT[variant]) : undefined}
         alt={item.title}
         loading={isLCP ? 'eager' : 'lazy'}
         fetchpriority={isLCP ? 'high' : 'auto'}
@@ -533,16 +554,26 @@ if (isVideo && item.youtubeId) {
       <span class="video-watermark" aria-hidden="true">
         <img 
           src={watermark.src} 
-          width={watermark.attributes.width}
-          height={watermark.attributes.height}
+          width={Math.round(watermark.attributes.width / 2)}
+          height={Math.round(watermark.attributes.height / 2)}
           alt="" 
           class="video-watermark-logo" 
           aria-hidden="true" 
+          loading="lazy"
+          decoding="async"
         />
       </span>
     )}
 
-    {isVideo && (
+    {isVideo && (isHeroPlayer ? (
+      <button type="button" class="play-button-wrapper play-button-wrapper--control" aria-label={`Play video here: ${item.title}`}>
+        <span class="cinematic-play-button" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        </span>
+      </button>
+    ) : (
       <div class="play-button-wrapper" aria-hidden="true">
         <div class="cinematic-play-button">
           <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32">
@@ -550,7 +581,7 @@ if (isVideo && item.youtubeId) {
           </svg>
         </div>
       </div>
-    )}
+    ))}
   </div>
 
   <div class="content-card-body">
@@ -567,7 +598,14 @@ if (isVideo && item.youtubeId) {
       the tab order wrong, which is what a screen reader and a keyboard follow.
     */}
     <div class="content-card-title-wrapper">
-      {variant !== 'hero' && finalTags.length > 0 && (
+      {/*
+        Every variant, the hero included. The hero used to lay this line over
+        its artwork (`.content-card-hero-tags`), where it collided with the
+        player's captions and the watermark once a video played; it reads in
+        the body now, metadata -> title -> description -> link, like every
+        other tile (Andrew).
+      */}
+      {finalTags.length > 0 && (
         <div class="content-card-dynamic-tags">
           {tagSlots.brand && <span data-slot="brand">{tagSlots.brand}</span>}
           {tagSlots.brand && tagSlots.type && <span class="tag-slot-sep" aria-hidden="true">{"\u00a0|\u00a0"}</span>}
@@ -592,7 +630,22 @@ if (isVideo && item.youtubeId) {
       It stays everywhere else, where the card is a link in a grid and the words
       are the affordance.
     */}
-    {!isCinematic && (
+    {!isCinematic && isHeroPlayer && (
+    <a
+      class="watch-now-btn"
+      style="margin-top: auto;"
+      href={`https://www.youtube.com/watch?v=${encodeURIComponent(videoId!)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {LABELS.watchNow}<span class="sr-only"> on YouTube</span>
+      <svg class="youtube-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+        <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+      </svg>
+      <span class="btn-underline" />
+    </a>
+    )}
+    {!isCinematic && !isHeroPlayer && (
     <span class="watch-now-btn" style="margin-top: auto;">
       {isVideo ? LABELS.watchNow : LABELS.readNow}
       {isVideo ? (
@@ -609,6 +662,23 @@ if (isVideo && item.youtubeId) {
 </CardWrapper>
 
 <style>
+  /* The hero card's play mark as a real <button> (see isHeroPlayer): it keeps
+     the .play-button-wrapper geometry and loses the UA button chrome. The
+     focus ring is inset so the media's own clip does not cut it off. */
+  .play-button-wrapper--control {
+    background: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .play-button-wrapper--control:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: -4px;
+  }
+
   .content-card-excerpt {
     font-family: var(--font-body, 'Inter', sans-serif);
     font-size: 0.95rem;
@@ -681,7 +751,10 @@ if (isVideo && item.youtubeId) {
     pointer-events: none;
   }
 
-  .video-watermark-logo {
+  /* Qualified by its wrapper: the cinematic card's
+     `.content-card-media img { height: 100% }` outranked a bare class, so
+     the mark rendered at the FILE's size, whatever that was. */
+  .video-watermark .video-watermark-logo {
     display: block;
     width: auto;
     height: 24px;
@@ -697,7 +770,7 @@ if (isVideo && item.youtubeId) {
     right: auto;
   }
 
-  :global(.variant-hero) .video-watermark-logo {
+  :global(.variant-hero) .video-watermark .video-watermark-logo {
     height: 36px;
   }
 
@@ -788,19 +861,5 @@ if (isVideo && item.youtubeId) {
     text-overflow: ellipsis;
   }
 
-  :global(.content-card-hero-tags) {
-    position: absolute;
-    bottom: 1rem;
-    left: 1rem;
-    z-index: 5;
-    font-family: var(--font-body, 'Inter', sans-serif);
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.9);
-    pointer-events: none;
-    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
-  }
 
 </style>

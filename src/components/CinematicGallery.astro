@@ -49,11 +49,18 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
           satisfies axe's `aria-hidden-focus` rule (that rule is about
           TABBABLE elements inside an aria-hidden subtree), while leaving
           them fully clickable with a mouse or a finger.
+
+          ONLY THE FIRST GROUP IS READABLE. Groups 3-5 used to be the only
+          hidden ones, so group 2 was a full second copy for assistive tech:
+          on desktop a keyboard user tabbed through all ten posts twice and a
+          screen reader read them twice (phones never saw it: the script
+          removes groups 2-5 there). The script's own clones are hidden the
+          same way, so exactly one copy of each post is announced.
         */}
         {Array.from({ length: 5 }, (_, i) => i + 1).map((groupIndex) => (
           <div 
             class="ig-marquee-group" 
-            aria-hidden={groupIndex > 2 ? "true" : undefined}
+            aria-hidden={groupIndex > 1 ? "true" : undefined}
           >
           {items.map((item) => {
             if (!item || !item.displayUrl) return null;
@@ -75,7 +82,7 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
             const sources = getCardImageSources(item.localImage || item.displayUrl);
             
             return (
-              <a href={item.permalink} target="_blank" rel="noopener noreferrer" class="ig-carousel-tile" data-play-hover="true" tabindex={groupIndex > 2 ? -1 : undefined}>
+              <a href={item.permalink} target="_blank" rel="noopener noreferrer" class="ig-carousel-tile" data-play-hover="true" tabindex={groupIndex > 1 ? -1 : undefined}>
                 {/* The anchor is the HOVER TARGET and never moves; this frame
                     is what lifts, clips and draws the border. Splitting them
                     is what stops the hover from flickering — see the note on
@@ -122,6 +129,8 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
   class InfiniteMarquee extends HTMLElement {
     private _animationFrame?: number;
     private _resizeObserver?: ResizeObserver;
+    private _visibility?: IntersectionObserver;
+    private _visible: boolean = true;
     private _isTouching: boolean = false;
     private _isDragging: boolean = false;
     private _isActuallyDragging: boolean = false;
@@ -417,6 +426,14 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
       let lastTimestamp = performance.now();
 
       const updateScroll = (now: DOMHighResTimeStamp) => {
+        /* Off screen, the loop stops rather than ticking: it writes and reads
+           back scrollLeft every frame, which is a layout per frame for a rail
+           nobody can see, for as long as the page is open. The observer below
+           restarts it. */
+        if (!this._visible) {
+          this._animationFrame = 0;
+          return;
+        }
         // Capped so a backgrounded tab (rAF stops firing) does not resume with
         // one enormous jump.
         const delta = Math.min((now - lastTimestamp) / 1000, 0.1);
@@ -544,13 +561,27 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
         groupWidth = measureGroupWidth();
         centreOnMiddleGroup();
         lastTimestamp = performance.now();
-        this._animationFrame = requestAnimationFrame(updateScroll);
+        if (!this._animationFrame) this._animationFrame = requestAnimationFrame(updateScroll);
       });
+
+      /* Resume where it left off: a fresh timestamp, so the time spent off
+         screen is not paid back as one jump. */
+      this._visibility = new IntersectionObserver(([entry]) => {
+        this._visible = entry.isIntersecting;
+        /* groupWidth > 0: not before the first measurement above, which
+           starts the loop itself. */
+        if (this._visible && !this._animationFrame && groupWidth > 0) {
+          lastTimestamp = performance.now();
+          this._animationFrame = requestAnimationFrame(updateScroll);
+        }
+      });
+      this._visibility.observe(this);
     }
 
     disconnectedCallback() {
       if (this._animationFrame) cancelAnimationFrame(this._animationFrame);
       if (this._resizeObserver) this._resizeObserver.disconnect();
+      if (this._visibility) this._visibility.disconnect();
     }
   }
     
