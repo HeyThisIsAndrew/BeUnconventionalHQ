@@ -279,7 +279,26 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
       if (focus) triggers[current].focus();
     }
 
+    /*
+      The clock only ticks while it has something to do. It used to request a
+      frame forever, rotating or not and on screen or not, so every second
+      the page was open it paid for ~60 wake-ups doing nothing. Now a frame is
+      requested only while the rotation is running AND the hero is visible;
+      anything that could start it again calls kick(). `last` restarts, so a
+      pause still resumes with the time that was left.
+    */
+    let onScreen = true;
+    function kick() {
+      if (raf || !running() || !onScreen) return;
+      last = 0;
+      raf = requestAnimationFrame(frame);
+    }
+
     function frame(now: number) {
+      if (!running() || !onScreen) {
+        raf = 0;
+        return;
+      }
       if (!last) last = now;
       /* Capped: rAF does not run in a hidden tab, so the first frame back
          would otherwise count the whole time away and flip the panel the
@@ -300,6 +319,7 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
       const paused = stopped || userPaused;
       toggle.classList.toggle('is-paused', paused);
       toggle.setAttribute('aria-label', paused ? 'Play rotation' : 'Pause rotation');
+      kick();
     }
 
     const onClick = (e: Event) => {
@@ -340,13 +360,20 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
 
     const hold = (key: keyof typeof holds, value: boolean) => () => {
       holds[key] = value;
+      kick();
     };
     const onEnter = hold('hover', true);
     const onLeave = hold('hover', false);
     const onFocusIn = hold('focus', true);
     const onFocusOut = (e: FocusEvent) => {
       if (!root.contains(e.relatedTarget as Node | null)) holds.focus = false;
+      kick();
     };
+    const visibility = new IntersectionObserver(([entry]) => {
+      onScreen = entry.isIntersecting;
+      kick();
+    });
+    visibility.observe(root);
     const onTouchStart = hold('touch', true);
     const onTouchEnd = hold('touch', false);
     const onMedia = () => {
@@ -462,10 +489,11 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
     mobile.addEventListener('change', onMedia);
 
     syncToggle();
-    raf = requestAnimationFrame(frame);
 
     teardown = () => {
       cancelAnimationFrame(raf);
+      raf = 0;
+      visibility.disconnect();
       triggers.forEach((t) => {
         t.removeEventListener('click', onClick);
         t.removeEventListener('keydown', onKey);

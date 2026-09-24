@@ -122,6 +122,8 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
   class InfiniteMarquee extends HTMLElement {
     private _animationFrame?: number;
     private _resizeObserver?: ResizeObserver;
+    private _visibility?: IntersectionObserver;
+    private _visible: boolean = true;
     private _isTouching: boolean = false;
     private _isDragging: boolean = false;
     private _isActuallyDragging: boolean = false;
@@ -417,6 +419,14 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
       let lastTimestamp = performance.now();
 
       const updateScroll = (now: DOMHighResTimeStamp) => {
+        /* Off screen, the loop stops rather than ticking: it writes and reads
+           back scrollLeft every frame, which is a layout per frame for a rail
+           nobody can see, for as long as the page is open. The observer below
+           restarts it. */
+        if (!this._visible) {
+          this._animationFrame = 0;
+          return;
+        }
         // Capped so a backgrounded tab (rAF stops firing) does not resume with
         // one enormous jump.
         const delta = Math.min((now - lastTimestamp) / 1000, 0.1);
@@ -544,13 +554,27 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
         groupWidth = measureGroupWidth();
         centreOnMiddleGroup();
         lastTimestamp = performance.now();
-        this._animationFrame = requestAnimationFrame(updateScroll);
+        if (!this._animationFrame) this._animationFrame = requestAnimationFrame(updateScroll);
       });
+
+      /* Resume where it left off: a fresh timestamp, so the time spent off
+         screen is not paid back as one jump. */
+      this._visibility = new IntersectionObserver(([entry]) => {
+        this._visible = entry.isIntersecting;
+        /* groupWidth > 0: not before the first measurement above, which
+           starts the loop itself. */
+        if (this._visible && !this._animationFrame && groupWidth > 0) {
+          lastTimestamp = performance.now();
+          this._animationFrame = requestAnimationFrame(updateScroll);
+        }
+      });
+      this._visibility.observe(this);
     }
 
     disconnectedCallback() {
       if (this._animationFrame) cancelAnimationFrame(this._animationFrame);
       if (this._resizeObserver) this._resizeObserver.disconnect();
+      if (this._visibility) this._visibility.disconnect();
     }
   }
     

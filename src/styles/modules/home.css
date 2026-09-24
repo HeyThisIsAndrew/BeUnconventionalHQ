@@ -333,7 +333,11 @@
   height: 100%;
   object-fit: cover;
   filter: grayscale(0.75) brightness(0.42);
-  transform: scale(1.04);
+  /* Each state sets --zoom, not transform: the desktop rule below adds the
+     centring translate, and one transform built from both keeps every state
+     below valid there without restating it. */
+  --zoom: 1.04;
+  transform: translateX(var(--img-x, 0)) scale(var(--zoom));
   transition: filter 0.6s ease, transform 1.4s ease;
 }
 .home-v4 .acc-panel:not(.is-open) .acc-media img {
@@ -341,11 +345,60 @@
      sliver of it is unreadable noise. Blurred, it is colour and mood. The
      panel already clips, so the overscan hides the soft blur edge. */
   filter: blur(10px) grayscale(0.35) brightness(0.5);
-  transform: scale(1.18);
+  --zoom: 1.18;
 }
 .home-v4 .acc-panel.is-open .acc-media img {
   filter: none;
-  transform: scale(1);
+  --zoom: 1;
+}
+
+/* ─── DESKTOP: NOTHING IN A PANEL REPAINTS WHILE THE PANELS RESIZE ────────
+   Opening a panel animates five flex widths for 0.7s. Every layer sized to
+   its panel was therefore re-rasterised on every frame: the full-size art
+   (width 100%, cover, blur), the gradient over it, the chalk tile gliding by
+   `left`, the frosted chips. Measured on one transition: 637ms of raster per
+   second, so the panels stepped instead of sliding (Andrew: "slow on
+   desktop, particularly with hero transitions").
+
+   So here the art and its gradient are FIXED at the open panel's width and
+   the panel only CLIPS them: the art centred (so a strip shows the same
+   middle slice `cover` gave it before), the gradient pinned left under the
+   copy. Each is its own layer, so a resize is a new clip and a translate,
+   never a repaint. The tile art, labels and tags get layers too, and the
+   chips lose their backdrop blur. Raster falls to ~100ms on the same
+   transition. --open-w is the open panel's width: the track (the size
+   container) less four strips and four 6px gaps. Phone layouts do not
+   animate widths and keep the simple rules. */
+@media (min-width: 768px) and (min-height: 521px), (min-width: 768px) and (orientation: portrait) {
+  .home-v4 .hero-acc-track {
+    container-type: inline-size;
+  }
+  .home-v4 .acc-panel {
+    --open-w: calc(100cqw - 4 * var(--strip) - 24px);
+  }
+  .home-v4 .acc-media img {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: var(--open-w);
+    max-width: none;
+    --img-x: -50%;
+    will-change: transform;
+  }
+  .home-v4 .acc-media::after {
+    inset: 0 auto 0 0;
+    width: var(--open-w);
+    will-change: transform;
+  }
+  .home-v4 .acc-art,
+  .home-v4 .acc-label,
+  .home-v4 .acc-new {
+    will-change: transform;
+  }
+  .home-v4 .acc-chip {
+    backdrop-filter: none;
+    background: rgba(10, 10, 10, 0.55);
+  }
 }
 
 /* ─── HOVER: something you can SEE (Andrew: "I can barely tell") ─────────
@@ -383,10 +436,10 @@
 }
 @media (prefers-reduced-motion: no-preference) {
   .home-v4 .acc-panel:hover:not(.is-open) .acc-media img {
-    transform: scale(1.3);
+    --zoom: 1.3;
   }
   .home-v4 .acc-panel.is-open:hover .acc-media img {
-    transform: scale(1.06);
+    --zoom: 1.06;
   }
 }
 .home-v4 .acc-media::after {
