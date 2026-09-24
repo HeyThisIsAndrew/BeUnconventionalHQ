@@ -2447,6 +2447,7 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
 
 <script>
   import { getYouTubeEmbedUrl } from '../lib/youtube-url';
+  import { playWhenReady } from '../lib/youtube-start';
   /*
     ─── THE HERO OWNS ITS OWN SWAP ───────────────────────────────────────────
 
@@ -3055,21 +3056,30 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
           None of this is the escape hatch. The "Watch on YouTube" link in the
           copy column is rendered whether or not this channel ever answers.
         */
-        heroIframe.addEventListener('load', () => {
-          const player = heroIframe.contentWindow;
-          if (!player) return;
-          const send = (payload: Record<string, unknown>) =>
-            player.postMessage(JSON.stringify(payload), 'https://www.youtube-nocookie.com');
-
-          send({ event: 'listening', id: 1, channel: 'widget' });
-          send({ event: 'command', func: 'playVideo', args: [], id: 1, channel: 'widget' });
-        }, { once: true });
+        /*
+          The handshake and the play command now go through
+          src/lib/youtube-start.ts, which waits for the player to report
+          ready before asking it to play. Sending both on `load` (as this did)
+          reached the frame before YouTube's player was listening, so the
+          command was dropped and the reader had to press play twice.
+        */
+        /* One start in flight per frame: a new play (or a swap to another
+           video) cancels the last, and the reveal checks the frame still
+           holds THIS video, so a stop or swap inside the wait is never
+           followed by a late reveal of a frame that has moved on. */
+        (window as any)._heroStartCancel?.();
+        const startedSrc = heroIframe.src;
+        (window as any)._heroStartCancel = playWhenReady(heroIframe, {
+          onReady: () => {
+            if (heroIframe.src === startedSrc) heroIframe.style.opacity = '1';
+          },
+        });
 
         /* The iframe starts transparent so its about:blank document cannot
-           flash above the stage still. Making only its parent visible leaves
-           that transparent iframe over the dimmed art, which looks like the
-           video never appeared. */
-        heroIframe.style.opacity = '1';
+           flash above the stage still, and it STAYS transparent until the
+           player is ready (playWhenReady's onReady above, which also fires
+           after 3s if the player never answers, so it cannot stay hidden).
+           Revealing it at once flashed the blank frame over the hero art. */
         heroIframe.style.pointerEvents = 'auto';
         
         const hubStage = document.querySelector('.hub-stage');
@@ -3082,8 +3092,6 @@ if (heroMetaChips.length === 0) heroMetaChips.push({ label: heroKind, slot: 'kin
             */
             hubStage.classList.remove('is-item');
             hubStage.classList.add('is-playing');
-        } else {
-            heroIframe.style.opacity = '1'; // Fallback
         }
       }
     };

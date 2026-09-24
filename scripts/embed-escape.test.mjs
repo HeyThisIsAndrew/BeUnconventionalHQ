@@ -142,16 +142,22 @@ for (const player of PLAYERS) {
   });
 
   test(`${player.label} sends the listening handshake`, () => {
+    /* Inline, or through the shared starter (src/lib/youtube-start.ts),
+       which is checked for the same two things below. */
+    const H = /playWhenReady\(/.test(SRC) ? code(read('src/lib/youtube-start.ts')) : SRC;
     assert.match(
-      SRC,
+      H,
       /event:\s*'listening'/,
       "without the handshake the player never posts events and onError never arrives",
     );
     assert.match(
-      SRC,
-      /postMessage\([\s\S]{0,200}?'https:\/\/www\.youtube-nocookie\.com'/,
+      H,
+      /postMessage\([\s\S]{0,200}?(PLAYER_ORIGIN|'https:\/\/www\.youtube-nocookie\.com')/,
       'the handshake must be targeted at the player origin, never "*"',
     );
+    if (H !== SRC) {
+      assert.match(H, /const PLAYER_ORIGIN = 'https:\/\/www\.youtube-nocookie\.com'/);
+    }
   });
 
   test(`${player.label} still embeds through youtube-nocookie.com`, () => {
@@ -304,14 +310,14 @@ test('the homepage hero player does not carry autoplay=1, or leave nocookie', ()
   const SRC = code(read('src/components/home/HeroAccordion.astro'));
   assert.ok(!/autoplay=1/.test(SRC), 'autoplay=1 is back on the homepage hero embed');
   assert.ok(!/youtube\.com\/embed\//.test(SRC), 'the homepage hero embeds from youtube.com, not the nocookie helper');
-  assert.match(SRC, /func:\s*'playVideo'/, 'the hero starts through the jsapi playVideo command');
+  assert.match(SRC, /playWhenReady\(/, 'the hero starts through the shared jsapi starter (youtube-start.ts)');
 });
 
 test('the stage starts playback through the jsapi, so dropping autoplay costs no click', () => {
   const SRC = code(read('src/components/FeedSpotlightHero.astro'));
   assert.match(
     SRC,
-    /func:\s*'playVideo'/,
+    /playWhenReady\(/,
     'without this the stage needs a second click on YouTube\'s own play button',
   );
   assert.match(
@@ -320,6 +326,34 @@ test('the stage starts playback through the jsapi, so dropping autoplay costs no
     'playVideo is refused without autoplay in the frame permissions policy',
   );
 });
+
+/*
+  ─── THE DOUBLE PRESS ───────────────────────────────────────────────────────
+  Both heroes posted `playVideo` on the iframe's `load` event, which fires
+  when the embed document loads, a few hundred ms before YouTube's player
+  inside it is listening (measured: load ~3800ms, onReady ~4100ms). The
+  command was dropped, the player sat cued, and the reader pressed play
+  twice. The shared starter waits for onReady; neither hero may go back to
+  sending the command on `load`.
+*/
+test('the shared starter waits for the player to be ready before playVideo', () => {
+  const S = code(read('src/lib/youtube-start.ts'));
+  assert.match(S, /event\.origin !== PLAYER_ORIGIN/, 'messages must come from the player origin');
+  assert.match(S, /event\.source !== frame\.contentWindow/, 'and from THIS frame');
+  assert.match(S, /payload\.event === 'onReady'/, 'playVideo waits for onReady');
+  assert.ok(!/autoplay=1/.test(S), 'the starter never uses autoplay=1');
+});
+
+for (const rel of ['src/components/home/HeroAccordion.astro', 'src/components/FeedSpotlightHero.astro']) {
+  test(`${rel} does not send playVideo on the frame's load event`, () => {
+    const SRC = code(read(rel));
+    assert.ok(
+      !/addEventListener\('load'[\s\S]{0,400}?playVideo/.test(SRC),
+      'playVideo on `load` reaches the frame before the player listens: the double press',
+    );
+    assert.match(SRC, /import \{ playWhenReady \} from '(\.\.\/)+lib\/youtube-start'/);
+  });
+}
 
 test('the stage keeps playsinline=1, which the PiP logic depends on', () => {
   const url = code(read('src/lib/youtube-url.ts'));

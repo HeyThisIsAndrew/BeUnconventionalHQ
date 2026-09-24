@@ -231,6 +231,7 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
 
 <script>
   import { getYouTubeEmbedUrl } from '../../lib/youtube-url';
+  import { playWhenReady } from '../../lib/youtube-start';
 
   const DURATION = 7000;
   /* Phones in either orientation: rotation is off by default (the toggle
@@ -404,14 +405,18 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
     */
     let playerFrame: HTMLIFrameElement | null = null;
 
+    let cancelStart: (() => void) | null = null;
+
     function stopVideo() {
+      cancelStart?.();
+      cancelStart = null;
       if (!playerFrame) return;
       const panel = playerFrame.closest<HTMLElement>('[data-acc-panel]');
       const media = playerFrame.parentElement;
       playerFrame.remove();
       playerFrame = null;
       media?.setAttribute('aria-hidden', 'true');
-      panel?.classList.remove('is-playing');
+      panel?.classList.remove('is-playing', 'is-video-shown');
       panel?.querySelector<HTMLElement>('[data-embed-note]')?.setAttribute('hidden', '');
       root!.classList.remove('is-playing');
     }
@@ -436,15 +441,14 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
       iframe.title = 'YouTube video player';
       iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen';
       iframe.allowFullscreen = true;
-      iframe.addEventListener('load', () => {
-        const player = iframe.contentWindow;
-        if (!player) return;
-        const send = (payload: Record<string, unknown>) =>
-          player.postMessage(JSON.stringify(payload), 'https://www.youtube-nocookie.com');
-        send({ event: 'listening', id: 1, channel: 'widget' });
-        send({ event: 'command', func: 'playVideo', args: [], id: 1, channel: 'widget' });
-      }, { once: true });
       iframe.src = getYouTubeEmbedUrl(videoId, true);
+      /* Started by src/lib/youtube-start.ts: it waits for the player to say
+         it is ready before asking it to play (asking on `load` was too early,
+         and was the double press). The frame stays transparent until then,
+         over the story's art, instead of flashing a black box. */
+      cancelStart = playWhenReady(iframe, {
+        onReady: () => panel.classList.add('is-video-shown'),
+      });
 
       media.removeAttribute('aria-hidden');
       media.appendChild(iframe);

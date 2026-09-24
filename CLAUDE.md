@@ -110,7 +110,17 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    that starts itself is what YouTube's bot check looks for, and it is decided
    per viewer, so it reproduces for one reader and for nobody testing it. The
    stage starts through the jsapi `playVideo` command instead, so the visitor
-   still gets one click. **The three hub/event stages are a KNOWN REMAINING
+   still gets one click. **That command must wait for the player's `onReady`**:
+   both heroes once sent it on the iframe's `load` event, which fires a few
+   hundred ms before YouTube's player inside the frame is listening, so it
+   was dropped and every reader pressed play twice. The homepage hero and the
+   /feed hero now start through `src/lib/youtube-start.ts` (`playWhenReady`),
+   which handshakes until the player answers, asks on `onReady`, retries until
+   PLAYING, and keeps the frame transparent until then; a new player should
+   use it too. iOS Safari may still refuse an unmuted start that is not inside
+   the reader's own gesture, which leaves YouTube's own play button: one more
+   tap, never a dead end. `scripts/youtube-start.test.mjs` guards the helper.
+   **The three hub/event stages are a KNOWN REMAINING
    EXPOSURE, deliberately left alone**: they try `autoplay=1&mute=0` first and
    fall back to muted when the browser refuses, and that negotiation encodes a
    fix that shipped broken once ("never unmute a video that is ALREADY

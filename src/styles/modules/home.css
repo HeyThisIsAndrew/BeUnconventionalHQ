@@ -470,7 +470,21 @@
 .home-v4 .acc-panel.is-playing {
   overflow: visible;
 }
-.home-v4 .acc-panel.is-playing .acc-media img,
+/* The frame is transparent until its player reports ready
+   (src/lib/youtube-start.ts), so the art stays up under it instead of a
+   black box, held at its resting zoom so nothing overhangs the now-unclipped
+   panel; it goes once the video is shown. */
+.home-v4 .acc-video-iframe {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.home-v4 .acc-panel.is-video-shown .acc-video-iframe {
+  opacity: 1;
+}
+.home-v4 .acc-panel.is-playing .acc-media img {
+  --zoom: 1;
+}
+.home-v4 .acc-panel.is-video-shown .acc-media img,
 .home-v4 .acc-panel.is-playing .acc-progress,
 .home-v4 .acc-panel.is-playing .acc-play-overlay {
   display: none;
