@@ -120,13 +120,20 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    use it too. iOS Safari may still refuse an unmuted start that is not inside
    the reader's own gesture, which leaves YouTube's own play button: one more
    tap, never a dead end. `scripts/youtube-start.test.mjs` guards the helper.
-   **The three hub/event stages are a KNOWN REMAINING
-   EXPOSURE, deliberately left alone**: they try `autoplay=1&mute=0` first and
-   fall back to muted when the browser refuses, and that negotiation encodes a
-   fix that shipped broken once ("never unmute a video that is ALREADY
-   running"). Do not convert them to the jsapi start without real-device
-   testing of the sound-blocked path; the escape link covers the symptom
-   meanwhile. **The "Watch on YouTube" link is rendered ALWAYS**, never
+   **The three hub/event stages (`/featured/[slug]`, EventFeatured,
+   EventAnnouncement) now start through `playWhenReady` too** (owner's call,
+   2026-09): no src on them carries `autoplay=1`, the ambient trailer
+   included, and each of their FOUR frame loads is followed by
+   `startStage(frame)`. They still try sound first on a press and reload muted
+   if the player has not reached PLAYING within `HUB_START_GRACE_MS` (3s,
+   longer than the old 1.5s because the start now waits for `onReady`), and
+   they still never unmute a video that is ALREADY running. That muted
+   fallback is the path to test on a real iPhone. **Every YouTube frame the
+   site writes must allow fullscreen**: the fullscreen fix once landed on two
+   players and left these three with `allow="autoplay; encrypted-media"`, so
+   YouTube's fullscreen button was dead on every hub and event hero.
+   `scripts/embed-escape.test.mjs` asserts both over every file that writes an
+   iframe, and fails when a new one is added without being listed. **The "Watch on YouTube" link is rendered ALWAYS**, never
    gated on detecting the failure: a detector that silently stops firing puts
    the reader back in the trap with nothing on screen saying so. **On the hub
    stage (`/featured/[slug]`) it lives in the hero's action row beside Play
@@ -157,9 +164,9 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    the way back only if it autoplays (`autoplay=1` in its src: a background
    loop), never a video the reader started. Components may stop their own
    rotation timers on scroll, never their players: FeaturedHighlights used
-   to pause and play its own. Known consequence: the event/hub stages put
-   `autoplay=1` in the src of a reader-started video too, so those resume on
-   scroll-back. `scripts/embed-pause.test.mjs` guards all of it.
+   to pause and play its own. Since the hub/event stages stopped carrying
+   `autoplay=1`, nothing on them resumes on scroll-back, the ambient trailer
+   included (it plays once and hands over anyway). `scripts/embed-pause.test.mjs` guards all of it.
 
 ## Data flow
 

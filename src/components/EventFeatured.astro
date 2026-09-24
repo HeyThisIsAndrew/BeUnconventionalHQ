@@ -627,12 +627,13 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
                 <iframe
                   class="hub-stage-iframe"
                   src="about:blank"
-                  data-src={`https://www.youtube-nocookie.com/embed/${trailerId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&disablekb=1&iv_load_policy=3&cc_load_policy=0&controls=0&enablejsapi=1`}
+                  data-src={`https://www.youtube-nocookie.com/embed/${trailerId}?mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&disablekb=1&iv_load_policy=3&cc_load_policy=0&controls=0&enablejsapi=1`}
                   title=""
                   aria-hidden="true"
                   tabindex="-1"
                   loading="lazy"
-                  allow="autoplay; encrypted-media"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                  allowfullscreen
                 ></iframe>
               </div>
             )}
@@ -1043,6 +1044,39 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
   </main>
 
 <script>
+  import { playWhenReady } from '../lib/youtube-start';
+
+  /*
+    ─── NOTHING ON THIS STAGE STARTS ITSELF ──────────────────────────────────
+
+    Every video here, the ambient trailer included, used to carry
+    `autoplay=1` in its src, and a reader-started one `autoplay=1&mute=0`.
+    An embed that starts itself is what YouTube's bot check looks for, and it
+    is what walled a reader behind a sign-in prompt (CLAUDE.md hard rule 11).
+    The /feed and homepage heroes stopped doing it; these three stages were
+    the known remaining exposure. Now the src never asks, and playWhenReady()
+    (src/lib/youtube-start.ts) sends the jsapi `playVideo` once the player
+    says it is ready, and retries until it is PLAYING.
+
+    One start in flight per stage: a new source cancels the last one's
+    retries, and unloading the frame cancels them too.
+
+    HUB_START_GRACE_MS is how long a start is given before "it did not play"
+    is believed (sound refused, so fall back to muted). Longer than the old
+    1.5s, because the start now waits for the player's onReady instead of
+    beginning the moment the frame loads.
+  */
+  const HUB_START_GRACE_MS = 3000;
+  let cancelStageStart: (() => void) | null = null;
+  const stopStageStart = () => {
+    cancelStageStart?.();
+    cancelStageStart = null;
+  };
+  const startStage = (frame: HTMLIFrameElement) => {
+    stopStageStart();
+    cancelStageStart = playWhenReady(frame);
+  };
+
   /* ══════════════════════════════════════════════════════════════════════
      THE MARK DISSOLVES TO THE TRAILER — AND ONLY IF IT REALLY PLAYS.
 
@@ -1196,6 +1230,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
       window.removeEventListener('message', onMessage);
       stage.classList.remove('is-playing');
       /* HARD RULE 4: 'about:blank', never ''. */
+      stopStageStart();
       if (frame.src !== 'about:blank') frame.src = 'about:blank';
       /*
         THE STAGE IS EMPTY NOW — SAY SO.
@@ -1280,6 +1315,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
         }
         
         frame.src = finalSrc;
+        startStage(frame);
         stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: !tryWithSound } }));
         
         window.addEventListener('message', onMessage);
@@ -1295,9 +1331,10 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
               try { sessionStorage.setItem('hub-sound-blocked', '1'); } catch {}
               let mutedSrc = `${src}&origin=${encodeURIComponent(window.location.origin)}`;
               frame.src = mutedSrc;
+              startStage(frame);
               stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: true } }));
             }
-          }, 1500));
+          }, HUB_START_GRACE_MS));
         }
 
         /* Never started: blocked autoplay, blocked domain, embedding disabled.
@@ -1383,6 +1420,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
 
       /* Unload the trailer rather than hiding it. HARD RULE 4: about:blank. */
       const frame = stage.querySelector<HTMLIFrameElement>('.hub-stage-iframe');
+      stopStageStart();
       if (frame && frame.src !== 'about:blank') frame.src = 'about:blank';
       stage.classList.remove('is-playing');
       stage.classList.remove('is-chosen-video');
@@ -1616,7 +1654,7 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
 
     const embedUrl = (id: string, muted: boolean) =>
       `https://www.youtube-nocookie.com/embed/${id}` +
-      `?autoplay=1&mute=${muted ? '1' : '0'}&enablejsapi=1&rel=0&modestbranding=1&playsinline=1` +
+      `?mute=${muted ? '1' : '0'}&enablejsapi=1&rel=0&modestbranding=1&playsinline=1` +
       /* `origin` is required for the jsapi handshake and is only knowable at
          runtime. Without it the player never answers, and "did it start?"
          below could never be answered either. */
@@ -1734,14 +1772,16 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
         const withSound = !soundBlocked();
         
         frame.src = embedUrl(id, !withSound);
+        startStage(frame);
         stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: !withSound } }));
         if (!withSound) return;
 
-        if (await didStart(frame, HUB_SOUND_GRACE_MS)) return;
+        if (await didStart(frame, HUB_START_GRACE_MS)) return;
         if (token !== playToken) return; // superseded while we waited
 
         rememberSoundBlocked();
         frame.src = embedUrl(id, true);
+        startStage(frame);
         stage.dispatchEvent(new CustomEvent('hub:sourcechange', { detail: { muted: true } }));
       });
     });

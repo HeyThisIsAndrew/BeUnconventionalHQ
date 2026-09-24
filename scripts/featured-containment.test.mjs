@@ -1658,7 +1658,11 @@ test('pressing Play once is enough', () => {
   assert.ok(at2 > -1, 'the press must build its embed URL in one place');
   const url = hub.slice(at2, at2 + 600);
 
-  assert.match(url, /autoplay=1/, 'one press must start it');
+  /* No longer by autoplay=1: an embed that starts itself is what YouTube's
+     bot check looks for (CLAUDE.md hard rule 11). The press loads the player
+     and playWhenReady() sends playVideo once it is ready. */
+  assert.doesNotMatch(url, /autoplay=1/, 'an embed that starts itself risks the YouTube sign-in wall');
+  assert.match(handler, /embedUrl\(id, !withSound\);\s*startStage\(frame\)/, 'one press must start it');
   assert.match(url, /enablejsapi=1/, 'without the API nothing can be asked of the player');
   assert.match(url, /origin=\$\{encodeURIComponent/, 'the player will not answer without an origin');
   assert.match(url, /playsinline=1/, 'iOS goes full screen without it');
@@ -1681,7 +1685,7 @@ test('pressing Play once is enough', () => {
     reloaded muted, and the answer is remembered for the tab so the next video
     does not pay the same wait.
   */
-  assert.match(handler, /await didStart\(frame, HUB_SOUND_GRACE_MS\)/, 'the press must verify it started');
+  assert.match(handler, /await didStart\(frame, HUB_START_GRACE_MS\)/, 'the press must verify it started');
   assert.match(handler, /rememberSoundBlocked\(\)[\s\S]{0,140}embedUrl\(id, true\)/,
     'a refusal must fall back to muted, or the press is wasted');
   assert.match(handler, /token !== playToken/,

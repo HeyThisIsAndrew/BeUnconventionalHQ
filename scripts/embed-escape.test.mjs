@@ -313,7 +313,78 @@ test('parseVideoId recognises the host this site actually embeds from', () => {
   );
 });
 
+console.log('\nEvery player the site builds can go fullscreen:');
+
+/*
+  The fullscreen fix (a269f27d) landed on the /feed hero and the card modal
+  only. The hub stage and both event stages kept `allow="autoplay;
+  encrypted-media"` with no `allowfullscreen`, so YouTube's fullscreen button
+  was dead on every /featured and /events hero (Andrew, on the DC hub). So
+  this is asserted over EVERY iframe the site writes, not a list of players:
+  a new player is covered the day it is added.
+*/
+const IFRAME_FILES = [
+  'src/layouts/Layout.astro',
+  'src/components/FeedSpotlightHero.astro',
+  'src/components/HeroTrailer.astro',
+  'src/components/home/HeroAccordion.astro',
+  'src/components/EventFeatured.astro',
+  'src/components/EventAnnouncement.astro',
+  'src/pages/featured/[slug].astro',
+];
+for (const rel of IFRAME_FILES) {
+  test(`${rel}: every iframe allows fullscreen`, () => {
+    const SRC = code(read(rel));
+    /* Google Tag Manager's <noscript> frame is not a player. */
+    const tags = (SRC.match(/<iframe\b[\s\S]*?>/g) ?? []).filter((t) => !/googletagmanager/.test(t));
+    for (const tag of tags) {
+      assert.ok(/\ballowfullscreen\b/i.test(tag), `an <iframe> without allowfullscreen: ${tag.slice(0, 80)}`);
+    }
+    const built = SRC.split(/createElement\('iframe'\)/).length - 1;
+    const granted = (SRC.match(/allowFullscreen\s*=\s*true|setAttribute\('allowfullscreen'/g) ?? []).length;
+    assert.ok(granted >= built, `${built} iframe(s) built in script, ${granted} granted fullscreen`);
+    assert.ok(tags.length + built > 0, 'no iframe found: update IFRAME_FILES');
+  });
+}
+
+test('no other file writes an iframe the list above does not cover', () => {
+  const walk = (dir) =>
+    fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true }).flatMap((d) =>
+      d.isDirectory() ? walk(path.join(dir, d.name)) : /\.(astro|ts|tsx)$/.test(d.name) ? [path.join(dir, d.name)] : [],
+    );
+  const writers = walk('src').filter((rel) => /<iframe\b|createElement\('iframe'\)/.test(code(read(rel))));
+  /* articles-transform READS Substack's iframes (a regex) and replaces them;
+     it writes none. */
+  const READERS = ['src/lib/articles-transform.ts'];
+  const missing = writers
+    .map((rel) => rel.split(path.sep).join('/'))
+    .filter((rel) => !IFRAME_FILES.includes(rel) && !READERS.includes(rel));
+  assert.deepEqual(missing, [], 'a new player: add it to IFRAME_FILES so its fullscreen is checked');
+});
+
 console.log('\nNeither player asks YouTube to start itself:');
+
+/*
+  The hub stage and both event stages were CLAUDE.md's "known remaining
+  exposure": the ambient trailer carried autoplay=1 and a reader's press
+  loaded autoplay=1&mute=0. They now start through playWhenReady() like the
+  two heroes. Pinned per file, since the three are triplets and a fix that
+  lands in one of them is how they drift.
+*/
+for (const rel of ['src/pages/featured/[slug].astro', 'src/components/EventFeatured.astro', 'src/components/EventAnnouncement.astro']) {
+  test(`${rel}: no embed asks to start itself; playWhenReady starts it`, () => {
+    const SRC = code(read(rel));
+    const urls = SRC.match(/youtube-nocookie\.com\/embed\/[^`'"]*[`'"][^;]*/g) ?? [];
+    assert.ok(urls.length >= 2, 'expected the trailer and the pressed-play embed URLs');
+    for (const url of urls) assert.ok(!/autoplay=1/.test(url), `autoplay=1 is back: ${url.slice(0, 90)}`);
+    assert.match(SRC, /import \{ playWhenReady \} from '[./]+lib\/youtube-start'/);
+    const assigns = (SRC.match(/frame\.src = (?:finalSrc|mutedSrc|embedUrl\()/g) ?? []).length;
+    const starts = (SRC.match(/startStage\(frame\)/g) ?? []).length;
+    assert.equal(assigns, 4, 'the four places this stage loads a video');
+    assert.equal(starts, assigns, 'every video this stage loads must be started by playWhenReady');
+  });
+}
+
 
 const EMBED_URL = (src) => {
   const m = src.match(/youtube-nocookie\.com\/embed\/[^`'"]*/);
