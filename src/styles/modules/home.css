@@ -315,7 +315,14 @@
    is why they live outside the animated copy block. */
 /* Only the open panel shows its chips (they sit outside .acc-content). */
 .home-v4 .acc-panel:not(.is-open) .acc-chips {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
+}
+.home-v4 .acc-panel.is-open .acc-chips {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.4s ease-in 0.2s;
 }
 @media (min-width: 768px) {
   .home-v4 .acc-panel.is-open .acc-chips {
@@ -519,7 +526,9 @@
    and brighter type, as the feed's brand tag does. */
 .home-v4 .acc-chips {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow: hidden;
   gap: 0.5rem;
   margin: 0 0 1.1rem;
 }
