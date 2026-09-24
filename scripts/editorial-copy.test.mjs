@@ -183,6 +183,19 @@ test('an editorial type never occupies the brand slot', () => {
   }
 });
 
+test('Ketchup Entertainment is never read as Warner Bros', () => {
+  /* Coyote vs. Acme carries a "Warner Bros tax write off" tag because its
+     review is about Warner shelving the film; the film is Ketchup's. The CMS
+     label says so today, and the tags must agree if that label is cleared. */
+  const coyote = videos.find((v) => v.youtubeId === 'geyEkOlupA0');
+  assert.ok(coyote, 'Coyote vs. Acme is no longer in the store; update this test');
+  assert.equal(getDisplayTagSlots({ ...coyote, badge1: '' }).brand, 'KETCHUP ENTERTAINMENT');
+  assert.equal(
+    getDisplayTagSlots({ title: 'x', youtubeTags: ['Warner Bros tax write off', 'Ketchup Entertainment'] }).brand,
+    'KETCHUP ENTERTAINMENT',
+  );
+});
+
 test('an absent slot stays absent rather than being filled by its neighbour', () => {
   const slots = getDisplayTagSlots({ title: 'x', youtubeTags: ['moviereview'] });
   assert.equal(slots.brand, '', 'nothing identified a brand, so the brand slot is empty');
