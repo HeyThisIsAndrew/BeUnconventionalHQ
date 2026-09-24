@@ -434,6 +434,42 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
                 </button>
               )}
 
+              {hasPlayableVideo && (
+                /*
+                  ─── THE WAY OUT OF THE STAGE, BESIDE PLAY TRAILER ──────────
+
+                  The escape hatch the /feed hero and the card lightbox carry:
+                  youtube-nocookie.com withholds the viewer's YouTube session,
+                  so a video the player refuses to embed can only be rescued by
+                  a link to the real watch page.
+
+                  It used to sit INSIDE the stage, bottom left, and that is the
+                  corner where every rail pane puts its own Play / Read button,
+                  so on phones and desktop alike the two overlapped (Andrew,
+                  from an iPhone). Out here, in the row with Play trailer, it
+                  cannot overlap anything the stage shows.
+
+                  It names the video the STAGE IS SHOWING, which
+                  src/lib/stage-watch-link.ts works out and keeps current: the
+                  rail pane's video while a pane is up, the frame's video while
+                  one plays. It is hidden for the hub's TRAILER (the owner's
+                  call: the trailer is its own thing, and Play trailer is its
+                  control) and for an article pane, which has no video.
+                */
+                <a
+                  class="hero-action-btn hub-stage-watch"
+                  href="https://www.youtube.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  hidden
+                >
+                  <svg class="hero-action-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" />
+                  </svg>
+                  <span>Watch on YouTube</span>
+                </a>
+              )}
+
               {associatedUpcomingEvents.length > 0 && (
                 /*
                   ─── THE HERO JUMP LINK ─────────────────────────────────────
@@ -589,36 +625,6 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
                 <span class="hub-stage-sound-label">Sound</span>
               </button>
             )}
-
-            {/*
-              ─── THE WAY OUT OF THIS STAGE ──────────────────────────────────
-
-              The same escape hatch the /feed hero and the card lightbox carry.
-              youtube-nocookie.com deliberately withholds the viewer's YouTube
-              session, so a video the player refuses to embed cannot be
-              rescued by a parameter: the only fix is a link to the real watch
-              page. A reader hit a sign-in wall in one of this site's stages
-              with nothing on screen offering a way past it, and these three
-              were missed when that was first addressed.
-
-              Hidden until something is actually playing, because before that
-              there is no video for it to point at. src/lib/stage-watch-link.ts
-              sets the href off the `hub:sourcechange` event this stage already
-              dispatches, reading the id back off the frame; its rule is in
-              styles/modules/stage-watch.css, global rather than scoped,
-              because these three stages are triplets and a third copy of
-              anything is how they drift.
-
-              A SIBLING of the video, never a child: hard rule 3 means nothing
-              may wrap the iframe in a clipping box.
-            */}
-            <a
-              class="hub-stage-watch"
-              href="https://www.youtube.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              hidden
-            >Watch on YouTube</a>
 
             {/*
               ONE PANE PER FEATURED ITEM, hidden until its rail card is picked.
@@ -1420,6 +1426,12 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
     is-playing anyway).
   */
   .hero-grid-container:has(.hub-stage.is-playing) .hub-stage-replay {
+    display: none;
+  }
+
+  /* `display: inline-flex` above would otherwise beat the UA's [hidden]
+     rule, and the Watch link is hidden whenever the stage shows no video. */
+  .hero-action-btn[hidden] {
     display: none;
   }
 

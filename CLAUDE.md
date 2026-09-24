@@ -128,7 +128,15 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    testing of the sound-blocked path; the escape link covers the symptom
    meanwhile. **The "Watch on YouTube" link is rendered ALWAYS**, never
    gated on detecting the failure: a detector that silently stops firing puts
-   the reader back in the trap with nothing on screen saying so.
+   the reader back in the trap with nothing on screen saying so. **On the hub
+   stage (`/featured/[slug]`) it lives in the hero's action row beside Play
+   trailer, never over the stage**: as stage chrome it sat bottom left, which
+   is where every rail pane puts its own Play / Read button, and the two
+   overlapped at every width. It names the video the stage is SHOWING (the
+   active rail pane's video, else the frame's) and is hidden for an article
+   pane and for the hub's own TRAILER. The trailer exception is the owner's
+   call ("the trailer is its own thing"); it is decided by content, not by
+   detecting a failure, so it does not break the rule above.
 12. **Pausing an embed belongs to `src/lib/embed-pause.ts` and nowhere else.**
    Mounted once from Layout, it pauses every playing embed on
    `document.hidden` and resumes only what it paused. Reported as duplicate

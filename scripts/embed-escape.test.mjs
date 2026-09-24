@@ -227,9 +227,23 @@ for (const rel of ['src/components/EventFeatured.astro', 'src/components/EventAn
 for (const rel of STAGE_FILES) {
   test(`${rel} renders the stage escape link`, () => {
     const SRC = read(rel);
-    assert.match(SRC, /class="hub-stage-watch"/, 'this stage has no way out of a refused embed');
+    assert.match(SRC, /class="[^"]*\bhub-stage-watch\b[^"]*"/, 'this stage has no way out of a refused embed');
     assert.match(SRC, /Watch on YouTube/);
     assert.match(SRC, /rel="noopener noreferrer"/);
+  });
+
+  /*
+    It sat inside the stage, bottom left, where every rail pane puts its own
+    Play / Read button, and the two overlapped on phones and desktop (Andrew,
+    from an iPhone). It belongs in the action row beside Play trailer.
+  */
+  test(`${rel} puts the escape link in the action row, not over the stage`, () => {
+    const SRC = code(read(rel));
+    const row = SRC.slice(SRC.indexOf('<div class="hero-actions">'));
+    const stageAt = SRC.indexOf('class="hero-trailer hub-stage"');
+    const linkAt = SRC.search(/class="[^"]*\bhub-stage-watch\b/);
+    assert.ok(row && /\bhub-stage-watch\b/.test(row.slice(0, row.indexOf('</div>'))), 'the link is not in .hero-actions');
+    assert.ok(stageAt > linkAt, 'the link is rendered inside (after the opening of) the stage again');
   });
 
   test(`${rel} does not carry its own copy of the wiring or the rule`, () => {
@@ -263,6 +277,20 @@ test('the wiring reads the id off the frame, not out of an event detail', () => 
     !/detail\?\.videoId/.test(M),
     'reading the detail misses the ambient trailer, which is what starts on its own',
   );
+});
+
+test('the link names the video on screen, and never the hub trailer', () => {
+  const M = code(read('src/lib/stage-watch-link.ts'));
+  /* A rail pane is up: its video (or nothing, for an article). The frame is
+     unloaded then, so reading the frame alone would hide the link exactly
+     when a video is being offered. */
+  assert.match(M, /classList\.contains\('is-item'\)/);
+  assert.match(M, /\[data-hub-play\]/);
+  /* The owner's call: the trailer is its own thing, and Play trailer is its
+     control. The link is for the hub's coverage. */
+  assert.match(M, /stage\.dataset\.trailer/);
+  /* Pane switches dispatch no hub:sourcechange, so the stage is watched. */
+  assert.match(M, /new MutationObserver/);
 });
 
 test('the id is parsed by parseVideoId, never by hand', () => {
