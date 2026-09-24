@@ -389,6 +389,19 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
       if (stopped || userPaused) {
         stopped = false;
         userPaused = false;
+        /*
+          Play means play NOW. The hover and focus holds (the pause-on-
+          interaction the rotation owes a reader, WCAG 2.2.2) are both true
+          at the moment of this click: the pointer is on this button and the
+          button has focus. Left in place, the toggle read "Pause rotation"
+          while nothing moved, and because focus stays here after a click,
+          the rotation never resumed at all (reported: click a tile, press
+          play, the progress bar does not resume). They are re-armed by the
+          next mouseenter or focusin, so the pause still works for anyone
+          who arrives later.
+        */
+        holds.hover = false;
+        holds.focus = false;
       } else {
         userPaused = true;
       }
