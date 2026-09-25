@@ -787,55 +787,41 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
   */
   @media (max-width: 640px) {
     .cmd-palette {
-      top: 5%;
-      transform: translate(-50%, 0);
-      width: 95%;
+      top: 0;
+      left: 0;
+      transform: none;
+      width: 100%;
+      height: 100dvh;
+      max-height: 100dvh;
+      max-width: none;
+      margin: 0;
     }
     /*
       ─── AND THE OPEN STATE, OR THE LINE ABOVE NEVER APPLIES ────────────────
 
-      `.cmd-palette[open]` sets `transform: translate(-50%, -50%)`, which is
-      right at the desktop origin of `top: 50%` and catastrophic at the mobile
-      origin of `top: 5%`. A media query adds NO specificity, so `[open]`
-      (0,2,0) beats the bare `.cmd-palette` (0,1,0) above whatever the order:
-      the panel was pulled up half its own height from 5% and most of it sat
-      off the top of the screen, which is what the report showed — results
-      visible in a clipped strip with the keyboard already up.
-
-      The `@starting-style` twin is here for the same reason. Left at the
-      desktop's -45%, the palette flew in from off-screen instead of fading
-      up a few pixels, on the one form factor where it is opened most.
+      `.cmd-palette[open]` sets `transform: translate(-50%, -50%)`. A media query 
+      adds NO specificity, so `[open]` (0,2,0) beats the bare `.cmd-palette` (0,1,0).
     */
     .cmd-palette[open] {
-      transform: translate(-50%, 0);
+      transform: none;
     }
     @starting-style {
       .cmd-palette[open] {
         opacity: 0;
-        transform: translate(-50%, 1.5%) scale(0.95);
+        transform: scale(0.95);
       }
     }
     /*
-      `dvh`, NOT `vh`, AND SMALLER.
-
-      At `70vh` the panel was 682px tall in an 852px viewport, ending at 767px.
-      A typical iOS keyboard takes ~336px, leaving 516px usable — so 251px of
-      the results sat behind the keyboard, unreachable while typing, which is
-      the whole time this thing is open.
-
-      `dvh` is the DYNAMIC viewport height: it shrinks when the keyboard comes
-      up, which is exactly the case here.
-
-      This deliberately differs from the mobile hero, which uses `lvh` and
-      where `dvh` is explicitly rejected (see scripts/viewport-units.test.mjs
-      and hero.css). That rule is about an element sized to the SCROLL
-      viewport, where `dvh` re-resolving as the address bar retracts makes the
-      hero resize mid-scroll. Nothing scrolls behind a modal — the page is
-      locked — so the objection does not transfer, and the property that makes
-      `dvh` wrong there is the one that makes it right here.
+      Make the modal full-screen on mobile. The `interactive-widget=resizes-content`
+      meta tag ensures `dvh` actually shrinks when the iOS virtual keyboard
+      appears, preventing the modal from being obscured and allowing internal
+      scrolling to function correctly.
     */
     .cmd-palette-content {
-      max-height: 60dvh;
+      border: none;
+      border-radius: 0;
+      max-height: none;
+      height: 100dvh;
     }
   }
   @media (prefers-reduced-motion: reduce) {
