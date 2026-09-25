@@ -98,9 +98,6 @@
       const GUARD_MS = 3000;
       const GESTURES = ['touchstart', 'pointerdown', 'wheel', 'keydown'];
 
-      // HARD LOCK: prevent the compositor from scrolling at all
-      // We use a unique class to avoid conflicting with actual modals.
-      document.documentElement.classList.add('reload-lock');
       
       const onStrayScroll = () => {
         if (window.scrollY === 0) return;
@@ -120,5 +117,16 @@
       GESTURES.forEach((type) =>
         window.addEventListener(type, releaseTopGuard, { passive: true, once: true })
       );
+
+      /*
+        HARD LOCK (ios-lock.css), TOUCH-PRIMARY DEVICES ONLY. It is for iOS
+        Safari, which restores the old offset despite `manual`; desktop
+        engines honour `manual`. On desktop it ate the first trackpad swipe
+        after a refresh (Chrome, Brave): a swipe is latched to a scroller when
+        it begins, the page was still locked then, and the wheel release
+        above came too late for that swipe.
+      */
+      const touchPrimary = !!(window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches);
+      if (touchPrimary) document.documentElement.classList.add('reload-lock');
     }
 </script>
