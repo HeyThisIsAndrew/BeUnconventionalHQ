@@ -107,7 +107,6 @@
 
       const releaseTopGuard = () => {
         clearTimeout(guardTimer);
-        document.documentElement.classList.remove('reload-lock');
         window.removeEventListener('scroll', onStrayScroll);
         GESTURES.forEach((type) => window.removeEventListener(type, releaseTopGuard));
       };
@@ -119,14 +118,13 @@
       );
 
       /*
-        HARD LOCK (ios-lock.css), TOUCH-PRIMARY DEVICES ONLY. It is for iOS
-        Safari, which restores the old offset despite `manual`; desktop
-        engines honour `manual`. On desktop it ate the first trackpad swipe
-        after a refresh (Chrome, Brave): a swipe is latched to a scroller when
-        it begins, the page was still locked then, and the wheel release
-        above came too late for that swipe.
+        NO HARD LOCK. This used to add `reload-lock` (position: fixed +
+        overflow: hidden on html and body) until the first input. It ate the
+        first swipe after a refresh, on a Mac trackpad in Chrome/Brave AND on
+        iPhone Safari: a swipe is latched to a scroller when it begins, the
+        page was still locked then, and the release came too late for that
+        swipe. The hold-the-top guard above keeps every restore timing at the
+        top on its own (scripts/e2e-reload-scroll.test.mjs, iPhone and iPad).
       */
-      const touchPrimary = !!(window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches);
-      if (touchPrimary) document.documentElement.classList.add('reload-lock');
     }
 </script>
