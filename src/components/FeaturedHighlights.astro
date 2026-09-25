@@ -837,6 +837,21 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
         e.preventDefault();
         e.stopPropagation();
 
+        /*
+          No preview player to unmute: YouTube's API was blocked (an ad
+          blocker, a privacy extension) or has not loaded yet, which the
+          static-carousel fallback below calls a supported state. This click
+          used to be swallowed right here and the tap did nothing at all, on
+          the lead card's image, title and play mark alike. It opens the
+          site's video modal instead: the same video, one tap, and the
+          modal carries its own "Watch on YouTube" door (hard rule 11).
+        */
+        if (!activePlayer || typeof activePlayer.unMute !== 'function') {
+          const videoId = button.getAttribute('data-video-id');
+          if (videoId) window.hqOpenVideo?.(videoId);
+          return;
+        }
+
         const mediaContainer = button.querySelector('.content-card-media') || button.closest('.content-card')?.querySelector('.content-card-media');
         if (!mediaContainer) return;
 

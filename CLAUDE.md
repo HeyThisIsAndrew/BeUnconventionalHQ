@@ -502,6 +502,21 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   `getCardImageSources()` for external images, and measure `sizes` from the
   box, never copy the card grid's.
 
+- **A card's image does what the card does.** A user test found readers
+  tapping the art on heroes, cards and stage panes and getting nothing,
+  because only the small title or button was live. Now every card and hero
+  image runs its card's action (navigate, or play for a video). There are
+  three ways to do it. A stretched `::after` on the card's one real link
+  works when no transformed or positioned box sits between the link and the
+  art: `animation-fill-mode: both` ending at `transform: none` still
+  computes a matrix and traps it, as on the homepage hero. Where a stretch
+  can't reach, use a duplicate overlay link with
+  `aria-hidden="true" tabindex="-1"`, which keeps one tab stop. Stage panes
+  use `src/lib/stage-item-tap.ts`, which forwards a tap to whatever Play or
+  Read control the pane holds. A page's OWN hero backdrop stays inert (the
+  owner's call). `scripts/e2e-tap-targets.test.mjs` taps each one on phone
+  and desktop and asserts what happened, so add a check there for a new
+  card type.
 - `docs/` is **gitignored** — put operator docs in `scripts/*.md`.
 - Offline test suites live in `scripts/*.test.mjs`, run by plain `node`
   (Node 22 native type-stripping; src/lib imports use explicit `.ts`

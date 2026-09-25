@@ -132,6 +132,14 @@ const resolvedLogoSrc = markUrl || fallbackLogoSrc;
       full bleed. */}
   <div class="event-hero-scrim" aria-hidden="true"></div>
 
+  {/* This hero promotes ONE event, and readers tapped its art expecting to
+      open it; only the CTA worked. The whole hero links where the CTA does.
+      A mouse and touch target only (aria-hidden, out of the tab order): the
+      CTA stays the keyboard and screen-reader path, one stop. The copy above
+      it lets taps through (see .event-hero--index .event-hero-overlay), so a
+      tap on the logo or the tagline lands here too; the CTA keeps its own. */}
+  <a href={ctaHref} class="event-hero-link" tabindex="-1" aria-hidden="true"></a>
+
   <div class="event-hero-overlay flex flex-col justify-center">
       <div class="event-hero-content hero-copy">
         {/* The metadata the detail hero uses: what it is, where, and when.
@@ -283,6 +291,11 @@ const resolvedLogoSrc = markUrl || fallbackLogoSrc;
     -webkit-filter: blur(2px) saturate(1.08) brightness(1.04);
   }
 
+  .event-hero-link {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
   .event-hero-overlay {
     position: relative;
     z-index: 1;
@@ -509,6 +522,7 @@ const resolvedLogoSrc = markUrl || fallbackLogoSrc;
     reading the markup.
   */
   .event-hero--index .event-hero-overlay {
+    pointer-events: none;
     flex: 1;
     min-width: 0;
   }
@@ -556,6 +570,7 @@ const resolvedLogoSrc = markUrl || fallbackLogoSrc;
   }
 
   .event-hero--index .hero-cta {
+    pointer-events: auto;
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
