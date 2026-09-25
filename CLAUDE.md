@@ -476,7 +476,10 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   triggers on. Partytown used to load a second copy, and the two ran at once
   (TikTok "Duplicate Pixel ID"; the Partytown copy was served a stale
   container through `/api/proxy`, so a GA4 fix never took effect). Never add a
-  gtm.js snippet while the gateway is on. Local dev loads no GTM at all.
+  gtm.js loader while the gateway is on, but DO keep the `gtm.js` start
+  event push beside the page_view listener: the gateway injects only the
+  loader, and without that push GA4 never loads (TikTok and Meta still fire,
+  so it looks fine). Local dev loads no GTM at all.
   `scripts/gtm-single-loader.test.mjs` guards it.
 
 ## Conventions

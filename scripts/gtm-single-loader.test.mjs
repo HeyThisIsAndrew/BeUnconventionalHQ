@@ -64,6 +64,15 @@ check('/api/proxy does not relay tag scripts', () => {
   }
 });
 
+check('the gtm.js start event is pushed exactly once', () => {
+  /* The gateway injects the loader only. Without this push the Google tag
+     never loads and GA4 records nothing, while TikTok and Meta look fine. */
+  const pushes = layout.match(/'gtm\.start':\s*new Date\(\)\.getTime\(\),\s*event:\s*'gtm\.js'/g) ?? [];
+  assert.equal(pushes.length, 1, `expected one gtm.js start push in Layout.astro, found ${pushes.length}`);
+  const guard = layout.indexOf("window['setup'] = true");
+  assert.ok(guard > -1 && layout.indexOf("'gtm.start'") > guard, 'the start push must sit inside the once-per-session guard');
+});
+
 check('page_view is pushed on astro:page-load with path and title', () => {
   const at = layout.indexOf("addEventListener('astro:page-load'");
   assert.ok(at > -1, 'no astro:page-load listener in Layout.astro');

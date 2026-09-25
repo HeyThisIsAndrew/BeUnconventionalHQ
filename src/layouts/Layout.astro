@@ -354,14 +354,23 @@ const fallbackMark = await getImage({
 
       Consequence: local dev and preview load no GTM at all, and turning the
       gateway off in Cloudflare turns tracking off.
+
+      THE gtm.js START EVENT IS OURS TO SEND. It is the first half of Google's
+      standard snippet; the gateway (with "Set up tag" off) injects only the
+      loader, not this push. Without it GA4 never loads: measured on
+      production, the Google tag registered G-FWG8KL9Z5M as a bootstrap stub,
+      page_view sat in the dataLayer, and no hit left the page, while TikTok
+      and Meta fired normally. Pushing it made GA4 send one hit per page.
     */}
 
-    <!-- Google Tag Manager: page_view for every navigation -->
+    <!-- Google Tag Manager: start event, and page_view for every navigation -->
     {gtmId && (
       <script is:inline>
         if (typeof window !== 'undefined') {
           if (!window['setup']) {
             window['setup'] = true;
+            window.dataLayer = window.dataLayer || [];
+            window.dataLayer.push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' });
             // ClientRouter swaps pages without full reloads, so this script only
             // runs once per session. astro:page-load fires on the initial load
             // AND after every client-side navigation — the GA4 tag in the GTM
