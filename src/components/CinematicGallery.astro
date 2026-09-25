@@ -137,10 +137,42 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
     private _startX: number = 0;
     private _startY: number = 0;
     private _scrollLeftStart: number = 0;
+    private _setupGate?: IntersectionObserver;
 
+    /*
+      ─── BUILT WHEN IT IS NEAR, NOT WHEN THE PAGE LOADS ──────────────────────
+      Everything below used to run in the constructor, i.e. while the page
+      was still loading, for a rail that sits at the very foot of the
+      homepage. On desktop that meant cloning the row to fifteen groups
+      (+1,300 elements, 2,745 in all) and measuring them, which forces a
+      layout of a section `content-visibility: auto` was skipping: PageSpeed
+      reported it as 111ms + 111ms of forced reflow, landing in the frame that
+      painted the hero. On a phone the equivalent was a `scrollWidth` read
+      (266ms task at 9x CPU). The loop, the clones and the mobile rail are
+      unchanged; they are simply built one viewport before the reader gets
+      there. The observer fires at once if the rail is already near.
+    */
     constructor() {
       super();
-      
+      if (!('IntersectionObserver' in window)) {
+        this.setup();
+        return;
+      }
+      this._setupGate = new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((entry) => entry.isIntersecting)) return;
+          this._setupGate?.disconnect();
+          this._setupGate = undefined;
+          this.setup();
+        },
+        { rootMargin: '100% 0px' },
+      );
+      this._setupGate.observe(this);
+    }
+
+    private setup(): void {
+      /* Tests wait on this: the rail is built when near, not on load. */
+      this.dataset.ready = '1';
       const track = this.querySelector('.ig-carousel-track') as HTMLElement;
       if (!track) return;
       
@@ -578,7 +610,13 @@ const { items = [], profileUrl = 'https://instagram.com/' } = Astro.props;
       this._visibility.observe(this);
     }
 
+    /* Moved rather than removed: keep waiting to be built. */
+    connectedCallback() {
+      if (this._setupGate) this._setupGate.observe(this);
+    }
+
     disconnectedCallback() {
+      if (this._setupGate) this._setupGate.disconnect();
       if (this._animationFrame) cancelAnimationFrame(this._animationFrame);
       if (this._resizeObserver) this._resizeObserver.disconnect();
       if (this._visibility) this._visibility.disconnect();

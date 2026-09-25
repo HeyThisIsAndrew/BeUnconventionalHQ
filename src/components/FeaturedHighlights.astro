@@ -750,15 +750,23 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
         progress.style.opacity = '1';
         progress.style.transition = 'none';
         progress.style.transform = `scaleX(${accumulatedTime / duration})`;
-        
-        // Force layout reflow
-        progress.getBoundingClientRect();
-        void progress.offsetWidth;
-        
+
+        /*
+          TWO frames, not a forced reflow. The starting scale has to be
+          committed before the transition is switched on, or the bar animates
+          from wherever it last was. This used to force that commit with
+          getBoundingClientRect() + offsetWidth, which is a synchronous style
+          and layout of whatever the page had pending: this runs at load, so it
+          paid for the page's first full style pass (124ms at 4x CPU; PageSpeed
+          lists it under "Forced reflow"). Waiting one rendered frame commits
+          the same start value for free.
+        */
         if (rAF_ID) cancelAnimationFrame(rAF_ID);
         rAF_ID = requestAnimationFrame(() => {
-          progress.style.transition = `transform ${remaining}ms linear`;
-          progress.style.transform = 'scaleX(1)';
+          rAF_ID = requestAnimationFrame(() => {
+            progress.style.transition = `transform ${remaining}ms linear`;
+            progress.style.transform = 'scaleX(1)';
+          });
         });
       }
 

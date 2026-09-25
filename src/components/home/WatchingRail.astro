@@ -181,10 +181,38 @@ const { items } = Astro.props;
     track.addEventListener('scrollend', onScrollEnd);
     window.addEventListener('resize', sync);
     desktop.addEventListener('change', onMedia);
-    onMedia();
-    sync();
+
+    /*
+      Set up when the rail is near, not while the page loads. Both steps read
+      layout (`scrollWidth`, `offsetLeft`), and this section is
+      `content-visibility: auto` (home.css), so reading it at load forced a
+      style and layout of the whole rail the browser was skipping: PageSpeed's
+      "Forced reflow" line for this file. One viewport of lead time means the
+      loop and the arrow states are ready before the reader arrives.
+    */
+    let started = false;
+    const start = () => {
+      if (started) return;
+      started = true;
+      onMedia();
+      sync();
+    };
+    const gate =
+      'IntersectionObserver' in window
+        ? new IntersectionObserver(
+            (entries) => {
+              if (!entries.some((entry) => entry.isIntersecting)) return;
+              gate?.disconnect();
+              start();
+            },
+            { rootMargin: '100% 0px' },
+          )
+        : null;
+    if (gate) gate.observe(track);
+    else start();
 
     cleanup = () => {
+      gate?.disconnect();
       window.clearTimeout(settle);
       prev.removeEventListener('click', onPrev);
       next.removeEventListener('click', onNext);

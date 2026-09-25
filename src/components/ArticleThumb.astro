@@ -54,9 +54,16 @@ interface Props {
    * /intel's at most widths (measured below), so it takes its own `sizes`.
    */
   compact?: boolean;
+  /**
+   * Hold the request until the page has loaded (src/lib/deferred-images.ts).
+   * For images below the fold that Chrome's lazy-load distance would still
+   * start during the LCP window. The owning component must call
+   * initDeferredImages().
+   */
+  defer?: boolean;
 }
 
-const { image, title, size = 'rail', id, decorative = false, compact = false } = Astro.props;
+const { image, title, size = 'rail', id, decorative = false, compact = false, defer = false } = Astro.props;
 
 const isFeature = size === 'feature';
 /*
@@ -135,8 +142,10 @@ const SIZES = isFeature ? FEATURE_SIZES : compact ? COMPACT_THUMB_SIZES : THUMB_
     */
     <img
       id={id}
-      src={sources.src || image}
-      srcset={sources.srcset || undefined}
+      src={defer ? undefined : sources.src || image}
+      srcset={defer ? undefined : sources.srcset || undefined}
+      data-defer-src={defer ? sources.src || image : undefined}
+      data-defer-srcset={defer ? sources.srcset || undefined : undefined}
       sizes={sources.srcset ? SIZES : undefined}
       alt={decorative ? '' : `Cover image for ${title}`}
       width={isFeature ? 1456 : 640}

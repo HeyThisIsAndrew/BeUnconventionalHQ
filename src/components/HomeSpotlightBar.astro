@@ -374,6 +374,23 @@ const artSizes = variant === 'banner' ? '100vw' : '(min-width: 2737px) 2600px, 9
 const THUMB_ART_SIZES = '(max-width: 767px) 100vw, 400px';
 const sizesFor = (slide: { artFocus?: string }) =>
   variant === 'banner' && slide.artFocus === 'thumbnail' ? THUMB_ART_SIZES : artSizes;
+
+/*
+  ─── THE FIRST SLIDE'S ART LOADS WITH THE PAGE; THE REST AFTER IT ──────────
+  Slide 0 renders its real `src` (hard rule 10: its visibility must never wait
+  on the bundle). Every later slide is `visibility: hidden` for at least seven
+  seconds, yet its eager art and logo were requested with the page: on the
+  homepage that was ~27 KiB started before the first paint, which PageSpeed's
+  simulation charges to both FCP and LCP. They now wait in data-defer-* until
+  the page has loaded (the same data-defer-* shape as src/lib/deferred-images.ts,
+  filled by this component's own script), and `show()` fills a
+  slide's images the moment it becomes current, so a slide can never arrive
+  blank even if the reader presses Next before `load`.
+*/
+const artSources = (img: { src: string; srcset?: string }, index: number) =>
+  index === 0
+    ? { src: img.src, srcset: img.srcset || undefined }
+    : { 'data-defer-src': img.src, 'data-defer-srcset': img.srcset || undefined };
 ---
 
 <section class:list={['spotlight', `spotlight--${variant}`]} aria-label={label} data-spotlight>
@@ -450,8 +467,7 @@ const sizesFor = (slide: { artFocus?: string }) =>
         {slide.art && variant === 'banner' && slide.artFocus === 'thumbnail' && (
           <img
             class="spotlight-art spotlight-art--fill"
-            src={slide.art.src}
-            srcset={slide.art.srcset || undefined}
+            {...artSources(slide.art, index)}
             sizes={sizesFor(slide)}
             alt=""
             aria-hidden="true"
@@ -463,8 +479,7 @@ const sizesFor = (slide: { artFocus?: string }) =>
         {slide.art && (
           <img
             class="spotlight-art"
-            src={slide.art.src}
-            srcset={slide.art.srcset || undefined}
+            {...artSources(slide.art, index)}
             sizes={sizesFor(slide)}
             alt=""
             loading="eager"
@@ -497,8 +512,7 @@ const sizesFor = (slide: { artFocus?: string }) =>
             {slide.logo ? (
               <img
                 class="spotlight-logo"
-                src={slide.logo.src}
-                srcset={slide.logo.srcset || undefined}
+                {...artSources(slide.logo, index)}
                 width={slide.logo.width}
                 height={slide.logo.height}
                 alt={slide.title}
@@ -1262,6 +1276,18 @@ const sizesFor = (slide: { artFocus?: string }) =>
 </style>
 
 <script>
+  /* Kept free of imports on purpose: a self-contained script this size is
+     inlined into the page, and importing even a tiny module turns it into one
+     more request started before the first paint. */
+  const fillDeferred = (img: HTMLImageElement) => {
+    const { deferSrc, deferSrcset } = img.dataset;
+    if (!deferSrc) return;
+    if (deferSrcset) img.srcset = deferSrcset;
+    img.src = deferSrc;
+    delete img.dataset.deferSrc;
+    delete img.dataset.deferSrcset;
+  };
+
   /*
     ─── ONE CLOCK ────────────────────────────────────────────────────────────
 
@@ -1292,10 +1318,17 @@ const sizesFor = (slide: { artFocus?: string }) =>
 
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+      /* Later slides' images wait until the page has loaded (see artSources
+         in the frontmatter); a slide being shown is filled at once. */
+      const fillAll = () => root.querySelectorAll<HTMLImageElement>('img[data-defer-src]').forEach(fillDeferred);
+      if (document.readyState === 'complete') fillAll();
+      else window.addEventListener('load', fillAll, { once: true });
+
       let index = 0;
       const show = (next: number) => {
         slides.forEach((slide, i) => {
           const current = i === next;
+          if (current) slide.querySelectorAll<HTMLImageElement>('img[data-defer-src]').forEach(fillDeferred);
           slide.classList.toggle('is-current', current);
           /* `inert` takes a hidden slide out of the tab order and the
              accessibility tree in one attribute; aria-hidden is belt and
