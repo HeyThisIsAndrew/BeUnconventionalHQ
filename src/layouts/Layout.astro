@@ -341,21 +341,22 @@ const fallbackMark = await getImage({
         root.setProperty('--vv-top', Math.max(0, Math.round((vv && vv.offsetTop) || 0)) + 'px');
       })();
     </script>
-    <!-- Google Tag Manager (Worker) -->
-    {gtmId && (
-      <>
-        <script is:inline type="text/partytown" is:inline>
-          window.dataLayer = window.dataLayer || [];
-          window.dataLayer.push({
-            'gtm.start': new Date().getTime(),
-            event: 'gtm.js',
-          });
-        </script>
-        <script is:inline type="text/partytown" src={`https://www.googletagmanager.com/gtm.js?id=${gtmId}`} />
-      </>
-    )}
+    {/*
+      GTM IS NOT LOADED HERE. Cloudflare's Google tag gateway injects the
+      container (GTM-PDDF3D6K) into every HTML response on production and
+      serves it first-party from /nlsh (see public/_routes.json). This file
+      used to load a second copy through Partytown, and the two ran side by
+      side: TikTok reported "Duplicate Pixel ID", and the Partytown copy was
+      fetched through /api/proxy, which kept serving a container version
+      Google had already replaced, so a GA4 ID fix never reached visitors.
+      Do not add a gtm.js snippet back while the gateway is on.
+      scripts/gtm-single-loader.test.mjs guards this.
 
-    <!-- Google Tag Manager (Main Thread Navigation) -->
+      Consequence: local dev and preview load no GTM at all, and turning the
+      gateway off in Cloudflare turns tracking off.
+    */}
+
+    <!-- Google Tag Manager: page_view for every navigation -->
     {gtmId && (
       <script is:inline>
         if (typeof window !== 'undefined') {
@@ -376,8 +377,10 @@ const fallbackMark = await getImage({
                   page_title: document.title,
                 });
               };
+              // The timeout matters: without one a busy or hidden page never
+              // goes idle, and the view is not counted until it does.
               if ('requestIdleCallback' in window) {
-                requestIdleCallback(pushGA);
+                requestIdleCallback(pushGA, { timeout: 2000 });
               } else {
                 setTimeout(pushGA, 200);
               }

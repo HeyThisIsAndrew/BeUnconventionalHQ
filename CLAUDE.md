@@ -469,6 +469,15 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
 - **Live status:** `/api/live-status.json` (on-demand edge route,
   `prerender = false`) → `src/lib/live-status.ts` providers. The CDN cache is
   the YouTube quota gate (search.list = 100 units). See `scripts/live-status.md`.
+- **Google Tag Manager is injected by Cloudflare, not by this repo.** The
+  Google tag gateway adds GTM-PDDF3D6K to every production page and serves it
+  first-party from `/nlsh`. The repo only pushes `{ event: 'page_view' }` on
+  `astro:page-load` (Layout.astro), which every page-view tag in the container
+  triggers on. Partytown used to load a second copy, and the two ran at once
+  (TikTok "Duplicate Pixel ID"; the Partytown copy was served a stale
+  container through `/api/proxy`, so a GA4 fix never took effect). Never add a
+  gtm.js snippet while the gateway is on. Local dev loads no GTM at all.
+  `scripts/gtm-single-loader.test.mjs` guards it.
 
 ## Conventions
 
