@@ -102,6 +102,18 @@ const { items } = Astro.props;
       c.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
       c.querySelectorAll('script').forEach((el) => el.remove());
       c.querySelectorAll<HTMLElement>('a, button, [tabindex]').forEach((el) => el.setAttribute('tabindex', '-1'));
+      /*
+        A clone is born VISIBLE. The cards carry `.reveal` (opacity 0 until the
+        shared observer in Layout.astro sets `data-state`), and the loop is
+        built one viewport BEFORE the rail is on screen, so every original was
+        still hidden when it was copied. The observer only watches the
+        originals, so all twelve clones stayed at opacity 0 forever: a fast
+        scroll ran into a blank rail, then the recentre snapped back to the
+        real cards (reported on desktop; measured 12 of 12 clones hidden).
+      */
+      [c, ...c.querySelectorAll<HTMLElement>('.reveal, .animate-on-scroll')].forEach((el) =>
+        el.classList.remove('reveal', 'animate-on-scroll'),
+      );
       return c;
     };
 
