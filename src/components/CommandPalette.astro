@@ -833,7 +833,17 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
     .cmd-palette-results {
       flex: 1 1 auto;
       min-height: 0;
-      padding-bottom: 4rem;
+    }
+    /*
+      Safari ignores padding-bottom on overflow-y containers in its scrollHeight calculation,
+      causing the bottom elements to clip rather than scroll into view. Using an ::after
+      pseudo-element reliably forces the scroll runway for the iOS accessory bar.
+    */
+    .cmd-palette-results::after {
+      content: "";
+      display: block;
+      min-height: 4rem;
+      flex-shrink: 0;
     }
   }
   @media (prefers-reduced-motion: reduce) {
