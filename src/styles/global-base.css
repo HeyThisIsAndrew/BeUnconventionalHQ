@@ -105,9 +105,8 @@ html[data-astro-transition] {
   between them slides. That is what makes this read as a panel moving rather
   than the whole window.
 
-  The easing is `--splash-ease`, the same ease-in-out quart the Enter The HQ
-  curtain uses. The duration is not: 900ms is right for a curtain you open once
-  and wrong for a page you move through all day.
+  The easing is `--ease-cinematic` (hero-cta.css), an ease-in-out quart. The
+  duration is short on purpose: this runs on every page you move through.
 */
 #page-content {
   view-transition-name: page-main;
@@ -240,7 +239,7 @@ html[data-page-transition='page-rows']::view-transition-new(page-main) {
   already sits. An animation on the real element cannot be drawn anywhere else.
 */
 html[data-page-transition='page-rows'] [data-rows-target] {
-  animation: section-rows-in 260ms var(--splash-ease) both;
+  animation: section-rows-in 260ms var(--ease-cinematic) both;
 }
 
 /* 6%, and shorter than a page move. A list advancing is the smaller of the two
@@ -405,9 +404,6 @@ html[data-page-transition='none']::view-transition-new(page-main) {
    the setting. WCAG 2.3.3 (Animation from Interactions) covers exactly this —
    motion triggered by an interaction should be avoidable.
 
-   It also caused a concrete bug in the splash: the reduced-motion path, which
-   is supposed to be the INSTANT one, ended up animating a ~600ms scroll while
-   the full-motion path jumped instantly.
 */
 @media (prefers-reduced-motion: reduce) {
   html {

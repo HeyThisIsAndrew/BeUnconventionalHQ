@@ -1,45 +1,26 @@
 ---
 /**
- * ReloadTopGuard: a refresh lands at the TOP, without a journey.
+ * ReloadTopGuard: a refresh of the homepage lands at the TOP.
  *
- * Moved verbatim out of Hero.astro, which used to be its only mount. The
- * homepage no longer renders Hero (feat/homepage-v4), and with it went the
- * guard, so a refresh after scrolling painted the restored offset instead of
- * the top: scripts/e2e-reload-scroll.test.mjs caught it. One component, both
- * mounts, so the two cannot drift. Render it EARLY in the page: it is an
- * inline script precisely so it runs during parse, before the browser's own
- * restore can paint (see the long notes below, kept as they were).
+ * Mounted from src/pages/index.astro, EARLY: it is an inline script so it runs
+ * during parse, before the browser's own scroll restore can paint.
  *
- * scripts/splash-scroll-lock.test.mjs pins its jumpToTop() flush and its
- * hold-the-top guard; scripts/e2e-reload-scroll.test.mjs measures both.
+ * scripts/reload-top-guard.test.mjs pins its instant jump and its guard;
+ * scripts/e2e-reload-scroll.test.mjs measures both on phone and tablet.
  */
 ---
 
 <script is:inline>
-    // Prevent the browser from automatically restoring the scroll position on refresh,
-    // which breaks the initial scroll-linked animations and traps the user.
     if ('scrollRestoration' in history) {
       history.scrollRestoration = 'manual';
     }
-    
+
     /*
-      Reset the scroll position on a reload — INSTANTLY.
-
-      `html { scroll-behavior: smooth }` is set globally in global-base.css, so
-      a bare `window.scrollTo(0, 0)` does not jump, it ANIMATES. On a refresh
-      part-way down the page that turns the reset into a visible glide from the
-      restored offset up to the top, and because three resets fire in sequence
-      (here, on the next frame, and on pageshow) they interrupt and re-target
-      each other — then arm() jumps to 0 while an animation is still in flight,
-      producing the jarring up/down bounce this block is supposed to prevent.
-
-      This is the inline copy of `jumpTo()` in src/lib/scroll-to.ts — read the
-      full rationale there, including why the forced recalc is load-bearing and
-      why `behavior: 'instant'` is not used. It is duplicated rather than
-      imported because an `is:inline` script never goes through the bundler,
-      and this has to run during parse: by the time a module has loaded, the
-      browser has already restored the offset and painted it.
-      scripts/splash-scroll-lock.test.mjs keeps the two copies honest.
+      JUMP, never animate. `html { scroll-behavior: smooth }` is global, so a
+      bare `scrollTo(0, 0)` would glide up from the restored offset. This is
+      the inline copy of `jumpTo()` in src/lib/scroll-to.ts (the forced recalc
+      is what makes the `auto` override apply); it is duplicated because an
+      `is:inline` script cannot import, and it must run during parse.
     */
     function jumpToTop() {
       const root = document.documentElement;
@@ -61,47 +42,28 @@
     if (isReload) {
       jumpToTop();
       requestAnimationFrame(jumpToTop);
-      // Fallback for Safari which occasionally restores scroll after the first paint
+      // Safari can restore after the first paint.
       window.addEventListener('pageshow', jumpToTop, { once: true });
 
       /*
-        ─── HOLD THE TOP UNTIL THE READER ASKS TO LEAVE IT ────────────────────
+        HOLD THE TOP UNTIL THE READER ASKS TO LEAVE IT. iOS Safari restores
+        the old offset despite `manual`, once, at a moment that moves with
+        load timing, so one-shot resets can be beaten. While this guard is up
+        any non-zero offset is corrected in the frame it appears. The first
+        real input (touch, pointer, wheel, key) releases it, so a reader who
+        scrolls straight away is never fought, and it is gone after GUARD_MS
+        regardless.
 
-        The three resets above are one-shot: each corrects the offset at one
-        instant. `history.scrollRestoration = 'manual'` is supposed to stop the
-        engine restoring at all, but iOS Safari restores anyway, once, at a
-        moment that moves with load timing — so a fixed number of shots can
-        always be beaten by a restore that lands between them.
-
-        Measured before this guard, walking the restore across the startup
-        window (7 timings from DOMContentLoaded+0ms to +600ms, both
-        orientations): EVERY timing painted 8–14 frames at the restored offset
-        of 390px before something snapped it back, and one timing was never
-        corrected at all and simply stayed there. In landscape those frames
-        also carry the hero parallax at its 150px cap, because the parallax is
-        only disabled on portrait touch — which is why landscape looks the
-        worst and why the reader sees the page lurch DOWN and then back UP.
-
-        So this is a condition, not a schedule: while the guard is up, ANY
-        non-zero offset is corrected in the same frame it appears. It is
-        registered here, in the inline script, so it runs before the parallax
-        listener that `astro:page-load` adds — the parallax then reads 0 and
-        never renders the excursion.
-
-        It gets out of the way immediately. The FIRST real input — touch,
-        pointer, wheel, key — releases it, so a reader who flicks the moment
-        the page appears is never fought; and it is gone after
-        GUARD_MS regardless. The splash lift is exempt while it runs, because
-        it legitimately scrolls to a non-zero offset at the end (it is also
-        always preceded by an input, which has already released the guard).
+        No hard scroll lock (`position: fixed` + `overflow: hidden`) on top of
+        this: one was tried, and it ate the first swipe after a refresh on a
+        Mac trackpad and on iPhone Safari, because a swipe is latched to a
+        scroller when it begins.
       */
       const GUARD_MS = 3000;
       const GESTURES = ['touchstart', 'pointerdown', 'wheel', 'keydown'];
 
-      
       const onStrayScroll = () => {
         if (window.scrollY === 0) return;
-        if (document.documentElement.classList.contains('splash-lifting')) return;
         jumpToTop();
       };
 
@@ -116,15 +78,5 @@
       GESTURES.forEach((type) =>
         window.addEventListener(type, releaseTopGuard, { passive: true, once: true })
       );
-
-      /*
-        NO HARD LOCK. This used to add `reload-lock` (position: fixed +
-        overflow: hidden on html and body) until the first input. It ate the
-        first swipe after a refresh, on a Mac trackpad in Chrome/Brave AND on
-        iPhone Safari: a swipe is latched to a scroller when it begins, the
-        page was still locked then, and the release came too late for that
-        swipe. The hold-the-top guard above keeps every restore timing at the
-        top on its own (scripts/e2e-reload-scroll.test.mjs, iPhone and iPad).
-      */
     }
 </script>

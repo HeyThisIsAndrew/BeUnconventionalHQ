@@ -269,7 +269,7 @@ test('The Latest still leads with the newest thing, whatever the collection show
 
 test('the Games tile on the homepage lands on the Games rail', () => {
   /*
-    The tile links to /feed#games (Categories.astro) because `games` is the
+    A link to /feed#games resolves because `games` is the
     canonical category slug in src/data/constants.js. The rail's own id is its
     hubCategory, `gaming`. Both names are correct and they are not the same
     name, so the section answers to the reader's one and keeps the CMS's.
@@ -294,9 +294,6 @@ test('the Games tile on the homepage lands on the Games rail', () => {
   assert.match(grid, /rails\.map\(\(r\) => \(\{ id: r\.anchor \?\? r\.id,/,
     'the contents rail must link to the anchor, not the internal id');
 
-  const tiles = read('src', 'components', 'Categories.astro');
-  assert.match(tiles, /\/feed#\$\{cat\.slug\}/,
-    'the tile builds its href from the slug, so the slug is what must resolve');
 });
 
 test('every homepage tile has somewhere on the Feed to land', () => {

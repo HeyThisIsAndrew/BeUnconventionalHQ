@@ -232,16 +232,6 @@ test('the observer watches src, not only new nodes', () => {
   assert.match(MODULE, /childList:\s*true/);
 });
 
-console.log('\nHard rule 2:');
-
-test('HeroTrailer.astro is not edited by any of this', () => {
-  const HT = read('src/components/HeroTrailer.astro');
-  assert.ok(
-    !/embed-pause|initEmbedPause|visibilitychange/.test(HT),
-    'the protected component is sent standard commands from outside, never rewritten',
-  );
-});
-
 test('the module never reassigns a frame src', () => {
   assert.ok(
     !/\.src\s*=/.test(MODULE),

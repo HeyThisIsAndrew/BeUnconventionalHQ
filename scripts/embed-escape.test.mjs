@@ -344,7 +344,6 @@ console.log('\nEvery player the site builds can go fullscreen:');
 const IFRAME_FILES = [
   'src/layouts/Layout.astro',
   'src/components/FeedSpotlightHero.astro',
-  'src/components/HeroTrailer.astro',
   'src/components/home/HeroAccordion.astro',
   'src/components/EventFeatured.astro',
   'src/components/EventAnnouncement.astro',

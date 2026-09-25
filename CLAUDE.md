@@ -5,6 +5,10 @@ Tailwind v4 (via `@tailwindcss/vite`). Video/short/live/event/featuredBrand cont
 is a local JSON store (`src/data/videos.json`) — see "Data flow" below for the
 architecture pivot away from Sanity as the runtime data source. Deployed on Cloudflare.
 
+**Status: V4 is final.** The design is locked and the site is in bug-fix and
+maintenance mode. Fix bugs and keep things working; do not redesign or add
+features unless the owner asks.
+
 ## Commands
 
 - `npm test` — offline unit suites (no network/credentials): events date helpers,
@@ -35,11 +39,8 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    it UTC-shifts to the prior day west of Greenwich. Use `src/lib/events.ts`
    (`parseEventDateToLocal`, `toYMD`, `getEventStatus`, `formatEventDateRange`).
    Compare dates as same-precision strings. `scripts/events.test.mjs` guards this.
-2. **HeroTrailer.astro is protected.** It encodes iOS Safari iframe, YouTube
-   playback, rotation, and WebKit compositing fixes. Do not rewrite it, change
-   its lifecycle, conditionally mount/unmount, or duplicate it per breakpoint.
-   Accepted behavior: the trailer restarts on rotation (continuity was tested
-   and is impossible without a full jsapi redesign — see issue #18).
+2. *(Retired in V4: HeroTrailer.astro was deleted once nothing rendered it.
+   The number is kept because code cites the rules by number.)*
 3. **No `overflow: hidden` on any ancestor of a YouTube iframe** — iOS Safari
    renders the iframe as a black box. Isolate clipping to sibling background
    wrappers (see `.event-hero-bg-wrapper` in the `[slug]` pages).
@@ -65,19 +66,8 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
 7. **Rearrange layouts with responsive CSS / grid areas, not JS reordering or
    duplicated per-breakpoint markup.**
 8. **See `scripts/astro-declined-features.md`** for why incremental builds, LQIP placeholders, and the Sanity content loader are explicitly declined. Do not re-propose them.
-9. **An in-page anchor clicked while the splash is armed needs `disarm()` first,
-   and this is NOT a WebKit bug.** `html.splash-armed { overflow: hidden }`
-   (splash.css) freezes the document by design, so a `href="#..."` clicked from
-   inside the hero sets its hash on a document that cannot move. It was twice
-   diagnosed as an iOS Safari fault in `scroll-behavior: smooth` combined with
-   `overflow-x: clip`, and a commit landed on main removing that `overflow-x`
-   from html/body (`eaf7b19`, whose message claims a fix it does not deliver —
-   the clip now lives on `#app-wrapper`, which is harmless, but it fixed
-   nothing). It reproduces in headless Chromium at 1440x900 as readily as on a
-   phone, and it works with BOTH those properties still applied once the
-   curtain is up. The handler is in Hero.astro's delegated splash listener; it
-   scrolls on the NEXT FRAME, because `disarm()` only drops the class and
-   `overflow: hidden` stays the computed value until style recalculates.
+9. *(Retired in V4: the homepage splash intro, Hero.astro and splash.css were
+   deleted. The number is kept because code cites the rules by number.)*
 10. **`.spotlight-slide` ships `opacity: 0; visibility: hidden`, so the first
    slide's `is-current` must be rendered SERVER-SIDE** (`index === 0` in
    HomeSpotlightBar.astro). When only the script applied it, the band was
@@ -89,7 +79,8 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
 11. **There is more than one YouTube player, and a fix to one is not a fix to
    the site.** They are `#video-modal` (Layout.astro, opened by a card),
    `#hero-iframe` (FeedSpotlightHero, the /feed hero stage), FeaturedHighlights
-   (homepage shelf, via the IFrame API), HeroTrailer, and the event/hub stages.
+   (homepage shelf, via the IFrame API, ONE player reused across every slide),
+   and the event/hub stages.
    A reader trapped by a YouTube sign-in wall on /feed was "fixed" in the modal
    alone, which was the one player he was not using. Fixing that then covered
    two players and stopped, so the hub and event stages went a second round
@@ -168,11 +159,10 @@ architecture pivot away from Sanity as the runtime data source. Deployed on Clou
    and still lost the case, because a middle click fires `auxclick` and "Open
    link in new tab" from the context menu fires no click at all. **Pausing per
    route is how you miss routes.** Two things it must never do: decide
-   muted-ness from the embed URL (HeroTrailer ships `mute=1` and then unmutes
-   by command, so the src lies about the sound) and touch the DOM on the
+   muted-ness from the embed URL (the event and hub stages ship `mute=1` and
+   then unmute by command, so the src lies about the sound) and touch the DOM on the
    message path (a playing embed posts several `infoDelivery` messages a
-   second). HeroTrailer is sent standard commands from outside and is never
-   edited, per hard rule 2. It also owns the two other ways a video plays on
+   second). It also owns the two other ways a video plays on
    behind the reader: a click on any `target="_blank"` link pauses what is
    playing and marks it NOT to be resumed on return (the reader went to
    watch it on YouTube; `leftForLink` survives a PLAYING report already in

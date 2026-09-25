@@ -126,19 +126,6 @@ check('the open panel <img> reads the same srcset and HERO_SIZES', () => {
   assert.match(acc, /sizes=\{[^}]*HERO_SIZES/);
 });
 
-/*
-  Hero.astro is no longer mounted on the homepage but stays on disk (deleting
-  still-imported components white-screened v3). While it exists, its <img>
-  keeps taking the derived banner, not the raw unoptimised asset.
-*/
-check('Hero.astro still reads the derived banner', () => {
-  const hero = code(read('src/components/Hero.astro'));
-  assert.match(hero, /import \{ heroBanner \} from '(\.\.\/lib|\.\.\/\.\.\/lib)\/hero-banner'/);
-  assert.ok(!/from '.*assets\/banner\.webp'/.test(hero), 'Hero.astro imports the raw banner asset');
-  assert.match(hero, /class="hero-bg-image"/);
-  assert.match(hero, /src=\{heroBanner\.src\}/, 'the hero <img> must use the derived src');
-});
-
 check('index.astro does not set response headers on a prerendered page', () => {
   /*
     `Astro.response.headers.set()` is a no-op in a static build: the page is
