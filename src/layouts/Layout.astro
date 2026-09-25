@@ -891,6 +891,7 @@ const fallbackMark = await getImage({
       import { keepFixedControlsTappable, publishViewportHeight } from '../lib/viewport-anchor';
       import { initEmbedPause } from '../lib/embed-pause';
       import { initStageWatchLink } from '../lib/stage-watch-link';
+      import { initStageItemTap } from '../lib/stage-item-tap';
 
       /* Every audible YouTube embed on the site pauses when the tab is hidden
          and resumes when it comes back. Reported as duplicate audio: opening a
@@ -905,6 +906,11 @@ const fallbackMark = await getImage({
          in two of them and look finished. Self-guarded. */
       initStageWatchLink();
       document.addEventListener('astro:page-load', initStageWatchLink);
+
+      /* A tap on a stage pane's still or title runs that pane's own Play or
+         Read control (the /feed and category heroes, hub pages, both event
+         templates). Document-delegated and bound once. */
+      initStageItemTap();
 
       /* Bound once, site-wide: iOS Safari leaves fixed elements hit-tested at
          stale coordinates after it resizes the web view (its landscape tab bar
@@ -940,6 +946,10 @@ const fallbackMark = await getImage({
           videoModalSetup?: boolean;
           videoModalEscSetup?: boolean;
           videoModalNavSetup?: boolean;
+          /* The modal's opener, for a player that owns its own click handler
+             (and so stops the delegated one below) but has to fall back to
+             the modal: FeaturedHighlights when YouTube's API never loaded. */
+          hqOpenVideo?: (videoId: string) => void;
         }
       }
 
@@ -1118,6 +1128,8 @@ const fallbackMark = await getImage({
             'https://www.youtube-nocookie.com',
           );
         });
+
+        window.hqOpenVideo = openModal;
 
         // Global Event Delegation for Video Triggers
         if (!window.videoModalSetup) {

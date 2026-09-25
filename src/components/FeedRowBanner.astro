@@ -50,9 +50,11 @@ interface Props {
   /** `R, G, B` — the row's accent, for the wash under the lockup. Null where a
       row has no accent of its own; the CSS default covers it. */
   accentRgb?: string | null;
+  /** The hub the row belongs to. When set, the whole strip links there. */
+  href?: string | null;
 }
 
-const { art, logo = null, title, eyebrow, accentRgb = null } = Astro.props;
+const { art, logo = null, title, eyebrow, accentRgb = null, href = null } = Astro.props;
 ---
 
 {art && (
@@ -74,6 +76,16 @@ const { art, logo = null, title, eyebrow, accentRgb = null } = Astro.props;
     />
 
     <div class="feed-row-banner-scrim" aria-hidden="true"></div>
+
+    {/*
+      The strip is the hub's key art and logo, and readers tapped it expecting
+      the hub; it did nothing. It links where the row's "Explore <hub> hub"
+      does. A mouse and touch target only (aria-hidden, out of the tab order):
+      that link is the keyboard and screen-reader path, so the hub stays one
+      stop with one name. Covers this box and not the bleed, so it never sits
+      over the row's heading or tiles.
+    */}
+    {href && <a href={href} class="feed-row-banner-link" tabindex="-1" aria-hidden="true"></a>}
 
     {/*
       ─── ONE THING IN EACH CORNER, AND NEITHER REPEATS THE OTHER ────────────
@@ -266,7 +278,15 @@ const { art, logo = null, title, eyebrow, accentRgb = null } = Astro.props;
     other. `.container-page` supplies the width and the gutters, so both ends
     line up with the rail below rather than with the screen.
   */
+  .feed-row-banner-link {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
   .feed-row-banner-inner {
+    /* Words and mark only: a tap on either falls through to the link. */
+    pointer-events: none;
+    z-index: 2;
     position: absolute;
     left: 0;
     right: 0;

@@ -974,6 +974,33 @@
   position: absolute;
   inset: 0;
 }
+/* ─── AN OPEN ARTICLE PANEL IS ONE LINK, ART INCLUDED ─────────────────────
+   Reported from a user test: readers tapped the story's artwork, nothing
+   happened, and they went hunting for the headline (312x21px on a phone).
+   The stretch above was meant to cover the panel, but `.acc-content` is
+   positioned, so it covered only the copy block. On an ARTICLE panel the
+   headline is the panel's only destination, so its stretch now anchors to the
+   panel: the copy block drops its positioning everywhere, and on a phone
+   (where `.acc-body` is a relative block under the art rather than an
+   absolute sheet over it) so does the body. Desktop and phone landscape keep
+   `.acc-body` absolute over the whole panel, which is the same box.
+   VIDEO panels are left alone: their art is `.acc-play-overlay`, which plays
+   in place (the owner's call: an image tap does what the play button does),
+   and a stretch there would send the tap to /feed instead. */
+.home-v4 .acc-panel--article.is-open .acc-content {
+  position: static;
+  /* `home-rise` ends on `transform: none`, but held by `both` it computes as
+     an identity MATRIX, and any transform makes this block the stretch's
+     containing box again (measured: the art stayed dead). `backwards` still
+     holds the start frame through the delay, then lets go, and the end frame
+     is the element's own resting style, so nothing visible changes. */
+  animation-fill-mode: backwards;
+}
+@media (max-width: 767px) {
+  .home-v4 .acc-panel--article.is-open .acc-body {
+    position: static;
+  }
+}
 .home-v4 .acc-deck {
   /* The feed hero's .hero-tagline: a billing block, not body copy. At most
      two lines. */
@@ -1181,6 +1208,11 @@
   .home-v4 .acc-toggle {
     top: calc(var(--home-top) + 10px);
     right: calc(var(--home-gutter) + 10px);
+    /* Above the open panel, which a phone lifts to z-index 10 so it can
+       reorder to the top of the stack. At the desktop's 5 the toggle sat
+       under it, so a tap on pause/play landed on the panel's play overlay
+       and started the video instead. */
+    z-index: 11;
   }
   .home-v4 .acc-chips {
     margin-bottom: 0.6rem;
@@ -1577,6 +1609,12 @@
   max-width: 48rem;
   margin-bottom: clamp(1rem, 2vw, 1.75rem);
 }
+/* Shrink-wrapped to the logo, so only the mark is the link, not the empty
+   width of the lockup beside it. */
+.home-v4 .fw-logo-link {
+  display: block;
+  width: fit-content;
+}
 .home-v4 .fw-logo {
   display: block;
   width: auto;
@@ -1720,6 +1758,16 @@
   letter-spacing: 0.08em;
   color: #fff;
   text-decoration: none;
+}
+/* The portrait is the author, so the whole figure is his link: readers tapped
+   the photo and nothing happened. The caption's name link stretches over the
+   figure (the positioned, rotated box), still one tab stop named "Andrew
+   Baxter"; hovering the photo hovers the link, so the name turns red. */
+.home-v4 .ihq-caption a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
 }
 .home-v4 .ihq-caption a:hover {
   color: var(--home-red-text);

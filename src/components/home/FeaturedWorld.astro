@@ -53,16 +53,21 @@ const accentStyle = featured?.accentHex
         {/* The show's own logo where it has one (the same file the /feed
             shelf uses); the typeset name only when it does not. The logo
             carries the name as its alt, the typeset title is decorative. */}
+        {/* The logo is the show's name, so it goes where the section does
+            (the header's "Explore on the feed"): readers tapped it and
+            nothing happened. A real link, named by the logo's alt. */}
         {featured.logo ? (
-          <Image
-            src={featured.logo}
-            alt={featured.title ?? ''}
-            class="fw-logo"
-            widths={[400, 680]}
-            sizes="(max-width: 767px) 200px, 340px"
-            loading="lazy"
-            decoding="async"
-          />
+          <a href={featured.href} class="fw-logo-link">
+            <Image
+              src={featured.logo}
+              alt={featured.title ?? ''}
+              class="fw-logo"
+              widths={[400, 680]}
+              sizes="(max-width: 767px) 200px, 340px"
+              loading="lazy"
+              decoding="async"
+            />
+          </a>
         ) : featured.title && (
           <p class="fw-title" aria-hidden="true" style={`--fw-len: ${fwLen}`}>{featured.title}</p>
         )}
