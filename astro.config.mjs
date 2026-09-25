@@ -11,6 +11,43 @@ import partytown from '@astrojs/partytown';
 import googlePreferredSource from '@puralex/astro-google-preferred-source';
 import { createClient } from '@sanity/client';
 import { validateStorePayload, serializeStore } from './src/lib/local-cms-store.mjs';
+import { minifyInlineScripts } from './src/lib/minify-inline-scripts.mjs';
+
+/**
+ * Minify every page's `is:inline` scripts after the build. Why, and exactly
+ * which scripts, is in src/lib/minify-inline-scripts.mjs. esbuild is Astro's
+ * and Vite's own dependency, loaded here only when a build finishes.
+ * @returns {import('astro').AstroIntegration}
+ */
+function minifyInlineScriptsIntegration() {
+  return {
+    name: 'minify-inline-scripts',
+    hooks: {
+      'astro:build:done': async ({ dir, logger }) => {
+        const { transformSync } = await import('esbuild');
+        const root = dir instanceof URL ? dir.pathname : String(dir);
+        /** @type {(d: string) => string[]} */
+        const walk = (d) =>
+          fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => {
+            const p = path.join(d, e.name);
+            return e.isDirectory() ? walk(p) : e.name.endsWith('.html') ? [p] : [];
+          });
+        let before = 0;
+        let after = 0;
+        let failed = 0;
+        for (const file of walk(root)) {
+          const html = fs.readFileSync(file, 'utf8');
+          const result = minifyInlineScripts(html, (code) => transformSync(code, { minify: true, loader: 'js' }).code);
+          before += result.before;
+          after += result.after;
+          failed += result.failed;
+          if (result.html !== html) fs.writeFileSync(file, result.html);
+        }
+        logger.info(`inline scripts ${before} -> ${after} bytes${failed ? `, ${failed} left as written (did not parse)` : ''}`);
+      },
+    },
+  };
+}
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -454,6 +491,9 @@ export default defineConfig({
   */
   routeRules: {
     '/api/live-status.json': { maxAge: 900, swr: 300 },
+    /* NOT /img/yt/[id]/[w] (the hero art). A route rule would stamp the edge
+       TTL on its 404s too, and a missing thumbnail must not be cached for a
+       week, so that route sets its edge cache per response instead. */
   },
 
   site: 'https://beunconventionalhq.com',
@@ -760,6 +800,7 @@ export default defineConfig({
     }),
     react(),
     googlePreferredSource({ injectScript: false }),
+    minifyInlineScriptsIntegration(),
     {
       name: 'dev-only-routes',
       hooks: {

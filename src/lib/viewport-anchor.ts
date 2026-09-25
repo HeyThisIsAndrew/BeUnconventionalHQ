@@ -134,8 +134,13 @@ export function keepFixedControlsTappable(): void {
   bound = true;
 
   let queued = false;
-  /* The viewport geometry the hit regions were last corrected for. */
-  let lastGeometry = '';
+  /* The viewport geometry the hit regions were last corrected for. Seeded
+     with the geometry the page LOADED at: the controls were laid out against
+     it moments ago, so there is nothing stale to correct yet. Starting empty
+     made the first (idle) pass run the full nudge, a getComputedStyle() and
+     a forced layout per control at page load (PageSpeed "Forced reflow",
+     this module), for a viewport that had not changed. */
+  let lastGeometry = `${vv.width}x${vv.height}@${vv.offsetTop},${vv.offsetLeft},${vv.scale}`;
 
   const refresh = () => {
     queued = false;

@@ -88,7 +88,9 @@ const { side, articles, activeSlug = '', compact = false } = Astro.props;
         data-external={article.isExternal ? 'true' : 'false'}
       >
         <div class="intel-rail-thumb">
-          <ArticleThumb image={article.image} title={article.title} size="rail" decorative compact={compact} />
+          {/* The compact spread is the homepage's, below the fold: its thumbs
+              wait for the page to load (defer) rather than racing the hero. */}
+          <ArticleThumb image={article.image} title={article.title} size="rail" decorative compact={compact} defer={compact} />
         </div>
 
         <div class="intel-rail-copy">

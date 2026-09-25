@@ -502,6 +502,24 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   `getCardImageSources()` for external images, and measure `sizes` from the
   box, never copy the card grid's.
 
+- **The homepage LCP budget** (`scripts/home-lcp-budget.test.mjs`). Measured
+  on the 2026-09-24 PageSpeed reports (mobile 92, desktop 99), each rule is
+  about what may download or run while the hero art (the LCP image) loads:
+  `HERO_SIZES` describes the open PANEL, not `100vw` (it took 660 KiB of
+  YouTube JPEG originals on desktop); the hero art is served from our own
+  origin by `/img/yt/<id>/<w>.webp` (a Worker in front of wsrv.nl, edge-cached,
+  falls back to YouTube's own WebP), so a phone needs no second connection for
+  it; only Syne is preloaded (the Inter preload split Slow 4G bandwidth with
+  the hero art); below-the-fold images Chrome's 1,250px lazy distance would
+  still start early wait in `data-defer-*` until `load`
+  (`src/lib/deferred-images.ts`); sections under `content-visibility: auto`
+  never read layout at page load (CinematicGallery builds itself when near,
+  which is why tests scroll to it and wait for `infinite-marquee[data-ready]`);
+  and `is:inline` scripts ship minified by a build hook, so write comments in
+  them freely. PageSpeed's mobile simulation and a real throttled phone
+  disagree about two tempting changes, measured both ways: removing BOTH font
+  preloads and externalising the inlined CSS each look better in one and worse
+  in the other. Neither was done.
 - **A card's image does what the card does.** A user test found readers
   tapping the art on heroes, cards and stage panes and getting nothing,
   because only the small title or button was live. Now every card and hero

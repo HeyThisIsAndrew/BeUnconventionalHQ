@@ -209,10 +209,16 @@ const activeSlug = feature?.slug ?? '';
               width/height reserve the space before the image loads, which is
               what stops the page jumping (cumulative layout shift).
             */}
+            {/* Compact (the homepage, below the fold): the sources wait in
+                data-defer-* until the page has loaded, so this cover does not
+                race the hero art for bandwidth (src/lib/deferred-images.ts).
+                /intel's own feature is its LCP image and loads at once. */}
             <img
               id="intel-feature-img"
-              src={featureSources?.src || ''}
-              srcset={featureSources?.srcset || undefined}
+              src={compact ? undefined : featureSources?.src || ''}
+              srcset={compact ? undefined : featureSources?.srcset || undefined}
+              data-defer-src={compact ? featureSources?.src || undefined : undefined}
+              data-defer-srcset={compact ? featureSources?.srcset || undefined : undefined}
               sizes={featureSources?.srcset ? FEATURE_SIZES : undefined}
               alt={feature.image ? `Cover image for ${feature.title}` : ''}
               width="1456"
@@ -289,6 +295,7 @@ const activeSlug = feature?.slug ?? '';
 
 <script>
   import { clipPreview } from '../lib/homepage-feed';
+  import { cancelDeferredImage, initDeferredImages } from '../lib/deferred-images';
 
   /*
     Magazine centre-swap.
@@ -301,6 +308,10 @@ const activeSlug = feature?.slug ?? '';
   function initIntelMagazine() {
     const feature = document.getElementById('intel-feature');
     if (!feature) return; // Not on a page with a magazine — nothing to do.
+
+    /* The compact spread's images are held back until the page has loaded
+       (data-defer-*, see ArticleThumb's `defer`). A no-op on /intel. */
+    initDeferredImages();
 
     // The parts of the centre that change when a rail item is picked.
     const link = document.getElementById('intel-feature-link') as HTMLAnchorElement | null;
@@ -397,6 +408,9 @@ const activeSlug = feature?.slug ?? '';
             cleared) in step, or a stale one from the previous article would
             outrank the new src.
           */
+          /* A still-pending deferred source must not land later and
+             overwrite the article just painted. */
+          cancelDeferredImage(image as HTMLImageElement);
           image.setAttribute('src', data.imageSrc || data.image);
           if (data.imageSrcset) image.setAttribute('srcset', data.imageSrcset);
           else image.removeAttribute('srcset');

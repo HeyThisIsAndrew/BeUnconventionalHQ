@@ -246,8 +246,14 @@ const getBannerCopy = (item: ReferralItem) => ({
        the two changes coalesce into no change at all and the outline stays
        where it stopped. */
     const startLap = () => {
-      progress.classList.remove('is-counting');
-      void progress.getBoundingClientRect();
+      /* Only a lap already running needs the flush. The FIRST lap (at page
+         load) starts from markup without the class, so adding it is enough,
+         and flushing there was a forced layout of the whole page mid-load
+         (PageSpeed "Forced reflow", this file's inline script). */
+      if (progress.classList.contains('is-counting')) {
+        progress.classList.remove('is-counting');
+        void progress.getBoundingClientRect();
+      }
       progress.classList.add('is-counting');
     };
 

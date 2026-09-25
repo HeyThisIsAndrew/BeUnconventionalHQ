@@ -18,6 +18,7 @@ import { getCardImageSources } from '../lib/card-images';
 import { PUBLISH_TIME_ZONE } from '../lib/publish-timezone.js';
 import {
   buildHomepageFeed,
+  firstPartyHeroSrcset,
   mapArticle,
   mapVideo,
   type HomepageFeed,
@@ -69,7 +70,16 @@ export function getHomepageFeed(): Promise<HomepageFeed> {
     /* No `featured` world here: the Featured section mirrors /feed's own
        featured shelf now (src/data/homepage-featured.ts), dealt after the
        hero by the page. */
-    return buildHomepageFeed(articles, videos, { heroPicks });
+    const feed = buildHomepageFeed(articles, videos, { heroPicks });
+    /* The hero's art (the page's LCP image) comes from our own origin; see
+       firstPartyHeroSrcset(). Copies, so no other section's story changes. */
+    return {
+      ...feed,
+      hero: feed.hero.map((panel) => ({
+        ...panel,
+        story: { ...panel.story, imageSrcset: firstPartyHeroSrcset(panel.story.imageSrcset) },
+      })),
+    };
   })();
   return cached;
 }

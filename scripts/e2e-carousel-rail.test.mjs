@@ -69,6 +69,12 @@ async function runTests() {
         await page.close();
         continue;
       }
+      /* The rail builds itself when it comes near the viewport, not while the
+         page loads (CinematicGallery.astro, "BUILT WHEN IT IS NEAR"), so go
+         where a reader would be before tapping it. */
+      await page.evaluate(() => document.querySelector('infinite-marquee')?.scrollIntoView({ block: 'center', behavior: 'instant' }));
+      await page.waitForSelector('infinite-marquee[data-ready]', { timeout: 5000 });
+      await new Promise((r) => setTimeout(r, 100));
 
       const result = await page.evaluate(async () => {
         const track = document.querySelector('.ig-carousel-track');
@@ -196,6 +202,13 @@ async function runTests() {
         document.documentElement.classList.remove('splash-armed', 'splash-lifting', 'splash-dropping');
         window.__hqScrollLock?.release?.();
       });
+      /* Built when near, as above: go where the reader would be first. */
+      const hasMarquee = await page.evaluate(() => {
+        const el = document.querySelector('infinite-marquee');
+        el?.scrollIntoView({ block: 'center', behavior: 'instant' });
+        return Boolean(el);
+      });
+      if (hasMarquee) await page.waitForSelector('infinite-marquee[data-ready]', { timeout: 5000 });
 
       const seen = await page.evaluate(async () => {
         const track = document.querySelector('.ig-carousel-track');

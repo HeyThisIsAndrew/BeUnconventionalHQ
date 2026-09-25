@@ -32,8 +32,18 @@ export const HOME_CATEGORIES: HomeCategory[] = ['Film', 'TV', 'Games', 'Events']
  * `sizes` for the hero accordion's art. index.astro's preload and the open
  * panel's <img> must both read THIS, or the browser runs two different
  * selections and downloads the art twice (#191, scripts/lcp-preload.test.mjs).
+ *
+ * It describes the OPEN PANEL, not the viewport. Stacked (phones, and short
+ * landscape screens: the same two conditions home.css stacks on) the panel is
+ * the full width. In the desktop row it is `--open-w` from home.css: the track
+ * less four `--strip`s (clamp(128px, 11vw, 180px)) and four 6px gaps. It was
+ * `100vw`, which on a 1350px desktop asked for 1350px of art for a 732px panel,
+ * so every desktop visit took YouTube's 1280px JPEG original (119-253 KiB each)
+ * instead of the ~30 KiB WebP rung, four times over once `sharpenAll()` ran:
+ * 660 KiB in PageSpeed's desktop report. Keep this in step with home.css.
  */
-export const HERO_SIZES = '100vw';
+export const HERO_SIZES =
+  '(max-width: 767px) 100vw, (orientation: landscape) and (max-height: 520px) 100vw, calc(100vw - 4 * clamp(128px, 11vw, 180px) - 24px)';
 
 /**
  * `sizes` for a CLOSED panel's art. A closed strip shows its art blurred
@@ -44,6 +54,59 @@ export const HERO_SIZES = '100vw';
  * idle, so a click never opens onto a soft image).
  */
 export const HERO_CLOSED_SIZES = '130px';
+
+/**
+ * ─── THE HERO ART IS SERVED FROM OUR OWN ORIGIN ─────────────────────────────
+ *
+ * The open panel's art is the homepage's LCP image. It used to come straight
+ * from wsrv.nl, which meant a phone had to open a SECOND connection (DNS, TCP,
+ * TLS: three round trips on Slow 4G) before the first byte of the one image
+ * the page is judged on, and then download it on that connection in parallel
+ * with everything else the document was pulling. PageSpeed's simulation
+ * charged ~300ms of LCP to it.
+ *
+ * `/img/yt/<id>/<w>.webp` (src/pages/img/yt/[id]/[w].ts) is the SAME wsrv
+ * rendition, fetched by our Worker and cached at Cloudflare's edge, so the
+ * browser gets it on the connection it already has open for the page.
+ *
+ * Only the wsrv rungs are rewritten. The top rung stays YouTube's own
+ * `maxresdefault.jpg`, and `src` stays `hqdefault.jpg`: Layout.astro's
+ * thumbnail recovery finds the risky rendition in the srcset by that
+ * i.ytimg.com URL (see youtubeSources() in card-images.ts), so a video with no
+ * maxres thumbnail still falls back exactly as it did.
+ *
+ * ─── AND A STRIP-ONLY RUNG ──────────────────────────────────────────────────
+ * A CLOSED panel shows its art blurred by 10px (home.css), at HERO_CLOSED_SIZES
+ * (130px). It took the 400w rung at q=85: 11-20 KiB each in PageSpeed's mobile
+ * report, three or four of them, all downloading beside the LCP image, for
+ * pixels the blur then throws away. HERO_STRIP_WIDTH is a small, low-quality
+ * rung (heroArtUpstream() asks wsrv for q=50) that only a slot that small
+ * picks: an open panel is 412px+ wide, so it always takes 600w or more, and
+ * `sharpen()` switches a panel to HERO_SIZES the moment it opens.
+ */
+export const HERO_STRIP_WIDTH = 240;
+export const HERO_ART_WIDTHS = [HERO_STRIP_WIDTH, 400, 600, 800, 900, 1200] as const;
+const WSRV_YT_RUNG = /^https:\/\/wsrv\.nl\/\?url=i\.ytimg\.com%2Fvi%2F([A-Za-z0-9_-]{11})%2Fmaxresdefault\.jpg&(?:amp;)?w=(\d+)&(?:amp;)?output=webp&(?:amp;)?q=85&(?:amp;)?we$/;
+
+export function heroArtPath(videoId: string, width: number): string {
+  return `/img/yt/${videoId}/${width}.webp`;
+}
+
+export function firstPartyHeroSrcset(srcset: string): string {
+  if (!srcset) return srcset;
+  let videoId = '';
+  const rewritten = srcset
+    .split(', ')
+    .map((candidate) => {
+      const [url, descriptor] = candidate.trim().split(/\s+/);
+      const m = WSRV_YT_RUNG.exec(url ?? '');
+      if (!m || !(HERO_ART_WIDTHS as readonly number[]).includes(Number(m[2]))) return candidate;
+      videoId = m[1];
+      return `${heroArtPath(m[1], Number(m[2]))} ${descriptor}`;
+    })
+    .join(', ');
+  return videoId ? `${heroArtPath(videoId, HERO_STRIP_WIDTH)} ${HERO_STRIP_WIDTH}w, ${rewritten}` : rewritten;
+}
 
 export interface ImageSources {
   src: string;
