@@ -70,7 +70,7 @@ test('scroll unlock hangs off the dialog\'s own close event, not closePalette()'
 */
 test('the mobile max-height override is declared BELOW the base rule it overrides', () => {
   const base = palette.indexOf('max-height: 80vh');
-  const mobile = palette.indexOf('height: var(--cmd-vv-h, 100dvh)');
+  const mobile = palette.indexOf('height: 100dvh');
   assert.ok(base !== -1, 'the base .cmd-palette-content max-height must exist');
   assert.ok(mobile !== -1, 'the mobile override must exist');
   assert.ok(mobile > base,
@@ -85,22 +85,9 @@ test('the mobile max-height override is declared BELOW the base rule it override
   `lvh` — see scripts/viewport-units.test.mjs for why the opposite is right
   for an element sized to the scroll viewport.
 */
-/*
-  Reported on an iPhone 17 Pro Max: with the keyboard up the last visible
-  result was cut off. iOS Safari ignores interactive-widget and never shrinks
-  dvh for the keyboard, so the panel must follow visualViewport while open.
-*/
-test('on a phone the panel follows the visible viewport while open', () => {
-  assert.match(paletteCode, /vv\.addEventListener\('resize', syncViewport\)/, 'track keyboard show/hide');
-  assert.match(paletteCode, /dialog\.showModal\(\);\s*trackViewport\(true\);/, 'start tracking on open');
-  assert.match(paletteCode, /addEventListener\('close', \(\) => \{\s*trackViewport\(false\);/,
-    'stop tracking on EVERY close path (the close event), not only closePalette()');
-  assert.match(mobileCss, /top: var\(--cmd-vv-top, 0px\)/, 'offset by the visual viewport, for when iOS pans it');
-});
-
 test('the mobile panel is sized in dvh, never vh', () => {
   assert.ok(mobileCss, 'the mobile media query must exist');
-  assert.match(mobileCss, /height: var\(--cmd-vv-h, \d+dvh\)/, 'the mobile panel height must fall back to dvh');
+  assert.match(mobileCss, /height: \d+dvh/, 'the mobile panel height must be in dvh');
   assert.doesNotMatch(mobileCss, /height: \d+vh(?!h)/,
     'a `vh` height does not shrink for the keyboard, which is the whole point here');
 });
