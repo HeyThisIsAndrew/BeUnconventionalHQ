@@ -463,6 +463,10 @@ test('a figure caption does not run into the next sentence', () => {
 
 test('<br> is a word boundary too', () => {
   assert.equal(toPlainText('<p>one<br>two</p>'), 'one two');
+  /* sanitize-html escapes its text output; plain text must not carry the
+     escapes, or Astro escapes them again and readers see "Q&amp;A". */
+  assert.equal(toPlainText('<p>a live Q&amp;A, 5 &lt; 6</p>'), 'a live Q&A, 5 < 6');
+  assert.equal(toPlainText('<p>literal &amp;lt; stays</p>'), 'literal &lt; stays');
 });
 
 // ── Cover-image de-duplication ──────────────────────────────────────────────

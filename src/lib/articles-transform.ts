@@ -373,12 +373,26 @@ export function toSlug(link: string, title: string): string {
 const BLOCK_BOUNDARY =
   /<\/(?:p|h[1-6]|li|ul|ol|blockquote|figure|figcaption|div|pre|tr|td|th|section|article)\s*>/gi;
 
-/** Strip tags/entities down to plain text, for excerpts and alt fallbacks. */
+/**
+ * Strip tags/entities down to plain text, for excerpts and alt fallbacks.
+ *
+ * sanitize-html returns HTML, not text: with every tag stripped it still
+ * ESCAPES the text, so "Q&A" came back as "Q&amp;A". Astro escapes plain text
+ * again when it renders it, and /intel showed readers "Q&amp;A". The escapes
+ * are undone here, `&amp;` LAST, so an author's literal "&amp;lt;" stays text
+ * rather than decoding twice. The result is plain text: never pass it to
+ * `set:html`.
+ */
 export function toPlainText(html: string): string {
   const spaced = String(html ?? '')
     .replace(BLOCK_BOUNDARY, ' ')
     .replace(/<br\s*\/?>/gi, ' ');
   return sanitizeHtml(spaced, { allowedTags: [], allowedAttributes: {} })
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
     .trim();
 }
