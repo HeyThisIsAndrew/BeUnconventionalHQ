@@ -31,8 +31,11 @@
   --home-muted: #9a9a9a;
   --home-gutter: clamp(16px, 4vw, 48px);
   --home-gap: 64px;
-  /* Clears the fixed navbar, which sits over the top of this page. */
-  --home-top: 84px;
+  /* Clears the fixed navbar, which sits over the top of this page: its
+     MEASURED height (`--nav-h`, published by Navbar.astro), so the hero sits
+     flush under it at every width (#262). The px values are the no-JS
+     fallbacks. */
+  --home-top: var(--nav-h, 84px);
   /* The site's own faces, as the events and featured pages set them (Andrew:
      those pages are the reference for a cinematic homepage). Syne ships
      600-800 and Inter 400-600 (astro.config.mjs `fonts`), so every weight
@@ -49,7 +52,7 @@
 @media (min-width: 768px) {
   .home-v4 {
     --home-gap: clamp(96px, 8vw, 128px);
-    --home-top: 104px;
+    --home-top: var(--nav-h, 104px);
   }
 }
 
@@ -1094,7 +1097,7 @@
 @media (max-width: 767px) {
   .home-v4 {
     /* The phone navbar is ~57px; 84px left a dead band under it. */
-    --home-top: 64px;
+    --home-top: var(--nav-h, 64px);
   }
   .home-v4 .hero-acc-track {
     flex-direction: column;
@@ -1327,7 +1330,7 @@
    so it catches phones either side of the 768px desktop line. */
 @media (orientation: landscape) and (max-height: 520px) {
   .home-v4 {
-    --home-top: 60px;
+    --home-top: var(--nav-h, 60px);
   }
   .home-v4 .hero-acc-track {
     --stack-w: clamp(170px, 30%, 260px);
