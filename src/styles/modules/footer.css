@@ -18,7 +18,9 @@
     rule had stopped applying. Now every breakpoint sets this ONE value —
     see the overrides in footer-brand.css.
   */
-  --footer-logo-size: 300px;
+  /* 260, down from 300: the mark outweighed the Explore and Follow columns
+     beside it (Andrew). */
+  --footer-logo-size: 260px;
 }
 
 .footer-inner {
@@ -85,7 +87,7 @@
 .footer-nav-label {
   color: var(--color-white);
   font-family: var(--font-display);
-  font-size: 0.75rem;
+  font-size: max(0.75rem, 11px);
   font-weight: 700;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -122,15 +124,19 @@
 */
 .footer-nav ul {
   list-style: none;
-  display: flex;
-  flex-wrap: wrap;
+  /*
+    TWO COLUMNS OF THREE, not one row. With Press / Media added there are six
+    links, and at the size they were (0.7rem, reported as too small) a single
+    row read as a thin strip beside a 3x3 grid of social icons. Two columns
+    of three rows fill roughly the icons' height, so the three footer columns
+    carry even weight. Column-major, so each column reads top to bottom.
+  */
+  display: grid;
+  grid-template-rows: repeat(3, auto);
+  grid-auto-flow: column;
   justify-content: center;
-  /* Row gap / column gap. 1.25rem between items keeps a single row at every
-     width from 375px up (measured); below that, or in the narrow ~244px
-     columns a landscape phone gets from the 3-column desktop grid, it wraps
-     — deliberately, over squeezing the gap down to force a fit again. */
-  gap: 0.85rem 1.25rem;
-  align-items: center;
+  justify-items: start;
+  gap: 1.1rem 2.75rem;
   padding: 0;
   max-width: 100%;
 }
@@ -205,7 +211,10 @@
 
 .footer-nav ul li a {
   color: var(--color-white-muted);
-  font-size: 0.7rem;
+  /* A px floor: the root size scales down on a laptop (12.8px at 1512), so
+     0.85rem alone was 10.9px there, still the "too small" that was
+     reported. */
+  font-size: max(0.85rem, 13px);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   text-decoration: none;
@@ -248,10 +257,9 @@
 }
 
 /*
-   Bottom bar: copyright on the left, tagline on the right, on the same line.
-   `justify-content: space-between` is what pushes them to opposite ends — if
-   you ever drop one of them, switch this to `center` so the survivor doesn't
-   sit awkwardly against one edge.
+   Bottom bar: three items on the same three columns as the footer above, so
+   they line up with it: copyright left, Privacy Policy centred under
+   Explore, tagline right. Stacked and centred on a phone.
 */
 .footer-bottom {
   /* The token, not a hardcoded 1536. This is a structural container, and it was
@@ -262,31 +270,34 @@
   max-width: var(--page-max, 1536px);
   margin: 0 auto;
   padding-top: 2rem;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: 1rem;
+}
+.footer-bottom > :nth-child(2) {
+  justify-self: center;
+}
+.footer-bottom > :nth-child(3) {
+  justify-self: end;
+  text-align: right;
 }
 
 .footer-copy {
   color: var(--color-white-muted);
-  font-size: 0.75rem;
-}
-
-.footer-separator {
-  margin: 0 0.5rem;
-  opacity: 0.5;
+  font-size: max(0.75rem, 12px);
 }
 
 .footer-privacy-link {
   color: var(--color-white-muted);
+  font-size: max(0.75rem, 12px);
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .footer-credit {
   color: var(--color-accent-text);
-  font-size: 0.7rem;
+  font-size: max(0.7rem, 11px);
   letter-spacing: 0.2em;
   text-transform: uppercase;
 }
@@ -298,33 +309,17 @@
   }
 
   .footer-bottom {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+    justify-items: center;
     gap: 0.75rem;
+    text-align: center;
+  }
+  .footer-bottom > :nth-child(3) {
+    justify-self: center;
     text-align: center;
   }
 }
 
-/*
-   Narrow portrait phones only — matches the site's existing "portrait-only"
-   breakpoint (see contact.css). Desktop and mobile landscape are comfortably
-   wide enough to hold "reserved. | Privacy Policy" on one line; this is where
-   the browser's own line-breaking used to land the wrap in the middle of the
-   link instead, with the separator stranded above it.
-
-   The separator is DROPPED (not just hidden the way the line break is
-   forced) rather than kept as a trailing mark on the line above: a pipe with
-   nothing after it reads as a stray artifact, not a working separator, once
-   what it used to separate is on the next line down.
-*/
-@media (max-width: 480px) {
-  .footer-separator {
-    display: none;
-  }
-
-  .footer-privacy-link {
-    display: block;
-  }
-}
 
 /* ── Footer social icons ────────────────────────────────────────────────────
 
