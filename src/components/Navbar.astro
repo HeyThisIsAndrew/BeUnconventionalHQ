@@ -499,3 +499,34 @@ const isActive = (href: string) =>
   })();
   </script>
 </header>
+
+{/*
+  THE NAVBAR PUBLISHES ITS OWN HEIGHT as `--nav-h` on <html>, for anything that
+  must sit flush under it (the homepage hero's `--home-top`, home.css).
+
+  Its height is its content's: the logo's clamp, rem padding scaled by the
+  site's root size and a 1px border, so it is 66.55px on a 14" MacBook Pro,
+  74.75px at 1920 and 83px at 2560. The homepage cleared it with a fixed
+  104px and left a 37px dead band under it (issue #262). No single CSS value
+  matches every width, so it is measured.
+
+  Inline and directly after the header, so it runs before the hero is parsed
+  and the hero lays out at its final position (no shift). ResizeObserver
+  follows font swaps and resizes. The header is `transition:persist`, but a
+  ClientRouter swap rewrites <html>'s attributes and drops the property, so
+  it is re-applied on `astro:after-swap`.
+*/}
+<script is:inline>
+  (function () {
+    var nav = document.getElementById('navbar');
+    if (!nav) return;
+    var set = function () {
+      document.documentElement.style.setProperty('--nav-h', nav.getBoundingClientRect().height + 'px');
+    };
+    set();
+    if (window.__navHeightObserved) return;
+    window.__navHeightObserved = true;
+    if ('ResizeObserver' in window) new ResizeObserver(set).observe(nav);
+    document.addEventListener('astro:after-swap', set);
+  })();
+</script>
