@@ -812,10 +812,12 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
       }
     }
     /*
-      Make the modal full-screen on mobile. The `interactive-widget=resizes-content`
-      meta tag ensures `dvh` actually shrinks when the iOS virtual keyboard
-      appears, preventing the modal from being obscured and allowing internal
-      scrolling to function correctly.
+      Make the modal full-screen on mobile, sized in `dvh` so it follows the
+      browser's toolbars. The `interactive-widget=resizes-content` viewport tag
+      (Layout.astro) makes the keyboard shrink `dvh` on Android Chrome. iOS
+      Safari IGNORES that tag: there the keyboard overlays the page, and the
+      runway below plus iOS scrolling the focused input into view are what
+      keep the results reachable. Test changes here on a real iPhone.
     */
     .cmd-palette-content {
       border: none;
