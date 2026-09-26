@@ -363,7 +363,13 @@ const fallbackMark = await getImage({
           if (!window['setup']) {
             window['setup'] = true;
             window.dataLayer = window.dataLayer || [];
-            window.dataLayer.push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' });
+            
+            // Wait for window.load before pushing gtm.start so marketing pixels
+            // (Meta, TikTok, Clarity) do not block the critical rendering path.
+            window.addEventListener('load', function() {
+              window.dataLayer.push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' });
+            });
+
             // ClientRouter swaps pages without full reloads, so this script only
             // runs once per session. astro:page-load fires on the initial load
             // AND after every client-side navigation — the GA4 tag in the GTM
