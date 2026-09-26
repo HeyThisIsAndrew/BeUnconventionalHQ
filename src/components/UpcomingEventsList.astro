@@ -298,11 +298,16 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
     what the page can do.
   */
   .uel-scroller {
-    padding-right: var(--uel-rail-gutter);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--uel-rail-gutter);
+    align-items: stretch;
+  }
+  .uel-viewport {
+    grid-column: 1;
   }
 
   .uel-rail {
-    position: absolute;
+    grid-column: 2;
     /*
       CENTRED on the list, not pinned to its top. Top-aligned it sat level with
       the year heading and the first row rather than with the list it drives,
@@ -310,9 +315,8 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
       you already were. Centred, the three controls are equidistant from both
       ends of the box at every height it takes.
     */
-    top: 50%;
-    transform: translateY(-50%);
-    right: 0;
+    align-self: center;
+    justify-self: end;
     width: 44px;
     display: flex;
     flex-direction: column;
@@ -460,7 +464,6 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
   */
   @media (max-width: 767px) {
     .uel-scroller {
-      padding-right: 0;
     }
     .uel-viewport {
       max-height: none;
@@ -470,7 +473,7 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
          stays exactly as it was before the scroller existed. */
       padding-block: 0;
       scroll-padding-block: 0;
-      padding-right: 0;
+      margin-right: 0;
       /* Nothing scrolls here, so there is no edge to feather and a mask would
          only dim the first and last rows permanently. */
       -webkit-mask-image: none;
