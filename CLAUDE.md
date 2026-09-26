@@ -459,6 +459,17 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
 - **Live status:** `/api/live-status.json` (on-demand edge route,
   `prerender = false`) → `src/lib/live-status.ts` providers. The CDN cache is
   the YouTube quota gate (search.list = 100 units). See `scripts/live-status.md`.
+- **THE HQ DISPATCH (the Kit newsletter) reads `/dispatch.xml`, not
+  `/rss.xml`** (that one is the Google News feed; leave it alone). Runbook:
+  `scripts/hq-dispatch.md`. Three rules that are easy to undo by accident:
+  **newsletter images are never cropped** (`scripts/dispatch-image.mjs` fits
+  the whole picture into 16:9 over a blurred copy of itself, and the email
+  uses `object-fit: contain`, never `cover`); **they are never deleted**
+  (`sync-dispatch-images.mjs` does not prune, because sent emails keep
+  pointing at them); and **no Kit tag with its braces may appear inside an
+  HTML comment in `email/hq-dispatch/template.html`** (Kit renders Liquid in
+  comments too). The owner also chose: no X link in the newsletter, and a
+  typed address instead of Kit's address tag.
 - **Google Tag Manager is injected by Cloudflare, not by this repo.** The
   Google tag gateway adds GTM-PDDF3D6K to every production page and serves it
   first-party from `/nlsh`. The repo only pushes `{ event: 'page_view' }` on

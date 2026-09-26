@@ -89,10 +89,24 @@ jobs:
       - name: Build article image renditions
         run: npm run sync:article-images -- --execute || echo "article-image sync degraded; originals still render"
 
+      # THE HQ DISPATCH's story images (scripts/sync-dispatch-images.mjs):
+      # every story /dispatch.xml lists needs its 16:9, never-cropped JPEG
+      # built and committed before Kit reads the feed, or the newsletter shows
+      # the fallback art for it. Unconditional for the same reason as the
+      # article renditions, and non-fatal by construction: a story without a
+      # built image gets the fallback, never a broken or cropped one.
+      - name: Build newsletter images
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.execute }}" = "false" ]; then
+            npm run sync:dispatch-images
+          else
+            npm run sync:dispatch-images -- --execute || echo "dispatch-image sync degraded; the feed uses the fallback art"
+          fi
+
       - name: Commit and push if anything changed
         id: commit
         run: |
-          if git diff --quiet -- src/data/articles.json src/data/article-images.json public/article-images; then
+          if git diff --quiet -- src/data/articles.json src/data/article-images.json public/article-images src/data/dispatch-images.json; then
             echo "No changes — nothing to sync."
             echo "pushed=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -104,6 +118,9 @@ jobs:
           # committing one without the other ships 404s where a working remote
           # URL used to be.
           git add src/data/articles.json src/data/article-images.json public/article-images
+          # Same pairing for the newsletter: the manifest names files in
+          # public/dispatch/images/ and the feed points at them.
+          git add src/data/dispatch-images.json public/dispatch/images
           git commit -m "chore: automated Substack articles sync" -m "Synced by the sync-articles.yml workflow (run ${{ github.run_id }})."
           git pull origin HEAD --rebase && git push origin HEAD:${{ github.ref }}
 
