@@ -146,11 +146,16 @@ test('the YouTube workflow runs the YouTube sync ONLY', () => {
     .split('\n')
     .filter((line) => !line.trim().startsWith('#'))
     .join('\n')
-    .match(/npm run sync[a-z:]*/g) || [];
+    .match(/npm run sync[a-z:-]*/g) || [];
   assert.ok(runs.length > 0, 'the workflow no longer runs any sync');
+  /* sync:dispatch-images (THE HQ DISPATCH's story images) is allowed: it
+     needs no secrets at all, and the new videos this job syncs are exactly
+     what it has to build images for. Anything else, and above all the
+     combined `npm run sync`, is still refused. */
+  const ALLOWED = ['npm run sync:youtube', 'npm run sync:dispatch-images'];
   for (const cmd of runs) {
     assert.ok(
-      cmd.startsWith('npm run sync:youtube'),
+      ALLOWED.includes(cmd),
       `sync-youtube.yml runs "${cmd}". It holds only YOUTUBE_* secrets, so\n` +
         '      running the combined `npm run sync` drags in the Instagram sync and\n' +
         '      fails the job on credentials it was never given.',

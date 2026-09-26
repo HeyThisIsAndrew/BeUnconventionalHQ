@@ -116,15 +116,32 @@ jobs:
             npm run sync:youtube -- --execute
           fi
 
+      # THE HQ DISPATCH's story images (scripts/sync-dispatch-images.mjs):
+      # every story /dispatch.xml lists needs its 16:9, never-cropped JPEG
+      # built and committed before Kit reads the feed, or the newsletter shows
+      # the fallback art for it. Unconditional for the same reason as the
+      # article renditions, and non-fatal by construction: a story without a
+      # built image gets the fallback, never a broken or cropped one.
+      - name: Build newsletter images
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.execute }}" = "false" ]; then
+            npm run sync:dispatch-images
+          else
+            npm run sync:dispatch-images -- --execute || echo "dispatch-image sync degraded; the feed uses the fallback art"
+          fi
+
       - name: Commit and push if videos.json changed
         if: steps.check.outputs.configured == 'true'
         run: |
-          if git diff --quiet -- src/data/videos.json; then
+          if git diff --quiet -- src/data/videos.json src/data/dispatch-images.json; then
             echo "No changes — nothing to sync."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add src/data/videos.json
+          # The newsletter's manifest and the images it names travel together.
+          git add src/data/dispatch-images.json public/dispatch/images
           git commit -m "chore: automated YouTube sync" -m "Synced by the sync-youtube.yml workflow (run ${{ github.run_id }})."
           git pull origin HEAD --rebase && git push origin HEAD:${{ github.ref }}
