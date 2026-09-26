@@ -4,9 +4,8 @@
  * `src/styles/global-base.css` sets `html { scroll-behavior: smooth }` for the
  * whole site, so a bare `window.scrollTo(x, y)` never jumps — it animates from
  * wherever the document currently is. Every correction that has to be
- * invisible (restoring the offset after a modal closes, pinning the top before
- * the splash curtain freezes the page, undoing a scroll the browser restored
- * on refresh) has to opt out of that.
+ * invisible (restoring the offset after a modal closes, undoing a scroll the
+ * browser restored on refresh) has to opt out of that.
  *
  * ─── THE TRAP THIS FILE EXISTS TO CLOSE ─────────────────────────────────────
  *
@@ -24,7 +23,7 @@
  * happens to force a recalc first, which is why it survived review: it is
  * correct roughly half the time.
  *
- * Measured on the homepage (Chromium, armed splash, jumping from 390 to 0,
+ * Measured on the homepage (Chromium, jumping from 390 to 0,
  * reading scrollY on the very next animation frame):
  *
  *     pin html only ............ 390   ← still animating
@@ -41,7 +40,7 @@
  * this site is repeatedly bitten by, that would turn every one of these
  * corrections into an exception. The flush works everywhere.
  *
- * `scripts/splash-scroll-lock.test.mjs` fails the build if a call site goes
+ * `scripts/reload-top-guard.test.mjs` fails the build if a call site goes
  * back to scrolling without either a stated behavior or this pin-and-flush.
  */
 export function jumpTo(y = 0, x = 0): void {

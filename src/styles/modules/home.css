@@ -1839,8 +1839,32 @@
   /* Room for ContentCard's -6px hover lift and its shadow, as the feed's own
      rail gives it (FeedGrid .feed-row-rail), so locking the Y axis below
      never clips a raised card. */
-  padding: 0.75rem 0 1.5rem;
+  padding: 0.75rem var(--rail-fade) 1.5rem;
   list-style: none;
+  /*
+    FEATHERED EDGES. The inline padding is the fade: the cards either side of
+    the row peek into it and the mask takes them to nothing, while every card
+    inside the row is whole (WatchingRail's fit() sizes them to fill it
+    exactly). `scroll-padding` makes a snap land a card at the fade's inner
+    edge, never under it. A mask on the scroll container masks its box, not
+    the scrolled content, so the fade stays put while the cards move.
+  */
+  --rail-fade: clamp(1rem, 3vw, 3rem);
+  scroll-padding-inline: var(--rail-fade);
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--rail-fade),
+    #000 calc(100% - var(--rail-fade)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--rail-fade),
+    #000 calc(100% - var(--rail-fade)),
+    transparent 100%
+  );
   overflow-x: auto;
   /* Locked vertically. `overflow-x: auto` alone computes overflow-y to auto
      too, so the lifted card made the row scroll up and down inside itself
@@ -1857,7 +1881,9 @@
   /* The feed rail's own sizing (.feed-row-item in FeedGrid.astro), so the
      card is the feed's card at the feed's size. */
   flex: 0 0 auto;
-  width: min(85vw, var(--feed-card, 320px));
+  /* `--rail-w` is set by WatchingRail's fit(): the width at which a whole
+     number of cards fills the row. The fallback is the feed's own size. */
+  width: var(--rail-w, min(85vw, var(--feed-card, 320px)));
   display: flex;
   scroll-snap-align: start;
 }

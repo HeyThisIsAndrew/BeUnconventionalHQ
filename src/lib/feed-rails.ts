@@ -103,7 +103,7 @@ export interface Rail {
   as a tag spelling that means it.
 
   That is not a naming quibble, it was a dead link. The homepage's Games tile
-  points at `/feed#games` (Categories.astro) and so does the note in
+  pointed at `/feed#games`, and so does the note in
   Layout.astro that gives such a link its downward transition, while the
   section on the page was `id="gaming"` — so the tile navigated to /feed and
   then landed nowhere, silently, which looks like the anchor feature being

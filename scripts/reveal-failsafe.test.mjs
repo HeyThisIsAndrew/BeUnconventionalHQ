@@ -1,10 +1,10 @@
 /*
   NO SECTION OF THIS SITE MAY DEPEND ON JAVASCRIPT TO BE VISIBLE.
 
-  Three classes ship content at `opacity: 0` and wait for a script to reveal
+  Two classes ship content at `opacity: 0` and wait for a script to reveal
   it: `.animate-on-scroll` and `.reveal` (the shared IntersectionObserver in
-  Layout.astro) and `.cat-stagger` (the staggered tiles in Categories.astro).
-  Each is a nice entrance and each sits directly in front of real content.
+  Layout.astro). Each is a nice entrance and sits directly in front of real
+  content.
 
   WHAT THIS PINS, AND WHY IT IS A TEST RATHER THAN A COMMENT
 
@@ -18,17 +18,12 @@
 
   Measured with JavaScript disabled on the built site before the fix:
 
-    mobile   /       .cat-stagger x4 stuck invisible
-    desktop  /       .cat-stagger x4, .reveal x13, .animate-on-scroll x4
     desktop  /feed   .reveal x12, .animate-on-scroll x2
     desktop  /about  .animate-on-scroll x9, .reveal x1
 
-  Mobile got off lighter only because hero.css already carries a blunt
-  `opacity: 1 !important` override for two of the three classes inside its
-  phone media query, commented "Force visibility on mobile to rule out
-  IntersectionObserver failures". Somebody had been here before and the patch
-  missed `.cat-stagger`, which is a newer class in a different file — and
-  which is exactly the section that was photographed black.
+  Mobile got off lighter only because hero.css carries a blunt
+  `opacity: 1 !important` override for both classes inside its phone media
+  query.
 
   A browser test cannot pin this cheaply: proving it needs a page load with
   scripts blocked, and the failure is a slow-network condition rather than a
@@ -46,7 +41,6 @@ const read = (...p) => readFileSync(join(here, '..', ...p), 'utf8');
 
 const utilities = read('src', 'styles', 'modules', 'utilities.css');
 const layout = read('src', 'layouts', 'Layout.astro');
-const categories = read('src', 'components', 'Categories.astro');
 
 let passed = 0;
 let failed = 0;
@@ -63,9 +57,9 @@ function test(name, fn) {
 
 console.log('Reveal failsafe:');
 
-/* The classes that ship invisible. Adding a fourth is exactly the mistake
-   `.cat-stagger` made, so the list is asserted, not assumed. */
-const REVEAL_CLASSES = ['.animate-on-scroll', '.reveal', '.cat-stagger'];
+/* The classes that ship invisible. A new one must be added here AND to the
+   failsafe rules, so the list is asserted, not assumed. */
+const REVEAL_CLASSES = ['.animate-on-scroll', '.reveal'];
 
 test('every reveal class is un-gated when the page has no JavaScript', () => {
   for (const cls of REVEAL_CLASSES) {
@@ -85,10 +79,6 @@ test('every reveal class is un-gated when its script never arrives', () => {
     utilities.includes('html.reveal-failsafe .animate-on-scroll') &&
       utilities.includes('html.reveal-failsafe .reveal'),
     'utilities.css must un-gate .animate-on-scroll and .reveal under .reveal-failsafe',
-  );
-  assert.ok(
-    utilities.includes('html.stagger-failsafe .cat-stagger'),
-    'utilities.css must un-gate .cat-stagger under .stagger-failsafe',
   );
   assert.match(
     utilities,
@@ -110,7 +100,7 @@ test('the watchdog lives in the INLINE head script, not a bundled one', () => {
   );
   assert.ok(inline.includes("classList.add('js')"), 'the .js gate must be inline');
   assert.ok(
-    inline.includes('reveal-failsafe') && inline.includes('stagger-failsafe'),
+    inline.includes('reveal-failsafe'),
     'the reveal watchdog must be in the inline head script. In a bundled ' +
       'module it cannot fire for the failure it exists to catch.',
   );
@@ -127,20 +117,14 @@ test('the watchdog lives in the INLINE head script, not a bundled one', () => {
 
 test('the watchdog only reports a system the page actually uses', () => {
   /*
-    Without the presence checks, `stagger-failsafe` was set on every route
-    with no category tiles — /feed, /intel, all of them — because a module
-    that is not on the page never sets its flag. Harmless there and
-    meaningless everywhere, which is how a diagnostic stops being one.
+    Without the presence check, the failsafe class would be set on routes
+    whose module never runs because it has nothing to reveal, and a
+    diagnostic that fires everywhere stops being one.
   */
   assert.match(
     layout,
     /!window\.__hqRevealReady && document\.querySelector\(/,
     'the reveal branch must check that the page has reveal elements at all',
-  );
-  assert.match(
-    layout,
-    /!window\.__hqStaggerReady && document\.querySelector\(/,
-    'the stagger branch must check that the page has category tiles at all',
   );
 });
 
@@ -163,19 +147,6 @@ test('each reveal system signs in when it RUNS, not when it loads', () => {
     /window\.__hqRevealReady = true/,
     'revealImmediately() must set it too — it is the path taken on every ' +
       'client-side navigation, and initReveal() only runs on a cold load',
-  );
-
-  const initStagger = categories.slice(categories.indexOf('function initCatStagger()'));
-  assert.match(
-    initStagger.slice(0, 700),
-    /window\.__hqStaggerReady = true/,
-    'initCatStagger() must set __hqStaggerReady',
-  );
-  /* Before the early return: a page with no tiles is not a page whose reveal
-     is broken, and returning first would leave the flag unset forever. */
-  assert.ok(
-    initStagger.indexOf('__hqStaggerReady') < initStagger.indexOf('tiles.length === 0'),
-    'the flag must be set BEFORE the no-tiles early return',
   );
 });
 

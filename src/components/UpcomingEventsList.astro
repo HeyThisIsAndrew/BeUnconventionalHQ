@@ -163,9 +163,9 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
 <style>
   .uel-scroller {
     position: relative;
-    /* The strip the rail stands in. One token, read by the scroller's padding
-       and nothing else, so the two cannot drift. */
-    --uel-rail-gutter: 3.75rem;
+    /* The column the rail stands in: exactly the rail's own 44px. The space
+       between it and the list is the grid's `column-gap`, below. */
+    --uel-rail-gutter: 44px;
   }
 
   /*
@@ -290,19 +290,42 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
     inside the list is no better: the right-hand edge of every row already
     carries its own arrow, and the left carries the date badge.
 
-    So the scroller reserves a strip and the rail stands in it. The rows are
-    narrower by exactly that strip and nothing overlaps anything.
+    So the scroller is a two-column grid and the rail stands in the second
+    column. The rows are narrower by exactly that column and nothing overlaps
+    anything.
+
+    ─── WHY A GRID, AND WHY 44px + A GAP ────────────────────────────────────
+    Reported on a 14" MacBook Pro and a 4K monitor: the rail collided with the
+    list's scrollbar. The strip used to be `3.75rem` of padding with the 44px
+    rail absolutely positioned inside it, and rem scales with the site's root
+    size while the rail does not: at 1512px the strip was 48px, leaving 4px
+    between the rail and an 11px classic scrollbar (a Mac with a mouse, or
+    "Show scroll bars: Always"). Now the column is the rail's own width and
+    the separation is a `column-gap` that cannot fall below 16px.
+
+    BOTH CHILDREN ARE PINNED TO ROW 1. The rail comes first in the markup, and
+    grid auto-placement will not move backwards along a row: placed in column
+    2, it pushed the list into a SECOND row underneath it, leaving a 142px
+    empty block above the list at every desktop width.
 
     `hidden` in the markup, revealed by script ONLY when the content actually
     overflows: a rail that cannot move anything is furniture that lies about
     what the page can do.
   */
   .uel-scroller {
-    padding-right: var(--uel-rail-gutter);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--uel-rail-gutter);
+    column-gap: max(1rem, 16px);
+    align-items: stretch;
+  }
+  .uel-viewport {
+    grid-row: 1;
+    grid-column: 1;
   }
 
   .uel-rail {
-    position: absolute;
+    grid-row: 1;
+    grid-column: 2;
     /*
       CENTRED on the list, not pinned to its top. Top-aligned it sat level with
       the year heading and the first row rather than with the list it drives,
@@ -310,9 +333,8 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
       you already were. Centred, the three controls are equidistant from both
       ends of the box at every height it takes.
     */
-    top: 50%;
-    transform: translateY(-50%);
-    right: 0;
+    align-self: center;
+    justify-self: end;
     width: 44px;
     display: flex;
     flex-direction: column;
@@ -459,8 +481,10 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
     it, since there is nothing left for them to drive.
   */
   @media (max-width: 767px) {
+    /* One column: the rail is hidden here, so its column and gap would only
+       take 60px off every row. */
     .uel-scroller {
-      padding-right: 0;
+      display: block;
     }
     .uel-viewport {
       max-height: none;
@@ -470,7 +494,6 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
          stays exactly as it was before the scroller existed. */
       padding-block: 0;
       scroll-padding-block: 0;
-      padding-right: 0;
       /* Nothing scrolls here, so there is no edge to feather and a mask would
          only dim the first and last rows permanently. */
       -webkit-mask-image: none;

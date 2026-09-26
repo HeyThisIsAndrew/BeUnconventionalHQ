@@ -30,7 +30,7 @@ const paletteCode = palette
   .replace(/\/\*[\s\S]*?\*\//g, '')
   .replace(/^\s*\/\/.*$/gm, '');
 /* There is more than one mobile media query; collect them all. */
-const mobileCss = (palette.match(/@media \(max-width: 640px\) \{[\s\S]*?\n  \}\n/g) || []).join('\n');
+const mobileCss = (palette.match(/@media \(max-width: 640px\).*? \{[\s\S]*?\n  \}\n/g) || []).join('\n');
 const navbar = readFileSync(join(ROOT, 'src/components/Navbar.astro'), 'utf8');
 
 let passed = 0;
@@ -70,11 +70,11 @@ test('scroll unlock hangs off the dialog\'s own close event, not closePalette()'
 */
 test('the mobile max-height override is declared BELOW the base rule it overrides', () => {
   const base = palette.indexOf('max-height: 80vh');
-  const mobile = palette.indexOf('max-height: 60dvh');
+  const mobile = palette.indexOf('height: 100dvh');
   assert.ok(base !== -1, 'the base .cmd-palette-content max-height must exist');
   assert.ok(mobile !== -1, 'the mobile override must exist');
   assert.ok(mobile > base,
-    `the 60dvh override is at index ${mobile}, the 80vh base at ${base}. Equal specificity ` +
+    `the 100dvh override is at index ${mobile}, the 80vh base at ${base}. Equal specificity ` +
     'means the later rule wins, so an override above the base rule silently does nothing.');
 });
 
@@ -87,8 +87,8 @@ test('the mobile max-height override is declared BELOW the base rule it override
 */
 test('the mobile panel is sized in dvh, never vh', () => {
   assert.ok(mobileCss, 'the mobile media query must exist');
-  assert.match(mobileCss, /max-height: \d+dvh/, 'the mobile panel height must be in dvh');
-  assert.doesNotMatch(mobileCss, /max-height: \d+vh(?!h)/,
+  assert.match(mobileCss, /height: \d+dvh/, 'the mobile panel height must be in dvh');
+  assert.doesNotMatch(mobileCss, /height: \d+vh(?!h)/,
     'a `vh` height does not shrink for the keyboard, which is the whole point here');
 });
 
@@ -652,9 +652,9 @@ test('the mobile origin is not undone by the open state', () => {
     top of the screen. Reported from a phone as the search box displaying
     wrong, with the results clipped to a strip and the keyboard already up.
   */
-  const mobile = paletteCode.match(/@media \(max-width: 640px\) \{[\s\S]*?\n  \}/);
+  const mobile = paletteCode.match(/@media \(max-width: 640px\).*? \{[\s\S]*?\n  \}/);
   assert.ok(mobile, 'the mobile block is gone');
-  assert.match(mobile[0], /\.cmd-palette\[open\] \{[^}]*transform: translate\(-50%, 0\);/,
+  assert.match(mobile[0], /\.cmd-palette\[open\] \{[^}]*transform: none;/,
     'the open state must be re-pointed at the mobile origin, not just the closed one');
 
   const openRules = [...paletteCode.matchAll(/\.cmd-palette\[open\] \{([^}]*)\}/g)]

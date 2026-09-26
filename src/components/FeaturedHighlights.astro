@@ -163,6 +163,96 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
     pointer-events: auto;
   }
 
+  /*
+    ─── THE SHARED PLAYER, BEHIND THE CARD ───────────────────────────────
+    One YouTube player serves every slide (see "ONE PLAYER FOR THE WHOLE
+    SHELF" in the script). It lives in `.fh-player-layer`, created by the
+    script inside `.fh-left` and laid over the active card's media box, at
+    z-index 1: UNDER the active card (2), so the card's gradient, play mark
+    and watermark still sit on top of the video.
+
+    Nothing between the frame and the document clips it (hard rule 3): the
+    layer's only ancestors are this column and the shelf, and the card that
+    used to be its clipping parent is no longer an ancestor at all.
+  */
+  .fh-left {
+    position: relative;
+  }
+
+  .fh-left :global(.fh-player-layer) {
+    position: absolute;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .fh-left :global(.fh-player-layer iframe) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    transform: translateZ(0);
+    /* Transparent while it fades up; `color-scheme` stops the embedded
+       document defaulting to a white canvas on iOS Safari. */
+    background: transparent;
+    color-scheme: dark;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+  }
+
+  .fh-left :global(.fh-player-layer.is-visible iframe) {
+    opacity: 1;
+  }
+
+  .fh-left :global(.fh-player-layer.is-instant iframe) {
+    transition: none;
+  }
+
+  /*
+    SEE-THROUGH WHILE HOSTING. The card is opaque (`.content-card` paints
+    the surface colour), which would hide the player behind it. While it
+    hosts the player its surface moves to the copy below the media box, and
+    the media box itself goes transparent; its poster image still covers the
+    player until the preview is actually playing (`is-playing-inline` hides
+    the poster, ContentCard.astro).
+  */
+  .fh-left :global(.content-card.has-player) {
+    background: transparent;
+  }
+
+  .fh-left :global(.content-card.has-player .content-card-body) {
+    background: var(--color-surface);
+  }
+
+  .fh-left :global(.content-card.has-player .content-card-media) {
+    background: transparent;
+  }
+
+  /*
+    AFTER THE READER PRESSES PLAY, the frame takes the clicks so YouTube's
+    own click-to-pause works (the same hand-over `is-user-activated` made
+    when the frame was inside the card). The card is on top of the frame, so
+    it has to become click-through over the media box: every box in the
+    card stops catching the pointer, and the copy below the media box (the
+    title, the "Watch now" link) takes it back.
+  */
+  .fh-left :global(.fh-hero-card:has(.content-card-media.is-user-activated)),
+  .fh-left :global(.fh-hero-card:has(.content-card-media.is-user-activated) *) {
+    pointer-events: none;
+  }
+
+  .fh-left :global(.fh-hero-card:has(.content-card-media.is-user-activated) .content-card-body),
+  .fh-left :global(.fh-hero-card:has(.content-card-media.is-user-activated) .content-card-body *) {
+    pointer-events: auto;
+  }
+
+  .fh-left :global(.fh-player-layer.is-user-activated iframe) {
+    pointer-events: auto;
+  }
+
   .fh-row-progress {
     position: absolute;
     bottom: 0;
@@ -447,8 +537,40 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
     let autoPlayTimeout: ReturnType<typeof setTimeout> | null = null;
     let isPaused = false;
     let isInteracting = false;
-    let activePlayer: any = null;
-    let activeMediaContainer: HTMLElement | null = null;
+    /*
+      ─── ONE PLAYER FOR THE WHOLE SHELF ───────────────────────────────────
+
+      This shelf used to destroy its YouTube player and build a new one on
+      every video slide, about every 15 seconds for as long as the homepage
+      was open. Each build is a full embed bootstrap: the embed document,
+      base.js, the player CSS, YouTube's service-worker prefetches (about 50
+      requests), botguard and the ad checks. A reader's uBlock log showed the
+      whole set repeating once per slide, over a hundred requests each time.
+
+      Now ONE player is created, on the first video slide, and every later
+      slide swaps the video inside it with `loadVideoById`, which re-uses the
+      bootstrapped player and fetches only the new video.
+
+      The player cannot live inside a card, because each slide is its own
+      card and moving an iframe to another parent RELOADS it. So it lives in
+      `.fh-player-layer`, one element in `.fh-left` BEHIND the stacked cards,
+      positioned over the active card's media box. While a video plays the
+      card's poster hides (`is-playing-inline`) and `has-player` makes the
+      card see-through there, so the video shows through from behind while
+      the card's own gradient, play mark and watermark stay ON TOP of it,
+      exactly as when the iframe was inside the card.
+    */
+    let player: any = null;
+    let playerReady = false;
+    /* The media box the player is currently showing through, or null while
+       the active slide is an article (or the API is unavailable). */
+    let playerMedia: HTMLElement | null = null;
+    let playerVideoId = '';
+    let playerLayer: HTMLElement | null = null;
+    let fadeInTimer: ReturnType<typeof setTimeout> | null = null;
+    /* Bumped on every slide change, so a fade scheduled for one slide can
+       never land on the next. */
+    let slideToken = 0;
     let slideStartTime = 0;
     let accumulatedTime = 0;
     let rAF_ID = 0;
@@ -508,22 +630,195 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
       return row.classList.contains('is-video') ? 15000 : duration;
     }
 
-    function destroyActivePlayer() {
-      if (activePlayer && typeof activePlayer.destroy === 'function') {
-        activePlayer.destroy();
+    /* Undo every per-slide display class. Leaving `is-user-activated` set
+       would hand the NEXT slide's preview the pointer while it is still a
+       muted preview, which is the bug that pair of classes exists to
+       prevent. */
+    function resetInlineState() {
+      if (fadeInTimer) {
+        clearTimeout(fadeInTimer);
+        fadeInTimer = null;
       }
-      activePlayer = null;
-      activeMediaContainer = null;
-      section.querySelectorAll('.yt-player-target').forEach(el => el.remove());
       section.querySelectorAll('.is-playing-inline').forEach(media => media.classList.remove('is-playing-inline'));
-      /* Restore the clip now the iframe is gone, so the thumbnail's
-         `scale(1.05)` hover zoom is contained by the card again. */
-      section.querySelectorAll('.has-player').forEach(card => card.classList.remove('has-player'));
-      /* Activation belongs to one player instance. Leaving it set would give
-         the NEXT slide's iframe the pointer while it is still a muted
-         preview, which is the bug this pair of classes exists to prevent. */
       section.querySelectorAll('.is-user-activated').forEach(media => media.classList.remove('is-user-activated'));
+      section.querySelectorAll('.has-player').forEach(card => card.classList.remove('has-player'));
       section.querySelectorAll('.video-watermark-logo').forEach((logo: any) => logo.style.opacity = '0');
+      playerLayer?.classList.remove('is-visible', 'is-user-activated', 'is-instant');
+    }
+
+    /* Only at teardown (a client-side navigation away). A slide change
+       never destroys the player; that is the point of this design. */
+    function destroyActivePlayer() {
+      resetInlineState();
+      if (player && typeof player.destroy === 'function') player.destroy();
+      player = null;
+      playerReady = false;
+      playerMedia = null;
+      playerVideoId = '';
+      playerLayer?.remove();
+      playerLayer = null;
+    }
+
+    function ensurePlayerLayer(): HTMLElement | null {
+      if (playerLayer && playerLayer.isConnected) return playerLayer;
+      const host = section.querySelector('.fh-left') as HTMLElement | null;
+      if (!host) return null;
+      playerLayer = document.createElement('div');
+      playerLayer.className = 'fh-player-layer';
+      const target = document.createElement('div');
+      target.className = 'fh-player-target';
+      playerLayer.appendChild(target);
+      host.appendChild(playerLayer);
+      return playerLayer;
+    }
+
+    /* Lay the player exactly over the active card's media box. Measured
+       rather than assumed: the hero card's media is not the same shape at
+       every width. */
+    function placePlayerLayer() {
+      if (!playerLayer || !playerMedia) return;
+      const host = playerLayer.parentElement as HTMLElement;
+      const hostRect = host.getBoundingClientRect();
+      const mediaRect = playerMedia.getBoundingClientRect();
+      if (!(mediaRect.width > 0 && mediaRect.height > 0)) return;
+      playerLayer.style.left = `${mediaRect.left - hostRect.left}px`;
+      playerLayer.style.top = `${mediaRect.top - hostRect.top}px`;
+      playerLayer.style.width = `${mediaRect.width}px`;
+      playerLayer.style.height = `${mediaRect.height}px`;
+    }
+
+    /* A background preview: embed-pause pauses it when it leaves the
+       viewport and resumes it on the way back (hard rule 12). Cleared when
+       the reader starts the video themselves. */
+    function markPreview() {
+      const iframe = player?.getIframe?.();
+      if (iframe) iframe.dataset.embedAmbient = '1';
+    }
+
+    function onPlayerStateChange(e: any) {
+      const win = window as any;
+      const media = playerMedia;
+      /* An article slide, or the gap between slides: nothing to show. */
+      if (!media) return;
+      if (e.data === win.YT.PlayerState.PLAYING) {
+        /* Wait 1.5s for YouTube's title bar to fade, then show the video. */
+        if (fadeInTimer) clearTimeout(fadeInTimer);
+        const token = slideToken;
+        fadeInTimer = setTimeout(() => {
+          fadeInTimer = null;
+          if (token !== slideToken || playerMedia !== media) return;
+          placePlayerLayer();
+          playerLayer?.classList.add('is-visible');
+          const logo = media.querySelector('.video-watermark-logo') as HTMLElement;
+          if (logo) logo.style.opacity = '0.8';
+          media.classList.add('is-playing-inline');
+        }, 1500);
+      } else if (e.data === win.YT.PlayerState.PAUSED || e.data === win.YT.PlayerState.ENDED) {
+        if (fadeInTimer) {
+          clearTimeout(fadeInTimer);
+          fadeInTimer = null;
+        }
+        /* Hide the frame at once, so YouTube's paused UI (More videos, the
+           title bar) never shows, and go back to poster + play icon so the
+           next click is ours again rather than YouTube's. */
+        playerLayer?.classList.remove('is-visible', 'is-user-activated', 'is-instant');
+        const logo = media.querySelector('.video-watermark-logo') as HTMLElement;
+        if (logo) logo.style.opacity = '0';
+        media.classList.remove('is-playing-inline', 'is-user-activated');
+
+        const wasWatching = isPaused;
+        isPaused = false;
+
+        if (e.data === win.YT.PlayerState.PAUSED) {
+          if (!isInteracting) startAutoPlay();
+        } else if (e.data === win.YT.PlayerState.ENDED) {
+          if (wasWatching) nextSlide();
+        }
+      }
+    }
+
+    function createPlayer(videoId: string) {
+      const win = window as any;
+      const layer = ensurePlayerLayer();
+      const target = layer?.querySelector('.fh-player-target');
+      if (!layer || !target) return;
+      placePlayerLayer();
+      /* Real dimensions at birth: YT.Player defaults to 640x360 when given
+         none, and computes its first internal layout for that canvas (the
+         iOS black band down the left, measured on an iPhone 17 Pro Max).
+         CSS still owns the rendered size. */
+      const rect = layer.getBoundingClientRect();
+      player = new win.YT.Player(target, {
+        width: rect.width > 0 ? Math.round(rect.width) : '100%',
+        height: rect.height > 0 ? Math.round(rect.height) : '100%',
+        videoId,
+        /* No `autoplay: 1`: an embed that starts itself is what YouTube's
+           bot check looks for (CLAUDE.md hard rule 11). onReady starts it,
+           muted, by command. */
+        playerVars: {
+          controls: 0,
+          mute: 1,
+          modestbranding: 1,
+          playsinline: 1,
+          cc_load_policy: 0,
+          iv_load_policy: 3,
+          rel: 0,
+          disablekb: 1
+        },
+        events: {
+          onReady: (e: any) => {
+            playerReady = true;
+            /* The slide may have moved on while the player was loading: to
+               another video (load that one), or to an article (stay idle). */
+            if (!playerMedia || !playerVideoId) return;
+            markPreview();
+            if (playerVideoId === videoId) e.target.playVideo();
+            else e.target.loadVideoById(playerVideoId);
+          },
+          onStateChange: onPlayerStateChange
+        }
+      });
+    }
+
+    /* Point the one player at this slide's video, creating it on first use. */
+    function showVideo(videoId: string, mediaContainer: HTMLElement) {
+      playerMedia = mediaContainer;
+      playerVideoId = videoId;
+      /*
+        Make the card see-through over its media box (and lift its clip),
+        before anything plays. See `.has-player` in this file's styles and in
+        home-cards.css.
+      */
+      mediaContainer.closest('.content-card')?.classList.add('has-player');
+      ensurePlayerLayer();
+      placePlayerLayer();
+
+      if (!player) {
+        /*
+          THE FIRST-PAINT LAYOUT WAIT (150ms). WebKit's grid can take longer
+          than two paint cycles to settle its fractional widths on a heavy
+          DOM, so the player is created once the layout has settled rather
+          than measured mid-pass. Only the FIRST slide pays this; later ones
+          reuse the player.
+        */
+        setTimeout(() => {
+          if (!section.isConnected || player || !playerMedia) return;
+          createPlayer(playerVideoId);
+        }, 150);
+        return;
+      }
+      if (!playerReady) return; // onReady loads playerVideoId
+      player.mute?.();
+      player.loadVideoById(videoId);
+      markPreview();
+    }
+
+    /* The active slide is not a playable video: stop the player (not just
+       pause, so it stops buffering) and keep it hidden. */
+    function idlePlayer() {
+      playerMedia = null;
+      playerVideoId = '';
+      if (player && playerReady && typeof player.stopVideo === 'function') player.stopVideo();
     }
 
     function activateIndex(index: number) {
@@ -534,7 +829,8 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
       const row = rows[index];
       const targetId = row.getAttribute('data-index');
 
-      destroyActivePlayer();
+      slideToken++;
+      resetInlineState();
 
       rows.forEach(r => {
         r.classList.remove('is-active');
@@ -559,165 +855,25 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
         });
       }
 
+      let showing = false;
       heroCards.forEach(card => {
-        if (card.getAttribute('data-index') === targetId) {
-          card.classList.add('active');
-          const isVideo = row.classList.contains('is-video');
-          const videoBtn = card.querySelector('[data-action="inline-video"]');
-          const win = window as any;
-          if (isVideo && videoBtn && win.YT && win.YT.Player) {
-            const videoId = videoBtn.getAttribute('data-video-id');
-            const mediaContainer = card.querySelector('.content-card-media');
-            if (videoId && mediaContainer) {
-              activeMediaContainer = mediaContainer as HTMLElement;
-
-              /*
-                Release the clip BEFORE the iframe exists (hard rule 3 — see
-                home-cards.css). `.content-card-media` and `.content-card`
-                both carry `overflow: hidden`, and on iOS Safari a clipped
-                cross-origin iframe mis-composites: the picture is shoved
-                right with a black band down the left. Marking the CARD (not
-                the media box) is what lets one class lift both levels — the
-                `.content-card` is the clipping grandparent AND the element
-                carrying `variant-hero`, so it is the only node from which
-                both `overflow` declarations can be overridden.
-              */
-              mediaContainer.closest('.content-card')?.classList.add('has-player');
-
-              const targetDiv = document.createElement('div');
-              targetDiv.className = 'yt-player-target';
-              targetDiv.style.position = 'absolute';
-              targetDiv.style.top = '0';
-              targetDiv.style.left = '0';
-              targetDiv.style.width = '100%';
-              targetDiv.style.height = '100%';
-              targetDiv.style.pointerEvents = 'none';
-              targetDiv.style.zIndex = '0'; // Above image, behind play button and gradient
-              targetDiv.style.opacity = '0';
-              targetDiv.style.transition = 'opacity 1s ease';
-              mediaContainer.appendChild(targetDiv);
-              
-              /*
-                ─── TELL THE PLAYER ITS REAL SIZE AT BIRTH ─────────────────
-
-                Measured on an iPhone 17 Pro Max in landscape via the debug
-                overlay: the iframe ELEMENT is pixel-perfect on its box
-                (dx=0 dy=0 dW=0 dH=0) and nothing clips it — yet its size
-                ATTRIBUTES read 640x360 against a rendered 470.7x264.8.
-
-                That is the whole bug. `YT.Player` defaults to 640x360 when
-                the constructor is given no dimensions, so the player's first
-                internal layout is computed for a canvas 169px wider than the
-                one it occupies, and it centres the picture against that —
-                pushing it right and leaving a black band down the left.
-
-                It needed no rotation to happen, which is what ruled out every
-                resize-based explanation: the wrong number is present from the
-                first frame. `setSize()` only ever ran from a resize handler,
-                and a fresh landscape load produces no resize, so nothing ever
-                corrected it.
-
-                Rounded because the API takes integers, and read from the box
-                rather than assumed — CSS still owns the rendered geometry
-                either way (a stylesheet `width` beats these attributes, which
-                are only presentational hints). These numbers exist purely so
-                the player's own maths starts from the truth.
-              */
-              /*
-                ─── THE FIRST-PAINT LAYOUT FIX (150ms TIMEOUT) ───
-                As hypothesized, WebKit's dynamic CSS Grid calculations
-                can take longer than 2 paint cycles to settle on heavy DOMs.
-                By abandoning synchronous JS pixel measurement and relying entirely
-                 on CSS 100% bounds, we wrap the injection in a 150ms timeout
-                to guarantee the parent grid has rigidly settled its fractional widths.
-              */
-              let playingTimeout: ReturnType<typeof setTimeout> | null = null;
-              
-              setTimeout(() => {
-                if (!mediaContainer.isConnected) return; // safeguard if component unmounted
-
-                activePlayer = new win.YT.Player(targetDiv, {
-                  width: '100%',
-                  height: '100%',
-                  videoId: videoId,
-                  /* No `autoplay: 1`: an embed that starts itself is what
-                     YouTube's bot check looks for (CLAUDE.md hard rule 11).
-                     onReady's playVideo below starts it, muted. */
-                  playerVars: {
-                    controls: 0,
-                    mute: 1,
-                    modestbranding: 1,
-                    playsinline: 1,
-                    cc_load_policy: 0,
-                    iv_load_policy: 3,
-                    rel: 0,
-                    disablekb: 1
-                  },
-                  events: {
-                    onReady: (e: any) => {
-                      /* A background preview: embed-pause resumes it when it
-                         scrolls back into view (hard rule 12). */
-                      const iframe = e.target.getIframe?.();
-                      if (iframe) iframe.dataset.embedAmbient = '1';
-                      e.target.playVideo();
-                    },
-                    onStateChange: (e: any) => {
-                      // When video actually starts playing, wait 1.5s for YouTube UI to fade out, then fade video in
-                      if (e.data === win.YT.PlayerState.PLAYING) {
-                        if (playingTimeout) clearTimeout(playingTimeout);
-                        playingTimeout = setTimeout(() => {
-                          // Check if the player is still active (hasn't been destroyed by slide switch)
-                          const iframe = mediaContainer.querySelector('iframe');
-                          if (iframe) {
-                            iframe.style.opacity = '1';
-                          }
-                          const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
-                          if (logo) {
-                            logo.style.opacity = '0.8';
-                          }
-                          mediaContainer.classList.add('is-playing-inline');
-                        }, 1500);
-                      } else if (e.data === win.YT.PlayerState.PAUSED || e.data === win.YT.PlayerState.ENDED) {
-                        if (playingTimeout) {
-                          clearTimeout(playingTimeout);
-                          playingTimeout = null;
-                        }
-                        
-                        // Hide the iframe immediately to hide YouTube's messy paused UI (More videos, title bar, etc.)
-                        const iframe = mediaContainer.querySelector('iframe');
-                        if (iframe) {
-                          iframe.style.opacity = '0';
-                          iframe.style.pointerEvents = 'none';
-                        }
-                        
-                        const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
-                        if (logo) logo.style.opacity = '0';
-
-                        mediaContainer.classList.remove('is-playing-inline');
-                        /* Back to poster + play icon, so the next click is ours
-                           again rather than YouTube's. */
-                        mediaContainer.classList.remove('is-user-activated');
-
-                        const wasWatching = isPaused;
-                        isPaused = false;
-                        
-                        if (e.data === win.YT.PlayerState.PAUSED) {
-                          if (!isInteracting) startAutoPlay();
-                        } else if (e.data === win.YT.PlayerState.ENDED) {
-                          if (wasWatching) nextSlide();
-                        }
-                      }
-                    }
-                  }
-                });
-              }, 150);
-            }
-          }
-        } else {
+        if (card.getAttribute('data-index') !== targetId) {
           card.classList.remove('active');
+          return;
         }
+        card.classList.add('active');
+        const isVideo = row.classList.contains('is-video');
+        const videoBtn = card.querySelector('[data-action="inline-video"]');
+        const win = window as any;
+        if (!isVideo || !videoBtn || !win.YT || !win.YT.Player) return;
+        const videoId = videoBtn.getAttribute('data-video-id');
+        const mediaContainer = card.querySelector('.content-card-media') as HTMLElement | null;
+        if (!videoId || !mediaContainer) return;
+        showVideo(videoId, mediaContainer);
+        showing = true;
       });
-      
+      if (!showing) idlePlayer();
+
       currentIndex = index;
     }
 
@@ -854,34 +1010,37 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
           site's video modal instead: the same video, one tap, and the
           modal carries its own "Watch on YouTube" door (hard rule 11).
         */
-        if (!activePlayer || typeof activePlayer.unMute !== 'function') {
+        const mediaContainer = (button.querySelector('.content-card-media') || button.closest('.content-card')?.querySelector('.content-card-media')) as HTMLElement | null;
+
+        /* The player must be ready AND showing this card's video; otherwise
+           the modal plays it (the same fallback as a blocked API). */
+        if (!player || !playerReady || typeof player.unMute !== 'function' || !mediaContainer || playerMedia !== mediaContainer) {
           const videoId = button.getAttribute('data-video-id');
           if (videoId) window.hqOpenVideo?.(videoId);
           return;
         }
 
-        const mediaContainer = button.querySelector('.content-card-media') || button.closest('.content-card')?.querySelector('.content-card-media');
-        if (!mediaContainer) return;
+        {
+          player.unMute();
+          player.setVolume(100);
+          player.playVideo();
 
-        if (activePlayer && typeof activePlayer.unMute === 'function') {
-          activePlayer.unMute();
-          activePlayer.setVolume(100);
-          activePlayer.playVideo();
+          /* The reader started this one, so it is no longer a background
+             preview: embed-pause must not resume it on its own. */
+          player.getIframe?.()?.removeAttribute('data-embed-ambient');
 
           /*
-            Hand the pointer to YouTube only NOW. Until this click the iframe
-            is inert by CSS, which is what let this handler receive the click
-            at all — while it was interactive during the preview, the click
-            went to YouTube's player and simply paused it.
+            Hand the pointer to YouTube only NOW. Until this click the frame
+            is inert and the card sits on top of it, which is what lets this
+            handler receive the click at all. `is-user-activated` makes the
+            card's media box click-through and the frame clickable, so
+            YouTube's own click-to-pause works (see the styles).
           */
           mediaContainer.classList.add('is-user-activated');
+          placePlayerLayer();
+          /* Snap instantly on manual play. */
+          playerLayer?.classList.add('is-visible', 'is-user-activated', 'is-instant');
 
-          const iframe = mediaContainer.querySelector('iframe');
-          if (iframe) {
-            iframe.style.transition = 'none'; // Snap instantly on manual play
-            iframe.style.opacity = '1';
-          }
-          
           const logo = mediaContainer.querySelector('.video-watermark-logo') as HTMLElement;
           if (logo) logo.style.opacity = '0.8';
           
@@ -939,13 +1098,18 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
       const SETTLE_MS = 250;
 
       function remeasureWhenSettled() {
+        /* The LAYER follows the box every frame: it is our element, and a
+           frame spent over the wrong rect would show. Only the player's
+           internal re-centring waits for the settle. */
+        placePlayerLayer();
         if (settleTimer) clearTimeout(settleTimer);
         settleTimer = setTimeout(() => {
           settleTimer = null;
-          if (!activePlayer || typeof activePlayer.setSize !== 'function') return;
-          if (!activeMediaContainer) return;
+          placePlayerLayer();
+          if (!player || !playerReady || typeof player.setSize !== 'function') return;
+          if (!playerMedia) return;
 
-          const { width, height } = activeMediaContainer.getBoundingClientRect();
+          const { width, height } = playerMedia.getBoundingClientRect();
           if (!(width > 0 && height > 0)) return;
 
           const w = Math.round(width);
@@ -954,12 +1118,16 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
           if (key === lastSize) return;
           lastSize = key;
 
-          activePlayer.setSize(w, h);
+          player.setSize(w, h);
         }, SETTLE_MS);
       }
 
       const resizeObserver = new ResizeObserver(remeasureWhenSettled);
       section.querySelectorAll('.content-card-media').forEach((box) => resizeObserver.observe(box));
+      /* The layer is positioned against `.fh-left`, so a change there (the
+         column resizing, or content above the media box moving) matters too. */
+      const leftColumn = section.querySelector('.fh-left');
+      if (leftColumn) resizeObserver.observe(leftColumn);
 
       window.addEventListener('orientationchange', remeasureWhenSettled);
       /* `resize` covers the desktop case and the iOS builds that report a
@@ -1019,7 +1187,8 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
 
       When the API does arrive we re-run `activateIndex(currentIndex)` so the
       slide that is showing upgrades in place to a real player. Re-entry is
-      safe: `activateIndex` destroys any existing player first, and
+      safe: `activateIndex` points the one shared player at the slide's
+      video (creating it the first time) rather than stacking a second, and
       `startAutoPlay` no-ops while a timer is already pending.
 
       NOTE FOR ANYONE MEASURING THIS: no automated check in this repo will

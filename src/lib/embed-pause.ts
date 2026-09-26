@@ -11,7 +11,6 @@
  *   - `#hero-iframe`      the /feed hero stage
  *   - `#modal-iframe`     the card lightbox
  *   - FeaturedHighlights  the homepage shelf (IFrame API)
- *   - HeroTrailer         mobile plays unmuted, and desktop unmutes on toggle
  *   - EventFeatured / EventAnnouncement / featured[slug]  once unmuted
  *
  * FeaturedHighlights was the closest to handling it and still did not: its
@@ -26,10 +25,10 @@
  * ─── WHY IT ASKS THE PLAYER RATHER THAN READING THE URL ────────────────────
  *
  * The obvious shortcut is to check the iframe's `src` for `mute=1` and skip
- * the muted background loops. It is wrong: HeroTrailer's desktop side ships
- * `mute=1` in its URL and then unmutes with a jsapi `unMute` command, leaving
- * the src saying "muted" over a player that is audible. The event and hub
- * stages do the same through their sound toggles. A src-based check would
+ * the muted background loops. It is wrong: the event and hub stages ship
+ * `mute=1` in their URL and then unmute with a jsapi `unMute` command through
+ * their sound toggles, leaving the src saying "muted" over a player that is
+ * audible. A src-based check would
  * skip exactly the players a reader has deliberately turned the sound on for.
  *
  * `enablejsapi=1` plus the `listening` handshake makes the player post its own
@@ -42,14 +41,6 @@
  * purpose, and a blanket pause with no resume would silently freeze the muted
  * background loops that several heroes are built on. Tracking the state is
  * what lets it leave both alone.
- *
- * ─── HeroTrailer AND HARD RULE 2 ───────────────────────────────────────────
- *
- * HeroTrailer.astro is protected and is NOT edited: no rewrite, no lifecycle
- * change, no conditional mount, no per-breakpoint duplicate. Its frames are
- * sent the same standard `pauseVideo` and `playVideo` commands the stage
- * already sends its own player from the PiP close button, and its src is
- * never reassigned, which is the operation that would restart it.
  *
  * ─── TWO MORE WAYS A VIDEO GOES ON PLAYING BEHIND THE READER ───────────────
  *

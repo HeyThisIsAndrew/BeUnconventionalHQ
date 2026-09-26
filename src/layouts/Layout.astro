@@ -15,6 +15,8 @@ import logoImage from '../assets/logo.webp';
 import logoMark from '../assets/logo-mark.webp';
 import { getImage, Font } from 'astro:assets';
 import { SOCIAL_ICONS } from '../data/icons.js';
+/* Cache-buster for the tab and home-screen icons (see the note at the icon links). */
+const ICON_VERSION = 2;
 
 /* The org logo a crawler is told to fetch. `logoImage.src` is never emitted
    when compile-time image optimization is on — see the note in ContentCard. */
@@ -168,7 +170,7 @@ const fallbackMark = await getImage({
       Keep this above the seed script. Everything that measures the viewport
       before first paint depends on it.
     */}
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
     {/*
       NO `fetchpriority` HERE. Astro's <Font> destructures exactly
       `{ cssVariable, preload }` (node_modules/astro/components/Font.astro) and
@@ -247,10 +249,9 @@ const fallbackMark = await getImage({
       /*
         ─── THE REVEAL WATCHDOG ──────────────────────────────────────────────
 
-        Two systems on this site ship content at `opacity: 0` and reveal it
-        from a bundled module: `.animate-on-scroll` / `.reveal` (initReveal,
-        further down this file) and `.cat-stagger` (Categories.astro). If
-        either module has not executed, its content is not slow — it is
+        `.animate-on-scroll` / `.reveal` ship content at `opacity: 0` and are
+        revealed from a bundled module (initReveal, further down this file).
+        If that module has not executed, the content is not slow: it is
         invisible, with nothing on screen to say so.
 
         Reported from an iPhone as the homepage rendering the heading
@@ -263,28 +264,21 @@ const fallbackMark = await getImage({
 
         The `.js` class above cannot catch that — it was set, because THIS
         script is inline in the document and always runs. Only a timer can:
-        each system sets its own flag when it actually runs, and anything
-        that has not signed in by the deadline gets un-gated by the rule in
+        initReveal sets a flag when it actually runs, and if it has not
+        signed in by the deadline the content is un-gated by the rule in
         utilities.css.
 
-        Deliberately generous. A healthy load runs both well inside a second
+        Deliberately generous. A healthy load runs it well inside a second
         (they fire on astro:page-load); a slow one that trips this loses its
         entrance animation and shows the content, which is the right way
         round.
       */
       window.setTimeout(function () {
         var root = document.documentElement;
-        /* Only complain about a system this page actually uses. Without the
-           presence check, `stagger-failsafe` was being set on every route
-           that has no category tiles — /feed, /intel, all of them — because
-           the flag for a module that is not on the page is never set. The
-           class was harmless there and meaningless everywhere, which is how
-           a diagnostic stops being one. */
+        /* Only on a page that actually has revealable content, so the class
+           stays a diagnostic rather than something set everywhere. */
         if (!window.__hqRevealReady && document.querySelector('.animate-on-scroll, .reveal')) {
           root.classList.add('reveal-failsafe');
-        }
-        if (!window.__hqStaggerReady && document.querySelector('.cat-stagger')) {
-          root.classList.add('stagger-failsafe');
         }
       }, 5000);
 
@@ -318,10 +312,9 @@ const fallbackMark = await getImage({
         A measurement has none of those problems: it is the real height in
         whatever chrome state the reader is actually in.
 
-        SET HERE, INLINE, BEFORE FIRST PAINT. The hero is the first thing on
-        screen and the splash sizes itself from it, so this cannot wait for a
-        module to load or the hero would paint once at the fallback height and
-        then resize.
+        SET HERE, INLINE, BEFORE FIRST PAINT. The homepage layout is sized
+        from it (home.css), so this cannot wait for a module to load or the
+        page would paint once at the fallback height and then resize.
 
         UPDATED ONLY ON ROTATION, never on scroll — see viewport-anchor.ts.
         That is what keeps it jitter-free: it behaves like a fixed value per
@@ -494,8 +487,15 @@ const fallbackMark = await getImage({
       any SVG-only icon, and that the whole set survives client-side
       navigation, back-navigation and opening a tile in a new tab.
     */}
-    <link rel="icon" href={`/favicon.ico`} sizes="32x32" />
-    <link rel="icon" type="image/svg+xml" href={`/favicon.svg`} />
+    {/*
+      `?v=` is a cache-buster, not decoration. Safari keeps a tab icon it has
+      already resolved for a site, including a FOREIGN one (a red Marvel "M"
+      was reported on the production tab while a fresh preview domain showed
+      the crown). A new URL is a new icon to Safari, so it fetches the real
+      one again. Bump ICON_VERSION whenever the icon art changes.
+    */}
+    <link rel="icon" href={`/favicon.ico?v=${ICON_VERSION}`} sizes="32x32" />
+    <link rel="icon" type="image/svg+xml" href={`/favicon.svg?v=${ICON_VERSION}`} />
     {/*
       Home-screen / web app tile art (issue #66).
 
@@ -510,10 +510,10 @@ const fallbackMark = await getImage({
       put a black wordmark on near-white. 180x180 is the size iOS requests;
       it downsamples cleanly for the smaller slots.
     */}
-    <link rel="apple-touch-icon" sizes="180x180" href={`/apple-touch-icon.png`} />
+    <link rel="apple-touch-icon" sizes="180x180" href={`/apple-touch-icon.png?v=${ICON_VERSION}`} />
     <meta name="apple-mobile-web-app-title" content={site.name} />
     <meta name="msapplication-TileColor" content="#000000" />
-    <meta name="msapplication-TileImage" content={`/apple-touch-icon.png`} />
+    <meta name="msapplication-TileImage" content={`/apple-touch-icon.png?v=${ICON_VERSION}`} />
     <title>{title}</title>
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -1216,7 +1216,6 @@ const fallbackMark = await getImage({
       declare global {
         interface Window {
           __hqRevealReady?: boolean;
-          __hqStaggerReady?: boolean;
         }
       }
 

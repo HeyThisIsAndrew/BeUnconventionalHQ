@@ -45,9 +45,8 @@
  * instead, which did dirty layout and fired `transition: all 0.4s` on
  * `.modal-overlay` on every call.
  *
- * NOT a transform: #navbar's transform is owned by the splash curtain
- * (`html.splash-armed #navbar { transform: translateY(-100%) }`) and stamping
- * `translateZ(0)` over it would break the reveal.
+ * NOT a transform: #navbar's transform drives its show/hide transition
+ * (hero-cta.css), and stamping `translateZ(0)` over it would break that.
  *
  * NOT VERIFIABLE HERE. Chromium hit-tests fixed elements correctly, so neither
  * version can be shown to fix the WebKit symptom from this sandbox. What the

@@ -332,8 +332,17 @@ test('the upcoming list is scrolled by a rail, not by controls over the list', (
 
   assert.match(code, /\.uel-scroller \{[^}]*--uel-rail-gutter:/,
     'the gutter the rail stands in must be a token the scroller reads');
-  assert.match(code, /\.uel-scroller \{[^}]*padding-right: var\(--uel-rail-gutter\)/,
-    'the rows must be narrowed by the gutter, or the rail is back on top of them');
+  assert.match(code, /\.uel-scroller \{[^}]*grid-template-columns: minmax\(0, 1fr\) var\(--uel-rail-gutter\)/,
+    'the rows must be narrowed by the gutter via grid columns, or the rail is back on top of them');
+  /* The rail is first in the markup: unpinned, auto-placement drops the list
+     into a second row under it (a 142px empty block, reported on desktop). */
+  assert.match(code, /\.uel-viewport \{[^}]*grid-row: 1;/, 'the list must be pinned to row 1');
+  assert.match(code, /\.uel-rail \{[^}]*grid-row: 1;/, 'the rail must be pinned to row 1');
+  /* A rem gutter shrank to 4px beside an 11px scrollbar on a 14" MacBook Pro. */
+  assert.match(code, /--uel-rail-gutter: 44px;/, 'the rail column is the rail\'s own px width, not a rem strip');
+  assert.match(code, /\.uel-scroller \{[^}]*column-gap: max\(1rem, 16px\)/, 'a real gap between the scrollbar and the rail');
+  assert.match(code, /@media \(max-width: 767px\) \{[\s\S]*?\.uel-scroller \{\s*display: block;/,
+    'phones get one column, or the hidden rail still costs every row 60px');
   assert.match(code, /\.uel-rail \{[^}]*flex-direction: column/,
     'a vertical rail: up, index, down');
 
