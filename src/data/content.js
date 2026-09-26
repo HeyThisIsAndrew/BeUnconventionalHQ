@@ -136,9 +136,9 @@ export const SECTIONS = {
 
   // ── Shared components ───────────────────────────────────────────────────
   subscribe: {
-    kicker: "Don't miss a drop",
-    primary: 'Subscribe',
-    secondary: 'For Updates',
+    kicker: 'Newsletter',
+    primary: 'The HQ',
+    secondary: 'Dispatch',
   },
   socials: {
     kicker: 'Follow Us',
@@ -196,7 +196,7 @@ export const MESSAGES = {
   noArticles: 'No articles published yet.',
   notFoundBody:
     "This one went off-script. The page you're after moved, vanished, or never existed, but the good stuff is still one click away.",
-  subscribeSubtitle: `New videos and articles, straight from ${site.name}.`,
+  subscribeSubtitle: `The week's best stories, reviews, and industry analysis from ${site.name}.`,
   newsletterFineprint: 'No spam. Unsubscribe any time.',
 };
 

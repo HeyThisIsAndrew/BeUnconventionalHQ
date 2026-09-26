@@ -85,6 +85,13 @@ test('the mobile max-height override is declared BELOW the base rule it override
   `lvh` — see scripts/viewport-units.test.mjs for why the opposite is right
   for an element sized to the scroll viewport.
 */
+/* `/` opens search (issue #263), but never while the reader is typing in a
+   field, which would swallow the character they meant to type. */
+test('`/` opens the palette, except while typing', () => {
+  assert.match(paletteCode, /e\.key === '\/' && !e\.metaKey && !e\.ctrlKey && !e\.altKey && !dialog\.open/);
+  assert.match(paletteCode, /isContentEditable \|\| \/\^\(INPUT\|TEXTAREA\|SELECT\)\$\/\.test\(t\.tagName\)/);
+});
+
 test('the mobile panel is sized in dvh, never vh', () => {
   assert.ok(mobileCss, 'the mobile media query must exist');
   assert.match(mobileCss, /height: \d+dvh/, 'the mobile panel height must be in dvh');

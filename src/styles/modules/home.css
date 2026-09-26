@@ -31,8 +31,11 @@
   --home-muted: #9a9a9a;
   --home-gutter: clamp(16px, 4vw, 48px);
   --home-gap: 64px;
-  /* Clears the fixed navbar, which sits over the top of this page. */
-  --home-top: 84px;
+  /* Clears the fixed navbar, which sits over the top of this page: its
+     MEASURED height (`--nav-h`, published by Navbar.astro), so the hero sits
+     flush under it at every width (#262). The px values are the no-JS
+     fallbacks. */
+  --home-top: var(--nav-h, 84px);
   /* The site's own faces, as the events and featured pages set them (Andrew:
      those pages are the reference for a cinematic homepage). Syne ships
      600-800 and Inter 400-600 (astro.config.mjs `fonts`), so every weight
@@ -49,7 +52,7 @@
 @media (min-width: 768px) {
   .home-v4 {
     --home-gap: clamp(96px, 8vw, 128px);
-    --home-top: 104px;
+    --home-top: var(--nav-h, 104px);
   }
 }
 
@@ -1094,7 +1097,7 @@
 @media (max-width: 767px) {
   .home-v4 {
     /* The phone navbar is ~57px; 84px left a dead band under it. */
-    --home-top: 64px;
+    --home-top: var(--nav-h, 64px);
   }
   .home-v4 .hero-acc-track {
     flex-direction: column;
@@ -1327,7 +1330,7 @@
    so it catches phones either side of the 768px desktop line. */
 @media (orientation: landscape) and (max-height: 520px) {
   .home-v4 {
-    --home-top: 60px;
+    --home-top: var(--nav-h, 60px);
   }
   .home-v4 .hero-acc-track {
     --stack-w: clamp(170px, 30%, 260px);
@@ -1780,10 +1783,17 @@
   color: #fff;
   text-wrap: balance;
 }
+/*
+  Reported as squeezed: the body was 1.05rem in a 58ch column, and the root
+  size scales DOWN on a laptop, so at 1512 it was 13.4px in a 492px column
+  under a headline and motto running ~1000px wide. It now scales with the
+  window like they do (vw, capped at 19px, never below the old rem size, so a
+  phone is unchanged) in a 78ch column: 16px / ~700px at 1512.
+*/
 .home-v4 .ihq-body {
   margin: 1.4rem 0 0;
-  max-width: 58ch;
-  font: 400 1.05rem/1.7 var(--font-home);
+  max-width: 78ch;
+  font: 400 max(1.05rem, min(1.05vw, 19px))/1.7 var(--font-home);
   color: rgba(255, 255, 255, 0.68);
 }
 /* Written on the board: the chalk filter on the TEXT, chalk-white, the last
