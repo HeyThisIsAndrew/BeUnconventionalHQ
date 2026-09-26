@@ -33,4 +33,17 @@ assert.match(
   'and it must strip them from the clone\'s descendants, not only the <li>',
 );
 
-console.log('✅ Watching rail clones are born visible.');
+/*
+  A fast trackpad fling must neither hit an edge nor shift at rest. Measured
+  with one clone set per side: a left fling reached 195px from the scroller's
+  start, and a 140ms debounce recentred mid-snap, landing 100px off and
+  animating 79 more frames.
+*/
+assert.match(code, /copies = Math\.max\(2,/, 'at least two clone sets per side, so a fling cannot reach an edge');
+const onScroll = code.slice(code.indexOf('const onScroll'), code.indexOf('const onScrollEnd'));
+assert.match(onScroll, /if \(!hasScrollEnd\)/, 'the debounce recentre is only a fallback for browsers without scrollend');
+const recentre = code.slice(code.indexOf('const recentre'), code.indexOf('const enableLoop'));
+assert.match(recentre, /scrollSnapType = 'none'/, 'the recentre jump pauses snapping, so it lands pixel-identical');
+assert.match(recentre, /Math\.round\(/, 'the recentre moves by whole sets');
+
+console.log('✅ Watching rail clones are born visible, and a fling neither hits an edge nor shifts at rest.');

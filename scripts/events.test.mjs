@@ -332,8 +332,8 @@ test('the upcoming list is scrolled by a rail, not by controls over the list', (
 
   assert.match(code, /\.uel-scroller \{[^}]*--uel-rail-gutter:/,
     'the gutter the rail stands in must be a token the scroller reads');
-  assert.match(code, /\.uel-viewport \{[^}]*margin-right: var\(--uel-rail-gutter\)/,
-    'the rows must be narrowed by the gutter, or the rail is back on top of them');
+  assert.match(code, /\.uel-scroller \{[^}]*grid-template-columns: minmax\(0, 1fr\) var\(--uel-rail-gutter\)/,
+    'the rows must be narrowed by the gutter via grid columns, or the rail is back on top of them');
   assert.match(code, /\.uel-rail \{[^}]*flex-direction: column/,
     'a vertical rail: up, index, down');
 

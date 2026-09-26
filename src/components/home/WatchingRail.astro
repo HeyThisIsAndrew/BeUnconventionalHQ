@@ -10,10 +10,10 @@
  * through Layout's delegated handler: no new YouTube player (hard rule 11).
  *
  * ─── ENDLESS ON DESKTOP ───────────────────────────────────────────────────
- * From 768px up the rail loops: the script clones the whole set once before
- * and once after the real one and, whenever the scroll drifts into a clone
- * set, moves it back by exactly one set's width. The clones are identical at
- * that offset, so the jump is invisible and the arrows never run out.
+ * From 768px up the rail loops: the script clones the whole set at least
+ * twice before and twice after the real one and, once the scroll comes to
+ * rest in a clone set, moves it back by whole sets. The clones are identical
+ * at that offset, so the jump is invisible and the arrows never run out.
  * Clones are hidden from assistive tech and the tab order (the real set is
  * the one to read), but NOT `inert`, which would also swallow the click that
  * opens the modal. Their ids and JSON-LD are stripped, so the page never
@@ -117,32 +117,61 @@ const { items } = Astro.props;
       return c;
     };
 
-    /* One set's width, gaps included: the distance between the first real
-       card and the first card of the trailing clone set. */
+    /*
+      ─── RUNWAY, AND WHEN TO JUMP BACK ─────────────────────────────────────
+      Reported on desktop: a fast trackpad fling hit a hard stop, and the rail
+      shifted when the scroll came to rest. Measured before this: with ONE
+      clone set per side (2016px at 1440) a left fling reached 195px from the
+      start of the scroller, so a harder one slammed into it; and a right
+      fling was jumped back mid-snap by the 140ms debounce, landing 100px off
+      the equivalent position and animating for 79 more frames.
+
+      So: enough clone sets per side that a fling cannot reach an edge
+      (at least two, more on a screen wider than a set), and the jump back
+      happens only at REST (`scrollend`, which fires after snapping ends),
+      by a whole number of sets, with snapping paused for that one write so
+      the frame after the jump is pixel-identical to the frame before.
+    */
+    let copies = 0;
+
+    /* One set's width, gaps included, and the scroll offset that puts the
+       first REAL card at the left edge. Both measured, never assumed. */
     const setWidth = () => {
-      const tail = track.querySelectorAll<HTMLElement>('[data-watching-clone]')[originals.length];
-      return tail ? tail.offsetLeft - originals[0].offsetLeft : 0;
+      const lead = track.querySelectorAll<HTMLElement>('[data-watching-clone]')[(copies - 1) * originals.length];
+      return lead ? originals[0].offsetLeft - lead.offsetLeft : 0;
+    };
+    const homeOffset = () => {
+      const first = track.firstElementChild as HTMLElement | null;
+      return first ? originals[0].offsetLeft - first.offsetLeft : 0;
     };
 
-    /* Keep the scroll inside the middle (real) set. */
+    /* Move the scroll back into the real set by whole sets. */
     const recentre = () => {
       if (!looping) return;
       const w = setWidth();
       if (!w) return;
-      if (track.scrollLeft < w * 0.5) track.scrollLeft += w;
-      else if (track.scrollLeft > w * 1.5) track.scrollLeft -= w;
+      const k = Math.round((track.scrollLeft - homeOffset()) / w);
+      if (!k) return;
+      const prevSnap = track.style.scrollSnapType;
+      track.style.scrollSnapType = 'none';
+      track.scrollLeft -= k * w;
+      track.style.scrollSnapType = prevSnap;
     };
 
     const enableLoop = () => {
       if (looping || originals.length < 2) return;
       /* Only loop when there is actually more than a screen of cards. */
       if (track.scrollWidth <= track.clientWidth + 2) return;
-      track.prepend(...originals.map(makeClone));
-      track.append(...originals.map(makeClone));
+      const oneSet = track.scrollWidth;
+      copies = Math.max(2, Math.ceil((2 * track.clientWidth) / oneSet));
+      for (let i = 0; i < copies; i++) {
+        track.prepend(...originals.map(makeClone));
+        track.append(...originals.map(makeClone));
+      }
       looping = true;
       const prevSnap = track.style.scrollSnapType;
       track.style.scrollSnapType = 'none';
-      track.scrollLeft += originals[0].getBoundingClientRect().left - track.getBoundingClientRect().left;
+      track.scrollLeft = homeOffset();
       track.style.scrollSnapType = prevSnap;
       sync();
     };
@@ -166,12 +195,17 @@ const { items } = Astro.props;
       next.disabled = track.scrollLeft >= max;
     }
 
+    /* Recentre once the scroll has come to rest, never mid-gesture or
+       mid-snap, where moving scrollLeft cuts the motion short. `scrollend`
+       where supported, and ONLY that: the debounce used to run alongside it
+       and fired first, mid-snap. A quiet-period debounce is the fallback for
+       browsers without `scrollend`. */
+    const hasScrollEnd = 'onscrollend' in window;
     const onScroll = () => {
-      /* Recentre once the scroll has come to rest, never mid-gesture or
-         mid-animation, where moving scrollLeft would cancel the motion.
-         `scrollend` where supported; a short debounce everywhere else. */
-      window.clearTimeout(settle);
-      settle = window.setTimeout(recentre, 140);
+      if (!hasScrollEnd) {
+        window.clearTimeout(settle);
+        settle = window.setTimeout(recentre, 250);
+      }
       sync();
     };
     const onScrollEnd = () => {

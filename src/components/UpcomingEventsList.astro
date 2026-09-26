@@ -298,14 +298,16 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
     what the page can do.
   */
   .uel-scroller {
-    /* No padding-right here because it forces the scrollbar to overlap with absolute children in some browsers. */
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--uel-rail-gutter);
+    align-items: stretch;
   }
   .uel-viewport {
-    margin-right: var(--uel-rail-gutter);
+    grid-column: 1;
   }
 
   .uel-rail {
-    position: absolute;
+    grid-column: 2;
     /*
       CENTRED on the list, not pinned to its top. Top-aligned it sat level with
       the year heading and the first row rather than with the list it drives,
@@ -313,9 +315,8 @@ const sortedYears = Object.keys(groupedEvents).sort((a, b) => Number(a) - Number
       you already were. Centred, the three controls are equidistant from both
       ends of the box at every height it takes.
     */
-    top: 50%;
-    transform: translateY(-50%);
-    right: 0;
+    align-self: center;
+    justify-self: end;
     width: 44px;
     display: flex;
     flex-direction: column;
