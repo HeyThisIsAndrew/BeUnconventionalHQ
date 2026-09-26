@@ -510,6 +510,43 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
     */
     let lastFocused: HTMLElement | null = null;
 
+    /*
+      ─── ON A PHONE THE PANEL IS THE VISIBLE VIEWPORT, NOT 100dvh ─────────────
+
+      Reported on an iPhone 17 Pro Max in Safari: with the keyboard up, the
+      bottom-most visible result was cut off and could not be scrolled clear.
+      iOS Safari does NOT resize the page for the keyboard (it ignores
+      `interactive-widget=resizes-content`, which only Android honours), and
+      `dvh` does not shrink either, so a 100dvh panel ran on underneath the
+      keyboard and the end of the results list sat behind it.
+
+      `visualViewport` is the part of the screen the reader can actually see,
+      keyboard excluded, and it is the one measure iOS keeps current. While
+      the palette is open, its height and offset are published as CSS custom
+      properties on the dialog and the mobile rules size the panel from them.
+      No values set (no visualViewport, or closed): the CSS falls back to
+      100dvh, which is right whenever no keyboard is up.
+    */
+    const vv = window.visualViewport;
+    const syncViewport = () => {
+      if (!vv) return;
+      dialog.style.setProperty('--cmd-vv-h', `${vv.height}px`);
+      dialog.style.setProperty('--cmd-vv-top', `${vv.offsetTop}px`);
+    };
+    const trackViewport = (on: boolean) => {
+      if (!vv) return;
+      if (on) {
+        syncViewport();
+        vv.addEventListener('resize', syncViewport);
+        vv.addEventListener('scroll', syncViewport);
+      } else {
+        vv.removeEventListener('resize', syncViewport);
+        vv.removeEventListener('scroll', syncViewport);
+        dialog.style.removeProperty('--cmd-vv-h');
+        dialog.style.removeProperty('--cmd-vv-top');
+      }
+    };
+
     const openPalette = (opener?: HTMLElement | null) => {
       if (dialog.open) return;
       /*
@@ -522,6 +559,7 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
       */
       lastFocused = opener ?? (document.activeElement as HTMLElement | null);
       dialog.showModal();
+      trackViewport(true);
       if (window.__hqScrollLock) {
         window.__hqScrollLock.lock();
       } else {
@@ -550,6 +588,7 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
       unlocking, which is the property that was missing.
     */
     dialog.addEventListener('close', () => {
+      trackViewport(false);
       if (window.__hqScrollLock) {
         window.__hqScrollLock.unlock();
       } else {
@@ -787,12 +826,15 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
   */
   @media (max-width: 640px), (orientation: landscape) and (max-height: 600px) {
     .cmd-palette {
-      top: 0;
+      /* The VISIBLE viewport while open (see syncViewport() above), so the
+         panel ends at the top of the iOS keyboard instead of running on
+         beneath it. 100dvh is the fallback, correct with no keyboard up. */
+      top: var(--cmd-vv-top, 0px);
       left: 0;
       transform: none;
       width: 100%;
-      height: 100dvh;
-      max-height: 100dvh;
+      height: var(--cmd-vv-h, 100dvh);
+      max-height: var(--cmd-vv-h, 100dvh);
       max-width: none;
       margin: 0;
     }
@@ -812,18 +854,18 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
       }
     }
     /*
-      Make the modal full-screen on mobile, sized in `dvh` so it follows the
-      browser's toolbars. The `interactive-widget=resizes-content` viewport tag
-      (Layout.astro) makes the keyboard shrink `dvh` on Android Chrome. iOS
-      Safari IGNORES that tag: there the keyboard overlays the page, and the
-      runway below plus iOS scrolling the focused input into view are what
-      keep the results reachable. Test changes here on a real iPhone.
+      Full screen on mobile: the content fills the dialog, which is sized to
+      the visible viewport above. `interactive-widget=resizes-content`
+      (Layout.astro) shrinks the page for the keyboard on Android Chrome only;
+      iOS Safari ignores it, which is why the dialog is sized from
+      visualViewport rather than from `dvh`. Test changes here on a real
+      iPhone.
     */
     .cmd-palette-content {
       border: none;
       border-radius: 0;
       max-height: none;
-      height: 100dvh;
+      height: 100%;
     }
     /*
       The iOS virtual keyboard accessory bar (with the 'Done' button) overlays
@@ -837,9 +879,10 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
       min-height: 0;
     }
     /*
-      Safari ignores padding-bottom on overflow-y containers in its scrollHeight calculation,
-      causing the bottom elements to clip rather than scroll into view. Using an ::after
-      pseudo-element reliably forces the scroll runway for the iOS accessory bar.
+      Runway at the end of the list, so the last result can scroll clear of
+      Safari's floating address bar, which sits OVER the bottom of the visible
+      viewport. An ::after, not padding-bottom: Safari leaves a flex scroll
+      container's end padding out of its scrollable area.
     */
     .cmd-palette-results::after {
       content: "";
