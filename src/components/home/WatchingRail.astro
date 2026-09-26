@@ -94,6 +94,32 @@ const { items } = Astro.props;
     let looping = false;
     let settle = 0;
 
+    /*
+      ─── WHOLE CARDS ONLY, FEATHERED AT BOTH EDGES ──────────────────────────
+      Reported on desktop: the right-most card was sliced by the edge of the
+      rail. The cards were a fixed --feed-card wide, so how many fitted was
+      whatever the window allowed and the remainder was cut off. Now the
+      script works out the whole number of cards nearest that size and sizes
+      them to fill the row exactly (`--rail-w`, px). The track's inline
+      padding (`--rail-fade`, home.css) is the feather: the neighbouring cards
+      peek into it and are masked out, and `scroll-padding` makes every snap
+      land a card at its inner edge. The arrows page by exactly one row.
+    */
+    let step = 0;
+    const fit = () => {
+      const cs = getComputedStyle(track);
+      const gap = parseFloat(cs.columnGap) || 0;
+      const room = track.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const base = Math.min(window.innerWidth * 0.85, parseFloat(cs.getPropertyValue('--feed-card')) || 320);
+      if (room <= 0) return;
+      /* NEAREST whole count, not floor: floor stretched four cards into
+         three 400px ones at 1512. Rounding keeps them near the feed's size. */
+      const n = Math.max(1, Math.round((room + gap) / (base + gap)));
+      const w = (room - (n - 1) * gap) / n;
+      track.style.setProperty('--rail-w', `${w}px`);
+      step = n * (w + gap);
+    };
+
     const makeClone = (li: HTMLElement) => {
       const c = li.cloneNode(true) as HTMLElement;
       c.removeAttribute('data-watching-item');
@@ -215,7 +241,7 @@ const { items } = Astro.props;
 
     const page = (dir: 1 | -1) => () => {
       recentre();
-      track.scrollBy({ left: dir * track.clientWidth * 0.9, behavior: reduced() ? 'auto' : 'smooth' });
+      track.scrollBy({ left: dir * (step || track.clientWidth * 0.9), behavior: reduced() ? 'auto' : 'smooth' });
     };
     const onPrev = page(-1);
     const onNext = page(1);
@@ -225,7 +251,11 @@ const { items } = Astro.props;
     next.addEventListener('click', onNext);
     track.addEventListener('scroll', onScroll, { passive: true });
     track.addEventListener('scrollend', onScrollEnd);
-    window.addEventListener('resize', sync);
+    const onResize = () => {
+      if (started) fit();
+      sync();
+    };
+    window.addEventListener('resize', onResize);
     desktop.addEventListener('change', onMedia);
 
     /*
@@ -240,6 +270,8 @@ const { items } = Astro.props;
     const start = () => {
       if (started) return;
       started = true;
+      /* Size first: the loop measures the set's width to build itself. */
+      fit();
       onMedia();
       sync();
     };
@@ -264,7 +296,7 @@ const { items } = Astro.props;
       next.removeEventListener('click', onNext);
       track.removeEventListener('scroll', onScroll);
       track.removeEventListener('scrollend', onScrollEnd);
-      window.removeEventListener('resize', sync);
+      window.removeEventListener('resize', onResize);
       desktop.removeEventListener('change', onMedia);
     };
   }

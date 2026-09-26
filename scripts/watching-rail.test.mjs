@@ -46,4 +46,21 @@ const recentre = code.slice(code.indexOf('const recentre'), code.indexOf('const 
 assert.match(recentre, /scrollSnapType = 'none'/, 'the recentre jump pauses snapping, so it lands pixel-identical');
 assert.match(recentre, /Math\.round\(/, 'the recentre moves by whole sets');
 
-console.log('✅ Watching rail clones are born visible, and a fling neither hits an edge nor shifts at rest.');
+/*
+  Whole cards only, feathered at both edges. Reported on desktop: the
+  right-most card was sliced by the rail's edge, because a fixed card width
+  fitted whatever it fitted. fit() sizes a whole number of cards to fill the
+  row; the track's inline padding is the fade, and snaps land inside it.
+*/
+const fit = code.slice(code.indexOf('const fit'), code.indexOf('const setWidth'));
+assert.match(fit, /Math\.round\(\(room \+ gap\) \/ \(base \+ gap\)\)/, 'a whole number of cards, nearest the feed size');
+assert.match(fit, /setProperty\('--rail-w'/, 'the card width is published for the CSS');
+assert.match(code, /fit\(\);\s*onMedia\(\);/, 'size BEFORE the loop measures a set');
+const css = fs.readFileSync(path.join(ROOT, 'src/styles/modules/home.css'), 'utf8');
+const track = css.slice(css.indexOf('.home-v4 .rail-track {'), css.indexOf('.home-v4 .rail-track::-webkit-scrollbar'));
+assert.match(track, /padding: 0\.75rem var\(--rail-fade\) 1\.5rem;/, 'the fade is the track\'s inline padding');
+assert.match(track, /scroll-padding-inline: var\(--rail-fade\)/, 'snaps land a card inside the fade');
+assert.match(track, /mask-image: linear-gradient\(\s*to right,\s*transparent 0,/, 'both edges feathered');
+assert.match(css, /width: var\(--rail-w, min\(85vw, var\(--feed-card, 320px\)\)\)/, 'cards read the fitted width');
+
+console.log('✅ Watching rail: clones born visible, flings clean, whole cards with feathered edges.');
