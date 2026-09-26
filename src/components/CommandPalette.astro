@@ -588,6 +588,20 @@ const fallbackImage = await getImage({ src: logoMark, format: 'webp', width: 192
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         dialog.open ? closePalette() : openPalette();
+        return;
+      }
+      /*
+        `/` opens search too, the convention on GitHub, YouTube and most
+        search-led sites. Never while the reader is typing (any input,
+        textarea, select or contenteditable, including the newsletter form),
+        never with a modifier, and never when the palette is already open,
+        where `/` is a character they may want to search for.
+      */
+      if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey && !dialog.open) {
+        const t = e.target as HTMLElement | null;
+        if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+        e.preventDefault();
+        openPalette();
       }
     });
 
