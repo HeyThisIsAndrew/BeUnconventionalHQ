@@ -2,7 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import { getArticleItems } from '../../lib/feed-items';
 import { getVideosUnified } from '../../lib/videos-source';
-import { getEventsLocal, getFeaturedBrandsLocal, getHubBackdrop, urlFor, HUB_CATEGORY_LABELS } from '../../lib/local-content';
+import { getEventsLocal, getFeaturedBrandsLocal, getHubBackdrop, urlFor, HUB_CATEGORY_LABELS, getImageDimensions } from '../../lib/local-content';
 import SubscribeCTA from '../../components/SubscribeCTA.astro';
 import ContentCard from '../../components/ContentCard.astro';
 import EventCard from '../../components/EventCard.astro';
@@ -14,6 +14,7 @@ import { parseVideoId } from '../../lib/platforms/youtube';
 import { collectHubCoverage } from '../../lib/hub-coverage';
 import { getCardImageSources } from '../../lib/card-images';
 import { SOCIAL_ICONS } from '../../data/icons.js';
+import { pageTitle } from '../../data/content.js';
 
 export async function getStaticPaths() {
   // `defined(slug.current)` filtering happens in getFeaturedBrandsLocal, so a
@@ -232,6 +233,10 @@ const hasPlayableVideo =
   the asset is back in two places, which is the thing it exists to undo.
 */
 const heroLockupLogo = event.heroLogo || event.logo;
+/* Its intrinsic box at the height it is requested at, read from the ref, so
+   the slot holds its aspect ratio before the file arrives. */
+const heroLockupDims = heroLockupLogo ? getImageDimensions(heroLockupLogo) : null;
+const heroLockupBox = heroLockupDims ? { width: Math.round((320 * heroLockupDims.width) / heroLockupDims.height), height: 320 } : null;
 
 /*
   ─── WHAT THE STAGE SHOWS WHEN NOTHING IS PLAYING ─────────────────────────
@@ -271,8 +276,10 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
 
 ---
 
+{/* Layout renders <title> verbatim and appends nothing, so this went out as
+    "Netflix" alone, the one route family without the site's name on it. */}
 <Layout
-  title={`${event.title}`}
+  title={pageTitle(event.title)}
   description={`Complete coverage of ${event.title}`}
   preloadImage={heroBackdropMobileUrl || undefined}
   preloadImageSrcset={heroBackdropSrcset || undefined}
@@ -321,9 +328,7 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
             'hero-grid-container',
             'lg:!px-20',
             'xl:!px-24',
-            '2xl:!grid-cols-[1fr_1.2fr]',
-            '3xl:!grid-cols-[1fr_1.4fr]',
-            { 'has-trailer': !!trailerId, 'has-cta': !!event.signUpLink },
+            { 'has-stage': true, 'has-cta': !!event.signUpLink },
           ]}
         >
           <div class="event-hero-content hero-copy ">
@@ -379,6 +384,8 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
                     <img
                       src={urlFor(heroLockupLogo).height(320).auto('format').url()}
                       alt={event.title}
+                      width={heroLockupBox?.width}
+                      height={heroLockupBox?.height}
                       class="hero-logo"
                     />
                   </span>
@@ -723,7 +730,7 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
             positioned against a different box.
           */}
           <div class="hub-stage-item hub-stage-item--dynamic" data-index="dynamic" aria-hidden="true" inert>
-            <img src="" alt="" class="hub-stage-item-still" loading="lazy" style="opacity: 0;" />
+            <img alt="" class="hub-stage-item-still" loading="lazy" style="opacity: 0;" />
             <span class="hub-stage-item-scrim"></span>
             <div class="hub-stage-item-copy">
               <span class="hub-stage-item-kind">Article</span>
@@ -1146,10 +1153,22 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
     this breakpoint now decides the grid and nothing else.
   */
   @media (min-width: 900px), (orientation: landscape) and (min-width: 820px) {
-    /* .has-trailer / .has-cta are applied at build time — no reliance on :has()
-       (which older Firefox lacks). Single-row areas when there's no CTA so the
-       copy isn't squeezed by an empty grid row. */
-    .hero-grid-container.has-trailer {
+    /*
+      ─── THE GRID FOLLOWS THE STAGE, NOT THE TRAILER ──────────────────────
+
+      `.has-stage` / `.has-cta` are applied at build time, no reliance on
+      :has() (which older Firefox lacks). `.has-stage` is set wherever the
+      stage renders, which is every hero now: with no trailer it rests on the
+      key art. It used to be `.has-trailer`, keyed on `trailerId`, back when a
+      hub without a trailer had an empty stage and was meant to stack. Once
+      the stage always rendered, every event without a trailer (LA Comic Con,
+      the PAX series, SDCC 2027, TwitchCon) lost its grid areas: one 1358px
+      column at 1512, the rail orphaned under the stage, and at 2xl two
+      auto-placed columns from a utility class that set widths and no areas.
+      A trailer only decides the PLAYER's lifecycle (`data-trailer`, the
+      replay button), never the layout. Single-row areas when there's no CTA
+      so the copy isn't squeezed by an empty grid row. */
+    .hero-grid-container.has-stage {
       grid-template-columns: 1fr 1fr;
       /*
         The rail is its own row now rather than the tail of the copy column.
@@ -1171,7 +1190,7 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
       Stretching one cell gives the copy the row's full height to work with and
       leaves the stage sizing itself.
     */
-    .hero-grid-container.has-trailer .hero-copy {
+    .hero-grid-container.has-stage .hero-copy {
       align-self: end;
       /* Same reason as the rail's: a grid item defaults to a min-content
          floor, and this column holds one. */
@@ -1180,40 +1199,53 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
       flex-direction: column;
       justify-content: center;
     }
-    .hero-grid-container.has-trailer .hub-rail {
+    .hero-grid-container.has-stage .hub-rail {
       grid-area: rail;
       align-self: end;
       margin-top: 0;
     }
 
-    .hero-grid-container.has-trailer.has-cta {
+    .hero-grid-container.has-stage.has-cta {
       grid-template-areas:
         'copy trailer'
         'cta trailer'
         'rail trailer';
       grid-template-rows: 1fr auto auto;
     }
-    .hero-grid-container.has-trailer .hero-copy {
+    .hero-grid-container.has-stage .hero-copy {
       grid-area: copy;
     }
-    .hero-grid-container.has-trailer .hero-trailer {
+    .hero-grid-container.has-stage .hero-trailer {
       grid-area: trailer;
     }
     /*
-      Bigger, but only in the 50/50. A hub with no trailer stacks instead, and a
-      760px stage there is 427px of mostly-empty box that pushed the hero from
-      62% of the viewport to 106% on desktop. It earns the extra width only when
-      it has a column of its own to fill.
+      Bigger, but only in the 50/50. Stacked (below this breakpoint), a 760px
+      stage pushed the hero from 62% of the viewport to 106%. It earns the
+      extra width only when it has a column of its own to fill.
     */
-    .hero-grid-container.has-trailer .hero-trailer.hub-stage {
+    .hero-grid-container.has-stage .hero-trailer.hub-stage {
       max-width: 760px;
     }
-    .hero-grid-container.has-trailer .hero-info-cta {
+    .hero-grid-container.has-stage .hero-info-cta {
       grid-area: cta;
       align-self: start;
     }
     .hero-info-cta {
       text-align: left;
+    }
+  }
+
+  /*
+    WIDER STAGE ON A WIDE SCREEN. This was the `2xl:!grid-cols-[1fr_1.2fr]`
+    utility on the element, which applied whether or not the grid had areas:
+    on a hero without them it made two auto-placed columns (the rail and CTA
+    landed wherever auto-placement put them). Here it only ever reshapes the
+    two-column grid above. 1536px is Tailwind's 2xl. The `3xl:` sibling never
+    compiled (no such breakpoint), so it is simply gone.
+  */
+  @media (min-width: 1536px) {
+    .hero-grid-container.has-stage {
+      grid-template-columns: 1fr 1.2fr;
     }
   }
 
@@ -2465,15 +2497,21 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
     };
 
     /*
-      NOT ARMED MEANS NOTHING IS COMING. No trailer on this hub, no frame,
-      reduced motion, or Save-Data — initHubStage sets `stageArmed` only once
-      all of those have passed. With no trailer to wait for there is nothing
-      to hand over FROM, so the rail selects immediately rather than sitting
-      inert forever. Reduced motion lands here too, which is the right
-      outcome: a reader who asked for less movement gets the end state without
-      the transition.
+      NOT ARMED MEANS NOTHING IS COMING. No frame, reduced motion, or
+      Save-Data — initHubStage sets `stageArmed` only once all of those have
+      passed. A trailer that will never play has nothing to hand over FROM, so
+      the rail selects immediately rather than sitting inert forever. Reduced
+      motion lands here too, which is the right outcome: a reader who asked
+      for less movement gets the end state without the transition.
+
+      NO TRAILER AT ALL IS DIFFERENT: nothing selects. The handover exists to
+      replace a trailer that has finished; a stage that never had one rests on
+      its own idle state, the event's key art, which is what an editor chose
+      to put there. Selecting pane 0 anyway is what turned LA Comic Con's
+      hero into one giant coverage card. The rail is still live, so a tap
+      shows a pane exactly as it does everywhere else.
     */
-    if (cards.length > 0) {
+    if (cards.length > 0 && stage.dataset.trailer) {
       if (stage.dataset.stageArmed === '1') {
         stage.addEventListener('hub:stage-idle', handOver);
       } else {

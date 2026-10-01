@@ -439,6 +439,17 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   column stretches now and `.hero-identity` takes `margin-top: auto`, so the
   eyebrow sits at the top of the grid and the lockup stays bottom-anchored.
   `scripts/event-hero-lockup.test.mjs` guards all three of these.
+- **The hero grid is keyed on the STAGE, never the trailer.** The two-column
+  areas live under `.has-stage`, which every event and hub hero carries
+  because the stage always renders (no trailer means it rests on the key
+  art). It was `.has-trailer`, so all seven events without a `trailerUrl`
+  stacked into one column in production, LA Comic Con with its rail pane
+  auto-selected into a screen-wide card. A trailer decides only the player
+  (`data-trailer`, Play trailer, the rail's handover): a stage with no trailer
+  selects nothing until the reader picks a tile. The wide-screen `1fr 1.2fr`
+  ratio is scoped CSS under `.has-stage`, never a `2xl:` grid utility, which
+  set columns with no areas. `scripts/e2e-event-hero-layout.test.mjs` renders
+  every built event and hub page, with JS off and on, and asserts the layout.
 - **Image fields accept two shapes.** The local CMS writes a bare ref string
   (`"image-<hash>-WxH-ext"`); the original frozen Sanity export wrote
   `{_type:'image', asset:{_ref}}`. `urlFor()` and the dimension parser both

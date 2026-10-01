@@ -1354,7 +1354,7 @@ test('the hub hero rail never cuts a card at any edge', () => {
   /*
     `\n  .hub-rail {` — the BASE rule at two-space indent. A bare
     `.hub-rail {` also matches the tail of
-    `.hero-grid-container.has-trailer .hub-rail {` inside the media query,
+    `.hero-grid-container.has-stage .hub-rail {` inside the media query,
     which is indented four spaces, so the slice ran past its close and read the
     wrong declarations entirely. The assertion failed against a rule that was
     perfectly correct.
