@@ -409,14 +409,14 @@ test('the metadata row does not move with the logo or the CTA', () => {
       pushed the eyebrow up and `.has-cta` (which shortens the 1fr row)
       moved the edge it was pinned to.
     */
-    assert.doesNotMatch(code, /\.hero-grid-container\.has-trailer \.hero-copy \{[^}]*align-self: end;/,
+    assert.doesNotMatch(code, /\.hero-grid-container\.has-stage \.hero-copy \{[^}]*align-self: end;/,
       `${rel}: the copy column must not be bottom-pinned — that is what moved the metadata row`);
 
-    assert.match(code, /\.hero-grid-container\.has-trailer \.hero-copy \{[^}]*align-self: stretch;/,
+    assert.match(code, /\.hero-grid-container\.has-stage \.hero-copy \{[^}]*align-self: stretch;/,
       `${rel}: the copy column must stretch so the eyebrow sits at the top of the grid, a ` +
         'position nothing inside the column can change');
 
-    assert.match(code, /\.hero-grid-container\.has-trailer \.hero-copy > \.hero-identity \{[^}]*margin-top: auto;/,
+    assert.match(code, /\.hero-grid-container\.has-stage \.hero-copy > \.hero-identity \{[^}]*margin-top: auto;/,
       `${rel}: the lockup must take the auto margin, so it stays bottom-anchored while the ` +
         'eyebrow stays put');
   }
