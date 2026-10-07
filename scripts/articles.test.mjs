@@ -1021,13 +1021,41 @@ console.log('\nlabelImageLinks');
 const REAL_IMAGE_LINK =
   '<a target="_blank" href="https://substackcdn.com/image/fetch/x" rel="noopener noreferrer"><img src="a.png" alt="" /></a>';
 
-test('the real Substack image link gets a name', () => {
+test('the real Substack image link becomes a named lightbox button, with no link left', () => {
   const out = labelImageLinks(REAL_IMAGE_LINK);
-  assert.match(out, /aria-label="Open image in a new tab"/);
-  // Everything else about the anchor survives untouched.
-  assert.match(out, /target="_blank"/);
-  assert.match(out, /rel="noopener noreferrer"/);
-  assert.match(out, /<img src="a\.png" alt="" \/>/);
+  assert.match(out, /^<button type="button" class="article-image-zoom" data-lightbox-image aria-label="View image full screen">/);
+  assert.match(out, /<\/button>$/);
+  /* No href at all: a same-tab link still opened Substack in a tab on
+     Cmd/Ctrl-click, a middle click or the context menu (owner, 2026-10). */
+  assert.doesNotMatch(out, /<a\b|href=|target=|substackcdn\.com\/image\/fetch\/x/);
+  assert.match(out, /<img src="a\.png" alt="" \/>/, 'the image itself is untouched');
+});
+
+test('a click-to-enlarge image that already has a name keeps its own name', () => {
+  const out = labelImageLinks(
+    '<a target="_blank" href="https://substackcdn.com/image/fetch/x"><img src="a.png" alt="Hal and John"></a>',
+  );
+  assert.match(out, /^<button [^>]*data-lightbox-image[^>]*>/);
+  assert.doesNotMatch(out, /aria-label=/, 'the alt already names it; a second name would override it');
+});
+
+test("Substack's Unsplash picker links are click-to-enlarge too", () => {
+  const out = labelImageLinks(
+    '<a target="_blank" href="https://images.unsplash.com/photo-1?crop=entropy&amp;fm=jpg"><img src="a.png" alt=""></a>',
+  );
+  assert.match(out, /^<button [^>]*data-lightbox-image/);
+  assert.doesNotMatch(out, /href=/);
+});
+
+test('an image the author linked to a real page is never hijacked', () => {
+  const out = labelImageLinks('<a target="_blank" href="https://www.axs.com/events/1"><img src="a.png" alt=""></a>');
+  assert.doesNotMatch(out, /data-lightbox-image|<button/);
+  assert.match(out, /^<a target="_blank" href="https:\/\/www\.axs\.com\/events\/1"/);
+});
+
+test('running it twice changes nothing the second time', () => {
+  const once = labelImageLinks(REAL_IMAGE_LINK);
+  assert.equal(labelImageLinks(once), once);
 });
 
 test('a link that already has a name is left alone', () => {
@@ -1055,13 +1083,13 @@ test('the wording matches whether it really opens a new tab', () => {
   );
 });
 
-test('every image link in the real store ends up named', () => {
+test('every image link or lightbox button in the real store ends up named', () => {
   const records = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/data/articles.json'), 'utf-8'));
   let unnamed = 0;
   let total = 0;
   for (const record of records) {
     const out = labelImageLinks(record.bodyHtml || '');
-    for (const [, attrs, inner] of out.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)) {
+    for (const [, , attrs, inner] of out.matchAll(/<(a|button)\b([^>]*)>([\s\S]*?)<\/\1>/g)) {
       if (!/<img\b/i.test(inner)) continue;
       if (inner.replace(/<[^>]*>/g, '').trim()) continue;
       total += 1;
@@ -1072,8 +1100,23 @@ test('every image link in the real store ends up named', () => {
       if (!named) unnamed += 1;
     }
   }
-  assert.ok(total > 0, 'expected image-wrapping links in the store');
-  assert.equal(unnamed, 0, `${unnamed} of ${total} image links still have no accessible name`);
+  assert.ok(total > 0, 'expected image-wrapping links or buttons in the store');
+  assert.equal(unnamed, 0, `${unnamed} of ${total} image links/buttons still have no accessible name`);
+});
+
+test('no body image in the real store is a link any more', () => {
+  const records = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/data/articles.json'), 'utf-8'));
+  const offenders = [];
+  let buttons = 0;
+  for (const record of records) {
+    const out = labelImageLinks(record.bodyHtml || '');
+    buttons += (out.match(/<button [^>]*data-lightbox-image/g) || []).length;
+    for (const [, , inner] of out.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)) {
+      if (/<img\b/i.test(inner) && !inner.replace(/<[^>]*>/g, '').trim()) offenders.push(record.slug);
+    }
+  }
+  assert.ok(buttons > 0, 'expected lightbox buttons in the store');
+  assert.deepEqual(offenders, [], 'every body image should open the lightbox, never a tab (owner, 2026-10)');
 });
 
 test('labelImageLinks survives junk input', () => {

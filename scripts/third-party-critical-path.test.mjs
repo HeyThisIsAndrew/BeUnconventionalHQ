@@ -50,6 +50,9 @@ function test(name, fn) {
 }
 
 const HIGHLIGHTS = code(read('src/components/FeaturedHighlights.astro'));
+/* The loader itself moved to src/lib so it could be tested behaviourally
+   (scripts/youtube-iframe-api.test.mjs); the shelf imports it. */
+const API_LOADER = code(read('src/lib/youtube-iframe-api.ts'));
 const GATE = code(read('scripts/lighthouse-check.mjs'));
 
 console.log('Third-party cost is kept off the critical path:');
@@ -57,9 +60,10 @@ console.log('Third-party cost is kept off the critical path:');
 test('the homepage still loads the YouTube API at all', () => {
   assert.match(
     HIGHLIGHTS,
-    /youtube\.com\/iframe_api/,
+    /import\s*\{\s*loadYouTubeAPI\s*\}\s*from\s*'\.\.\/lib\/youtube-iframe-api'/,
     'the featured carousel needs the iframe API — this suite defers it, it does not delete it',
   );
+  assert.match(API_LOADER, /youtube\.com\/iframe_api/, 'the shared loader no longer names the iframe API');
 });
 
 test('the API load is NOT fired directly from DOMContentLoaded', () => {

@@ -468,38 +468,9 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
 </style>
 
 <script>
-  function loadYouTubeAPI() {
-    return new Promise((resolve) => {
-      const win = window as any;
-      if (win.YT && win.YT.Player) {
-        resolve(win.YT);
-        return;
-      }
-      if (win.onYouTubeIframeAPIReady) {
-        const oldCallback = win.onYouTubeIframeAPIReady;
-        win.onYouTubeIframeAPIReady = () => {
-          oldCallback();
-          resolve(win.YT);
-        };
-        return;
-      }
-      win.onYouTubeIframeAPIReady = () => {
-        resolve(win.YT);
-      };
-      const tag = document.createElement('script');
-      tag.src = "https://www.youtube.com/iframe_api";
-      tag.onerror = () => {
-        console.warn('YouTube Iframe API blocked. Falling back to static carousel.');
-        resolve(null);
-      };
-      const firstScriptTag = document.getElementsByTagName('script')[0];
-      if (firstScriptTag && firstScriptTag.parentNode) {
-        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-      } else {
-        document.head.appendChild(tag);
-      }
-    });
-  }
+  /* Never trust an existing onYouTubeIframeAPIReady as a load in flight: GTM
+     defines one on production and waits for US (src/lib/youtube-iframe-api.ts). */
+  import { loadYouTubeAPI } from '../lib/youtube-iframe-api';
 
   function initFeaturedHighlights() {
     const section = document.querySelector('.featured-highlights') as HTMLElement;
