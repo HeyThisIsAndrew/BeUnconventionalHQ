@@ -232,6 +232,20 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
   }
 
   /*
+    THE PREVIEW FADES IN BY THE POSTER FADING OUT. ContentCard drops the
+    poster in 0.1s, which was invisible while the frame sat IN FRONT of it
+    and faded up over it. Behind the card, the frame's own fade happens
+    under an opaque poster, and the 0.1s drop read as a hard cut. So the
+    frame is shown at once behind the poster (`is-instant`, see
+    onPlayerStateChange) and the poster crossfades away above it. A reader's
+    own press still snaps (`is-user-activated` is excluded).
+  */
+  .fh-left :global(.content-card.has-player .content-card-media.is-playing-inline:not(.is-user-activated) img.content-card-img),
+  .fh-left :global(.content-card.has-player .content-card-media.is-playing-inline:not(.is-user-activated))::after {
+    transition: opacity 0.8s ease !important;
+  }
+
+  /*
     AFTER THE READER PRESSES PLAY, the frame takes the clicks so YouTube's
     own click-to-pause works (the same hand-over `is-user-activated` made
     when the frame was inside the card). The card is on top of the frame, so
@@ -468,38 +482,9 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
 </style>
 
 <script>
-  function loadYouTubeAPI() {
-    return new Promise((resolve) => {
-      const win = window as any;
-      if (win.YT && win.YT.Player) {
-        resolve(win.YT);
-        return;
-      }
-      if (win.onYouTubeIframeAPIReady) {
-        const oldCallback = win.onYouTubeIframeAPIReady;
-        win.onYouTubeIframeAPIReady = () => {
-          oldCallback();
-          resolve(win.YT);
-        };
-        return;
-      }
-      win.onYouTubeIframeAPIReady = () => {
-        resolve(win.YT);
-      };
-      const tag = document.createElement('script');
-      tag.src = "https://www.youtube.com/iframe_api";
-      tag.onerror = () => {
-        console.warn('YouTube Iframe API blocked. Falling back to static carousel.');
-        resolve(null);
-      };
-      const firstScriptTag = document.getElementsByTagName('script')[0];
-      if (firstScriptTag && firstScriptTag.parentNode) {
-        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-      } else {
-        document.head.appendChild(tag);
-      }
-    });
-  }
+  /* Never trust an existing onYouTubeIframeAPIReady as a load in flight: GTM
+     defines one on production and waits for US (src/lib/youtube-iframe-api.ts). */
+  import { loadYouTubeAPI } from '../lib/youtube-iframe-api';
 
   function initFeaturedHighlights() {
     const section = document.querySelector('.featured-highlights') as HTMLElement;
@@ -708,7 +693,9 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
           fadeInTimer = null;
           if (token !== slideToken || playerMedia !== media) return;
           placePlayerLayer();
-          playerLayer?.classList.add('is-visible');
+          /* Instant: it is behind the poster, which does the fading (see
+             "THE PREVIEW FADES IN" in the styles). */
+          playerLayer?.classList.add('is-visible', 'is-instant');
           const logo = media.querySelector('.video-watermark-logo') as HTMLElement;
           if (logo) logo.style.opacity = '0.8';
           media.classList.add('is-playing-inline');

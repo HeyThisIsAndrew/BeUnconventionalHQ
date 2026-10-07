@@ -92,7 +92,11 @@ features unless the owner asks.
    "restore" it. The homepage hero accordion's inline player is the sixth and
    carries one, rendered always but HIDDEN on phone portrait (also the
    owner's call: the portrait hero was too busy, and the embed shows
-   YouTube's own logo link). FeaturedHighlights (the homepage Featured box) went
+   YouTube's own logo link).
+   The article video tile (`<youtube-embed>`, YouTubeEmbed.astro) is the
+   seventh: it opened `#video-modal` until 2026-10 and now plays in place
+   (the owner is retiring the modal on desktop), through `playWhenReady`,
+   with its "Watch on YouTube" link rendered under the tile from the start. FeaturedHighlights (the homepage Featured box) went
    without one until the site-wide audit: its door is the lead card's own
    "Watch now" (with the YouTube mark), a real link to the video on YouTube.
    A link cannot sit in a `role="button"` (axe nested-interactive), so a hero
@@ -314,6 +318,14 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   the layout, and the first visible rail block drops its own margin (reach it
   as `.article-rail-more + *`, since `display: none` does not stop
   `:first-child` matching the hidden element).
+- **A body image opens the lightbox, never a tab, and is not a link.**
+  Substack wraps body images in a `target="_blank"` link to its CDN.
+  `labelImageLinks()` replaces each one whose href is the image itself with a
+  `<button data-lightbox-image>` that SubstackGallery.astro opens in the
+  gallery's lightbox. A button rather than a same-tab link is the owner's
+  call: any href left in place still sent readers to Substack on
+  Cmd/Ctrl-click, a middle click or "Open link in new tab". An image the
+  author linked to a real page stays a link.
 - **ARTICLES/VIDEOS filters are scoped BY NAME**: `data-coverage="hub"` on the
   hub page, `data-coverage="event"` on event pages, each handler querying its
   own. Astro's ClientRouter keeps both modules alive across a navigation
@@ -493,6 +505,13 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   loader, and without that push GA4 never loads (TikTok and Meta still fire,
   so it looks fine). Local dev loads no GTM at all.
   `scripts/gtm-single-loader.test.mjs` guards it.
+  **GTM's YouTube trigger defines `window.onYouTubeIframeAPIReady` on every
+  production page and then waits for a jsapi player to appear.** A loader that
+  takes that callback as "the API is already coming" injects nothing, and the
+  two wait on each other forever: that is how the homepage Featured shelf lost
+  its player on production only (2026-10). The script tag is the evidence of a
+  load in flight, never the callback. Load the API through
+  `src/lib/youtube-iframe-api.ts`; `scripts/youtube-iframe-api.test.mjs`.
 
 ## Conventions
 

@@ -80,6 +80,13 @@ const PLAYERS = [
     watchId: 'hero-acc-watch-on-youtube',
     noteId: 'data-embed-note',
   },
+  {
+    label: 'the article video tile (<youtube-embed>, YouTubeEmbed.astro)',
+    file: 'src/components/YouTubeEmbed.astro',
+    frameId: 'yt-embed-frame',
+    watchId: 'yt-embed-watch',
+    noteId: 'yt-embed-note',
+  },
 ];
 
 console.log('Every YouTube player has a way out:');
@@ -348,6 +355,7 @@ const IFRAME_FILES = [
   'src/components/EventFeatured.astro',
   'src/components/EventAnnouncement.astro',
   'src/pages/featured/[slug].astro',
+  'src/components/YouTubeEmbed.astro',
 ];
 for (const rel of IFRAME_FILES) {
   test(`${rel}: every iframe allows fullscreen`, () => {

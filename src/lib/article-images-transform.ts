@@ -255,7 +255,35 @@ export function parseImageDimensions(rawUrl: unknown): ImageDimensions | null {
   Applied at RENDER time rather than at sync time on purpose: it fixes every
   article already in the store on the next build, instead of waiting for each
   one to be re-synced.
+
+  ─── CLICK-TO-ENLARGE OPENS THE LIGHTBOX, NOT A TAB ─────────────────────────
+
+  The affordance stayed; where it goes changed. Tapping a single body image
+  used to open Substack's CDN URL in a new tab, which took the reader off the
+  site to a bare image file, while an image inside a gallery opened the
+  full-screen lightbox. The owner asked for one behaviour: every body image
+  opens the lightbox, and none opens a tab.
+
+  So an image-only anchor whose href IS an image (Substack's enlarge link, or
+  Substack's Unsplash picker) is replaced by a BUTTON carrying
+  `data-lightbox-image`, which SubstackGallery.astro's delegated click handler
+  turns into the same lightbox the gallery uses. A button, not a same-tab
+  link: with an href left in place, Cmd/Ctrl-click, a middle click and the
+  context menu's "Open link in new tab" still opened Substack's URL in a tab,
+  and the owner does not want readers sent to (or shown) Substack at all. The
+  cost is that with JS off the image is just an image, which is already true
+  of every gallery image.
+
+  An image linked to anything else (a ticket page, a trailer) is a real link
+  the author chose, and is only named, never hijacked.
 */
+
+/** Marks a body image SubstackGallery.astro opens in its lightbox. */
+export const LIGHTBOX_ATTR = 'data-lightbox-image';
+
+/** An href that is the image itself, i.e. a click-to-enlarge link. */
+const IMAGE_HREF =
+  /\shref\s*=\s*(["'])(?:https?:\/\/(?:substackcdn\.com\/image\/|substack-post-media\.s3\.amazonaws\.com\/|images\.unsplash\.com\/)|[^"']*\.(?:png|jpe?g|webp|gif|avif)(?:[?#][^"']*)?\1)/i;
 
 /** Anchors, non-greedy. Anchors cannot legally nest, so this cannot mis-scope. */
 const ANCHOR = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
@@ -267,27 +295,36 @@ const ALT_WITH_TEXT = /\balt\s*=\s*(["'])(?!\1)[^"']*\1/i;
 const ALREADY_NAMED = /\s(?:aria-label|aria-labelledby)\s*=/i;
 
 /**
- * Give an accessible name to links whose only content is an unlabelled image.
+ * Give an accessible name to links whose only content is an unlabelled image,
+ * and turn click-to-enlarge links into lightbox buttons.
  *
- * Returns the HTML unchanged when there is nothing to name, which is the
- * common case for an article with no images.
+ * Returns the HTML unchanged when there is nothing to do, which is the common
+ * case for an article with no images.
  */
 export function labelImageLinks(html: unknown): string {
   const source = String(html ?? '');
   if (!source) return '';
 
   return source.replace(ANCHOR, (match: string, attrs: string, inner: string) => {
-    if (ALREADY_NAMED.test(attrs)) return match;
-    if (ALT_WITH_TEXT.test(attrs)) return match; // a title/alt on the anchor itself
     if (!/<img\b/i.test(inner)) return match;
 
     /* Visible text inside the link is its name. Strip tags and see what is
        left; anything at all means we must not touch it. */
     if (inner.replace(/<[^>]*>/g, '').trim()) return match;
 
-    /* An image carrying real alt text names the link through its own content.
-       Only a missing or empty alt leaves the link silent. */
-    if (ALT_WITH_TEXT.test(inner)) return match;
+    /* A title/alt on the anchor itself, an aria name, or an image carrying
+       real alt text: the link already has a name. Only a missing or empty
+       alt leaves it silent. */
+    const named = ALREADY_NAMED.test(attrs) || ALT_WITH_TEXT.test(attrs) || ALT_WITH_TEXT.test(inner);
+
+    if (IMAGE_HREF.test(attrs)) {
+      /* Only the image survives: the href is the thing being kept off the
+         page, and nothing else on Substack's anchor applies to a button. */
+      const label = named ? '' : ' aria-label="View image full screen"';
+      return `<button type="button" class="article-image-zoom" ${LIGHTBOX_ATTR}${label}>${inner}</button>`;
+    }
+
+    if (named) return match;
 
     const opensNewTab = /\starget\s*=\s*(["'])_blank\1/i.test(attrs);
     const label = opensNewTab ? 'Open image in a new tab' : 'Open image';
