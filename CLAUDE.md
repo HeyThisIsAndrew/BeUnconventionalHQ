@@ -92,7 +92,11 @@ features unless the owner asks.
    "restore" it. The homepage hero accordion's inline player is the sixth and
    carries one, rendered always but HIDDEN on phone portrait (also the
    owner's call: the portrait hero was too busy, and the embed shows
-   YouTube's own logo link). FeaturedHighlights (the homepage Featured box) went
+   YouTube's own logo link).
+   The article video tile (`<youtube-embed>`, YouTubeEmbed.astro) is the
+   seventh: it opened `#video-modal` until 2026-10 and now plays in place
+   (the owner is retiring the modal on desktop), through `playWhenReady`,
+   with its "Watch on YouTube" link rendered under the tile from the start. FeaturedHighlights (the homepage Featured box) went
    without one until the site-wide audit: its door is the lead card's own
    "Watch now" (with the YouTube mark), a real link to the video on YouTube.
    A link cannot sit in a `role="button"` (axe nested-interactive), so a hero

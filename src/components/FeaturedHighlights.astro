@@ -232,6 +232,20 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
   }
 
   /*
+    THE PREVIEW FADES IN BY THE POSTER FADING OUT. ContentCard drops the
+    poster in 0.1s, which was invisible while the frame sat IN FRONT of it
+    and faded up over it. Behind the card, the frame's own fade happens
+    under an opaque poster, and the 0.1s drop read as a hard cut. So the
+    frame is shown at once behind the poster (`is-instant`, see
+    onPlayerStateChange) and the poster crossfades away above it. A reader's
+    own press still snaps (`is-user-activated` is excluded).
+  */
+  .fh-left :global(.content-card.has-player .content-card-media.is-playing-inline:not(.is-user-activated) img.content-card-img),
+  .fh-left :global(.content-card.has-player .content-card-media.is-playing-inline:not(.is-user-activated))::after {
+    transition: opacity 0.8s ease !important;
+  }
+
+  /*
     AFTER THE READER PRESSES PLAY, the frame takes the clicks so YouTube's
     own click-to-pause works (the same hand-over `is-user-activated` made
     when the frame was inside the card). The card is on top of the frame, so
@@ -679,7 +693,9 @@ const highlightedItems = curated && curated.length > 0 ? curated.filter(Boolean)
           fadeInTimer = null;
           if (token !== slideToken || playerMedia !== media) return;
           placePlayerLayer();
-          playerLayer?.classList.add('is-visible');
+          /* Instant: it is behind the poster, which does the fading (see
+             "THE PREVIEW FADES IN" in the styles). */
+          playerLayer?.classList.add('is-visible', 'is-instant');
           const logo = media.querySelector('.video-watermark-logo') as HTMLElement;
           if (logo) logo.style.opacity = '0.8';
           media.classList.add('is-playing-inline');
