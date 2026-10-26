@@ -42,7 +42,21 @@ export async function relayPosts(request, { fetchUpstream = fetch, cache, waitUn
 }
 
 export default {
-  fetch(request, env, context) {
+  fetch(request, _env, context) {
+    if (new URL(request.url).pathname === '/diagnose') {
+      const urls = [
+        'https://beunconventionalhq.substack.com/api/v1/posts?limit=2',
+        'https://beunconventionalhq.substack.com/api/v1/posts?limit=50&offset=0',
+        'https://beunconventionalhq.substack.com/feed',
+        'https://beunconventionalhq.substack.com/p/clayface-review',
+        'https://beunconventionalhq.substack.com/api/v1/archive?sort=new&offset=0&limit=2',
+        'https://beunconventionalhq.substack.com/api/v1/posts/clayface-review',
+        'https://substack.com/api/v1/posts/by-id/222226709',
+      ];
+      return Response.json(await Promise.all(urls.map(async url => {
+        try {const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36', Accept: '*/*' }, signal: AbortSignal.timeout(15000), redirect: 'manual' }); const body = await r.text();return { url, status: r.status, length: body.length, type: r.headers.get('content-type'), retry: r.headers.get('retry-after'), start: body.slice(0,160), preloads: body.includes('preloads-json') }; }catch(error){return { url,error:error.message };}
+      })));
+    }
     return relayPosts(request, { cache: caches.default, waitUntil: promise => context.waitUntil(promise) });
   },
 };
