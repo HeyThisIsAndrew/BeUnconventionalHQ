@@ -151,6 +151,18 @@ test('failed polling alerts once per incident hour and never advances the conten
   assert.equal(state.values.has('watcher:published:v1'), false);
 });
 
+test('a storage outage still alerts, and different errors receive different idempotency keys', async () => {
+  const incidents = [];
+  const options = {
+    storage: { get: async () => { throw new Error('Storage unavailable'); }, put: async () => { throw new Error('Storage unavailable'); } },
+    requestFeed: async () => feed(['first']), refreshSource: async () => {}, dispatch: async () => {},
+    notify: async alert => { incidents.push(alert.incidentId); }, now: NOW,
+  };
+  assert.equal((await watchSubstack(options)).alerted, true);
+  assert.equal((await watchSubstack({ ...options, requestFeed: async () => { throw new Error('RSS unavailable'); } })).alerted, true);
+  assert.notEqual(incidents[0], incidents[1]);
+});
+
 test('private object serializes overlapping ticks; public poll requires authentication', async () => {
   let feeds = 0;
   const state = storage();

@@ -56,7 +56,7 @@ export async function watchSubstack({
     // Publishing must not hit a five-minute cached snapshot from BEFORE the
     // new article appeared. Warm the complete payload before firing GitHub.
     await refreshSource();
-    await dispatch(fresh);
+    await dispatch(fresh.slice(0, 20)); // One event imports the whole feed; keep metadata bounded.
     await storage.put(STATE_KEY, {
       ...previous, seen: [...new Set([...articles.map(a => a.guid), ...previous.seen])].slice(0, 500),
       lastDispatchedAt: now, lastDispatchedGuids: fresh.map(a => a.guid),
@@ -67,14 +67,16 @@ export async function watchSubstack({
     let alertError;
     if (!dryRun) {
       try {
-        const previous = await storage.get(ALERT_KEY);
+        let previous;
+        try { previous = await storage.get(ALERT_KEY); } catch { /* storage outages still need alerts */ }
         if (!previous || previous.message !== error.message || now - previous.at >= 3600000) {
+          const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(error.message)))].slice(0, 6).map(n => n.toString(16).padStart(2, '0')).join('');
           await notify({
-            message: error.message, incidentId: `substack-${Math.floor(now / 3600000)}`,
+            message: error.message, incidentId: `substack-${Math.floor(now / 3600000)}-${hash}`,
             test: forceFailure,
           });
-          await storage.put(ALERT_KEY, { message: error.message, at: now });
           alerted = true;
+          try { await storage.put(ALERT_KEY, { message: error.message, at: now }); } catch { /* alert was delivered despite a storage outage */ }
         }
       } catch (notificationError) { alertError = notificationError.message; }
     }
