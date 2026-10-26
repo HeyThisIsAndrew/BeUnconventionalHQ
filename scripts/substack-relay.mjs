@@ -106,7 +106,9 @@ export class ArticleSource {
     this.state = state;
     this.pending = new Map();
     this.env = env;
-    this.fetchUpstream = env.FETCH_UPSTREAM ?? fetch;
+    // workerd's fetch requires its global receiver. Calling a stored native
+    // fetch as this.fetchUpstream(...) otherwise throws "Illegal invocation".
+    this.fetchUpstream = (env.FETCH_UPSTREAM ?? fetch).bind(globalThis);
   }
 
   async fetch(request) {

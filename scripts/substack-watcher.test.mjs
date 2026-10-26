@@ -174,6 +174,15 @@ test('private object serializes overlapping ticks; public poll requires authenti
   assert.equal((await relay.fetch(new Request('https://relay.test/poll', { method: 'POST', body: '{}' }), env)).status, 403);
 });
 
+test('the source preserves the global fetch receiver required by workerd', async () => {
+  const source = new ArticleSource({ storage: storage() }, { FETCH_UPSTREAM: async function () {
+    assert.equal(this, globalThis, 'native Worker fetch cannot receive the ArticleSource object as this');
+    return new Response(feed(['first']));
+  } });
+  const result = await source.fetch(new Request('https://article-source.internal/poll', { method: 'POST', body: '{}' }));
+  assert.equal((await result.json()).action, 'seeded');
+});
+
 test('gateway calls use a private service binding with valid authentication', async () => {
   const payload = { action: 'dispatch', articles: [article()] };
   const result = await callGateway({ WEBSUB_SECRET: SECRET, HQ_SITE: { fetch: async request => {
