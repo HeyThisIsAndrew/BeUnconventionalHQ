@@ -34,6 +34,8 @@
 name: Sync YouTube videos
 
 on:
+  repository_dispatch:
+    types: [content-published]
   schedule:
     - cron: '0 */6 * * *' # Run every 6 hours as a fallback for WebSub
   workflow_dispatch:
@@ -63,6 +65,8 @@ concurrency:
 
 jobs:
   sync:
+    # The Substack watcher must not rerun the existing YouTube/WebSub pipeline.
+    if: github.event_name != 'repository_dispatch' || github.event.client_payload.source != 'substack'
     runs-on: ubuntu-latest
     permissions:
       contents: write

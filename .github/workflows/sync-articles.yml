@@ -2,6 +2,8 @@
 name: Sync Substack articles
 
 on:
+  repository_dispatch:
+    types: [content-published]
   schedule:
     - cron: '30 * * * *' # Hourly, staggered from YouTube and Instagram
   workflow_dispatch:
@@ -18,6 +20,7 @@ concurrency:
 
 jobs:
   sync:
+    if: github.event_name != 'repository_dispatch' || github.event.client_payload.source != 'youtube'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

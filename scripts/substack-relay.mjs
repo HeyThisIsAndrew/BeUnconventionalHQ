@@ -4,6 +4,9 @@
  */
 import { XMLParser } from 'fast-xml-parser';
 import { parsePostHtml } from './substack-post-html.mjs';
+import { verifyAutomationRequest } from '../src/lib/automation-auth.mjs';
+import { watchSubstack, callGateway } from './substack-watcher.mjs';
+import { sendFailureEmail } from '../src/lib/automation-notifications.mjs';
 
 const PUBLICATION = 'https://beunconventionalhq.substack.com';
 const PAGE_SIZE = 20;
@@ -70,13 +73,30 @@ export async function relayPosts(request, { fetchUpstream = fetch, cache, waitUn
 }
 
 export default {
-  fetch(request, env) {
+  async fetch(request, env) {
     // Pin upstream work to one object with a western North America hint, independently of the runner's
     // ingress region. Strip incoming headers/CF metadata from the inner call.
     const id = env.ARTICLE_SOURCE.idFromName('hq-public-articles-v1');
     const source = env.ARTICLE_SOURCE.get(id, { locationHint: 'wnam' });
     const url = new URL(request.url);
+    if (url.pathname === '/poll' && request.method === 'POST') {
+      const body = await request.text();
+      if (body.length > 1024 || !await verifyAutomationRequest(request, body, env.WEBSUB_SECRET)) {
+        return new Response('Invalid authentication', { status: 403 });
+      }
+      let options;
+      try { options = JSON.parse(body); } catch { return new Response('Invalid JSON', { status: 400 }); }
+      return source.fetch(new Request('https://article-source.internal/poll', { method: 'POST', body: JSON.stringify({ dryRun: options.dryRun === true, forceFailure: options.forceFailure === true }) }));
+    }
+    if (url.pathname !== '/posts') return new Response('Not found', { status: 404 });
     return source.fetch(new Request(`https://article-source.internal${url.pathname}${url.search}`, { method: request.method }));
+  },
+  async scheduled(_event, env) {
+    const source = env.ARTICLE_SOURCE.get(env.ARTICLE_SOURCE.idFromName('hq-public-articles-v1'), { locationHint: 'wnam' });
+    const response = await source.fetch(new Request('https://article-source.internal/poll', { method: 'POST', body: '{}' }));
+    const result = await response.json();
+    console.log('[substack-watcher]', JSON.stringify(result));
+    if (!result.ok) throw new Error(result.error);
   },
 };
 
@@ -85,10 +105,18 @@ export class ArticleSource {
   constructor(state, env = {}) {
     this.state = state;
     this.pending = new Map();
+    this.env = env;
     this.fetchUpstream = env.FETCH_UPSTREAM ?? fetch;
   }
 
   async fetch(request) {
+    if (new URL(request.url).pathname === '/poll' && request.method === 'POST') {
+      if (!this.polling) {
+        this.polling = (async () => this.poll(await request.json()))().finally(() => { this.polling = undefined; });
+      }
+      const result = await this.polling;
+      return Response.json(result, { status: result.ok ? 200 : 502 });
+    }
     const key = request.url;
     let pending = this.pending.get(key);
     if (!pending) {
@@ -100,6 +128,33 @@ export class ArticleSource {
     } finally {
       if (this.pending.get(key) === pending) this.pending.delete(key);
     }
+  }
+
+  async poll(options) {
+    return watchSubstack({
+      storage: this.state.storage, ...options,
+      requestFeed: async url => {
+        const response = await this.fetchUpstream(url, {
+          signal: AbortSignal.timeout(15000),
+          headers: { Accept: '*/*', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36' },
+        });
+        if (!response.ok) throw new Error(`Substack RSS poll failed: HTTP ${response.status}`);
+        return response.text();
+      },
+      refreshSource: async () => {
+        await Promise.allSettled([...this.pending.values()]);
+        const keys = [...(await this.state.storage.list({ prefix: 'https://article-source.internal/posts?' })).keys()];
+        if (keys.length) await this.state.storage.delete(keys);
+        const refreshed = await this.fetch(new Request('https://article-source.internal/posts?offset=0'));
+        if (!refreshed.ok) throw new Error('New article payload could not be prepared; dispatch deferred');
+      },
+      dispatch: articles => callGateway(this.env, { action: 'dispatch', articles }),
+      notify: alert => {
+        if (!['email', 'github'].includes(this.env.ALERT_CHANNEL)) throw new Error('Failure alerts are not configured');
+        if (this.env.ALERT_CHANNEL === 'email') return sendFailureEmail(this.env, alert, this.fetchUpstream);
+        return callGateway(this.env, { action: 'notify', channel: this.env.ALERT_CHANNEL, ...alert });
+      },
+    });
   }
 
   async load(request) {

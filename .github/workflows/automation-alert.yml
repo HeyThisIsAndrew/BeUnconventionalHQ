@@ -1,0 +1,28 @@
+name: Automation failure alert
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'Failure reported by the protected automation gateway'
+        required: true
+        type: string
+      test:
+        description: 'Intentional notification test'
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Report watcher failure through GitHub notifications
+        env:
+          ALERT_MESSAGE: ${{ inputs.message }}
+          ALERT_TEST: ${{ inputs.test }}
+        run: |
+          node -e 'console.error(process.env.ALERT_TEST === "true" ? "Intentional automation alert test" : "Substack publish watcher failed"); console.error(process.env.ALERT_MESSAGE); console.error("The saved archive is preserved. The watcher retries in five minutes."); process.exit(1)'
