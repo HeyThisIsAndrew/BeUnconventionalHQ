@@ -2,6 +2,9 @@
  * Fixed-publication relay for GitHub runners blocked by Substack's IP rules.
  * Only public posts, no credentials/cookies, no caller-controlled target URL.
  */
+import { XMLParser } from 'fast-xml-parser';
+import { parsePostHtml } from './substack-post-html.mjs';
+
 const PUBLICATION = 'https://beunconventionalhq.substack.com';
 const PAGE_SIZE = 20;
 
@@ -19,40 +22,39 @@ export async function relayPosts(request, { fetchUpstream = fetch, cache, waitUn
   const cached = await cache?.match(key);
   if (cached) return cached;
   try {
-    const headers = {
-      Accept: 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-    };
-    const getJson = async url => {
+    const getText = async url => {
       const response = await fetchUpstream(url, {
-        signal: AbortSignal.timeout(15000), redirect: 'manual', headers,
+        signal: AbortSignal.timeout(15000), redirect: 'manual',
+        headers: {
+          Accept: '*/*',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+        },
       });
       if (!response.ok) throw new Error(`Substack returned HTTP ${response.status} from ${new URL(url).pathname}`);
-      return response.json();
+      return response.text();
     };
-    // The bulk /posts endpoint is rate-limited from Workers, but the public
-    // archive and individual post endpoints work (verified from GitHub + edge).
-    const upstream = new URL('/api/v1/archive', PUBLICATION);
-    upstream.searchParams.set('sort', 'new');
-    upstream.searchParams.set('offset', offset);
-    upstream.searchParams.set('limit', String(PAGE_SIZE));
-    const archive = await getJson(upstream.toString());
-    if (!Array.isArray(archive) || archive.length > PAGE_SIZE ||
-        archive.some(p => !p?.id || !/^[a-z0-9-]+$/.test(p.slug))) {
-      throw new Error('Substack returned an invalid archive payload');
-    }
-    const posts = new Array(archive.length);
+    // Substack rate-limits API calls from some edge locations. Public RSS and
+    // post HTML work there. RSS discovers URLs; the HTML JSON supplies the
+    // complete tags and body that RSS alone does not carry.
+    const doc = new XMLParser({ parseTagValue: false }).parse(await getText(`${PUBLICATION}/feed`));
+    const items = doc.rss?.channel?.item;
+    const feed = items ? (Array.isArray(items) ? items : [items]) : [];
+    if (!feed.length) throw new Error('Substack RSS returned no items');
+    const window = feed.slice(Number(offset), Number(offset) + PAGE_SIZE);
+    const posts = new Array(window.length);
     let next = 0;
-    // At most 21 subrequests per invocation, including the archive request.
-    // This fits even the free Workers subrequest limit; no unbounded fan-out.
-    await Promise.all(Array.from({ length: Math.min(4, archive.length) }, async () => {
-      while (next < archive.length) {
+    // At most 21 subrequests, four article pages at a time.
+    await Promise.all(Array.from({ length: Math.min(4, window.length) }, async () => {
+      while (next < window.length) {
         const index = next++;
-        const summary = archive[index];
-        const post = await getJson(`${PUBLICATION}/api/v1/posts/${summary.slug}`);
-        if (post?.id !== summary.id || typeof post.title !== 'string' ||
+        const link = new URL(window[index].link);
+        if (link.origin !== PUBLICATION || !link.pathname.startsWith('/p/')) {
+          throw new Error('Unexpected article URL in Substack RSS');
+        }
+        const post = parsePostHtml(await getText(link.toString()));
+        if (!post?.id || typeof post.title !== 'string' ||
             typeof post.body_html !== 'string' || !Array.isArray(post.postTags)) {
-          throw new Error(`Substack returned an incomplete post: ${summary.slug}`);
+          throw new Error(`Substack returned an incomplete post: ${link.pathname}`);
         }
         posts[index] = post;
       }

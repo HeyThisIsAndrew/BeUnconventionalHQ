@@ -39,6 +39,11 @@ jobs:
       # Direct API first, owned Cloudflare relay when Substack blocks runners,
       # then RSS + post JSON. Any exhausted/empty source fails this step and
       # preserves the snapshot; failed publishing must never report success.
+      - name: Deploy RSS and HTML relay
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler deploy --config scripts/substack-relay.wrangler.jsonc
+
       - name: Run sync
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.execute }}" = "false" ]; then

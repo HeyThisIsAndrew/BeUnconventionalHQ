@@ -20,6 +20,10 @@ const POST = {
 const LOG = { log() {}, warn() {}, error() {} };
 const response = posts => JSON.stringify(posts);
 const payload = post => JSON.stringify({ post });
+const relayResponse = url => new Response(url.endsWith('/feed')
+  ? `<rss><channel><item><link>${POST.canonical_url}</link></item></channel></rss>`
+  : `<script id="preloads-json" type="application/json">${payload(POST)}</script>`);
+
 
 test('transient source errors retry with backoff; a permanent challenge fails immediately', async () => {
   let calls = 0;
@@ -125,18 +129,13 @@ test('relay accepts only bounded fixed-publication requests and never forwards c
     assert.equal(result.status, status);
   }
   assert.equal(calls, 0);
-  const result = await relayPosts(new Request('https://relay.test/posts?offset=20', {
+  const result = await relayPosts(new Request('https://relay.test/posts?offset=0', {
     headers: { Authorization: 'secret', Cookie: 'secret' },
   }), { fetchUpstream: async (url, options) => {
-    assert.ok(url.startsWith('https://beunconventionalhq.substack.com/api/v1/'));
-    if (url.includes('/archive?')) {
-      assert.equal(url, 'https://beunconventionalhq.substack.com/api/v1/archive?sort=new&offset=20&limit=20');
-    } else {
-      assert.equal(url, 'https://beunconventionalhq.substack.com/api/v1/posts/clayface-review');
-    }
+    assert.ok(['https://beunconventionalhq.substack.com/feed', POST.canonical_url].includes(url));
     assert.equal(options.headers.Authorization, undefined);
     assert.equal(options.headers.Cookie, undefined);
-    return Response.json(url.includes('/archive?') ? [POST] : POST);
+    return relayResponse(url);
   } });
   assert.equal(result.status, 200);
   assert.deepEqual(await result.json(), [POST]);
@@ -146,7 +145,7 @@ test('relay caches valid public posts and never caches blocked or invalid respon
   const writes = [];
   const cache = { match: async () => undefined, put: async (...args) => { writes.push(args); } };
   const request = new Request('https://relay.test/posts');
-  const ok = await relayPosts(request, { cache, fetchUpstream: async url => Response.json(url.includes('/archive?') ? [POST] : POST) });
+  const ok = await relayPosts(request, { cache, fetchUpstream: async url => relayResponse(url) });
   assert.equal(ok.headers.get('cache-control'), 'public, max-age=300');
   assert.equal(writes.length, 1);
   for (const upstream of [new Response('Blocked', { status: 403 }), Response.json({ error: 'bad' })]) {
