@@ -259,7 +259,10 @@ async function run() {
 
   const dict = buildTaxonomyDictionary({ topics: topicSeeds, hubs: hubSeeds });
 
-  const yt = createYouTubeClient({ apiKey: YOUTUBE_API_KEY });
+  const yt = createYouTubeClient({
+    apiKey: YOUTUBE_API_KEY,
+    knownShortIds: new Set(allDocs.filter(d => d.isShort === true).map(d => d.youtubeId)),
+  });
   console.log(`\nFetching uploads for channel ${YOUTUBE_CHANNEL_ID}…`);
   const ids = await collectUploadIds(yt, YOUTUBE_CHANNEL_ID);
   console.log(`Found ${ids.length} uploads. Fetching details…`);

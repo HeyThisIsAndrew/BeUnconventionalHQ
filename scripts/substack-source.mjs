@@ -3,8 +3,8 @@ import { XMLParser } from 'fast-xml-parser';
 
 export const PUBLICATION_URL = 'https://beunconventionalhq.substack.com';
 export const RELAY_URL = 'https://hq-substack-source.heythisisandrewb.workers.dev/posts';
-const PAGE_SIZE = 50;
-const MAX_PAGES = 100;
+const PAGE_SIZE = 20;
+const MAX_PAGES = 250;
 
 /** Read data, never execute the JavaScript surrounding it. */
 export function parsePostHtml(html) {

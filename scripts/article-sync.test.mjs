@@ -47,22 +47,22 @@ test('posts API walks the archive beyond the RSS window using offset', async () 
   const urls = [];
   const result = await fetchPostsApi({ request: async url => {
     urls.push(new URL(url));
-    return response(urls.length === 1 ? Array.from({ length: 50 }, (_, i) => ({ ...POST, id: i + 1 })) : [{ ...POST, id: 51 }]);
+    return response(urls.length === 1 ? Array.from({ length: 20 }, (_, i) => ({ ...POST, id: i + 1 })) : [{ ...POST, id: 21 }]);
   } });
-  assert.equal(result.posts.length, 51);
+  assert.equal(result.posts.length, 21);
   assert.equal(result.pages, 2);
-  assert.deepEqual(urls.map(u => u.searchParams.get('offset')), ['0', '50']);
+  assert.deepEqual(urls.map(u => u.searchParams.get('offset')), ['0', '20']);
 });
 
 test('empty, incomplete, repeated and mid-pagination failures cannot masquerade as success', async () => {
   for (const body of [[], {}, [{ ...POST, postTags: undefined }], [{ ...POST, post_date: 'bad' }]]) {
     await assert.rejects(fetchPostsApi({ request: async () => response(body) }));
   }
-  await assert.rejects(fetchPostsApi({ request: async () => response(Array.from({ length: 50 }, () => POST)) }), /repeated/);
+  await assert.rejects(fetchPostsApi({ request: async () => response(Array.from({ length: 20 }, () => POST)) }), /repeated/);
   let calls = 0;
   await assert.rejects(fetchPostsApi({ request: async () => {
     if (calls++) throw new Error('network unavailable');
-    return response(Array.from({ length: 50 }, (_, i) => ({ ...POST, id: i + 1 })));
+    return response(Array.from({ length: 20 }, (_, i) => ({ ...POST, id: i + 1 })));
   } }), /network unavailable/);
 });
 
@@ -98,19 +98,24 @@ test('relay accepts only bounded fixed-publication requests and never forwards c
   for (const [url, status] of [
     ['https://relay.test/other', 404], ['https://relay.test/posts?url=https://evil.test', 400],
     ['https://relay.test/posts?offset=-1', 400], ['https://relay.test/posts?offset=1', 400],
-    ['https://relay.test/posts?offset=5050', 400], ['https://relay.test/posts?offset=0&offset=50', 400],
+    ['https://relay.test/posts?offset=2050', 400], ['https://relay.test/posts?offset=0&offset=20', 400],
   ]) {
     const result = await relayPosts(new Request(url), { fetchUpstream: async () => { calls++; } });
     assert.equal(result.status, status);
   }
   assert.equal(calls, 0);
-  const result = await relayPosts(new Request('https://relay.test/posts?offset=50', {
+  const result = await relayPosts(new Request('https://relay.test/posts?offset=20', {
     headers: { Authorization: 'secret', Cookie: 'secret' },
   }), { fetchUpstream: async (url, options) => {
-    assert.equal(url, 'https://beunconventionalhq.substack.com/api/v1/posts?limit=50&offset=50');
+    assert.ok(url.startsWith('https://beunconventionalhq.substack.com/api/v1/'));
+    if (url.includes('/archive?')) {
+      assert.equal(url, 'https://beunconventionalhq.substack.com/api/v1/archive?sort=new&offset=20&limit=20');
+    } else {
+      assert.equal(url, 'https://beunconventionalhq.substack.com/api/v1/posts/clayface-review');
+    }
     assert.equal(options.headers.Authorization, undefined);
     assert.equal(options.headers.Cookie, undefined);
-    return Response.json([POST]);
+    return Response.json(url.includes('/archive?') ? [POST] : POST);
   } });
   assert.equal(result.status, 200);
   assert.deepEqual(await result.json(), [POST]);
@@ -120,7 +125,7 @@ test('relay caches valid public posts and never caches blocked or invalid respon
   const writes = [];
   const cache = { match: async () => undefined, put: async (...args) => { writes.push(args); } };
   const request = new Request('https://relay.test/posts');
-  const ok = await relayPosts(request, { cache, fetchUpstream: async () => Response.json([POST]) });
+  const ok = await relayPosts(request, { cache, fetchUpstream: async url => Response.json(url.includes('/archive?') ? [POST] : POST) });
   assert.equal(ok.headers.get('cache-control'), 'public, max-age=300');
   assert.equal(writes.length, 1);
   for (const upstream of [new Response('Blocked', { status: 403 }), Response.json({ error: 'bad' })]) {
