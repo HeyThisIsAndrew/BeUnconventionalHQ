@@ -108,7 +108,44 @@ export class ArticleSource {
     this.env = env;
     // workerd's fetch requires its global receiver. Calling a stored native
     // fetch as this.fetchUpstream(...) otherwise throws "Illegal invocation".
-    this.fetchUpstream = (env.FETCH_UPSTREAM ?? fetch).bind(globalThis);
+    this.nativeFetch = (env.FETCH_UPSTREAM ?? fetch).bind(globalThis);
+    this.fetchUpstream = (url, options) => String(url) === `${PUBLICATION}/feed`
+      ? this.getFeed(options) : this.nativeFetch(url, options);
+  }
+
+  async getFeed(options) {
+    // Share RSS between source imports, Cron ticks and manual checks. A burst
+    // of operator checks must not make the upstream see a burst of RSS polls.
+    if (!this.feedPending) {
+      this.feedPending = this.loadFeed(options).finally(() => { this.feedPending = undefined; });
+    }
+    return (await this.feedPending).clone();
+  }
+
+  async loadFeed(options) {
+    const key = 'source:rss:v1';
+    const cached = await this.state.storage.get(key);
+    if (cached && Date.now() - cached.savedAt < 60000) {
+      return new Response(cached.body, { headers: cached.headers });
+    }
+    const canonical = `${PUBLICATION}/feed`;
+    const sorted = `${canonical}?sort=new`;
+    const urls = [...new Set([cached?.url ?? canonical, canonical, sorted])];
+    let response;
+    for (const url of urls) {
+      response = await this.nativeFetch(url, options);
+      if (!response.ok) {
+        if ([429, 403].includes(response.status)) continue;
+        return response;
+      }
+      const body = await response.text();
+      const doc = new XMLParser({ parseTagValue: false }).parse(body);
+      if (!doc.rss?.channel?.item) return new Response(body, { headers: response.headers });
+      const headers = Object.fromEntries(response.headers);
+      await this.state.storage.put(key, { savedAt: Date.now(), body, headers, url });
+      return new Response(body, { headers });
+    }
+    return response;
   }
 
   async fetch(request) {
