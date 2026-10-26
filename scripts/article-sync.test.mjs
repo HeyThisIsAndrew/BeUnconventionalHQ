@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import http from 'node:http';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { parsePostHtml, fetchPostsApi, fetchPostsHtml, fetchAllPosts } from './substack-source.mjs';
 import { relayPosts } from './substack-relay.mjs';
 import { runArticleSync, planArticleSync, parsePostsResponse } from './sync-articles.mjs';
@@ -186,4 +189,27 @@ test('dry run writes nothing; write lock re-reads concurrent editorial updates',
   assert.deepEqual(saved[0].editorial, { featured: true });
   assert.equal(saved[0].title, 'Retitled');
   assert.deepEqual(fs.readdirSync(dir), ['articles.json']);
+});
+
+test('the actual CLI exits nonzero on failure even when a good snapshot already exists', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hq-article-cli-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, 'src/data'), { recursive: true });
+  const snapshotFile = path.join(dir, 'src/data/articles.json');
+  const original = response(planArticleSync(parsePostsResponse([POST]), []).merged);
+  fs.writeFileSync(snapshotFile, original);
+  const server = http.createServer((_request, res) => { res.writeHead(403); res.end('Blocked'); });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => server.close());
+  const publication = `http://127.0.0.1:${server.address().port}`;
+  const child = spawn(process.execPath, [fileURLToPath(new URL('./sync-articles.mjs', import.meta.url)), '--execute'], {
+    cwd: dir, env: { ...process.env, SUBSTACK_PUBLICATION_URL: publication, SUBSTACK_FEED_URL: `${publication}/feed`, SUBSTACK_RELAY_URL: '' },
+  });
+  let output = '';
+  child.stdout.on('data', data => { output += data; });
+  child.stderr.on('data', data => { output += data; });
+  const exitCode = await new Promise(resolve => child.on('close', resolve));
+  assert.equal(exitCode, 1, output);
+  assert.match(output, /SYNC FAILED/);
+  assert.equal(fs.readFileSync(snapshotFile, 'utf8'), original);
 });

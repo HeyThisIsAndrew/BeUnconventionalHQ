@@ -42,7 +42,7 @@ export async function relayPosts(request, { fetchUpstream = fetch, cache, waitUn
 }
 
 export default {
-  fetch(request, _env, context) {
+  async fetch(request, _env, context) {
     if (new URL(request.url).pathname === '/diagnose') {
       const urls = [
         'https://beunconventionalhq.substack.com/api/v1/posts?limit=2',
