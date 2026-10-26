@@ -6,7 +6,7 @@ import path from 'node:path';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parsePostHtml, fetchPostsApi, fetchPostsHtml, fetchAllPosts } from './substack-source.mjs';
+import { parsePostHtml, fetchPostsApi, fetchPostsHtml, fetchAllPosts, fetchText } from './substack-source.mjs';
 import { relayPosts } from './substack-relay.mjs';
 import { runArticleSync, planArticleSync, parsePostsResponse } from './sync-articles.mjs';
 
@@ -20,6 +20,27 @@ const POST = {
 const LOG = { log() {}, warn() {}, error() {} };
 const response = posts => JSON.stringify(posts);
 const payload = post => JSON.stringify({ post });
+
+test('transient source errors retry with backoff; a permanent challenge fails immediately', async () => {
+  let calls = 0;
+  const waits = [];
+  const text = await fetchText('https://relay.test/posts', {
+    fetchImpl: async () => ++calls < 3 ? new Response('Rate limited', { status: 429 }) : new Response('public posts'),
+    sleep: async milliseconds => { waits.push(milliseconds); },
+  });
+  assert.equal(text, 'public posts');
+  assert.deepEqual(waits, [2000, 4000]);
+  calls = 0;
+  await assert.rejects(fetchText('https://source.test/feed', {
+    fetchImpl: async () => { calls++; return new Response('Challenge HTML', { status: 403 }); },
+    sleep: async () => { throw new Error('must not retry 403'); },
+  }), /HTTP 403/);
+  assert.equal(calls, 1);
+  await assert.rejects(fetchText('https://relay.test/posts', {
+    fetchImpl: async () => Response.json({ error: 'Substack returned HTTP 429 from /api/v1/archive' }, { status: 502 }),
+    sleep: async () => {},
+  }), /Substack returned HTTP 429 from \/api\/v1\/archive/);
+});
 
 test('extracts the current preloads-json format that broke the real scraper', () => {
   const html = `<script nonce="abc" id="preloads-json" type="application/json">${payload(POST)}</script>

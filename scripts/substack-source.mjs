@@ -45,16 +45,35 @@ function validatePost(post) {
   return post;
 }
 
-export async function fetchText(url) {
-  const response = await fetch(url, {
-    signal: AbortSignal.timeout(20000),
-    headers: {
-      'User-Agent': 'BeUnconventionalHQ-ArticleSync/1.0 (+https://beunconventionalhq.com)',
-      Accept: 'application/json,application/rss+xml,application/xml,text/html;q=0.9',
-    },
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status} from ${new URL(url).pathname}`);
-  return response.text();
+export async function fetchText(url, {
+  fetchImpl = fetch, sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)),
+} = {}) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const response = await fetchImpl(url, {
+        signal: AbortSignal.timeout(20000),
+        headers: {
+          'User-Agent': 'BeUnconventionalHQ-ArticleSync/1.0 (+https://beunconventionalhq.com)',
+          Accept: 'application/json,application/rss+xml,application/xml,text/html;q=0.9',
+        },
+      });
+      const body = await response.text();
+      if (response.ok) return body;
+      if (attempt < 2 && (response.status === 429 || response.status >= 500)) {
+        await sleep(2000 * (attempt + 1));
+        continue;
+      }
+      let detail = '';
+      try { detail = String(JSON.parse(body).error ?? '').replace(/\s+/g, ' ').slice(0, 200); } catch { /* never log challenge HTML */ }
+      const error = new Error(`HTTP ${response.status} from ${new URL(url).pathname}${detail ? `: ${detail}` : ''}`);
+      error.httpStatus = response.status;
+      throw error;
+    } catch (error) {
+      // Retrying a permanent 403 challenge cannot help. Network outages can.
+      if (error.httpStatus || attempt === 2) throw error;
+      await sleep(2000 * (attempt + 1));
+    }
+  }
 }
 
 export async function fetchPostsApi({ publicationUrl = PUBLICATION_URL, request = fetchText } = {}) {
