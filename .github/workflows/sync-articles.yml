@@ -1,44 +1,161 @@
+# Automated Substack -> articles.json sync.
 name: Sync Substack articles
+
 on:
+  schedule:
+    # Offset 30 minutes from sync-youtube.yml. Both jobs commit and push to
+    # main, and on the same minute the second one to finish pushes onto a ref
+    # that moved under it and fails. sync-instagram.yml already offsets itself
+    # by 15 for exactly this reason; this is the same fix for the pair that
+    # was still colliding. The concurrency group below is the backstop for
+    # when a run overruns its slot or someone fires one by hand.
+    # ── WHY HOURLY, NOT SIX-HOURLY ──────────────────────────────────────────
+    # At */6 the worst case between publishing on Substack and the post being
+    # live here was six hours PLUS a Cloudflare build. That is not a sync, it
+    # is a delay, and it pushed the owner into triggering this by hand every
+    # time — including for a typo fix on an already-published article.
+    #
+    # Hourly costs nothing: this repository is PUBLIC, and GitHub Actions
+    # minutes are free and unlimited for public repositories. So the only real
+    # budget is Substack's, not GitHub's.
+    #
+    # Which is why this is hourly and not every 15 minutes. Each run fetches
+    # the posts endpoint once and then the HTML of every item in the feed
+    # (~20). At */15 that would be ~1,900 page requests a day at an
+    # undocumented endpoint that CLAUDE.md already says to treat carefully;
+    # hourly is ~480 and still a 6x improvement. If a post needs to be live
+    # sooner than the next hour, use Run workflow — it takes about three
+    # minutes end to end and is the intended "publish now" path.
+    - cron: '30 * * * *' # Hourly at :30, staying clear of the other syncs
   workflow_dispatch:
     inputs:
       execute:
+        description: 'Write articles.json (uncheck for a dry-run preview only)'
         type: boolean
-        default: false
-permissions:
-  contents: read
+        default: true
+
+# ── SERIALISED AGAINST THE OTHER CONTENT SYNCS ───────────────────────────────
+# Five workflows commit and push to main. Two of them fired on the same cron
+# minute, so whichever finished second pushed onto a ref that had moved and
+# failed — a red run that had nothing to do with the sync itself.
+#
+# The cron times are now staggered (:00 youtube, :15 instagram, :30 articles),
+# which handles the scheduled case. This shared group handles everything the
+# schedule cannot: a run that overruns its slot, two workflow_dispatch clicks,
+# or a weekly job landing on top of a six-hourly one.
+#
+# ONE group name across all five is the point — concurrency only serialises
+# runs that share a group, and the resource being contended is main itself.
+# cancel-in-progress is false deliberately: these jobs push commits, and
+# cancelling one mid-push is how you get a partial sync, not a fast one.
+concurrency:
+  group: content-sync-push
+  cancel-in-progress: false
+
 jobs:
-  diagnose:
+  sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - name: Probe Substack from GitHub
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy and test the fixed-publication relay
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
+          npx wrangler deploy --config scripts/substack-relay.wrangler.jsonc
           node --input-type=module <<'JS'
-          const base='https://beunconventionalhq.substack.com';
-          const urls=[base+'/api/v1/posts?limit=2',base+'/feed',base+'/p/clayface-review',base+'/api/v1/archive?sort=new&offset=0&limit=2','https://substack.com/api/v1/publication/8894336/posts?limit=2'];
-          await Promise.all(urls.map(async url=>{
-            try { const r=await fetch(url,{signal:AbortSignal.timeout(20000),headers:{'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'}});const s=await r.text();console.log(JSON.stringify({url,status:r.status,type:r.headers.get('content-type'),length:s.length,start:s.slice(0,100)}));}catch(e){console.log(url,e.message)}
-          }));
-          const {default:puppeteer}=await import('puppeteer');
-          const browser=await puppeteer.launch({headless:true,args:['--no-sandbox']});
-          try {const page=await browser.newPage();for(const url of urls.slice(0,3)){try {const r=await page.goto(url,{waitUntil:'domcontentloaded',timeout:25000});console.log(JSON.stringify({browser:true,url,status:r.status(),title:await page.title(),length:(await page.content()).length}));}catch(e){console.log('browser',url,e.message)}}} finally {await browser.close()}
+          const r=await fetch('https://hq-substack-source.heythisisandrewb.workers.dev/posts?offset=0');
+          const body=await r.text();
+          console.log('Relay status:',r.status,'length:',body.length);
+          if(!r.ok) {console.log(body);process.exit(1)}
+          const posts=JSON.parse(body);
+          console.log('Relay posts:',posts.length,'newest:',posts[0]?.title,'tags:',posts[0]?.postTags?.length);
           JS
-      - name: Probe browser TLS transport
+
+      - name: Run sync
         run: |
-          python3 -m pip install --quiet curl_cffi
-          python3 <<'PY'
-          from curl_cffi import requests
-          for path in ['/api/v1/posts?limit=2','/feed','/p/clayface-review']:
-            try:
-              r=requests.get('https://beunconventionalhq.substack.com'+path,impersonate='chrome',timeout=20)
-              print({'transport':'curl_cffi','path':path,'status':r.status_code,'type':r.headers.get('content-type'),'length':len(r.content),'start':r.text[:100]})
-            except Exception as e:
-              print(type(e).__name__,str(e))
-          PY
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.execute }}" = "false" ]; then
+            npm run sync-articles
+          else
+            npm run sync-articles -- --execute
+          fi
+
+      # Build local renditions for any image the new articles introduced.
+      #
+      # Runs AFTER the article sync and unconditionally, not only when
+      # articles.json changed: a previous run can legitimately have skipped an
+      # image whose host was briefly unreachable, and that image should be
+      # picked up on the next run rather than waiting for the next new post.
+      #
+      # It is non-fatal by construction — an image it cannot fetch keeps its
+      # original URL and the page renders as it does today — so it must not be
+      # able to fail this job. See scripts/sync-article-images.mjs.
+      - name: Build article image renditions
+        run: npm run sync:article-images -- --execute || echo "article-image sync degraded; originals still render"
+
+      # THE HQ DISPATCH's story images (scripts/sync-dispatch-images.mjs):
+      # every story /dispatch.xml lists needs its 16:9, never-cropped JPEG
+      # built and committed before Kit reads the feed, or the newsletter shows
+      # the fallback art for it. Unconditional for the same reason as the
+      # article renditions, and non-fatal by construction: a story without a
+      # built image gets the fallback, never a broken or cropped one.
+      - name: Build newsletter images
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.execute }}" = "false" ]; then
+            npm run sync:dispatch-images
+          else
+            npm run sync:dispatch-images -- --execute || echo "dispatch-image sync degraded; the feed uses the fallback art"
+          fi
+
+      - name: Commit and push if anything changed
+        id: commit
+        run: |
+          if git diff --quiet -- src/data/articles.json src/data/article-images.json public/article-images src/data/dispatch-images.json; then
+            echo "No changes — nothing to sync."
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # The manifest references files in public/article-images/ by path, so
+          # committing one without the other ships 404s where a working remote
+          # URL used to be.
+          git add src/data/articles.json src/data/article-images.json public/article-images
+          # Same pairing for the newsletter: the manifest names files in
+          # public/dispatch/images/ and the feed points at them.
+          git add src/data/dispatch-images.json public/dispatch/images
+          git commit -m "chore: automated Substack articles sync" -m "Synced by the sync-articles.yml workflow (run ${{ github.run_id }})."
+          git pull origin HEAD --rebase && git push origin HEAD:${{ github.ref }}
+
+      # ── NO INDEXING API STEP HERE ANY MORE ────────────────────────────────
+      #
+      # It used to run at the end of this job, submitting newly published
+      # /intel/ URLs to Google's Indexing API. Moved to its own manual
+      # workflow: .github/workflows/notify-indexing-api.yml
+      #
+      # Two reasons, both recorded in that file and in scripts/indexing-api.md:
+      #
+      #   1. The API is documented to support JobPosting and BroadcastEvent
+      #      only. Editorial articles are not a supported type, and AUTOMATED
+      #      submission of an unsupported type is the part carrying real
+      #      policy risk. By hand, when it matters, is a different profile.
+      #   2. It held this workflow's `content-sync-push` concurrency group for
+      #      up to 10 minutes polling for the Cloudflare deploy, so the YouTube
+      #      and Instagram syncs queued behind every article publish.
+      #
+      # Nothing was lost in indexing terms: the notifier never fired in 101
+      # runs of this workflow, and GOOGLE_INDEXING_CREDENTIALS was never
+      # configured. What actually gets /intel/ pages indexed is the sitemap
+      # (with the lastmod stamped in astro.config.mjs), internal linking, and
+      # Publisher Center.

@@ -1,0 +1,48 @@
+/**
+ * Fixed-publication relay for GitHub runners blocked by Substack's IP rules.
+ * Only public posts, no credentials/cookies, no caller-controlled target URL.
+ */
+const UPSTREAM = 'https://beunconventionalhq.substack.com/api/v1/posts';
+
+export async function relayPosts(request, { fetchUpstream = fetch, cache, waitUntil = () => {} } = {}) {
+  const url = new URL(request.url);
+  if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers: { Allow: 'GET' } });
+  if (url.pathname !== '/posts') return new Response('Not found', { status: 404 });
+  const offset = url.searchParams.get('offset') ?? '0';
+  if (!/^(0|[1-9]\d*)$/.test(offset) || Number(offset) > 5000 || Number(offset) % 50 ||
+      [...url.searchParams.keys()].some(key => key !== 'offset') || url.searchParams.getAll('offset').length > 1) {
+    return new Response('Expected only offset=0,50,100,...,5000', { status: 400 });
+  }
+  url.search = `?offset=${offset}`;
+  const key = new Request(url.toString());
+  const cached = await cache?.match(key);
+  if (cached) return cached;
+  try {
+    const upstream = new URL(UPSTREAM);
+    upstream.searchParams.set('limit', '50');
+    upstream.searchParams.set('offset', offset);
+    const response = await fetchUpstream(upstream.toString(), {
+      signal: AbortSignal.timeout(20000), redirect: 'error',
+      headers: { Accept: 'application/json', 'User-Agent': 'BeUnconventionalHQ-ArticleSync/1.0 (+https://beunconventionalhq.com)' },
+    });
+    if (!response.ok) throw new Error(`Substack returned HTTP ${response.status}`);
+    const posts = await response.json();
+    if (!Array.isArray(posts) || posts.some(p => !p?.id || typeof p.title !== 'string' ||
+        typeof p.body_html !== 'string' || !Array.isArray(p.postTags))) {
+      throw new Error('Substack returned an invalid posts payload');
+    }
+    const result = Response.json(posts, { headers: {
+      'Cache-Control': 'public, max-age=300', 'X-Content-Type-Options': 'nosniff',
+    } });
+    if (cache) waitUntil(cache.put(key, result.clone()));
+    return result;
+  } catch (error) {
+    return Response.json({ error: error.message }, { status: 502, headers: { 'Cache-Control': 'no-store' } });
+  }
+}
+
+export default {
+  fetch(request, env, context) {
+    return relayPosts(request, { cache: caches.default, waitUntil: promise => context.waitUntil(promise) });
+  },
+};
