@@ -27,6 +27,8 @@ Evidence:
 - [GitHub network comparison](https://github.com/HeyThisIsAndrew/BeUnconventionalHQ/actions/runs/40384659417): Node, Chromium, and browser TLS requests all challenged.
 - [Cloudflare endpoint comparison](https://github.com/HeyThisIsAndrew/BeUnconventionalHQ/actions/runs/40385962606): bulk endpoint 429; RSS, archive, individual post JSON and HTML 200.
 
+- [Successful execute run using the shared source](https://github.com/HeyThisIsAndrew/BeUnconventionalHQ/actions/runs/40388078764): 13 complete posts, no false updates, image stages and commit stage succeed.
+
 ## Source order
 
 `scripts/substack-source.mjs` tries:
@@ -36,7 +38,11 @@ Evidence:
    address, avoiding the website domain's separate bot rules. The Worker discovers articles through public RSS and extracts each full
    post payload from its HTML, four at a time, in batches of 20.
    At most 21 subrequests per invocation, with successful pages cached for five
-   minutes. Target host and paths are fixed; callers cannot supply a proxy URL.
+   minutes in one Durable Object. A western North America placement hint and
+   stripped incoming request headers avoid dependence on the runner's ingress
+   location. The cache is shared across all edge locations and coalesces
+   simultaneous fetches. This is a placement preference, not a data residency
+   guarantee. Target host and paths are fixed; callers cannot supply a proxy URL.
 3. Direct RSS for discovery, followed by full post payloads from article HTML.
    Both the current JSON script and legacy JSON string are supported. Nothing
    scraped from a page is evaluated as JavaScript.

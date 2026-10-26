@@ -7,7 +7,7 @@ import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parsePostHtml, fetchPostsApi, fetchPostsHtml, fetchAllPosts, fetchText } from './substack-source.mjs';
-import { relayPosts } from './substack-relay.mjs';
+import relay, { relayPosts, ArticleSource } from './substack-relay.mjs';
 import { runArticleSync, planArticleSync, parsePostsResponse } from './sync-articles.mjs';
 
 const POST = {
@@ -156,6 +156,43 @@ test('relay caches valid public posts and never caches blocked or invalid respon
   assert.equal(writes.length, 1);
   const cached = await relayPosts(request, { cache: { match: async () => ok }, fetchUpstream: async () => { throw new Error('must use cache'); } });
   assert.equal(cached, ok);
+});
+
+test('regional source strips incoming headers and requests the same US object for every caller', async () => {
+  let seen;
+  const env = { ARTICLE_SOURCE: {
+    idFromName: name => { assert.equal(name, 'hq-public-articles-v1'); return 'one-object'; },
+    get: (id, options) => {
+      assert.equal(id, 'one-object');
+      assert.deepEqual(options, { locationHint: 'wnam' });
+      return { fetch: async request => { seen = request; return new Response('source'); } };
+    },
+  } };
+  await relay.fetch(new Request('https://relay.test/posts?offset=0', { headers: { 'X-Forwarded-For': 'runner', Authorization: 'never forward' } }), env);
+  assert.equal(seen.url, 'https://article-source.internal/posts?offset=0');
+  assert.equal([...seen.headers].length, 0);
+});
+
+test('source coalesces concurrent requests and shares its persisted cache across instances', async () => {
+  const data = new Map();
+  const state = { storage: { get: async key => data.get(key), put: async (key, value) => data.set(key, value) } };
+  let calls = 0;
+  const env = { FETCH_UPSTREAM: async url => {
+    calls++;
+    await new Promise(resolve => setTimeout(resolve, 5));
+    return relayResponse(url);
+  } };
+  const source = new ArticleSource(state, env);
+  const request = () => new Request('https://article-source.internal/posts?offset=0');
+  const results = await Promise.all(Array.from({ length: 10 }, () => source.fetch(request())));
+  for (const result of results) assert.deepEqual(await result.json(), [POST]);
+  assert.equal(calls, 2, 'one feed and one article request, despite ten callers');
+  const restarted = new ArticleSource(state, env);
+  assert.deepEqual(await (await restarted.fetch(request())).json(), [POST]);
+  assert.equal(calls, 2, 'cache survives an object restart');
+  data.get(request().url).savedAt = 0;
+  assert.deepEqual(await (await restarted.fetch(request())).json(), [POST]);
+  assert.equal(calls, 4, 'expired content is refreshed');
 });
 
 test('snapshot updates publish new articles, preserve archive/editorial data, and are idempotent', async t => {

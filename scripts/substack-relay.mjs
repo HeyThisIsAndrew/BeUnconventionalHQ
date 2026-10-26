@@ -71,7 +71,7 @@ export async function relayPosts(request, { fetchUpstream = fetch, cache, waitUn
 
 export default {
   fetch(request, env) {
-    // Pin upstream work to one US object, independently of the runner's
+    // Pin upstream work to one object with a western North America hint, independently of the runner's
     // ingress region. Strip incoming headers/CF metadata from the inner call.
     const id = env.ARTICLE_SOURCE.idFromName('hq-public-articles-v1');
     const source = env.ARTICLE_SOURCE.get(id, { locationHint: 'wnam' });
@@ -82,9 +82,10 @@ export default {
 
 /** Global cache and request coalescing, including across different edge POPs. */
 export class ArticleSource {
-  constructor(state) {
+  constructor(state, env = {}) {
     this.state = state;
     this.pending = new Map();
+    this.fetchUpstream = env.FETCH_UPSTREAM ?? fetch;
   }
 
   async fetch(request) {
@@ -115,7 +116,7 @@ export class ArticleSource {
         });
       },
     };
-    const result = await relayPosts(request, { cache, waitUntil: promise => writes.push(promise) });
+    const result = await relayPosts(request, { cache, fetchUpstream: this.fetchUpstream, waitUntil: promise => writes.push(promise) });
     await Promise.all(writes);
     return result;
   }
