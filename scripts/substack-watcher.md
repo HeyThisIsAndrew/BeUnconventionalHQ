@@ -1,7 +1,10 @@
 # Substack publish watcher (#279)
 
 The source Worker now also runs a five-minute Cron Trigger. It reads the public
-RSS once per ordinary tick. The first tick records a baseline without firing;
+RSS once per ordinary tick. The source and watcher share a one-minute RSS
+cache so repeated manual checks cannot hammer the upstream. If the canonical
+feed is rate-limited, the same public feed with `sort=new` is tried and its
+working URL is retained for later polls. The first tick records a baseline without firing;
 later ticks compare article GUIDs and dispatch only newly seen articles. The
 hourly Actions schedule remains a safety net. Existing YouTube WebSub handling
 is unchanged.

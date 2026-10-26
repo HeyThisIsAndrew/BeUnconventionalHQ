@@ -192,7 +192,7 @@ test('source coalesces concurrent requests and shares its persisted cache across
   assert.equal(calls, 2, 'cache survives an object restart');
   data.get(request().url).savedAt = 0;
   assert.deepEqual(await (await restarted.fetch(request())).json(), [POST]);
-  assert.equal(calls, 4, 'expired content is refreshed');
+  assert.equal(calls, 3, 'expired articles refresh while the one-minute RSS cache is reused');
 });
 
 test('snapshot updates publish new articles, preserve archive/editorial data, and are idempotent', async t => {

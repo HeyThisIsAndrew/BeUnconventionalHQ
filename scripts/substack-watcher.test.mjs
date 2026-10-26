@@ -199,6 +199,23 @@ test('the source preserves the global fetch receiver required by workerd', async
   assert.equal((await result.json()).action, 'seeded');
 });
 
+test('source and repeated watcher checks share RSS, including a public sorted-feed fallback', async () => {
+  const state = storage();
+  const urls = [];
+  const source = new ArticleSource({ storage: state }, { FETCH_UPSTREAM: async url => {
+    urls.push(url);
+    return String(url).endsWith('?sort=new') ? new Response(feed(['first'])) : new Response('Rate limited', { status: 429 });
+  } });
+  for (let i = 0; i < 3; i++) {
+    const result = await source.fetch(new Request('https://article-source.internal/poll', { method: 'POST', body: '{}' }));
+    assert.equal((await result.json()).ok, true);
+  }
+  assert.deepEqual(urls, ['https://beunconventionalhq.substack.com/feed', 'https://beunconventionalhq.substack.com/feed?sort=new']);
+  state.values.get('source:rss:v1').savedAt = 0;
+  await source.fetch(new Request('https://article-source.internal/poll', { method: 'POST', body: '{}' }));
+  assert.equal(urls.at(-1), 'https://beunconventionalhq.substack.com/feed?sort=new', 'reuse the working public URL after cache expiry');
+});
+
 test('gateway calls use a private service binding with valid authentication', async () => {
   const payload = { action: 'dispatch', articles: [article()] };
   const result = await callGateway({ WEBSUB_SECRET: SECRET, HQ_SITE: { fetch: async request => {
