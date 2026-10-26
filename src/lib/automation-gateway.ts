@@ -42,6 +42,20 @@ export async function handleAutomationRequest(
         typeof payload.incidentId !== 'string' || !/^[a-zA-Z0-9-]{1,100}$/.test(payload.incidentId)) {
       return reply({ error: 'Invalid alert' }, 400);
     }
+    if (payload.channel === 'github') {
+      if (!env.GITHUB_DISPATCH_TOKEN) return reply({ error: 'GitHub alerts are not configured' }, 503);
+      if (payload.dryRun === true) return reply({ ok: true, dryRun: true, channel: 'github' });
+      const result = await fetchImpl('https://api.github.com/repos/HeyThisIsAndrew/BeUnconventionalHQ/actions/workflows/automation-alert.yml/dispatches', {
+        method: 'POST', signal: AbortSignal.timeout(20000),
+        headers: {
+          Authorization: `Bearer ${env.GITHUB_DISPATCH_TOKEN}`, Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'BeUnconventionalHQ-Automation', 'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ref: 'main', inputs: { message: payload.message, test: String(payload.test === true) } }),
+      });
+      if (!result.ok) return reply({ error: `GitHub alert failed: HTTP ${result.status}` }, 502);
+      return reply({ ok: true, channel: 'github' });
+    }
     if (!env.RESEND_API_KEY) return reply({ error: 'Alerts are not configured' }, 503);
     if (payload.dryRun === true) return reply({ ok: true, dryRun: true, recipient: 'press@beunconventionalhq.com' });
     const result = await fetchImpl('https://api.resend.com/emails', {

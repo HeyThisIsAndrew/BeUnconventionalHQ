@@ -34,15 +34,21 @@ and GitHub acceptance succeed does it record the new GUIDs as dispatched.
 
 ## Notifications
 
-The gateway uses the existing Resend integration to send plain-text failure
-alerts to the editorial inbox, `press@beunconventionalhq.com`, with a stable
-idempotency key. Identical errors are throttled to one per hour. Failed alert
+The default channel is **GitHub**: the protected gateway starts the dedicated
+`Automation failure alert` workflow. That job deliberately fails with the
+watcher's error in its log, using the owner's normal failed-Actions
+notification settings. The alert workflow does not deploy the site.
+
+Email is an optional channel, enabled only after the owner's choice. It uses
+existing Resend to send plain-text alerts to `press@beunconventionalhq.com`
+with a stable idempotency key. Set `ALERT_CHANNEL` to `email` only after that
+approval. Identical errors are throttled to one per hour. Failed alert
 delivery does not mark an incident as notified, so the next tick retries it.
 Scheduled failures also fail the Cron invocation and appear in Worker logs.
 
-Activation and a real test alert require the owner's selected alert channel.
-The initial rollout records that choice in the PR; this document describes the
-email configuration implemented here, not proof that an email was delivered.
+The initial rollout uses GitHub while the email choice is pending. It does
+not send a test email. A forced failure test creates an intentionally red
+GitHub alert run; ordinary repeated ticks create no alert runs.
 
 ## Deploy and verify
 
@@ -54,7 +60,7 @@ email configuration implemented here, not proof that an email was delivered.
 3. Preview: `node --env-file-if-exists=.env scripts/check-substack-watcher.mjs`.
 4. Seed/execute: append `--execute`. Repeating with the unchanged feed must say
    `unchanged` and produce no GitHub run.
-5. After notification approval, append `--execute --test-failure` once. This
+5. With the chosen channel configured, append `--execute --test-failure` once. This
    intentionally fails polling, verifies notification acceptance, and preserves
    the content baseline. It does not publish or send a newsletter.
 6. Observe the next real Substack publish, the resulting repository_dispatch

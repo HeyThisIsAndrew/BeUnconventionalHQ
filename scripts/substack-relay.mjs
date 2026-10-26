@@ -149,8 +149,8 @@ export class ArticleSource {
       },
       dispatch: articles => callGateway(this.env, { action: 'dispatch', articles }),
       notify: alert => {
-        if (this.env.ALERT_CHANNEL !== 'email') throw new Error('Email alerts are awaiting the owner’s notification choice');
-        return callGateway(this.env, { action: 'notify', ...alert });
+        if (!['email', 'github'].includes(this.env.ALERT_CHANNEL)) throw new Error('Failure alerts are not configured');
+        return callGateway(this.env, { action: 'notify', channel: this.env.ALERT_CHANNEL, ...alert });
       },
     });
   }

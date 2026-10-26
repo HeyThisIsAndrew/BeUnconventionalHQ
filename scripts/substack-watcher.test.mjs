@@ -83,6 +83,18 @@ test('alerts use the editorial inbox, plain text and a stable idempotency key', 
   assert.match(sent.subject, /test failure alert/);
 });
 
+test('GitHub alert channel creates only the dedicated failure-report workflow', async () => {
+  const payload = { action: 'notify', channel: 'github', message: 'Forced offline test', incidentId: 'fixture', test: true };
+  const response = await handleAutomationRequest(await signed(payload), { WEBSUB_SECRET: SECRET, GITHUB_DISPATCH_TOKEN: 'fixture' }, {
+    now: NOW, fetchImpl: async (url, options) => {
+      assert.equal(url, 'https://api.github.com/repos/HeyThisIsAndrew/BeUnconventionalHQ/actions/workflows/automation-alert.yml/dispatches');
+      assert.deepEqual(JSON.parse(options.body), { ref: 'main', inputs: { message: payload.message, test: 'true' } });
+      return new Response(null, { status: 204 });
+    },
+  });
+  assert.equal(response.status, 200);
+});
+
 test('feed parsing requires public article identities, titles and dates', () => {
   assert.deepEqual(parseWatchFeed(feed(['first'])), [article()]);
   for (const invalid of ['<title>Blocked</title>', '<rss><channel/></rss>', feed(['first']).replace('beunconventionalhq.substack.com/p/first', 'evil.test/p/first'), feed(['first']).replace('Mon, 26 Oct 2026 18:00:00 GMT', 'bad')]) {
