@@ -2,6 +2,7 @@
 import { XMLParser } from 'fast-xml-parser';
 
 export const PUBLICATION_URL = 'https://beunconventionalhq.substack.com';
+export const RELAY_URL = 'https://hq-substack-source.heythisisandrewb.workers.dev/posts';
 const PAGE_SIZE = 50;
 const MAX_PAGES = 100;
 
@@ -98,10 +99,24 @@ export async function fetchPostsHtml({
   return { posts, pages: 1, source: 'RSS + post HTML' };
 }
 
+export async function fetchPostsRelay(options = {}) {
+  const publicationUrl = options.publicationUrl ?? PUBLICATION_URL;
+  const relayUrl = options.relayUrl ?? process.env.SUBSTACK_RELAY_URL ??
+    (publicationUrl.replace(/\/$/, '') === PUBLICATION_URL ? RELAY_URL : '');
+  if (!relayUrl) throw new Error('No relay configured for this publication');
+  const request = options.request ?? fetchText;
+  const result = await fetchPostsApi({ ...options, request: url => {
+    const relay = new URL(relayUrl);
+    relay.searchParams.set('offset', new URL(url).searchParams.get('offset'));
+    return request(relay.toString());
+  } });
+  return { ...result, source: 'Cloudflare relay' };
+}
+
 export async function fetchAllPosts(options = {}) {
   const warn = options.warn ?? console.warn;
   const failures = [];
-  for (const source of [fetchPostsApi, fetchPostsHtml]) {
+  for (const source of [fetchPostsApi, fetchPostsRelay, fetchPostsHtml]) {
     try { return await source(options); }
     catch (error) {
       failures.push(error.message);

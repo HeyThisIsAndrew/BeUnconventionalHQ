@@ -74,7 +74,12 @@ jobs:
         run: |
           npx wrangler deploy --config scripts/substack-relay.wrangler.jsonc
           node --input-type=module <<'JS'
-          const r=await fetch('https://hq-substack-source.heythisisandrewb.workers.dev/posts?offset=0');
+          let r;
+          for (let i=0;i<5;i++) {
+            r=await fetch('https://hq-substack-source.heythisisandrewb.workers.dev/posts?offset=0');
+            if(r.status!==404) break;
+            await new Promise(resolve=>setTimeout(resolve,5000));
+          }
           const body=await r.text();
           console.log('Relay status:',r.status,'length:',body.length);
           if(!r.ok) {console.log(body);process.exit(1)}

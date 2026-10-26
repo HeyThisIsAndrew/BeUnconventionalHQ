@@ -22,7 +22,7 @@ export async function relayPosts(request, { fetchUpstream = fetch, cache, waitUn
     upstream.searchParams.set('limit', '50');
     upstream.searchParams.set('offset', offset);
     const response = await fetchUpstream(upstream.toString(), {
-      signal: AbortSignal.timeout(20000), redirect: 'error',
+      signal: AbortSignal.timeout(20000), redirect: 'manual',
       headers: { Accept: 'application/json', 'User-Agent': 'BeUnconventionalHQ-ArticleSync/1.0 (+https://beunconventionalhq.com)' },
     });
     if (!response.ok) throw new Error(`Substack returned HTTP ${response.status}`);
