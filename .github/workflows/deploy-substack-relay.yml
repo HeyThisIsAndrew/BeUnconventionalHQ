@@ -1,0 +1,57 @@
+# The small fixed-publication fetcher lives separately from the website.
+# It changes only when its source changes, never on an hourly content sync.
+name: Deploy Substack source relay
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/substack-post-html.mjs
+      - scripts/substack-relay.mjs
+      - scripts/substack-relay.wrangler.jsonc
+      - .github/workflows/deploy-substack-relay.yml
+  workflow_dispatch:
+
+concurrency:
+  group: substack-relay-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Regression tests
+        run: node --test scripts/article-sync.test.mjs
+      - name: Deploy fixed-publication relay
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler deploy --config scripts/substack-relay.wrangler.jsonc
+      - name: Verify public posts are accessible
+        run: |
+          node --input-type=module <<'JS'
+          import { fetchPostsRelay } from './scripts/substack-source.mjs';
+          // New workers.dev routes can briefly return 404 while propagating.
+          for (let attempt=1; attempt<=6; attempt++) {
+            try {
+              const { posts, pages } = await fetchPostsRelay();
+              console.log(`Verified ${posts.length} public posts across ${pages} page(s); newest: ${posts[0].title}`);
+              process.exit(0);
+            } catch (error) {
+              if (attempt === 6) throw error;
+              console.log(`Relay not ready (attempt ${attempt}): ${error.message}`);
+              await new Promise(resolve => setTimeout(resolve, 5000));
+            }
+          }
+          JS

@@ -27,6 +27,8 @@ export interface YouTubeClientOptions {
    * stub, and lets an edge handler pass its runtime fetch if needed.
    */
   fetchImpl?: typeof fetch;
+  /** Previously verified Shorts, used only when the URL probe is unavailable. */
+  knownShortIds?: ReadonlySet<string>;
 }
 
 export interface YouTubeAnalytics {
@@ -263,28 +265,50 @@ export function createYouTubeClient(opts: YouTubeClientOptions) {
           id: batch.join(','),
         });
 
-        const verifiedItems = await Promise.all(
-          (Array.isArray(data.items) ? data.items : []).map(async (item: any) => {
+        const items = Array.isArray(data.items) ? data.items : [];
+        const verifiedItems: { item: any; isShort: boolean }[] = new Array(items.length);
+        const failedChecks: string[] = [];
+        let nextIndex = 0;
+        // Fifty simultaneous HEADs exhausted the HTTP/2 session (GOAWAY 11)
+        // on Node 26. Bound the work and put a timeout on every probe.
+        await Promise.all(Array.from({ length: Math.min(4, items.length) }, async () => {
+          while (nextIndex < items.length) {
+            const index = nextIndex++;
+            const item = items[index];
             let isShort = false;
-            try {
-              const checkShortUrl = `https://www.youtube.com/shorts/${item.id}`;
-              const response = await doFetch(checkShortUrl, { method: 'HEAD', redirect: 'manual' });
-              // YouTube returns 200 for Shorts, 303 for standard videos redirecting to /watch
-              isShort = response.status === 200;
-            } catch (err) {
-              console.error(`Short network check failed for ${item.id}`, err);
+            let checked = false;
+            for (let attempt = 0; attempt < 2; attempt++) {
+              try {
+                const response = await doFetch(`https://www.youtube.com/shorts/${item.id}`, {
+                  method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(8000),
+                });
+                // 429/5xx and challenge pages are unavailable checks, not proof
+                // that a previously verified Short became an ordinary video.
+                if (![200, 301, 302, 303, 307, 308].includes(response.status)) {
+                  throw new Error(`HTTP ${response.status}`);
+                }
+                isShort = response.status === 200;
+                checked = true;
+                break;
+              } catch {
+                if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 100));
+              }
             }
-            
-            // Fallback heuristic: If network check fails or says false, but it looks like a short
+            if (!checked) {
+              failedChecks.push(item.id);
+              isShort = opts.knownShortIds?.has(item.id) ?? false;
+            }
             const durationSecs = parseISO8601Duration(item.contentDetails?.duration);
             const title = item.snippet?.title || '';
-            if (!isShort && (durationSecs > 0 && durationSecs <= 61 || title.toLowerCase().includes('#shorts'))) {
+            if (!isShort && ((durationSecs > 0 && durationSecs <= 61) || title.toLowerCase().includes('#shorts'))) {
               isShort = true;
             }
-            
-            return { item, isShort };
-          })
-        );
+            verifiedItems[index] = { item, isShort };
+          }
+        }));
+        if (failedChecks.length) {
+          console.warn(`[youtube] ${failedChecks.length} Shorts checks unavailable after retry; using prior classifications or duration fallback (first: ${failedChecks[0]}).`);
+        }
 
         for (const { item, isShort } of verifiedItems) {
           const durationSeconds = parseISO8601Duration(item.contentDetails?.duration);

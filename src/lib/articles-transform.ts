@@ -683,14 +683,14 @@ export function mergeSnapshot(
     }
     
     // Update the existing record using its ORIGINAL guid to keep it stable
-    byGuid.set(priorGuid!, {
+    const next = {
       ...prior,
       ...record,
       guid: prior.guid, // preserve the original stable guid
       // Never let a re-sync rewrite when we first saw a post.
       firstSeen: prior.firstSeen ?? record.firstSeen,
       // A feed that stops returning bodies must not blank an archived one.
-      bodyHtml: record.bodyHtml || prior.bodyHtml,
+      bodyHtml: prior.hasBody && !record.hasBody ? prior.bodyHtml : record.bodyHtml || prior.bodyHtml,
       hasBody: record.hasBody || prior.hasBody,
       // Allow feed to clear tags if the user removed them
       tags: record.tags || [],
@@ -698,8 +698,16 @@ export function mergeSnapshot(
       contentType: record.contentType || prior.contentType || '',
       // Editorial overrides win over anything the feed says.
       ...(prior as any).editorial ? { editorial: (prior as any).editorial } : {},
-    });
-    updated += 1;
+    };
+    // lastUpdated means the content changed, not that a scheduler ran. Without
+    // this, identical hourly fetches commit the entire archive and redeploy it.
+    const content = ({ lastUpdated: _lastUpdated, ...rest }: ArticleRecord) => rest;
+    if (JSON.stringify(content(prior)) === JSON.stringify(content(next))) {
+      byGuid.set(priorGuid!, prior);
+    } else {
+      byGuid.set(priorGuid!, next);
+      updated += 1;
+    }
   }
 
   return {

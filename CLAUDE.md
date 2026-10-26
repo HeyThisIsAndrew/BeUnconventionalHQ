@@ -214,9 +214,12 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   mapping and "More From" related-article matching both depend on. Same
   never-delete merge contract as the RSS era (`mergeSnapshot()` in
   `src/lib/articles-transform.ts`); only the fetch and raw-shape mapping changed.
-  Undocumented endpoint, so treat it like the YouTube sync's Sync Lock: loud,
-  non-fatal failures only — a broken/blocked endpoint must never blank
-  `src/data/articles.json`.
+  Fetching prefers the posts API, then the owned Cloudflare relay (public RSS
+  discovery plus full payloads from post HTML), then RSS + current/legacy post HTML payloads.
+  RSS alone lacks tags, so never substitute its body as a complete record.
+  Failed or empty syncs preserve `src/data/articles.json` AND exit nonzero; a
+  failed publish must fail Actions without breaking existing built pages.
+  Details and evidence: `scripts/article-sync.md`.
 - **Events / featured brands:** `getEventsLocal()` / `getFeaturedBrandsLocal()`
   (`src/lib/local-content.ts`), filtering `src/data/videos.json` by `_type`. CLS-
   prevention image dimensions are parsed from the Sanity asset `_ref`'s own
