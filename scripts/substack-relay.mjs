@@ -70,7 +70,53 @@ export async function relayPosts(request, { fetchUpstream = fetch, cache, waitUn
 }
 
 export default {
-  fetch(request, _env, context) {
-    return relayPosts(request, { cache: caches.default, waitUntil: promise => context.waitUntil(promise) });
+  fetch(request, env) {
+    // Pin upstream work to one US object, independently of the runner's
+    // ingress region. Strip incoming headers/CF metadata from the inner call.
+    const id = env.ARTICLE_SOURCE.idFromName('hq-public-articles-v1');
+    const source = env.ARTICLE_SOURCE.get(id, { locationHint: 'wnam' });
+    const url = new URL(request.url);
+    return source.fetch(new Request(`https://article-source.internal${url.pathname}${url.search}`, { method: request.method }));
   },
 };
+
+/** Global cache and request coalescing, including across different edge POPs. */
+export class ArticleSource {
+  constructor(state) {
+    this.state = state;
+    this.pending = new Map();
+  }
+
+  async fetch(request) {
+    const key = request.url;
+    let pending = this.pending.get(key);
+    if (!pending) {
+      pending = this.load(request);
+      this.pending.set(key, pending);
+    }
+    try {
+      return (await pending).clone();
+    } finally {
+      if (this.pending.get(key) === pending) this.pending.delete(key);
+    }
+  }
+
+  async load(request) {
+    const writes = [];
+    const cache = {
+      match: async key => {
+        const cached = await this.state.storage.get(key.url);
+        if (!cached || Date.now() - cached.savedAt >= 300000) return undefined;
+        return new Response(cached.body, { headers: cached.headers });
+      },
+      put: async (key, response) => {
+        await this.state.storage.put(key.url, {
+          savedAt: Date.now(), body: await response.text(), headers: Object.fromEntries(response.headers),
+        });
+      },
+    };
+    const result = await relayPosts(request, { cache, waitUntil: promise => writes.push(promise) });
+    await Promise.all(writes);
+    return result;
+  }
+}
