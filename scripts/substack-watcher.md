@@ -34,21 +34,17 @@ and GitHub acceptance succeed does it record the new GUIDs as dispatched.
 
 ## Notifications
 
-The default channel is **GitHub**: the protected gateway starts the dedicated
-`Automation failure alert` workflow. That job deliberately fails with the
-watcher's error in its log, using the owner's normal failed-Actions
-notification settings. The alert workflow does not deploy the site.
+The owner selected **email to andrew@beunconventionalhq.com** on October 26,
+2026, including one test alert. The gateway uses the existing Resend integration
+and verified `noreply@beunconventionalhq.com` sender. Messages are plain text,
+with a stable idempotency key. Identical errors are throttled to one per hour;
+failed delivery does not mark the incident as notified. Scheduled failures also
+fail the Cron invocation and appear in Worker logs.
 
-Email is an optional channel, enabled only after the owner's choice. It uses
-existing Resend to send plain-text alerts to `press@beunconventionalhq.com`
-with a stable idempotency key. Set `ALERT_CHANNEL` to `email` only after that
-approval. Identical errors are throttled to one per hour. Failed alert
-delivery does not mark an incident as notified, so the next tick retries it.
-Scheduled failures also fail the Cron invocation and appear in Worker logs.
-
-The initial rollout uses GitHub while the email choice is pending. It does
-not send a test email. A forced failure test creates an intentionally red
-GitHub alert run; ordinary repeated ticks create no alert runs.
+`ALERT_CHANNEL` can alternatively be `github`: the gateway starts the dedicated
+`Automation failure alert` workflow, which intentionally fails with the error
+in its log and uses the owner's GitHub notification settings. It never deploys
+the site. Email is the deployed choice for this rollout.
 
 ## Deploy and verify
 

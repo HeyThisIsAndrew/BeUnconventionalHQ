@@ -78,7 +78,7 @@ test('alerts use the editorial inbox, plain text and a stable idempotency key', 
     },
   });
   assert.equal(result.status, 200);
-  assert.equal(sent.to, 'press@beunconventionalhq.com');
+  assert.equal(sent.to, 'andrew@beunconventionalhq.com');
   assert.equal(sent.html, undefined);
   assert.match(sent.subject, /test failure alert/);
 });

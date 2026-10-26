@@ -57,7 +57,7 @@ export async function handleAutomationRequest(
       return reply({ ok: true, channel: 'github' });
     }
     if (!env.RESEND_API_KEY) return reply({ error: 'Alerts are not configured' }, 503);
-    if (payload.dryRun === true) return reply({ ok: true, dryRun: true, recipient: 'press@beunconventionalhq.com' });
+    if (payload.dryRun === true) return reply({ ok: true, dryRun: true, recipient: 'andrew@beunconventionalhq.com' });
     const result = await fetchImpl('https://api.resend.com/emails', {
       method: 'POST', signal: AbortSignal.timeout(20000),
       headers: {
@@ -65,7 +65,7 @@ export async function handleAutomationRequest(
         'Idempotency-Key': `hq-watcher-${payload.incidentId}`,
       },
       body: JSON.stringify({
-        from: 'noreply@beunconventionalhq.com', to: 'press@beunconventionalhq.com',
+        from: 'noreply@beunconventionalhq.com', to: 'andrew@beunconventionalhq.com',
         subject: payload.test === true ? 'HQ automation: test failure alert' : 'HQ automation: article watcher failed',
         text: `${payload.message}\n\nThe saved article archive is preserved. The watcher retries on its next five-minute run.\nhttps://github.com/HeyThisIsAndrew/BeUnconventionalHQ/actions/workflows/sync-articles.yml`,
       }),
