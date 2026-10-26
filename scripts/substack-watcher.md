@@ -26,7 +26,10 @@ and GitHub acceptance succeed does it record the new GUIDs as dispatched.
 - Requests use a SHA-256 HMAC with a dedicated domain prefix, timestamp and
   five-minute validity window, using the existing `WEBSUB_SECRET`. Secrets are
   not sent in URLs, logged or committed. Public unsigned poll requests fail.
-- The gateway can dispatch only this repository's `content-published` event.
+- The gateway first tries this repository's `content-published` event. If the
+  stored token has Actions-write permission without Contents-write (the live
+  token returned HTTP 403 on repository_dispatch), it falls back to the fixed
+  `sync-articles.yml` workflow_dispatch on main. No broader token is required.
   A Substack event runs articles only; the YouTube workflow ignores it.
 - Failures preserve the content baseline for retry. Repeated successful ticks
   dispatch nothing. A network timeout after GitHub accepted an event can cause

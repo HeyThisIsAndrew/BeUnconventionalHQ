@@ -67,6 +67,22 @@ test('gateway dry run creates nothing; real upstream failures are reported', asy
   assert.match((await failed.json()).error, /HTTP 401/);
 });
 
+test('an Actions-only token can trigger the article workflow without broader repo permissions', async () => {
+  const calls = [];
+  const result = await handleAutomationRequest(await signed({ action: 'dispatch', articles: [article()] }), { WEBSUB_SECRET: SECRET, GITHUB_DISPATCH_TOKEN: 'actions-only' }, {
+    now: NOW, fetchImpl: async (url, options) => {
+      calls.push(url);
+      if (url.endsWith('/BeUnconventionalHQ/dispatches')) return new Response(null, { status: 403 });
+      assert.equal(url, 'https://api.github.com/repos/HeyThisIsAndrew/BeUnconventionalHQ/actions/workflows/sync-articles.yml/dispatches');
+      assert.deepEqual(JSON.parse(options.body), { ref: 'main', inputs: { execute: 'true' } });
+      return new Response(null, { status: 204 });
+    },
+  });
+  assert.equal(result.status, 200);
+  assert.equal((await result.json()).transport, 'workflow_dispatch');
+  assert.equal(calls.length, 2);
+});
+
 test('alerts use the editorial inbox, plain text and a stable idempotency key', async () => {
   let sent;
   const result = await handleAutomationRequest(await signed({ action: 'notify', message: '<script>plain text only</script>', incidentId: 'fixture-1', test: true }), { WEBSUB_SECRET: SECRET, RESEND_API_KEY: 'offline-key' }, {
@@ -172,6 +188,15 @@ test('private object serializes overlapping ticks; public poll requires authenti
   assert.equal(feeds, 1);
   const env = { WEBSUB_SECRET: SECRET, ARTICLE_SOURCE: { idFromName: () => 'one', get: () => ({ fetch: async () => { throw new Error('unauthorized poll reached object'); } }) } };
   assert.equal((await relay.fetch(new Request('https://relay.test/poll', { method: 'POST', body: '{}' }), env)).status, 403);
+});
+
+test('the source preserves the global fetch receiver required by workerd', async () => {
+  const source = new ArticleSource({ storage: storage() }, { FETCH_UPSTREAM: async function () {
+    assert.equal(this, globalThis, 'native Worker fetch cannot receive the ArticleSource object as this');
+    return new Response(feed(['first']));
+  } });
+  const result = await source.fetch(new Request('https://article-source.internal/poll', { method: 'POST', body: '{}' }));
+  assert.equal((await result.json()).action, 'seeded');
 });
 
 test('gateway calls use a private service binding with valid authentication', async () => {

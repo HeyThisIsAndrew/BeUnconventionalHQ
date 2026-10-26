@@ -27,7 +27,7 @@ export async function handleAutomationRequest(
     const event = { event_type: 'content-published', client_payload: { source: 'substack', articles } };
     if (payload.dryRun === true) return reply({ ok: true, dryRun: true, event });
     if (!env.GITHUB_DISPATCH_TOKEN) return reply({ error: 'Dispatch is not configured' }, 503);
-    const result = await fetchImpl('https://api.github.com/repos/HeyThisIsAndrew/BeUnconventionalHQ/dispatches', {
+    let result = await fetchImpl('https://api.github.com/repos/HeyThisIsAndrew/BeUnconventionalHQ/dispatches', {
       method: 'POST', signal: AbortSignal.timeout(20000),
       headers: {
         Authorization: `Bearer ${env.GITHUB_DISPATCH_TOKEN}`, Accept: 'application/vnd.github+json',
@@ -35,8 +35,23 @@ export async function handleAutomationRequest(
       },
       body: JSON.stringify(event),
     });
+    let transport = 'repository_dispatch';
+    if ([403, 404].includes(result.status)) {
+      // The existing WebSub token can have Actions write without Contents
+      // write. Reuse that narrower permission rather than copying a broad
+      // personal token or blocking automated article publishing on a new key.
+      result = await fetchImpl('https://api.github.com/repos/HeyThisIsAndrew/BeUnconventionalHQ/actions/workflows/sync-articles.yml/dispatches', {
+        method: 'POST', signal: AbortSignal.timeout(20000),
+        headers: {
+          Authorization: `Bearer ${env.GITHUB_DISPATCH_TOKEN}`, Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'BeUnconventionalHQ-Automation', 'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ref: 'main', inputs: { execute: 'true' } }),
+      });
+      transport = 'workflow_dispatch';
+    }
     if (!result.ok) return reply({ error: `GitHub dispatch failed: HTTP ${result.status}` }, 502);
-    return reply({ ok: true });
+    return reply({ ok: true, transport });
   }
   if (payload.action === 'notify') {
     if (typeof payload.message !== 'string' || payload.message.length > 2000 ||
