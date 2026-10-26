@@ -6,6 +6,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { parsePostHtml } from './substack-post-html.mjs';
 import { verifyAutomationRequest } from '../src/lib/automation-auth.mjs';
 import { watchSubstack, callGateway } from './substack-watcher.mjs';
+import { sendFailureEmail } from '../src/lib/automation-notifications.mjs';
 
 const PUBLICATION = 'https://beunconventionalhq.substack.com';
 const PAGE_SIZE = 20;
@@ -150,6 +151,7 @@ export class ArticleSource {
       dispatch: articles => callGateway(this.env, { action: 'dispatch', articles }),
       notify: alert => {
         if (!['email', 'github'].includes(this.env.ALERT_CHANNEL)) throw new Error('Failure alerts are not configured');
+        if (this.env.ALERT_CHANNEL === 'email') return sendFailureEmail(this.env, alert, this.fetchUpstream);
         return callGateway(this.env, { action: 'notify', channel: this.env.ALERT_CHANNEL, ...alert });
       },
     });

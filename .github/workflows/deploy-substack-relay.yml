@@ -9,6 +9,7 @@ on:
       - scripts/substack-post-html.mjs
       - scripts/substack-watcher.mjs
       - src/lib/automation-auth.mjs
+      - src/lib/automation-notifications.mjs
       - scripts/substack-relay.mjs
       - scripts/substack-relay.wrangler.jsonc
       - .github/workflows/deploy-substack-relay.yml
@@ -40,8 +41,9 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           WEBSUB_SECRET: ${{ secrets.WEBSUB_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
-          node --input-type=module -e 'if (!process.env.WEBSUB_SECRET) throw new Error("WEBSUB_SECRET is missing"); process.stdout.write(JSON.stringify({WEBSUB_SECRET:process.env.WEBSUB_SECRET}))' | npx wrangler secret bulk --config scripts/substack-relay.wrangler.jsonc
+          node --input-type=module -e 'const {WEBSUB_SECRET,RESEND_API_KEY}=process.env; if (!WEBSUB_SECRET || !RESEND_API_KEY) throw new Error("Watcher authentication or notification secret is missing"); process.stdout.write(JSON.stringify({WEBSUB_SECRET,RESEND_API_KEY}))' | npx wrangler secret bulk --config scripts/substack-relay.wrangler.jsonc
       - name: Deploy fixed-publication relay
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

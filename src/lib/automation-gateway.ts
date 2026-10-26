@@ -1,4 +1,5 @@
 import { verifyAutomationRequest } from './automation-auth.mjs';
+import { sendFailureEmail } from './automation-notifications.mjs';
 
 type Bindings = Record<string, string | undefined>;
 
@@ -58,20 +59,9 @@ export async function handleAutomationRequest(
     }
     if (!env.RESEND_API_KEY) return reply({ error: 'Alerts are not configured' }, 503);
     if (payload.dryRun === true) return reply({ ok: true, dryRun: true, recipient: 'andrew@beunconventionalhq.com' });
-    const result = await fetchImpl('https://api.resend.com/emails', {
-      method: 'POST', signal: AbortSignal.timeout(20000),
-      headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json',
-        'Idempotency-Key': `hq-watcher-${payload.incidentId}`,
-      },
-      body: JSON.stringify({
-        from: 'noreply@beunconventionalhq.com', to: 'andrew@beunconventionalhq.com',
-        subject: payload.test === true ? 'HQ automation: test failure alert' : 'HQ automation: article watcher failed',
-        text: `${payload.message}\n\nThe saved article archive is preserved. The watcher retries on its next five-minute run.\nhttps://github.com/HeyThisIsAndrew/BeUnconventionalHQ/actions/workflows/sync-articles.yml`,
-      }),
-    });
-    if (!result.ok) return reply({ error: `Alert delivery failed: HTTP ${result.status}` }, 502);
-    return reply({ ok: true });
+    try { return reply(await sendFailureEmail(env, payload, fetchImpl)); }
+    catch (error) { return reply({ error: error instanceof Error ? error.message : 'Alert delivery failed' }, 502); }
+
   }
   return reply({ error: 'Unsupported action' }, 400);
 }

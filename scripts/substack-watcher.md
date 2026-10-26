@@ -35,7 +35,8 @@ and GitHub acceptance succeed does it record the new GUIDs as dispatched.
 ## Notifications
 
 The owner selected **email to andrew@beunconventionalhq.com** on October 26,
-2026, including one test alert. The gateway uses the existing Resend integration
+2026, including one test alert. The source Worker uses the existing Resend integration directly, independently
+of the website gateway
 and verified `noreply@beunconventionalhq.com` sender. Messages are plain text,
 with a stable idempotency key. Identical errors are throttled to one per hour;
 failed delivery does not mark the incident as notified. Scheduled failures also
@@ -50,8 +51,8 @@ the site. Email is the deployed choice for this rollout.
 
 1. Deploy the site's gateway and repository_dispatch workflow triggers from
    main, using the existing production deploy.
-2. Run **Deploy Substack source relay**. It configures the Worker's copy of
-   `WEBSUB_SECRET` from the existing repository secret without printing it, then
+2. Run **Deploy Substack source relay**. It configures the Worker's copies of
+   `WEBSUB_SECRET` and `RESEND_API_KEY` from the existing repository secret without printing it, then
    deploys the code, service binding and Cron Trigger.
 3. Preview: `node --env-file-if-exists=.env scripts/check-substack-watcher.mjs`.
 4. Seed/execute: append `--execute`. Repeating with the unchanged feed must say
