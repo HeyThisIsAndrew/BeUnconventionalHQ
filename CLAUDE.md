@@ -214,8 +214,8 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   mapping and "More From" related-article matching both depend on. Same
   never-delete merge contract as the RSS era (`mergeSnapshot()` in
   `src/lib/articles-transform.ts`); only the fetch and raw-shape mapping changed.
-  Fetching prefers the posts API, then the owned Cloudflare relay (public archive
-  plus individual full post JSON), then RSS + current/legacy post HTML payloads.
+  Fetching prefers the posts API, then the owned Cloudflare relay (public RSS
+  discovery plus full payloads from post HTML), then RSS + current/legacy post HTML payloads.
   RSS alone lacks tags, so never substitute its body as a complete record.
   Failed or empty syncs preserve `src/data/articles.json` AND exit nonzero; a
   failed publish must fail Actions without breaking existing built pages.

@@ -16,9 +16,10 @@ the new commit is live. Existing pages do not depend on Substack being reachable
    fallback timed out.
 3. Fetch failures deliberately exited 0 when a snapshot existed. This protected
    pages but hid failed publishing: green Actions did not mean fresh articles.
-4. On Cloudflare's network the bulk `/api/v1/posts` endpoint returned 429, while
-   the public archive, individual post JSON, RSS and article HTML returned 200.
-   The source relay therefore uses the archive and individual post endpoints.
+4. On Cloudflare's network the bulk `/api/v1/posts` endpoint returned 429.
+   The archive and individual JSON endpoints initially returned 200 but the
+   archive was also rate-limited in a later GitHub run. Public RSS and article
+   HTML remained available, so the final relay uses those public pages.
 
 Evidence:
 
@@ -32,8 +33,8 @@ Evidence:
 
 1. Direct posts API, paginated in batches of 20. Usually works locally.
 2. The owned `hq-substack-source` Cloudflare Worker. GitHub calls its workers.dev
-   address, avoiding the website domain's separate bot rules. The Worker lists
-   20 public archive entries and fetches each full post JSON, four at a time.
+   address, avoiding the website domain's separate bot rules. The Worker discovers articles through public RSS and extracts each full
+   post payload from its HTML, four at a time, in batches of 20.
    At most 21 subrequests per invocation, with successful pages cached for five
    minutes. Target host and paths are fixed; callers cannot supply a proxy URL.
 3. Direct RSS for discovery, followed by full post payloads from article HTML.
@@ -48,7 +49,8 @@ replacement for full post JSON, even though RSS contains article body HTML.
 Requests have timeouts, with bounded retries for network errors, 429 and 5xx.
 Permanent 403 challenges proceed directly to the next source. Exhausted,
 malformed, empty or incomplete results fail visibly and preserve the snapshot.
-Archive records and editorial overrides survive; identical content does not
+The relay follows RSS's rolling window; direct API pagination can backfill
+older history when reachable. Records outside the window and editorial overrides survive; identical content does not
 change `lastUpdated`, rewrite the snapshot, commit, or trigger a deploy.
 
 ## Operate and deploy
