@@ -36,9 +36,20 @@ Evidence:
 1. Direct posts API, paginated in batches of 20. Usually works locally.
 2. The owned `hq-substack-source` Cloudflare Worker. GitHub calls its workers.dev
    address, avoiding the website domain's separate bot rules. The Worker discovers articles through public RSS and extracts each full
-   post payload from its HTML, four at a time, in batches of 20.
-   At most 21 subrequests per invocation, with successful pages cached for five
-   minutes in one Durable Object. A western North America placement hint and
+   post payload from its HTML, in batches of 20. Aggregate responses live for
+   five minutes. Each complete post is stored separately, keyed by its RSS item
+   fingerprint, for at most 24 hours. New or changed RSS items fetch fresh HTML;
+   unchanged items reuse their full bodies and tags after aggregate expiry or
+   an object restart. A daily refresh catches tag-only edits absent from RSS.
+   Article cache misses run serially, at least one second apart. Successful
+   individual downloads survive a later batch failure. HTTP 429 persists a
+   cooldown (at least one minute, or longer when Retry-After asks for it), so
+   caller retries cannot immediately hammer the same pages. RSS uses ETag
+   revalidation when available and a separate persisted cooldown of at least
+   five minutes after both public feed URLs fail with rate limits. Failed
+   refreshes still fail visibly; an old cache cannot certify a new/edited post.
+   The runner allows 90 seconds for a cold paced relay import.
+   A western North America placement hint and
    stripped incoming request headers avoid dependence on the runner's ingress
    location. The cache is shared across all edge locations and coalesces
    simultaneous fetches. This is a placement preference, not a data residency
@@ -81,6 +92,9 @@ GitHub's failed-workflow notifications now expose exhausted sync failures.
 The fast publish watcher and its chosen alert channel are tracked in #279 and
 #272. Keep #280 open until three consecutive real publishes have been observed;
 a test run cannot prove future publishes or their end-to-end timing.
+
+The follow-up email/Actions audit, including every investigated failure run,
+is in [sync-failure-investigation-2026-10-27.md](sync-failure-investigation-2026-10-27.md).
 
 ## YouTube warnings in the supplied log
 
