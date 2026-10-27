@@ -1437,14 +1437,18 @@ function HomeFeaturedForm({ doc, allDocs, updateDoc }: {
   const settings = readHomeFeaturedSettings([doc]);
   const seriesNames = [...new Set(allDocs.filter((item) => item._type !== 'homeFeaturedSettings')
     .map((item) => item.series?.trim()).filter((name): name is string => !!name))].sort();
+  // The dev-only CMS has incomplete Tailwind utility generation (see its
+  // route's wrapper styles). Keep these new controls usable on touch screens.
+  const controlStyle = { minHeight: 44, padding: '10px 12px', fontSize: 14, width: '100%' };
+  const fieldLabelStyle = { display: 'block', marginBottom: 8 };
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'grid', gap: '1.25rem', padding: '1rem', lineHeight: 1.6 }}>
       <p className="text-sm text-gray-400">
         Choose what appears in the homepage Featured section. This is separate from the series shelves on the Feed.
       </p>
       <div>
-        <label htmlFor="home-featured-mode" className={labelClass}>What to feature</label>
-        <select id="home-featured-mode" className={inputClass} value={settings.mode}
+        <label htmlFor="home-featured-mode" className={labelClass} style={fieldLabelStyle}>What to feature</label>
+        <select id="home-featured-mode" className={inputClass} style={controlStyle} value={settings.mode}
           onChange={(event) => updateDoc(doc._id, 'mode', event.target.value)}>
           <option value="series">Feature a series</option>
           <option value="mixed">Feature a mix</option>
@@ -1452,8 +1456,8 @@ function HomeFeaturedForm({ doc, allDocs, updateDoc }: {
       </div>
       {settings.mode === 'series' ? (
         <div>
-          <label htmlFor="home-featured-series" className={labelClass}>Series to feature</label>
-          <input id="home-featured-series" list="home-featured-series-options" className={inputClass}
+          <label htmlFor="home-featured-series" className={labelClass} style={fieldLabelStyle}>Series to feature</label>
+          <input id="home-featured-series" list="home-featured-series-options" className={inputClass} style={controlStyle}
             value={doc.series || ''} placeholder="Choose or enter a series, e.g. Lanterns"
             onChange={(event) => updateDoc(doc._id, 'series', event.target.value)} />
           <datalist id="home-featured-series-options">
