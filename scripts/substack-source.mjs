@@ -21,11 +21,12 @@ function validatePost(post) {
 
 export async function fetchText(url, {
   fetchImpl = fetch, sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)),
+  timeoutMs = 20000,
 } = {}) {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const response = await fetchImpl(url, {
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(timeoutMs),
         headers: {
           'User-Agent': 'BeUnconventionalHQ-ArticleSync/1.0 (+https://beunconventionalhq.com)',
           Accept: 'application/json,application/rss+xml,application/xml,text/html;q=0.9',
@@ -101,7 +102,8 @@ export async function fetchPostsRelay(options = {}) {
   const result = await fetchPostsApi({ ...options, request: url => {
     const relay = new URL(relayUrl);
     relay.searchParams.set('offset', new URL(url).searchParams.get('offset'));
-    return request(relay.toString());
+    // A cold relay deliberately paces up to twenty article requests.
+    return request(relay.toString(), { timeoutMs: 90000 });
   } });
   return { ...result, source: 'Cloudflare relay' };
 }

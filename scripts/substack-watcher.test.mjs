@@ -216,6 +216,56 @@ test('source and repeated watcher checks share RSS, including a public sorted-fe
   assert.equal(urls.at(-1), 'https://beunconventionalhq.substack.com/feed?sort=new', 'reuse the working public URL after cache expiry');
 });
 
+test('unchanged RSS uses its ETag after cache expiry without accepting stale data on an error', async () => {
+  const state = storage();
+  let now = NOW;
+  let calls = 0;
+  let status = 304;
+  const source = new ArticleSource({ storage: state }, { FETCH_UPSTREAM: async (_url, options) => {
+    calls++;
+    if (calls === 1) return new Response(feed(['first']), { headers: { ETag: '"feed-version"' } });
+    if (calls === 2) assert.equal(options.headers.get('If-None-Match'), '"feed-version"');
+    return new Response(null, { status });
+  } }, { now: () => now });
+  const request = () => source.fetch(new Request('https://article-source.internal/poll', { method: 'POST', body: '{"dryRun":true}' }));
+  assert.equal((await (await request()).json()).ok, true);
+  now += 60001;
+  assert.equal((await (await request()).json()).ok, true);
+  assert.equal(calls, 2);
+  now += 60001;
+  status = 503;
+  const failed = await (await request()).json();
+  assert.equal(failed.ok, false);
+  assert.match(failed.error, /HTTP 503/);
+  assert.equal(state.values.get('source:rss:v1').savedAt, NOW + 60001);
+});
+
+test('RSS rate limits persist their cooldown across object restarts and dry runs never send alerts', async () => {
+  const state = storage();
+  let now = NOW;
+  let calls = 0;
+  let limited = true;
+  const env = { FETCH_UPSTREAM: async () => {
+    calls++;
+    return limited ? new Response('Rate limited', { status: 429, headers: { 'Retry-After': '1200' } }) : new Response(feed(['first']));
+  } };
+  let source = new ArticleSource({ storage: state }, env, { now: () => now });
+  const request = () => source.fetch(new Request('https://article-source.internal/poll', { method: 'POST', body: '{"dryRun":true}' }));
+  assert.equal((await (await request()).json()).ok, false);
+  assert.equal(calls, 2, 'try the two existing public feed URLs once');
+  now += 6 * 60000;
+  source = new ArticleSource({ storage: state }, env, { now: () => now });
+  const cooling = await (await request()).json();
+  assert.equal(cooling.ok, false);
+  assert.equal(cooling.alerted, false);
+  assert.equal(calls, 2, 'no upstream requests before Retry-After elapses');
+  now += 15 * 60000;
+  limited = false;
+  assert.equal((await (await request()).json()).ok, true);
+  assert.equal(calls, 3);
+  assert.equal(state.values.has('watcher:published:v1'), false);
+});
+
 test('gateway calls use a private service binding with valid authentication', async () => {
   const payload = { action: 'dispatch', articles: [article()] };
   const result = await callGateway({ WEBSUB_SECRET: SECRET, HQ_SITE: { fetch: async request => {

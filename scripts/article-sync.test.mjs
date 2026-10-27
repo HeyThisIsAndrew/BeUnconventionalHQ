@@ -6,7 +6,7 @@ import path from 'node:path';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parsePostHtml, fetchPostsApi, fetchPostsHtml, fetchAllPosts, fetchText } from './substack-source.mjs';
+import { parsePostHtml, fetchPostsApi, fetchPostsHtml, fetchPostsRelay, fetchAllPosts, fetchText } from './substack-source.mjs';
 import relay, { relayPosts, ArticleSource } from './substack-relay.mjs';
 import { runArticleSync, planArticleSync, parsePostsResponse } from './sync-articles.mjs';
 
@@ -192,7 +192,124 @@ test('source coalesces concurrent requests and shares its persisted cache across
   assert.equal(calls, 2, 'cache survives an object restart');
   data.get(request().url).savedAt = 0;
   assert.deepEqual(await (await restarted.fetch(request())).json(), [POST]);
-  assert.equal(calls, 3, 'expired articles refresh while the one-minute RSS cache is reused');
+  assert.equal(calls, 2, 'expired aggregate reuses unchanged full posts and the one-minute RSS cache');
+});
+
+function persistentSourceFixture() {
+  const data = new Map();
+  const state = { storage: {
+    get: async key => data.get(key), put: async (key, value) => { data.set(key, value); },
+    list: async ({ prefix }) => new Map([...data].filter(([key]) => key.startsWith(prefix))),
+    delete: async keys => { for (const key of keys) data.delete(key); },
+  } };
+  let time = Date.parse('2026-10-26T18:00:00Z');
+  let posts = [POST];
+  let rejectPost;
+  const calls = [];
+  const clock = { now: () => time, sleep: async ms => { time += ms; } };
+  const env = { FETCH_UPSTREAM: async url => {
+    calls.push({ url, at: time });
+    if (url.endsWith('/feed')) return new Response(`<rss><channel>${posts.map(post =>
+      `<item><link>${post.canonical_url}</link><title>${post.title}</title><description>${post.subtitle}</description></item>`
+    ).join('')}</channel></rss>`);
+    const rejected = rejectPost?.(url);
+    if (rejected) return rejected;
+    const post = posts.find(post => post.canonical_url === url);
+    assert.ok(post, `unexpected request: ${url}`);
+    return new Response(`<script id="preloads-json">${payload(post)}</script>`);
+  } };
+  let source = new ArticleSource(state, env, clock);
+  return {
+    data, calls,
+    advance: ms => { time += ms; },
+    posts: value => { posts = value; },
+    reject: value => { rejectPost = value; },
+    restart: () => { source = new ArticleSource(state, env, clock); },
+    read: () => source.fetch(new Request('https://article-source.internal/posts?offset=0')),
+  };
+}
+
+test('hourly imports survive aggregate expiry and object restarts without re-downloading unchanged articles', async () => {
+  const f = persistentSourceFixture();
+  f.posts(Array.from({ length: 13 }, (_, i) => ({ ...POST, id: i + 1, canonical_url: `${POST.canonical_url}-${i}` })));
+  assert.equal((await (await f.read()).json()).length, 13);
+  const downloads = f.calls.filter(call => !call.url.endsWith('/feed'));
+  assert.equal(downloads.length, 13);
+  assert.ok(downloads.every((call, i) => !i || call.at - downloads[i - 1].at >= 1000));
+  f.advance(6 * 3600000);
+  f.restart();
+  assert.equal((await (await f.read()).json()).length, 13);
+  assert.equal(f.calls.length, 15, 'a new feed request, with no new article downloads');
+});
+
+test('RSS edits and new articles refresh only changed full payloads and keep every tag', async () => {
+  const f = persistentSourceFixture();
+  await f.read();
+  f.advance(300001);
+  const edited = { ...POST, title: 'Clayface Review updated', postTags: [...POST.postTags, { name: 'New tag' }] };
+  const added = { ...POST, id: 2, canonical_url: `${POST.canonical_url}-new` };
+  f.posts([edited, added]);
+  assert.deepEqual(await (await f.read()).json(), [edited, added]);
+  assert.equal(f.calls.filter(call => call.url === POST.canonical_url).length, 2);
+  f.advance(300001);
+  f.posts([added, edited]);
+  assert.deepEqual(await (await f.read()).json(), [added, edited]);
+  assert.equal(f.calls.length, 6, 'reordering RSS requires only a feed request');
+});
+
+test('a daily refresh picks up tag-only edits even when RSS has not changed', async () => {
+  const f = persistentSourceFixture();
+  await f.read();
+  const edited = { ...POST, postTags: [{ name: 'Tag-only edit' }] };
+  f.posts([edited]);
+  f.advance(24 * 3600000);
+  f.restart();
+  assert.deepEqual(await (await f.read()).json(), [edited]);
+  assert.equal(f.calls.length, 4);
+});
+
+test('429 partial failures retain completed posts, persist Retry-After and resume only missing articles', async () => {
+  const f = persistentSourceFixture();
+  const second = { ...POST, id: 2, canonical_url: `${POST.canonical_url}-second` };
+  const third = { ...POST, id: 3, canonical_url: `${POST.canonical_url}-third` };
+  f.posts([POST, second, third]);
+  f.reject(url => url === second.canonical_url ? new Response('Slow down', { status: 429, headers: { 'Retry-After': '120' } }) : undefined);
+  const failed = await f.read();
+  assert.equal(failed.status, 502);
+  assert.match((await failed.json()).error, /HTTP 429/);
+  assert.ok(f.data.has(`source:post:v1:${POST.canonical_url}`));
+  assert.equal(f.data.has('https://article-source.internal/posts?offset=0'), false);
+  const before = f.calls.length;
+  f.advance(61000);
+  f.restart();
+  assert.equal((await f.read()).status, 502);
+  assert.equal(f.calls.length, before + 1, 'only RSS is fetched during the persisted article cooldown');
+  f.reject(undefined);
+  f.advance(60001);
+  assert.deepEqual(await (await f.read()).json(), [POST, second, third]);
+  assert.equal(f.calls.filter(call => call.url === POST.canonical_url).length, 1);
+  assert.equal(f.calls.filter(call => call.url === third.canonical_url).length, 1);
+});
+
+test('expired or edited posts cannot fall back to an outdated cached body on source failure', async () => {
+  for (const edit of [false, true]) {
+    const f = persistentSourceFixture();
+    await f.read();
+    const saved = f.data.get(`source:post:v1:${POST.canonical_url}`);
+    f.advance(edit ? 300001 : 24 * 3600000);
+    if (edit) f.posts([{ ...POST, title: 'Changed title' }]);
+    f.reject(() => new Response('<title>Challenge</title>'));
+    assert.equal((await f.read()).status, 502);
+    assert.deepEqual(f.data.get(`source:post:v1:${POST.canonical_url}`), saved);
+  }
+});
+
+test('relay requests allow time for a paced twenty-article cold import', async () => {
+  const result = await fetchPostsRelay({ request: async (_url, options) => {
+    assert.equal(options.timeoutMs, 90000);
+    return response([POST]);
+  } });
+  assert.deepEqual(result.posts, [POST]);
 });
 
 test('snapshot updates publish new articles, preserve archive/editorial data, and are idempotent', async t => {

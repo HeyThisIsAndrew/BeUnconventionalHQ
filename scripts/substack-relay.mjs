@@ -10,8 +10,24 @@ import { sendFailureEmail } from '../src/lib/automation-notifications.mjs';
 
 const PUBLICATION = 'https://beunconventionalhq.substack.com';
 const PAGE_SIZE = 20;
+const POST_TTL = 24 * 60 * 60 * 1000;
 
-export async function relayPosts(request, { fetchUpstream = fetch, cache, waitUntil = () => {} } = {}) {
+function retryAfterUntil(value, now, minimum) {
+  const seconds = Number(value);
+  const retryAt = value && Number.isFinite(seconds) ? now + seconds * 1000 : Date.parse(value);
+  return Math.max(now + minimum, Number.isFinite(retryAt) ? retryAt : 0);
+}
+
+function validatePost(post, link) {
+  if (!post?.id || typeof post.title !== 'string' || !post.title.trim() ||
+      !Number.isFinite(Date.parse(post.post_date)) ||
+      typeof post.body_html !== 'string' || !Array.isArray(post.postTags)) {
+    throw new Error(`Substack returned an incomplete post: ${link.pathname}`);
+  }
+  return post;
+}
+
+export async function relayPosts(request, { fetchUpstream = fetch, loadPost, cache, waitUntil = () => {} } = {}) {
   const url = new URL(request.url);
   if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers: { Allow: 'GET' } });
   if (url.pathname !== '/posts') return new Response('Not found', { status: 404 });
@@ -33,7 +49,12 @@ export async function relayPosts(request, { fetchUpstream = fetch, cache, waitUn
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
         },
       });
-      if (!response.ok) throw new Error(`Substack returned HTTP ${response.status} from ${new URL(url).pathname}`);
+      if (!response.ok) {
+        const error = new Error(`Substack returned HTTP ${response.status} from ${new URL(url).pathname}`);
+        error.httpStatus = response.status;
+        error.retryAfter = response.headers.get('Retry-After');
+        throw error;
+      }
       return response.text();
     };
     // Substack rate-limits API calls from some edge locations. Public RSS and
@@ -54,12 +75,9 @@ export async function relayPosts(request, { fetchUpstream = fetch, cache, waitUn
         if (link.origin !== PUBLICATION || !link.pathname.startsWith('/p/')) {
           throw new Error('Unexpected article URL in Substack RSS');
         }
-        const post = parsePostHtml(await getText(link.toString()));
-        if (!post?.id || typeof post.title !== 'string' ||
-            typeof post.body_html !== 'string' || !Array.isArray(post.postTags)) {
-          throw new Error(`Substack returned an incomplete post: ${link.pathname}`);
-        }
-        posts[index] = post;
+        posts[index] = validatePost(loadPost
+          ? await loadPost(link, window[index], getText)
+          : parsePostHtml(await getText(link.toString())), link);
       }
     }));
     const result = Response.json(posts, { headers: {
@@ -102,15 +120,60 @@ export default {
 
 /** Global cache and request coalescing, including across different edge POPs. */
 export class ArticleSource {
-  constructor(state, env = {}) {
+  constructor(state, env = {}, { now = Date.now, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
     this.state = state;
     this.pending = new Map();
     this.env = env;
+    this.now = now;
+    this.sleep = sleep;
+    this.postQueue = Promise.resolve();
+    this.postPending = new Map();
     // workerd's fetch requires its global receiver. Calling a stored native
     // fetch as this.fetchUpstream(...) otherwise throws "Illegal invocation".
     this.nativeFetch = (env.FETCH_UPSTREAM ?? fetch).bind(globalThis);
     this.fetchUpstream = (url, options) => String(url) === `${PUBLICATION}/feed`
       ? this.getFeed(options) : this.nativeFetch(url, options);
+  }
+
+  async loadPost(link, item, getText) {
+    // RSS is checked afresh when the aggregate expires. Unchanged articles
+    // keep their complete HTML payload and tags; new/edited items bypass it.
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(item)));
+    const fingerprint = [...new Uint8Array(digest)].map(n => n.toString(16).padStart(2, '0')).join('');
+    const key = `source:post:v1:${link}`;
+    const cached = await this.state.storage.get(key);
+    if (cached?.fingerprint === fingerprint && this.now() - cached.savedAt < POST_TTL) {
+      return validatePost(cached.post, link);
+    }
+    const pendingKey = `${key}:${fingerprint}`;
+    if (!this.postPending.has(pendingKey)) {
+      // Serialize cache misses, including callers on different aggregate pages.
+      // A failed batch retains each successful article for its next attempt.
+      const pending = this.postQueue.then(async () => {
+        const cooldown = await this.state.storage.get('source:post-cooldown:v1');
+        if (cooldown?.until > this.now()) throw new Error('Substack article requests cooling down after HTTP 429; retry later');
+        const delay = (this.nextPostAt ?? 0) - this.now();
+        if (delay > 0) await this.sleep(delay);
+        try {
+          const post = validatePost(parsePostHtml(await getText(link.toString())), link);
+          await this.state.storage.put(key, { post, fingerprint, savedAt: this.now() });
+          return post;
+        } catch (error) {
+          if (error.httpStatus === 429) {
+            // Persist the upstream's cooldown across restarts and caller retries.
+            await this.state.storage.put('source:post-cooldown:v1', {
+              until: retryAfterUntil(error.retryAfter, this.now(), 60000),
+            });
+          }
+          throw error;
+        } finally { this.nextPostAt = this.now() + 1000; }
+      });
+      this.postQueue = pending.catch(() => {});
+      this.postPending.set(pendingKey, pending);
+    }
+    const pending = this.postPending.get(pendingKey);
+    try { return await pending; }
+    finally { if (this.postPending.get(pendingKey) === pending) this.postPending.delete(pendingKey); }
   }
 
   async getFeed(options) {
@@ -125,16 +188,27 @@ export class ArticleSource {
   async loadFeed(options) {
     const key = 'source:rss:v1';
     const cached = await this.state.storage.get(key);
-    if (cached && Date.now() - cached.savedAt < 60000) {
+    if (cached && this.now() - cached.savedAt < 60000) {
       return new Response(cached.body, { headers: cached.headers });
     }
+    const cooldown = await this.state.storage.get('source:rss-cooldown:v1');
+    if (cooldown?.until > this.now()) return new Response('RSS rate limit cooldown', { status: 429 });
     const canonical = `${PUBLICATION}/feed`;
     const sorted = `${canonical}?sort=new`;
     const urls = [...new Set([cached?.url ?? canonical, canonical, sorted])];
     let response;
+    let rateLimitedUntil = 0;
     for (const url of urls) {
-      response = await this.nativeFetch(url, options);
+      const requestHeaders = new Headers(options?.headers);
+      if (cached?.url === url && cached.headers.etag) requestHeaders.set('If-None-Match', cached.headers.etag);
+      response = await this.nativeFetch(url, { ...options, headers: requestHeaders });
+      if (response.status === 304 && cached?.url === url) {
+        await this.state.storage.put(key, { ...cached, savedAt: this.now() });
+        return new Response(cached.body, { headers: cached.headers });
+      }
       if (!response.ok) {
+        if (response.status === 429) rateLimitedUntil = Math.max(rateLimitedUntil,
+          retryAfterUntil(response.headers.get('Retry-After'), this.now(), 300000));
         if ([429, 403].includes(response.status)) continue;
         return response;
       }
@@ -142,8 +216,11 @@ export class ArticleSource {
       const doc = new XMLParser({ parseTagValue: false }).parse(body);
       if (!doc.rss?.channel?.item) return new Response(body, { headers: response.headers });
       const headers = Object.fromEntries(response.headers);
-      await this.state.storage.put(key, { savedAt: Date.now(), body, headers, url });
+      await this.state.storage.put(key, { savedAt: this.now(), body, headers, url });
       return new Response(body, { headers });
+    }
+    if (rateLimitedUntil) {
+      await this.state.storage.put('source:rss-cooldown:v1', { until: rateLimitedUntil });
     }
     return response;
   }
@@ -201,16 +278,20 @@ export class ArticleSource {
     const cache = {
       match: async key => {
         const cached = await this.state.storage.get(key.url);
-        if (!cached || Date.now() - cached.savedAt >= 300000) return undefined;
+        if (!cached || this.now() - cached.savedAt >= 300000) return undefined;
         return new Response(cached.body, { headers: cached.headers });
       },
       put: async (key, response) => {
         await this.state.storage.put(key.url, {
-          savedAt: Date.now(), body: await response.text(), headers: Object.fromEntries(response.headers),
+          savedAt: this.now(), body: await response.text(), headers: Object.fromEntries(response.headers),
         });
       },
     };
-    const result = await relayPosts(request, { cache, fetchUpstream: this.fetchUpstream, waitUntil: promise => writes.push(promise) });
+    const result = await relayPosts(request, {
+      cache, fetchUpstream: this.fetchUpstream,
+      loadPost: (link, item, getText) => this.loadPost(link, item, getText),
+      waitUntil: promise => writes.push(promise),
+    });
     await Promise.all(writes);
     return result;
   }
