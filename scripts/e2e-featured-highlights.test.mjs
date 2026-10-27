@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { mapSanityVideo } from '../src/lib/videos.ts';
 import { categorize } from '../src/data/categorize.js';
-import { pickHomeFeatured } from '../src/lib/homepage-featured-selection.ts';
+import { pickHomeFeatured, readHomeFeaturedSettings } from '../src/lib/homepage-featured-selection.ts';
 
 async function runTests() {
   console.log('Starting Astro preview server for Featured Highlights E2E...');
@@ -45,7 +45,7 @@ async function runTests() {
       && (doc.contentStatus === 'published' || !doc.contentStatus))
       .map(doc => mapSanityVideo(doc, { categorize })).filter(Boolean)
       .map(video => ({ ...video, type: 'video' }));
-    const expected = pickHomeFeatured(videos);
+    const expected = pickHomeFeatured(videos, readHomeFeaturedSettings(docs));
     if (expected?.kind === 'collection') {
       const rendered = await page.evaluate(() => ({
         lead: document.querySelector('.featured-world .fh-hero-card.active [data-video-id]')?.getAttribute('data-video-id'),

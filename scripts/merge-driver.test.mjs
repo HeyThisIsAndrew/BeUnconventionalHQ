@@ -153,6 +153,19 @@ test('featuredBrand gets the same protection as event', () => {
   assert.match(output, /hubCategory/, 'the report must name the field');
 });
 
+test('homepage Featured mode and series cannot be silently overwritten by a data merge', () => {
+  const setting = { _id: 'homepage-featured-settings', _type: 'homeFeaturedSettings', mode: 'series', series: 'Lanterns' };
+  for (const change of [{ mode: 'mixed' }, { series: 'Another show' }]) {
+    const { ok, output } = merge([setting], [setting], [{ ...setting, ...change, _updatedAt: '2099-01-01' }]);
+    assert.equal(ok, false);
+    assert.match(output, /EDITORIAL/);
+    assert.match(output, new RegExp(Object.keys(change)[0]));
+  }
+  const { ok, result } = merge([], [setting], [doc('new-upload')]);
+  assert.equal(ok, true);
+  assert.deepEqual(result.find(item => item._id === setting._id), setting);
+});
+
 test('system fields are bookkeeping, not editorial', () => {
   /*
     Otherwise every event merge would abort on `_rev` or `_updatedAt`, which

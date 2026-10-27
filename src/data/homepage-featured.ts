@@ -1,32 +1,23 @@
 /**
  * The homepage's Featured section: WHAT it features, and where it links.
  *
- * It mirrors /feed's featured shelf rather than naming a show itself (it used
- * to hardcode "Lanterns", which Andrew caught: the section must be the feed's
- * featured section, and fall back to plain featured content when there is
- * none). So it asks the feed's own functions, in src/lib/feed-rails.ts:
- *
- *   COLLECTION  selectCollections() picks the collection an editor flagged
- *               (`featuredSeries`), exactly as FeedGrid does for its first
- *               prestige shelf. Its members, its eyebrow ("FEATURED SERIES •
- *               DC"), its accent (seriesAccent, else the hub's brandColor,
- *               never white) and its anchor, `/feed#<seriesSlug>`, which
- *               FeedGrid's scrollToHashRow() lands on.
- *   SITE        No collection: the site's featured videos first, then the
- *               newest stories, under a plain "Featured on the HQ" and a link
- *               to /feed. No accent: the section keeps the site's red.
+ * The editor chooses a series or a mixed selection in Local CMS > Homepage
+ * Featured. This setting is independent of the Feed's collection flags and
+ * automatic fallback, so selecting a mix cannot silently promote a series.
+ * Series mode supplies its logo and accent; mixed mode uses the site styling.
  *
  * Featured chooses first. Its four items are reserved from the hero and other
  * homepage sections, so the newest episode cannot be removed by the hero.
  * Items are feed records, the shape FeaturedHighlights renders.
  */
 import { getAllFeedItems } from '../lib/feed-items';
-import { accentFor, seriesSlug } from '../lib/feed-rails';
-import { pickHomeFeatured } from '../lib/homepage-featured-selection';
+import { accentFor, seriesSlug, selectCollections } from '../lib/feed-rails';
+import { pickHomeFeatured, readHomeFeaturedSettings } from '../lib/homepage-featured-selection';
 export { featuredKey } from '../lib/homepage-featured-selection';
 import { resolveEntity, hexToRgbTriple } from '../lib/entity-resolver';
 import { getFeaturedBrandsLocal, getEventsLocal, urlFor } from '../lib/local-content';
 import { rowArt } from '../lib/row-art';
+import localContent from './videos.json';
 
 export interface HomeFeatured {
   kind: 'collection' | 'site';
@@ -54,7 +45,7 @@ export async function getHomeFeatured(): Promise<HomeFeatured | null> {
     console.error('[homepage-featured] feed items unavailable:', err);
     return null;
   }
-  const selection = pickHomeFeatured(all);
+  const selection = pickHomeFeatured(all, readHomeFeaturedSettings(localContent));
   if (!selection) return null;
   const { members, items } = selection;
   if (selection.kind === 'collection' && selection.title) {
@@ -74,7 +65,8 @@ export async function getHomeFeatured(): Promise<HomeFeatured | null> {
       title: selection.title,
       logo: rowArt(`${slug}-key-art`) ? rowArt(`${slug}-logo`) : null,
       eyebrow: hub ? `Featured series • ${hub.title}` : 'Featured series',
-      href: `/feed#${slug}`,
+      href: selectCollections(all).some((collection) => seriesSlug(collection.name) === slug)
+        ? `/feed#${slug}` : '/feed',
       accentHex,
       accentRgb: accentHex ? hexToRgbTriple(accentHex) : null,
       total: members.length,

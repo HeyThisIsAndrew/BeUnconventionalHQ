@@ -1,7 +1,22 @@
 /** Store-free selection shared by the homepage and publication regressions. */
-import { selectCollections, inSeries, sortTime } from './feed-rails.ts';
+import { inSeries, sortTime } from './feed-rails.ts';
 
 export const HOME_FEATURED_LIMIT = 4;
+export const HOME_FEATURED_SETTINGS_ID = 'homepage-featured-settings';
+
+export interface HomeFeaturedSettings {
+  mode: 'series' | 'mixed';
+  series: string;
+}
+
+/** A missing setting must never silently select a series for the editor. */
+export function readHomeFeaturedSettings(docs: readonly any[]): HomeFeaturedSettings {
+  const doc = docs.find((item) => item?._id === HOME_FEATURED_SETTINGS_ID && item?._type === 'homeFeaturedSettings');
+  return {
+    mode: doc?.mode === 'series' ? 'series' : 'mixed',
+    series: typeof doc?.series === 'string' ? doc.series.trim() : '',
+  };
+}
 
 /** Stable keys also used when reserving Featured stories from the hero. */
 export const featuredKey = (item: any): string =>
@@ -27,18 +42,22 @@ export interface HomeFeaturedSelection {
   items: any[];
 }
 
-export function pickHomeFeatured(all: any[]): HomeFeaturedSelection | null {
+export function pickHomeFeatured(
+  all: any[],
+  settings: HomeFeaturedSettings = { mode: 'mixed', series: '' },
+): HomeFeaturedSelection | null {
   const pool = (Array.isArray(all) ? all.filter(Boolean) : []).sort((a, b) => featuredTime(b) - featuredTime(a));
-  const chosen = selectCollections(pool)[0];
-  if (chosen) {
-    const members = pool.filter((i) => inSeries(i, chosen.name));
+  const series = settings.series.trim();
+  if (settings.mode === 'series' && series) {
+    const members = pool.filter((i) => inSeries(i, series));
     const items = videosFirst(members).slice(0, HOME_FEATURED_LIMIT);
-    if (items.length) return { kind: 'collection', title: chosen.name, members, total: members.length, items };
+    if (items.length) return { kind: 'collection', title: series, members, total: members.length, items };
   }
 
-  let base = [...pool.filter((i) => i.featured === true), ...pool.filter((i) => i.featured !== true)];
-  const leadSeries = base[0]?.series;
-  if (leadSeries) base = base.filter((i) => inSeries(i, leadSeries));
-  const items = videosFirst(base.slice(0, HOME_FEATURED_LIMIT));
+  // Individual editorial picks first, newest within each group. A lead item's
+  // series must not turn a mixed selection back into a single-show shelf.
+  const isFeatured = (item: any) => item.featured === true || (item.type === 'article' && item.editorial?.featured === true);
+  const base = [...pool.filter(isFeatured), ...pool.filter((item) => !isFeatured(item))];
+  const items = base.slice(0, HOME_FEATURED_LIMIT);
   return items.length ? { kind: 'site', title: null, members: items, total: items.length, items } : null;
 }

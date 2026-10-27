@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { urlFor } from '../../lib/local-content.ts';
 import { COVERAGE_TYPES } from '../../lib/tags.ts';
+import { HOME_FEATURED_SETTINGS_ID, readHomeFeaturedSettings } from '../../lib/homepage-featured-selection.ts';
 
-type DocType = 'video' | 'short' | 'live' | 'event' | 'featuredBrand' | 'topic' | 'article' | 'articleOutro';
+type DocType = 'video' | 'short' | 'live' | 'event' | 'featuredBrand' | 'topic' | 'article' | 'articleOutro' | 'homeFeaturedSettings';
 
 type LocationInfo = { venue?: string; city?: string; region?: string; country?: string };
 
@@ -52,6 +53,7 @@ type Doc = {
   characters?: string[];
   coverageType?: string;
   series?: string;
+  mode?: 'series' | 'mixed';
   featuredSeries?: boolean;
   seriesAccent?: string;
   editorialNotes?: string;
@@ -135,6 +137,7 @@ const TYPE_META: Record<string, { label: string; badge: string }> = {
   featuredBrand: { label: 'Featured', badge: 'bg-emerald-500/20 text-emerald-300' },
   topic: { label: 'Topic', badge: 'bg-indigo-500/20 text-indigo-300' },
   article: { label: 'Article', badge: 'bg-teal-500/20 text-teal-300' },
+  homeFeaturedSettings: { label: 'Homepage', badge: 'bg-rose-500/20 text-rose-300' },
 };
 
 // Helper for parsing sanity image references or plain strings
@@ -160,7 +163,7 @@ const getImageUrl = (image: any) => {
   return null;
 };
 
-const FILTERS = ['All', 'Videos', 'Shorts', 'Live', 'Events', 'Featured', 'Topics', 'Articles', 'Outro'] as const;
+const FILTERS = ['All', 'Videos', 'Shorts', 'Live', 'Events', 'Featured', 'Topics', 'Articles', 'Outro', 'HomeFeatured'] as const;
 type Filter = (typeof FILTERS)[number] | 'GlobalStatus';
 
 const FILTER_LABELS: Record<Filter, string> = {
@@ -173,6 +176,7 @@ const FILTER_LABELS: Record<Filter, string> = {
   Topics: 'Topics',
   Articles: 'Articles',
   Outro: 'Article Outro',
+  HomeFeatured: 'Homepage Featured',
   GlobalStatus: 'Global Status',
 };
 
@@ -186,6 +190,7 @@ const FILTER_GROUPS: { label: string; filters: Filter[] }[] = [
   /* The standard closing section under every article. One document, not a
      list — it is site furniture, so there is nothing to create or delete. */
   { label: 'Site Copy', filters: ['Outro'] },
+  { label: 'Site Settings', filters: ['HomeFeatured'] },
 ];
 
 function slugify(value: string): string {
@@ -849,6 +854,12 @@ export default function LocalCmsApp() {
     ])
       .then(([videoData, articleData]) => {
         const vDocs = Array.isArray(videoData) ? videoData : [];
+        if (!vDocs.some((doc) => doc._id === HOME_FEATURED_SETTINGS_ID)) {
+          vDocs.push({
+            _id: HOME_FEATURED_SETTINGS_ID, _type: 'homeFeaturedSettings',
+            title: 'Homepage Featured', ...readHomeFeaturedSettings(vDocs),
+          });
+        }
         const aDocs = Array.isArray(articleData) ? articleData.map((a) => ({
           ...a,
           _id: a.guid,
@@ -1023,6 +1034,7 @@ export default function LocalCmsApp() {
   };
 
   const deleteDoc = (id: string) => {
+    if (id === HOME_FEATURED_SETTINGS_ID) return;
     const doc = docs.find((d) => d._id === id);
     if (!doc) return;
     // Tier-1 topics and Uncategorized are load-bearing: sync-youtube.mjs's
@@ -1043,7 +1055,7 @@ export default function LocalCmsApp() {
   };
 
   const filterCounts = useMemo(() => {
-    let counts = { All: 0, Videos: 0, Shorts: 0, Live: 0, Events: 0, Featured: 0, Topics: 0, Articles: 0, Outro: 0 };
+    let counts = { All: 0, Videos: 0, Shorts: 0, Live: 0, Events: 0, Featured: 0, Topics: 0, Articles: 0, Outro: 0, HomeFeatured: 0 };
     docs.forEach((d) => {
       const type = d.manualTypeOverride || d._type;
       if (['video', 'short', 'live'].includes(type as string)) counts.All++;
@@ -1055,6 +1067,7 @@ export default function LocalCmsApp() {
       if (type === 'topic') counts.Topics++;
       if (type === 'article') counts.Articles++;
       if (type === 'articleOutro') counts.Outro++;
+      if (type === 'homeFeaturedSettings') counts.HomeFeatured++;
     });
     return counts;
   }, [docs]);
@@ -1075,12 +1088,13 @@ export default function LocalCmsApp() {
         if (activeFilter === 'Topics') return type === 'topic';
         if (activeFilter === 'Articles') return type === 'article';
         if (activeFilter === 'Outro') return type === 'articleOutro';
+        if (activeFilter === 'HomeFeatured') return type === 'homeFeaturedSettings';
         return true;
       });
     }
     if (statusFilter) {
       list = list.filter((d) => {
-        if (d._type === 'topic' || d._type === 'article' || d._type === 'articleOutro') return false;
+        if (d._type === 'topic' || d._type === 'article' || d._type === 'articleOutro' || d._type === 'homeFeaturedSettings') return false;
         const status = d.contentStatus || d.status;
         if (statusFilter === 'published') return status === 'published' || status === 'live' || status === 'completed';
         if (statusFilter === 'needs-review') return status === 'needs-review';
@@ -1096,7 +1110,7 @@ export default function LocalCmsApp() {
     let other = 0;
 
     docs.forEach((doc) => {
-      if (doc._type === 'topic' || doc._type === 'article' || doc._type === 'articleOutro') return;
+      if (doc._type === 'topic' || doc._type === 'article' || doc._type === 'articleOutro' || doc._type === 'homeFeaturedSettings') return;
       
       const status = doc.contentStatus || doc.status;
       if (status === 'published' || status === 'live' || status === 'completed') published++;
@@ -1187,7 +1201,12 @@ export default function LocalCmsApp() {
                 {group.filters.map((filter) => (
                   <button
                     key={filter}
-                    onClick={() => { setActiveFilter(filter); setSelectedId(null); }}
+                    onClick={() => {
+                      setActiveFilter(filter);
+                      setStatusFilter(null);
+                      setSelectedId(filter === 'HomeFeatured' ? HOME_FEATURED_SETTINGS_ID : null);
+                      if (filter === 'HomeFeatured') setSearch('');
+                    }}
                     className={`w-full text-left px-4 py-4 transition-all duration-200 border-l-2 border-b border-white/10 group ${
                       activeFilter === filter && !selectedId ? 'bg-white/[0.06] border-l-red-500' : 'hover:bg-white/[0.03] border-l-transparent'
                     }`}
@@ -1360,7 +1379,7 @@ export default function LocalCmsApp() {
                     </a>
                   )}
                 </div>
-                {!(selected._type === 'topic' && ['film', 'tv', 'gaming', 'events', 'uncategorized'].includes((typeof selected.slug === "string" ? selected.slug : selected.slug?.current) || '')) ? (
+                {selected._type !== 'homeFeaturedSettings' && !(selected._type === 'topic' && ['film', 'tv', 'gaming', 'events', 'uncategorized'].includes((typeof selected.slug === "string" ? selected.slug : selected.slug?.current) || '')) ? (
                   <button
                     onClick={() => deleteDoc(selected._id)}
                     className="flex-shrink-0 text-xs font-bold text-rose-500 hover:text-white border border-rose-500/30 hover:border-rose-500 hover:bg-rose-600 rounded-lg px-3 py-2 transition-all duration-300 shadow-sm hover:shadow-[0_0_15px_rgba(225,29,72,0.4)]"
@@ -1370,7 +1389,7 @@ export default function LocalCmsApp() {
                 ) : (
                   <button
                     disabled
-                    title="Core taxonomy nodes cannot be deleted."
+                    title="Site settings and core taxonomy cannot be deleted."
                     className="flex-shrink-0 text-xs font-bold text-gray-500 border border-white/5 bg-white/5 rounded-lg px-3 py-2 cursor-not-allowed opacity-50"
                   >
                     Delete (Locked)
@@ -1399,12 +1418,61 @@ export default function LocalCmsApp() {
                 {selected._type === 'articleOutro' && (
                   <ArticleOutroForm doc={selected} updateDoc={updateDoc} />
                 )}
+                {selected._type === 'homeFeaturedSettings' && (
+                  <HomeFeaturedForm doc={selected} allDocs={docs} updateDoc={updateDoc} />
+                )}
               </div>
             </>
           )}
         </div>
       </div>
       </div>
+    </div>
+  );
+}
+
+function HomeFeaturedForm({ doc, allDocs, updateDoc }: {
+  doc: Doc; allDocs: Doc[]; updateDoc: (id: string, field: keyof Doc, value: any) => void;
+}) {
+  const settings = readHomeFeaturedSettings([doc]);
+  const seriesNames = [...new Set(allDocs.filter((item) => item._type !== 'homeFeaturedSettings')
+    .map((item) => item.series?.trim()).filter((name): name is string => !!name))].sort();
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-gray-400">
+        Choose what appears in the homepage Featured section. This is separate from the series shelves on the Feed.
+      </p>
+      <div>
+        <label htmlFor="home-featured-mode" className={labelClass}>What to feature</label>
+        <select id="home-featured-mode" className={inputClass} value={settings.mode}
+          onChange={(event) => updateDoc(doc._id, 'mode', event.target.value)}>
+          <option value="series">Feature a series</option>
+          <option value="mixed">Feature a mix</option>
+        </select>
+      </div>
+      {settings.mode === 'series' ? (
+        <div>
+          <label htmlFor="home-featured-series" className={labelClass}>Series to feature</label>
+          <input id="home-featured-series" list="home-featured-series-options" className={inputClass}
+            value={doc.series || ''} placeholder="Choose or enter a series, e.g. Lanterns"
+            onChange={(event) => updateDoc(doc._id, 'series', event.target.value)} />
+          <datalist id="home-featured-series-options">
+            {seriesNames.map((name) => <option key={name} value={name} />)}
+          </datalist>
+          <p className="mt-2 text-xs text-gray-400">
+            Matches the Series field or tags. The newest four videos lead, followed by matching articles if there are fewer videos.
+            Each new upload moves to the top and replaces the oldest displayed item. If nothing matches, a mix appears instead.
+          </p>
+        </div>
+      ) : (
+        <p className="text-sm text-gray-400">
+          Shows up to four videos and articles from across your coverage. Turn on Featured for the individual items you want to highlight.
+          Newest Featured items come first, with recent content filling any remaining spaces. No series is selected automatically.
+        </p>
+      )}
+      <p className="text-xs text-gray-400">
+        Save your changes using the button above. Preview them on the local homepage, then publish them with your site changes to update the live site.
+      </p>
     </div>
   );
 }
