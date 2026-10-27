@@ -444,6 +444,9 @@ export function buildHomepageFeed(
     /** Story ids the category panels should show first (the production
         Featured Highlights mix, src/lib/featured-highlights.ts). */
     heroPicks?: string[];
+    /** Featured chooses its four stories first. Reserve their video/link
+        keys so the hero, Intel and watching rail cannot claim them again. */
+    reservedKeys?: ReadonlySet<string>;
   } = {},
 ): HomepageFeed {
   const intelOrbit = opts.intelOrbit ?? 3;
@@ -453,7 +456,9 @@ export function buildHomepageFeed(
   const safeVideos = (Array.isArray(videos) ? videos : []).filter(Boolean).sort(newestFirst);
   const all = [...safeArticles, ...safeVideos].sort(newestFirst);
 
-  const used = new Set<string>();
+  const used = new Set<string>(all
+    .filter((s) => opts.reservedKeys?.has(s.type === 'video' ? `video:${s.videoId}` : s.url))
+    .map((s) => s.id));
   const claim = (s: HomeStory | undefined | null): HomeStory | null => {
     if (!s || used.has(s.id)) return null;
     used.add(s.id);
@@ -461,12 +466,12 @@ export function buildHomepageFeed(
   };
   const free = (s: HomeStory) => !used.has(s.id);
 
-  /* 1. Hero, FIRST. Each category shows its `heroPicks` story when one of
+  /* 1. Hero, from the unreserved pool. Each category shows its `heroPicks` story when one of
         them is in that category (the production Featured Highlights mix,
         which Andrew prefers: a featured/recent video per category, the best
         performer and the newest article), otherwise its newest story with
         art, article or video. LATEST is then the newest story left. The hero
-        runs before Featured, which used to claim every Lanterns story first.
+        runs after the homepage reserves only its four Featured items.
         A category with nothing to show drops its panel rather than
         rendering an empty one. */
   const withArt = (s: HomeStory) => Boolean(s.image);

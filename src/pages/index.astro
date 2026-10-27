@@ -44,21 +44,21 @@ import '../styles/modules/home.css';
   unused Categories / LatestArticles sections were deleted in V4, once nothing
   imported them.
 */
-const feed = await getHomepageFeed();
+/* Featured owns its newest four items; the hero chooses from what remains. */
+const featured = await getHomeFeatured();
+const featuredKeys = new Set((featured?.items ?? []).map(featuredKey));
+const feed = await getHomepageFeed(featuredKeys);
 const heroImage = feed.hero[0]?.story;
 
 /*
   ─── ONE STORY, ONE PLACE ──────────────────────────────────────────────────
-  Dealt in page order, each section skipping what the ones above it show:
-  hero -> Featured -> Intel -> the rail. Keys are `video:<id>` or the link.
+  Featured chooses first, then hero -> Intel -> the rail. Each section skips
+  stories already claimed. Keys are `video:<id>` or the article link.
 */
 const heroKeys = new Set(
   feed.hero.map(({ story }) => (story.type === 'video' && story.videoId ? `video:${story.videoId}` : story.url)),
 );
 
-/* Featured mirrors /feed's featured shelf (src/data/homepage-featured.ts). */
-const featured = await getHomeFeatured(heroKeys);
-const featuredKeys = new Set((featured?.items ?? []).map(featuredKey));
 const taken = new Set([...heroKeys, ...featuredKeys]);
 
 /*

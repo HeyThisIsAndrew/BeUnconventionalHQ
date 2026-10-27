@@ -76,7 +76,9 @@ const EDITORIAL = [
   `_`-prefixed keys are Sanity's own system metadata (`_id`, `_rev`,
   `_updatedAt`), which is bookkeeping rather than editorial.
 */
-const FULLY_EDITORIAL_TYPES = new Set(['event', 'featuredBrand']);
+// Homepage settings have no synced facts either. Never let a fresher sync
+// silently restore an older mode or series during a data-file merge.
+const FULLY_EDITORIAL_TYPES = new Set(['event', 'featuredBrand', 'homeFeaturedSettings']);
 
 /*
   The UNION of both sides' fields, not just one side's. A field present on one

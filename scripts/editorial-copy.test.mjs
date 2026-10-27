@@ -99,8 +99,21 @@ test('a preview is short enough to be a standfirst, and never cut mid-word', () 
       preview.length <= EDITORIAL_PREVIEW_MAX + 4,
       `"${String(item.title).slice(0, 40)}" preview is ${preview.length} chars`,
     );
-    assert.ok(!/\s\S{0,2}\.\.\.$/.test(preview), 'an ellipsis should not follow a stray fragment');
+    const full = editorialPreview(item, Number.MAX_SAFE_INTEGER);
+    if (preview.endsWith('...') && preview !== full) {
+      const prefix = preview.slice(0, -3);
+      assert.ok(full.startsWith(prefix), 'clipping must preserve the source text');
+      assert.match(full.slice(prefix.length, prefix.length + 1), /\s/,
+        `"${String(item.title).slice(0, 40)}" was cut inside a word: ${preview.slice(-40)}`);
+    }
   }
+});
+
+test('clipping preserves complete short words and removes partial longer words', () => {
+  const prefix = 'The question is who should we';
+  assert.equal(editorialPreview({ description: `${prefix} cast in this story` }, prefix.length), `${prefix}...`);
+  assert.equal(editorialPreview({ description: 'The question is who should welcome the cast' }, prefix.length),
+    'The question is who should...');
 });
 
 test('an article prefers its own standfirst over its body', () => {
