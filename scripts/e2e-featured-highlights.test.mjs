@@ -4,6 +4,10 @@
 import { launchTestBrowser } from './e2e-browser.mjs';
 import { startPreviewServer } from './e2e-server.mjs';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { mapSanityVideo } from '../src/lib/videos.ts';
+import { categorize } from '../src/data/categorize.js';
+import { pickHomeFeatured } from '../src/lib/homepage-featured-selection.ts';
 
 async function runTests() {
   console.log('Starting Astro preview server for Featured Highlights E2E...');
@@ -34,6 +38,26 @@ async function runTests() {
       console.log('  – No featured highlights component rendered, skipping');
       await page.close();
       return;
+    }
+
+    const docs = JSON.parse(fs.readFileSync(new URL('../src/data/videos.json', import.meta.url), 'utf8'));
+    const videos = docs.filter(doc => (doc.manualTypeOverride || doc._type) === 'video'
+      && (doc.contentStatus === 'published' || !doc.contentStatus))
+      .map(doc => mapSanityVideo(doc, { categorize })).filter(Boolean)
+      .map(video => ({ ...video, type: 'video' }));
+    const expected = pickHomeFeatured(videos);
+    if (expected?.kind === 'collection') {
+      const rendered = await page.evaluate(() => ({
+        lead: document.querySelector('.featured-world .fh-hero-card.active [data-video-id]')?.getAttribute('data-video-id'),
+        featuredIds: [...document.querySelectorAll('.featured-world [data-video-id]')].map(el => el.getAttribute('data-video-id')),
+        heroIds: [...document.querySelectorAll('.hero-acc [data-play-video]')].map(el => el.getAttribute('data-play-video')),
+        rows: document.querySelectorAll('.featured-world .fh-row').length,
+      }));
+      assert.equal(rendered.lead, expected.items[0].youtubeId, 'Featured must open on the newest series video');
+      assert.ok(rendered.rows <= 4, 'Featured must keep its four-item window');
+      assert.ok(rendered.heroIds.every(id => !rendered.featuredIds.includes(id)), 'the hero must not repeat a Featured video');
+      console.log('  ✓ Featured opens on the newest series video without repeating it in the hero');
+      passed++;
     }
 
     const result = await page.evaluate(async () => {

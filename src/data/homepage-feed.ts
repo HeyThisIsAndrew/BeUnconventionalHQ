@@ -8,7 +8,7 @@
  * (and where scripts/homepage-feed.test.mjs tests them).
  *
  * This file is only the binding to the real stores. (Featured is dealt
- * separately, from /feed's own featured shelf: src/data/homepage-featured.ts.)
+ * separately and reserved first: src/data/homepage-featured.ts.)
  */
 import { getAllArticles, getPublishedArticles, articleHref, isExternalArticle, type ArticleRecord } from '../lib/articles';
 import { pickFeaturedHighlights } from '../lib/featured-highlights';
@@ -37,10 +37,14 @@ const deps: MapDeps = {
   videoImage: (raw) => getCardImageSources(raw),
 };
 
-let cached: Promise<HomepageFeed> | null = null;
+const cache = new Map<string, Promise<HomepageFeed>>();
 
-export function getHomepageFeed(): Promise<HomepageFeed> {
-  cached ??= (async () => {
+export function getHomepageFeed(reservedKeys: ReadonlySet<string> = new Set()): Promise<HomepageFeed> {
+  const reserved = new Set(reservedKeys);
+  const key = JSON.stringify([...reserved].sort());
+  const cached = cache.get(key);
+  if (cached) return cached;
+  const result = (async () => {
     let articles: HomeStory[] = [];
     let videos: HomeStory[] = [];
     try {
@@ -68,9 +72,9 @@ export function getHomepageFeed(): Promise<HomepageFeed> {
       console.error('[homepage-feed] highlight picks unavailable:', err);
     }
     /* No `featured` world here: the Featured section mirrors /feed's own
-       featured shelf now (src/data/homepage-featured.ts), dealt after the
+       featured shelf now (src/data/homepage-featured.ts), reserved before the
        hero by the page. */
-    const feed = buildHomepageFeed(articles, videos, { heroPicks });
+    const feed = buildHomepageFeed(articles, videos, { heroPicks, reservedKeys: reserved });
     /* The hero's art (the page's LCP image) comes from our own origin; see
        firstPartyHeroSrcset(). Copies, so no other section's story changes. */
     return {
@@ -81,7 +85,8 @@ export function getHomepageFeed(): Promise<HomepageFeed> {
       })),
     };
   })();
-  return cached;
+  cache.set(key, result);
+  return result;
 }
 
 export type { HomeStory, HomepageFeed };
