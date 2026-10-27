@@ -228,12 +228,18 @@ test('a rail leads with what the collection above did not already show', () => {
     which is why the fix is an ORDER change and not a filter: the items stay in
     all four rails, they just wait their turn.
   */
-  const collection = selectCollections(corpus)[0];
-  const members = corpus.filter((i) => inSeries(i, collection.name));
-  const shown = new Set(members.slice(0, RAIL_LIMIT));
+  // Fix the collision in the fixture. A real publish can change which series
+  // is selected or leads a rail; that must not erase this regression case.
+  const fixtureHubs = HUB_CATEGORY_ORDER.map(category => ({ slug: category, hubCategory: category }));
+  const fixture = [
+    { title: 'Already in the collection', date: '2026-10-03' },
+    { title: 'Unseen story', date: '2026-10-02' },
+    { title: 'Older unseen story', date: '2026-10-01' },
+  ].map(item => ({ ...item, hubs: [...HUB_CATEGORY_ORDER], topics: ['film', 'tv', 'games'] }));
+  const shown = new Set([fixture[0]]);
 
-  const before = buildRails(corpus, { hubs, matchesHub, hasTopic });
-  const after = buildRails(corpus, { hubs, matchesHub, hasTopic, alreadyShown: shown });
+  const before = buildRails(fixture, { hubs: fixtureHubs, matchesHub, hasTopic });
+  const after = buildRails(fixture, { hubs: fixtureHubs, matchesHub, hasTopic, alreadyShown: shown });
 
   const taxonomy = (list) => list.filter((r) => r.id !== 'latest');
   const leadsBefore = taxonomy(before).map((r) => r.items[0]);
@@ -253,7 +259,7 @@ test('a rail leads with what the collection above did not already show', () => {
     );
     const b = taxonomy(before)[i];
     const a = taxonomy(after).find((r) => r.id === b.id);
-    assert.equal(a.items.length, b.items.length, `${b.id} must keep its size`);
+    assert.deepEqual(new Set(a.items), new Set(b.items), `${b.id} must keep its membership`);
   }
 });
 
