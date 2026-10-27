@@ -4,6 +4,9 @@ export default defineType({
   name: 'featuredBrand',
   title: 'Featured Brand',
   type: 'document',
+  fieldsets: [
+    { name: 'details', title: 'Coverage overrides', options: { collapsible: true } },
+  ],
   fields: [
     defineField({
       name: 'title',
