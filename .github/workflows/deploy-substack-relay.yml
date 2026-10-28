@@ -61,18 +61,32 @@ jobs:
           import { fetchPostsRelay } from './scripts/substack-source.mjs';
           import { runArticleSync } from './scripts/sync-articles.mjs';
           const relayUrl = 'https://hq-substack-source-preview.heythisisandrewb.workers.dev/posts';
+          // Preview memory can live in different isolates. Pace its external
+          // requests too; production shares pacing in its Durable Object.
+          let nextRequestAt = 0;
+          const pacedFetch = async (url, timeoutMs = 100000) => {
+            const delay = nextRequestAt - Date.now();
+            if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay));
+            nextRequestAt = Date.now() + 11000;
+            return fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+          };
+          const request = async (url, options = {}) => {
+            const response = await pacedFetch(url, options.timeoutMs);
+            if (!response.ok) throw new Error(`Preview source returned HTTP ${response.status}`);
+            return response.text();
+          };
           for (let attempt = 0; attempt < 10; attempt++) {
-            const response = await fetch(relayUrl, { signal: AbortSignal.timeout(100000) });
+            const response = await pacedFetch(relayUrl);
             if (response.ok) break;
             if (response.status !== 404) throw new Error(`Preview returned HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`);
             if (attempt === 9) throw new Error('Preview route did not propagate');
             await new Promise(resolve => setTimeout(resolve, 5000));
           }
-          const { posts } = await fetchPostsRelay({ relayUrl });
+          const { posts } = await fetchPostsRelay({ relayUrl, request });
           console.log(`Cloud source verified ${posts.length} complete articles; newest: ${posts[0].title}; ${posts[0].postTags.length} tags; ${posts[0].body_html.length} body characters`);
-          const result = await runArticleSync({ execute: false, fetchPosts: () => fetchPostsRelay({ relayUrl }) });
+          const result = await runArticleSync({ execute: false, fetchPosts: () => fetchPostsRelay({ relayUrl, request }) });
           if (!result.ok) throw new Error('Article sync preview failed');
-          const poll = await fetch('https://hq-substack-source-preview.heythisisandrewb.workers.dev/poll', { signal: AbortSignal.timeout(60000) });
+          const poll = await pacedFetch('https://hq-substack-source-preview.heythisisandrewb.workers.dev/poll', 60000);
           const status = await poll.json();
           if (!status.ok || !['would-seed', 'would-dispatch', 'unchanged'].includes(status.action)) throw new Error(`Watcher preview failed: ${JSON.stringify(status)}`);
           console.log(`Watcher discovery verified: ${JSON.stringify(status)}`);
