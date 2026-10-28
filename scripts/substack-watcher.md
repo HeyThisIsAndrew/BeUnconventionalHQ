@@ -29,7 +29,7 @@ syncing an old snapshot and then waiting another hour for the article.
 ## Architecture and state
 
 - Worker: `hq-substack-source`, config `scripts/substack-relay.wrangler.jsonc`.
-- Cron: `*/5 * * * *`, UTC. Five-minute cadence has no PT daylight-saving shift.
+- Cron: `*/20 * * * *`, UTC. Twenty-minute cadence stays well inside the daily free-plan browser budget while keeping no PT daylight-saving shift.
 - State is in the **existing SQLite-backed Durable Object**, rather than a new
   KV namespace. #279 proposed KV; the sync fix already requires this shared
   object for stable upstream fetching and a global cache. Reusing it provides

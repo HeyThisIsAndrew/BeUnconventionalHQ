@@ -105,14 +105,26 @@ test('only a post that carried the outro is flagged as having one', () => {
   assert.equal(hasArticleOutro(BODY), false, 'a pre-convention post must not be retro-fitted');
 });
 
-test('the page gates the component on the strip, not on a second check', () => {
+test('an unlinked Substack outro (plain-text brand mentions without hrefs) is also stripped clean', () => {
+  const unlinked = `<hr />
+<h4><strong>Where Nerd Culture Gets Cinematic</strong></h4>
+<blockquote><p><strong>BE Unconventional HQ</strong> is a publication for fans who love the craft behind the stories.</p></blockquote>
+<p>If you want our full convention coverage, event photos, and articles delivered straight to your inbox, subscribe to our Substack. Don’t forget to check out the BE Unconventional HQ YouTube channel for our long-form videos and event recaps as well. I’ll see you there.</p>
+<h4><strong>BE YOURSELF. BE PASSIONATE. BE UNCONVENTIONAL.</strong></h4>`;
+  const stripped = stripArticleOutro(`${BODY}\n${unlinked}`);
+  assert.ok(!stripped.includes('Where Nerd Culture Gets Cinematic'));
+  assert.ok(!stripped.includes('BE YOURSELF'));
+  assert.ok(stripped.includes("The author's last paragraph."));
+});
+
+test('the page always places <ArticleOutro /> after stripping any Substack copy from the body', () => {
   const page = fs.readFileSync(path.join(repoRoot, 'src/pages/intel/[slug].astro'), 'utf8');
   assert.match(
     page,
-    /const hadOutro = bodyWithoutOutro !== dedupedBody/,
-    'the flag must come from the strip so the two cannot disagree',
+    /const bodyWithoutOutro = stripArticleOutro\(dedupedBody\)/,
+    'the Substack copy of the outro must be stripped before rendering',
   );
-  assert.match(page, /\{hadOutro && <ArticleOutro \/>\}/, 'the component must be gated');
+  assert.match(page, /<ArticleOutro \/>/, 'the component must be rendered on article pages');
 });
 
 test('an empty or missing body does not throw', () => {

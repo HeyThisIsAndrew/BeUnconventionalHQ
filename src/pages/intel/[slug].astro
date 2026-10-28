@@ -112,18 +112,14 @@ const dedupedBody = stripCoverImageFromBody(article.bodyHtml, article.image);
 const bodyWithoutOutro = stripArticleOutro(dedupedBody);
 
 /*
-  ─── ONLY POSTS THAT ACTUALLY CARRIED IT GET IT BACK ────────────────────────
+  ─── ALWAYS PLACE THE STANDARD OUTRO AT THE FOOTER ──────────────────────────
 
-  The component renders where the strip found something to remove, so a post
-  written before this convention stays exactly as it was published rather than
-  being retro-fitted with a closing section its author never wrote.
-
-  Derived from the strip rather than checked separately: the two can never
-  disagree about whether a post has an outro, because it is the same answer
-  asked once. A post that gains one on its next sync gains the component with
-  it, automatically.
+  <ArticleOutro /> is always placed at the bottom of every article page, and
+  stripArticleOutro() above ensures that if the author also included the
+  standard outro in the Substack post (with or without links), the raw Substack
+  copy is removed first so it never renders twice or enters the contents rail.
 */
-const hadOutro = bodyWithoutOutro !== dedupedBody;
+const hadOutro = true;
 
 /*
   ─── BODY IMAGES: COMMITTED RENDITIONS, NEVER A LIVE PROXY ──────────────────

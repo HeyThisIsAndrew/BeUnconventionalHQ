@@ -53,7 +53,7 @@
  */
 const MIN_OWN_LINKS = 2;
 
-const OWN_DOMAIN = /beunconventionalhq/gi;
+const OWN_DOMAIN = /be\s*unconventional\s*hq/gi;
 
 /** Trailing whitespace and empty paragraphs the strip can leave behind. */
 const TRAILING_EMPTY = /(?:\s|<p>\s*<\/p>|<p>&nbsp;<\/p>)+$/gi;
