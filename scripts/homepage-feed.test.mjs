@@ -176,6 +176,20 @@ test('hero category panels open on heroPicks, and LATEST stays the newest story 
   assert.equal(feed.hero.find((p) => p.key === 'latest').story.id, 'video:v2', 'LATEST is the newest left');
 });
 
+test('category panels prioritize category-featured stories over unfeatured picks or newer unfeatured stories', () => {
+  const articles = [
+    art(1, { category: 'Film', isoDate: '2026-10-26T12:00:00Z', featured: true }),
+    art(2, { category: 'Games', isoDate: '2026-10-28T12:00:00Z', editorial: { featured: true } }),
+  ];
+  const videos = [
+    vid(1, { category: 'Film', title: 'Newer Film Video', publishedAt: '2026-10-27T12:00:00Z' }),
+    vid(2, { category: 'Games', title: 'Older Games Hit', publishedAt: '2026-08-01T12:00:00Z' }),
+  ];
+  const feed = buildHomepageFeed(articles, videos, { heroPicks: ['video:v1', 'video:v2'] });
+  assert.equal(feed.hero.find((p) => p.key === 'film').story.id, 'article:g1', 'featured article wins Film over newer video in heroPicks');
+  assert.equal(feed.hero.find((p) => p.key === 'games').story.id, 'article:g2', 'featured article wins Games over high-view video in heroPicks');
+});
+
 test('pickFeaturedHighlights: featured first, distinct categories, best performer, newest article', () => {
   const v = (id, category, day, extra = {}) => ({ youtubeId: id, category, publishedAt: `2026-09-${day}T12:00:00Z`, ...extra });
   const videos = [

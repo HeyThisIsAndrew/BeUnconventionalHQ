@@ -51,6 +51,7 @@ export interface ArticleRecord {
     hidden?: boolean;
     sortWeight?: number;
   };
+  featured?: boolean;
 }
 
 const ALL: ArticleRecord[] = Array.isArray(snapshot) ? (snapshot as ArticleRecord[]) : [];
@@ -65,6 +66,7 @@ function applyEditorial(record: ArticleRecord): ArticleRecord {
     excerpt: e.excerpt ?? record.excerpt,
     image: e.image ?? record.image,
     category: e.category ?? record.category,
+    featured: e.featured ?? record.featured,
   };
 }
 

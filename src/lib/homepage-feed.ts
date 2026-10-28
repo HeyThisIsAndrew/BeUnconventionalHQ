@@ -146,6 +146,8 @@ export interface HomeStory {
   paragraphs: string[];
   /** Out-of-N score for reviews that state one. */
   score: string;
+  /** Manually or editorially featured. */
+  featured?: boolean;
 }
 
 /* ─── primitives ───────────────────────────────────────────────────────── */
@@ -248,6 +250,11 @@ export interface RawArticle {
   tags?: unknown;
   bodyHtml?: unknown;
   score?: { value?: unknown; best?: unknown } | null;
+  featured?: unknown;
+  editorial?: {
+    featured?: unknown;
+    category?: unknown;
+  };
 }
 
 export interface RawVideo {
@@ -262,6 +269,7 @@ export interface RawVideo {
   tags?: unknown;
   isShort?: unknown;
   isLive?: unknown;
+  featured?: unknown;
 }
 
 export interface MapDeps {
@@ -287,6 +295,7 @@ export function mapArticle(a: RawArticle, deps: MapDeps): HomeStory | null {
       : '';
   const t = toTime(a.isoDate);
   const slots = getDisplayTagSlots(a);
+  const featured = Boolean(a.featured || a.editorial?.featured);
   return {
     id: `article:${str(a.guid) || str(a.slug) || headline}`,
     category,
@@ -307,6 +316,7 @@ export function mapArticle(a: RawArticle, deps: MapDeps): HomeStory | null {
     matchText: [headline, ...strList(a.tags)].join(' ').toLowerCase(),
     paragraphs: strList(a.preview),
     score,
+    featured,
   };
 }
 
@@ -319,6 +329,7 @@ export function mapVideo(v: RawVideo, deps: MapDeps): HomeStory | null {
   const img = deps.videoImage(rawImage);
   const t = toTime(v.publishedAt);
   const slots = getDisplayTagSlots(v);
+  const featured = Boolean(v.featured);
   return {
     id: `video:${id}`,
     category: normalizeCategory(v.category),
@@ -339,6 +350,7 @@ export function mapVideo(v: RawVideo, deps: MapDeps): HomeStory | null {
     matchText: [headline, ...strList(v.youtubeTags), ...strList(v.tags)].join(' ').toLowerCase(),
     paragraphs: [],
     score: '',
+    featured,
   };
 }
 
@@ -486,7 +498,11 @@ export function buildHomepageFeed(
   const picked = new Set(Array.isArray(opts.heroPicks) ? opts.heroPicks : []);
   const inCat = (cat: HomeCategory) => (s: HomeStory) => free(s) && withArt(s) && s.category === cat;
   for (const cat of HOME_CATEGORIES) {
-    const story = claim(all.find((s) => picked.has(s.id) && inCat(cat)(s)) ?? all.find(inCat(cat)));
+    const story = claim(
+      all.find((s) => s.featured && inCat(cat)(s)) ??
+      all.find((s) => picked.has(s.id) && inCat(cat)(s)) ??
+      all.find(inCat(cat))
+    );
     if (story) hero.push({ key: catKey[cat], label: HERO_LABELS[catKey[cat]], story });
   }
   const latest = claim(all.find((s) => free(s) && withArt(s)));
