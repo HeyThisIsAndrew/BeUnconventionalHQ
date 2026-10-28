@@ -5,6 +5,19 @@ const FEED = 'https://beunconventionalhq.substack.com/feed';
 const STATE_KEY = 'watcher:published:v1';
 const ALERT_KEY = 'watcher:last-alert:v1';
 
+/** The public archive avoids RSS CDN delays; keep the existing canonical GUIDs. */
+export function watchArticlesFromPosts(posts) {
+  if (!Array.isArray(posts) || !posts.length) throw new Error('Substack archive returned no articles');
+  return posts.map(post => {
+    const url = new URL(post.canonical_url);
+    if (url.origin !== 'https://beunconventionalhq.substack.com' || !url.pathname.startsWith('/p/') ||
+        typeof post.title !== 'string' || !post.title.trim() || !Number.isFinite(Date.parse(post.post_date))) {
+      throw new Error('Incomplete article metadata in Substack archive');
+    }
+    return { guid: url.toString(), title: post.title.trim(), url: url.toString(), publishedAt: new Date(post.post_date).toISOString() };
+  }).sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
+}
+
 export function parseWatchFeed(xml) {
   const doc = new XMLParser({ ignoreAttributes: false, parseTagValue: false }).parse(xml);
   const items = doc.rss?.channel?.item;
@@ -38,12 +51,12 @@ export async function callGateway(env, payload) {
 
 /** Pure orchestration with injected storage/network. Scheduled ticks coalesce in the object. */
 export async function watchSubstack({
-  storage, requestFeed, refreshSource, dispatch, notify,
+  storage, requestFeed, requestArticles, refreshSource, dispatch, notify,
   now = Date.now(), dryRun = false, forceFailure = false,
 }) {
   try {
     if (forceFailure) throw new Error('Intentional watcher failure test. No content was changed.');
-    const articles = parseWatchFeed(await requestFeed(FEED));
+    const articles = requestArticles ? await requestArticles() : parseWatchFeed(await requestFeed(FEED));
     const previous = await storage.get(STATE_KEY);
     if (!previous) {
       if (!dryRun) await storage.put(STATE_KEY, { seen: articles.map(a => a.guid), seededAt: now });

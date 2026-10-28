@@ -119,21 +119,16 @@ test('mappers reject records with no title or no destination', () => {
   assert.equal(vid(1, { isShort: true }), null, 'the rail is long-form only');
 });
 
-test('no story appears in two sections', () => {
-  const articles = [1, 2, 3, 4, 5, 6, 7, 8].map((n) =>
-    art(n, { category: ['Film', 'TV', 'Games', 'Events'][n % 4], tags: n < 3 ? ['Lanterns'] : [] }),
-  );
-  const videos = [1, 2, 3, 4, 5, 6].map((n) => vid(n, { title: n < 3 ? `Lanterns ep ${n}` : `Video ${n}` }));
-  const feed = buildHomepageFeed(articles, videos, { featured: { title: 'Lanterns', match: 'lanterns' } });
-  const ids = [
-    ...feed.hero.map((p) => p.story.id),
-    feed.intel.lead?.id,
-    ...feed.intel.orbit.map((s) => s.id),
-    feed.featured?.lead.id,
-    ...(feed.featured?.items ?? []).map((s) => s.id),
-    ...feed.rail.map((s) => s.id),
-  ].filter(Boolean);
-  assert.equal(new Set(ids).size, ids.length, `duplicate in ${ids.join(', ')}`);
+test('latest-content shelves stay fresh independently of hero and Featured placement', () => {
+  const articles = [1, 2, 3, 4, 5, 6, 7, 8].map(n => art(n, { category: 'Film' }));
+  const videos = [1, 2, 3, 4, 5, 6].map(n => vid(n, { category: 'TV' }));
+  const feed = buildHomepageFeed(articles, videos, { reservedKeys: new Set(['video:v6', '/intel/post-8']) });
+  assert.equal(feed.intel.lead.id, 'article:g8');
+  assert.equal(feed.rail[0].id, 'video:v6');
+  for (const list of [feed.hero.map(p => p.story), [feed.intel.lead, ...feed.intel.orbit], feed.rail]) {
+    const ids = list.map(story => story.id);
+    assert.equal(new Set(ids).size, ids.length, 'a section must remain internally unique');
+  }
 });
 
 test('hero panels keep the fixed order; each takes its newest, LATEST the newest left', () => {
@@ -253,3 +248,30 @@ test('NEW lasts 24 hours from the publish time, and needs a real date', () => {
 });
 
 console.log(process.exitCode ? `FAILED (${passed} passed)` : `All ${passed} tests passed.`);
+
+
+test('consecutive same-day publications lead both latest shelves even when hero picks them', () => {
+  const articles = [art(1, { category: 'Film' })];
+  const videos = [vid(1, { category: 'TV' })];
+  for (let n = 2; n <= 4; n++) {
+    articles.push(art(n, { category: 'Film', isoDate: `2026-10-28T0${n}:00:00Z` }));
+    videos.push(vid(n, { category: 'TV', publishedAt: `2026-10-28T0${n}:30:00Z` }));
+    const feed = buildHomepageFeed([...articles, articles[0]], [...videos, videos[0]], {
+      heroPicks: [`article:g${n}`, `video:v${n}`], intelOrbit: 3, railLimit: 3,
+    });
+    assert.ok(feed.hero.some(p => p.story.id === `article:g${n}`));
+    assert.ok(feed.hero.some(p => p.story.id === `video:v${n}`));
+    assert.equal(feed.intel.lead.id, `article:g${n}`);
+    assert.equal(feed.rail[0].id, `video:v${n}`);
+    assert.ok(feed.intel.orbit.length <= 3);
+    assert.ok(feed.rail.length <= 3);
+    assert.equal(new Set(feed.rail.map(item => item.id)).size, feed.rail.length);
+  }
+});
+
+test('the latest article leads Intel even if it has no image', () => {
+  const newer = art(2, { image: '' });
+  const feed = buildHomepageFeed([art(1), newer], []);
+  assert.equal(feed.intel.lead.id, newer.id);
+  assert.equal(feed.intel.orbit[0].id, 'article:g1');
+});

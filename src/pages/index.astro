@@ -50,34 +50,26 @@ const featuredKeys = new Set((featured?.items ?? []).map(featuredKey));
 const feed = await getHomepageFeed(featuredKeys);
 const heroImage = feed.hero[0]?.story;
 
-/*
-  ─── ONE STORY, ONE PLACE ──────────────────────────────────────────────────
-  Featured chooses first, then hero -> Intel -> the rail. Each section skips
-  stories already claimed. Keys are `video:<id>` or the article link.
-*/
+/* Hero and Featured avoid repeats. The Intel and Watching shelves each
+   keep their newest content even when it also appears above. */
 const heroKeys = new Set(
   feed.hero.map(({ story }) => (story.type === 'video' && story.videoId ? `video:${story.videoId}` : story.url)),
 );
 
 const taken = new Set([...heroKeys, ...featuredKeys]);
 
-/*
-  The mini Intel magazine: the newest articles nothing above is showing.
-  Four: one rail tile each side of the feature plus the feature's own tile,
-  which is what keeps a MINIATURE of the spread from running 900px tall.
-*/
-const INTEL_MINI_SIZE = 4;
-const intelArticles = getArticleFeedItems().filter((a) => !taken.has(a.link)).slice(0, INTEL_MINI_SIZE);
+/* Use the builder's independently selected latest articles, in its order.
+   Looking up their original Feed records preserves the magazine's metadata. */
+const articleByUrl = new Map(getArticleFeedItems().map((article) => [article.link, article]));
+const intelArticles = [feed.intel.lead, ...feed.intel.orbit]
+  .filter(Boolean)
+  .map((story) => articleByUrl.get(story!.url))
+  .filter((article): article is NonNullable<typeof article> => !!article);
 
-/* The rail renders the FEED's own card (ContentCard), which takes the feed's
-   video records rather than HomeStory, so the rail's picks are looked up by
-   YouTube id, in the order the feed module chose them. The builder already
-   skips the hero; Featured's videos are skipped here. */
+/* Watching uses the same newest-first selection as the builder. These can
+   also appear in the hero or Featured; exclusions would hide new uploads. */
 const videoById = new Map((await getVideoItems()).map((v: any) => [v.youtubeId, v]));
-const railVideos = feed.rail
-  .filter((s) => !featuredKeys.has(`video:${s.videoId}`))
-  .map((s) => videoById.get(s.videoId))
-  .filter(Boolean);
+const railVideos = feed.rail.map((story) => videoById.get(story.videoId)).filter(Boolean);
 /*
   No preconnect to wsrv.nl. The hero's own `<link rel="preload">` is in the
   same <head>, one line above where Layout would print the preconnect, so the

@@ -103,3 +103,18 @@ Node 26 returned HTTP/2 GOAWAY/session error 11. Probes now run four at a time,
 timeout after eight seconds, and retry once. When both attempts fail, a known
 Short keeps its classification instead of becoming a regular video solely
 because it is longer than 61 seconds. Actual YouTube API failures remain fatal.
+
+## October 27 freshness repair
+
+RSS itself can remain stale in Substack's CDN for an hour after a publish. The
+source Worker now prefers the public archive/posts APIs and uses its scoped
+Browser Run binding when native cloud fetches are blocked. Discovery metadata
+and complete article payloads are validated separately; every imported article
+still requires its body and all tags. Only successful complete pages populate
+the shared aggregate cache. Browser pacing, a persisted daily budget and visible
+failure handling are documented in scripts/substack-watcher.md.
+
+Homepage Intel and Watching now select their latest eligible content separately
+from hero/Featured allocation. Cross-section appearance is allowed; each shelf
+is internally unique and ordered by full publication timestamp. The Featured
+series/mixed choice and four-episode rolling window remain in place.

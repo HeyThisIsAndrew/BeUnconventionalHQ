@@ -1,4 +1,4 @@
-# CI: unit tests + production build + Lighthouse gate on every push and PR.
+# CI: unit tests + production build + Lighthouse gate on main and every PR.
 #
 # Why these jobs cover what matters:
 # - `npm test` runs the offline suites (events date helpers, live-status,
@@ -17,8 +17,15 @@ name: CI
 
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+# Private-repo minutes are limited. PR updates replace obsolete runs, and a
+# branch with a PR no longer starts a second identical push run.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -126,6 +133,9 @@ jobs:
           if [ ! -f seo-audit.sarif ]; then echo '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"astro-seo-audit"}},"results":[]}]}' > seo-audit.sarif; fi
 
       - name: Upload SEO SARIF
+        # Private personal repos do not have the public code-scanning service.
+        # Keep the actual SEO gate and both downloadable reports below.
+        if: github.event.repository.private != true
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: seo-audit.sarif
@@ -139,7 +149,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: seo-audit-report
-          path: seo-report.html
+          path: |
+            seo-report.html
+            seo-audit.sarif
           retention-days: 14
 
 

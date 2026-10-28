@@ -54,7 +54,7 @@ test('the latest four videos stay ahead of articles in the selected series', () 
     ['episode-6', 'episode-5', 'episode-4', 'episode-3']);
 });
 
-test('Featured reservations survive both new releases without duplication in hero or rail', () => {
+test('Featured reservations protect hero variety without making Watching stale', () => {
   for (const latest of [6, 7, 8]) {
     const uploads = Array.from({ length: latest }, (_, i) => episode(i + 1));
     const featured = pickSeries(uploads);
@@ -65,21 +65,22 @@ test('Featured reservations survive both new releases without duplication in her
       reservedKeys, heroPicks: [`video:episode-${latest}`],
     });
     assert.ok(feed.hero.length > 0, 'the hero must choose another available story');
-    for (const item of [...feed.hero.map(panel => panel.story), ...feed.rail]) {
+    for (const item of feed.hero.map(panel => panel.story)) {
       assert.ok(!reservedKeys.has(`video:${item.videoId}`), 'a Featured item was claimed again');
     }
     assert.equal(featured.items[0].youtubeId, `episode-${latest}`);
+    assert.equal(feed.rail[0].videoId, `episode-${latest}`, 'Watching keeps the newest episode too');
   }
 });
 
-test('article link reservations also protect the hero and Intel sections', () => {
+test('article reservations protect the hero while Intel retains the latest article', () => {
   const article = mapArticle({ guid: 'reserved', slug: 'reserved', title: 'Reserved article', category: 'Film',
     isoDate: '2026-10-27T18:00:00Z', image: 'https://images.test/article.jpg', bodyHtml: '<p>Article</p>' }, deps);
   const feed = buildHomepageFeed([article], [mapVideo(episode(1), deps)], {
     reservedKeys: new Set(['/intel/reserved']),
   });
   assert.ok(feed.hero.every(panel => panel.story.id !== article.id));
-  assert.equal(feed.intel.lead, null);
+  assert.equal(feed.intel.lead.id, article.id);
   assert.deepEqual(feed.intel.orbit, []);
 });
 
