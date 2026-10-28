@@ -1,7 +1,24 @@
-# Private repository operation
+# Repository privacy and GitHub Actions billing
 
-HeyThisIsAndrew/BeUnconventionalHQ was changed from public to private on
-October 27, 2026 (October 28 UTC), at the owner's request.
+HeyThisIsAndrew/BeUnconventionalHQ was briefly switched from public to private on
+October 27, 2026 (October 28 UTC), and then restored to public after verifying
+the impact on GitHub Actions.
+
+## Why the repository remains public for now
+
+Immediately after switching visibility to private, GitHub Actions blocked every
+workflow job (including PR CI run `40625898061`, scheduled YouTube syncs
+`40635442555` and `40635567118`, and scheduled Instagram sync `40640067101`) with:
+
+> `The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings`
+
+Public repositories receive free GitHub Actions runner minutes, whereas private
+repositories require available private-repo minutes and an active GitHub billing
+method/spending limit. Returning the repository to public immediately restores
+CI, scheduled content syncs (Substack, YouTube, Instagram), and production
+deployments. Before making the repository private again in the future, verify
+that **Settings → Billing & plans** on the GitHub account has active payment and
+sufficient Actions spending limits for hourly syncs and deploys.
 
 ## Public website hosting
 
@@ -10,40 +27,26 @@ The source verification workflow confirmed that Cloudflare's custom-hostname
 registry binds `beunconventionalhq.com` to this Worker. The obsolete GitHub Pages
 custom-domain claim was cleared before changing repository visibility. No DNS
 records or Cloudflare website bindings were changed. The homepage and
-`/api/live-status.json` continued returning HTTP 200 after the change.
+`/api/live-status.json` continued returning HTTP 200 throughout.
 
 ## GitHub Actions and reports
-
-Private repositories use the owner's included Actions minutes and storage,
-with overage/budget behavior controlled by GitHub billing settings. The connected
-credentials do not expose the account's billing plan; no plan or spending limit
-was changed.
 
 CI now runs for main pushes, pull requests and manual workflow dispatches.
 A PR update cancels an obsolete run instead of starting duplicate push/PR suites.
 The actual unit, type, build, SEO and browser gates remain enforced.
 
-The SEO SARIF upload to GitHub's security dashboard is public-repo-only because
-private personal repositories do not have that code-scanning feature. Both SARIF
-and HTML reports remain available as private workflow artifacts, and the SEO
-baseline still blocks regressions. Cloudflare deployment and content sync use
-repository secrets and authenticated APIs, rather than public source downloads.
+The SEO SARIF upload to GitHub's security dashboard is guarded with
+`if: github.event.repository.private != true` so that if the repository is made
+private in the future (once Actions billing is enabled), the public-only code
+scanning upload is skipped cleanly while both SARIF and HTML reports remain
+available as workflow artifacts and the SEO baseline still blocks regressions.
 
 ## Connected apps
 
-The desktop's connected GitHub app returned 404 for this repository after the
-visibility change, while the authenticated GitHub CLI retained owner access.
-Grant that app access to the private repository through its GitHub connection
-settings when using connector-only features. No local personal token was copied
-to Cloudflare as a workaround. The existing runtime publication-dispatch token
-must continue to have Actions-write access to this repository; verify the real
-Substack/YouTube publishing path after the visibility change.
-
-## Side effects
-
-GitHub removes stars/watchers when converting public to private. The repository
-had one star, zero watchers and zero public forks at the time of the change.
-Previously downloaded copies are not made private by changing repository access.
+When the repository is private, any external GitHub App integrations must be
+granted private-repository access in their GitHub connection settings, and the
+runtime `GITHUB_DISPATCH_TOKEN` must retain Actions-write access to this
+repository.
 
 GitHub references:
 - https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility
