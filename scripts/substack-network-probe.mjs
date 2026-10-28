@@ -1,42 +1,19 @@
-/** Temporary connectivity diagnostics. Fixed public publication, no credentials. */
-import { parsePostHtml } from './substack-post-html.mjs';
-import { parseWatchFeed } from './substack-watcher.mjs';
+/** Isolated verification of the complete public Substack JSON transport. */
+import { renderPublicSubstack, browserTextDocument } from './substack-browser-source.mjs';
 export default {
   async fetch(request, env) {
-    const paths = ['https://beunconventionalhq.substack.com/feed'];
     const results = [];
-    for (const path of paths) {
-      try {
-        const response = await fetch(path, {
-          signal: AbortSignal.timeout(20000), redirect: 'manual',
-          headers: { Accept: '*/*', 'User-Agent': 'BeUnconventionalHQ-ArticleSync/1.0 (+https://beunconventionalhq.com)' },
-        });
-        const text = await response.text();
-        let posts;
-        try { const data = JSON.parse(text); if (Array.isArray(data)) posts = data.slice(0, 2).map(p => ({ title: p.title, tags: p.postTags?.length, body: p.body_html?.length })); } catch {}
-        if (response.ok && path.includes('/home/post/')) {
-          try { const post = parsePostHtml(text); posts = [{ id: post.id, title: post.title, tags: post.postTags?.length, body: post.body_html?.length }]; } catch (error) { posts = [{ error: error.message }]; }
-        }
-        results.push({ path, status: response.status, ray: response.headers.get('cf-ray'), retryAfter: response.headers.get('retry-after'), bytes: text.length, posts });
-      } catch (error) { results.push({ path, error: error.message }); }
-    }
-    for (const target of ['https://beunconventionalhq.substack.com/feed', 'https://beunconventionalhq.substack.com/p/the-batman-part-ii-why-soderbergh']) try {
+    for (const endpoint of ['archive', 'posts']) {
+      if (results.length) await new Promise(resolve => setTimeout(resolve, 11000));
+      const url = `https://beunconventionalhq.substack.com/api/v1/${endpoint}?limit=20&offset=0${endpoint === 'archive' ? '&sort=new' : ''}`;
       const started = Date.now();
-      const response = await env.BROWSER.quickAction('content', {
-        url: target,
-        rejectResourceTypes: ['image', 'media', 'font', 'stylesheet', 'script'],
-        gotoOptions: { waitUntil: 'domcontentloaded', timeout: 20000 },
-      });
-      const raw = await response.text();
-      let html = raw;
-      try { html = JSON.parse(raw).result ?? raw; } catch {}
-      let post;
       try {
-        if (target.endsWith('/feed')) { const feed = parseWatchFeed(html.match(/<rss\b[\s\S]*?<\/rss>/i)?.[0] ?? html); post = { count: feed.length, newest: feed[0] }; }
-        else { const p = parsePostHtml(html); post = { id: p.id, title: p.title, tags: p.postTags?.length, body: p.body_html?.length }; }
-      } catch (error) { post = { error: error.message, prefix: html.slice(0, 150) }; }
-      results.push({ target, browser: true, status: response.status, bytes: raw.length, seconds: (Date.now() - started) / 1000, post, error: response.ok ? undefined : raw.slice(0, 300) });
-    } catch (error) { results.push({ browser: true, error: error.message }); }
+        const html = await renderPublicSubstack(env.BROWSER, url);
+        const posts = JSON.parse(browserTextDocument(html));
+        results.push({ endpoint, seconds: (Date.now() - started) / 1000, count: posts.length,
+          newest: posts.slice(0, 2).map(p => ({ id: p.id, title: p.title, date: p.post_date, canonical: p.canonical_url, tags: p.postTags?.length, body: p.body_html?.length })) });
+      } catch (error) { results.push({ endpoint, seconds: (Date.now() - started) / 1000, error: error.message }); }
+    }
     return Response.json({ colo: request.cf?.colo, results });
   },
 };
