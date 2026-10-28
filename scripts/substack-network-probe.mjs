@@ -1,5 +1,6 @@
 /** Temporary connectivity diagnostics. Fixed public publication, no credentials. */
 import { parsePostHtml } from './substack-post-html.mjs';
+import { parseWatchFeed } from './substack-watcher.mjs';
 export default {
   async fetch(request, env) {
     const paths = ['https://beunconventionalhq.substack.com/feed'];
@@ -19,19 +20,22 @@ export default {
         results.push({ path, status: response.status, ray: response.headers.get('cf-ray'), retryAfter: response.headers.get('retry-after'), bytes: text.length, posts });
       } catch (error) { results.push({ path, error: error.message }); }
     }
-    try {
+    for (const target of ['https://beunconventionalhq.substack.com/feed', 'https://beunconventionalhq.substack.com/p/the-batman-part-ii-why-soderbergh']) try {
       const started = Date.now();
       const response = await env.BROWSER.quickAction('content', {
-        url: 'https://beunconventionalhq.substack.com/p/dune-part-three-final-trailer-denis',
-        rejectResourceTypes: ['image', 'media', 'font', 'stylesheet'],
+        url: target,
+        rejectResourceTypes: ['image', 'media', 'font', 'stylesheet', 'script'],
         gotoOptions: { waitUntil: 'domcontentloaded', timeout: 20000 },
       });
       const raw = await response.text();
       let html = raw;
       try { html = JSON.parse(raw).result ?? raw; } catch {}
       let post;
-      try { const p = parsePostHtml(html); post = { id: p.id, title: p.title, tags: p.postTags?.length, body: p.body_html?.length }; } catch (error) { post = { error: error.message }; }
-      results.push({ browser: true, status: response.status, bytes: raw.length, seconds: (Date.now() - started) / 1000, post, error: response.ok ? undefined : raw.slice(0, 300) });
+      try {
+        if (target.endsWith('/feed')) { const feed = parseWatchFeed(html.match(/<rss\b[\s\S]*?<\/rss>/i)?.[0] ?? html); post = { count: feed.length, newest: feed[0] }; }
+        else { const p = parsePostHtml(html); post = { id: p.id, title: p.title, tags: p.postTags?.length, body: p.body_html?.length }; }
+      } catch (error) { post = { error: error.message, prefix: html.slice(0, 150) }; }
+      results.push({ target, browser: true, status: response.status, bytes: raw.length, seconds: (Date.now() - started) / 1000, post, error: response.ok ? undefined : raw.slice(0, 300) });
     } catch (error) { results.push({ browser: true, error: error.message }); }
     return Response.json({ colo: request.cf?.colo, results });
   },
