@@ -71,8 +71,7 @@ export function getHomepageFeed(reservedKeys: ReadonlySet<string> = new Set()): 
     } catch (err) {
       console.error('[homepage-feed] highlight picks unavailable:', err);
     }
-    /* No `featured` world here: the Featured section mirrors /feed's own
-       featured shelf now (src/data/homepage-featured.ts), reserved before the
+    /* No `featured` world here: the Featured section uses its own CMS setting (src/data/homepage-featured.ts), reserved before the
        hero by the page. */
     const feed = buildHomepageFeed(articles, videos, { heroPicks, reservedKeys: reserved });
     /* The hero's art (the page's LCP image) comes from our own origin; see

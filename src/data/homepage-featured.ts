@@ -6,8 +6,9 @@
  * automatic fallback, so selecting a mix cannot silently promote a series.
  * Series mode supplies its logo and accent; mixed mode uses the site styling.
  *
- * Featured chooses first. Its four items are reserved from the hero and other
- * homepage sections, so the newest episode cannot be removed by the hero.
+ * Featured chooses first. Its four items are reserved from the hero,
+ * so the newest episode cannot be removed by the hero. Intel and Watching
+ * independently keep their latest content.
  * Items are feed records, the shape FeaturedHighlights renders.
  */
 import { getAllFeedItems } from '../lib/feed-items';

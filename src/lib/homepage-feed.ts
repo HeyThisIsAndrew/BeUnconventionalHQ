@@ -15,12 +15,9 @@
  * every section builder returns an empty list or `null` rather than throwing.
  * The components render nothing for an empty section.
  *
- * ─── ONE POOL, DEALT ONCE ──────────────────────────────────────────────────
- * Every section takes from the same pool through `claim()`, so no story
- * appears twice on the page. The deal order is the editorial priority:
- * the featured world is pinned by an editor, so it claims first; the newest
- * story overall is next (it is the LATEST panel); then one per category for
- * the hero; then Intel; then the rail.
+ * Hero and Featured avoid repeating each other's stories. Intel and Watching
+ * are independent latest-content shelves: appearing above must not remove
+ * their newest article or video. Each shelf stays internally unique.
  */
 
 import { getDisplayTagSlots } from './tags.ts';
@@ -398,6 +395,15 @@ export interface HomepageFeed {
 
 const newestFirst = (a: HomeStory, b: HomeStory) => toTime(b.publishDate) - toTime(a.publishDate);
 
+function uniqueNewest(stories: HomeStory[]): HomeStory[] {
+  const seen = new Set<string>();
+  return (Array.isArray(stories) ? stories : []).filter(Boolean).sort(newestFirst).filter((story) => {
+    if (seen.has(story.id)) return false;
+    seen.add(story.id);
+    return true;
+  });
+}
+
 function wordMatch(haystack: string, needle: string): boolean {
   const n = needle.trim().toLowerCase();
   if (!n) return false;
@@ -445,15 +451,15 @@ export function buildHomepageFeed(
         Featured Highlights mix, src/lib/featured-highlights.ts). */
     heroPicks?: string[];
     /** Featured chooses its four stories first. Reserve their video/link
-        keys so the hero, Intel and watching rail cannot claim them again. */
+        keys from the hero; latest-content shelves remain independent. */
     reservedKeys?: ReadonlySet<string>;
   } = {},
 ): HomepageFeed {
   const intelOrbit = opts.intelOrbit ?? 3;
   const railLimit = opts.railLimit ?? 10;
 
-  const safeArticles = (Array.isArray(articles) ? articles : []).filter(Boolean).sort(newestFirst);
-  const safeVideos = (Array.isArray(videos) ? videos : []).filter(Boolean).sort(newestFirst);
+  const safeArticles = uniqueNewest(articles);
+  const safeVideos = uniqueNewest(videos);
   const all = [...safeArticles, ...safeVideos].sort(newestFirst);
 
   const used = new Set<string>(all
@@ -510,26 +516,19 @@ export function buildHomepageFeed(
     }
   }
 
-  /* 3. Intel — the written side, articles only. */
-  const intelPool = safeArticles.filter(free);
-  const intelLead = claim(intelPool.find(withArt) ?? intelPool[0]);
-  const orbit = safeArticles
-    .filter(free)
-    .slice(0, intelOrbit)
-    .map(claim)
-    .filter((s): s is HomeStory => s !== null);
+  /* 3. Intel always starts with the newest article, including one already
+        shown by the hero or Featured. Do not skip a new post without art. */
+  const intelLead = safeArticles[0] ?? null;
+  const orbit = safeArticles.slice(1, intelOrbit + 1);
 
   /* 4. The pull quote between Intel and Featured leads INTO the featured
         world when it can, and otherwise quotes the Intel lead. It does not
         claim: quoting a story shown elsewhere is the point of a pull quote. */
   const quote = pickPullQuote([featured?.lead, intelLead, ...safeArticles].filter(Boolean) as HomeStory[]);
 
-  /* 5. The rail — long-form video, newest first. */
-  const rail = safeVideos
-    .filter(free)
-    .slice(0, railLimit)
-    .map(claim)
-    .filter((s): s is HomeStory => s !== null);
+  /* 5. Watching is the newest long-form video shelf, independently of the
+        hero and Featured. A new upload must always take its first slot. */
+  const rail = safeVideos.slice(0, railLimit);
 
   return { hero, intel: { lead: intelLead, orbit }, quote, featured, rail };
 }
