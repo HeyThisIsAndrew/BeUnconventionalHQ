@@ -5,8 +5,9 @@
 import { XMLParser } from 'fast-xml-parser';
 import { parsePostHtml } from './substack-post-html.mjs';
 import { verifyAutomationRequest } from '../src/lib/automation-auth.mjs';
-import { watchSubstack, callGateway } from './substack-watcher.mjs';
+import { watchSubstack, callGateway, watchArticlesFromPosts } from './substack-watcher.mjs';
 import { sendFailureEmail } from '../src/lib/automation-notifications.mjs';
+import { renderPublicSubstack, browserTextDocument } from './substack-browser-source.mjs';
 
 const PUBLICATION = 'https://beunconventionalhq.substack.com';
 const PAGE_SIZE = 20;
@@ -27,7 +28,7 @@ function validatePost(post, link) {
   return post;
 }
 
-export async function relayPosts(request, { fetchUpstream = fetch, loadPost, cache, waitUntil = () => {} } = {}) {
+export async function relayPosts(request, { fetchUpstream = fetch, loadPost, loadApiPage, cache, waitUntil = () => {} } = {}) {
   const url = new URL(request.url);
   if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers: { Allow: 'GET' } });
   if (url.pathname !== '/posts') return new Response('Not found', { status: 404 });
@@ -41,6 +42,24 @@ export async function relayPosts(request, { fetchUpstream = fetch, loadPost, cac
   const cached = await cache?.match(key);
   if (cached) return cached;
   try {
+    if (loadApiPage) {
+      const posts = await loadApiPage(Number(offset));
+      if (!Array.isArray(posts) || posts.length > PAGE_SIZE || (!posts.length && offset === '0')) {
+        throw new Error('Substack API returned an invalid article page');
+      }
+      const ids = new Set();
+      for (const post of posts) {
+        const link = new URL(post.canonical_url || `${PUBLICATION}/p/${post.slug}`);
+        validatePost(post, link);
+        if (link.origin !== PUBLICATION || !link.pathname.startsWith('/p/') || ids.has(String(post.id))) {
+          throw new Error('Substack API returned a foreign or repeated article');
+        }
+        ids.add(String(post.id));
+      }
+      const result = Response.json(posts, { headers: { 'Cache-Control': 'public, max-age=300', 'X-Content-Type-Options': 'nosniff' } });
+      if (cache) waitUntil(cache.put(key, result.clone()));
+      return result;
+    }
     const getText = async url => {
       const response = await fetchUpstream(url, {
         signal: AbortSignal.timeout(15000), redirect: 'manual',
@@ -128,11 +147,67 @@ export class ArticleSource {
     this.sleep = sleep;
     this.postQueue = Promise.resolve();
     this.postPending = new Map();
+    this.browserQueue = Promise.resolve();
     // workerd's fetch requires its global receiver. Calling a stored native
     // fetch as this.fetchUpstream(...) otherwise throws "Illegal invocation".
     this.nativeFetch = (env.FETCH_UPSTREAM ?? fetch).bind(globalThis);
     this.fetchUpstream = (url, options) => String(url) === `${PUBLICATION}/feed`
       ? this.getFeed(options) : this.nativeFetch(url, options);
+  }
+
+  async renderPublic(url) {
+    const render = this.browserQueue.then(async () => {
+      // Quick Actions on the free plan allow one request every ten seconds.
+      // Persist pacing so an object restart cannot create a burst.
+      const nextAt = await this.state.storage.get('source:browser-next:v1') ?? 0;
+      if (nextAt > this.now()) await this.sleep(nextAt - this.now());
+      const day = new Date(this.now()).toISOString().slice(0, 10);
+      const key = 'source:browser-budget:v1';
+      const previous = await this.state.storage.get(key);
+      const usedMs = previous?.day === day ? previous.usedMs : 0;
+      if (usedMs + 25000 > 500000) throw new Error('Substack browser recovery budget exhausted for today; snapshot preserved');
+      await this.state.storage.put('source:browser-next:v1', this.now() + 11000);
+      const started = Date.now();
+      try { return await renderPublicSubstack(this.env.BROWSER, url); }
+      finally { await this.state.storage.put(key, { day, usedMs: usedMs + Math.max(1000, Date.now() - started) }); }
+    });
+    this.browserQueue = render.catch(() => {});
+    return render;
+  }
+
+  async apiPage(endpoint, offset = 0) {
+    const archiveKey = 'source:archive:v1';
+    if (endpoint === 'archive') {
+      const cached = await this.state.storage.get(archiveKey);
+      if (cached && this.now() - cached.savedAt < 60000) return cached.posts;
+    }
+    const url = new URL(`/api/v1/${endpoint}`, PUBLICATION);
+    url.search = new URLSearchParams({ limit: '20', offset: String(offset), ...(endpoint === 'archive' ? { sort: 'new' } : {}) }).toString();
+    let posts;
+    try {
+      const cooldown = await this.state.storage.get('source:api-cooldown:v1');
+      if (cooldown?.until > this.now()) throw new Error('Substack native API is cooling down');
+      const response = await this.nativeFetch(url.toString(), {
+        signal: AbortSignal.timeout(15000), redirect: 'manual',
+        headers: { Accept: 'application/json', 'User-Agent': 'BeUnconventionalHQ-ArticleSync/1.0 (+https://beunconventionalhq.com)' },
+      });
+      if (!response.ok) {
+        if ([403, 429].includes(response.status)) {
+          await this.state.storage.put('source:api-cooldown:v1', { until: retryAfterUntil(response.headers.get('Retry-After'), this.now(), 300000) });
+        }
+        throw new Error(`Substack API returned HTTP ${response.status}`);
+      }
+      posts = await response.json();
+      if (!Array.isArray(posts) || (!offset && !posts.length)) throw new Error('Substack API returned an invalid page');
+    } catch {
+      posts = JSON.parse(browserTextDocument(await this.renderPublic(url.toString())));
+    }
+    if (!Array.isArray(posts) || (!offset && !posts.length)) throw new Error('Substack browser API returned an invalid page');
+    if (endpoint === 'archive') {
+      watchArticlesFromPosts(posts); // Reject invalid discovery before caching it.
+      await this.state.storage.put(archiveKey, { savedAt: this.now(), posts });
+    }
+    return posts;
   }
 
   async loadPost(link, item, getText) {
@@ -249,6 +324,9 @@ export class ArticleSource {
   async poll(options) {
     return watchSubstack({
       storage: this.state.storage, ...options,
+      // RSS can remain cached at Substack for an hour after a real publish.
+      // The public archive API supplies current metadata without body downloads.
+      requestArticles: this.env.BROWSER ? () => this.apiPage('archive').then(watchArticlesFromPosts) : undefined,
       requestFeed: async url => {
         const response = await this.fetchUpstream(url, {
           signal: AbortSignal.timeout(15000),
@@ -289,6 +367,7 @@ export class ArticleSource {
     };
     const result = await relayPosts(request, {
       cache, fetchUpstream: this.fetchUpstream,
+      loadApiPage: this.env.BROWSER ? offset => this.apiPage('posts', offset) : undefined,
       loadPost: (link, item, getText) => this.loadPost(link, item, getText),
       waitUntil: promise => writes.push(promise),
     });

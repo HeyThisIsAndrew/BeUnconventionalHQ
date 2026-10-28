@@ -1,18 +1,30 @@
 # Substack publish watcher (#279)
 
-The source Worker now also runs a five-minute Cron Trigger. It reads the public
-RSS once per ordinary tick. The source and watcher share a one-minute RSS
-cache so repeated manual checks cannot hammer the upstream. If the canonical
-feed is rate-limited, the same public feed with `sort=new` is tried and its
-working URL is retained for later polls. The first tick records a baseline without firing;
-later ticks compare article GUIDs and dispatch only newly seen articles. The
-hourly Actions schedule remains a safety net. Existing YouTube WebSub handling
-is unchanged.
+The source Worker runs a five-minute Cron Trigger. It checks the public archive
+API, whose current metadata avoids Substack's RSS cache lag (the RSS was still
+missing the Batman article over twenty minutes after the API published it).
+Discovery is shared for one minute across repeated checks. Existing canonical
+post URLs remain the watcher GUIDs, so the transition does not re-announce every
+previously seen post. The hourly Actions schedule remains a safety net.
 
-When a new article appears, the watcher first invalidates and warms the full
-article source cache. This prevents a fast trigger from syncing the old cached
-snapshot and then waiting another hour for the article. Only after preparation
-and GitHub acceptance succeed does it record the new GUIDs as dispatched.
+Native API fetching is tried first. When Substack blocks the cloud fetch, a
+scoped Cloudflare Browser Run binding loads the same public JSON endpoint in a
+browser. JSON displayed inside Chrome's escaped `pre` wrapper is decoded once,
+then parsed as data. Full import uses the posts API, preserving all article tags
+and bodies; it does not substitute RSS-only metadata. Browser pages reject
+images, media, fonts, stylesheets and external scripts.
+
+Browser requests are serialized and spaced at least eleven seconds apart,
+including across object restarts, to respect the free-plan request limit. A
+persisted daily wall-time budget below the free plan's ten minutes limits
+recovery use; exhausted budgets fail visibly and preserve the last snapshot.
+Aggregate article pages remain cached for five minutes. The binding does not
+need a new API token, paid plan upgrade, or a personal laptop process.
+
+When new articles appear, the watcher first invalidates and warms the full
+article source cache. Only after complete data and GitHub acceptance succeed
+does it record the new GUIDs as dispatched. This prevents a fast trigger from
+syncing an old snapshot and then waiting another hour for the article.
 
 ## Architecture and state
 
@@ -78,3 +90,17 @@ or manual Run workflow press.
 The newsletter Worker (#272), board watcher (#274), social distribution and
 scheduler remain separate follow-up work in #131. #278's real Kit API plan
 check gates newsletter implementation; do not automatically send broadcasts.
+
+## Cloud verification without publishing
+
+Run **Deploy Substack source relay** on the repair branch with **diagnose_source**
+enabled. It creates a temporary source Worker with the real source class and
+browser binding, verifies complete articles from GitHub's cloud network, runs
+article sync in dry-run mode, checks watcher discovery, then deletes the preview.
+It has no Cron, production gateway or email bindings. All offline source tests
+also run in the normal unit suite and before production source deployment.
+
+On October 27 (October 28 UTC), isolated cloud tests confirmed the fresh Batman
+article (ID 222431475), its 14 tags and its complete 20,417-character body via the
+public archive/posts browser paths. Native cloud article requests still returned
+429, so browser delivery is a required fallback rather than another native retry.
