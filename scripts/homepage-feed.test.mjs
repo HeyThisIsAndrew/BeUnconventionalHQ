@@ -191,6 +191,13 @@ test('pickFeaturedHighlights: featured first, distinct categories, best performe
   assert.deepEqual([...ids].sort(), ['games', 'la', 'new1', 'tv'].sort(), 'featured TV, newest Film, best Games (a new category beats a bigger Film hit), newest article');
   assert.equal(picks.find((p) => p.slug === 'la').link, '/intel/la');
   assert.deepEqual(pickFeaturedHighlights([], [], () => ''), [], 'empty stores, empty pick');
+
+  const featuredArticles = [
+    { slug: 'newest', title: 'Newest Article', isoDate: '2026-10-28T12:00:00Z' },
+    { slug: 'featured', title: 'Featured Article', isoDate: '2026-10-26T12:00:00Z', editorial: { featured: true } },
+  ];
+  const picksWithFeaturedArt = pickFeaturedHighlights(videos, featuredArticles, (a) => `/intel/${a.slug}`);
+  assert.ok(picksWithFeaturedArt.some((p) => p.slug === 'featured'), 'manually featured article is picked over a newer unfeatured article');
 });
 
 test('a category with no stories drops its panel instead of rendering empty', () => {

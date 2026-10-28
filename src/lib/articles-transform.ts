@@ -10,7 +10,7 @@
  */
 import { PUBLISH_TIME_ZONE } from './publish-timezone.js';
 import sanitizeHtml from 'sanitize-html';
-import { CATEGORIES } from '../data/constants.js';
+import { CATEGORIES, categoryTagAliases } from '../data/constants.js';
 
 /** Semantic tags only. No styling, no embeds, no scripts. */
 const ALLOWED_TAGS = [
@@ -244,9 +244,10 @@ function normalizeToken(value: string): string {
 export function mapCategory(tags: string[] = [], text = ''): string {
   const normalizedTags = tags.map(normalizeToken).filter(Boolean);
 
-  // 1. Exact tag match against a canonical category name (Film, TV, ...).
+  // 1. Exact tag match against a canonical category name or alias (Film, TV, Games/Gaming, ...).
   for (const category of CATEGORIES) {
-    if (normalizedTags.includes(normalizeToken(category))) return category;
+    const aliases = categoryTagAliases(category.toLowerCase()).map(normalizeToken);
+    if (normalizedTags.some((t) => aliases.includes(t))) return category;
   }
 
   // 2. Tag match against that category's keyword set.

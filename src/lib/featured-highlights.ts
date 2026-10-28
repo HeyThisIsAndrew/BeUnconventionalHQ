@@ -25,8 +25,9 @@ export function pickFeaturedHighlights(
   const videos = Array.isArray(allVideos) ? allVideos.filter(Boolean) : [];
   const articles = Array.isArray(allArticles) ? allArticles.filter(Boolean) : [];
 
-  // Pick the first published article
-  let article = articles.length > 0 ? articles[0] : null;
+  // Pick the first published article (prioritizing an article marked featured)
+  const featuredArticle = articles.find((a) => a.featured || a.editorial?.featured);
+  let article = featuredArticle ?? (articles.length > 0 ? articles[0] : null);
   if (article) {
     // Override the Substack link with the local Intel page link
     article = { ...article, link: articleHref(article) };
