@@ -748,5 +748,39 @@ test('a stage with no player still opens an article card', () => {
   }
 });
 
+/*
+  ─── THE TRAILER STANDS DOWN WHEN THE READER TAKES THE STAGE ───────────────
+
+  Antigravity test order, Lane A, confirmed on production 2026-10-31: a video
+  the reader started (from the Coverage grid OR the rail) was blanked ~42s
+  after the hub's trailer began, because the trailer's HUB_RUN_MS timer and
+  ENDED listener act on the shared frame and nothing disarmed them. Measured
+  offline with a stand-in player: old code cut all four runs (two templates,
+  grid and rail), the fix kept all four.
+*/
+test('a video the reader chose is never torn down by the trailer\'s timers', () => {
+  for (const rel of [
+    ['src', 'components', 'EventAnnouncement.astro'],
+    ['src', 'components', 'EventFeatured.astro'],
+    ['src', 'pages', 'featured', '[slug].astro'],
+  ]) {
+    const code = stripComments(readSrc(...rel));
+    const label = rel.join('/');
+
+    assert.match(code,
+      /stage\.addEventListener\('hub:stage-taken', \(\) => \{\s*clearAll\(\);\s*window\.removeEventListener\('message', onMessage\);\s*\}\);/,
+      `${label}: initHubStage must drop the trailer's timers and listener on 'hub:stage-taken', and do nothing else`);
+
+    const show = code.slice(code.indexOf('const show = (index: number) => {'));
+    const showBody = show.slice(0, show.indexOf('\n    };'));
+    assert.ok(showBody.indexOf("'hub:stage-taken'") !== -1 && showBody.indexOf("'hub:stage-taken'") < showBody.indexOf('about:blank'),
+      `${label}: the rail's show() must stand the trailer down before it unloads the frame`);
+
+    const play = code.slice(code.indexOf('const token = ++playToken;'));
+    assert.ok(play.indexOf("'hub:stage-taken'") !== -1 && play.indexOf("'hub:stage-taken'") < play.indexOf('frame.src = embedUrl('),
+      `${label}: the play path must stand the trailer down before loading the reader's video`);
+  }
+});
+
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);
 process.exit(failed === 0 ? 0 : 1);
