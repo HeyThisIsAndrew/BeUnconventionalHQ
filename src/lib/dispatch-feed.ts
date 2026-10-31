@@ -207,3 +207,37 @@ export function dispatchContentHtml(entry: DispatchEntry, imageUrl: string): str
   const summary = entry.summary ? `<p>${escapeHtml(entry.summary)}</p>` : '';
   return img + summary;
 }
+
+/** One item of /dispatch.json, the machine twin of /dispatch.xml. */
+export interface DispatchJsonItem {
+  /** Stable identity across builds: the item's absolute link. */
+  guid: string;
+  kind: 'article' | 'video';
+  title: string;
+  link: string;
+  summary: string;
+  /** ISO 8601. */
+  pubDate: string;
+  /** [content type, section?], the same pair the RSS item carries. */
+  categories: string[];
+  /** Absolute URL of the composed 1200x675 image (or the branded fallback). */
+  imageUrl: string;
+}
+
+/**
+ * /dispatch.json item. Workers (the social distribution engine, issue #282)
+ * read this rather than parse the XML; the fields are the RSS item's, so the
+ * two feeds can never disagree about a story.
+ */
+export function dispatchJsonItem(entry: DispatchEntry, imageUrl: string): DispatchJsonItem {
+  return {
+    guid: entry.link,
+    kind: entry.kind,
+    title: entry.title,
+    link: entry.link,
+    summary: entry.summary,
+    pubDate: entry.pubDate.toISOString(),
+    categories: entry.categories,
+    imageUrl,
+  };
+}

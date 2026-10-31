@@ -1,0 +1,37 @@
+// hq-social-blast: social distribution Worker. Runbook: scripts/social-blast.md.
+// Deployed by .github/workflows/deploy-social-blast.yml, never by hand-edited
+// dashboard settings (they would be overwritten on the next deploy).
+{
+  "name": "hq-social-blast",
+  "main": "worker.mjs",
+  "account_id": "b10b7bc3e6a0fd361ba0956c8aa7d307",
+  "compatibility_date": "2026-10-30",
+  "workers_dev": true,
+  "vars": {
+    // Brand configuration (issue #286): everything a clone for another brand changes.
+    "SITE_URL": "https://beunconventionalhq.com",
+    "BRAND_NAME": "BE Unconventional HQ",
+    "ALERT_EMAIL": "andrew@beunconventionalhq.com",
+    "ALERT_FROM": "noreply@beunconventionalhq.com",
+    "YOUTUBE_COMMUNITY_URL": "",
+    // DRY RUN UNTIL THE OWNER SAYS OTHERWISE. Comma list of platforms allowed
+    // to post for real: bluesky, threads, facebook. Empty = preview everything.
+    "LIVE_PLATFORMS": "",
+    "MAX_AGE_HOURS": "72",
+    "MAX_ITEMS_PER_RUN": "3",
+    "BLUESKY_SERVICE": "https://bsky.social",
+    "GRAPH_API_VERSION": "v24.0"
+  },
+  // Secrets (set by the deploy workflow from GitHub secrets, never committed):
+  //   WEBSUB_SECRET, RESEND_API_KEY (required)
+  //   BLUESKY_IDENTIFIER, BLUESKY_APP_PASSWORD
+  //   THREADS_USER_ID, THREADS_ACCESS_TOKEN
+  //   FB_PAGE_ID, FB_PAGE_ACCESS_TOKEN
+  "triggers": { "crons": ["*/15 * * * *"] },
+  "services": [{ "binding": "HQ_SITE", "service": "beunconventionalhq" }],
+  "durable_objects": {
+    "bindings": [{ "name": "BLAST_STATE", "class_name": "BlastState" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["BlastState"] }],
+  "observability": { "enabled": true }
+}

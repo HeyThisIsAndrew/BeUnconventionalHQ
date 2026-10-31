@@ -1,0 +1,79 @@
+# The social distribution Worker (hq-social-blast). Runbook: scripts/social-blast.md.
+# Deploys when its code or its templates change, never on a content sync.
+# Editing social-blast-worker/templates.json on GitHub is how the owner changes
+# post wording: this workflow puts the new wording live within minutes.
+name: Deploy social distribution Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - social-blast-worker/**
+      - src/lib/automation-auth.mjs
+      - .github/workflows/deploy-social-blast.yml
+  workflow_dispatch:
+
+concurrency:
+  group: social-blast-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+    steps:
+      - name: Check the required secrets are configured
+        id: ready
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WEBSUB_SECRET: ${{ secrets.WEBSUB_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$WEBSUB_SECRET" ] || [ -z "$RESEND_API_KEY" ]; then
+            echo "::notice::CLOUDFLARE_API_TOKEN, WEBSUB_SECRET and RESEND_API_KEY are all needed to deploy the social Worker. Not deploying. See scripts/social-blast.md."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.ready.outputs.ok == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.ready.outputs.ok == 'true'
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+      - if: steps.ready.outputs.ok == 'true'
+        run: npm ci
+      - name: Regression tests (templates included)
+        if: steps.ready.outputs.ok == 'true'
+        run: node --test scripts/social-blast.test.mjs
+      - name: Deploy
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler deploy --config social-blast-worker/wrangler.jsonc
+      # After the deploy, so the Worker exists. Only secrets that are set are
+      # sent: a platform not set up yet is simply left alone (the run reports
+      # it as missing credentials if it is ever switched live).
+      - name: Set the Worker's secrets
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WEBSUB_SECRET: ${{ secrets.WEBSUB_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BLUESKY_IDENTIFIER: ${{ secrets.BLUESKY_IDENTIFIER }}
+          BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
+        run: |
+          node --input-type=module -e '
+            const names = ["WEBSUB_SECRET","RESEND_API_KEY","BLUESKY_IDENTIFIER","BLUESKY_APP_PASSWORD","THREADS_USER_ID","THREADS_ACCESS_TOKEN","FB_PAGE_ID","FB_PAGE_ACCESS_TOKEN"];
+            process.stdout.write(JSON.stringify(Object.fromEntries(names.filter(n => process.env[n]).map(n => [n, process.env[n]]))));
+          ' | npx wrangler secret bulk --config social-blast-worker/wrangler.jsonc

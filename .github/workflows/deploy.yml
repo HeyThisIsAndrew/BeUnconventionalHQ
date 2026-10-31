@@ -170,3 +170,20 @@ jobs:
           done
           echo "::error::Deployed $SHA, but after 5 minutes the Worker still serves ${LIVE:-an unstamped build or no page at all}. Check the Worker's Deployments in Cloudflare."
           exit 1
+
+      # New content may be live: tell the social distribution Worker
+      # (social-blast-worker/, scripts/social-blast.md) so it announces it now
+      # rather than at its next 15-minute cron. NEVER fails the deploy: the
+      # cron catches anything a missed nudge would have, and the Worker being
+      # down or not deployed yet must not stop the site shipping.
+      - name: Nudge the social distribution Worker
+        if: steps.live.outputs.needed == 'true'
+        continue-on-error: true
+        env:
+          WEBSUB_SECRET: ${{ secrets.WEBSUB_SECRET }}
+        run: |
+          if [ -z "$WEBSUB_SECRET" ]; then
+            echo "::notice::WEBSUB_SECRET is not set; the social Worker's own cron will pick up new content."
+            exit 0
+          fi
+          node scripts/trigger-social-blast.mjs || echo "::warning::The social distribution Worker did not answer cleanly. Its cron retries within 15 minutes; see scripts/social-blast.md."

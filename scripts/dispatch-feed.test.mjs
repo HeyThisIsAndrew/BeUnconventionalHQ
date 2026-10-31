@@ -25,6 +25,7 @@ import {
   isDispatchVideoDoc,
   dispatchImageUrl,
   dispatchContentHtml,
+  dispatchJsonItem,
   articleEntry,
   videoEntry,
   DISPATCH_FEED_LIMIT,
@@ -110,6 +111,24 @@ test('content:encoded starts with the 1200x675 image, then the escaped summary',
   const html = dispatchContentHtml(e, 'https://beunconventionalhq.com/dispatch/images/abc.jpg');
   assert.match(html, /^<img src="https:\/\/beunconventionalhq\.com\/dispatch\/images\/abc\.jpg" width="1200" height="675" alt="">/);
   assert.match(html, /<p>Tom &amp; Jerry say &quot;hi&quot; &gt; 3<\/p>$/);
+});
+
+test('/dispatch.json items: the RSS fields, ISO date, link as guid', () => {
+  const e = articleEntry(article(), SITE);
+  const item = dispatchJsonItem(e, 'https://beunconventionalhq.com/dispatch/images/abc.jpg');
+  assert.deepEqual(item, {
+    guid: 'https://beunconventionalhq.com/intel/a-story',
+    kind: 'article',
+    title: 'A Story',
+    link: 'https://beunconventionalhq.com/intel/a-story',
+    summary: 'The standfirst.',
+    pubDate: '2026-09-10T12:00:00.000Z',
+    categories: ['Review', 'TV'],
+    imageUrl: 'https://beunconventionalhq.com/dispatch/images/abc.jpg',
+  });
+  // JSON-safe: survives a round trip unchanged (no Date objects).
+  assert.deepEqual(JSON.parse(JSON.stringify(item)), item);
+  assert.equal(dispatchJsonItem(videoEntry(video()), 'x').kind, 'video');
 });
 
 test('the fallback art is committed and 16:9', async () => {
