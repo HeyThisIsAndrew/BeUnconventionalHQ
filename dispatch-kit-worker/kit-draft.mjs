@@ -148,6 +148,65 @@ export function dedupeStories(fresh, maxStories, maxAlso) {
   return { main, also, left };
 }
 
+// ─── topics layout (one FEATURED + four topic slots) ──────────────────────
+
+/** Must match src/lib/dispatch-topics.ts (TOPICS, TOPIC_SLOTS, fillSlots). */
+export const TOPICS = ['film', 'tv', 'games', 'events'];
+export const TOPIC_SLOTS = 4;
+const SLOT_DEPTH = 4;
+
+export function fillSlots(byTopic, topics, slots = TOPIC_SLOTS) {
+  const picked = [];
+  for (let round = 0; picked.length < slots; round++) {
+    let any = false;
+    for (const topic of TOPICS) {
+      if (!topics.includes(topic)) continue;
+      const item = byTopic[topic]?.[round];
+      if (item === undefined) continue;
+      any = true;
+      if (picked.length < slots) picked.push(item);
+    }
+    if (!any) break;
+  }
+  return picked;
+}
+
+/** Each topic's candidates, newest first; Events falls back to the next upcoming event. */
+export function topicCandidates(stories, upcomingEvent) {
+  const byTopic = {};
+  for (const topic of TOPICS) byTopic[topic] = stories.filter((s) => s.topic === topic).slice(0, SLOT_DEPTH);
+  if (!byTopic.events.length && upcomingEvent?.latestHtml) byTopic.events = [{ ...upcomingEvent, isUpcomingEvent: true }];
+  return byTopic;
+}
+
+/**
+ * The slot rule written out as Kit Liquid, so Kit fills each reader's four
+ * slots from THEIR topics (the subscriber custom field KIT_TOPICS_FIELD,
+ * "film,tv"; empty means all four). Same turns as fillSlots(), unrolled:
+ * every candidate box appears once, guarded by "the reader chose its topic
+ * and fewer than four are in". Each box sits in {% raw %} so a headline can
+ * never be read as Liquid. A reader whose topics have nothing this week
+ * gets FEATURED alone, with no empty heading.
+ */
+export function personalizedSlots(byTopic, latestHeadingHtml, field = 'hq_topics') {
+  if (!/^[a-z][a-z0-9_]*$/.test(field)) throw new Error(`KIT_TOPICS_FIELD "${field}" is not a Kit field key`);
+  const out = [
+    `{% assign hq_t = subscriber.${field} | default: "" | downcase %}`,
+    `{% if hq_t == "" %}{% assign hq_t = "${TOPICS.join(',')}" %}{% endif %}`,
+    '{% assign hq_n = 0 %}',
+    '{% capture hq_slots %}',
+  ];
+  for (let round = 0; round < SLOT_DEPTH; round++) {
+    for (const topic of TOPICS) {
+      const item = byTopic[topic]?.[round];
+      if (!item) continue;
+      out.push(`{% if hq_t contains "${topic}" and hq_n < ${TOPIC_SLOTS} %}{% raw %}${item.latestHtml}{% endraw %}{% assign hq_n = hq_n | plus: 1 %}{% endif %}`);
+    }
+  }
+  out.push('{% endcapture %}', `{% if hq_n > 0 %}{% raw %}${latestHeadingHtml}{% endraw %}{{ hq_slots }}{% endif %}`);
+  return out.join('\n');
+}
+
 // ─── the plan ──────────────────────────────────────────────────────────────
 
 /**
@@ -179,8 +238,22 @@ export function planDraft(feed, state, env, now, { issueNumber = null, editorNot
     .filter((item) => Date.parse(item.pubDate) > since)
     .sort((a, b) => Date.parse(b.pubDate) - Date.parse(a.pubDate));
   if (!fresh.length) return null;
-  const { main: stories, also, left } = dedupeStories(fresh, maxStories, maxAlso);
-  const [featured, ...latest] = stories;
+  const topicsLayout = env.LAYOUT === 'topics';
+  const personalized = topicsLayout && env.PERSONALIZE === 'true';
+  let stories, also, left, featured, latest, byTopic = null;
+  if (topicsLayout) {
+    // One card per subject still applies; duplicates are simply not candidates.
+    const unique = dedupeStories(fresh, Infinity, Infinity);
+    [featured] = unique.main;
+    byTopic = topicCandidates(unique.main.slice(1), feed.upcomingEvent);
+    latest = personalized ? TOPICS.flatMap((t) => byTopic[t]) : fillSlots(byTopic, TOPICS);
+    stories = [featured, ...latest];
+    also = unique.also;
+    left = 0;
+  } else {
+    ({ main: stories, also, left } = dedupeStories(fresh, maxStories, maxAlso));
+    [featured, ...latest] = stories;
+  }
   const name = env.NEWSLETTER_NAME || 'Newsletter';
   const missing = missingCopy(featured, latest);
   const subtitle = featured.newsletter?.subtitle ?? '';
@@ -194,19 +267,29 @@ export function planDraft(feed, state, env, now, { issueNumber = null, editorNot
   if (note && feed.editorNoteHtml) {
     pieces.push(feed.editorNoteHtml.replace(EDITOR_NOTE_TOKEN, escapeHtml(note).replace(/\r?\n/g, '<br>')));
   }
-  pieces.push(joinBoxes(featured.featuredHtml, feed.latestHeadingHtml, latest.map((s) => s.latestHtml)));
-  const alsoRows = also.map((a) => a.item.alsoHtml).filter(Boolean);
+  if (personalized) {
+    pieces.push(featured.featuredHtml, personalizedSlots(byTopic, feed.latestHeadingHtml, env.KIT_TOPICS_FIELD || 'hq_topics'));
+  } else {
+    pieces.push(joinBoxes(featured.featuredHtml, feed.latestHeadingHtml, latest.map((s) => s.latestHtml)));
+  }
+  // ALSO THIS WEEK belongs to the classic layout; by topic, a duplicate is just not a candidate.
+  const alsoRows = topicsLayout ? [] : also.map((a) => a.item.alsoHtml).filter(Boolean);
   if (alsoRows.length && feed.alsoHeadingHtml) pieces.push(feed.alsoHeadingHtml + alsoRows.join(''));
 
   const description = [
     marker,
-    ...stories.map((s, i) => `${i ? '-' : 'FEATURED:'} ${s.title}`),
-    ...(also.length ? ['Also this week:', ...also.map((a) => `- ${a.item.title} (${a.reason} as "${a.sameAs.title}")`)] : []),
+    ...(topicsLayout
+      ? [`FEATURED: ${featured.title}`, ...TOPICS.map((t) => `${t.toUpperCase()}: ${byTopic[t].map((x) => x.isUpcomingEvent ? `${x.title} (upcoming event)` : x.title).join(' / ') || 'nothing this week'}`),
+        personalized ? `Slots: per reader, from the "${env.KIT_TOPICS_FIELD || 'hq_topics'}" field` : 'Slots: one per topic, everyone gets the same']
+      : stories.map((s, i) => `${i ? '-' : 'FEATURED:'} ${s.title}`)),
+    ...(also.length ? [topicsLayout ? 'Left out as duplicates:' : 'Also this week:', ...also.map((a) => `- ${a.item.title} (${a.reason} as "${a.sameAs.title}")`)] : []),
     ...(missing.length ? ['WRITE BEFORE SENDING:', ...missing.map((m) => `- ${m.title}: ${m.field}`)] : []),
     draftMarker(featured.guid),
   ].join('\n');
 
   return {
+    layout: topicsLayout ? (personalized ? 'topics-personalized' : 'topics') : 'classic',
+    byTopic,
     stories,
     also,
     left,

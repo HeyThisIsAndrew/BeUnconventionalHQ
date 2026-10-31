@@ -48,10 +48,20 @@
  * status message is an `aria-live` region so screen readers hear the result,
  * and `aria-busy` marks the form while the challenge and the request run.
  *
+ * ─── TOPICS ───────────────────────────────────────────────────────────────
+ * Four toggles under the address (Film, TV, Games, Events), all ON by
+ * default, inline rather than in a pop-up: a modal over a signup is one more
+ * thing to dismiss on a phone, and the toggles cost one row. They are real
+ * checkboxes in a fieldset, so a keyboard and a screen reader get them for
+ * free. Unchecking all four means "everything" (parseTopics), so the form
+ * can never subscribe someone to nothing. Readers change them later on
+ * /newsletter, through the link in every issue.
+ *
  * ─── HOW TO RESTYLE IT ────────────────────────────────────────────────────
  * `.newsletter-form` and friends in styles/modules/newsletter.css.
  */
 import { LABELS, MESSAGES } from '../data/content.js';
+import { TOPICS, TOPIC_LABELS } from '../lib/dispatch-topics.ts';
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
 
 /*
@@ -93,6 +103,18 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
       <span class="newsletter-spinner" aria-hidden="true"></span>
     </button>
   </div>
+
+  <fieldset class="newsletter-topics">
+    <legend class="newsletter-topics-legend">Send me</legend>
+    <div class="newsletter-topics-row">
+      {TOPICS.map((topic) => (
+        <label class="newsletter-topic">
+          <input type="checkbox" name="topics" value={topic} checked />
+          <span>{TOPIC_LABELS[topic]}</span>
+        </label>
+      ))}
+    </div>
+  </fieldset>
 
   {/* Mount point for the explicitly-rendered Turnstile widget. Empty in the
       HTML, and empty at rest in execute mode too: it only fills if Cloudflare
@@ -435,9 +457,12 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
       setStateForForm(form, 'submitting', 'Subscribing…');
 
       try {
+        const topics = [...form.querySelectorAll<HTMLInputElement>('input[name="topics"]:checked')]
+          .map((box) => box.value) as ('film' | 'tv' | 'games' | 'events')[];
         const { data, error } = await actions.subscribe({
           email,
           'cf-turnstile-response': token,
+          topics,
         });
 
         if (!error && data?.success) {

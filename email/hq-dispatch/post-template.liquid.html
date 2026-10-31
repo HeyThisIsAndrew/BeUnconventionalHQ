@@ -23,7 +23,8 @@
     post.newsletter, post.subtitle, post.lede, post.blurb
   The label reads "<first category> | <second category>", so the feed
   sends the content type first and the section second ("Review", "TV"
-  renders REVIEW | TV). A "Video" category turns the button into Watch now.
+  renders REVIEW | TV). A "Video" category turns the button into Watch now,
+  and "Upcoming" (the next event, when no event story ran) into Event details.
   Kit has NO documented image variable, so the image is read out of
   post.content: the feed must put a 1200x675 JPEG <img> as the FIRST
   element of content:encoded. The contract is in scripts/hq-dispatch.md.
@@ -43,7 +44,7 @@
   {% assign dx_cat = post.categories | first %}
   {% if dx_cat == blank %}{% assign dx_cat = 'From the HQ' %}{% elsif post.categories.size > 1 %}{% assign dx_cat = dx_cat | append: ' | ' | append: post.categories[1] %}{% endif %}
   {% assign dx_alt = post.title | strip_html | replace: '"', '&quot;' %}
-  {% if post.categories contains 'Video' %}{% assign dx_cta = 'Watch now' %}{% else %}{% assign dx_cta = 'Read the story' %}{% endif %}
+  {% if post.categories contains 'Video' %}{% assign dx_cta = 'Watch now' %}{% elsif post.categories contains 'Upcoming' %}{% assign dx_cta = 'Event details' %}{% else %}{% assign dx_cta = 'Read the story' %}{% endif %}
   {% comment %} The newsletter feed (/dispatch.json) hands over separate fields
      and flags itself with post.newsletter: subtitle and lede for FEATURED, a
      one-line blurb for LATEST, each written by the author and printed WHOLE.

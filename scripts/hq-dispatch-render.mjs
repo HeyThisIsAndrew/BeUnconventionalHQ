@@ -136,6 +136,7 @@ export async function renderEmail(posts) {
   return shell
     .replace('{{ message_content }}', () => body)
     .replace('{{ unsubscribe_url }}', '#unsubscribe')
+    .replace('{{ subscriber.email_address | url_encode }}', 'reader%40example.com')
     .replace('{{ subscriber_preferences_url }}', '#preferences');
 }
 

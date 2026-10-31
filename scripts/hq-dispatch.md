@@ -238,6 +238,57 @@ template > switch to the HTML editor > select all, paste the new
 (`/dispatch/header-v2-1200x400.png`) only loads once the site is deployed,
 so do this after the merge, not before.
 
+### By topic: one FEATURED, four slots, the reader's choice (branch feat/newsletter-topics)
+
+**The issue.** `LAYOUT: "topics"` (the default on this branch): FEATURED is
+the newest story and the same for everyone. Under it, four slots, one per
+topic: Film, TV, Games, Events, by each story's section. A topic with
+nothing this week hands its slot on to the next. Events with no story falls
+back to the **next upcoming event** on the calendar, as a card that says
+only what the event document says (name, dates, venue) and links to its page
+on the site. One card per subject still holds (dedupe), and there is no
+ALSO THIS WEEK in this layout. `LAYOUT: "classic"` keeps the old shape.
+
+**The reader's choice.** Readers pick topics in two places:
+- **On signup:** four toggles under the email box, inline (no pop-up), all on
+  by default. Leaving them all off means all four.
+- **On `/newsletter`:** the preference page. A reader types their address and
+  gets a signed link by email (48 hours); the link opens their toggles, Save,
+  and Unsubscribe. Knowing an address is not enough to change it. Every issue
+  links there ("Choose your topics", address filled in by Kit), next to
+  Kit's own Update preferences and one-click Unsubscribe, which stay.
+
+Topics live in the Kit subscriber custom field `hq_topics` ("film,tv", empty
+means all four). With `PERSONALIZE: "true"` the draft carries the slot rule
+as Kit Liquid, so Kit fills each reader's four slots from their topics, in
+turns (Film and TV gives Film, TV, Film, TV). FEATURED never changes.
+`scripts/dispatch-topics.test.mjs` proves the Liquid picks exactly what the
+rule picks for all 16 combinations.
+
+**Preview any reader:** `node scripts/dispatch-preview.mjs --out p.html --reader "film,tv"`.
+
+**IMPORTANT, found while building this: site signups do not reach Kit
+today.** The signup form saves addresses to Cloudflare KV only
+(`subscriber:<email>`). Until that changes, nobody who signs up on the site
+gets THE HQ DISPATCH from Kit. This branch adds the sync, OFF by default
+(`KIT_SYNC_SIGNUPS`), and the addresses already in KV still need a one-time
+import into Kit (not built: decide first whether they get Kit's
+confirmation email).
+
+**Setup, in order (nothing changes until each step is done):**
+1. Kit: create the custom field `hq_topics` (Kit > Grow > Subscribers >
+   any subscriber > Add a custom field, or the API). Optional: note the id
+   of a Kit form whose confirmation email new signups should get.
+2. Site Worker secrets (Cloudflare > Workers > beunconventionalhq >
+   Settings > Variables and Secrets): `NEWSLETTER_LINK_SECRET` (a long
+   random string), `KIT_API_KEY`, `KIT_FORM_ID` (optional),
+   `KIT_SYNC_SIGNUPS` = `true` when ready. `RESEND_API_KEY` is already there.
+3. The #278 check, extended: create a draft with `PERSONALIZE: "true"`, then
+   check in Kit that two test subscribers with different `hq_topics` see
+   different slots. If Kit does not render it, leave PERSONALIZE off: every
+   reader gets one per topic and nothing breaks.
+4. Re-upload `template.html` to Kit (the footer has the new topics link).
+
 ### Editorial opt-out (#275)
 
 Undecided, so the default stands: every published article and long-form

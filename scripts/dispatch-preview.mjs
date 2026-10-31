@@ -12,6 +12,11 @@
  *                                          labelled placeholder (preview only)
  *     --issue <n>                          the issue number to show (a real run
  *                                          counts it from Kit)
+ *     --layout classic|topics              default topics (one FEATURED + four
+ *                                          topic slots)
+ *     --reader "film,tv"                   render the PERSONALISED draft as Kit
+ *                                          would for a reader with these topics
+ *                                          ("" = chose nothing)
  *
  * The assembly is the Worker's own planDraft(); the markup is the site's
  * pre-rendered boxes. scripts/send-dispatch-test.mjs mails the same thing to
@@ -23,6 +28,7 @@ import { fileURLToPath } from 'node:url';
 import { articleEntry, dispatchKitPost } from '../src/lib/dispatch-feed.ts';
 import { createBoxRenderer } from '../src/lib/dispatch-boxes.ts';
 import { planDraft } from '../dispatch-kit-worker/kit-draft.mjs';
+import { Liquid } from 'liquidjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = 'https://beunconventionalhq.com';
@@ -40,7 +46,10 @@ function applyEditorial(record) {
  * Builds the preview. `images`: 'data' inlines every site image as a data URI
  * (opens offline, on a phone), 'cid' returns them as attachments for an email.
  */
-export async function buildPreview({ subtitles = {}, notePlaceholder = false, issueNumber = null, images = 'data', now = Date.now() } = {}) {
+export async function buildPreview({
+  subtitles = {}, notePlaceholder = false, issueNumber = null, images = 'data', now = Date.now(),
+  layout = 'topics', personalize = false, readerTopics = null,
+} = {}) {
   const feedPath = path.join(ROOT, 'dist/client/dispatch.json');
   if (!fs.existsSync(feedPath)) throw new Error('dist/client/dispatch.json is missing: run `npm run build` first.');
   const feed = JSON.parse(fs.readFileSync(feedPath, 'utf8'));
@@ -61,15 +70,22 @@ export async function buildPreview({ subtitles = {}, notePlaceholder = false, is
     }
   }
 
-  const plan = planDraft(feed, null, { NEWSLETTER_NAME: 'THE HQ DISPATCH' }, now, {
+  const env = { NEWSLETTER_NAME: 'THE HQ DISPATCH', LAYOUT: layout, PERSONALIZE: personalize ? 'true' : 'false' };
+  const plan = planDraft(feed, null, env, now, {
     issueNumber,
     editorNote: notePlaceholder ? NOTE_PLACEHOLDER : '',
   });
   if (!plan) throw new Error('No story in the last 7 days: nothing to preview.');
 
+  // A personalised draft is Liquid that Kit renders per reader. Render it the
+  // way Kit would for one reader (readerTopics, "" = chose nothing).
+  const content = personalize
+    ? await new Liquid().parseAndRender(plan.content, { subscriber: { hq_topics: readerTopics ?? '' } })
+    : plan.content;
   let html = read('email/hq-dispatch/template.html')
-    .replace('{{ message_content }}', () => plan.content)
+    .replace('{{ message_content }}', () => content)
     .replace('{{ unsubscribe_url }}', '#unsubscribe-preview')
+    .replace('{{ subscriber.email_address | url_encode }}', 'andrew%40beunconventionalhq.com')
     .replace('{{ subscriber_preferences_url }}', '#preferences-preview');
 
   // Site images: the new masthead is only on this branch, so serve every
@@ -101,12 +117,17 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
   const out = value('--out') ?? 'dispatch-preview.html';
   const { html, plan } = await buildPreview({
     subtitles, notePlaceholder: args.includes('--note-placeholder'), issueNumber: value('--issue') ? Number(value('--issue')) : null,
+    layout: value('--layout') ?? 'topics',
+    personalize: args.includes('--reader'),
+    readerTopics: value('--reader') ?? null,
   });
   fs.writeFileSync(out, html);
   console.log(`wrote ${out} (${Math.round(html.length / 1024)} KB)`);
   console.log(`${plan.issueMarker}\nSubject: ${plan.subject}\nPreview text: ${plan.previewText}`);
+  console.log(`Layout: ${plan.layout}`);
+  if (plan.byTopic) for (const [t, xs] of Object.entries(plan.byTopic)) console.log(`  ${t}: ${xs.map((x) => x.title + (x.isUpcomingEvent ? ' (upcoming event)' : '')).join(' / ') || '(nothing)'}`);
   console.log(`Main: ${plan.stories.map((s) => s.title).join(' / ')}`);
-  if (plan.also.length) console.log(`Also this week: ${plan.also.map((a) => `${a.item.title} (${a.reason} as ${a.sameAs.title})`).join(' / ')}`);
+  if (plan.also.length) console.log(`${plan.layout === 'classic' ? 'Also this week' : 'Left out as duplicates'}: ${plan.also.map((a) => `${a.item.title} (${a.reason} as ${a.sameAs.title})`).join(' / ')}`);
   if (plan.left) console.log(`Left out (over the cap): ${plan.left}`);
   if (plan.missing.length) console.log(`WRITE BEFORE SENDING:\n${plan.missing.map((m) => `  - ${m.title}: ${m.field}`).join('\n')}`);
 }
