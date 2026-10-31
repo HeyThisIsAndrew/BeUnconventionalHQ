@@ -600,6 +600,21 @@ export default defineConfig({
     */
     '/category/gaming': '/category/games',
     '/intel/topic/gaming': '/intel/topic/games',
+
+    /*
+      ─── PATHS PEOPLE GUESS ─────────────────────────────────────────────────
+      None of these ever existed as a page. They are the URLs a publicist,
+      a reader or another outlet types or links when they expect a
+      publication to have them, and each 404'd. Every destination is a real
+      page; the two with a fragment land on the section that answers the
+      question (`id="editorial-standards"` on the press kit, `id="masthead"`
+      on /about), so moving either id breaks the redirect quietly.
+    */
+    '/contact': '/collaborations',
+    '/privacy-policy': '/privacy',
+    '/ethics': '/collaborations/press-kit#editorial-standards',
+    '/author/andrew': '/author/andrew-baxter',
+    '/masthead': '/about#masthead',
   },
   // ClientRouter already swaps pages without a full reload; prefetching the
   // destination on hover/touch-start is what makes that swap feel instant
@@ -818,6 +833,13 @@ export default defineConfig({
           // rule: the sitemap advertises destinations, never sources.
           '/category/gaming',
           '/intel/topic/gaming',
+          // The guessed paths (see `redirects` above). Never pages, only
+          // forwards, and a forward is never a sitemap destination.
+          '/contact',
+          '/privacy-policy',
+          '/ethics',
+          '/author/andrew',
+          '/masthead',
           // Article-section pages with no articles at all. Computed, not
           // listed: the set changes as categories fill up. See
           // emptyArticleTopicPaths() above.

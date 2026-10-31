@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import assert from 'node:assert/strict';
 import {
+  findEventForArticle,
   findHubForItem,
   normalizeTag,
   compactTag,
@@ -606,6 +607,86 @@ test('shorts and live streams are excluded at every call site, visibly', () => {
     'the event page is merging shorts and live streams into coverage again, which is the ' +
       'inconsistency with /featured/[slug] this replaced',
   );
+});
+
+/*
+  ─── THE BACKLINK IS THE COVERAGE GRID, READ BACKWARDS ─────────────────────
+
+  An article covering an event carries "Part of BE Unconventional HQ's
+  coverage of <event>" (src/pages/intel/[slug].astro), and a homepage hero
+  panel showing it opens that event's hub. Both resolve the event with
+  findEventForArticle(). The promise of that link is that the reader finds
+  the article on the page it leads to, so the event must be one whose
+  COVERAGE grid lists it: never a scoring guess the grid disagrees with.
+*/
+test('an article links to the event whose coverage lists it, and to nothing else', () => {
+  const tga = { slug: { current: 'the-game-awards-2026' }, title: 'The Game Awards', youtubeSyncKeywords: ['the game awards 2026', 'tga2026'] };
+  const lacc = { slug: { current: 'la-comic-con-2026' }, title: 'L.A. Comic Con', youtubeSyncKeywords: ['lacc2026', 'la comic con 2026'] };
+
+  const piece = article({ slug: 'tga-tickets', tags: ['Gaming', 'The Game Awards 2026'] });
+  assert.equal(findEventForArticle(piece, [lacc, tga])?.slug.current, 'the-game-awards-2026');
+  assert.equal(findEventForArticle(article({ tags: ['Marvel'] }), [lacc, tga]), null,
+    'an article that covers no event gets no backlink');
+  assert.equal(findEventForArticle(undefined, [lacc, tga]), null);
+});
+
+test('an exclusion removes the backlink too, which scoring alone would not', () => {
+  /* findHubForItem() does not read excludeCoverage. Scored directly, this
+     retrospective would still point at the edition it was dropped from, and
+     the reader would land on a page that does not list it. */
+  const sdcc26 = { slug: { current: 'sdcc-2026' }, youtubeSyncKeywords: ['SDCC'], excludeCoverage: ['retro'] };
+  const retro = article({ slug: 'retro', tags: ['SDCC'] });
+
+  assert.equal(findHubForItem(retro, [sdcc26])?.slug.current, 'sdcc-2026', 'precondition: scoring alone still matches it');
+  assert.equal(findEventForArticle(retro, [sdcc26]), null);
+
+  const sdcc27 = { slug: { current: 'sdcc-2027' }, youtubeSyncKeywords: ['SDCC'] };
+  assert.equal(findEventForArticle(retro, [sdcc26, sdcc27])?.slug.current, 'sdcc-2027',
+    'with the exclusion in place, the edition that does list it wins');
+});
+
+test('a pin decides between two events that both list the article', () => {
+  const a = { slug: { current: 'aaa-2026' }, youtubeSyncKeywords: ['Expo 2026', 'expo2026'] };
+  const z = { slug: { current: 'zzz-2026' }, youtubeSyncKeywords: ['Expo 2026'], pinnedCoverage: ['expo-piece'] };
+  const piece = article({ slug: 'expo-piece', tags: ['Expo 2026', 'expo2026'] });
+  assert.equal(findEventForArticle(piece, [a, z])?.slug.current, 'zzz-2026');
+});
+
+test('on the real store, every backlink lands on a page that lists the article', () => {
+  const store = JSON.parse(readSrc('src', 'data', 'videos.json'));
+  const docs = Array.isArray(store) ? store : Object.values(store).flat();
+  const events = docs.filter((d) => d?._type === 'event');
+  const rawArticles = JSON.parse(readSrc('src', 'data', 'articles.json'));
+  const articles = Array.isArray(rawArticles) ? rawArticles : Object.values(rawArticles).flat();
+  assert.ok(events.length > 0 && articles.length > 0, 'could not read events or articles out of the store');
+
+  let linked = 0;
+  for (const a of articles) {
+    const event = findEventForArticle(a, events);
+    const listing = events.filter((e) => collectHubCoverage({ hub: e, videos: [], articles: [a] }).articleCount > 0);
+    if (!event) {
+      assert.equal(listing.length, 0, `${a.slug} is listed on ${listing.map((e) => e.slug.current)} but links to no event`);
+      continue;
+    }
+    linked += 1;
+    assert.ok(listing.includes(event), `${a.slug} links to ${event.slug.current}, whose coverage does not list it`);
+  }
+  assert.ok(linked > 0, 'no article in the store resolves to an event; the backlink would never render');
+});
+
+test('the article page and the homepage hero both resolve the event this way', () => {
+  const page = stripComments(readSrc('src', 'pages', 'intel', '[slug].astro'));
+  assert.match(page, /findEventForArticle\(article, getEventsLocal\(\)\)/,
+    'the article page must resolve its event through findEventForArticle over every event');
+  assert.match(page, /href=\{`\/events\/\$\{articleEventSlug\}`\}/, 'the backlink must point at /events/<slug>');
+
+  const binding = stripComments(readSrc('src', 'data', 'homepage-feed.ts'));
+  assert.match(binding, /findEventForArticle\(/, 'the homepage hero no longer resolves event coverage');
+  assert.match(binding, /href: `\/events\/\$\{slug\}`/);
+
+  const accordion = stripComments(readSrc('src', 'components', 'home', 'HeroAccordion.astro'));
+  assert.match(accordion, /panel\.event\?\.href \?\? story\.url/,
+    'an event-coverage panel must open the event hub, and any other article its own page');
 });
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);

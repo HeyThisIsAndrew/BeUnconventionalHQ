@@ -382,6 +382,11 @@ export interface HeroPanel {
   key: 'film' | 'tv' | 'games' | 'events' | 'latest';
   label: string;
   story: HomeStory;
+  /** The event hub an article panel is coverage of. Set by the store
+      binding (src/data/homepage-feed.ts); when present the panel opens the
+      event, not the article. `story.url` stays the article's own, because
+      the page de-duplicates its sections on it. */
+  event?: { href: string; title: string };
 }
 
 export interface FeaturedWorld {

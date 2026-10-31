@@ -278,6 +278,51 @@ test('the RSS feed is discoverable from every page', () => {
   assert.match(layout, /rel="alternate"[^>]*application\/rss\+xml/);
 });
 
+/*
+  ─── THE GUESSED PATHS ──────────────────────────────────────────────────────
+  /contact, /privacy-policy, /ethics, /author/andrew and /masthead are what
+  people type or link when they expect a publication to have them. None is a
+  page; each forwards. Two forward to a FRAGMENT, and a fragment is only as
+  good as the id at the other end: rename `id="masthead"` and /masthead still
+  301s, to the top of /about, with nothing anywhere saying so.
+*/
+const GUESSED_PATHS = {
+  '/contact': '/collaborations',
+  '/privacy-policy': '/privacy',
+  '/ethics': '/collaborations/press-kit#editorial-standards',
+  '/author/andrew': '/author/andrew-baxter',
+  '/masthead': '/about#masthead',
+};
+
+test('every guessed path forwards to its page', () => {
+  const redirectBlock = config.slice(config.indexOf('redirects: {'), config.indexOf('prefetch:'));
+  for (const [from, to] of Object.entries(GUESSED_PATHS)) {
+    assert.ok(
+      redirectBlock.includes(`'${from}': '${to}',`),
+      `${from} must redirect to ${to} in astro.config.mjs`,
+    );
+  }
+});
+
+test('a redirect into a fragment lands on an id that exists', () => {
+  const pageFor = {
+    '/collaborations/press-kit': 'src/pages/collaborations/press-kit.astro',
+    '/about': 'src/pages/about.astro',
+    '/collaborations': 'src/pages/collaborations.astro',
+  };
+  const targets = [...Object.values(GUESSED_PATHS), '/collaborations#contact'].filter((to) => to.includes('#'));
+  for (const to of targets) {
+    const [route, id] = to.split('#');
+    const source = fs.readFileSync(path.join(repoRoot, pageFor[route]), 'utf-8');
+    assert.ok(source.includes(`id="${id}"`), `${to}: ${pageFor[route]} no longer carries id="${id}"`);
+  }
+});
+
+test('the footer offers a way to contact the HQ', () => {
+  const footer = fs.readFileSync(path.join(repoRoot, 'src/components/Footer.astro'), 'utf-8');
+  assert.match(footer, /<a href="\/collaborations#contact">Contact<\/a>/);
+});
+
 if (failures > 0) {
   console.error(`\nseo-routing: ${failures} failing test(s)`);
   process.exit(1);
