@@ -79,7 +79,7 @@ Expected on production: 404 (not merged yet). Record exactly what each returned.
 A2. Fresh incognito window, desktop 1440x900, open `<commit preview>/ethics`. Record the
 final URL in the address bar and screenshot the top of the page. PASS =
 - the URL stays `/ethics` (no jump to `/collaborations/press-kit`);
-- the title "ETHICS POLICY" and "LAST UPDATED: OCTOBER 2026" are fully visible, **not
+- the title "ETHICS POLICY" and a small grey "Last updated October 2026" under it are fully visible, **not
   under the navigation bar**;
 - the page looks like `/privacy` (same dark card, heading sizes, red bullets).
 
@@ -119,7 +119,7 @@ B1. `/privacy`: has an "Advertising" section containing all of:
 - a link to `https://adssettings.google.com`, one to `https://www.aboutads.info/choices`,
   one to `https://policies.google.com/technologies/partner-sites`, all with
   `target="_blank"` and `rel` containing `noopener`;
-- "Last updated: October 2026"; the "PRIVACY POLICY" title visible, not under the navbar.
+- a small grey "Last updated October 2026" under the title; the "PRIVACY POLICY" title visible, not under the navbar.
 
 B2. `/ads.txt`: `curl -sS -D - <host>/ads.txt`. PASS = 200, `content-type: text/plain`,
 body is **comment lines only** (starting `#`), because no publisher ID is set yet.
