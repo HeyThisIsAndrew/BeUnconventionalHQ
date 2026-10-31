@@ -289,7 +289,6 @@ test('the RSS feed is discoverable from every page', () => {
 const GUESSED_PATHS = {
   '/contact': '/collaborations',
   '/privacy-policy': '/privacy',
-  '/ethics': '/collaborations/press-kit#editorial-standards',
   '/author/andrew': '/author/andrew-baxter',
   '/masthead': '/about#masthead',
 };
@@ -306,7 +305,6 @@ test('every guessed path forwards to its page', () => {
 
 test('a redirect into a fragment lands on an id that exists', () => {
   const pageFor = {
-    '/collaborations/press-kit': 'src/pages/collaborations/press-kit.astro',
     '/about': 'src/pages/about.astro',
     '/collaborations': 'src/pages/collaborations.astro',
   };
@@ -325,6 +323,16 @@ test('the footer links the press and contact page once, not twice', () => {
   assert.match(footer, /<a href="\/collaborations">Press \/ Media<\/a>/);
   assert.equal((footer.match(/href="\/collaborations[#"]/g) ?? []).length, 1,
     'the footer links /collaborations more than once');
+});
+
+test('/ethics is a real policy page, not a forward into the press kit', () => {
+  // It used to 301 to /collaborations/press-kit#editorial-standards, a print
+  // document's corner. The owner's call (2026-10-31): a page like /privacy.
+  const redirectBlock = config.slice(config.indexOf('redirects: {'), config.indexOf('prefetch:'));
+  assert.ok(!/^\s*'\/ethics':/m.test(redirectBlock), '/ethics is a redirect again; a redirect would shadow the page');
+  assert.ok(fs.existsSync(path.join(repoRoot, 'src/pages/ethics.astro')), 'src/pages/ethics.astro is missing');
+  const excluded = config.slice(config.indexOf('const excludedPaths = ['), config.indexOf('...EMPTY_ARTICLE_TOPIC_PATHS'));
+  assert.ok(!excluded.includes("'/ethics'"), '/ethics is a real page and belongs in the sitemap');
 });
 
 if (failures > 0) {

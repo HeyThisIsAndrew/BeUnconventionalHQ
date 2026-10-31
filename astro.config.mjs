@@ -606,13 +606,13 @@ export default defineConfig({
       None of these ever existed as a page. They are the URLs a publicist,
       a reader or another outlet types or links when they expect a
       publication to have them, and each 404'd. Every destination is a real
-      page; the two with a fragment land on the section that answers the
-      question (`id="editorial-standards"` on the press kit, `id="masthead"`
-      on /about), so moving either id breaks the redirect quietly.
+      page; /masthead lands on the section that answers the question
+      (`id="masthead"` on /about), so moving that id breaks it quietly.
+      /ethics is NOT here: it is a real page now (src/pages/ethics.astro),
+      not a forward into the press kit.
     */
     '/contact': '/collaborations',
     '/privacy-policy': '/privacy',
-    '/ethics': '/collaborations/press-kit#editorial-standards',
     '/author/andrew': '/author/andrew-baxter',
     '/masthead': '/about#masthead',
   },
@@ -837,7 +837,6 @@ export default defineConfig({
           // forwards, and a forward is never a sitemap destination.
           '/contact',
           '/privacy-policy',
-          '/ethics',
           '/author/andrew',
           '/masthead',
           // Article-section pages with no articles at all. Computed, not
