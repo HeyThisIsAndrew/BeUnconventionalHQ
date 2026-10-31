@@ -13,8 +13,6 @@
 import { getAllArticles, getPublishedArticles, articleHref, isExternalArticle, type ArticleRecord } from '../lib/articles';
 import { pickFeaturedHighlights } from '../lib/featured-highlights';
 import { getVideosUnified } from '../lib/videos-source';
-import { getEventsLocal } from '../lib/local-content';
-import { findEventForArticle } from '../lib/hub-coverage';
 import { localArticleImage } from '../lib/article-images';
 import { getCardImageSources } from '../lib/card-images';
 import { PUBLISH_TIME_ZONE } from '../lib/publish-timezone.js';
@@ -23,7 +21,6 @@ import {
   firstPartyHeroSrcset,
   mapArticle,
   mapVideo,
-  type HeroPanel,
   type HomepageFeed,
   type HomeStory,
   type MapDeps,
@@ -79,34 +76,12 @@ export function getHomepageFeed(reservedKeys: ReadonlySet<string> = new Set()): 
     const feed = buildHomepageFeed(articles, videos, { heroPicks, reservedKeys: reserved });
     /* The hero's art (the page's LCP image) comes from our own origin; see
        firstPartyHeroSrcset(). Copies, so no other section's story changes. */
-    /* A hero panel showing an article that is coverage of an event opens
-       that event's hub: the tile is a way into the event, and the article
-       is one tap further, in its COVERAGE grid. findEventForArticle() is
-       the event page's own matcher run backwards, so the hub always lists
-       the story the tile showed. Videos keep playing in place. */
-    const events = getEventsLocal();
-    let rawByUrl = new Map<string, ArticleRecord>();
-    try {
-      rawByUrl = new Map(getAllArticles().map((a) => [articleHref(a), a]));
-    } catch {
-      /* Articles already failed above and logged; no panel is an article. */
-    }
-    const eventFor = (story: HomeStory): HeroPanel['event'] => {
-      if (story.type !== 'article' || story.external) return undefined;
-      const event = findEventForArticle(rawByUrl.get(story.url), events);
-      const slug = event?.slug?.current;
-      return slug ? { href: `/events/${slug}`, title: String(event.title ?? '') } : undefined;
-    };
     return {
       ...feed,
-      hero: feed.hero.map((panel) => {
-        const event = eventFor(panel.story);
-        return {
-          ...panel,
-          ...(event ? { event } : {}),
-          story: { ...panel.story, imageSrcset: firstPartyHeroSrcset(panel.story.imageSrcset) },
-        };
-      }),
+      hero: feed.hero.map((panel) => ({
+        ...panel,
+        story: { ...panel.story, imageSrcset: firstPartyHeroSrcset(panel.story.imageSrcset) },
+      })),
     };
   })();
   cache.set(key, result);

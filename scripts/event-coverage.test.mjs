@@ -612,10 +612,9 @@ test('shorts and live streams are excluded at every call site, visibly', () => {
 /*
   ─── THE BACKLINK IS THE COVERAGE GRID, READ BACKWARDS ─────────────────────
 
-  An article covering an event carries "Part of BE Unconventional HQ's
-  coverage of <event>" (src/pages/intel/[slug].astro), and a homepage hero
-  panel showing it opens that event's hub. Both resolve the event with
-  findEventForArticle(). The promise of that link is that the reader finds
+  An article covering an event carries an "Official Event Hub" card in its
+  support rail (src/pages/intel/[slug].astro, HubCard kind="event"), resolved
+  with findEventForArticle(). The promise of that link is that the reader finds
   the article on the page it leads to, so the event must be one whose
   COVERAGE grid lists it: never a scoring guess the grid disagrees with.
 */
@@ -674,7 +673,7 @@ test('on the real store, every backlink lands on a page that lists the article',
   assert.ok(linked > 0, 'no article in the store resolves to an event; the backlink would never render');
 });
 
-test('the article page and the homepage hero both resolve the event this way', () => {
+test('the article page resolves the event this way and shows it as a hub card', () => {
   const page = stripComments(readSrc('src', 'pages', 'intel', '[slug].astro'));
   assert.match(page, /findEventForArticle\(article, getEventsLocal\(\)\)/,
     'the article page must resolve its event through findEventForArticle over every event');
@@ -690,13 +689,25 @@ test('the article page and the homepage hero both resolve the event this way', (
     'an event card must open /events/<slug>, a brand card /featured/<slug>');
   assert.match(card, /'Official Event Hub'/);
 
+});
+
+/*
+  ─── THE HOMEPAGE HERO OPENS THE ARTICLE IT NAMES ──────────────────────────
+
+  For one branch the hero sent an event-coverage article (The Game Awards,
+  L.A. Comic Con) to its event hub instead. The owner's call, 2026-10-31:
+  the panel is titled as the article, so it opens the article, and the
+  event is one tap further, through the Official Event Hub card in that
+  article's rail. A headline that leads somewhere else is confusing.
+*/
+test('the homepage hero opens the article it names, never the event behind it', () => {
   const binding = stripComments(readSrc('src', 'data', 'homepage-feed.ts'));
-  assert.match(binding, /findEventForArticle\(/, 'the homepage hero no longer resolves event coverage');
-  assert.match(binding, /href: `\/events\/\$\{slug\}`/);
+  assert.ok(!/findEventForArticle|\/events\//.test(binding),
+    'the homepage feed is rerouting hero stories to event hubs again');
 
   const accordion = stripComments(readSrc('src', 'components', 'home', 'HeroAccordion.astro'));
-  assert.match(accordion, /panel\.event\?\.href \?\? story\.url/,
-    'an event-coverage panel must open the event hub, and any other article its own page');
+  assert.ok(!/panel\.event/.test(accordion), 'a hero panel is reading an event link again');
+  assert.match(accordion, /: story\.url\}/, 'an article panel must link to its own story.url');
 });
 
 /*

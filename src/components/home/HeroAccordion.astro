@@ -81,10 +81,6 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
         const open = index === 0;
         const panelId = `hero-panel-${panel.key}`;
         const isVideo = story.type === 'video';
-        /* An article that is event coverage opens its event hub (see
-           HeroPanel.event); every other article opens itself. */
-        const articleHref = panel.event?.href ?? story.url;
-        const opensOffsite = !isVideo && !panel.event && story.external;
         return (
           <article
             class:list={['acc-panel', { 'is-open': open, 'acc-panel--article': !isVideo }]}
@@ -194,8 +190,8 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
                         from playing: no modal (Andrew). An article is its
                         ordinary link. */}
                     <a
-                      href={isVideo && story.videoId ? `/feed?play=${encodeURIComponent(story.videoId)}` : articleHref}
-                      {...(opensOffsite ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                      href={isVideo && story.videoId ? `/feed?play=${encodeURIComponent(story.videoId)}` : story.url}
+                      {...(!isVideo && story.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                     >
                       {story.headline}
                     </a>
@@ -214,7 +210,7 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
                   </button>
                 ) : (
                   <span class="acc-cta cta-button-primary" aria-hidden="true">
-                    {panel.event ? 'Explore Event' : `Read${story.readTime ? ` · ${story.readTime}` : ''}`}
+                    {`Read${story.readTime ? ` · ${story.readTime}` : ''}`}
                   </span>
                 )}
               </div>

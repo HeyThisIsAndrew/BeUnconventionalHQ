@@ -359,7 +359,7 @@ export function findHubForItem(item: any, hubs: any[]): any | null {
 /**
  * ─── WHICH EVENT AN ARTICLE IS COVERAGE OF ─────────────────────────────────
  *
- * The backlink from an article (and a homepage tile) to the event hub it
+ * The backlink from an article (its Official Event Hub card) to the event it
  * covers. It must be the exact inverse of the event page's COVERAGE grid:
  * an article links to an event only when that event's page lists it, or the
  * reader follows the link and cannot find the piece they came from.
