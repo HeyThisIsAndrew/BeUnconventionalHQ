@@ -26,11 +26,10 @@
  */
 import { getImage } from 'astro:assets';
 import ChalkIcon from './ChalkIcon.astro';
-import { HERO_SIZES, HERO_CLOSED_SIZES, newUntil } from '../../lib/homepage-feed';
+import HeroAccordionPanel from './HeroAccordionPanel.astro';
 import { categories } from '../../data/categories.js';
 import logoMark from '../../assets/logo-mark.webp';
 import type { HeroPanel } from '../../lib/homepage-feed';
-import { SOCIAL_ICONS } from '../../data/icons.js';
 
 interface Props {
   panels: HeroPanel[];
@@ -76,172 +75,25 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
     <h2 id="hero-acc-title" class="sr-only">Top stories</h2>
 
     <div class="hero-acc-track">
-      {panels.map((panel, index) => {
-        const { story } = panel;
-        const open = index === 0;
-        const panelId = `hero-panel-${panel.key}`;
-        const isVideo = story.type === 'video';
-        return (
-          <article
-            class:list={['acc-panel', { 'is-open': open, 'acc-panel--article': !isVideo }]}
-            data-acc-panel
-            data-key={panel.key}
-          >
-            <div class="acc-media" aria-hidden="true" data-video-wrapper={isVideo ? story.videoId : undefined}>
-              {story.image && (
-                <img
-                  src={story.image}
-                  srcset={story.imageSrcset || undefined}
-                  sizes={story.imageSrcset ? (open ? HERO_SIZES : HERO_CLOSED_SIZES) : undefined}
-                  alt=""
-                  width="1280"
-                  height="720"
-                  loading={open ? 'eager' : 'lazy'}
-                  fetchpriority={open ? 'high' : 'low'}
-                  decoding="async"
-                />
-              )}
-              {isVideo && (
-                <button
-                  type="button"
-                  class="acc-play-overlay"
-                  data-play-hover="true"
-                  data-play-video={story.videoId}
-                  aria-label="Play video"
-                  tabindex="-1"
-                >
-                  {/* Phones only (home.css): the site's one play button, the
-                      same markup every card uses (global-base.css): a bare
-                      triangle, dim at rest, white with the red glow on hover
-                      or tap. On a phone it replaces the Watch button. */}
-                  <span class="play-button-wrapper" aria-hidden="true">
-                    <span class="cinematic-play-button">
-                      <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32"><path d="M8 5v14l11-7z" /></svg>
-                    </span>
-                  </span>
-                </button>
-              )}
-            </div>
-
-            <div class="acc-body">
-              <button
-                type="button"
-                class="acc-trigger"
-                id={`${panelId}-trigger`}
-                aria-expanded={open ? 'true' : 'false'}
-                aria-controls={panelId}
-                data-acc-trigger
-              >
-                {art[panel.key] ? (
-                  <span class:list={['acc-art', { 'acc-art--logo': panel.key === 'latest' }]} aria-hidden="true">
-                    <img
-                      src={art[panel.key].src}
-                      srcset={art[panel.key].srcset}
-                      sizes={panel.key === 'latest' ? '(max-width: 767px) 100px, 170px' : '(max-width: 767px) 80px, 170px'}
-                      alt=""
-                      width={art[panel.key].width}
-                      height={art[panel.key].height}
-                      loading="lazy"
-                      decoding="async"
-                    />
-                  </span>
-                ) : (
-                  <ChalkIcon name={panel.key} size={30} class="acc-icon" />
-                )}
-                <span class="acc-label">{panel.label}</span>
-                {/* NEW for 24 hours after the story goes live, on any panel.
-                    Rendered hidden with its deadline; the script below shows
-                    it only while that is still ahead, because this page is
-                    built once and then served for days. */}
-                {newUntil(story.publishDate) && (
-                  <span class="acc-new" data-new-until={newUntil(story.publishDate)} hidden>New</span>
-                )}
-              </button>
-
-              {/* A SIBLING of .acc-content, not inside it: the copy block runs a
-                  transform animation on open, and a transformed ancestor would
-                  become the chips' containing block, dragging them along with
-                  the copy instead of pinning them to the panel's corner. */}
-              {/* The feed hero's metadata row (FeedSpotlightHero .hero-meta-tag):
-                  one plate per fact, WHOSE it is then WHAT it is, from the
-                  same getDisplayTagSlots() pair (SONY PICTURES | REACTION).
-                  It used to read the panel's category and "Video" (FILM |
-                  VIDEO), which the row label and the play button already say.
-                  A story with no brand falls back to its category, and that
-                  chip alone is aria-hidden: the trigger above names it. */}
-              <p class="acc-chips">
-                {story.brand ? (
-                  <span class="acc-chip acc-chip--brand">{story.brand}</span>
-                ) : (
-                  <span class="acc-chip acc-chip--brand" aria-hidden="true">{panel.label}</span>
-                )}
-                {story.kicker && <span class="acc-chip">{story.kicker}</span>}
-                {story.displayDate && <span class="acc-chip">{story.displayDate}</span>}
-              </p>
-
-              <div class="acc-content" id={panelId} role="region" aria-labelledby={`${panelId}-trigger`}>
-                {/* A FIXED-height box, bottom-aligned: every panel's copy block is
-                    the same height whatever the headline's length, so the
-                    metadata chips above never move between panels (Andrew). */}
-                <div class="acc-title-box">
-                  <h3 class="acc-headline">
-                    {/* A video goes to /feed?play=<id>, which arrives with it
-                        promoted into the feed's own player, cued and one tap
-                        from playing: no modal (Andrew). An article is its
-                        ordinary link. */}
-                    <a
-                      href={isVideo && story.videoId ? `/feed?play=${encodeURIComponent(story.videoId)}` : story.url}
-                      {...(!isVideo && story.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-                    >
-                      {story.headline}
-                    </a>
-                  </h3>
-                </div>
-                {/* Always rendered, even empty: its fixed two-line height is part
-                    of what keeps the chips in one place. */}
-                <p class="acc-deck">{story.deck}</p>
-                {/* A video's CTA plays it here, in the panel (the headline still
-                    deep-links to /feed). An article's is a label the headline's
-                    stretched link already covers, so it is not a second control:
-                    it used to be a <button> with no handler, which did nothing. */}
-                {isVideo ? (
-                  <button type="button" class="acc-cta cta-button-primary" data-play-video={story.videoId}>
-                    {`Watch${story.duration ? ` · ${story.duration}` : ''}`}
-                  </button>
-                ) : (
-                  <span class="acc-cta cta-button-primary" aria-hidden="true">
-                    {`Read${story.readTime ? ` · ${story.readTime}` : ''}`}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div class="acc-progress" aria-hidden="true"><span class="acc-progress-fill"></span></div>
-
-            {/* The inline player's door (hard rule 11): a "Watch on YouTube"
-                link for the video this panel plays, rendered for every video
-                panel and shown for as long as the player is up, never gated
-                on detecting a failure. The note under it is the enhancement:
-                it explains an onError, it does not rescue. A direct child of
-                the panel, so it stacks above the player. */}
-            {isVideo && story.videoId && (
-              <div class="acc-player-bar">
-                <button type="button" class="acc-player-close" data-close-video>Close video</button>
-                <p class="acc-embed-note" data-embed-note hidden>This video can't play here.</p>
-                <a
-                  class="hero-acc-watch-on-youtube"
-                  href={`https://www.youtube.com/watch?v=${encodeURIComponent(story.videoId)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <span class="yt-mark" aria-hidden="true" set:html={SOCIAL_ICONS.YouTube} /><span>Watch on YouTube</span>
-                </a>
-              </div>
-            )}
-          </article>
-        );
-      })}
+      {panels.map((panel, index) => (
+        <HeroAccordionPanel panel={panel} open={index === 0} art={art[panel.key]} />
+      ))}
     </div>
+
+    {/*
+      THE EVENTS TILE WHILE AN EVENT IS ON (owner's call, 2026-10-31). The
+      tile above is the article, always: the default, and what shows without
+      JavaScript. Each <template> is the same tile as the event, with that
+      event's dates; the script below swaps one in only while getEventStatus()
+      says it is live, so the tile goes back to the article by itself the day
+      after the event ends, with no rebuild. Outside the track so no CSS
+      child selector counts them. See src/lib/hero-live-event.ts.
+    */}
+    {panels.map((panel, index) => (panel.liveEvents ?? []).map((live) => (
+      <template data-acc-live={panel.key} data-start={live.start} data-end={live.end}>
+        <HeroAccordionPanel panel={{ ...panel, story: live.story, liveEvents: undefined }} open={index === 0} art={art[panel.key]} deferred />
+      </template>
+    )))}
 
     <button type="button" class="acc-toggle" data-acc-toggle aria-label="Pause rotation" hidden>
       <ChalkIcon name="pause" size={18} class="acc-toggle-pause" />
@@ -254,6 +106,7 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
   import { getYouTubeEmbedUrl } from '../../lib/youtube-url';
   import { playWhenReady } from '../../lib/youtube-start';
   import { HERO_SIZES } from '../../lib/homepage-feed';
+  import { pickLiveWindow } from '../../lib/hero-live-event';
 
   const DURATION = 7000;
   /* Phones in either orientation: rotation is off by default (the toggle
@@ -263,12 +116,34 @@ const art = Object.fromEntries(await Promise.all(panels.map(async (p) => [p.key,
 
   let teardown: (() => void) | null = null;
 
+  /*
+    The Events tile becomes the event while one is LIVE, today, in this
+    browser: getEventStatus() over the dates the build emitted on each
+    <template> (src/lib/hero-live-event.ts). Run before the panels are
+    collected, so rotation, keyboard and sharpening all see the tile that is
+    actually on screen. When no event is live, nothing happens and the article
+    tile the server rendered stays, which is how the tile goes back to the
+    article on its own once the event's last day has passed.
+  */
+  function swapInLiveEvents(root: HTMLElement) {
+    const templates = Array.from(root.querySelectorAll<HTMLTemplateElement>('template[data-acc-live]'));
+    const keys = [...new Set(templates.map((t) => t.dataset.accLive ?? ''))];
+    for (const key of keys) {
+      const mine = templates.filter((t) => t.dataset.accLive === key);
+      const live = pickLiveWindow(mine.map((t) => ({ start: t.dataset.start ?? '', end: t.dataset.end ?? '' })));
+      const current = root.querySelector<HTMLElement>(`[data-acc-panel][data-key="${key}"]`);
+      const replacement = live >= 0 ? mine[live].content.firstElementChild?.cloneNode(true) : null;
+      if (current && replacement instanceof HTMLElement) current.replaceWith(replacement);
+    }
+  }
+
   function init() {
     teardown?.();
     teardown = null;
 
     const root = document.querySelector<HTMLElement>('[data-hero-acc]');
     if (!root) return;
+    swapInLiveEvents(root);
     const panels = Array.from(root.querySelectorAll<HTMLElement>('[data-acc-panel]'));
     const triggers = panels.map((p) => p.querySelector<HTMLButtonElement>('[data-acc-trigger]')!);
     const toggle = root.querySelector<HTMLButtonElement>('[data-acc-toggle]');

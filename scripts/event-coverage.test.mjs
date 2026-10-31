@@ -701,13 +701,17 @@ test('the article page resolves the event this way and shows it as a hub card', 
   article's rail. A headline that leads somewhere else is confusing.
 */
 test('the homepage hero opens the article it names, never the event behind it', () => {
+  /* The old rule resolved each article tile's event (findEventForArticle) and
+     sent it there. Gone. The only way an event reaches a hero tile now is the
+     dated live-event override on the Events tile (scripts/hero-live-event.test.mjs). */
   const binding = stripComments(readSrc('src', 'data', 'homepage-feed.ts'));
-  assert.ok(!/findEventForArticle|\/events\//.test(binding),
-    'the homepage feed is rerouting hero stories to event hubs again');
+  assert.ok(!/findEventForArticle/.test(binding),
+    'the homepage feed is rerouting hero articles to their event hubs again');
 
   const accordion = stripComments(readSrc('src', 'components', 'home', 'HeroAccordion.astro'));
-  assert.ok(!/panel\.event/.test(accordion), 'a hero panel is reading an event link again');
-  assert.match(accordion, /: story\.url\}/, 'an article panel must link to its own story.url');
+  const panel = stripComments(readSrc('src', 'components', 'home', 'HeroAccordionPanel.astro'));
+  assert.ok(!/panel\.event\b/.test(accordion + panel), 'a hero panel is reading an event link again');
+  assert.match(panel, /: story\.url\}/, 'an article panel must link to its own story.url');
 });
 
 /*
