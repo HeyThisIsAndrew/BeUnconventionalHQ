@@ -310,7 +310,7 @@ test('a redirect into a fragment lands on an id that exists', () => {
     '/about': 'src/pages/about.astro',
     '/collaborations': 'src/pages/collaborations.astro',
   };
-  const targets = [...Object.values(GUESSED_PATHS), '/collaborations#contact'].filter((to) => to.includes('#'));
+  const targets = Object.values(GUESSED_PATHS).filter((to) => to.includes('#'));
   for (const to of targets) {
     const [route, id] = to.split('#');
     const source = fs.readFileSync(path.join(repoRoot, pageFor[route]), 'utf-8');
@@ -318,9 +318,13 @@ test('a redirect into a fragment lands on an id that exists', () => {
   }
 });
 
-test('the footer offers a way to contact the HQ', () => {
+test('the footer links the press and contact page once, not twice', () => {
+  // A separate Contact link went to the same page as Press / Media and
+  // orphaned a seventh item on a third row. The owner's call: one link.
   const footer = fs.readFileSync(path.join(repoRoot, 'src/components/Footer.astro'), 'utf-8');
-  assert.match(footer, /<a href="\/collaborations#contact">Contact<\/a>/);
+  assert.match(footer, /<a href="\/collaborations">Press \/ Media<\/a>/);
+  assert.equal((footer.match(/href="\/collaborations[#"]/g) ?? []).length, 1,
+    'the footer links /collaborations more than once');
 });
 
 if (failures > 0) {
