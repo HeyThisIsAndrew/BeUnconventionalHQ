@@ -22,8 +22,12 @@
  *   - Dry run unless CREATE_DRAFTS is "true": the owner gets the would-be
  *     draft by email and Kit is not touched.
  */
-const DEFAULTS = { MAX_STORIES: 6, FIRST_WINDOW_DAYS: 7, PREVIEW_CHARS: 90 };
+const DEFAULTS = { MAX_STORIES: 6, MAX_ALSO: 4, FIRST_WINDOW_DAYS: 7, PREVIEW_MAX: 140, NOTE_MAX: 600 };
 const KIT_API = 'https://api.kit.com/v4';
+/** Must match src/lib/dispatch-boxes.ts. */
+export const ISSUE_MARKER_TOKEN = '%%HQ_ISSUE_MARKER%%';
+export const EDITOR_NOTE_TOKEN = '%%HQ_EDITOR_NOTE%%';
+const MARKER_PREFIX = '[hq-dispatch newest=';
 
 /**
  * The whole of this Worker's "rendering": the site's pre-rendered pieces, in
@@ -34,19 +38,45 @@ export function joinBoxes(featuredHtml, latestHeadingHtml, latestHtml) {
   return featuredHtml + (latestHtml.length ? latestHeadingHtml + latestHtml.join('') : '');
 }
 
-export const draftMarker = (guid) => `[hq-dispatch newest=${guid}]`;
+export const draftMarker = (guid) => `${MARKER_PREFIX}${guid}]`;
 
 function positive(value, fallback) {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-/** Trims at a word to about `max` characters, with an ellipsis. */
-export function previewText(summary, max = DEFAULTS.PREVIEW_CHARS) {
-  const text = String(summary ?? '').replace(/\s+/g, ' ').trim();
+const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/**
+ * The inbox preview line: the featured story's own subtitle, whole, when it
+ * fits; else its first whole sentence that fits; else nothing (and the
+ * owner is told). Never cut mid-sentence.
+ */
+export function previewText(subtitle, max = DEFAULTS.PREVIEW_MAX) {
+  const text = String(subtitle ?? '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
   if (text.length <= max) return text;
-  const cut = text.slice(0, max - 1).replace(/\s+\S*$/, '').replace(/[\s,;:.]+$/, '');
-  return `${cut}…`;
+  const first = text.split(/(?<=[.!?])\s+/)[0];
+  return first.length <= max ? first : '';
+}
+
+/**
+ * The week line: "Week of November 2, 2026", the Monday of the run's week in
+ * the newsletter's time zone. Built from calendar parts, never by parsing a
+ * date string (hard rule 1).
+ */
+export function weekOf(now, timeZone = 'America/Los_Angeles') {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+    timeZone, year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short',
+  }).formatToParts(new Date(now)).map((p) => [p.type, p.value]));
+  const back = (['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(parts.weekday) + 7) % 7;
+  const monday = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day) - back));
+  return `Week of ${new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric', year: 'numeric' }).format(monday)}`;
+}
+
+export function issueMarker(now, issueNumber, env = {}) {
+  const week = weekOf(now, env.NEWSLETTER_TIMEZONE || 'America/Los_Angeles');
+  return issueNumber ? `Issue ${issueNumber} | ${week}` : week;
 }
 
 /** A feed without its pre-rendered boxes cannot make a draft: stop, never improvise markup. */
@@ -62,9 +92,86 @@ export function validateKitFeed(feed) {
   return feed;
 }
 
-/** The draft the feed calls for right now, or null when there is nothing new. */
-export function planDraft(feed, state, env, now) {
+// ─── dedupe, phase 1 (newsletter only) ─────────────────────────────────────
+
+/**
+ * Words that name a FORMAT, not a subject: "Godzilla Minus Zero | Review" and
+ * "Godzilla Minus Zero LA Premiere Reaction | ..." are both about Godzilla
+ * Minus Zero once these are set aside. Years are kept on purpose: The Game
+ * Awards 2026 and 2027 are different stories.
+ */
+const FORMAT_WORDS = /\b(?:reviews?|reactions?|premiere|la|los angeles|trailers?|teasers?|first look|breakdown|explained|recap|finale|season \d+|episode \d+|ep\.? ?\d+|s\d+e\d+|spoiler[- ]free|spoilers?|ending|analysis|interview|red carpet|live|official|full)\b/g;
+
+/**
+ * The subject of a headline: its part before the first " | " or ": ", minus
+ * format words. Two stories with the same non-empty subject in one issue are
+ * the same title.
+ */
+export function titleSubject(title) {
+  const head = String(title ?? '').toLowerCase().replace(/[‘’]/g, "'").split(/\s+\|\s*|:\s+/)[0];
+  return head.replace(FORMAT_WORDS, ' ').replace(/[^a-z0-9' ]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/** The story itself: a YouTube video id, else the link without query or trailing slash. */
+export function sourceKey(item) {
+  const link = String(item.link ?? item.guid ?? '');
+  const yt = link.match(/(?:v=|youtu\.be\/|\/shorts\/|\/embed\/)([\w-]{11})/);
+  return yt ? `yt:${yt[1]}` : link.replace(/[?#].*$/, '').replace(/\/$/, '').toLowerCase();
+}
+
+/**
+ * Phase 1: the newest story of each title or source keeps its card; any
+ * later one in the same issue moves to ALSO THIS WEEK (at most MAX_ALSO,
+ * then it is counted as left out). Newest wins because the feed is newest
+ * first and the newest is what the reader has not seen. Nothing is removed
+ * from the site: this runs on the newsletter's copy of the list only.
+ */
+export function dedupeStories(fresh, maxStories, maxAlso) {
+  const main = [];
+  const also = [];
+  const owner = new Map();
+  let left = 0;
+  for (const item of fresh) {
+    const keys = [`source:${sourceKey(item)}`];
+    const subject = titleSubject(item.title);
+    if (subject) keys.push(`title:${subject}`);
+    const clash = keys.find((k) => owner.has(k));
+    if (clash) {
+      if (also.length < maxAlso) also.push({ item, sameAs: owner.get(clash), reason: clash.startsWith('title:') ? 'same title' : 'same story' });
+      else left++;
+      continue;
+    }
+    if (main.length >= maxStories) { left++; continue; }
+    main.push(item);
+    for (const k of keys) owner.set(k, item);
+  }
+  return { main, also, left };
+}
+
+// ─── the plan ──────────────────────────────────────────────────────────────
+
+/**
+ * What the owner still has to write before sending, story by story. Missing
+ * copy is LEFT OUT of the email (never invented, never filled from the
+ * article body) and listed here, in the notice and in Kit's description.
+ */
+function missingCopy(featured, latest) {
+  const out = [];
+  if (featured.newsletter?.missing?.includes('subtitle')) out.push({ title: featured.title, field: 'subtitle (FEATURED)' });
+  for (const item of latest) {
+    if (item.newsletter?.missing?.includes('blurb')) out.push({ title: item.title, field: 'one-line summary' });
+  }
+  return out;
+}
+
+/**
+ * The draft the feed calls for right now, or null when there is nothing new.
+ *   issueNumber  from Kit's own list of past issues, or null (week alone)
+ *   editorNote   the owner's note for this issue, or '' (no block at all)
+ */
+export function planDraft(feed, state, env, now, { issueNumber = null, editorNote = '' } = {}) {
   const maxStories = positive(env.MAX_STORIES, DEFAULTS.MAX_STORIES);
+  const maxAlso = Number.isFinite(Number(env.MAX_ALSO)) && env.MAX_ALSO !== '' ? Math.max(0, Number(env.MAX_ALSO)) : DEFAULTS.MAX_ALSO;
   const since = state?.lastPubDate
     ? Date.parse(state.lastPubDate)
     : now - positive(env.FIRST_WINDOW_DAYS, DEFAULTS.FIRST_WINDOW_DAYS) * 86400000;
@@ -72,17 +179,45 @@ export function planDraft(feed, state, env, now) {
     .filter((item) => Date.parse(item.pubDate) > since)
     .sort((a, b) => Date.parse(b.pubDate) - Date.parse(a.pubDate));
   if (!fresh.length) return null;
-  const stories = fresh.slice(0, maxStories);
+  const { main: stories, also, left } = dedupeStories(fresh, maxStories, maxAlso);
   const [featured, ...latest] = stories;
   const name = env.NEWSLETTER_NAME || 'Newsletter';
+  const missing = missingCopy(featured, latest);
+  const subtitle = featured.newsletter?.subtitle ?? '';
+  const preview = previewText(subtitle);
+  if (!preview) missing.push({ title: featured.title, field: 'inbox preview text (no subtitle short enough)' });
+  const marker = issueMarker(now, issueNumber, env);
+  const note = String(editorNote ?? '').trim();
+
+  const pieces = [];
+  if (feed.issueMarkerHtml) pieces.push(feed.issueMarkerHtml.replace(ISSUE_MARKER_TOKEN, escapeHtml(marker)));
+  if (note && feed.editorNoteHtml) {
+    pieces.push(feed.editorNoteHtml.replace(EDITOR_NOTE_TOKEN, escapeHtml(note).replace(/\r?\n/g, '<br>')));
+  }
+  pieces.push(joinBoxes(featured.featuredHtml, feed.latestHeadingHtml, latest.map((s) => s.latestHtml)));
+  const alsoRows = also.map((a) => a.item.alsoHtml).filter(Boolean);
+  if (alsoRows.length && feed.alsoHeadingHtml) pieces.push(feed.alsoHeadingHtml + alsoRows.join(''));
+
+  const description = [
+    marker,
+    ...stories.map((s, i) => `${i ? '-' : 'FEATURED:'} ${s.title}`),
+    ...(also.length ? ['Also this week:', ...also.map((a) => `- ${a.item.title} (${a.reason} as "${a.sameAs.title}")`)] : []),
+    ...(missing.length ? ['WRITE BEFORE SENDING:', ...missing.map((m) => `- ${m.title}: ${m.field}`)] : []),
+    draftMarker(featured.guid),
+  ].join('\n');
+
   return {
     stories,
-    left: fresh.length - stories.length,
+    also,
+    left,
+    missing,
+    issueMarker: marker,
+    editorNote: note,
     newest: featured,
     subject: `${name}: ${featured.title}`,
-    previewText: previewText(featured.summary),
-    description: [...stories.map((s, i) => `${i ? '-' : 'FEATURED:'} ${s.title}`), draftMarker(featured.guid)].join('\n'),
-    content: joinBoxes(featured.featuredHtml, feed.latestHeadingHtml, latest.map((s) => s.latestHtml)),
+    previewText: preview,
+    description,
+    content: pieces.join(''),
   };
 }
 
@@ -128,18 +263,42 @@ export async function kitRequest(env, method, path, body, { fetchImpl = fetch, s
   }
 }
 
-/** The existing broadcast whose description carries `marker`, if any. Walks at most a few pages. */
-export async function findDraftByMarker(env, marker, opts) {
+/** Every broadcast in the account, newest pages first. Walks at most a few pages. */
+export async function listBroadcasts(env, opts) {
+  const all = [];
   let after = null;
   for (let page = 0; page < 5; page++) {
     const query = new URLSearchParams({ per_page: '500', ...(after ? { after } : {}) });
     const result = await kitRequest(env, 'GET', `/broadcasts?${query}`, null, opts);
-    const found = (result.broadcasts ?? []).find((b) => String(b.description ?? '').includes(marker));
-    if (found) return found;
-    if (!result.pagination?.has_next_page || !result.pagination.end_cursor) return null;
+    all.push(...(result.broadcasts ?? []));
+    if (!result.pagination?.has_next_page || !result.pagination.end_cursor) break;
     after = result.pagination.end_cursor;
   }
-  return null;
+  return all;
+}
+
+/** The existing broadcast whose description carries `marker`, if any. */
+export async function findDraftByMarker(env, marker, opts) {
+  return (await listBroadcasts(env, opts)).find((b) => String(b.description ?? '').includes(marker)) ?? null;
+}
+
+/**
+ * The next issue number, counted from Kit itself: every broadcast this
+ * Worker made carries the marker, so a deleted draft frees its number and
+ * nothing local can drift. ISSUE_NUMBER_OFFSET covers issues sent before the
+ * Worker existed (0 by default).
+ */
+export function nextIssueNumber(broadcasts, env) {
+  const offset = Math.max(0, Number(env.ISSUE_NUMBER_OFFSET) || 0);
+  return offset + broadcasts.filter((b) => String(b.description ?? '').includes(MARKER_PREFIX)).length + 1;
+}
+
+/** The owner's note for the next issue, saved ahead with scripts/trigger-kit-draft.mjs --note. */
+export function validateNote(text) {
+  const note = String(text ?? '').trim();
+  if (note.length > DEFAULTS.NOTE_MAX) throw new Error(`The editor note is ${note.length} characters; keep it to ${DEFAULTS.NOTE_MAX} (two or three lines).`);
+  if (/\u2014/.test(note)) throw new Error('The editor note contains an em dash; house style is a period or a comma.');
+  return note;
 }
 
 export function draftUrl(env, id) {
@@ -151,6 +310,7 @@ export function draftUrl(env, id) {
 
 /**
  * deps: { store, env, fetchFeed, fetchImpl, sleep, now, dryRun }
+ * store keys: 'state' (the last draft, a cache) and 'editorNote' ({ text }).
  * Returns { action, ... } with action one of: nothing-new, exists, preview, created.
  */
 export async function runKitDraft(deps) {
@@ -160,19 +320,29 @@ export async function runKitDraft(deps) {
   const live = env.CREATE_DRAFTS === 'true' && deps.dryRun !== true;
   const feed = validateKitFeed(await fetchFeed());
   const state = await store.get('state');
-  const plan = planDraft(feed, state, env, now());
-  if (!plan) return { action: 'nothing-new', since: state?.lastPubDate ?? null };
+  const editorNote = (await store.get('editorNote'))?.text ?? '';
 
-  if (!live) return { action: 'preview', plan };
-  if (!env.KIT_API_KEY) throw new Error('CREATE_DRAFTS is on but KIT_API_KEY is not set');
-  const templateId = Number(env.KIT_EMAIL_TEMPLATE_ID);
-  if (!Number.isInteger(templateId) || templateId <= 0) {
-    throw new Error('CREATE_DRAFTS is on but KIT_EMAIL_TEMPLATE_ID is not set (find it with: node scripts/kit-spike.mjs templates)');
+  if (live) {
+    if (!env.KIT_API_KEY) throw new Error('CREATE_DRAFTS is on but KIT_API_KEY is not set');
+    const templateId = Number(env.KIT_EMAIL_TEMPLATE_ID);
+    if (!Number.isInteger(templateId) || templateId <= 0) {
+      throw new Error('CREATE_DRAFTS is on but KIT_EMAIL_TEMPLATE_ID is not set (find it with: node scripts/kit-spike.mjs templates)');
+    }
   }
+  // Nothing new: stop before asking Kit anything.
+  if (!planDraft(feed, state, env, now())) return { action: 'nothing-new', since: state?.lastPubDate ?? null };
+  // Kit is READ (never written) in a dry run too when a key is set, so the
+  // preview shows the real issue number. Without a key it shows the week alone.
+  const broadcasts = env.KIT_API_KEY ? await listBroadcasts(env, opts) : null;
+  const plan = planDraft(feed, state, env, now(), {
+    issueNumber: broadcasts ? nextIssueNumber(broadcasts, env) : null,
+    editorNote,
+  });
+  if (!live) return { action: 'preview', plan };
 
   const marker = draftMarker(plan.newest.guid);
   const remember = (id) => store.put('state', { lastPubDate: plan.newest.pubDate, lastGuid: plan.newest.guid, broadcastId: id, at: new Date(now()).toISOString() });
-  const existing = await findDraftByMarker(env, marker, opts);
+  const existing = broadcasts.find((b) => String(b.description ?? '').includes(marker));
   if (existing) {
     await remember(existing.id);
     return { action: 'exists', plan, broadcastId: existing.id, url: draftUrl(env, existing.id) };
@@ -183,7 +353,7 @@ export async function runKitDraft(deps) {
     preview_text: plan.previewText,
     description: plan.description,
     content: plan.content,
-    email_template_id: templateId,
+    email_template_id: Number(env.KIT_EMAIL_TEMPLATE_ID),
     public: false,
     send_at: null,
   };
@@ -201,6 +371,8 @@ export async function runKitDraft(deps) {
   const id = created.broadcast?.id ?? created.id;
   if (!id) throw new Error('Kit created the draft but returned no id');
   await remember(id);
+  // The note belonged to this issue. The next one starts without.
+  if (plan.editorNote) await store.put('editorNote', null);
   return { action: 'created', plan, broadcastId: id, url: draftUrl(env, id) };
 }
 
@@ -218,7 +390,16 @@ export function buildNotice(result, env) {
   const { plan } = result;
   const list = plan.stories.map((s, i) => `${i ? '  -' : '  FEATURED:'} ${s.title}`).join('\n');
   const left = plan.left ? `\n${plan.left} older ${plan.left === 1 ? 'story' : 'stories'} did not fit in the ${plan.stories.length}.` : '';
-  const meta = `Subject: ${plan.subject}\nPreview text: ${plan.previewText}\n\nStories:\n${list}${left}`;
+  const also = plan.also.length
+    ? `\n\nAlso this week (moved out of the main list, still linked):\n${plan.also.map((a) => `  - ${a.item.title} (${a.reason} as "${a.sameAs.title}")`).join('\n')}`
+    : '';
+  const missing = plan.missing.length
+    ? `\n\nWRITE BEFORE SENDING (left out of the email until written):\n${plan.missing.map((m) => `  - ${m.title}: ${m.field}`).join('\n')}\nAdd a one-line summary in the Local CMS (Newsletter Summary), or type it into the draft in Kit.`
+    : '';
+  const noteLine = plan.editorNote
+    ? 'Editor note: included.'
+    : 'Editor note: none this issue (the block is left out). To add one before Thursday: node scripts/trigger-kit-draft.mjs --note "..."';
+  const meta = `${plan.issueMarker}\nSubject: ${plan.subject}\nPreview text: ${plan.previewText || '(none, see below)'}\n${noteLine}\n\nStories:\n${list}${left}${also}${missing}`;
   if (result.action === 'preview') {
     const note = 'Dry run: nothing was created in Kit. Drafts are switched on with CREATE_DRAFTS (scripts/hq-dispatch.md).';
     return {

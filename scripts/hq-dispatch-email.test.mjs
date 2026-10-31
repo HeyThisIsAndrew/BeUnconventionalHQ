@@ -91,6 +91,22 @@ test('footer socials: YouTube, Instagram, TikTok, Bluesky, Letterboxd, Threads, 
   assert.ok(!/x\.com|twitter/i.test(template));
 });
 
+test('every link goes straight to its page: the site and the six profiles, never a search page', async () => {
+  const { site } = await import('../src/data/site.js');
+  const html = await renderEmail(FIXTURE_POSTS);
+  const hrefs = [...new Set(tags(html, 'a').map((t) => attr(t, 'href')).filter((h) => /^https?:/.test(h)))];
+  for (const href of hrefs) {
+    assert.doesNotMatch(href, /\/search\b|[?&](q|query|search_query)=|google\.|bing\.|duckduckgo/i, href);
+  }
+  // The footer's profiles are the site's own (src/data/site.js), so the two cannot drift.
+  const social = site.social ?? site.socials ?? {};
+  for (const key of ['youtube', 'instagram', 'tiktok', 'bluesky', 'letterboxd', 'threads']) {
+    assert.ok(social[key], `site.js has no ${key}`);
+    assert.ok(hrefs.includes(social[key]), `the footer's ${key} link is not ${social[key]}`);
+  }
+  assert.ok(hrefs.includes('https://beunconventionalhq.com'));
+});
+
 test("links rest the way the site's do and turn red on hover", async () => {
   const html = await renderEmail(FIXTURE_POSTS);
   // Every text link carries one of the site's link states (image links excepted).

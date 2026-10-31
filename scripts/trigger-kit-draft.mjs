@@ -6,6 +6,10 @@
  *   node scripts/trigger-kit-draft.mjs --execute       a real run (creates the
  *                                                      draft if CREATE_DRAFTS is on)
  *   node scripts/trigger-kit-draft.mjs --test-failure  sends the failure alert
+ *   node scripts/trigger-kit-draft.mjs --note "Two or three lines."
+ *                                                      saves the editor's note for
+ *                                                      the next issue (no draft);
+ *                                                      --note "" clears it
  *
  * Needs WEBSUB_SECRET (the shared automation secret, already in .env).
  * Runbook: scripts/hq-dispatch.md.
@@ -17,7 +21,10 @@ if (!process.env.WEBSUB_SECRET) throw new Error('WEBSUB_SECRET is required; use 
 const execute = process.argv.includes('--execute');
 const forceFailure = process.argv.includes('--test-failure');
 
-const body = JSON.stringify({ dryRun: !execute, forceFailure });
+const noteAt = process.argv.indexOf('--note');
+const body = noteAt > 0
+  ? JSON.stringify({ setNote: process.argv[noteAt + 1] ?? '' })
+  : JSON.stringify({ dryRun: !execute, forceFailure });
 const response = await fetch(URL_, {
   method: 'POST', headers: await signAutomationRequest(process.env.WEBSUB_SECRET, body), body,
   signal: AbortSignal.timeout(120000),

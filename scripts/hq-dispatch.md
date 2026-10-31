@@ -66,7 +66,8 @@ is copied; the values are.
 | `--color-surface` | `#111111` | Every story box (the About page's `.stat-card`) |
 | hairline `rgba(255,255,255,0.05)` | `#1d1d1d` | Box borders and rules, flattened because Outlook ignores rgba |
 | `--color-accent` | `#cc0000` | **The brand red.** Every fill, rule, border and glow, the button outlines and the big "HQ". |
-| `--color-accent-text` | `#ef4444` | Red **small text** only (kickers, labels) and every hover. `#cc0000` is 3.21:1 on `#111111` and fails WCAG AA at label size; the site makes the same split in `theme-red.css`. |
+| `--color-accent-text` | `#ef4444` | Every hover. `#cc0000` is 3.21:1 on `#111111` and fails WCAG AA at label size; the site makes the same split in `theme-red.css`. |
+| (email only) | `#ff6b6b` | Red **small text**: kickers and the TYPE \| SECTION labels, weight 700. 6.8:1 on `#111111`; the site's `#ef4444` (5.0:1) read faint in some clients and in dark mode (owner, 2026-10-31). |
 | `--color-white` | `#f0f0f0` | Headlines |
 
 - **Story boxes**: `#111111` with a 1px hairline, red border on hover where hover exists.
@@ -188,6 +189,54 @@ daylight saving, so that is 09:00 Pacific in summer and 08:00 in winter.
 
 Do not change those vars in the Cloudflare dashboard: the next deploy
 overwrites them with `wrangler.jsonc`.
+
+### What goes in an issue, and who writes it
+
+Order: masthead, issue line, editor's note (only if written), FEATURED,
+LATEST FROM THE HQ, ALSO THIS WEEK (only if any), footer.
+
+| Piece | Where it comes from | If it is missing |
+| --- | --- | --- |
+| Issue line | "Issue N \| Week of <Monday>", Pacific. N counts this Worker's drafts in Kit (a deleted draft frees its number); `ISSUE_NUMBER_OFFSET` adds issues sent before. Without a Kit key: the week alone. | n/a |
+| Editor's note | **You**, before the Thursday run: `node scripts/trigger-kit-draft.mjs --note "Two or three lines."` (`--note ""` clears it). Used once, then cleared. Max 600 characters, no em dash. Or type it into the draft in Kit. | The block is left out entirely: no box, no gap. Nothing is ever written for you. |
+| FEATURED subtitle | Your standfirst, printed whole: the Local CMS **Override Excerpt (Standfirst)**, else the Substack subtitle. Never rewritten. | Left out and listed under WRITE BEFORE SENDING. |
+| FEATURED lede | A SEPARATE line: whole sentences from the article's opening paragraph (up to about 320 characters), minus any sentence that repeats the subtitle. This is where the date and place live. | Left out. |
+| LATEST blurb | The CMS **Newsletter Summary (one line)** if written; else the subtitle when it is one line (220 characters or fewer, not already cut). Never the body's first sentence, never a YouTube description, never trimmed. | Left out and listed under WRITE BEFORE SENDING (the notice email and the draft's internal description in Kit). Videos need one written: their YouTube text is never used. |
+| Inbox preview text | The FEATURED subtitle, whole if it fits 140 characters, else its first whole sentence. | Empty, and listed. |
+
+**Duplicates (phase 1, newsletter only).** Two stories in one issue with the
+same subject (the headline before its first " | " or ": ", with format words
+such as Review, Reaction, Premiere, LA, Episode N set aside, years kept) or
+the same link are one subject: the newest keeps its card, the other moves to
+ALSO THIS WEEK (a one-line link, at most `MAX_ALSO`, 4), and the notice says
+which and why. This runs on the Worker's copy of the list only: the site's
+homepage, Intel, Feed and `/dispatch.xml` are untouched, and nothing is
+deleted. Phase 2 (one combined card with Read the story AND Watch now) is
+not built. Grouping by franchise (DC, Marvel...) is not on: it would move
+every DC story but one out of the main list; switching it on is an owner call.
+
+### Preview and test send (no Kit, no list)
+
+```
+npm run build
+node scripts/dispatch-preview.mjs --out preview.html --issue 1 --note-placeholder \
+  --subtitle "the-game-awards-2026-tickets-on-sale=<subtitle written in Substack, not synced yet>"
+RESEND_API_KEY=... node scripts/send-dispatch-test.mjs --issue 1     # to andrew@beunconventionalhq.com ONLY
+```
+
+The preview inlines every image, so it opens on a phone. The test send
+carries the images inside the email, so the new masthead shows before it is
+deployed. `--subtitle` changes the preview only; the article and
+`src/data/articles.json` are not touched.
+
+### After merging: re-upload the email template to Kit (manual)
+
+`template.html` changed (the masthead image and the label colours). Kit
+keeps its own copy: Kit > Send > Email Templates > open the HQ Dispatch
+template > switch to the HTML editor > select all, paste the new
+`email/hq-dispatch/template.html` > Save. The new masthead
+(`/dispatch/header-v2-1200x400.png`) only loads once the site is deployed,
+so do this after the merge, not before.
 
 ### Editorial opt-out (#275)
 

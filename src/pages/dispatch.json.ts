@@ -21,6 +21,9 @@ import {
 } from '../lib/dispatch-feed.ts';
 import { createBoxRenderer } from '../lib/dispatch-boxes.ts';
 import postTemplate from '../../email/hq-dispatch/post-template.liquid.html?raw';
+import alsoTemplate from '../../email/hq-dispatch/also-this-week.liquid.html?raw';
+import issueMarkerTemplate from '../../email/hq-dispatch/issue-marker.liquid.html?raw';
+import editorNoteTemplate from '../../email/hq-dispatch/editor-note.liquid.html?raw';
 import manifest from '../data/dispatch-images.json';
 import { site } from '../data/site.js';
 
@@ -32,14 +35,25 @@ export async function GET(context: { site?: URL | string }) {
   const videos = await getVideosUnified();
   const entries = selectDispatchEntries(articles, videos, siteUrl);
   const images = manifest as DispatchImageManifest;
-  const renderer = createBoxRenderer(postTemplate);
+  const renderer = createBoxRenderer({
+    post: postTemplate,
+    also: alsoTemplate,
+    issueMarker: issueMarkerTemplate,
+    editorNote: editorNoteTemplate,
+  });
 
   const items = [];
   for (const entry of entries) {
     const imageUrl = dispatchImageUrl(entry, images, siteUrl);
     items.push({ ...dispatchJsonItem(entry, imageUrl), ...(await renderer.boxes(dispatchKitPost(entry, imageUrl))) });
   }
-  const body = { version: 1, latestHeadingHtml: await renderer.latestHeading(), items };
+  const body = {
+    version: 1,
+    latestHeadingHtml: await renderer.latestHeading(),
+    alsoHeadingHtml: await renderer.alsoHeading(),
+    ...(await renderer.issuePieces()),
+    items,
+  };
   return new Response(JSON.stringify(body), {
     headers: { 'Content-Type': 'application/json; charset=utf-8' },
   });

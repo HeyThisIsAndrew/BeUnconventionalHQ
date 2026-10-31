@@ -7,7 +7,9 @@
  *         winter (PST). The draft waits in Kit either way; nothing sends.
  *   POST /draft   the manual run, signed with the shared automation HMAC
  *         (src/lib/automation-auth.mjs). Body: {"dryRun":true} previews
- *         even when drafts are on; {"forceFailure":true} tests the alert.
+ *         even when drafts are on; {"forceFailure":true} tests the alert;
+ *         {"setNote":"..."} saves the editor's note for the next issue
+ *         ("" clears it) and does nothing else.
  *
  * Runs go through one Durable Object, one at a time, which holds the cache
  * of the last draft. Kit's own broadcast list is the real duplicate guard
@@ -15,7 +17,7 @@
  */
 import { verifyAutomationRequest } from '../src/lib/automation-auth.mjs';
 import { sendOwnerEmail } from '../src/lib/automation-email.mjs';
-import { runKitDraft, buildNotice } from './kit-draft.mjs';
+import { runKitDraft, buildNotice, validateNote } from './kit-draft.mjs';
 
 const OBJECT_NAME = 'dispatch-kit-v1';
 
@@ -31,14 +33,18 @@ export default {
     const url = new URL(request.url);
     if (url.pathname !== '/draft' || request.method !== 'POST') return new Response('Not found', { status: 404 });
     const body = await request.text();
-    if (body.length > 1024 || !await verifyAutomationRequest(request, body, env.WEBSUB_SECRET)) {
+    if (body.length > 4096 || !await verifyAutomationRequest(request, body, env.WEBSUB_SECRET)) {
       return new Response('Invalid authentication', { status: 403 });
     }
     let options;
     try { options = JSON.parse(body || '{}'); } catch { return new Response('Invalid JSON', { status: 400 }); }
     return stub(env).fetch(new Request('https://dispatch-kit.internal/run', {
       method: 'POST',
-      body: JSON.stringify({ dryRun: options.dryRun === true, forceFailure: options.forceFailure === true }),
+      body: JSON.stringify({
+        dryRun: options.dryRun === true,
+        forceFailure: options.forceFailure === true,
+        ...(typeof options.setNote === 'string' ? { setNote: options.setNote } : {}),
+      }),
     }));
   },
 
@@ -69,8 +75,18 @@ export class KitDraftState {
     return Response.json(await run);
   }
 
-  async run({ dryRun = false, forceFailure = false } = {}) {
+  async run({ dryRun = false, forceFailure = false, setNote } = {}) {
     const env = this.env;
+    if (typeof setNote === 'string') {
+      // Saving the owner's note for the next issue. No draft, no email.
+      try {
+        const text = validateNote(setNote);
+        await this.state.storage.put('editorNote', text ? { text, setAt: new Date().toISOString() } : null);
+        return { ok: true, action: text ? 'note-saved' : 'note-cleared', note: text };
+      } catch (error) {
+        return { ok: false, error: String(error?.message ?? error) };
+      }
+    }
     const send = (notice, key) => sendOwnerEmail(env, { ...notice, key: `dispatch-kit-${key}` });
     try {
       if (forceFailure) throw new Error('Forced failure: testing the newsletter alert. No draft was attempted.');
@@ -94,7 +110,12 @@ export class KitDraftState {
         await send(notice, id);
         notified = true;
       }
-      return { ok: true, action: result.action, broadcastId: result.broadcastId ?? null, url: result.url ?? null, subject: result.plan?.subject ?? null, stories: result.plan?.stories.length ?? 0, notified };
+      return {
+        ok: true, action: result.action, broadcastId: result.broadcastId ?? null, url: result.url ?? null,
+        subject: result.plan?.subject ?? null, issue: result.plan?.issueMarker ?? null,
+        stories: result.plan?.stories.length ?? 0, alsoThisWeek: result.plan?.also.length ?? 0,
+        missing: result.plan?.missing ?? [], notified,
+      };
     } catch (error) {
       const message = String(error?.message ?? error).split(env.KIT_API_KEY || '\u0000').join('[redacted]');
       let alerted = false;

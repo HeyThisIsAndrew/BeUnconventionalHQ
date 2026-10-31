@@ -23,7 +23,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Liquid } from 'liquidjs';
-import { DISPATCH_HEADER_IMAGE } from '../src/lib/dispatch-feed.ts';
+import { DISPATCH_HEADER_IMAGE, NEWSLETTER_LEDE_MAX, wholeSentences } from '../src/lib/dispatch-feed.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const DISPATCH_DIR = path.join(ROOT, 'email/hq-dispatch');
@@ -33,8 +33,14 @@ export const MOCKUP_PATH = path.join(DISPATCH_DIR, 'mockup.html');
 
 const SITE = 'https://beunconventionalhq.com';
 
-/** One feed item, shaped the way Kit exposes it to the Post Template. */
-export function feedPost({ title, url, summary, image, categories }) {
+/**
+ * One feed item, shaped the way Kit exposes it to the Post Template. Passing
+ * `newsletter` gives it the separate fields the site's /dispatch.json adds
+ * (subtitle, lede, blurb; see dispatchKitPost() and newsletterCopy() in
+ * src/lib/dispatch-feed.ts). An empty blurb is a story whose one-line summary
+ * has not been written: the box renders without it.
+ */
+export function feedPost({ title, url, summary, image, categories, newsletter }) {
   return {
     title,
     url,
@@ -45,6 +51,7 @@ export function feedPost({ title, url, summary, image, categories }) {
       ? `<img src="${image}" width="1200" height="675" alt=""><p>${summary}</p>`
       : `<p>${summary}</p>`,
     categories,
+    ...(newsletter ? { newsletter: true, subtitle: '', lede: '', blurb: '', ...newsletter } : {}),
   };
 }
 
@@ -65,6 +72,15 @@ export const FIXTURE_POSTS = [
       'Halfway through its first season, this detective-driven series proves that restrained power scaling and character-focused storytelling are exactly what the new cinematic universe needs.',
     image: composed('cb581c5717543027.jpg'),
     categories: ['Review', 'TV'],
+    newsletter: {
+      subtitle:
+        'Halfway through its first season, this detective-driven series proves that restrained power scaling and character-focused storytelling are exactly what the new cinematic universe needs.',
+      // The article's opening paragraph, whole sentences only.
+      lede: wholeSentences(
+        'I can’t believe we’re already at the halfway point of Lanterns. The season kicked off with a bang and has somehow gotten better every week. This series has done an incredible job of introducing us to the Green Lantern mythos. And, it fits perfectly into James Gunn’s new DCU while maintaining its own distinct identity.',
+        NEWSLETTER_LEDE_MAX,
+      ),
+    },
   }),
   feedPost({
     title: 'Coyote vs. Acme Review | Why Warner Bros. Made a $70 Million Mistake',
@@ -73,6 +89,8 @@ export const FIXTURE_POSTS = [
       'Ketchup Entertainment stepped in to purchase the distribution rights, completely saving it from the void. Now that we finally get to see it, the biggest question is whether it lands.',
     image: composed('b2aef0f4552a8184.jpg'),
     categories: ['Video', 'Film'],
+    // A video with no one-line summary written yet: the box has no blurb.
+    newsletter: {},
   }),
   feedPost({
     title: "How Resident Evil Makes Being in the Theater Feel Like You're Actually Holding a Controller",
@@ -81,6 +99,7 @@ export const FIXTURE_POSTS = [
       "The internet's already convinced this movie will fail, but Zach Cregger just built the one adaptation that actually respects the franchise.",
     image: composed('4cc10652cc02260e.jpg'),
     categories: ['Review', 'Film'],
+    newsletter: { blurb: "The internet's already convinced this movie will fail, but Zach Cregger just built the one adaptation that actually respects the franchise." },
   }),
   feedPost({
     title: 'A Generational Leap: Did Rockstar and Netflix Just Set a New Industry Standard?',
@@ -89,6 +108,7 @@ export const FIXTURE_POSTS = [
       'By leveraging Netflix to broadcast their first true look at Vice City, Rockstar engineered a massive cultural moment for interactive entertainment.',
     image: composed('641eefafeff17b02.jpg'),
     categories: ['Analysis', 'Games'],
+    newsletter: { blurb: 'By leveraging Netflix to broadcast their first true look at Vice City, Rockstar engineered a massive cultural moment for interactive entertainment.' },
   }),
   feedPost({
     title: 'L.A. Comic Con 2026',
@@ -96,6 +116,7 @@ export const FIXTURE_POSTS = [
     summary: 'Why Downtown Los Angeles Holds the Blueprint for Convention Culture',
     image: composed('b44f0f578562fe39.jpg'),
     categories: ['Analysis', 'Events'],
+    newsletter: { blurb: 'Why Downtown Los Angeles Holds the Blueprint for Convention Culture' },
   }),
 ];
 

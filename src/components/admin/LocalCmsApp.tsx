@@ -17,6 +17,8 @@ type Doc = {
   editorial?: {
     title?: string;
     excerpt?: string;
+    /** THE HQ DISPATCH only: the one line under this story in the newsletter. */
+    newsletterBlurb?: string;
     image?: string;
     category?: string;
     featured?: boolean;
@@ -2137,6 +2139,25 @@ function VideoForm({
                 Shown on cards and in the hero. Replaces the YouTube description entirely.
               </p>
             </Field>
+            {/* THE HQ DISPATCH only (dispatch-feed.ts newsletterCopy()). Without
+                it the newsletter uses the excerpt above when that is one line,
+                and otherwise leaves the line out and asks for one. It never
+                falls back to the YouTube description. Never overwritten by a
+                sync. */}
+            <Field label="Newsletter Summary (one line)">
+              <textarea
+                value={doc.editorial?.newsletterBlurb || ''}
+                onChange={(e) => {
+                  const next: NonNullable<Doc['editorial']> = { ...(doc.editorial || {}) };
+                  if (e.target.value) next.newsletterBlurb = e.target.value;
+                  else delete next.newsletterBlurb;
+                  update('editorial', Object.keys(next).length > 0 ? next : undefined);
+                }}
+                rows={2}
+                className={textareaClass}
+                placeholder="One full sentence for THE HQ DISPATCH..."
+              />
+            </Field>
 
             {/*
               ─── ORDER, NOT DATE ────────────────────────────────────────────
@@ -2880,6 +2901,14 @@ function ArticleForm({
       <div className="mb-5">
         <Field label="Override Excerpt (Standfirst)">
           <textarea value={doc.editorial?.excerpt || ''} onChange={(e) => updateEditorial('excerpt', e.target.value)} rows={3} className={inputClass} placeholder="A hand-written standfirst..." />
+        </Field>
+      </div>
+
+      {/* THE HQ DISPATCH only. Without it the newsletter uses the Substack
+          subtitle when that is one line, else leaves the line out and asks. */}
+      <div className="mb-5">
+        <Field label="Newsletter Summary (one line)">
+          <textarea value={doc.editorial?.newsletterBlurb || ''} onChange={(e) => updateEditorial('newsletterBlurb', e.target.value)} rows={2} className={inputClass} placeholder="One full sentence for THE HQ DISPATCH..." />
         </Field>
       </div>
 

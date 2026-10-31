@@ -45,6 +45,8 @@ export interface ArticleRecord {
   editorial?: {
     title?: string;
     excerpt?: string;
+    /** THE HQ DISPATCH's one line for this story (dispatch-feed.ts). */
+    newsletterBlurb?: string;
     image?: string;
     category?: string;
     featured?: boolean;

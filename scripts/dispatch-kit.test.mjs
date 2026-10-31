@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   planDraft, previewText, runKitDraft, validateKitFeed, buildNotice, kitRequest, draftMarker, draftUrl,
+  dedupeStories, titleSubject, weekOf, nextIssueNumber, validateNote,
 } from '../dispatch-kit-worker/kit-draft.mjs';
 
 const NOW = Date.parse('2026-11-05T16:00:00Z');
@@ -29,9 +30,11 @@ const story = (n, over = {}) => ({
   categories: ['Review', 'TV'],
   featuredHtml: `<F${n}>`,
   latestHtml: `<L${n}>`,
+  alsoHtml: `<A${n}>`,
+  newsletter: { subtitle: `Subtitle ${n}.`, lede: null, blurb: `Blurb ${n}.`, missing: [] },
   ...over,
 });
-const feed = (items) => ({ version: 1, latestHeadingHtml: '<H>', items });
+const feed = (items) => ({ version: 1, latestHeadingHtml: '<H>', alsoHeadingHtml: '<AH>', items });
 const LIVE = { CREATE_DRAFTS: 'true', KIT_API_KEY: 'kit-secret-key-123', KIT_EMAIL_TEMPLATE_ID: '42', NEWSLETTER_NAME: 'THE HQ DISPATCH' };
 
 const memoryStore = () => {
@@ -70,11 +73,10 @@ const run = (over) => runKitDraft({ now: () => NOW, sleep: async () => {}, ...ov
 
 // ─── planning ────────────────────────────────────────────────────────────
 
-test('preview text is the featured summary trimmed at a word to about 90 characters', () => {
-  const text = previewText('word '.repeat(40));
-  assert.ok(text.length <= 90);
-  assert.match(text, /word…$/);
+test('inbox preview text: the subtitle whole, else its first whole sentence, never cut mid-sentence', () => {
   assert.equal(previewText('Short and sweet.'), 'Short and sweet.');
+  assert.equal(previewText(`First sentence. ${'More words. '.repeat(20)}`), 'First sentence.');
+  assert.equal(previewText(`${'word '.repeat(60)}end.`), '');
 });
 
 test('a feed without pre-rendered boxes stops the run', () => {
@@ -106,15 +108,21 @@ test('stories since the last draft; the first run looks back FIRST_WINDOW_DAYS',
 
 // ─── the run ─────────────────────────────────────────────────────────────
 
-test('dry run by default: a preview, and Kit is never called', async () => {
+test('dry run by default: a preview, and Kit is only ever READ (for the issue number)', async () => {
   const kit = fakeKit();
   const result = await run({ store: memoryStore(), env: { KIT_API_KEY: 'k' }, fetchImpl: kit.fetchImpl, fetchFeed: async () => feed([story(1)]) });
   assert.equal(result.action, 'preview');
-  assert.equal(kit.requests.length, 0);
+  assert.ok(kit.requests.every((r) => r.method === 'GET'));
+  // Without a key nothing reaches Kit at all, and the issue line is the week alone.
+  const keyless = fakeKit();
+  const noKey = await run({ store: memoryStore(), env: {}, fetchImpl: keyless.fetchImpl, fetchFeed: async () => feed([story(1)]) });
+  assert.equal(keyless.requests.length, 0);
+  assert.match(noKey.plan.issueMarker, /^Week of November 2, 2026$/);
+  kit.requests.length = 0;
   // A forced dry run wins over CREATE_DRAFTS.
   const forced = await run({ store: memoryStore(), env: LIVE, dryRun: true, fetchImpl: kit.fetchImpl, fetchFeed: async () => feed([story(1)]) });
   assert.equal(forced.action, 'preview');
-  assert.equal(kit.requests.length, 0);
+  assert.ok(kit.requests.every((r) => r.method === 'GET'));
 });
 
 test('no new stories: no draft and no Kit call', async () => {
@@ -169,6 +177,103 @@ test('drafts on but no template id: the run fails loudly instead of guessing', a
   const kit = fakeKit();
   await assert.rejects(run({ store: memoryStore(), env: { ...LIVE, KIT_EMAIL_TEMPLATE_ID: '' }, fetchImpl: kit.fetchImpl, fetchFeed: async () => feed([story(1)]) }), /KIT_EMAIL_TEMPLATE_ID/);
   assert.equal(kit.requests.length, 0);
+});
+
+// ─── dedupe, phase 1 (newsletter only) ───────────────────────────────────
+
+test('the subject of a headline sets format words aside, keeps years', () => {
+  assert.equal(titleSubject('Godzilla Minus Zero | Review'), 'godzilla minus zero');
+  assert.equal(titleSubject('Godzilla Minus Zero LA Premiere Reaction | More Heart Than Action?'), 'godzilla minus zero');
+  assert.equal(titleSubject('Lanterns Finale Review: Why Skipping the CGI Battle Worked'), 'lanterns');
+  assert.equal(titleSubject('Lanterns Episode 7 Review: Second Best of the Season'), 'lanterns');
+  assert.equal(titleSubject('State of the DCU: Why DC TV Is Beating the Movies'), 'state of the dcu');
+  assert.notEqual(titleSubject('The Game Awards 2026 | Tickets'), titleSubject('The Game Awards 2027 | Tickets'));
+});
+
+test("the owner's example: the Godzilla review keeps its card, the premiere reaction moves to ALSO THIS WEEK", () => {
+  const items = [
+    story(9, { title: 'The Game Awards 2026 | Tickets On Sale Now' }),
+    story(8, { title: 'Godzilla Minus Zero | Review' }),
+    story(7, { title: 'Godzilla Minus Zero LA Premiere Reaction | More Heart Than Action?', link: 'https://www.youtube.com/watch?v=dcsODyzLaug' }),
+    story(6, { title: 'State of the DCU: Why DC TV Is Beating the Movies' }),
+    story(5, { title: 'Lanterns Finale Review: Why Skipping the CGI Battle Worked' }),
+    story(4, { title: 'Grand Theft Auto VI | The World’s Biggest Out-of-Office Sweepstakes' }),
+    story(3, { title: 'Lanterns Episode 7 Review: Second Best of the Season' }),
+    story(2, { title: 'The Batman Part II | Why Soderbergh Helping Reeves Finish Filming Is Not a Takeover' }),
+  ];
+  const { main, also, left } = dedupeStories(items, 6, 4);
+  assert.deepEqual(main.map((s) => s.title.split(/ \| |: /)[0]), [
+    'The Game Awards 2026', 'Godzilla Minus Zero', 'State of the DCU', 'Lanterns Finale Review', 'Grand Theft Auto VI', 'The Batman Part II',
+  ]);
+  assert.deepEqual(also.map((a) => [a.item.title.split(/ \| |: /)[0], a.reason, a.sameAs.title.split(/ \| |: /)[0]]), [
+    ['Godzilla Minus Zero LA Premiere Reaction', 'same title', 'Godzilla Minus Zero'],
+    ['Lanterns Episode 7 Review', 'same title', 'Lanterns Finale Review'],
+  ]);
+  assert.equal(left, 0);
+  // In the draft: the demoted story is still linked, under ALSO THIS WEEK.
+  const plan = planDraft(feed(items), null, { ...LIVE, FIRST_WINDOW_DAYS: '30' }, NOW);
+  assert.ok(plan.content.includes('<A7>'));
+  assert.ok(!plan.content.includes('<L7>'));
+  assert.match(plan.description, /Also this week:\n- Godzilla Minus Zero LA Premiere Reaction/);
+});
+
+test('the same source story twice (one link) is a duplicate too; nothing is lost silently', () => {
+  const { main, also } = dedupeStories([story(2), story(1, { link: story(2).link, title: 'Different words' })], 6, 4);
+  assert.equal(main.length, 1);
+  assert.equal(also[0].reason, 'same story');
+  const capped = dedupeStories([story(3), story(2, { title: 'Story 3: again' }), story(1, { title: 'Story 3 | once more' })], 6, 1);
+  assert.equal(capped.also.length, 1);
+  assert.equal(capped.left, 1, 'over the ALSO cap counts as left out, and the notice says so');
+});
+
+// ─── issue line and editor note ──────────────────────────────────────────
+
+test('the issue line defaults to the week (Monday, Pacific), numbered from Kit when it can be', () => {
+  assert.equal(weekOf(Date.parse('2026-11-05T16:00:00Z')), 'Week of November 2, 2026');
+  // Sunday night in Los Angeles is still the previous week, though UTC says Monday.
+  assert.equal(weekOf(Date.parse('2026-11-02T07:30:00Z')), 'Week of October 26, 2026');
+  const past = [{ description: draftMarker('a') }, { description: 'a broadcast made by hand' }, { description: draftMarker('b') }];
+  assert.equal(nextIssueNumber(past, {}), 3);
+  assert.equal(nextIssueNumber(past, { ISSUE_NUMBER_OFFSET: '10' }), 13);
+  const plan = planDraft(feed([story(1)]), null, LIVE, NOW, { issueNumber: 3 });
+  assert.equal(plan.issueMarker, 'Issue 3 | Week of November 2, 2026');
+});
+
+test('the issue line and the note fill the site-rendered pieces, escaped; no note means no block at all', () => {
+  const f = { ...feed([story(1)]), issueMarkerHtml: '<M>%%HQ_ISSUE_MARKER%%</M>', editorNoteHtml: '<N>%%HQ_EDITOR_NOTE%%</N>' };
+  const withNote = planDraft(f, null, LIVE, NOW, { issueNumber: 2, editorNote: 'Line one & <two>.\nLine three.' });
+  assert.ok(withNote.content.startsWith('<M>Issue 2 | Week of November 2, 2026</M><N>Line one &amp; &lt;two&gt;.<br>Line three.</N><F1>'));
+  const without = planDraft(f, null, LIVE, NOW, { issueNumber: 2, editorNote: '   ' });
+  assert.ok(!without.content.includes('<N>'), 'blank note: block left out, no gap');
+  assert.ok(without.content.startsWith('<M>Issue 2'));
+});
+
+test('a saved note goes into the next draft and is then cleared; notes are checked', async () => {
+  const kit = fakeKit();
+  const store = memoryStore();
+  await store.put('editorNote', { text: 'My note.' });
+  const f = { ...feed([story(1)]), issueMarkerHtml: '<M>%%HQ_ISSUE_MARKER%%</M>', editorNoteHtml: '<N>%%HQ_EDITOR_NOTE%%</N>' };
+  const result = await run({ store, env: LIVE, fetchImpl: kit.fetchImpl, fetchFeed: async () => f });
+  assert.equal(result.action, 'created');
+  assert.ok(kit.requests.find((r) => r.method === 'POST').body.content.includes('<N>My note.</N>'));
+  assert.equal(await store.get('editorNote'), null);
+  assert.match(result.plan.issueMarker, /^Issue 1 \| /);
+  assert.throws(() => validateNote('x'.repeat(601)), /600/);
+  assert.throws(() => validateNote('A note \u2014 with a dash.'), /em dash/);
+  assert.equal(validateNote('  Fine.  '), 'Fine.');
+});
+
+test('missing copy is flagged in the description and the notice, never filled in', () => {
+  const items = [
+    story(2, { newsletter: { subtitle: null, lede: null, blurb: null, missing: ['subtitle', 'blurb'] } }),
+    story(1, { newsletter: { subtitle: 'S.', lede: null, blurb: null, missing: ['blurb'] } }),
+  ];
+  const plan = planDraft(feed(items), null, LIVE, NOW);
+  assert.deepEqual(plan.missing.map((m) => [m.title, m.field.split(' ')[0]]), [['Story 2', 'subtitle'], ['Story 1', 'one-line'], ['Story 2', 'inbox']]);
+  assert.match(plan.description, /WRITE BEFORE SENDING:\n- Story 2: subtitle/);
+  const notice = buildNotice({ action: 'preview', plan }, LIVE);
+  assert.match(notice.text, /WRITE BEFORE SENDING/);
+  assert.match(notice.text, /Editor note: none this issue/);
 });
 
 // ─── Kit client ──────────────────────────────────────────────────────────

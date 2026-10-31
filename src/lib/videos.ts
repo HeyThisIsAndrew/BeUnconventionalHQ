@@ -86,6 +86,8 @@ export interface UnifiedVideo {
    */
   editorial?: {
     excerpt?: string;
+    /** THE HQ DISPATCH's one line for this video (dispatch-feed.ts). */
+    newsletterBlurb?: string;
   };
   requiresReview?: boolean;
   manualTaxonomyOverride?: boolean;
