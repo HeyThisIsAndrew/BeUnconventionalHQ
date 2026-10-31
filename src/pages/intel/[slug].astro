@@ -58,8 +58,8 @@ import { stripCoverImageFromBody } from '../../lib/article-media';
 import { localArticleImage, localiseBodyImages } from '../../lib/article-images.ts';
 import { parseImageDimensions, labelImageLinks } from '../../lib/article-images-transform.ts';
 import { getCardImageSources, isSubstackFetchUrl } from '../../lib/card-images.ts';
-import { getFeaturedBrandsLocal } from '../../lib/local-content';
-import { findHubForItem } from '../../lib/hub-coverage';
+import { getEventsLocal, getFeaturedBrandsLocal } from '../../lib/local-content';
+import { findEventForArticle, findHubForItem } from '../../lib/hub-coverage';
 import logoImage from '../../assets/logo.webp';
 import { getImage } from 'astro:assets';
 
@@ -219,6 +219,14 @@ const related = getRelatedArticles(article.slug, article.category, 4);
   about a brand has no hub, and the card simply does not render.
 */
 const articleHub = findHubForItem(article, getFeaturedBrandsLocal());
+
+/*
+  The event this piece is coverage OF, for the "Official Event Hub" card in
+  the support rail. Resolved through the event page's own matcher
+  (findEventForArticle), so the card appears exactly when that event's
+  COVERAGE grid lists this article.
+*/
+const articleEvent = findEventForArticle(article, getEventsLocal());
 
 /*
   Fallback anchors for a post with too few headings to index — see the note in
@@ -552,7 +560,7 @@ const breadcrumbSchema = {
           )}
         </article>
 
-        <ArticleSupportRail related={related.slice(0, 2)} brand={articleHub} />
+        <ArticleSupportRail related={related.slice(0, 2)} brand={articleHub} event={articleEvent} />
       </div>
     </div>
 

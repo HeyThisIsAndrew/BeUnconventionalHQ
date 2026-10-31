@@ -52,9 +52,15 @@ interface Props {
    * infers its hub while an event is told which one it belongs to.
    */
   brand?: any;
+  /**
+   * The event this article is coverage of, or null. Resolved by the caller
+   * with findEventForArticle(), so the card appears exactly when that event's
+   * COVERAGE grid lists the article.
+   */
+  event?: any;
 }
 
-const { related = [], brand = null } = Astro.props;
+const { related = [], brand = null, event = null } = Astro.props;
 ---
 
 <aside class="article-rail article-rail-right" aria-labelledby="article-rail-head">
@@ -90,6 +96,11 @@ const { related = [], brand = null } = Astro.props;
       case for a piece about the industry rather than about a brand.
     */}
     <HubCard brand={brand} />
+
+    {/* The event hub, directly under the brand hub: the same tile, so an
+        article reads "this belongs to Marvel, and to the Doomsday premiere"
+        in one shape. Renders nothing for an article that covers no event. */}
+    <HubCard brand={event} kind="event" />
 
     {/*
       The event template's equivalent is "Coverage Inquiry", which is about

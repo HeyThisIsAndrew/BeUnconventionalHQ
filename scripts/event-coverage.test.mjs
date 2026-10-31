@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import assert from 'node:assert/strict';
 import {
+  findEventForArticle,
   findHubForItem,
   normalizeTag,
   compactTag,
@@ -606,6 +607,179 @@ test('shorts and live streams are excluded at every call site, visibly', () => {
     'the event page is merging shorts and live streams into coverage again, which is the ' +
       'inconsistency with /featured/[slug] this replaced',
   );
+});
+
+/*
+  ─── THE BACKLINK IS THE COVERAGE GRID, READ BACKWARDS ─────────────────────
+
+  An article covering an event carries an "Official Event Hub" card in its
+  support rail (src/pages/intel/[slug].astro, HubCard kind="event"), resolved
+  with findEventForArticle(). The promise of that link is that the reader finds
+  the article on the page it leads to, so the event must be one whose
+  COVERAGE grid lists it: never a scoring guess the grid disagrees with.
+*/
+test('an article links to the event whose coverage lists it, and to nothing else', () => {
+  const tga = { slug: { current: 'the-game-awards-2026' }, title: 'The Game Awards', youtubeSyncKeywords: ['the game awards 2026', 'tga2026'] };
+  const lacc = { slug: { current: 'la-comic-con-2026' }, title: 'L.A. Comic Con', youtubeSyncKeywords: ['lacc2026', 'la comic con 2026'] };
+
+  const piece = article({ slug: 'tga-tickets', tags: ['Gaming', 'The Game Awards 2026'] });
+  assert.equal(findEventForArticle(piece, [lacc, tga])?.slug.current, 'the-game-awards-2026');
+  assert.equal(findEventForArticle(article({ tags: ['Marvel'] }), [lacc, tga]), null,
+    'an article that covers no event gets no backlink');
+  assert.equal(findEventForArticle(undefined, [lacc, tga]), null);
+});
+
+test('an exclusion removes the backlink too, which scoring alone would not', () => {
+  /* findHubForItem() does not read excludeCoverage. Scored directly, this
+     retrospective would still point at the edition it was dropped from, and
+     the reader would land on a page that does not list it. */
+  const sdcc26 = { slug: { current: 'sdcc-2026' }, youtubeSyncKeywords: ['SDCC'], excludeCoverage: ['retro'] };
+  const retro = article({ slug: 'retro', tags: ['SDCC'] });
+
+  assert.equal(findHubForItem(retro, [sdcc26])?.slug.current, 'sdcc-2026', 'precondition: scoring alone still matches it');
+  assert.equal(findEventForArticle(retro, [sdcc26]), null);
+
+  const sdcc27 = { slug: { current: 'sdcc-2027' }, youtubeSyncKeywords: ['SDCC'] };
+  assert.equal(findEventForArticle(retro, [sdcc26, sdcc27])?.slug.current, 'sdcc-2027',
+    'with the exclusion in place, the edition that does list it wins');
+});
+
+test('a pin decides between two events that both list the article', () => {
+  const a = { slug: { current: 'aaa-2026' }, youtubeSyncKeywords: ['Expo 2026', 'expo2026'] };
+  const z = { slug: { current: 'zzz-2026' }, youtubeSyncKeywords: ['Expo 2026'], pinnedCoverage: ['expo-piece'] };
+  const piece = article({ slug: 'expo-piece', tags: ['Expo 2026', 'expo2026'] });
+  assert.equal(findEventForArticle(piece, [a, z])?.slug.current, 'zzz-2026');
+});
+
+test('on the real store, every backlink lands on a page that lists the article', () => {
+  const store = JSON.parse(readSrc('src', 'data', 'videos.json'));
+  const docs = Array.isArray(store) ? store : Object.values(store).flat();
+  const events = docs.filter((d) => d?._type === 'event');
+  const rawArticles = JSON.parse(readSrc('src', 'data', 'articles.json'));
+  const articles = Array.isArray(rawArticles) ? rawArticles : Object.values(rawArticles).flat();
+  assert.ok(events.length > 0 && articles.length > 0, 'could not read events or articles out of the store');
+
+  let linked = 0;
+  for (const a of articles) {
+    const event = findEventForArticle(a, events);
+    const listing = events.filter((e) => collectHubCoverage({ hub: e, videos: [], articles: [a] }).articleCount > 0);
+    if (!event) {
+      assert.equal(listing.length, 0, `${a.slug} is listed on ${listing.map((e) => e.slug.current)} but links to no event`);
+      continue;
+    }
+    linked += 1;
+    assert.ok(listing.includes(event), `${a.slug} links to ${event.slug.current}, whose coverage does not list it`);
+  }
+  assert.ok(linked > 0, 'no article in the store resolves to an event; the backlink would never render');
+});
+
+test('the article page resolves the event this way and shows it as a hub card', () => {
+  const page = stripComments(readSrc('src', 'pages', 'intel', '[slug].astro'));
+  assert.match(page, /findEventForArticle\(article, getEventsLocal\(\)\)/,
+    'the article page must resolve its event through findEventForArticle over every event');
+  assert.match(page, /<ArticleSupportRail[^>]*event=\{articleEvent\}/,
+    'the resolved event must reach the support rail, where its hub card renders');
+
+  const rail = stripComments(readSrc('src', 'components', 'ArticleSupportRail.astro'));
+  assert.match(rail, /<HubCard brand=\{event\} kind="event" \/>/,
+    'the event link is the shared hub card in its event form, not a second design');
+
+  const card = stripComments(readSrc('src', 'components', 'HubCard.astro'));
+  assert.match(card, /isEvent \? `\/events\/\$\{slug\}` : `\/featured\/\$\{slug\}`/,
+    'an event card must open /events/<slug>, a brand card /featured/<slug>');
+  assert.match(card, /'Official Event Hub'/);
+
+});
+
+/*
+  ─── THE HOMEPAGE HERO OPENS THE ARTICLE IT NAMES ──────────────────────────
+
+  For one branch the hero sent an event-coverage article (The Game Awards,
+  L.A. Comic Con) to its event hub instead. The owner's call, 2026-10-31:
+  the panel is titled as the article, so it opens the article, and the
+  event is one tap further, through the Official Event Hub card in that
+  article's rail. A headline that leads somewhere else is confusing.
+*/
+test('the homepage hero opens the article it names, never the event behind it', () => {
+  const binding = stripComments(readSrc('src', 'data', 'homepage-feed.ts'));
+  assert.ok(!/findEventForArticle|\/events\//.test(binding),
+    'the homepage feed is rerouting hero stories to event hubs again');
+
+  const accordion = stripComments(readSrc('src', 'components', 'home', 'HeroAccordion.astro'));
+  assert.ok(!/panel\.event/.test(accordion), 'a hero panel is reading an event link again');
+  assert.match(accordion, /: story\.url\}/, 'an article panel must link to its own story.url');
+});
+
+/*
+  ─── AN ARTICLE CARD MUST NEVER NEED THE PLAYER ────────────────────────────
+
+  A coverage card is a <div role="button"> with no href: the stage handler is
+  the ONLY thing that makes it do anything. That handler opened with
+  `if (!id || !frame) return;`, and the frame exists only when a hub has a
+  trailer or video coverage. L.A. Comic Con has neither, so its one article
+  card was dead: no pane, no scroll, no navigation (reported 2026-10-31).
+  All three stages carried the same line, so all three are checked.
+*/
+test('a stage with no player still opens an article card', () => {
+  for (const rel of [
+    ['src', 'components', 'EventAnnouncement.astro'],
+    ['src', 'components', 'EventFeatured.astro'],
+    ['src', 'pages', 'featured', '[slug].astro'],
+  ]) {
+    const code = stripComments(readSrc(...rel));
+    const label = rel.join('/');
+    const start = code.indexOf('const id = btn.dataset.hubPlay;');
+    const article = code.indexOf("if (btn.dataset.type === 'article')", start);
+    assert.ok(start !== -1 && article !== -1, `${label}: could not find the stage click handler`);
+    const before = code.slice(start, article);
+    assert.ok(!/!frame/.test(before),
+      `${label}: the frame is checked before the article branch, so a hub without a player has dead article cards`);
+    const videoPath = code.slice(article, code.indexOf('const token = ++playToken;', article));
+    assert.match(videoPath, /if \(!frame\) return;/, `${label}: the video path must still require the frame`);
+    assert.match(videoPath, /window\.location\.assign\(id\)/,
+      `${label}: with no pane to show it in, an article card must navigate rather than do nothing`);
+
+    /* The trailer's end hands the stage to the rail's first tile. A pane the
+       reader opened from the coverage grid must stop that, not only a rail
+       tile, or their article is swapped out from under them. */
+    const handOver = code.slice(code.indexOf('const handOver = () => {'), code.indexOf('show(0);', code.indexOf('const handOver = () => {')));
+    assert.match(handOver, /stage\.querySelector\('\.hub-stage-item\.active'\)\) return;/,
+      `${label}: the trailer handover must leave a pane the reader chose alone`);
+  }
+});
+
+/*
+  ─── THE TRAILER STANDS DOWN WHEN THE READER TAKES THE STAGE ───────────────
+
+  Antigravity test order, Lane A, confirmed on production 2026-10-31: a video
+  the reader started (from the Coverage grid OR the rail) was blanked ~42s
+  after the hub's trailer began, because the trailer's HUB_RUN_MS timer and
+  ENDED listener act on the shared frame and nothing disarmed them. Measured
+  offline with a stand-in player: old code cut all four runs (two templates,
+  grid and rail), the fix kept all four.
+*/
+test('a video the reader chose is never torn down by the trailer\'s timers', () => {
+  for (const rel of [
+    ['src', 'components', 'EventAnnouncement.astro'],
+    ['src', 'components', 'EventFeatured.astro'],
+    ['src', 'pages', 'featured', '[slug].astro'],
+  ]) {
+    const code = stripComments(readSrc(...rel));
+    const label = rel.join('/');
+
+    assert.match(code,
+      /stage\.addEventListener\('hub:stage-taken', \(\) => \{\s*clearAll\(\);\s*window\.removeEventListener\('message', onMessage\);\s*\}\);/,
+      `${label}: initHubStage must drop the trailer's timers and listener on 'hub:stage-taken', and do nothing else`);
+
+    const show = code.slice(code.indexOf('const show = (index: number) => {'));
+    const showBody = show.slice(0, show.indexOf('\n    };'));
+    assert.ok(showBody.indexOf("'hub:stage-taken'") !== -1 && showBody.indexOf("'hub:stage-taken'") < showBody.indexOf('about:blank'),
+      `${label}: the rail's show() must stand the trailer down before it unloads the frame`);
+
+    const play = code.slice(code.indexOf('const token = ++playToken;'));
+    assert.ok(play.indexOf("'hub:stage-taken'") !== -1 && play.indexOf("'hub:stage-taken'") < play.indexOf('frame.src = embedUrl('),
+      `${label}: the play path must stand the trailer down before loading the reader's video`);
+  }
 });
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);

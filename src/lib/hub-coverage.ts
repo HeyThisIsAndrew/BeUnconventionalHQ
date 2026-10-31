@@ -355,3 +355,28 @@ export function findHubForItem(item: any, hubs: any[]): any | null {
 
   return best;
 }
+
+/**
+ * ─── WHICH EVENT AN ARTICLE IS COVERAGE OF ─────────────────────────────────
+ *
+ * The backlink from an article (its Official Event Hub card) to the event it
+ * covers. It must be the exact inverse of the event page's COVERAGE grid:
+ * an article links to an event only when that event's page lists it, or the
+ * reader follows the link and cannot find the piece they came from.
+ *
+ * So the candidates are not scored straight off the tags. findHubForItem()
+ * does not apply `excludeCoverage`, and an excluded retrospective would
+ * still point at the edition it was excluded from. Each candidate is first
+ * run through collectHubCoverage(), the same call the event page makes;
+ * findHubForItem() only breaks the tie between events that all list it (a
+ * pin first, then the most tags matched, then the slug).
+ *
+ * Null for an article that covers no event, which is most of them.
+ */
+export function findEventForArticle(article: any, events: any[]): any | null {
+  if (!article) return null;
+  const covering = (events ?? []).filter(
+    (event) => collectHubCoverage({ hub: event, videos: [], articles: [article] }).articleCount > 0,
+  );
+  return findHubForItem(article, covering);
+}
