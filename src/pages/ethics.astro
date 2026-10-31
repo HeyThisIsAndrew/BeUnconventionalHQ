@@ -4,16 +4,29 @@
   owner's call, 2026-10-31): a plain policy page, not a section of the press
   kit, which is where /ethics used to forward.
 
-  Every statement here restates something the site already says elsewhere:
-  the five EDITORIAL STANDARDS lines in the press kit
-  (src/pages/collaborations/press-kit.astro), the independence line on
-  /about, and the affiliate disclosure (src/data/referrals.js). The one
-  addition is the sponsored-content line, which US FTC guidance requires of
-  any paid partnership. Change a standard there and here together.
+  Built from the press kit's EDITORIAL STANDARDS, word for word (the list
+  and the section headings), plus the independence line on /about and the
+  affiliate disclosure (src/data/referrals.js). The additions are the
+  sponsored-content line (US FTC guidance) and the Advertising section
+  (AdSense). Change a standard in the press kit and here together.
 */
 import Layout from '../layouts/Layout.astro';
 import { site } from '../data/site.js';
 import { pageTitle } from '../data/content.js';
+
+/*
+  The press kit's EDITORIAL STANDARDS, word for word
+  (src/pages/collaborations/press-kit.astro). They are the list at the top
+  and the headings below it, so the two documents say the same thing.
+  scripts/adsense-readiness.test.mjs checks they still match.
+*/
+const EDITORIAL_STANDARDS = [
+  'Editorial independence on all coverage',
+  'Full disclosure of provided materials',
+  'Embargo terms honored in writing',
+  'Corrections issued on the record',
+  'Direct contact for press and publicists',
+];
 
 const title = pageTitle('Ethics Policy');
 const description =
@@ -21,7 +34,7 @@ const description =
 ---
 
 <Layout title={title} description={description}>
-  <main class="policy-page container-page pt-24 pb-24">
+  <main class="policy-page container-page">
     <div class="policy-header animate-on-scroll">
       <h1 class="policy-title">ETHICS POLICY</h1>
       <p class="policy-subtitle">Last updated: October 2026</p>
@@ -32,14 +45,34 @@ const description =
         {site.name} was founded in 2026 and is run independently, with no publisher, no network, and no editorial mandate from anyone else. These are the standards our coverage is held to.
       </p>
 
-      <h2>Editorial Independence</h2>
+      <h2>Our Editorial Standards</h2>
+      <ul>
+        {EDITORIAL_STANDARDS.map((standard) => <li>{standard}</li>)}
+      </ul>
+
+      <h2>{EDITORIAL_STANDARDS[0]}</h2>
       <p>
         Our coverage, including reviews and scores, reflects our own judgment. Studios, publishers, platforms, and partners do not approve or change what we publish.
       </p>
 
-      <h2>Provided Materials</h2>
+      <h2>{EDITORIAL_STANDARDS[1]}</h2>
       <p>
         When a studio, publisher, or event gives us access to something, such as a screener, a review copy, or event credentials, we disclose it in the coverage.
+      </p>
+
+      <h2>{EDITORIAL_STANDARDS[2]}</h2>
+      <p>
+        We honor embargo terms agreed in writing and publish embargoed coverage only once the embargo lifts.
+      </p>
+
+      <h2>{EDITORIAL_STANDARDS[3]}</h2>
+      <p>
+        When we get something wrong, we correct it on the record. Story tips, review material, and corrections all reach the same inbox, so if you spot an error, tell us at <a href="mailto:press@beunconventionalhq.com">press@beunconventionalhq.com</a>.
+      </p>
+
+      <h2>{EDITORIAL_STANDARDS[4]}</h2>
+      <p>
+        Press, publicists, and readers can reach the editorial team directly at <a href="mailto:press@beunconventionalhq.com">press@beunconventionalhq.com</a>.
       </p>
 
       <h2>Affiliate Links & Sponsorships</h2>
@@ -51,29 +84,20 @@ const description =
       <p>
         Any advertising on the site is clearly separated from our editorial content. Advertisers have no say in what we cover or how we cover it. How advertising uses cookies is explained in our <a href="/privacy">Privacy Policy</a>.
       </p>
-
-      <h2>Embargoes</h2>
-      <p>
-        We honor embargo terms agreed in writing and publish embargoed coverage only once the embargo lifts.
-      </p>
-
-      <h2>Corrections</h2>
-      <p>
-        When we get something wrong, we correct it on the record. Story tips, review material, and corrections all reach the same inbox, so if you spot an error, tell us at <a href="mailto:press@beunconventionalhq.com">press@beunconventionalhq.com</a>.
-      </p>
-
-      <h2>Contact</h2>
-      <p>
-        Press, publicists, and readers can reach the editorial team directly at <a href="mailto:press@beunconventionalhq.com">press@beunconventionalhq.com</a>.
-      </p>
     </div>
   </main>
 </Layout>
 
 <style>
   /* The /privacy page's styles, unchanged, so the two policies read as one set. */
+  /* Clear of the fixed navbar. This was `pt-24 pb-24` on the <main>, which
+     did nothing: `.container-page` (layout.css) sets `padding: 0 2rem` and
+     wins over Tailwind's utilities, so the title sat under the navbar. Same
+     120px as /collaborations. */
   .policy-page {
     min-height: 80vh;
+    padding-top: 120px;
+    padding-bottom: 6rem;
   }
 
   .policy-header {
@@ -132,6 +156,26 @@ const description =
 
   .policy-content p:last-child {
     margin-bottom: 0;
+  }
+
+  .policy-content ul {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 1.5rem;
+  }
+
+  .policy-content li {
+    position: relative;
+    padding-left: 1.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .policy-content li::before {
+    content: "•";
+    color: var(--color-accent-text);
+    position: absolute;
+    left: 0;
+    font-weight: bold;
   }
 
   .policy-content strong {

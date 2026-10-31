@@ -43,6 +43,17 @@ test('the privacy policy makes the disclosures AdSense requires', () => {
     'no link to how Google uses data from partner sites');
 });
 
+test('the ethics policy states the press kit\'s editorial standards, word for word', () => {
+  const kit = read('src', 'pages', 'collaborations', 'press-kit.astro');
+  const block = kit.slice(kit.indexOf('EDITORIAL STANDARDS'), kit.indexOf('</ul>', kit.indexOf('EDITORIAL STANDARDS')));
+  const standards = [...block.matchAll(/<li>([^<]+)<\/li>/g)].map((m) => m[1].trim());
+  assert.equal(standards.length, 5, `expected the press kit's five standards, found ${standards.length}`);
+  const ethics = read('src', 'pages', 'ethics.astro');
+  for (const standard of standards) {
+    assert.ok(ethics.includes(`'${standard}'`), `the ethics policy no longer states "${standard}"`);
+  }
+});
+
 test('the ethics policy keeps advertising separate from editorial', () => {
   const ethics = read('src', 'pages', 'ethics.astro');
   assert.match(ethics, /<h2>Advertising<\/h2>/);
@@ -53,6 +64,8 @@ test('both policy pages are linked from every page, in the footer', () => {
   const footer = read('src', 'components', 'Footer.astro');
   assert.match(footer, /<a href="\/privacy" class="footer-privacy-link">Privacy Policy<\/a>/);
   assert.match(footer, /<a href="\/ethics" class="footer-privacy-link">Ethics Policy<\/a>/);
+  assert.match(footer, /Privacy Policy<\/a>\s*<span class="footer-legal-sep" aria-hidden="true">\|<\/span>\s*<a href="\/ethics"/,
+    'the two policy links are separated by a pipe');
 });
 
 test('ads.txt authorises nobody until a publisher ID is set', () => {
