@@ -208,6 +208,21 @@ export function dispatchContentHtml(entry: DispatchEntry, imageUrl: string): str
   return img + summary;
 }
 
+/**
+ * An entry as Kit's RSS Liquid would see it: what the Post Template
+ * (email/hq-dispatch/post-template.liquid.html) is rendered with. Title and
+ * summary are escaped here because the template prints them raw.
+ */
+export function dispatchKitPost(entry: DispatchEntry, imageUrl: string) {
+  return {
+    title: escapeHtml(entry.title),
+    url: entry.link,
+    summary: escapeHtml(entry.summary),
+    content: dispatchContentHtml(entry, imageUrl),
+    categories: entry.categories,
+  };
+}
+
 /** One item of /dispatch.json, the machine twin of /dispatch.xml. */
 export interface DispatchJsonItem {
   /** Stable identity across builds: the item's absolute link. */
@@ -222,6 +237,10 @@ export interface DispatchJsonItem {
   categories: string[];
   /** Absolute URL of the composed 1200x675 image (or the branded fallback). */
   imageUrl: string;
+  /** The story as the newsletter's FEATURED box (src/lib/dispatch-boxes.ts). */
+  featuredHtml?: string;
+  /** The story as a LATEST FROM THE HQ box, without the section heading. */
+  latestHtml?: string;
 }
 
 /**

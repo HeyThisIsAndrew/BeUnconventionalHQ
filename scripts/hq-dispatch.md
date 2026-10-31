@@ -1,18 +1,36 @@
 # THE HQ DISPATCH: the weekly newsletter
 
-Issue #266. Sent from Kit (formerly ConvertKit), fed by `/dispatch.xml`.
+Issues #266 (template), #272 (weekly Kit draft), #273 (feed), #278 (Kit API
+check). Sent from Kit (formerly ConvertKit).
+
+**Launch path: the Kit draft Worker.** We are on Kit's free Newsletter plan,
+and Kit's RSS-to-email needs the paid Creator plan, so the site does the RSS
+part itself: a Cloudflare Worker builds a **draft** broadcast in Kit every
+Thursday, and a human reviews it and presses Send. The RSS route is kept at
+the bottom of this file for the day the plan changes.
 
 ## How it fits together
 
 ```
 src/data/articles.json ─┐
-src/data/videos.json  ──┼─> selectDispatchEntries() ──> /dispatch.xml ──> Kit RSS (weekly digest)
-                        │   (src/lib/dispatch-feed.ts)        │                  │
-                        │                                     │   post-template.liquid.html
-                        └─> sync-dispatch-images.mjs          │   renders the story boxes
-                            composes each story's art ────────┘                  │
-                            into public/dispatch/images/                         v
-                                                              template.html (the email shell)
+src/data/videos.json  ──┼─> selectDispatchEntries() ─┬─> /dispatch.xml  (RSS; Kit Creator plan only)
+                        │   (src/lib/dispatch-feed.ts)│
+                        │                             └─> /dispatch.json (20 stories, each with its
+                        │                                  FEATURED and LATEST boxes pre-rendered
+                        │                                  from post-template.liquid.html)
+                        └─> sync-dispatch-images.mjs             │
+                            composes each story's art            │  Thursdays 16:00 UTC, or by hand
+                            into public/dispatch/images/         v
+                                               dispatch-kit-worker/ (hq-dispatch-kit)
+                                               stories since the last draft, at most 6,
+                                               joined in order, nothing else
+                                                                 │
+                                                                 v
+                                     Kit: POST /v4/broadcasts, send_at null = a DRAFT,
+                                     in the HQ Dispatch email template (template.html)
+                                                                 │
+                                                                 v
+                                     email to the owner with the link; a human presses Send
 ```
 
 ## Files
@@ -22,7 +40,13 @@ src/data/videos.json  ──┼─> selectDispatchEntries() ──> /dispatch.xm
 | `email/hq-dispatch/template.html` | The email shell. Paste into Kit > Send > Email Templates > New > **HTML**. |
 | `email/hq-dispatch/post-template.liquid.html` | The FEATURED and LATEST FROM THE HQ story boxes. Paste into the RSS broadcast's **Post** content block > Post Template (HTML). |
 | `email/hq-dispatch/mockup.html` | Both rendered with five real stories. Open in a browser to review. **Generated**: `node scripts/hq-dispatch-render.mjs`. |
-| `src/pages/dispatch.xml.ts` | The feed Kit reads: `https://beunconventionalhq.com/dispatch.xml` |
+| `src/pages/dispatch.json.ts` | The feed the Kit draft Worker reads: `/dispatch.json`, with each story's boxes pre-rendered |
+| `src/lib/dispatch-boxes.ts` | How the boxes are rendered one story at a time from the one Liquid template |
+| `dispatch-kit-worker/` | The weekly draft Worker: `kit-draft.mjs` (the logic), `worker.mjs`, `wrangler.jsonc` |
+| `scripts/kit-spike.mjs` | Issue #278, by hand: list Kit templates, create one test draft, delete it |
+| `scripts/trigger-kit-draft.mjs` | Run the Worker by hand (dry run unless `--execute`; `--test-failure` tests the alert) |
+| `scripts/dispatch-kit.test.mjs` | Offline guards for the Worker, in `npm test` |
+| `src/pages/dispatch.xml.ts` | The RSS feed: `https://beunconventionalhq.com/dispatch.xml` (Creator plan route only) |
 | `src/lib/dispatch-feed.ts` | What the feed lists and what each item carries |
 | `scripts/sync-dispatch-images.mjs` | Builds each listed story's image. `npm run sync:dispatch-images -- --execute`. Runs in CI after every article and YouTube sync. |
 | `scripts/dispatch-image.mjs` | The image composer (the "never cut off" rule lives here) |
@@ -105,15 +129,84 @@ That keeps the FEATURED box opening on a full-width picture every time.
 as it sits in an inbox, so `sync-dispatch-images.mjs` never prunes, unlike
 the article-image sync. About 75 KB a story.
 
-## Setting it up in Kit
+## Launch: the weekly Kit draft Worker
+
+### What a run does
+
+1. Reads `/dispatch.json` through a service binding to the site Worker (the
+   domain's bot protection refuses datacenter IPs).
+2. Takes the stories published after the newest story of the last draft. The
+   very first run looks back `FIRST_WINDOW_DAYS` (7). **No new stories, no
+   draft**: you get a one-line "no new stories" email instead.
+3. At most `MAX_STORIES` (6), newest first: the newest is FEATURED, up to five
+   more are LATEST. More than six: the newest six go, and the email says how
+   many older ones did not fit.
+4. Joins the boxes the site pre-rendered: FEATURED box, the LATEST heading,
+   then each LATEST box. **The Worker never writes email markup**;
+   `scripts/dispatch-feed.test.mjs` proves the joined boxes equal the Liquid
+   template rendering the same stories.
+5. Writes the copy: subject `THE HQ DISPATCH: <featured title>`, preview text
+   the featured summary trimmed to about 90 characters, internal description
+   the story titles plus a marker `[hq-dispatch newest=<link>]`.
+6. **Checks Kit for that marker before creating**, so a re-run, a lost cache
+   or a create that timed out can never make a second draft. Kit is the
+   source of truth; the Worker's own state is a cache.
+7. Creates the draft (`send_at: null`, `public: false`, the HQ Dispatch
+   template) and emails you the link. Kit's 429s and 5xx are retried with
+   backoff. Any failure emails you.
+
+It **ships in dry run** (`CREATE_DRAFTS: "false"`): a run emails you the
+would-be draft, boxes rendered, and does not touch Kit.
+
+**Schedule:** Thursdays at 16:00 UTC. Cloudflare crons run on UTC with no
+daylight saving, so that is 09:00 Pacific in summer and 08:00 in winter.
+
+### Setup, in order
+
+1. **#278 first: prove the free plan takes API drafts.** In Kit, Send > Email
+   Templates > New > HTML, paste `email/hq-dispatch/template.html`, save. Then:
+   ```
+   KIT_API_KEY=... node scripts/kit-spike.mjs templates           # note the HQ Dispatch id
+   KIT_API_KEY=... node scripts/kit-spike.mjs create --template <id>
+   ```
+   Open the draft in Kit. Check the preview keeps the tables, send test emails
+   to Gmail and Apple Mail, then `node scripts/kit-spike.mjs delete <id>`.
+   Record the result (or the exact error) on #278 and #272. If the free plan
+   refuses, stop here: the Worker needs a different shape.
+   Also note the draft's real URL in Kit. If it is not
+   `https://app.kit.com/campaigns/<id>/draft`, put the right pattern in
+   `KIT_DRAFT_URL` (`{id}` is replaced).
+2. **GitHub secret** `KIT_API_KEY` (Kit > Settings > Developer, a v4 key).
+   `CLOUDFLARE_API_TOKEN`, `WEBSUB_SECRET` and `RESEND_API_KEY` already exist.
+3. **Deploy**: Actions > "Deploy Kit draft Worker" > Run workflow.
+4. **Dry run by hand**: `WEBSUB_SECRET=... node scripts/trigger-kit-draft.mjs`
+   and check the preview email. Test the alert once:
+   `node scripts/trigger-kit-draft.mjs --test-failure`.
+5. **Switch on**: in `dispatch-kit-worker/wrangler.jsonc` set
+   `"KIT_EMAIL_TEMPLATE_ID"` to the template id and `"CREATE_DRAFTS": "true"`,
+   then merge. It still only ever makes drafts.
+
+Do not change those vars in the Cloudflare dashboard: the next deploy
+overwrites them with `wrangler.jsonc`.
+
+### Editorial opt-out (#275)
+
+Undecided, so the default stands: every published article and long-form
+video is eligible, and you curate at the draft review in Kit (delete a box
+there). Nothing in the feed or the Worker filters stories.
+
+## The RSS route (needs Kit's paid Creator plan, NOT our launch path)
+
+Kept for when the plan changes. **Do not enable it while the Worker runs**:
+two routes would build two newsletters.
 
 1. **Template.** Kit > Send > Email Templates > New > HTML. Paste `template.html`. Save.
 2. **RSS feed.** Kit > Automate > RSS > add `https://beunconventionalhq.com/dispatch.xml`. Choose **digest** mode, weekly, on the day and time you want.
 3. **Broadcast body.** In the RSS broadcast, pick the HQ Dispatch template. Keep the **Post** content block (Kit won't enable the feed without it). Open its Post Template tab, switch to HTML, paste `post-template.liquid.html`.
 4. **Preview text** goes in the broadcast's preview text setting.
 
-The site must be deployed (with this change) before Kit reads the feed: the
-header, fallback and story images are served from the site.
+The site must be deployed before Kit reads the feed: the header, fallback
+and story images are served from the site.
 
 ## Liquid and RSS notes
 
@@ -132,6 +225,11 @@ The first draft named the tags in its header note, the broadcast was rendered
 into the comment, and the page broke. The test fails if one comes back.
 
 ### Kit variables in `post-template.liquid.html`
+
+On the launch path the site renders this template itself (liquidjs, at
+build time, `src/lib/dispatch-boxes.ts`), with each post shaped exactly as
+Kit's RSS would hand it over (`dispatchKitPost()` in `dispatch-feed.ts`).
+The table holds for both routes.
 
 | Variable | From the feed | Used for |
 | --- | --- | --- |

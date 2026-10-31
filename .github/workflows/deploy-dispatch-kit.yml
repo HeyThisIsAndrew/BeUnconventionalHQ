@@ -1,0 +1,74 @@
+# The weekly THE HQ DISPATCH Kit draft Worker (hq-dispatch-kit, issue #272).
+# Runbook: scripts/hq-dispatch.md. Deploys when its code changes, never on a
+# content sync. The story box markup is NOT in this Worker: it comes from
+# /dispatch.json, which the site renders from post-template.liquid.html.
+name: Deploy Kit draft Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - dispatch-kit-worker/**
+      - src/lib/automation-auth.mjs
+      - src/lib/automation-email.mjs
+      - .github/workflows/deploy-dispatch-kit.yml
+  workflow_dispatch:
+
+concurrency:
+  group: dispatch-kit-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+    steps:
+      - name: Check the required secrets are configured
+        id: ready
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WEBSUB_SECRET: ${{ secrets.WEBSUB_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$WEBSUB_SECRET" ] || [ -z "$RESEND_API_KEY" ]; then
+            echo "::notice::CLOUDFLARE_API_TOKEN, WEBSUB_SECRET and RESEND_API_KEY are all needed to deploy the Kit draft Worker. Not deploying. See scripts/hq-dispatch.md."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.ready.outputs.ok == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.ready.outputs.ok == 'true'
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+      - if: steps.ready.outputs.ok == 'true'
+        run: npm ci
+      - name: Regression tests
+        if: steps.ready.outputs.ok == 'true'
+        run: node --test scripts/dispatch-kit.test.mjs && node scripts/dispatch-feed.test.mjs
+      - name: Deploy
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler deploy --config dispatch-kit-worker/wrangler.jsonc
+      # After the deploy, so the Worker exists. KIT_API_KEY is optional until
+      # CREATE_DRAFTS is switched on: dry runs never call Kit.
+      - name: Set the Worker's secrets
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WEBSUB_SECRET: ${{ secrets.WEBSUB_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          KIT_API_KEY: ${{ secrets.KIT_API_KEY }}
+        run: |
+          node --input-type=module -e '
+            const names = ["WEBSUB_SECRET","RESEND_API_KEY","KIT_API_KEY"];
+            process.stdout.write(JSON.stringify(Object.fromEntries(names.filter(n => process.env[n]).map(n => [n, process.env[n]]))));
+          ' | npx wrangler secret bulk --config dispatch-kit-worker/wrangler.jsonc

@@ -26,12 +26,16 @@ import {
   dispatchImageUrl,
   dispatchContentHtml,
   dispatchJsonItem,
+  dispatchKitPost,
   articleEntry,
   videoEntry,
   DISPATCH_FEED_LIMIT,
   DISPATCH_FALLBACK_IMAGE,
 } from '../src/lib/dispatch-feed.ts';
 import { composeDispatchImage, WIDTH, HEIGHT } from './dispatch-image.mjs';
+import { createBoxRenderer } from '../src/lib/dispatch-boxes.ts';
+import { joinBoxes } from '../dispatch-kit-worker/kit-draft.mjs';
+import { renderPosts, FIXTURE_POSTS, POST_TEMPLATE_PATH } from './hq-dispatch-render.mjs';
 
 const SITE = 'https://beunconventionalhq.com/';
 const article = (over = {}) => ({
@@ -129,6 +133,33 @@ test('/dispatch.json items: the RSS fields, ISO date, link as guid', () => {
   // JSON-safe: survives a round trip unchanged (no Date objects).
   assert.deepEqual(JSON.parse(JSON.stringify(item)), item);
   assert.equal(dispatchJsonItem(videoEntry(video()), 'x').kind, 'video');
+});
+
+test('pre-rendered boxes joined in order are EXACTLY the Kit template rendering the same posts', async () => {
+  const renderer = createBoxRenderer(readFileSync(POST_TEMPLATE_PATH, 'utf8'));
+  const heading = await renderer.latestHeading();
+  assert.match(heading, /Latest from the/);
+  for (let n = 1; n <= FIXTURE_POSTS.length; n++) {
+    const posts = FIXTURE_POSTS.slice(0, n);
+    const boxes = await Promise.all(posts.map((p) => renderer.boxes(p)));
+    const joined = joinBoxes(boxes[0].featuredHtml, heading, boxes.slice(1).map((b) => b.latestHtml));
+    // Whitespace between tags is the only freedom allowed: it renders as nothing.
+    const squash = (html) => html.replace(/>\s+</g, '><').trim();
+    assert.equal(squash(joined), squash(await renderPosts(posts)), `${n} posts`);
+  }
+  // A box carries its own story and no section heading.
+  const { featuredHtml, latestHtml } = await renderer.boxes(FIXTURE_POSTS[1]);
+  assert.match(featuredHtml, /Watch now/);
+  assert.doesNotMatch(latestHtml, /Latest from the/);
+});
+
+test('the Kit post shape escapes the text the template prints raw', () => {
+  const e = articleEntry(article({ title: 'Tom & <Jerry>', excerpt: 'a "b"' }), SITE);
+  const post = dispatchKitPost(e, 'https://beunconventionalhq.com/dispatch/images/abc.jpg');
+  assert.equal(post.title, 'Tom &amp; &lt;Jerry&gt;');
+  assert.equal(post.summary, 'a &quot;b&quot;');
+  assert.match(post.content, /^<img src="https:\/\/beunconventionalhq\.com\/dispatch\/images\/abc\.jpg"/);
+  assert.deepEqual(post.categories, ['Review', 'TV']);
 });
 
 test('the fallback art is committed and 16:9', async () => {

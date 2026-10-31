@@ -1,0 +1,34 @@
+// hq-dispatch-kit: weekly THE HQ DISPATCH draft in Kit (issue #272).
+// Runbook: scripts/hq-dispatch.md. Deployed by
+// .github/workflows/deploy-dispatch-kit.yml; dashboard edits are overwritten.
+{
+  "name": "hq-dispatch-kit",
+  "main": "worker.mjs",
+  "account_id": "b10b7bc3e6a0fd361ba0956c8aa7d307",
+  "compatibility_date": "2026-10-30",
+  "workers_dev": true,
+  "vars": {
+    // Brand configuration (issue #286).
+    "SITE_URL": "https://beunconventionalhq.com",
+    "NEWSLETTER_NAME": "THE HQ DISPATCH",
+    "ALERT_EMAIL": "andrew@beunconventionalhq.com",
+    "ALERT_FROM": "noreply@beunconventionalhq.com",
+    // DRY RUN UNTIL THE OWNER SAYS OTHERWISE. "true" creates real drafts in
+    // Kit (still drafts: a human presses Send). Anything else emails a preview.
+    "CREATE_DRAFTS": "false",
+    // The HQ Dispatch email template in Kit: node scripts/kit-spike.mjs templates
+    "KIT_EMAIL_TEMPLATE_ID": "",
+    "KIT_DRAFT_URL": "https://app.kit.com/campaigns/{id}/draft",
+    "MAX_STORIES": "6",
+    "FIRST_WINDOW_DAYS": "7"
+  },
+  // Secrets (set by the deploy workflow): KIT_API_KEY, WEBSUB_SECRET, RESEND_API_KEY
+  // Thursdays 16:00 UTC = 09:00 PDT / 08:00 PST (UTC has no daylight saving).
+  "triggers": { "crons": ["0 16 * * 4"] },
+  "services": [{ "binding": "HQ_SITE", "service": "beunconventionalhq" }],
+  "durable_objects": {
+    "bindings": [{ "name": "KIT_STATE", "class_name": "KitDraftState" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["KitDraftState"] }],
+  "observability": { "enabled": true }
+}

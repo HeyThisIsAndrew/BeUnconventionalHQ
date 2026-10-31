@@ -6,6 +6,7 @@
  *   - the ready-to-post drafts for X and YouTube Community (issue #284),
  *     each with a one-tap link that opens the composer.
  */
+import { sendOwnerEmail } from '../src/lib/automation-email.mjs';
 
 const PLATFORM_NAMES = {
   bluesky: 'Bluesky', threads: 'Threads', facebook: 'Facebook Page', x: 'X', youtube: 'YouTube Community',
@@ -91,19 +92,6 @@ export function buildReport(entries, env, { inspect = false } = {}) {
 }
 
 /** Sends one report. Idempotent on `key`, so a retried send never doubles. */
-export async function sendEmail(env, { subject, text, html, key }, fetchImpl = fetch) {
-  if (!env.RESEND_API_KEY || !env.ALERT_EMAIL || !env.ALERT_FROM) {
-    throw new Error('Report email is not configured (RESEND_API_KEY, ALERT_EMAIL, ALERT_FROM)');
-  }
-  const response = await fetchImpl('https://api.resend.com/emails', {
-    method: 'POST',
-    signal: AbortSignal.timeout(20000),
-    headers: {
-      Authorization: `Bearer ${env.RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-      'Idempotency-Key': `social-blast-${key}`,
-    },
-    body: JSON.stringify({ from: env.ALERT_FROM, to: env.ALERT_EMAIL, subject, text, html }),
-  });
-  if (!response.ok) throw new Error(`Report email failed: HTTP ${response.status}`);
+export function sendEmail(env, { subject, text, html, key }, fetchImpl = fetch) {
+  return sendOwnerEmail(env, { subject, text, html, key: `social-blast-${key}` }, fetchImpl);
 }
