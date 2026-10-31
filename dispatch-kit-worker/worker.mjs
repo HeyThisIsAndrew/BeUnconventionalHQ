@@ -9,7 +9,8 @@
  *         (src/lib/automation-auth.mjs). Body: {"dryRun":true} previews
  *         even when drafts are on; {"forceFailure":true} tests the alert;
  *         {"setNote":"..."} saves the editor's note for the next issue
- *         ("" clears it) and does nothing else.
+ *         ("" clears it) and does nothing else; {"setFeatured":"<link or
+ *         slug>"} picks the next issue's FEATURED story the same way.
  *
  * Runs go through one Durable Object, one at a time, which holds the cache
  * of the last draft. Kit's own broadcast list is the real duplicate guard
@@ -44,6 +45,7 @@ export default {
         dryRun: options.dryRun === true,
         forceFailure: options.forceFailure === true,
         ...(typeof options.setNote === 'string' ? { setNote: options.setNote } : {}),
+        ...(typeof options.setFeatured === 'string' ? { setFeatured: options.setFeatured.slice(0, 300) } : {}),
       }),
     }));
   },
@@ -75,8 +77,14 @@ export class KitDraftState {
     return Response.json(await run);
   }
 
-  async run({ dryRun = false, forceFailure = false, setNote } = {}) {
+  async run({ dryRun = false, forceFailure = false, setNote, setFeatured } = {}) {
     const env = this.env;
+    if (typeof setFeatured === 'string') {
+      // The owner's FEATURED pick for the next issue (a link, slug or YouTube id).
+      const pick = setFeatured.trim();
+      await this.state.storage.put('featuredPick', pick ? { pick, setAt: new Date().toISOString() } : null);
+      return { ok: true, action: pick ? 'featured-saved' : 'featured-cleared', pick };
+    }
     if (typeof setNote === 'string') {
       // Saving the owner's note for the next issue. No draft, no email.
       try {

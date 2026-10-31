@@ -99,3 +99,30 @@ test('wiring: inline topic toggles on signup, actions validate topics, /newslett
   assert.match(shell, /href="https:\/\/beunconventionalhq\.com\/newsletter\?email=\{\{ subscriber\.email_address \| url_encode \}\}"/);
   assert.match(shell, /\{\{ unsubscribe_url \}\}/, "Kit's one-click unsubscribe stays");
 });
+
+test('the KV import: every record read, confirmation required, unsubscribed skipped, dry run writes nothing', async () => {
+  const { listKvSubscribers, importSubscribers } = await import('./kv-subscribers-to-kit.mjs');
+  const pages = { '': { result: [{ name: 'subscriber:a@x.com' }], result_info: { cursor: 'c2' } }, c2: { result: [{ name: 'subscriber:b@x.com' }, { name: 'subscriber:bad@x.com' }], result_info: { cursor: '' } } };
+  const values = {
+    'subscriber:a@x.com': JSON.stringify({ email: 'A@x.com', topics: 'film,tv' }),
+    'subscriber:b@x.com': JSON.stringify({ email: 'b@x.com', unsubscribedAt: '2026-10-01' }),
+    'subscriber:bad@x.com': 'not json',
+  };
+  const cf = async (url) => {
+    const u = new URL(url);
+    if (u.pathname.endsWith('/keys')) return Response.json(pages[u.searchParams.get('cursor') ?? '']);
+    return new Response(values[decodeURIComponent(u.pathname.split('/values/')[1])]);
+  };
+  const { records, unreadable } = await listKvSubscribers({ token: 't', fetchImpl: cf });
+  assert.deepEqual(records.map((r) => r.email), ['a@x.com', 'b@x.com']);
+  assert.deepEqual(unreadable, ['subscriber:bad@x.com']);
+  await assert.rejects(importSubscribers(records, { apiKey: 'k' }), /KIT_FORM_ID is required/);
+  const kit = fakeKit();
+  const dry = await importSubscribers(records, { apiKey: 'k', formId: '9' }, { fetchImpl: kit.fetchImpl, sleep: async () => {} });
+  assert.equal(kit.calls.length, 0, 'a dry run calls nothing');
+  assert.deepEqual(dry.imported.map((r) => [r.email, r.topics.join(',')]), [['a@x.com', 'film,tv']]);
+  assert.deepEqual(dry.skipped, [{ email: 'b@x.com', why: 'unsubscribed' }]);
+  const live = await importSubscribers(records, { apiKey: 'k', formId: '9' }, { execute: true, fetchImpl: kit.fetchImpl, sleep: async () => {} });
+  assert.equal(live.imported.length, 1);
+  assert.deepEqual(kit.calls.map((c) => c.path), ['/v4/subscribers', '/v4/forms/9/subscribers'], "through the form: Kit's confirmation email");
+});

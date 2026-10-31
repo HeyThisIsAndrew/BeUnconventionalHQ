@@ -10,6 +10,10 @@
  *                                                      saves the editor's note for
  *                                                      the next issue (no draft);
  *                                                      --note "" clears it
+ *   node scripts/trigger-kit-draft.mjs --feature <article slug, link or YouTube id>
+ *                                                      picks the next issue's FEATURED
+ *                                                      story (default: the newest);
+ *                                                      --feature "" clears it
  *
  * Needs WEBSUB_SECRET (the shared automation secret, already in .env).
  * Runbook: scripts/hq-dispatch.md.
@@ -22,9 +26,12 @@ const execute = process.argv.includes('--execute');
 const forceFailure = process.argv.includes('--test-failure');
 
 const noteAt = process.argv.indexOf('--note');
+const featureAt = process.argv.indexOf('--feature');
 const body = noteAt > 0
   ? JSON.stringify({ setNote: process.argv[noteAt + 1] ?? '' })
-  : JSON.stringify({ dryRun: !execute, forceFailure });
+  : featureAt > 0
+    ? JSON.stringify({ setFeatured: process.argv[featureAt + 1] ?? '' })
+    : JSON.stringify({ dryRun: !execute, forceFailure });
 const response = await fetch(URL_, {
   method: 'POST', headers: await signAutomationRequest(process.env.WEBSUB_SECRET, body), body,
   signal: AbortSignal.timeout(120000),

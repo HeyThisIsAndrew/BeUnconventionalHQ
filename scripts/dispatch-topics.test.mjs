@@ -116,3 +116,27 @@ test('a headline that looks like Liquid stays text; the field key is checked', a
   assert.ok(!html.includes('leak@x'));
   assert.throws(() => personalizedSlots({}, '<H>', 'bad key"}}'), /not a Kit field key/);
 });
+
+// ─── owner's decisions (2026-10-31) ─────────────────────────────────────────
+
+test('FEATURED is the newest unless the owner picks one; the newest still names the issue', () => {
+  const items = [item('games', 7), item('film', 6), item('tv', 5)];
+  const f = feed(items);
+  const picked = planDraft(f, null, { LAYOUT: 'topics' }, NOW, { featuredPick: 'tv-5' });
+  assert.equal(picked.stories[0].title, 'tv story 5');
+  assert.equal(picked.featuredPicked, true);
+  assert.equal(picked.newest.title, 'games story 7', 'the Kit marker and the next start point stay on the newest');
+  assert.match(picked.description, /\[hq-dispatch newest=https:\/\/hq\.test\/games-7\]$/);
+  assert.ok(picked.content.startsWith('<F:tv5><H><L:film6><L:games7>'), 'the newest moves into its topic slot');
+  const missing = planDraft(f, null, { LAYOUT: 'topics' }, NOW, { featuredPick: 'not-this-week' });
+  assert.equal(missing.stories[0].title, 'games story 7');
+  assert.equal(missing.pickNotFound, 'not-this-week');
+});
+
+test('a story with no section can lead but never fills a topic slot', () => {
+  const items = [item('none', 9, { topic: null, categories: ['Story'] }), item('film', 8)];
+  const plan = planDraft(feed(items), null, { LAYOUT: 'topics' }, NOW);
+  assert.equal(plan.stories[0].title, 'none story 9');
+  const later = planDraft(feed([item('film', 9), item('none', 8, { topic: null, categories: ['Story'] })]), null, { LAYOUT: 'topics' }, NOW);
+  assert.ok(!later.content.includes('<L:none8>'));
+});

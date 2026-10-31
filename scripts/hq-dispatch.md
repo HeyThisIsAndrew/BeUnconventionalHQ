@@ -267,13 +267,16 @@ rule picks for all 16 combinations.
 
 **Preview any reader:** `node scripts/dispatch-preview.mjs --out p.html --reader "film,tv"`.
 
+**Pick the FEATURED story for the next issue (optional):**
+`node scripts/trigger-kit-draft.mjs --feature <slug, link or YouTube id>`.
+
 **IMPORTANT, found while building this: site signups do not reach Kit
 today.** The signup form saves addresses to Cloudflare KV only
 (`subscriber:<email>`). Until that changes, nobody who signs up on the site
 gets THE HQ DISPATCH from Kit. This branch adds the sync, OFF by default
-(`KIT_SYNC_SIGNUPS`), and the addresses already in KV still need a one-time
-import into Kit (not built: decide first whether they get Kit's
-confirmation email).
+(`KIT_SYNC_SIGNUPS`), and `scripts/kv-subscribers-to-kit.mjs` imports the
+addresses already in KV (dry run first; `--execute` to import). Everyone it
+imports goes through a Kit form, so they get Kit's confirmation email.
 
 **Setup, in order (nothing changes until each step is done):**
 1. Kit: create the custom field `hq_topics` (Kit > Grow > Subscribers >
@@ -288,6 +291,21 @@ confirmation email).
    different slots. If Kit does not render it, leave PERSONALIZE off: every
    reader gets one per topic and nothing breaks.
 4. Re-upload `template.html` to Kit (the footer has the new topics link).
+
+### Decisions (made by Claude at the owner's request, 2026-10-31)
+
+The owner asked for these to be decided for now. Each can be reversed.
+
+| Question | Decision | Why |
+| --- | --- | --- |
+| Import the existing KV signups into Kit? | **Yes, through a Kit form**, so each gets Kit's confirmation email (`kv-subscribers-to-kit.mjs`, KIT_FORM_ID required). | The site never sent a confirmation. A list that never confirmed is how a first send lands in spam, and confirming is the clean consent record. Some people will not confirm; that is the cost. |
+| What is FEATURED? | **The newest story**, unless the owner picks one for the issue: `node scripts/trigger-kit-draft.mjs --feature <slug, link or YouTube id>` before Thursday (used once, then cleared; `--feature ""` clears). | Hands-off by default, editorial when it matters. The newest story still names the issue in Kit, so a pick never breaks the duplicate guard. A pick not in this week's stories is reported and the newest leads. |
+| Can a story with no section lead? | **Yes**, but it never fills a topic slot. | FEATURED is "the story of the week", not a topic. |
+| ALSO THIS WEEK in the topics layout? | **No.** | Condensing was the point. Duplicates are left out and listed in the notice. The classic layout keeps it. |
+| Group duplicates by franchise (DC, Marvel)? | **No.** Same title or same link only. | By franchise, every DC story but one would leave the main list most weeks. |
+| Combined review + reaction card (dedupe phase 2)? | **Not now.** | Phase 1 needs a real issue or two first. |
+| Issue numbers | **Start at 1** (`ISSUE_NUMBER_OFFSET` 0). | No issue has been sent yet. |
+| Label colour | **Keep #ff6b6b.** | 6.8:1 on the box, still reads as the brand red. |
 
 ### Editorial opt-out (#275)
 

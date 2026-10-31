@@ -223,12 +223,23 @@ function missingCopy(featured, latest) {
   return out;
 }
 
+/** Does a story match the owner's FEATURED pick (its link, its slug, or its YouTube id)? */
+export function matchesPick(item, pick) {
+  const p = String(pick ?? '').trim().replace(/\/$/, '');
+  if (!p) return false;
+  const link = String(item.link ?? item.guid ?? '').replace(/\/$/, '');
+  if (link === p || String(item.guid ?? '') === p) return true;
+  if (/^[\w-]+$/.test(p) && link.endsWith(`/${p}`)) return true;
+  const id = sourceKey(item);
+  return id.startsWith('yt:') && (id === `yt:${p}` || id === sourceKey({ link: p }));
+}
+
 /**
  * The draft the feed calls for right now, or null when there is nothing new.
  *   issueNumber  from Kit's own list of past issues, or null (week alone)
  *   editorNote   the owner's note for this issue, or '' (no block at all)
  */
-export function planDraft(feed, state, env, now, { issueNumber = null, editorNote = '' } = {}) {
+export function planDraft(feed, state, env, now, { issueNumber = null, editorNote = '', featuredPick = '' } = {}) {
   const maxStories = positive(env.MAX_STORIES, DEFAULTS.MAX_STORIES);
   const maxAlso = Number.isFinite(Number(env.MAX_ALSO)) && env.MAX_ALSO !== '' ? Math.max(0, Number(env.MAX_ALSO)) : DEFAULTS.MAX_ALSO;
   const since = state?.lastPubDate
@@ -238,6 +249,16 @@ export function planDraft(feed, state, env, now, { issueNumber = null, editorNot
     .filter((item) => Date.parse(item.pubDate) > since)
     .sort((a, b) => Date.parse(b.pubDate) - Date.parse(a.pubDate));
   if (!fresh.length) return null;
+  // The newest story names the issue (its marker in Kit, and where the next
+  // issue starts) whatever is FEATURED.
+  const newest = fresh[0];
+  // FEATURED is the newest story unless the owner picked one for this issue
+  // (owner's decision, 2026-10-31). The pick goes first so it also wins its
+  // subject in the dedupe. A pick not in this week's stories is reported and
+  // the newest leads instead.
+  const picked = featuredPick ? fresh.find((item) => matchesPick(item, featuredPick)) : null;
+  const pickNotFound = featuredPick && !picked ? featuredPick : null;
+  if (picked) fresh.splice(fresh.indexOf(picked), 1), fresh.unshift(picked);
   const topicsLayout = env.LAYOUT === 'topics';
   const personalized = topicsLayout && env.PERSONALIZE === 'true';
   let stories, also, left, featured, latest, byTopic = null;
@@ -284,7 +305,7 @@ export function planDraft(feed, state, env, now, { issueNumber = null, editorNot
       : stories.map((s, i) => `${i ? '-' : 'FEATURED:'} ${s.title}`)),
     ...(also.length ? [topicsLayout ? 'Left out as duplicates:' : 'Also this week:', ...also.map((a) => `- ${a.item.title} (${a.reason} as "${a.sameAs.title}")`)] : []),
     ...(missing.length ? ['WRITE BEFORE SENDING:', ...missing.map((m) => `- ${m.title}: ${m.field}`)] : []),
-    draftMarker(featured.guid),
+    draftMarker(newest.guid),
   ].join('\n');
 
   return {
@@ -296,7 +317,9 @@ export function planDraft(feed, state, env, now, { issueNumber = null, editorNot
     missing,
     issueMarker: marker,
     editorNote: note,
-    newest: featured,
+    newest,
+    featuredPicked: Boolean(picked),
+    pickNotFound,
     subject: `${name}: ${featured.title}`,
     previewText: preview,
     description,
@@ -404,6 +427,7 @@ export async function runKitDraft(deps) {
   const feed = validateKitFeed(await fetchFeed());
   const state = await store.get('state');
   const editorNote = (await store.get('editorNote'))?.text ?? '';
+  const featuredPick = (await store.get('featuredPick'))?.pick ?? '';
 
   if (live) {
     if (!env.KIT_API_KEY) throw new Error('CREATE_DRAFTS is on but KIT_API_KEY is not set');
@@ -420,6 +444,7 @@ export async function runKitDraft(deps) {
   const plan = planDraft(feed, state, env, now(), {
     issueNumber: broadcasts ? nextIssueNumber(broadcasts, env) : null,
     editorNote,
+    featuredPick,
   });
   if (!live) return { action: 'preview', plan };
 
@@ -456,6 +481,7 @@ export async function runKitDraft(deps) {
   await remember(id);
   // The note belonged to this issue. The next one starts without.
   if (plan.editorNote) await store.put('editorNote', null);
+  if (featuredPick) await store.put('featuredPick', null);
   return { action: 'created', plan, broadcastId: id, url: draftUrl(env, id) };
 }
 
@@ -482,18 +508,21 @@ export function buildNotice(result, env) {
   const noteLine = plan.editorNote
     ? 'Editor note: included.'
     : 'Editor note: none this issue (the block is left out). To add one before Thursday: node scripts/trigger-kit-draft.mjs --note "..."';
-  const meta = `${plan.issueMarker}\nSubject: ${plan.subject}\nPreview text: ${plan.previewText || '(none, see below)'}\n${noteLine}\n\nStories:\n${list}${left}${also}${missing}`;
+  const pickLine = plan.pickNotFound
+    ? `\nFEATURED pick "${plan.pickNotFound}" is not among this week's stories, so the newest leads.`
+    : plan.featuredPicked ? '\nFEATURED: your pick.' : '';
+  const meta = `${plan.issueMarker}${pickLine}\nSubject: ${plan.subject}\nPreview text: ${plan.previewText || '(none, see below)'}\n${noteLine}\n\nStories:\n${list}${left}${also}${missing}`;
   if (result.action === 'preview') {
     const note = 'Dry run: nothing was created in Kit. Drafts are switched on with CREATE_DRAFTS (scripts/hq-dispatch.md).';
     return {
-      subject: `${name} draft preview (dry run): ${plan.newest.title}`,
+      subject: `${name} draft preview (dry run): ${plan.stories[0].title}`,
       text: `${note}\n\n${meta}`,
       // The boxes as they will sit in the email, on the email's own background.
       html: `<p style="font-family:system-ui,sans-serif">${esc(note)}</p><pre style="font-family:system-ui,sans-serif;white-space:pre-wrap">${esc(meta)}</pre><div style="background:#0a0a0a;padding:24px"><div style="max-width:550px;margin:0 auto">${plan.content}</div></div>`,
     };
   }
   return {
-    subject: `${name} draft ready: ${plan.newest.title}`,
+    subject: `${name} draft ready: ${plan.stories[0].title}`,
     text: `A draft is waiting in Kit. Review it and press Send there.\n${result.url}\n\n${meta}`,
     html: `<p style="font-family:system-ui,sans-serif">A draft is waiting in Kit. Review it and press Send there.</p><p><a href="${esc(result.url)}">Open the draft in Kit</a></p><pre style="font-family:system-ui,sans-serif;white-space:pre-wrap">${esc(meta)}</pre>`,
   };
