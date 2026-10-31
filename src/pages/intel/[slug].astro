@@ -60,7 +60,6 @@ import { parseImageDimensions, labelImageLinks } from '../../lib/article-images-
 import { getCardImageSources, isSubstackFetchUrl } from '../../lib/card-images.ts';
 import { getEventsLocal, getFeaturedBrandsLocal } from '../../lib/local-content';
 import { findEventForArticle, findHubForItem } from '../../lib/hub-coverage';
-import BrandText from '../../components/BrandText.astro';
 import logoImage from '../../assets/logo.webp';
 import { getImage } from 'astro:assets';
 
@@ -222,12 +221,12 @@ const related = getRelatedArticles(article.slug, article.category, 4);
 const articleHub = findHubForItem(article, getFeaturedBrandsLocal());
 
 /*
-  The event this piece is coverage OF, for the backlink under the standfirst.
-  Resolved through the event page's own matcher (findEventForArticle), so the
-  link appears exactly when that event's COVERAGE grid lists this article.
+  The event this piece is coverage OF, for the "Official Event Hub" card in
+  the support rail. Resolved through the event page's own matcher
+  (findEventForArticle), so the card appears exactly when that event's
+  COVERAGE grid lists this article.
 */
 const articleEvent = findEventForArticle(article, getEventsLocal());
-const articleEventSlug = articleEvent?.slug?.current;
 
 /*
   Fallback anchors for a post with too few headings to index — see the note in
@@ -496,12 +495,6 @@ const breadcrumbSchema = {
 
             {article.excerpt && <p class="article-standfirst">{article.excerpt}</p>}
 
-            {articleEvent && articleEventSlug && (
-              <a class="article-event-link" href={`/events/${articleEventSlug}`}>
-                <BrandText text={`Part of ${site.name}'s coverage of ${articleEvent.title}`} /> <span aria-hidden="true">&rarr;</span>
-              </a>
-            )}
-
             <ArticleAuthorBlock />
           </header>
 
@@ -567,7 +560,7 @@ const breadcrumbSchema = {
           )}
         </article>
 
-        <ArticleSupportRail related={related.slice(0, 2)} brand={articleHub} />
+        <ArticleSupportRail related={related.slice(0, 2)} brand={articleHub} event={articleEvent} />
       </div>
     </div>
 

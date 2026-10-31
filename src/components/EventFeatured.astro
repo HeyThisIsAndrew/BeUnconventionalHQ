@@ -1489,6 +1489,11 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
     */
     const handOver = () => {
       if (cards.some((c) => c.classList.contains('active'))) return;
+      /* A pane the visitor opened from the COVERAGE grid is a choice too.
+         Checking only the rail's tiles missed it: an article picked below the
+         fold went up on the stage, the trailer behind it ended, and this
+         replaced the article with the rail's first tile. */
+      if (stage.querySelector('.hub-stage-item.active')) return;
       show(0);
     };
 
@@ -1765,12 +1770,24 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
       
       btn.addEventListener('click', async (e) => {
         const id = btn.dataset.hubPlay;
-        if (!id || !frame) return;
+        if (!id) return;
 
+        /*
+          AN ARTICLE NEEDS NO FRAME. The frame check used to sit up here,
+          ahead of this branch, and the frame exists only when the hub has a
+          trailer or video coverage. On a hub whose coverage is articles alone
+          (L.A. Comic Con) every article card was a <div role="button"> with
+          no href whose handler returned at once: no pane, no scroll, no
+          navigation. The check now guards the video path only, below.
+        */
         if (btn.dataset.type === 'article') {
           e.preventDefault();
           const dynamicPane = stage.querySelector('.hub-stage-item--dynamic');
-          if (!dynamicPane) return;
+          /* No pane to show it in: go to the article rather than do nothing. */
+          if (!dynamicPane) {
+            window.location.assign(id);
+            return;
+          }
 
           /* Typed queries. Bare querySelector returns Element, which has no
              src/style/href, and `astro check` fails on every one of them —
@@ -1803,6 +1820,9 @@ const taglineText = (typeof event.tagline === 'string' && event.tagline.trim())
           }
           return;
         }
+
+        /* Only a video needs the frame. */
+        if (!frame) return;
 
         const token = ++playToken;
 

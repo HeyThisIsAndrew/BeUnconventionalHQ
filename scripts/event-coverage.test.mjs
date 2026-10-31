@@ -678,7 +678,17 @@ test('the article page and the homepage hero both resolve the event this way', (
   const page = stripComments(readSrc('src', 'pages', 'intel', '[slug].astro'));
   assert.match(page, /findEventForArticle\(article, getEventsLocal\(\)\)/,
     'the article page must resolve its event through findEventForArticle over every event');
-  assert.match(page, /href=\{`\/events\/\$\{articleEventSlug\}`\}/, 'the backlink must point at /events/<slug>');
+  assert.match(page, /<ArticleSupportRail[^>]*event=\{articleEvent\}/,
+    'the resolved event must reach the support rail, where its hub card renders');
+
+  const rail = stripComments(readSrc('src', 'components', 'ArticleSupportRail.astro'));
+  assert.match(rail, /<HubCard brand=\{event\} kind="event" \/>/,
+    'the event link is the shared hub card in its event form, not a second design');
+
+  const card = stripComments(readSrc('src', 'components', 'HubCard.astro'));
+  assert.match(card, /isEvent \? `\/events\/\$\{slug\}` : `\/featured\/\$\{slug\}`/,
+    'an event card must open /events/<slug>, a brand card /featured/<slug>');
+  assert.match(card, /'Official Event Hub'/);
 
   const binding = stripComments(readSrc('src', 'data', 'homepage-feed.ts'));
   assert.match(binding, /findEventForArticle\(/, 'the homepage hero no longer resolves event coverage');
@@ -687,6 +697,44 @@ test('the article page and the homepage hero both resolve the event this way', (
   const accordion = stripComments(readSrc('src', 'components', 'home', 'HeroAccordion.astro'));
   assert.match(accordion, /panel\.event\?\.href \?\? story\.url/,
     'an event-coverage panel must open the event hub, and any other article its own page');
+});
+
+/*
+  ─── AN ARTICLE CARD MUST NEVER NEED THE PLAYER ────────────────────────────
+
+  A coverage card is a <div role="button"> with no href: the stage handler is
+  the ONLY thing that makes it do anything. That handler opened with
+  `if (!id || !frame) return;`, and the frame exists only when a hub has a
+  trailer or video coverage. L.A. Comic Con has neither, so its one article
+  card was dead: no pane, no scroll, no navigation (reported 2026-10-31).
+  All three stages carried the same line, so all three are checked.
+*/
+test('a stage with no player still opens an article card', () => {
+  for (const rel of [
+    ['src', 'components', 'EventAnnouncement.astro'],
+    ['src', 'components', 'EventFeatured.astro'],
+    ['src', 'pages', 'featured', '[slug].astro'],
+  ]) {
+    const code = stripComments(readSrc(...rel));
+    const label = rel.join('/');
+    const start = code.indexOf('const id = btn.dataset.hubPlay;');
+    const article = code.indexOf("if (btn.dataset.type === 'article')", start);
+    assert.ok(start !== -1 && article !== -1, `${label}: could not find the stage click handler`);
+    const before = code.slice(start, article);
+    assert.ok(!/!frame/.test(before),
+      `${label}: the frame is checked before the article branch, so a hub without a player has dead article cards`);
+    const videoPath = code.slice(article, code.indexOf('const token = ++playToken;', article));
+    assert.match(videoPath, /if \(!frame\) return;/, `${label}: the video path must still require the frame`);
+    assert.match(videoPath, /window\.location\.assign\(id\)/,
+      `${label}: with no pane to show it in, an article card must navigate rather than do nothing`);
+
+    /* The trailer's end hands the stage to the rail's first tile. A pane the
+       reader opened from the coverage grid must stop that, not only a rail
+       tile, or their article is swapped out from under them. */
+    const handOver = code.slice(code.indexOf('const handOver = () => {'), code.indexOf('show(0);', code.indexOf('const handOver = () => {')));
+    assert.match(handOver, /stage\.querySelector\('\.hub-stage-item\.active'\)\) return;/,
+      `${label}: the trailer handover must leave a pane the reader chose alone`);
+  }
 });
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);
