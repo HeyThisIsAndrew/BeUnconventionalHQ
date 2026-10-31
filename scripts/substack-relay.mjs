@@ -211,16 +211,37 @@ export class ArticleSource {
   }
 
   async loadPost(link, item, getText) {
-    // RSS is checked afresh when the aggregate expires. Unchanged articles
-    // keep their complete HTML payload and tags; new/edited items bypass it.
-    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(item)));
-    const fingerprint = [...new Uint8Array(digest)].map(n => n.toString(16).padStart(2, '0')).join('');
-    const key = `source:post:v1:${link}`;
-    const cached = await this.state.storage.get(key);
-    if (cached?.fingerprint === fingerprint && this.now() - cached.savedAt < POST_TTL) {
-      return validatePost(cached.post, link);
-    }
-    const pendingKey = `${key}:${fingerprint}`;
+    // Take a place in line in the order callers ARRIVE, which is RSS order.
+    // The digest and cache read below are async, so without this their
+    // completion order decided which article joined the download queue
+    // first: the second article could be fetched, hit a 429 and start the
+    // cooldown before the first was ever requested, so a "partial failure"
+    // kept nothing. Only this short pre-queue step waits its turn; downloads
+    // were already serialized by postQueue.
+    const turn = this.loadTurn ?? Promise.resolve();
+    let release;
+    this.loadTurn = new Promise(resolve => { release = resolve; });
+    let pendingKey;
+    try {
+      await turn;
+      // RSS is checked afresh when the aggregate expires. Unchanged articles
+      // keep their complete HTML payload and tags; new/edited items bypass it.
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(item)));
+      const fingerprint = [...new Uint8Array(digest)].map(n => n.toString(16).padStart(2, '0')).join('');
+      const key = `source:post:v1:${link}`;
+      const cached = await this.state.storage.get(key);
+      if (cached?.fingerprint === fingerprint && this.now() - cached.savedAt < POST_TTL) {
+        return validatePost(cached.post, link);
+      }
+      pendingKey = `${key}:${fingerprint}`;
+      this.enqueuePost(pendingKey, key, fingerprint, link, getText);
+    } finally { release(); }
+    const pending = this.postPending.get(pendingKey);
+    try { return await pending; }
+    finally { if (this.postPending.get(pendingKey) === pending) this.postPending.delete(pendingKey); }
+  }
+
+  enqueuePost(pendingKey, key, fingerprint, link, getText) {
     if (!this.postPending.has(pendingKey)) {
       // Serialize cache misses, including callers on different aggregate pages.
       // A failed batch retains each successful article for its next attempt.
@@ -246,9 +267,6 @@ export class ArticleSource {
       this.postQueue = pending.catch(() => {});
       this.postPending.set(pendingKey, pending);
     }
-    const pending = this.postPending.get(pendingKey);
-    try { return await pending; }
-    finally { if (this.postPending.get(pendingKey) === pending) this.postPending.delete(pendingKey); }
   }
 
   async getFeed(options) {

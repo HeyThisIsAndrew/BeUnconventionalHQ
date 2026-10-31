@@ -91,5 +91,23 @@ test('the verification tag is emitted only from the one setting', () => {
     'Layout must emit the AdSense verification tag from site.adsensePublisherId, and only when it is set');
 });
 
+test('the site CSP lets Google\'s ad and consent scripts run, and nothing else changed', () => {
+  // Without these, the AdSense script is blocked silently once it is added.
+  const headers = read('public', '_headers');
+  const policy = headers.split('\n').find((line) => /^\s*Content-Security-Policy:/.test(line));
+  assert.ok(policy, 'no Content-Security-Policy line in public/_headers');
+  const directive = (name) => (policy.match(new RegExp(`${name} ([^;]*)`)) || [])[1] || '';
+  for (const host of ['https://pagead2.googlesyndication.com', 'https://*.googlesyndication.com', 'https://*.adtrafficquality.google', 'https://fundingchoicesmessages.google.com', 'https://*.doubleclick.net']) {
+    assert.ok(directive('script-src').includes(host), `script-src is missing ${host}`);
+  }
+  for (const host of ['https://googleads.g.doubleclick.net', 'https://*.googlesyndication.com', 'https://fundingchoicesmessages.google.com']) {
+    assert.ok(directive('frame-src').includes(host), `frame-src is missing ${host}`);
+  }
+  assert.ok(directive('connect-src').includes('https://pagead2.googlesyndication.com'), 'connect-src is missing pagead2');
+  assert.ok(!/\bdata:/.test(directive('script-src')), 'script-src must never allow data:');
+  assert.match(policy, /frame-ancestors 'self'/, 'frame-ancestors must stay self');
+  assert.match(policy, /object-src 'none'/, 'object-src must stay none');
+});
+
 console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed} passed, ${failed} failed.`);
 process.exit(failed === 0 ? 0 : 1);
