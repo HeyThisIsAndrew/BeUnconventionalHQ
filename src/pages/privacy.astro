@@ -7,10 +7,10 @@ const description = 'How we collect, use, and protect your data.';
 ---
 
 <Layout title={title} description={description}>
-  <main class="privacy-page container-page pt-24 pb-24">
+  <main class="privacy-page container-page">
     <div class="privacy-header animate-on-scroll">
       <h1 class="privacy-title">PRIVACY POLICY</h1>
-      <p class="privacy-subtitle">Last updated: July 2026</p>
+      <p class="privacy-subtitle">Last updated <time datetime="2026-10">October 2026</time></p>
     </div>
 
     <div class="privacy-content animate-on-scroll" data-delay="100">
@@ -39,6 +39,20 @@ const description = 'How we collect, use, and protect your data.';
         We use <strong>Microsoft Clarity</strong> to capture heatmaps and session replays showing how visitors move through the site. Clarity's default configuration masks text entered into form fields, so what you type into a form is not intended to be captured in a replay. Retention is governed by Microsoft's own policy.
       </p>
 
+      <h2>Advertising</h2>
+      <p>
+        We use or may use <strong>Google AdSense</strong> to show advertising on this site. Advertising is kept separate from our editorial coverage.
+      </p>
+      <ul>
+        <li>Third-party vendors, including Google, use cookies to serve ads based on your prior visits to this website or other websites.</li>
+        <li>Google's use of advertising cookies enables it and its partners to serve ads to you based on your visits to this site and/or other sites on the Internet.</li>
+        <li>You may opt out of personalized advertising by visiting Google's <a href="https://adssettings.google.com" target="_blank" rel="noopener noreferrer">Ads Settings</a>. You can also opt out of some third-party vendors' use of cookies for personalized advertising at <a href="https://www.aboutads.info/choices" target="_blank" rel="noopener noreferrer">aboutads.info</a>.</li>
+        <li>Where the law requires it, such as in the European Economic Area and the United Kingdom, we ask for your consent before personalized ads are shown.</li>
+      </ul>
+      <p>
+        To learn more, see <a href="https://policies.google.com/technologies/partner-sites" target="_blank" rel="noopener noreferrer">how Google uses information from sites that use its services</a>.
+      </p>
+
       <h2>Embedded Video</h2>
       <p>
         Some pages embed <strong>YouTube</strong> players. We use YouTube's privacy-enhanced mode, but once you play a video, YouTube receives your request directly and may set its own cookies. That interaction is governed by Google's privacy policy.
@@ -49,9 +63,9 @@ const description = 'How we collect, use, and protect your data.';
         If you submit your email address to our newsletter form, we store that address along with the date you subscribed. Subscriber records are held in <strong>Cloudflare KV</strong> storage on our own infrastructure, and are kept until you ask us to remove them or we retire the list. We use them only to send you updates about BE Unconventional HQ. We do not sell or rent them.
       </p>
 
-      <h2>Contact Form</h2>
+      <h2>Contact Inquiries</h2>
       <p>
-        Our contact form collects the name, email address, subject, and message you provide. Submissions are delivered to our editorial inbox by <strong>Resend</strong>, a third-party email delivery provider, and are used solely to respond to your enquiry. We do not sell or rent this information.
+        When you contact our editorial team directly at <a href="mailto:press@beunconventionalhq.com">press@beunconventionalhq.com</a>, we use your email address and the details of your message solely to respond to your editorial, press, or partnership inquiry. We never sell or rent this information.
       </p>
 
       <h2>Hosting & Infrastructure</h2>
@@ -71,8 +85,14 @@ const description = 'How we collect, use, and protect your data.';
 </Layout>
 
 <style>
+  /* Clear of the fixed navbar. This was `pt-24 pb-24` on the <main>, which
+     did nothing: `.container-page` (layout.css) sets `padding: 0 2rem` and
+     wins over Tailwind's utilities, so the title sat under the navbar. Same
+     120px as /collaborations. */
   .privacy-page {
     min-height: 80vh;
+    padding-top: 120px;
+    padding-bottom: 6rem;
   }
   
   .privacy-header {
@@ -91,15 +111,23 @@ const description = 'How we collect, use, and protect your data.';
     text-transform: uppercase;
   }
 
+  /* Metadata, not a headline: small, grey, sentence case (owner's call).
+     The date is when the policy last CHANGED; never stamp it with the build
+     date, which would claim changes that did not happen. */
   .privacy-subtitle {
-    color: var(--color-accent-text);
-    font-size: clamp(0.75rem, calc(0.375rem + 0.9vw), 1.1rem);
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
+    color: var(--color-white-muted);
+    font-size: max(0.8rem, 12px);
+    letter-spacing: 0.02em;
   }
 
+  /* The width is in rem, like the text inside it. It was 800px while the
+     type is rem, and the root font steps from 80% to 115% on large screens
+     (global-base.css), so on a 4K monitor the text grew and the column did
+     not: a narrow strip in the middle of the glass. 62.5rem is exactly
+     800px at the laptop rung (12.8px), so nothing below 1920 moves, and the
+     line length stays the same on every screen. */
   .privacy-content {
-    max-width: 800px;
+    max-width: 62.5rem;
     margin: 0 auto;
     color: var(--color-white-muted);
     font-size: 1.1rem;
@@ -156,5 +184,19 @@ const description = 'How we collect, use, and protect your data.';
   .privacy-content strong {
     color: var(--color-white);
     font-weight: 600;
+  }
+
+  /* PHONES: the card's padding (2rem) plus the page's (2rem) took ~128px of a
+     390px screen, leaving the narrowest text column on the site (measured by
+     the scaling audit, 2026-11-01). Trimmed on phones only, to about the
+     width an article body gets; tablet and desktop are unchanged. */
+  @media (max-width: 640px) {
+    .privacy-page {
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+    .privacy-content {
+      padding: 1.75rem 1.25rem;
+    }
   }
 </style>

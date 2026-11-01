@@ -2398,6 +2398,28 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
     arm(HUB_LEAD_IN_MS);
 
     /*
+      THE READER TOOK THE STAGE: STAND DOWN, SILENTLY.
+
+      The trailer's run timer (HUB_RUN_MS) and its ENDED listener belong to
+      the trailer, but they act on the FRAME, and a video the reader chose
+      plays in that same frame. Left armed, they fired ~42s after the trailer
+      began and blanked the reader's video mid-play, from the Coverage grid
+      and from the rail alike (Antigravity test order, Lane A, confirmed on
+      production 2026-10-31). Waiting for the trailer to finish first was the
+      only way to keep a video, because teardown() had already disarmed them.
+
+      So whoever hands the stage to the reader (the rail's show(), the play
+      path) announces it, and the trailer drops its timers and its listener.
+      Nothing else: the frame, the classes and `hub:stage-idle` belong to the
+      reader's path now, and announcing idle here would hand the stage
+      straight back to the rail. The replay button re-arms all of it.
+    */
+    stage.addEventListener('hub:stage-taken', () => {
+      clearAll();
+      window.removeEventListener('message', onMessage);
+    });
+
+    /*
       The replay button. Guarded on `is-playing` so a double-press cannot
       stack two arm() calls and race two loads of the same frame.
 
@@ -2462,7 +2484,9 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
       });
       stage.classList.add('is-item');
 
-      /* Unload the trailer rather than hiding it. HARD RULE 4: about:blank. */
+      /* Unload the trailer rather than hiding it. HARD RULE 4: about:blank.
+         Its timers stand down first, or one blanks whatever plays here next. */
+      stage.dispatchEvent(new CustomEvent('hub:stage-taken'));
       const frame = stage.querySelector<HTMLIFrameElement>('.hub-stage-iframe');
       stopStageStart();
       if (frame && frame.src !== 'about:blank') frame.src = 'about:blank';
@@ -2493,6 +2517,11 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
     */
     const handOver = () => {
       if (cards.some((c) => c.classList.contains('active'))) return;
+      /* A pane the visitor opened from the COVERAGE grid is a choice too.
+         Checking only the rail's tiles missed it: an article picked below the
+         fold went up on the stage, the trailer behind it ended, and this
+         replaced the article with the rail's first tile. */
+      if (stage.querySelector('.hub-stage-item.active')) return;
       show(0);
     };
 
@@ -2769,12 +2798,24 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
       
       btn.addEventListener('click', async (e) => {
         const id = btn.dataset.hubPlay;
-        if (!id || !frame) return;
+        if (!id) return;
 
+        /*
+          AN ARTICLE NEEDS NO FRAME. The frame check used to sit up here,
+          ahead of this branch, and the frame exists only when the hub has a
+          trailer or video coverage. On a hub whose coverage is articles alone
+          (L.A. Comic Con) every article card was a <div role="button"> with
+          no href whose handler returned at once: no pane, no scroll, no
+          navigation. The check now guards the video path only, below.
+        */
         if (btn.dataset.type === 'article') {
           e.preventDefault();
           const dynamicPane = stage.querySelector('.hub-stage-item--dynamic');
-          if (!dynamicPane) return;
+          /* No pane to show it in: go to the article rather than do nothing. */
+          if (!dynamicPane) {
+            window.location.assign(id);
+            return;
+          }
 
           /* Typed queries. Bare querySelector returns Element, which has no
              src/style/href, and `astro check` fails on every one of them —
@@ -2808,7 +2849,14 @@ const stageArtSizes = '(min-width: 820px) 760px, (min-width: 660px) 600px, 100vw
           return;
         }
 
+        /* Only a video needs the frame. */
+        if (!frame) return;
+
         const token = ++playToken;
+
+        /* The trailer's timers would blank this video ~42s after the trailer
+           began. See 'hub:stage-taken' in initHubStage. */
+        stage.dispatchEvent(new CustomEvent('hub:stage-taken'));
 
         stage.classList.remove('is-item');
         stage.classList.add('is-playing');
