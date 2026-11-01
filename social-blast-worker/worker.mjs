@@ -32,6 +32,13 @@ function siteFetch(env, url) {
   // The domain sits behind bot protection that refuses datacenter IPs; the
   // service binding reaches the same Worker without crossing it.
   const sameSite = env.SITE_URL && new URL(url).origin === new URL(env.SITE_URL).origin;
+  // Local test mode: FEED_ORIGIN points the site's URLs at a local copy
+  // (`astro preview`), e.g. `wrangler dev --var FEED_ORIGIN:http://localhost:4321`.
+  // Never set in wrangler.jsonc. Runbook: "Testing on your own machine".
+  if (sameSite && env.FEED_ORIGIN) {
+    const local = new URL(url);
+    return fetch(new URL(local.pathname + local.search, env.FEED_ORIGIN));
+  }
   return sameSite && env.HQ_SITE ? env.HQ_SITE.fetch(new Request(url)) : fetch(url);
 }
 
@@ -83,7 +90,10 @@ export class BlastState {
   async run({ inspect = false, refreshThreads = false } = {}) {
     const env = this.env;
     const store = this.state.storage;
-    const send = (report) => sendEmail(env, report);
+    // Local test mode without a Resend key prints the report instead.
+    const send = env.FEED_ORIGIN && !env.RESEND_API_KEY
+      ? async (report) => console.log(`[social-blast] EMAIL (local, not sent): ${report.subject}\n${report.text}`)
+      : (report) => sendEmail(env, report);
     try {
       if (refreshThreads && !inspect) await this.refreshThreads(send);
       const result = await runAndReport({
