@@ -170,9 +170,10 @@ const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and 
 
     /* State 1: ask for a link. Turnstile runs only when a site key exists. */
     const sitekey = root.dataset.sitekey;
-    const humanToken = (): Promise<string | undefined> => {
-      if (!sitekey) return Promise.resolve(undefined);
-      return requestTurnstile().then((turnstile) => new Promise((resolve, reject) => {
+    const humanToken = async (): Promise<string | undefined> => {
+      if (!sitekey) return undefined;
+      const turnstile = await requestTurnstile();
+      return new Promise((resolve, reject) => {
         const holder = document.getElementById('prefs-turnstile')!;
         holder.innerHTML = '';
         const id = turnstile.render(holder, {
@@ -182,7 +183,7 @@ const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and 
           'timeout-callback': () => reject(new Error('turnstile')),
         });
         turnstile.execute(id);
-      }));
+      });
     };
     request.addEventListener('submit', async (event) => {
       event.preventDefault();

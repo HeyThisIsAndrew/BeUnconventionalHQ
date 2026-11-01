@@ -332,7 +332,9 @@ export const server = {
         throw new ActionError({ code: 'SERVICE_UNAVAILABLE', message: 'This page is not available right now. Please try again later.' });
       }
       if (await isSubscriber(email)) {
-        const link = prefsLink(readEnv('SITE_URL') || 'https://beunconventionalhq.com', await signPrefsToken(secret, email));
+        // The site the request came to, so a link sent from a preview copy opens
+        // that preview, and one from production opens production.
+        const link = prefsLink(new URL(context.request.url).origin, await signPrefsToken(secret, email));
         const message = prefsEmail(link);
         const res = await fetch('https://api.resend.com/emails', {
           method: 'POST',
