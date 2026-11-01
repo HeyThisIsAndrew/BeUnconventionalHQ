@@ -278,6 +278,63 @@ test('the RSS feed is discoverable from every page', () => {
   assert.match(layout, /rel="alternate"[^>]*application\/rss\+xml/);
 });
 
+/*
+  ─── THE GUESSED PATHS ──────────────────────────────────────────────────────
+  /contact, /privacy-policy, /ethics, /author/andrew and /masthead are what
+  people type or link when they expect a publication to have them. None is a
+  page; each forwards. Two forward to a FRAGMENT, and a fragment is only as
+  good as the id at the other end: rename `id="masthead"` and /masthead still
+  301s, to the top of /about, with nothing anywhere saying so.
+*/
+const GUESSED_PATHS = {
+  '/contact': '/collaborations',
+  '/privacy-policy': '/privacy',
+  '/author/andrew': '/author/andrew-baxter',
+  '/masthead': '/about#masthead',
+};
+
+test('every guessed path forwards to its page', () => {
+  const redirectBlock = config.slice(config.indexOf('redirects: {'), config.indexOf('prefetch:'));
+  for (const [from, to] of Object.entries(GUESSED_PATHS)) {
+    assert.ok(
+      redirectBlock.includes(`'${from}': '${to}',`),
+      `${from} must redirect to ${to} in astro.config.mjs`,
+    );
+  }
+});
+
+test('a redirect into a fragment lands on an id that exists', () => {
+  const pageFor = {
+    '/about': 'src/pages/about.astro',
+    '/collaborations': 'src/pages/collaborations.astro',
+  };
+  const targets = Object.values(GUESSED_PATHS).filter((to) => to.includes('#'));
+  for (const to of targets) {
+    const [route, id] = to.split('#');
+    const source = fs.readFileSync(path.join(repoRoot, pageFor[route]), 'utf-8');
+    assert.ok(source.includes(`id="${id}"`), `${to}: ${pageFor[route]} no longer carries id="${id}"`);
+  }
+});
+
+test('the footer links the press and contact page once, not twice', () => {
+  // A separate Contact link went to the same page as Press / Media and
+  // orphaned a seventh item on a third row. The owner's call: one link.
+  const footer = fs.readFileSync(path.join(repoRoot, 'src/components/Footer.astro'), 'utf-8');
+  assert.match(footer, /<a href="\/collaborations">Press \/ Media<\/a>/);
+  assert.equal((footer.match(/href="\/collaborations[#"]/g) ?? []).length, 1,
+    'the footer links /collaborations more than once');
+});
+
+test('/ethics is a real policy page, not a forward into the press kit', () => {
+  // It used to 301 to /collaborations/press-kit#editorial-standards, a print
+  // document's corner. The owner's call (2026-10-31): a page like /privacy.
+  const redirectBlock = config.slice(config.indexOf('redirects: {'), config.indexOf('prefetch:'));
+  assert.ok(!/^\s*'\/ethics':/m.test(redirectBlock), '/ethics is a redirect again; a redirect would shadow the page');
+  assert.ok(fs.existsSync(path.join(repoRoot, 'src/pages/ethics.astro')), 'src/pages/ethics.astro is missing');
+  const excluded = config.slice(config.indexOf('const excludedPaths = ['), config.indexOf('...EMPTY_ARTICLE_TOPIC_PATHS'));
+  assert.ok(!excluded.includes("'/ethics'"), '/ethics is a real page and belongs in the sitemap');
+});
+
 if (failures > 0) {
   console.error(`\nseo-routing: ${failures} failing test(s)`);
   process.exit(1);

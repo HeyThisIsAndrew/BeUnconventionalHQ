@@ -84,7 +84,11 @@ const socialLinks = [
           <li><a href={`/${item.href}`}>{item.label}</a></li>
         ))}
         {/* Not in site.nav: the press hub is for press and partners, not the
-           reader-facing top navigation. */}
+           reader-facing top navigation. It is also where the contact details
+           live, so there is no separate Contact link: one was added and
+           removed (owner's call, 2026-10-31), since it was a second link to
+           this same page and orphaned a seventh item on a third row.
+           /contact still 301s here for anyone who types it. */}
         <li><a href="/collaborations">Press / Media</a></li>
         <!-- <li class="break"></li> -->
         <!-- <li><a href={`/about`}>About</a></li> -->
@@ -133,7 +137,14 @@ const socialLinks = [
     <p class="footer-copy">
       &copy; {new Date().getFullYear()} BE Unconventional HQ. All rights reserved.
     </p>
-    <a href="/privacy" class="footer-privacy-link">Privacy Policy</a>
+    {/* The two policy pages share the middle cell, "Privacy Policy | Ethics
+        Policy" (owner's call). Each link is nowrap, so neither can break
+        mid-link; the pipe is decoration, hidden from screen readers. */}
+    <p class="footer-legal">
+      <a href="/privacy" class="footer-privacy-link">Privacy Policy</a>
+      <span class="footer-legal-sep" aria-hidden="true">|</span>
+      <a href="/ethics" class="footer-privacy-link">Ethics Policy</a>
+    </p>
     <p class="footer-credit">Where Nerd Culture Gets Cinematic</p>
   </div>
 </footer>

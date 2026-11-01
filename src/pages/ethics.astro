@@ -1,0 +1,207 @@
+---
+/*
+  The ethics policy. Same layout and styling as /privacy, on purpose (the
+  owner's call, 2026-10-31): a plain policy page, not a section of the press
+  kit, which is where /ethics used to forward.
+
+  Built from the press kit's EDITORIAL STANDARDS, word for word (the list
+  and the section headings), plus the independence line on /about and the
+  affiliate disclosure (src/data/referrals.js). The additions are the
+  sponsored-content line (US FTC guidance) and the Advertising section
+  (AdSense). Change a standard in the press kit and here together.
+*/
+import Layout from '../layouts/Layout.astro';
+import { site } from '../data/site.js';
+import { pageTitle } from '../data/content.js';
+
+/*
+  The press kit's EDITORIAL STANDARDS, word for word
+  (src/pages/collaborations/press-kit.astro). They are the list at the top
+  and the headings below it, so the two documents say the same thing.
+  scripts/adsense-readiness.test.mjs checks they still match.
+*/
+const EDITORIAL_STANDARDS = [
+  'Editorial independence on all coverage',
+  'Full disclosure of provided materials',
+  'Embargo terms honored in writing',
+  'Corrections issued on the record',
+  'Direct contact for press and publicists',
+];
+
+const title = pageTitle('Ethics Policy');
+const description =
+  'The editorial standards behind BE Unconventional HQ: independence, disclosure of provided materials, embargoes, corrections, and how to reach the editorial team.';
+---
+
+<Layout title={title} description={description}>
+  <main class="policy-page container-page">
+    <div class="policy-header animate-on-scroll">
+      <h1 class="policy-title">ETHICS POLICY</h1>
+      <p class="policy-subtitle">Last updated <time datetime="2026-10">October 2026</time></p>
+    </div>
+
+    <div class="policy-content animate-on-scroll" data-delay="100">
+      <p>
+        {site.name} was founded in 2026 and is run independently, with no publisher, no network, and no editorial mandate from anyone else. These are the standards our coverage is held to.
+      </p>
+
+      <h2>Our Editorial Standards</h2>
+      <ul>
+        {EDITORIAL_STANDARDS.map((standard) => <li>{standard}</li>)}
+      </ul>
+
+      <h2>{EDITORIAL_STANDARDS[0]}</h2>
+      <p>
+        Our coverage, including reviews and scores, reflects our own judgment. Studios, publishers, platforms, and partners do not approve or change what we publish.
+      </p>
+
+      <h2>{EDITORIAL_STANDARDS[1]}</h2>
+      <p>
+        When a studio, publisher, or event gives us access to something, such as a screener, a review copy, or event credentials, we disclose it in the coverage.
+      </p>
+
+      <h2>{EDITORIAL_STANDARDS[2]}</h2>
+      <p>
+        We honor embargo terms agreed in writing and publish embargoed coverage only once the embargo lifts.
+      </p>
+
+      <h2>{EDITORIAL_STANDARDS[3]}</h2>
+      <p>
+        When we get something wrong, we correct it on the record. Story tips, review material, and corrections all reach the same inbox, so if you spot an error, tell us at <a href="mailto:press@beunconventionalhq.com">press@beunconventionalhq.com</a>.
+      </p>
+
+      <h2>{EDITORIAL_STANDARDS[4]}</h2>
+      <p>
+        Press, publicists, and readers can reach the editorial team directly at <a href="mailto:press@beunconventionalhq.com">press@beunconventionalhq.com</a>.
+      </p>
+
+      <h2>Affiliate Links & Sponsorships</h2>
+      <p>
+        {site.name} is self-funded. Some links on the site are affiliate links, which may earn us a commission at no extra cost to you, and they are disclosed where they appear. Sponsored or paid partnership content is clearly identified as such. Neither affects our editorial coverage.
+      </p>
+
+      <h2>Advertising</h2>
+      <p>
+        Any advertising on the site is clearly separated from our editorial content. Advertisers have no say in what we cover or how we cover it. How advertising uses cookies is explained in our <a href="/privacy">Privacy Policy</a>.
+      </p>
+    </div>
+  </main>
+</Layout>
+
+<style>
+  /* The /privacy page's styles, unchanged, so the two policies read as one set. */
+  /* Clear of the fixed navbar. This was `pt-24 pb-24` on the <main>, which
+     did nothing: `.container-page` (layout.css) sets `padding: 0 2rem` and
+     wins over Tailwind's utilities, so the title sat under the navbar. Same
+     120px as /collaborations. */
+  .policy-page {
+    min-height: 80vh;
+    padding-top: 120px;
+    padding-bottom: 6rem;
+  }
+
+  .policy-header {
+    text-align: center;
+    margin-bottom: 4rem;
+  }
+
+  .policy-title {
+    font-size: clamp(2rem, calc(1rem + 2.5vw), 3.5rem);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    color: var(--color-white);
+    text-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    line-height: 1;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+  }
+
+  /* Metadata, not a headline: small, grey, sentence case (owner's call).
+     The date is when the policy last CHANGED; never stamp it with the build
+     date, which would claim changes that did not happen. */
+  .policy-subtitle {
+    color: var(--color-white-muted);
+    font-size: max(0.8rem, 12px);
+    letter-spacing: 0.02em;
+  }
+
+  /* The width is in rem, like the text inside it. It was 800px while the
+     type is rem, and the root font steps from 80% to 115% on large screens
+     (global-base.css), so on a 4K monitor the text grew and the column did
+     not: a narrow strip in the middle of the glass. 62.5rem is exactly
+     800px at the laptop rung (12.8px), so nothing below 1920 moves, and the
+     line length stays the same on every screen. */
+  .policy-content {
+    max-width: 62.5rem;
+    margin: 0 auto;
+    color: var(--color-white-muted);
+    font-size: 1.1rem;
+    line-height: 1.7;
+    background: rgba(10, 10, 12, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 1rem;
+    padding: clamp(2rem, 5vw, 4rem);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .policy-content h2 {
+    color: var(--color-white);
+    font-size: 1.5rem;
+    margin-top: 3rem;
+    margin-bottom: 1rem;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+  }
+
+  .policy-content h2:first-child {
+    margin-top: 0;
+  }
+
+  .policy-content p {
+    margin-bottom: 1.5rem;
+  }
+
+  .policy-content p:last-child {
+    margin-bottom: 0;
+  }
+
+  .policy-content ul {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 1.5rem;
+  }
+
+  .policy-content li {
+    position: relative;
+    padding-left: 1.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .policy-content li::before {
+    content: "•";
+    color: var(--color-accent-text);
+    position: absolute;
+    left: 0;
+    font-weight: bold;
+  }
+
+  .policy-content strong {
+    color: var(--color-white);
+    font-weight: 600;
+  }
+
+  /* PHONES: the card's padding (2rem) plus the page's (2rem) took ~128px of a
+     390px screen, leaving the narrowest text column on the site (measured by
+     the scaling audit, 2026-11-01). Trimmed on phones only, to about the
+     width an article body gets; tablet and desktop are unchanged. */
+  @media (max-width: 640px) {
+    .policy-page {
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+    .policy-content {
+      padding: 1.75rem 1.25rem;
+    }
+  }
+</style>
