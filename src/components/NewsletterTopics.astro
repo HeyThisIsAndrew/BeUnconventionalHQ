@@ -1,0 +1,96 @@
+---
+/**
+ * NewsletterTopics: choose what THE HQ DISPATCH sends. Used by the signup form
+ * (NewsletterForm.astro) and the preference page (/newsletter), so the two
+ * can never explain it differently.
+ *
+ * ─── WHY IT LOOKS LIKE THIS (owner's review, 2026-11-01) ─────────────────
+ * The first version was four bare toggles under "Send me": a reader could not
+ * tell what it meant or what a tap did. Now:
+ *   - a heading that says what it is for, and one line saying what an issue
+ *     contains (one featured story for everyone, plus four picks);
+ *   - each topic is a card with a short description and a checkmark that
+ *     fills on, empties off, and pops as it changes;
+ *   - a live line under the cards spells out what the reader will get for
+ *     the choice in front of them, worded from the same rule the Kit Worker
+ *     uses (fillSlots() in src/lib/dispatch-topics.ts). It is announced to
+ *     screen readers as it changes.
+ * Inline, not a modal: a modal is a second step at the moment someone has
+ * just decided to subscribe, and one more thing to close on a phone.
+ *
+ * Real checkboxes in a fieldset, all on by default; the forms read
+ * `input[name="topics"]:checked`. None ticked means all four (parseTopics).
+ */
+import { TOPICS, TOPIC_LABELS } from '../lib/dispatch-topics.ts';
+
+/** What each topic covers, in the publication's terms. */
+const DESCRIPTIONS = {
+  film: 'Reviews, trailers and premieres',
+  tv: 'Series reviews and episode breakdowns',
+  games: 'Releases, previews and industry news',
+  events: 'Cons, premieres and live coverage',
+} as const;
+---
+
+<fieldset class="nl-topics" data-nl-topics>
+  <legend class="nl-topics-legend">Choose what lands in your inbox</legend>
+  <p class="nl-topics-intro">Every issue has one featured story for everyone, plus four picks from the topics you choose.</p>
+  <div class="nl-topics-grid">
+    {TOPICS.map((topic) => (
+      <label class="nl-topic">
+        <input type="checkbox" name="topics" value={topic} checked />
+        <span class="nl-topic-card">
+          <span class="nl-topic-check" aria-hidden="true"></span>
+          <span class="nl-topic-name">{TOPIC_LABELS[topic]}</span>
+          <span class="nl-topic-desc">{DESCRIPTIONS[topic]}</span>
+        </span>
+      </label>
+    ))}
+  </div>
+  <p class="nl-topics-summary" data-nl-summary aria-live="polite">
+    You'll get: the featured story, plus one pick each from Film, TV, Games and Events.
+  </p>
+</fieldset>
+
+<script>
+  /*
+    The sentence under the cards, worded from the slot rule (fillSlots in
+    src/lib/dispatch-topics.ts): an even share per topic, and any leftover
+    pick goes to whichever chosen topic published most recently.
+  */
+  const LABELS: Record<string, string> = { film: 'Film', tv: 'TV', games: 'Games', events: 'Events' };
+
+  const list = (words: string[]) =>
+    words.length <= 1 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
+
+  function summarize(chosen: string[]): string {
+    const names = chosen.map((t) => LABELS[t] ?? t);
+    if (names.length === 0) {
+      return 'Nothing picked means everything: the featured story, plus one pick each from Film, TV, Games and Events.';
+    }
+    if (names.length === 1) return `You'll get: the featured story, plus 4 ${names[0]} picks.`;
+    if (names.length === 2) return `You'll get: the featured story, plus 2 ${names[0]} and 2 ${names[1]} picks.`;
+    if (names.length === 3) {
+      return `You'll get: the featured story, plus one pick each from ${list(names)}, and a fourth from whichever posted most recently.`;
+    }
+    return `You'll get: the featured story, plus one pick each from ${list(names)}.`;
+  }
+
+  function bind(root: HTMLElement) {
+    if (root.dataset.bound) return;
+    root.dataset.bound = '1';
+    const out = root.querySelector<HTMLElement>('[data-nl-summary]');
+    const update = () => {
+      const chosen = [...root.querySelectorAll<HTMLInputElement>('input[name="topics"]:checked')].map((b) => b.value);
+      if (out) out.textContent = summarize(chosen);
+    };
+    // A change from code (the preference page loading saved topics) is
+    // announced with a bubbling `change` event, the same as a tap.
+    root.addEventListener('change', update);
+    update();
+  }
+
+  document.addEventListener('astro:page-load', () => {
+    document.querySelectorAll<HTMLElement>('[data-nl-topics]').forEach(bind);
+  });
+</script>

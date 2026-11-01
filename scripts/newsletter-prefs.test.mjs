@@ -94,8 +94,14 @@ test('the link email carries the link and says what happens if it was not asked 
 
 test('wiring: inline topic toggles on signup, actions validate topics, /newsletter gated', () => {
   const form = readFileSync(new URL('../src/components/NewsletterForm.astro', import.meta.url), 'utf8');
-  assert.match(form, /type="checkbox" name="topics" value=\{topic\} checked/);
+  const topicsUi = readFileSync(new URL('../src/components/NewsletterTopics.astro', import.meta.url), 'utf8');
+  assert.match(form, /<NewsletterTopics \/>/);
+  assert.match(topicsUi, /type="checkbox" name="topics" value=\{topic\} checked/);
+  assert.match(topicsUi, /Choose what lands in your inbox/, 'says what it is for, not "Send me"');
+  assert.match(topicsUi, /aria-live="polite"/, 'the "you\'ll get" line is announced');
   assert.match(form, /topics,\n\s*\}\);/, 'the toggles reach actions.subscribe');
+  const prefsPage = readFileSync(new URL('../src/pages/newsletter.astro', import.meta.url), 'utf8');
+  assert.match(prefsPage, /<NewsletterTopics \/>/, 'the preference page explains it the same way');
   const actions = readFileSync(new URL('../src/actions/index.ts', import.meta.url), 'utf8');
   assert.match(actions, /topics: z\.array\(z\.enum\(TOPICS\)\)/);
   assert.match(actions, /KIT_SYNC_SIGNUPS'\) === 'true'/, 'Kit sync stays off until switched on');
@@ -137,4 +143,24 @@ test('the KV import: every record read, confirmation required, unsubscribed skip
   assert.equal(live.imported.length, 1);
   assert.deepEqual(kit.calls.map((c) => `${c.method} ${c.path}`), ['GET /v4/subscribers', 'POST /v4/subscribers', 'POST /v4/forms/9/subscribers'], "through the form: Kit's confirmation email");
   assert.equal(kit.calls[1].body.state, 'inactive');
+});
+
+test("the \"you'll get\" sentence matches the slot rule for every combination", async () => {
+  const src = readFileSync(new URL('../src/components/NewsletterTopics.astro', import.meta.url), 'utf8');
+  // Pull the browser function out of the component and run it here.
+  const fn = src.slice(src.indexOf('const LABELS'), src.indexOf('function bind'));
+  const summarize = new Function(`${fn.replace(/: Record<string, string>/, '').replace(/\(words: string\[\]\)/, '(words)').replace(/\(chosen: string\[\]\): string/, '(chosen)')}; return summarize;`)();
+  const { fillSlots, TOPICS } = await import('../src/lib/dispatch-topics.ts');
+  const by = Object.fromEntries(TOPICS.map((t) => [t, [1, 2, 3, 4].map((n) => ({ t, pubDate: `2026-11-0${n}` }))]));
+  for (let mask = 0; mask < 16; mask++) {
+    const chosen = TOPICS.filter((_, i) => mask & (1 << i));
+    const sentence = summarize(chosen);
+    const picks = fillSlots(by, chosen.length ? chosen : TOPICS);
+    const counts = Object.fromEntries(TOPICS.map((t) => [t, picks.filter((p) => p.t === t).length]));
+    if (chosen.length === 1) assert.match(sentence, new RegExp(`plus 4 ${['Film', 'TV', 'Games', 'Events'][TOPICS.indexOf(chosen[0])]} picks`));
+    if (chosen.length === 2) for (const t of chosen) assert.equal(counts[t], 2, sentence);
+    if (chosen.length === 3) assert.match(sentence, /a fourth from whichever posted most recently/);
+    if (chosen.length === 0 || chosen.length === 4) assert.match(sentence, /one pick each from Film, TV, Games and Events/);
+    assert.doesNotMatch(sentence, /\u2014/);
+  }
 });

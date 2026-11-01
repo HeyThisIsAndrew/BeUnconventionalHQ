@@ -155,18 +155,45 @@ export const TOPICS = ['film', 'tv', 'games', 'events'];
 export const TOPIC_SLOTS = 4;
 const SLOT_DEPTH = 4;
 
+/**
+ * THE slot rule (owner's question, 2026-11-01: "what if I pick three?").
+ *   1. Fair share first: each chosen topic gets floor(slots / topics) picks,
+ *      taken in turns. One topic: 4. Two: 2 and 2. Four: 1 each.
+ *   2. Whatever is left (the fourth slot with three topics, or the share of
+ *      a topic with too few stories this week) goes to the NEWEST unused
+ *      story among the chosen topics. So Film, TV and Games gives one of
+ *      each plus whichever of them published most recently, and that
+ *      changes week to week. It used to go to Film every time, because the
+ *      turns ran in a fixed order.
+ * `byTopic` holds each topic's candidates, newest first. An item without a
+ * pubDate (the upcoming-event card) never wins a leftover slot.
+ */
 export function fillSlots(byTopic, topics, slots = TOPIC_SLOTS) {
+  const chosen = TOPICS.filter((t) => topics.includes(t) && (byTopic[t]?.length ?? 0) > 0);
+  if (chosen.length === 0) return [];
+  const used = Object.fromEntries(chosen.map((t) => [t, 0]));
   const picked = [];
-  for (let round = 0; picked.length < slots; round++) {
-    let any = false;
-    for (const topic of TOPICS) {
-      if (!topics.includes(topic)) continue;
-      const item = byTopic[topic]?.[round];
-      if (item === undefined) continue;
-      any = true;
-      if (picked.length < slots) picked.push(item);
+  const next = (topic) => byTopic[topic][used[topic]];
+  const share = Math.floor(slots / chosen.length);
+  for (let round = 0; round < share; round++) {
+    for (const topic of chosen) {
+      if (next(topic) === undefined || picked.length >= slots) continue;
+      picked.push(next(topic));
+      used[topic]++;
     }
-    if (!any) break;
+  }
+  while (picked.length < slots) {
+    let best = null;
+    for (const topic of chosen) {
+      if (next(topic) === undefined) continue;
+      const time = Date.parse(next(topic).pubDate ?? '');
+      const bestTime = best === null ? NaN : Date.parse(next(best).pubDate ?? '');
+      // Newer wins; a dated story beats an undated card; ties keep topic order.
+      if (best === null || (Number.isFinite(time) && (Number.isNaN(bestTime) || time > bestTime))) best = topic;
+    }
+    if (best === null) break;
+    picked.push(next(best));
+    used[best]++;
   }
   return picked;
 }
@@ -180,30 +207,41 @@ export function topicCandidates(stories, upcomingEvent) {
 }
 
 /**
- * The slot rule written out as Kit Liquid, so Kit fills each reader's four
- * slots from THEIR topics (the subscriber custom field KIT_TOPICS_FIELD,
- * "film,tv"; empty means all four). Same turns as fillSlots(), unrolled:
- * every candidate box appears once, guarded by "the reader chose its topic
- * and fewer than four are in". Each box sits in {% raw %} so a headline can
- * never be read as Liquid. A reader whose topics have nothing this week
- * gets FEATURED alone, with no empty heading.
+ * The slot rule for every reader, as Kit Liquid. The Worker runs
+ * fillSlots() itself for each of the 15 topic combinations and writes the
+ * answers out; Kit only has to recognise which combination a reader chose
+ * (the subscriber field KIT_TOPICS_FIELD, "film,tv"; empty means all four)
+ * and print that one. So Kit never re-implements the rule, and what a
+ * reader receives is exactly what fillSlots() picked. Each box is written
+ * once into a capture and referenced by the combinations that use it; each
+ * sits in {% raw %} so a headline can never be read as Liquid. A
+ * combination with nothing this week gets FEATURED alone, no empty heading.
  */
 export function personalizedSlots(byTopic, latestHeadingHtml, field = 'hq_topics') {
   if (!/^[a-z][a-z0-9_]*$/.test(field)) throw new Error(`KIT_TOPICS_FIELD "${field}" is not a Kit field key`);
   const out = [
     `{% assign hq_t = subscriber.${field} | default: "" | downcase %}`,
-    `{% if hq_t == "" %}{% assign hq_t = "${TOPICS.join(',')}" %}{% endif %}`,
-    '{% assign hq_n = 0 %}',
-    '{% capture hq_slots %}',
+    '{% assign hq_c = "" %}',
+    ...TOPICS.map((t) => `{% if hq_t contains "${t}" %}{% assign hq_c = hq_c | append: "${t}," %}{% endif %}`),
+    `{% if hq_c == "" %}{% assign hq_c = "${TOPICS.map((t) => `${t},`).join('')}" %}{% endif %}`,
   ];
-  for (let round = 0; round < SLOT_DEPTH; round++) {
-    for (const topic of TOPICS) {
-      const item = byTopic[topic]?.[round];
-      if (!item) continue;
-      out.push(`{% if hq_t contains "${topic}" and hq_n < ${TOPIC_SLOTS} %}{% raw %}${item.latestHtml}{% endraw %}{% assign hq_n = hq_n | plus: 1 %}{% endif %}`);
+  const ids = new Map();
+  const ref = (item) => {
+    if (!ids.has(item)) {
+      const id = `hq_b${ids.size}`;
+      ids.set(item, id);
+      out.push(`{% capture ${id} %}{% raw %}${item.latestHtml}{% endraw %}{% endcapture %}`);
     }
+    return `{{ ${ids.get(item)} }}`;
+  };
+  const cases = [];
+  for (let mask = 1; mask < 1 << TOPICS.length; mask++) {
+    const chosen = TOPICS.filter((_, i) => mask & (1 << i));
+    const picks = fillSlots(byTopic, chosen);
+    if (!picks.length) continue;
+    cases.push(`{% when "${chosen.map((t) => `${t},`).join('')}" %}{% raw %}${latestHeadingHtml}{% endraw %}${picks.map(ref).join('')}`);
   }
-  out.push('{% endcapture %}', `{% if hq_n > 0 %}{% raw %}${latestHeadingHtml}{% endraw %}{{ hq_slots }}{% endif %}`);
+  out.push(`{% case hq_c %}${cases.join('')}{% endcase %}`);
   return out.join('\n');
 }
 

@@ -19,7 +19,7 @@
  */
 import Layout from '../layouts/Layout.astro';
 import { site } from '../data/site.js';
-import { TOPICS, TOPIC_LABELS } from '../lib/dispatch-topics.ts';
+import NewsletterTopics from '../components/NewsletterTopics.astro';
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
 
 const title = `Newsletter Preferences | ${site.name}`;
@@ -45,19 +45,8 @@ const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and 
 
       <!-- State 2: the signed link. -->
       <form class="prefs-block prefs-choose" id="prefs-choose" novalidate hidden>
-        <p class="prefs-lede">Every issue has one featured story for everyone, then four more from the topics you pick. <span id="prefs-address"></span></p>
-        <fieldset class="newsletter-topics">
-          <legend class="newsletter-topics-legend">Send me</legend>
-          <div class="newsletter-topics-row">
-            {TOPICS.map((topic) => (
-              <label class="newsletter-topic">
-                <input type="checkbox" name="topics" value={topic} checked />
-                <span>{TOPIC_LABELS[topic]}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        <p class="prefs-hint">Leave every topic off and you get all four.</p>
+        <p class="prefs-lede" id="prefs-address"></p>
+        <NewsletterTopics />
         <div class="prefs-actions">
           <button class="cta-button-primary" type="submit">Save my topics</button>
           <button class="prefs-link-button" type="button" id="prefs-unsub">Unsubscribe instead</button>
@@ -90,7 +79,6 @@ const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and 
   .prefs-lede { color: var(--color-white-muted); line-height: 1.6; margin-bottom: 1rem; }
   .prefs-block { margin: 0; max-width: none; }
   .prefs-turnstile:not(:empty) { margin-top: 1rem; }
-  .prefs-hint { color: var(--color-white-muted); font-size: 0.85rem; margin-top: 0.75rem; }
   .prefs-actions, .prefs-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-top: 1.5rem; }
   .prefs-confirm p { width: 100%; margin: 0; }
   .prefs-link-button {
@@ -143,6 +131,7 @@ const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and 
         choose.hidden = false;
         document.getElementById('prefs-address')!.textContent = `Signed in as ${data.email}.`;
         for (const box of boxes()) box.checked = data.topics.includes(box.value as Topic);
+        choose.querySelector('[data-nl-topics]')?.dispatchEvent(new Event('change', { bubbles: true }));
         say(data.unsubscribed ? 'This address is unsubscribed. Save your topics to come back.' : '');
       })();
 
@@ -153,6 +142,7 @@ const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and 
         const { data, error } = await actions.newsletterPrefs({ token, op: 'save', topics });
         if (error || !data) return say(errorText(error), true);
         for (const box of boxes()) box.checked = data.topics.includes(box.value as Topic);
+        choose.querySelector('[data-nl-topics]')?.dispatchEvent(new Event('change', { bubbles: true }));
         say('Saved. Your next issue follows these topics.');
       });
       const confirm = document.getElementById('prefs-confirm')!;

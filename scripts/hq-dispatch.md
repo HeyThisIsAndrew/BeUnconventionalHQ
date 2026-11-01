@@ -250,8 +250,10 @@ on the site. One card per subject still holds (dedupe), and there is no
 ALSO THIS WEEK in this layout. `LAYOUT: "classic"` keeps the old shape.
 
 **The reader's choice.** Readers pick topics in two places:
-- **On signup:** four toggles under the email box, inline (no pop-up), all on
-  by default. Leaving them all off means all four.
+- **On signup:** "Choose what lands in your inbox", four topic cards under
+  the email box (inline, no pop-up), all on by default, each with a short
+  description and a checkmark, and a live line saying exactly what the
+  reader will get for their choice. Leaving them all off means all four.
 - **On `/newsletter`:** the preference page. A reader types their address and
   gets a signed link by email (48 hours); the link opens their toggles, Save,
   and Unsubscribe. Knowing an address is not enough to change it. Every issue
@@ -260,8 +262,14 @@ ALSO THIS WEEK in this layout. `LAYOUT: "classic"` keeps the old shape.
 
 Topics live in the Kit subscriber custom field `hq_topics` ("film,tv", empty
 means all four). With `PERSONALIZE: "true"` the draft carries the slot rule
-as Kit Liquid, so Kit fills each reader's four slots from their topics, in
-turns (Film and TV gives Film, TV, Film, TV). FEATURED never changes.
+as Kit Liquid, so each reader gets four slots from their own topics.
+FEATURED never changes. The rule (`fillSlots()`): an even share per topic
+first (one topic 4, two topics 2 and 2, four topics 1 each), and any slot
+left over (the fourth with three topics, or the share of a topic with too
+few stories that week) goes to whichever chosen topic posted most recently.
+So Film, TV and Games is one of each plus the newest of the three, which
+varies week to week. The Worker works out all 15 combinations itself and
+Kit only prints the one a reader chose.
 `scripts/dispatch-topics.test.mjs` proves the Liquid picks exactly what the
 rule picks for all 16 combinations.
 

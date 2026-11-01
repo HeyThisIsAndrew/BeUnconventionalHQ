@@ -52,22 +52,44 @@ export function parseTopics(value: unknown): Topic[] {
 export const formatTopics = (topics: readonly Topic[]) => TOPICS.filter((t) => topics.includes(t)).join(',');
 
 /**
- * THE slot rule. `byTopic` holds each topic's candidates, best first. Takes
- * turns across `topics` until `slots` are filled or every chosen topic is
- * empty. Returns what was picked, in order.
+ * THE slot rule (owner's question, 2026-11-01: "what if I pick three?").
+ *   1. Fair share first: each chosen topic gets floor(slots / topics) picks,
+ *      taken in turns. One topic: 4. Two: 2 and 2. Four: 1 each.
+ *   2. Whatever is left (the fourth slot with three topics, or the share of
+ *      a topic with too few stories this week) goes to the NEWEST unused
+ *      story among the chosen topics. So Film, TV and Games gives one of
+ *      each plus whichever of them published most recently, and that
+ *      changes week to week. It used to go to Film every time, because the
+ *      turns ran in a fixed order.
+ * `byTopic` holds each topic's candidates, newest first. An item without a
+ * pubDate (the upcoming-event card) never wins a leftover slot.
  */
-export function fillSlots<T>(byTopic: Partial<Record<Topic, readonly T[]>>, topics: readonly Topic[], slots = TOPIC_SLOTS): T[] {
+export function fillSlots<T extends { pubDate?: string }>(byTopic: Partial<Record<Topic, readonly T[]>>, topics: readonly Topic[], slots = TOPIC_SLOTS): T[] {
+  const chosen = TOPICS.filter((t) => topics.includes(t) && (byTopic[t]?.length ?? 0) > 0);
+  if (chosen.length === 0) return [];
+  const used: Record<string, number> = Object.fromEntries(chosen.map((t) => [t, 0]));
   const picked: T[] = [];
-  for (let round = 0; picked.length < slots; round++) {
-    let any = false;
-    for (const topic of TOPICS) {
-      if (!topics.includes(topic)) continue;
-      const item = byTopic[topic]?.[round];
-      if (item === undefined) continue;
-      any = true;
-      if (picked.length < slots) picked.push(item);
+  const next = (topic: Topic): T | undefined => byTopic[topic]?.[used[topic]];
+  const share = Math.floor(slots / chosen.length);
+  for (let round = 0; round < share; round++) {
+    for (const topic of chosen) {
+      if (next(topic) === undefined || picked.length >= slots) continue;
+      picked.push(next(topic)!);
+      used[topic]++;
     }
-    if (!any) break;
+  }
+  while (picked.length < slots) {
+    let best: Topic | null = null;
+    for (const topic of chosen) {
+      if (next(topic) === undefined) continue;
+      const time = Date.parse(next(topic)!.pubDate ?? '');
+      const bestTime = best === null ? NaN : Date.parse(next(best)!.pubDate ?? '');
+      // Newer wins; a dated story beats an undated card; ties keep topic order.
+      if (best === null || (Number.isFinite(time) && (Number.isNaN(bestTime) || time > bestTime))) best = topic;
+    }
+    if (best === null) break;
+    picked.push(next(best)!);
+    used[best]++;
   }
   return picked;
 }

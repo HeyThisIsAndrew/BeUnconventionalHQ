@@ -51,6 +51,26 @@ test('the slot rule: one per topic by default, turns across chosen topics, empty
   }
 });
 
+test('three topics: one each, and the fourth goes to whichever published most recently (it varies)', () => {
+  const by = (newest) => ({
+    film: [{ id: 'f1', pubDate: '2026-11-02' }, { id: 'f2', pubDate: newest === 'film' ? '2026-11-09' : '2026-10-20' }],
+    tv: [{ id: 't1', pubDate: '2026-11-03' }, { id: 't2', pubDate: newest === 'tv' ? '2026-11-09' : '2026-10-21' }],
+    games: [{ id: 'g1', pubDate: '2026-11-04' }, { id: 'g2', pubDate: newest === 'games' ? '2026-11-09' : '2026-10-22' }],
+  });
+  const ids = (xs) => xs.map((x) => x.id);
+  assert.deepEqual(ids(fillSlots(by('tv'), ['film', 'tv', 'games'])), ['f1', 't1', 'g1', 't2']);
+  assert.deepEqual(ids(fillSlots(by('games'), ['film', 'tv', 'games'])), ['f1', 't1', 'g1', 'g2']);
+  assert.deepEqual(ids(fillSlots(by('film'), ['film', 'tv', 'games'])), ['f1', 't1', 'g1', 'f2']);
+  // Two topics stay 2 and 2 even when one has many newer stories.
+  assert.deepEqual(ids(fillSlots(by('film'), ['film', 'tv'])), ['f1', 't1', 'f2', 't2']);
+  // A topic short of its share hands the rest to the newest of the others.
+  const thin = { film: [{ id: 'f1', pubDate: '2026-11-02' }, { id: 'f2', pubDate: '2026-11-01' }, { id: 'f3', pubDate: '2026-10-01' }], tv: [{ id: 't1', pubDate: '2026-11-05' }] };
+  assert.deepEqual(ids(fillSlots(thin, ['film', 'tv'])), ['f1', 't1', 'f2', 'f3']);
+  // The undated upcoming-event card fills its own share but never a leftover.
+  const ev = { film: [{ id: 'f1', pubDate: '2026-11-02' }, { id: 'f2', pubDate: '2026-10-01' }], tv: [{ id: 't1', pubDate: '2026-11-03' }], events: [{ id: 'event' }] };
+  assert.deepEqual(ids(fillSlots(ev, ['film', 'tv', 'events'])), ['f1', 't1', 'event', 'f2']);
+});
+
 test('Events with no story this week: the next upcoming event; with one, the story', () => {
   const event = { title: 'TwitchCon', latestHtml: '<L:event>' };
   assert.equal(topicCandidates([item('film', 1)], event).events[0].isUpcomingEvent, true);
@@ -90,7 +110,9 @@ test('topics layout: FEATURED, then one per topic for everyone, the event fallba
 });
 
 test('per reader: the Liquid picks exactly what fillSlots() picks, for every combination', async () => {
-  const items = [item('games', 9), item('film', 8), item('film', 7), item('film', 6), item('tv', 5), item('tv', 4), item('games', 3)];
+  // Dates chosen so the newest leftover is NOT the first topic in order: the
+  // old fixed-turns rule and the current one disagree here.
+  const items = [item('games', 9), item('tv', 8), item('games', 7), item('film', 6), item('tv', 5), item('film', 4), item('games', 3)];
   const f = feed(items, { upcomingEvent: { title: 'TwitchCon', latestHtml: '<L:event>' } });
   const plan = planDraft(f, null, { LAYOUT: 'topics', PERSONALIZE: 'true' }, NOW);
   assert.equal(plan.layout, 'topics-personalized');
@@ -106,7 +128,10 @@ test('per reader: the Liquid picks exactly what fillSlots() picks, for every com
   }
   // Capitals and spaces in the stored field do not matter.
   const tvOnly = await engine.parseAndRender(plan.content, { subscriber: { hq_topics: 'TV' } });
-  assert.deepEqual(tvOnly.match(/<L:[a-z]+\d*>/g), ['<L:tv5>', '<L:tv4>']);
+  assert.deepEqual(tvOnly.match(/<L:[a-z]+\d*>/g), ['<L:tv8>', '<L:tv5>']);
+  // Three topics: one each plus the newest leftover (TV here, not Film).
+  const three = await engine.parseAndRender(plan.content, { subscriber: { hq_topics: 'film,tv,games' } });
+  assert.deepEqual(three.match(/<L:[a-z]+\d*>/g), ['<L:film6>', '<L:tv8>', '<L:games7>', '<L:tv5>']);
 });
 
 test('a headline that looks like Liquid stays text; the field key is checked', async () => {
