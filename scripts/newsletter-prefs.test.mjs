@@ -115,16 +115,29 @@ test('wiring: inline topic toggles on signup, actions validate topics, /newslett
   assert.match(topicsUi, /data-nl-short aria-live="polite"/, 'the Selected line updates and is announced');
   assert.match(form, /topics,\n\s*\}\);/, 'the toggles reach actions.subscribe');
   const prefsPage = readFileSync(new URL('../src/pages/newsletter.astro', import.meta.url), 'utf8');
-  // /newsletter is a subscribe page first (owner's decisions, 2026-11-01):
-  // the box's own form, tiles in place, never inside the accordion.
+  // /newsletter (owner's final layout, 2026-11-01): masthead, subtitle,
+  // the box's own form (email + SUBSCRIBE always visible), the topics in a
+  // collapsed strip, the Selected line under it, the spam line centred,
+  // then "Already subscribed?" in a second, independent strip.
   assert.match(prefsPage, /<NewsletterForm layout="page" \/>/, 'the same subscribe form and action as the box');
-  assert.ok(prefsPage.indexOf('<NewsletterForm layout="page"') < prefsPage.indexOf('class="accordion-container'), 'subscribe comes first, outside the accordion');
-  assert.match(form, /<NewsletterTopics legend=\{MESSAGES\.newsletterTopicsTrigger\} \/>/, 'page layout: the tiles in place, labelled by the trigger sentence');
+  assert.ok(prefsPage.indexOf('<NewsletterForm layout="page"') < prefsPage.indexOf('class="nl-acc prefs-accordion"'), 'subscribe first, the existing-subscriber strip last');
+  assert.match(form, /<NewsletterTopics variant="accordion" id="prefs-topics" \/>/, 'page layout: the tiles live in the topics strip');
+  assert.match(form, /<div class="newsletter-row">[\s\S]*?class="cta-button-primary newsletter-submit"[\s\S]*?<\/div>/, 'SUBSCRIBE sits with the email field, outside any strip');
+  const acc = topicsUi.slice(topicsUi.indexOf('<div class="nl-acc nl-topics-accordion"'));
+  assert.match(acc, /<div class="accordion-section collapsed" data-nl-accordion>/, 'closed by default');
+  assert.match(acc, /<span class="accordion-chevron" aria-hidden="true"><\/span>/);
+  assert.ok(acc.indexOf('data-nl-short') > acc.indexOf('</fieldset>'), 'the Selected line sits under the strip, outside its body');
+  assert.match(topicsUi, /\[data-nl-accordion\]'\)\.forEach\(bindAccordion\)/);
+  const accLib = readFileSync(new URL('../src/lib/nl-accordion.ts', import.meta.url), 'utf8');
+  assert.match(accLib, /setAccordion\(section, !section\.classList\.contains\('expanded'\)\)/, 'each strip toggles itself only');
+  assert.doesNotMatch(accLib, /querySelectorAll/, 'opening one strip never touches another');
+  assert.match(form, /if \(form\.dataset\.prefsToken\) return;/, 'after a signed link, the subscribe handler stands aside');
+  assert.match(prefsPage, /textContent = 'Save'/);
+  assert.match(prefsPage, /setAccordion\(topicsStrip, true\)/, 'a signed link opens the topics strip');
   assert.doesNotMatch(topicsUi, /disabled=\{|is-preview|preview\?:/, 'no preview-only tiles anywhere');
-  assert.doesNotMatch(prefsPage, /href="\/#subscribe"|Preview only/, 'no send-away link, no preview section');
+  assert.doesNotMatch(prefsPage, /<NewsletterTopics|href="\/#subscribe"|Preview only/, 'no second copy of the tiles, no send-away link');
   assert.match(form, /\{MESSAGES\.newsletterFineprint\}/, 'the spam line, same words');
-  // The existing-subscriber panel: one /featured-style accordion section.
-  assert.equal((prefsPage.match(/ data-prefs-accordion>/g) ?? []).length, 1);
+  assert.equal((prefsPage.match(/ data-nl-accordion>/g) ?? []).length, 1, 'one existing-subscriber strip');
   assert.match(prefsPage, /<h2 class="accordion-heading">\s*<button type="button" class="accordion-header" aria-expanded="false" aria-controls="prefs-panel">/);
   assert.match(prefsPage, />Already subscribed\? Change topics or unsubscribe</);
   assert.match(prefsPage, /There is no login, so we email you a link that proves the address is yours/);
@@ -135,8 +148,12 @@ test('wiring: inline topic toggles on signup, actions validate topics, /newslett
   assert.match(prefsPage, /If that address never subscribed, no email is sent\./);
   assert.match(prefsPage, /Link expired\? Ask for a new one with the form above\./);
   assert.match(prefsPage, /The Unsubscribe link at the bottom of any issue also works\./);
-  // Left-aligned text, nothing centred or justified but the masthead.
+  // Left-aligned text; only the spam line is centred (newsletter.css).
   assert.doesNotMatch(prefsPage, /text-align:\s*(center|justify)/);
+  const nlCss = readFileSync(new URL('../src/styles/modules/newsletter.css', import.meta.url), 'utf8');
+  assert.match(nlCss, /\.newsletter-form--page \.newsletter-fineprint \{\n  margin-top: 1rem;\n  text-align: center;/);
+  assert.match(nlCss, /\.subscribe-cta \.newsletter-fineprint \{\n  margin-top: var\(--nl-gap\);\n  text-align: center;/);
+  assert.doesNotMatch(nlCss, /^\.accordion-/m, 'the accordion rules are scoped under .nl-acc, never bare (they would reach /featured)');
   assert.equal((prefsPage.match(/as="h1"/g) ?? []).length, 1);
   assert.doesNotMatch(prefsPage, /<h1\b/, 'the one h1 is the PageTitle lockup');
   const actions = readFileSync(new URL('../src/actions/index.ts', import.meta.url), 'utf8');
@@ -192,7 +209,7 @@ test('the Selected line names topics in uppercase, like the tiles', () => {
   assert.equal(shortLine(['film', 'tv']), 'Selected: FILM, TV.');
 });
 
-test("the dialog's X is the video modal's X, value for value, and turns as it closes", () => {
+test("the dialog's X: the video modal's X for colour, size, place and turn, and never a red square", () => {
   const css = (f) => readFileSync(new URL(`../src/styles/${f}`, import.meta.url), 'utf8');
   const rule = (src, selector) => {
     const at = src.indexOf(`${selector} {`);
@@ -202,11 +219,18 @@ test("the dialog's X is the video modal's X, value for value, and turns as it cl
   };
   const theirs = rule(css('modules/modal.css'), '.modal-close');
   const ours = rule(css('modules/newsletter.css'), '.nl-dialog-x');
-  for (const [prop, value] of Object.entries(theirs)) assert.equal(ours[prop], value, `.nl-dialog-x ${prop}`);
+  for (const prop of ['position', 'top', 'right', 'color', 'font-size', 'line-height', 'padding', 'background', 'border']) assert.equal(ours[prop], theirs[prop], `.nl-dialog-x ${prop}`);
   const newsletter = css('modules/newsletter.css');
-  assert.match(newsletter, /\.nl-dialog-x:hover,\n\.nl-dialog-x\.is-turning \{\n  color: var\(--color-accent-text\);\n  transform: rotate\(90deg\);/);
-  assert.match(css('modules/modal.css'), /\.modal-close:hover \{\n  color: var\(--color-accent-text\);\n  transform: rotate\(90deg\);/);
+  // Hover changes the colour only, and only where hover is real.
+  assert.match(newsletter, /@media \(hover: hover\) \{\n  \.nl-dialog-x:hover \{\n    color: var\(--color-accent-text\);\n  \}\n\}/);
+  // The turn is the tap's, held while the dialog closes.
+  assert.match(newsletter, /\.nl-dialog-x\.is-turning \{\n  color: var\(--color-accent-text\);\n  transform: rotate\(90deg\);/);
+  // Keyboard focus: a thin white ring, never the red one the iPhone showed.
+  assert.match(newsletter, /\.nl-dialog \.nl-dialog-x:focus-visible \{\n  outline: 1px solid var\(--color-white\);\n  outline-offset: 2px;\n  box-shadow: none;/, 'outranks the homepage crimson ring (.home-v4 :focus-visible)');
+  assert.doesNotMatch(newsletter, /\.nl-dialog-x[^{]*\{[^}]*(outline|border|box-shadow): [^;]*accent/, 'no red outline, border or shadow on the X in any state');
   const ui = readFileSync(new URL('../src/components/NewsletterTopics.astro', import.meta.url), 'utf8');
+  assert.match(ui, /data-nl-dialog aria-labelledby="nl-dialog-title" tabindex="-1"/);
+  assert.match(ui, /dialog\.showModal\(\);\n\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*dialog\.focus\(\);/, 'first focus goes to the dialog, not the X');
   assert.match(ui, /x\.classList\.add\('is-turning'\)/);
   assert.match(ui, /const X_TURN_MS = 300;/, 'waits for the 0.3s turn');
 });

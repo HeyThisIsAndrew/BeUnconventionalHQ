@@ -58,11 +58,15 @@
  * through the link in every issue.
  *
  * ─── layout="page" (/newsletter) ──────────────────────────────────────────
- * The same form, the same script and the same `subscribe` action, laid out
- * down the page: email, the four tiles in place (selectable, all on, the
- * box's default), Subscribe, the spam line. No trigger and no dialog: the
- * tiles are already on screen, under the trigger's own sentence as their
- * label. One subscribe system, two layouts (owner's call, 2026-11-01).
+ * The same form, the same script and the same `subscribe` action. Email and
+ * SUBSCRIBE always on screen, then the topics as a collapsed accordion strip
+ * (closed by default, the four tiles inside, all on, the box's default),
+ * the Selected line under it, the spam line. No trigger and no dialog. One
+ * subscribe system, two layouts (owner's call, 2026-11-01).
+ * After a signed emailed link, /newsletter turns this same form into the
+ * reader's preference form (button "Save"): it marks the form with
+ * `data-prefs-token`, and the submit handler below then stands aside and
+ * lets the page save topics instead of subscribing.
  *
  * ─── HOW TO RESTYLE IT ────────────────────────────────────────────────────
  * `.newsletter-form` and friends in styles/modules/newsletter.css.
@@ -117,25 +121,13 @@ const onPage = layout === 'page';
       placeholder="you@example.com"
       aria-describedby="newsletter-status"
     />
-    {!onPage && (
-      <button class="cta-button-primary newsletter-submit" type="submit">
-        <span class="newsletter-submit-label">{LABELS.subscribe ?? 'Subscribe'}</span>
-        <span class="newsletter-spinner" aria-hidden="true"></span>
-      </button>
-    )}
+    <button class="cta-button-primary newsletter-submit" type="submit">
+      <span class="newsletter-submit-label">{LABELS.subscribe ?? 'Subscribe'}</span>
+      <span class="newsletter-spinner" aria-hidden="true"></span>
+    </button>
   </div>
 
-  {onPage ? (
-    <>
-      <NewsletterTopics legend={MESSAGES.newsletterTopicsTrigger} />
-      <button class="cta-button-primary newsletter-submit" type="submit">
-        <span class="newsletter-submit-label">{LABELS.subscribe ?? 'Subscribe'}</span>
-        <span class="newsletter-spinner" aria-hidden="true"></span>
-      </button>
-    </>
-  ) : (
-    <NewsletterTopics variant="modal" />
-  )}
+  {onPage ? <NewsletterTopics variant="accordion" id="prefs-topics" /> : <NewsletterTopics variant="modal" />}
 
   {/* Mount point for the explicitly-rendered Turnstile widget. Empty in the
       HTML, and empty at rest in execute mode too: it only fills if Cloudflare
@@ -435,6 +427,8 @@ const onPage = layout === 'page';
     document.addEventListener('submit', async (event) => {
       const form = (event.target as HTMLElement).closest('#newsletter-form') as HTMLFormElement;
       if (!form) return;
+      /* /newsletter after a signed link: the page saves topics instead. */
+      if (form.dataset.prefsToken) return;
 
       event.preventDefault();
 

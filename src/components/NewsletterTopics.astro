@@ -20,24 +20,25 @@
  *                      #video-modal in Layout.astro): see `.nl-dialog-x`.
  *                      Escape, the X, the action and a backdrop click close
  *                      it; Tab wraps inside; focus returns to the trigger.
- *   variant="inline"   (/newsletter) the same tiles, selectable, on the page.
- *                      The subscribe form passes `legend` (the same
- *                      sentence as the box's trigger, shown above the
- *                      tiles); the preference panel uses them unlabelled
- *                      once the reader's emailed link has opened it.
+ *   variant="accordion" (/newsletter) a collapsed strip titled with the
+ *                      same sentence, /featured's accordion header
+ *                      (`.nl-acc` in newsletter.css, src/lib/nl-accordion.ts),
+ *                      closed by default, a chevron that turns when open.
+ *                      Inside: the four tiles. Under the strip: the same
+ *                      "Selected" line, live whether the strip is open or
+ *                      not. The tiles sit in the subscribe form, so
+ *                      SUBSCRIBE (or Save, after a signed link) sends them.
  * None ticked means all four (parseTopics).
  */
 import { TOPICS, TOPIC_LABELS } from '../lib/dispatch-topics.ts';
 import { MESSAGES } from '../data/content.js';
 
 interface Props {
-  variant?: 'inline' | 'modal';
-  /** inline only: a visible label above the tiles (the fieldset's legend). */
-  legend?: string;
-  /** inline only: id for the fieldset, so the page can find it. */
+  variant?: 'accordion' | 'modal';
+  /** accordion only: id for the fieldset, so the page can find it. */
   id?: string;
 }
-const { variant = 'inline', legend, id } = Astro.props;
+const { variant = 'modal', id } = Astro.props;
 
 /** What each topic covers, in the publication's terms. */
 const DESCRIPTIONS = {
@@ -51,7 +52,7 @@ const DESCRIPTIONS = {
 {variant === 'modal' ? (
   <div class="nl-topics-compact" data-nl-topics-root>
     <p class="nl-topics-selected" data-nl-short aria-live="polite">Selected: FILM, TV, GAMES, EVENTS.</p>
-    <dialog class="nl-dialog" id="nl-topics-dialog" data-nl-dialog aria-labelledby="nl-dialog-title">
+    <dialog class="nl-dialog" id="nl-topics-dialog" data-nl-dialog aria-labelledby="nl-dialog-title" tabindex="-1">
       <div class="nl-dialog-frame">
         <button type="button" class="nl-dialog-x" data-nl-x aria-label="Close">&times;</button>
         <div class="nl-dialog-panel">
@@ -77,27 +78,40 @@ const DESCRIPTIONS = {
     </dialog>
   </div>
 ) : (
-  <fieldset class="nl-topics" id={id} data-nl-topics data-nl-topics-root>
-    {legend
-      ? <legend class="nl-hq-header nl-one-line nl-topics-legend">{legend}</legend>
-      : <legend class="sr-only">Topics</legend>}
-    <div class="nl-topics-grid">
-      {TOPICS.map((topic) => (
-        <label class="nl-topic">
-          <input type="checkbox" name="topics" value={topic} checked />
-          <span class="nl-topic-card">
-            <span class="nl-topic-check" aria-hidden="true"></span>
-            <span class="nl-topic-name">{TOPIC_LABELS[topic]}</span>
-            <span class="nl-topic-desc">{DESCRIPTIONS[topic]}</span>
-          </span>
-        </label>
-      ))}
+  <div class="nl-acc nl-topics-accordion" data-nl-topics-root>
+    <div class="accordion-section collapsed" data-nl-accordion>
+      <h2 class="accordion-heading">
+        <button type="button" class="accordion-header" aria-expanded="false" aria-controls="nl-topics-panel">
+          <span class="accordion-header-bg" aria-hidden="true"></span>
+          <span class="accordion-title">{MESSAGES.newsletterTopicsTrigger}</span>
+          <span class="accordion-chevron" aria-hidden="true"></span>
+        </button>
+      </h2>
+      <div class="accordion-body" id="nl-topics-panel">
+        <fieldset class="nl-topics" id={id} data-nl-topics>
+          <legend class="sr-only">Topics</legend>
+          <div class="nl-topics-grid">
+            {TOPICS.map((topic) => (
+              <label class="nl-topic">
+                <input type="checkbox" name="topics" value={topic} checked />
+                <span class="nl-topic-card">
+                  <span class="nl-topic-check" aria-hidden="true"></span>
+                  <span class="nl-topic-name">{TOPIC_LABELS[topic]}</span>
+                  <span class="nl-topic-desc">{DESCRIPTIONS[topic]}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      </div>
     </div>
-  </fieldset>
+    <p class="nl-topics-selected" data-nl-short aria-live="polite">Selected: FILM, TV, GAMES, EVENTS.</p>
+  </div>
 )}
 
 <script>
   import { lockScroll, unlockScroll } from '../lib/scroll-lock';
+  import { bindAccordion } from '../lib/nl-accordion';
 
   /* Topic names are UPPERCASE in every sentence, the same as on the tiles. */
   const LABELS: Record<string, string> = { film: 'FILM', tv: 'TV', games: 'GAMES', events: 'EVENTS' };
@@ -121,6 +135,7 @@ const DESCRIPTIONS = {
     };
     root.addEventListener('change', update);
     update();
+    root.querySelectorAll<HTMLElement>('[data-nl-accordion]').forEach(bindAccordion);
 
     const dialog = root.querySelector<HTMLDialogElement>('[data-nl-dialog]');
     if (!dialog) return;
@@ -134,6 +149,9 @@ const DESCRIPTIONS = {
         opener = button;
         x?.classList.remove('is-turning');
         dialog.showModal();
+        // First focus goes to the dialog itself, not the X: Safari drew its
+        // focus ring round the X on every tap-open (the red square).
+        dialog.focus();
         lockScroll();
       });
     });
@@ -156,7 +174,7 @@ const DESCRIPTIONS = {
       if (!focusable.length) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) { event.preventDefault(); last.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     });
     // Every way out (the X, the action, Escape, the backdrop) ends here, once.
