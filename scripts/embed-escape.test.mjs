@@ -75,7 +75,9 @@ const PLAYERS = [
   },
   {
     label: 'the homepage hero accordion (.acc-video-iframe, HeroAccordion.astro)',
-    file: 'src/components/home/HeroAccordion.astro',
+    /* The player and its script are the accordion's; each panel's markup,
+       the watch link included, is HeroAccordionPanel.astro's. Read as one. */
+    file: ['src/components/home/HeroAccordion.astro', 'src/components/home/HeroAccordionPanel.astro'],
     frameId: 'acc-video-iframe',
     watchId: 'hero-acc-watch-on-youtube',
     noteId: 'data-embed-note',
@@ -92,7 +94,7 @@ const PLAYERS = [
 console.log('Every YouTube player has a way out:');
 
 for (const player of PLAYERS) {
-  const SRC = code(read(player.file));
+  const SRC = code([].concat(player.file).map(read).join('\n'));
 
   test(`${player.label} renders a "Watch on YouTube" link`, () => {
     assert.ok(

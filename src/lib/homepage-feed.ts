@@ -148,6 +148,9 @@ export interface HomeStory {
   score: string;
   /** Manually or editorially featured. */
   featured?: boolean;
+  /** The button label for a non-video story, when "Read · N min read" is
+      wrong for it (an event tile says "Explore Event"). */
+  ctaLabel?: string;
 }
 
 /* ─── primitives ───────────────────────────────────────────────────────── */
@@ -382,6 +385,10 @@ export interface HeroPanel {
   key: 'film' | 'tv' | 'games' | 'events' | 'latest';
   label: string;
   story: HomeStory;
+  /** Events tile only: event tiles that replace `story` in the browser while
+      their event is live (src/lib/hero-live-event.ts). `story` is always the
+      article, and is what shows otherwise and without JavaScript. */
+  liveEvents?: Array<{ start: string; end: string; story: HomeStory }>;
 }
 
 export interface FeaturedWorld {

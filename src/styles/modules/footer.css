@@ -128,10 +128,20 @@
     TWO ROWS OF THREE (Andrew). With Press / Media added there are six
     links; one row of six was a thin strip, and a two-column list was
     rejected. Items centre in their columns so the block sits centred under
-    the EXPLORE label.
+    the EXPLORE label. Keep it at six: a seventh is orphaned on a third row.
   */
   display: grid;
-  grid-template-columns: repeat(3, auto);
+  /*
+    EVENLY SPACED (owner, 2026-10-31). `auto` columns were each as wide as
+    their own longest word, so PRESS / MEDIA's column was far wider than
+    FEED's and the gaps between the words came out uneven. `minmax(0, 1fr)`
+    makes the three columns truly equal, so every word's CENTRE sits on an
+    even beat in both rows. The 0 minimum is the point: a plain `1fr` cannot
+    shrink below its longest word and goes uneven again on a tablet. A word
+    wider than its column overhangs it equally on both sides, inside the
+    column gap, which on a 320px phone is what keeps PRESS / MEDIA on screen.
+  */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   justify-content: center;
   justify-items: center;
   gap: 1rem 2rem;
@@ -287,7 +297,21 @@
   font-size: max(0.75rem, 12px);
 }
 
+.footer-legal {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.footer-legal-sep {
+  color: var(--color-white-muted);
+  font-size: max(0.75rem, 12px);
+}
+
 .footer-privacy-link {
+  white-space: nowrap;
   color: var(--color-white-muted);
   font-size: max(0.75rem, 12px);
   text-decoration: none;

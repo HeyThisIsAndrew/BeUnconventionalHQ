@@ -1,0 +1,189 @@
+---
+/**
+ * One panel of the homepage hero accordion (HeroAccordion.astro).
+ *
+ * Its own component so the accordion can render a panel TWICE: once as the
+ * page shows it, and once inside a <template> as the Events tile's live-event
+ * replacement, which the accordion's script swaps in while that event is on
+ * (src/lib/hero-live-event.ts). Same markup both times, so the two can never
+ * drift. Styles are global (styles/modules/home.css); behaviour is the
+ * accordion's script.
+ */
+import ChalkIcon from './ChalkIcon.astro';
+import { HERO_SIZES, HERO_CLOSED_SIZES, newUntil } from '../../lib/homepage-feed';
+import type { HeroPanel } from '../../lib/homepage-feed';
+import { SOCIAL_ICONS } from '../../data/icons.js';
+
+interface Props {
+  panel: HeroPanel;
+  open: boolean;
+  /** The strip's chalk mark (HeroAccordion's artFor), or null for the icon. */
+  art: { src: string; srcset: string; width: number; height: number } | null;
+  /** A copy inside a <template>: never eager, never high priority. The page
+      allows ONE fetchpriority="high" image (the QA sweep's rule 1). */
+  deferred?: boolean;
+}
+
+const { panel, open, art, deferred = false } = Astro.props;
+const { story } = panel;
+const panelId = `hero-panel-${panel.key}`;
+const isVideo = story.type === 'video';
+---
+
+<article
+  class:list={['acc-panel', { 'is-open': open, 'acc-panel--article': !isVideo }]}
+  data-acc-panel
+  data-key={panel.key}
+>
+  <div class="acc-media" aria-hidden="true" data-video-wrapper={isVideo ? story.videoId : undefined}>
+    {story.image && (
+      <img
+        src={story.image}
+        srcset={story.imageSrcset || undefined}
+        sizes={story.imageSrcset ? (open ? HERO_SIZES : HERO_CLOSED_SIZES) : undefined}
+        alt=""
+        width="1280"
+        height="720"
+        loading={open && !deferred ? 'eager' : 'lazy'}
+        fetchpriority={open && !deferred ? 'high' : 'low'}
+        decoding="async"
+      />
+    )}
+    {isVideo && (
+      <button
+        type="button"
+        class="acc-play-overlay"
+        data-play-hover="true"
+        data-play-video={story.videoId}
+        aria-label="Play video"
+        tabindex="-1"
+      >
+        {/* Phones only (home.css): the site's one play button, the
+            same markup every card uses (global-base.css): a bare
+            triangle, dim at rest, white with the red glow on hover
+            or tap. On a phone it replaces the Watch button. */}
+        <span class="play-button-wrapper" aria-hidden="true">
+          <span class="cinematic-play-button">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="32" height="32"><path d="M8 5v14l11-7z" /></svg>
+          </span>
+        </span>
+      </button>
+    )}
+  </div>
+
+  <div class="acc-body">
+    <button
+      type="button"
+      class="acc-trigger"
+      id={`${panelId}-trigger`}
+      aria-expanded={open ? 'true' : 'false'}
+      aria-controls={panelId}
+      data-acc-trigger
+    >
+      {art ? (
+        <span class:list={['acc-art', { 'acc-art--logo': panel.key === 'latest' }]} aria-hidden="true">
+          <img
+            src={art.src}
+            srcset={art.srcset}
+            sizes={panel.key === 'latest' ? '(max-width: 767px) 100px, 170px' : '(max-width: 767px) 80px, 170px'}
+            alt=""
+            width={art.width}
+            height={art.height}
+            loading="lazy"
+            decoding="async"
+          />
+        </span>
+      ) : (
+        <ChalkIcon name={panel.key} size={30} class="acc-icon" />
+      )}
+      <span class="acc-label">{panel.label}</span>
+      {/* NEW for 24 hours after the story goes live, on any panel.
+          Rendered hidden with its deadline; the script below shows
+          it only while that is still ahead, because this page is
+          built once and then served for days. */}
+      {newUntil(story.publishDate) && (
+        <span class="acc-new" data-new-until={newUntil(story.publishDate)} hidden>New</span>
+      )}
+    </button>
+
+    {/* A SIBLING of .acc-content, not inside it: the copy block runs a
+        transform animation on open, and a transformed ancestor would
+        become the chips' containing block, dragging them along with
+        the copy instead of pinning them to the panel's corner. */}
+    {/* The feed hero's metadata row (FeedSpotlightHero .hero-meta-tag):
+        one plate per fact, WHOSE it is then WHAT it is, from the
+        same getDisplayTagSlots() pair (SONY PICTURES | REACTION).
+        It used to read the panel's category and "Video" (FILM |
+        VIDEO), which the row label and the play button already say.
+        A story with no brand falls back to its category, and that
+        chip alone is aria-hidden: the trigger above names it. */}
+    <p class="acc-chips">
+      {story.brand ? (
+        <span class="acc-chip acc-chip--brand">{story.brand}</span>
+      ) : (
+        <span class="acc-chip acc-chip--brand" aria-hidden="true">{panel.label}</span>
+      )}
+      {story.kicker && <span class="acc-chip">{story.kicker}</span>}
+      {story.displayDate && <span class="acc-chip">{story.displayDate}</span>}
+    </p>
+
+    <div class="acc-content" id={panelId} role="region" aria-labelledby={`${panelId}-trigger`}>
+      {/* A FIXED-height box, bottom-aligned: every panel's copy block is
+          the same height whatever the headline's length, so the
+          metadata chips above never move between panels (Andrew). */}
+      <div class="acc-title-box">
+        <h3 class="acc-headline">
+          {/* A video goes to /feed?play=<id>, which arrives with it
+              promoted into the feed's own player, cued and one tap
+              from playing: no modal (Andrew). An article is its
+              ordinary link. */}
+          <a
+            href={isVideo && story.videoId ? `/feed?play=${encodeURIComponent(story.videoId)}` : story.url}
+            {...(!isVideo && story.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+          >
+            {story.headline}
+          </a>
+        </h3>
+      </div>
+      {/* Always rendered, even empty: its fixed two-line height is part
+          of what keeps the chips in one place. */}
+      <p class="acc-deck">{story.deck}</p>
+      {/* A video's CTA plays it here, in the panel (the headline still
+          deep-links to /feed). An article's is a label the headline's
+          stretched link already covers, so it is not a second control:
+          it used to be a <button> with no handler, which did nothing. */}
+      {isVideo ? (
+        <button type="button" class="acc-cta cta-button-primary" data-play-video={story.videoId}>
+          {`Watch${story.duration ? ` · ${story.duration}` : ''}`}
+        </button>
+      ) : (
+        <span class="acc-cta cta-button-primary" aria-hidden="true">
+          {story.ctaLabel ?? `Read${story.readTime ? ` · ${story.readTime}` : ''}`}
+        </span>
+      )}
+    </div>
+  </div>
+
+  <div class="acc-progress" aria-hidden="true"><span class="acc-progress-fill"></span></div>
+
+  {/* The inline player's door (hard rule 11): a "Watch on YouTube"
+      link for the video this panel plays, rendered for every video
+      panel and shown for as long as the player is up, never gated
+      on detecting a failure. The note under it is the enhancement:
+      it explains an onError, it does not rescue. A direct child of
+      the panel, so it stacks above the player. */}
+  {isVideo && story.videoId && (
+    <div class="acc-player-bar">
+      <button type="button" class="acc-player-close" data-close-video>Close video</button>
+      <p class="acc-embed-note" data-embed-note hidden>This video can't play here.</p>
+      <a
+        class="hero-acc-watch-on-youtube"
+        href={`https://www.youtube.com/watch?v=${encodeURIComponent(story.videoId)}`}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <span class="yt-mark" aria-hidden="true" set:html={SOCIAL_ICONS.YouTube} /><span>Watch on YouTube</span>
+      </a>
+    </div>
+  )}
+</article>

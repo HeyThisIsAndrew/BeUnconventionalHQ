@@ -9,6 +9,18 @@ export const site = {
   ga4: 'G-CF16HJW04T',
 
   /**
+   * Google AdSense publisher ID, as AdSense shows it ("ca-pub-" followed by
+   * digits), or '' until the account exists. Setting it is the ONLY step
+   * needed to connect the site: the next build emits Google's site-ownership
+   * tag (<meta name="google-adsense-account">, Layout.astro) and the matching
+   * seller line in /ads.txt (src/pages/ads.txt.ts).
+   *
+   * It loads no ad script. Where ads appear is a separate decision; the CSP
+   * in public/_headers already allows Google's ad hosts for when it is made.
+   */
+  adsensePublisherId: '',
+
+  /**
    * Primary navigation — the single source for BOTH the navbar and the footer.
    *
    * These two used to hardcode their own copies of this list, which is why

@@ -323,7 +323,7 @@ test('an article resolves its own hub, because nothing tells it which', () => {
   const page = stripComments(readSrc('src', 'pages', 'intel', '[slug].astro'));
   assert.match(page, /findHubForItem\(article, getFeaturedBrandsLocal\(\)\)/,
     'the article page must infer its hub: unlike an event, it has no relatedBrandSlug');
-  assert.match(page, /<ArticleSupportRail related=\{[^}]*\} brand=\{articleHub\} \/>/,
+  assert.match(page, /<ArticleSupportRail related=\{[^}]*\} brand=\{articleHub\}[^>]*\/>/,
     'and must hand it to the rail');
 });
 

@@ -112,8 +112,12 @@ check('index.astro preloads the open hero panel through Layout', () => {
 
 check('the open panel <img> reads the same srcset and HERO_SIZES', () => {
   const acc = code(read('src/components/home/HeroAccordion.astro'));
+  /* Each panel's markup is its own component since the Events tile can be
+     rendered twice (the live-event override); the accordion still decides
+     which one is open. */
+  const panel = code(read('src/components/home/HeroAccordionPanel.astro'));
   const index = code(read('src/pages/index.astro'));
-  for (const [name, src] of [['HeroAccordion.astro', acc], ['index.astro', index]]) {
+  for (const [name, src] of [['HeroAccordion.astro', acc], ['HeroAccordionPanel.astro', panel], ['index.astro', index]]) {
     assert.match(
       src,
       /import \{[^}]*\bHERO_SIZES\b[^}]*\} from '(\.\.\/lib|\.\.\/\.\.\/lib)\/homepage-feed'/,
@@ -121,9 +125,9 @@ check('the open panel <img> reads the same srcset and HERO_SIZES', () => {
     );
     assert.ok(!/HERO_SIZES\s*=/.test(src), `${name} redeclares HERO_SIZES locally`);
   }
-  assert.match(acc, /const open = index === 0/, 'panel 0 must be the one rendered open');
-  assert.match(acc, /srcset=\{story\.imageSrcset/);
-  assert.match(acc, /sizes=\{[^}]*HERO_SIZES/);
+  assert.match(acc, /<HeroAccordionPanel panel=\{panel\} open=\{index === 0\}/, 'panel 0 must be the one rendered open');
+  assert.match(panel, /srcset=\{story\.imageSrcset/);
+  assert.match(panel, /sizes=\{[^}]*HERO_SIZES/);
 });
 
 check('index.astro does not set response headers on a prerendered page', () => {

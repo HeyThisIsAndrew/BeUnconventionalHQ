@@ -359,4 +359,17 @@ test('the CMS offers exactly the coverage types the renderer understands', () =>
   }
 });
 
+test('BrandText adds no whitespace around the brand name', () => {
+  /* The subscribe band read "from BE Unconventional HQ ." because the
+     component put {before}, the lockup span and {after} on three lines, and
+     Astro keeps those line breaks as spaces. The sentence's own spaces are in
+     the text; the markup must contribute none. */
+  const component = read('src', 'components', 'BrandText.astro');
+  assert.match(
+    component,
+    /\{before\}<span class="brand-lockup">\{brand\}<\/span>\{after\}/,
+    'BrandText must render before, lockup and after with nothing between them',
+  );
+});
+
 console.log('\nEditorial copy and metadata slots: all assertions ran.');
