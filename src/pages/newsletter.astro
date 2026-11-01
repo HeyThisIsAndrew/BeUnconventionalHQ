@@ -2,16 +2,31 @@
 /**
  * /newsletter: THE HQ DISPATCH preference page. Choose topics, or unsubscribe.
  *
- * Two states, one page, decided by the URL:
- *   no ?t=   ask for the address and email a signed link to it
- *            (actions.newsletterLink). The answer never says whether the
- *            address is subscribed.
- *   ?t=...   the signed link: show the reader's topics as the same four
- *            toggles the signup form uses, save them, or unsubscribe
+ * ─── ONE CENTRED PAGE, HONEST ABOUT THE EMAIL LINK (owner's review, 2026-11-01)
+ * The page cannot change anyone's topics until it knows the reader owns the
+ * address, which is what the emailed link proves. So it says so, in order:
+ *   1. what THE HQ DISPATCH is, and that the reader controls what lands in
+ *      their inbox;
+ *   2. the four topic tiles, the SAME tiles as the signup box's dialog
+ *      (NewsletterTopics.astro). Before the link they are a labelled,
+ *      disabled PREVIEW of the defaults (all four on), never tiles that look
+ *      tappable but save nothing. After the link they turn live, load the
+ *      reader's saved topics, and save;
+ *   3. how to get the link, in three plain steps, and the form;
+ *   4. how to unsubscribe, visible in both states;
+ *   5. the signup box's own footer line ("No spam. Unsubscribe any time.").
+ *
+ * Two states, decided by the URL:
+ *   no ?t=   the preview, the steps and the link form (actions.newsletterLink).
+ *            The answer never says whether the address is subscribed.
+ *   ?t=...   the signed link: live tiles, Save, Unsubscribe
  *            (actions.newsletterPrefs). An expired link drops back to the
  *            first state with a note.
  * Every issue links here ("Choose your topics", with ?email= prefilled by
  * Kit). Kit's own one-click unsubscribe stays in every issue as well.
+ *
+ * Sizes are rem, so the page scales with the site's root steps at 2560px and
+ * 4K (global-base.css) instead of shrinking to a strip in the middle.
  *
  * Gated like the other utility routes: noindex here, and in the sitemap
  * filter in astro.config.mjs. Not robots-blocked, so crawlers can read the
@@ -19,7 +34,10 @@
  */
 import Layout from '../layouts/Layout.astro';
 import { site } from '../data/site.js';
+import { SECTIONS, MESSAGES } from '../data/content.js';
+import PageTitle from '../components/PageTitle.astro';
 import NewsletterTopics from '../components/NewsletterTopics.astro';
+import { LINK_TTL_HOURS } from '../lib/newsletter-prefs.ts';
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
 
 const title = `Newsletter Preferences | ${site.name}`;
@@ -27,71 +45,166 @@ const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and 
 ---
 
 <Layout title={title} description={description} noindex>
-  <main class="container-page pt-24 pb-24">
-    <section class="prefs-page" id="prefs" data-sitekey={PUBLIC_TURNSTILE_SITE_KEY ?? ''} data-state="request">
-      <p class="prefs-kicker">The HQ Dispatch</p>
-      <h1 class="prefs-title">Your newsletter</h1>
+  <main class="container-page">
+    <div class="prefs-page" id="prefs" data-sitekey={PUBLIC_TURNSTILE_SITE_KEY ?? ''}>
+      <header class="prefs-header">
+        <div class="section-header prefs-lockup">
+          <PageTitle {...SECTIONS.subscribe} scale="secondary" as="h1" />
+        </div>
+        <p class="prefs-lede">{MESSAGES.subscribeSubtitle} You control what lands in your inbox.</p>
+        <p class="prefs-lede prefs-signed-in" id="prefs-address" hidden></p>
+      </header>
 
-      <!-- State 1: ask for a link. -->
-      <form class="prefs-block prefs-request newsletter-form" id="prefs-request" novalidate>
-        <p class="prefs-lede">Enter the address you subscribed with and we will email you a link to choose your topics or unsubscribe.</p>
-        <div class="newsletter-row">
-          <label class="sr-only" for="prefs-email">Email address</label>
-          <input class="newsletter-input" id="prefs-email" name="email" type="email" inputmode="email" autocomplete="email" required placeholder="you@example.com" />
-          <button class="cta-button-primary newsletter-submit" type="submit">Email me a link</button>
-        </div>
-        <div class="prefs-turnstile" id="prefs-turnstile"></div>
-      </form>
+      <section class="prefs-section" aria-labelledby="prefs-topics-title">
+        <h2 class="nl-hq-header prefs-section-title" id="prefs-topics-title">{MESSAGES.newsletterTopicsTrigger}</h2>
+        <p class="prefs-note" id="prefs-topics-note">
+          <span class="prefs-tag">Preview</span>
+          Every new subscriber starts with all four topics on. Open your emailed link to change them; your choice is saved from that page.
+        </p>
+        <form id="prefs-choose" novalidate>
+          <NewsletterTopics preview id="prefs-topics" />
+          <div class="prefs-actions" id="prefs-actions" hidden>
+            <button class="cta-button-primary" type="submit">Save my topics</button>
+          </div>
+        </form>
+      </section>
 
-      <!-- State 2: the signed link. -->
-      <form class="prefs-block prefs-choose" id="prefs-choose" novalidate hidden>
-        <p class="prefs-lede" id="prefs-address"></p>
-        <NewsletterTopics />
-        <div class="prefs-actions">
-          <button class="cta-button-primary" type="submit">Save my topics</button>
-          <button class="prefs-link-button" type="button" id="prefs-unsub">Unsubscribe instead</button>
+      <section class="prefs-section" id="prefs-request-section" aria-labelledby="prefs-link-title">
+        <h2 class="nl-hq-header prefs-section-title" id="prefs-link-title">Get your link</h2>
+        <ol class="prefs-steps">
+          <li><span class="prefs-step-num" aria-hidden="true">01</span>Enter the address you subscribed with.</li>
+          <li><span class="prefs-step-num" aria-hidden="true">02</span>We email you a link. It works for {LINK_TTL_HOURS} hours.</li>
+          <li><span class="prefs-step-num" aria-hidden="true">03</span>Open it to choose your topics or to unsubscribe.</li>
+        </ol>
+        <form class="newsletter-form prefs-request" id="prefs-request" novalidate>
+          <div class="newsletter-row">
+            <label class="sr-only" for="prefs-email">Email address</label>
+            <input class="newsletter-input" id="prefs-email" name="email" type="email" inputmode="email" autocomplete="email" required placeholder="you@example.com" />
+            <button class="cta-button-primary newsletter-submit" type="submit">Email me a link</button>
+          </div>
+          <div class="prefs-turnstile" id="prefs-turnstile"></div>
+        </form>
+      </section>
+
+      <section class="prefs-section" aria-labelledby="prefs-unsub-title">
+        <h2 class="nl-hq-header prefs-section-title" id="prefs-unsub-title">Unsubscribe</h2>
+        <p class="prefs-note" id="prefs-unsub-help">Open your emailed link and choose Unsubscribe, or use the Unsubscribe link at the bottom of any issue of THE HQ DISPATCH.</p>
+        <div id="prefs-unsub-live" hidden>
+          <button class="prefs-link-button" type="button" id="prefs-unsub">Unsubscribe from THE HQ DISPATCH</button>
+          <div class="prefs-confirm" id="prefs-confirm" hidden>
+            <p>Stop all THE HQ DISPATCH emails to this address?</p>
+            <button class="cta-button-primary" type="button" id="prefs-unsub-yes">Yes, unsubscribe me</button>
+            <button class="prefs-link-button" type="button" id="prefs-unsub-no">Keep my subscription</button>
+          </div>
         </div>
-        <div class="prefs-confirm" id="prefs-confirm" hidden>
-          <p>Stop all THE HQ DISPATCH emails to this address?</p>
-          <button class="cta-button-primary" type="button" id="prefs-unsub-yes">Yes, unsubscribe me</button>
-          <button class="prefs-link-button" type="button" id="prefs-unsub-no">Keep my subscription</button>
-        </div>
-      </form>
+      </section>
 
       <p class="prefs-status" id="prefs-status" role="status" aria-live="polite"></p>
-    </section>
+      <p class="newsletter-fineprint prefs-fineprint">{MESSAGES.newsletterFineprint}</p>
+    </div>
   </main>
 </Layout>
 
 <style>
-  /* Clear of the fixed navbar, the same 120px as /privacy and
-     /collaborations. `pt-24` on the <main> does nothing: `.container-page`
-     (layout.css) sets `padding: 0 2rem` and wins over Tailwind's utilities,
-     which is how the kicker ended up under the navbar (owner's screenshot,
-     2026-11-01). */
-  .prefs-page { max-width: 640px; margin: 0 auto; padding-top: 120px; padding-bottom: 4rem; min-height: 70vh; }
-  .prefs-kicker {
-    font-size: 0.75rem; font-weight: 600; letter-spacing: 0.3em; text-transform: uppercase;
-    color: var(--color-accent-text); margin-bottom: 0.5rem;
+  /* Centred column, rem throughout so it scales with the root steps; text
+     sizes are max(rem, px) so the 80% laptop root never makes them tiny.
+     Clear of the fixed navbar by its MEASURED height (--nav-h, published by
+     Navbar.astro), not a guessed px value: `pt-24` on a `.container-page`
+     did nothing and the kicker sat under the navbar (owner's screenshot). */
+  .prefs-page {
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: calc(var(--nav-h, 84px) + 3rem) 0 2.5rem;
+    text-align: center;
   }
-  .prefs-title {
-    font-family: var(--font-display); font-weight: 800; text-transform: uppercase;
-    /* Syne is wide: "NEWSLETTER" needs 6vw to fit a 320px screen on one line.
-       Words never break in the middle. */
-    font-size: clamp(1.25rem, 6vw, 3rem); line-height: 1.05; margin-bottom: 1.5rem;
+  .prefs-lockup { margin-bottom: 1.25rem; }
+  .prefs-lede {
+    max-width: 36rem;
+    margin: 0 auto;
+    font-size: max(1rem, 15px);
+    line-height: 1.6;
+    color: var(--color-white-muted);
   }
-  .prefs-lede { color: var(--color-white-muted); line-height: 1.6; margin-bottom: 1rem; }
-  .prefs-block { margin: 0; max-width: none; }
+  .prefs-signed-in { margin-top: 0.75rem; color: var(--color-white); }
+
+  .prefs-section {
+    margin-top: 3rem;
+    padding-top: 2.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .prefs-section-title { margin: 0 0 0.75rem; }
+  .prefs-note {
+    max-width: 36rem;
+    margin: 0 auto 1.25rem;
+    font-size: max(0.9rem, 13px);
+    line-height: 1.6;
+    color: var(--color-white-muted);
+  }
+  .prefs-tag {
+    display: inline-block;
+    margin-right: 0.4rem;
+    padding: 0.1rem 0.45rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    font-size: max(0.7rem, 10.5px);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-white);
+    vertical-align: 0.1em;
+  }
+
+  .prefs-steps {
+    display: grid;
+    gap: 0.75rem;
+    max-width: 40rem;
+    margin: 0 auto 1.5rem;
+    padding: 0;
+    list-style: none;
+    font-size: max(0.9rem, 13px);
+    line-height: 1.5;
+    color: var(--color-white);
+  }
+  @media (min-width: 48rem) {
+    .prefs-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.25rem; }
+  }
+  .prefs-step-num {
+    display: block;
+    margin-bottom: 0.3rem;
+    font-size: max(0.75rem, 11px);
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: var(--color-accent-text);
+  }
+
+  /* The box's form sizing, inside this column rather than its own 56rem. */
+  .prefs-request { max-width: none; margin: 0; }
   .prefs-turnstile:not(:empty) { margin-top: 1rem; }
-  .prefs-actions, .prefs-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-top: 1.5rem; }
+
+  .prefs-actions, .prefs-confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
   .prefs-confirm p { width: 100%; margin: 0; }
   .prefs-link-button {
-    background: none; border: 0; padding: 0.75rem 0; min-height: 44px; cursor: pointer;
-    color: var(--color-white-muted); text-decoration: underline; text-underline-offset: 4px; font: inherit;
+    min-height: 44px;
+    padding: 0.75rem 0;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    color: var(--color-white);
+    text-decoration: underline;
+    text-decoration-color: var(--color-accent);
+    text-underline-offset: 4px;
   }
-  .prefs-link-button:hover, .prefs-link-button:focus-visible { color: var(--color-white); }
-  .prefs-status { margin-top: 1.25rem; min-height: 1.5rem; color: var(--color-white); }
+  .prefs-link-button:hover, .prefs-link-button:focus-visible { color: var(--color-accent-text); }
+  .prefs-status { margin: 2rem 0 0; min-height: 1.5rem; color: var(--color-white); }
   .prefs-status.is-error { color: var(--color-accent-text); }
+  .prefs-fineprint { margin-top: 1rem; }
 </style>
 
 <script>
@@ -106,7 +219,9 @@ const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and 
     root.dataset.bound = '1';
     const status = document.getElementById('prefs-status')!;
     const request = document.getElementById('prefs-request') as HTMLFormElement;
+    const requestSection = document.getElementById('prefs-request-section')!;
     const choose = document.getElementById('prefs-choose') as HTMLFormElement;
+    const tiles = document.getElementById('prefs-topics')!;
     const say = (message: string, error = false) => {
       status.textContent = message;
       status.classList.toggle('is-error', error);
@@ -116,26 +231,28 @@ const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and 
     const emailInput = document.getElementById('prefs-email') as HTMLInputElement;
     if (params.get('email')) emailInput.value = params.get('email') ?? '';
 
-    const showRequest = (note?: string) => {
-      choose.hidden = true;
-      request.hidden = false;
-      if (note) say(note, true);
-    };
-    const boxes = () => [...choose.querySelectorAll<HTMLInputElement>('input[name="topics"]')];
+    const boxes = () => [...tiles.querySelectorAll<HTMLInputElement>('input[name="topics"]')];
+    const announce = () => tiles.dispatchEvent(new Event('change', { bubbles: true }));
     const errorText = (error: any) =>
       error?.type === 'AstroActionInputError' ? 'Please check the address and try again.' : error?.message || 'Something went wrong. Please try again.';
 
-    /* State 2: a signed link. */
+    /* State 2: a verified link turns the preview into the real thing. */
     if (token) {
-      request.hidden = true;
       say('Loading your topics...');
       (async () => {
         const { data, error } = await actions.newsletterPrefs({ token, op: 'get' });
-        if (error || !data) return showRequest(errorText(error));
-        choose.hidden = false;
-        document.getElementById('prefs-address')!.textContent = `Signed in as ${data.email}.`;
-        for (const box of boxes()) box.checked = data.topics.includes(box.value as Topic);
-        choose.querySelector('[data-nl-topics]')?.dispatchEvent(new Event('change', { bubbles: true }));
+        if (error || !data) return say(errorText(error), true);
+        requestSection.hidden = true;
+        const address = document.getElementById('prefs-address')!;
+        address.textContent = `Signed in as ${data.email}.`;
+        address.hidden = false;
+        tiles.classList.remove('is-preview');
+        for (const box of boxes()) { box.disabled = false; box.checked = data.topics.includes(box.value as Topic); }
+        announce();
+        document.getElementById('prefs-topics-note')!.textContent = 'Tap a topic to turn it on or off, then save. Your next issue follows what you save.';
+        document.getElementById('prefs-actions')!.hidden = false;
+        document.getElementById('prefs-unsub-help')!.textContent = 'Stop every THE HQ DISPATCH email to this address. You can come back any time by saving your topics again.';
+        document.getElementById('prefs-unsub-live')!.hidden = false;
         say(data.unsubscribed ? 'This address is unsubscribed. Save your topics to come back.' : '');
       })();
 
@@ -146,7 +263,7 @@ const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and 
         const { data, error } = await actions.newsletterPrefs({ token, op: 'save', topics });
         if (error || !data) return say(errorText(error), true);
         for (const box of boxes()) box.checked = data.topics.includes(box.value as Topic);
-        choose.querySelector('[data-nl-topics]')?.dispatchEvent(new Event('change', { bubbles: true }));
+        announce();
         say('Saved. Your next issue follows these topics.');
       });
       const confirm = document.getElementById('prefs-confirm')!;
@@ -162,7 +279,8 @@ const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and 
       return;
     }
 
-    /* State 1: ask for a link. Turnstile runs only when a site key exists. */
+    /* State 1: the preview stays a preview; ask for a link. Turnstile runs only when a site key exists. */
+    choose.addEventListener('submit', (event) => event.preventDefault());
     const sitekey = root.dataset.sitekey;
     const humanToken = async (): Promise<string | undefined> => {
       if (!sitekey) return undefined;

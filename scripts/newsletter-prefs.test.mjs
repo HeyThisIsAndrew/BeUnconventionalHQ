@@ -99,11 +99,27 @@ test('wiring: inline topic toggles on signup, actions validate topics, /newslett
   assert.match(topicsUi, /<dialog class="nl-dialog"/);
   assert.match(topicsUi, /lockScroll\(\)/, 'the page behind locks through the one scroll lock');
   assert.match(topicsUi, /type="checkbox" name="topics" value=\{topic\} checked/);
-  assert.match(topicsUi, /Choose what lands in your inbox/, 'says what it is for, not "Send me"');
+  const content = readFileSync(new URL('../src/data/content.js', import.meta.url), 'utf8');
+  assert.match(content, /newsletterTopicsTrigger: 'Choose what lands in your inbox'/, 'the trigger IS the descriptive sentence');
+  // Two triggers in the box, same words, same dialog; and a sentence of context.
+  assert.equal((form.match(/data-nl-open/g) ?? []).length + (topicsUi.match(/<button[^>]*data-nl-open/g) ?? []).length, 2);
+  assert.match(form, /\{MESSAGES\.newsletterTopicsTrigger\}/);
+  assert.match(topicsUi, /Choosing topics changes what lands in your inbox/);
+  assert.doesNotMatch(form + topicsUi, /Your topics:|Choose topics</, 'the old label plus small control is gone');
+  // The modal names what choosing does before the tiles, and closes in words.
+  assert.match(topicsUi, /aria-describedby="nl-dialog-intro"/);
+  assert.match(topicsUi, /data-nl-close>\s*Close/);
   assert.match(topicsUi, /aria-live="polite"/, 'the "you\'ll get" line is announced');
   assert.match(form, /topics,\n\s*\}\);/, 'the toggles reach actions.subscribe');
   const prefsPage = readFileSync(new URL('../src/pages/newsletter.astro', import.meta.url), 'utf8');
-  assert.match(prefsPage, /<NewsletterTopics \/>/, 'the preference page explains it the same way');
+  assert.match(prefsPage, /<NewsletterTopics preview id="prefs-topics" \/>/, 'the page shows the same tiles, as a preview until the link');
+  assert.match(topicsUi, /disabled=\{preview\}/, 'preview tiles are really disabled, not just styled');
+  assert.match(prefsPage, /\{MESSAGES\.newsletterFineprint\}/, 'the box footer line, same words');
+  assert.match(prefsPage, /<span class="prefs-tag">Preview<\/span>/);
+  assert.match(prefsPage, /use the Unsubscribe link at the bottom of any issue/, 'unsubscribe is explained before the link too');
+  assert.match(prefsPage, /It works for \{LINK_TTL_HOURS\} hours/);
+  assert.equal((prefsPage.match(/as="h1"/g) ?? []).length, 1);
+  assert.doesNotMatch(prefsPage, /<h1\b/, 'the one h1 is the PageTitle lockup');
   const actions = readFileSync(new URL('../src/actions/index.ts', import.meta.url), 'utf8');
   assert.match(actions, /topics: z\.array\(z\.enum\(TOPICS\)\)/);
   assert.match(actions, /KIT_SYNC_SIGNUPS'\) === 'true'/, 'Kit sync stays off until switched on');
@@ -111,7 +127,6 @@ test('wiring: inline topic toggles on signup, actions validate topics, /newslett
   assert.match(actions, /prefslink:\$\{email\}`, '1', \{ expirationTtl: 600 \}/, 'one link per address per 10 minutes');
   const page = readFileSync(new URL('../src/pages/newsletter.astro', import.meta.url), 'utf8');
   assert.match(page, /<Layout [^>]*noindex/);
-  assert.equal((page.match(/<h1\b/g) ?? []).length, 1);
   const config = readFileSync(new URL('../astro.config.mjs', import.meta.url), 'utf8');
   assert.match(config, /'\/newsletter',/);
   const shell = readFileSync(new URL('../email/hq-dispatch/template.html', import.meta.url), 'utf8');
@@ -153,8 +168,9 @@ test("the \"you'll get\" sentence matches the slot rule for every combination", 
   const fn = src.slice(src.indexOf('const LABELS'), src.indexOf('function bind'));
   const js = fn.replace(/: Record<string, string>/g, '').replace(/(\w+): string\[\]/g, '$1').replace(/\): string \{/g, ') {');
   const [summarize, shortLine] = new Function(`${js}; return [summarize, shortLine];`)();
-  assert.equal(shortLine([]), 'Your topics: all four');
-  assert.equal(shortLine(['film', 'tv']), 'Your topics: Film and TV');
+  assert.equal(shortLine(['film', 'tv', 'games', 'events']), 'Selected: FILM, TV, GAMES, EVENTS.');
+  assert.equal(shortLine([]), 'Selected: none, which means all four.');
+  assert.equal(shortLine(['film', 'tv']), 'Selected: FILM, TV.');
   const { fillSlots, TOPICS } = await import('../src/lib/dispatch-topics.ts');
   const by = Object.fromEntries(TOPICS.map((t) => [t, [1, 2, 3, 4].map((n) => ({ t, pubDate: `2026-11-0${n}` }))]));
   for (let mask = 0; mask < 16; mask++) {
@@ -162,10 +178,11 @@ test("the \"you'll get\" sentence matches the slot rule for every combination", 
     const sentence = summarize(chosen);
     const picks = fillSlots(by, chosen.length ? chosen : TOPICS);
     const counts = Object.fromEntries(TOPICS.map((t) => [t, picks.filter((p) => p.t === t).length]));
-    if (chosen.length === 1) assert.match(sentence, new RegExp(`plus 4 ${['Film', 'TV', 'Games', 'Events'][TOPICS.indexOf(chosen[0])]} picks`));
+    if (chosen.length === 1) assert.match(sentence, new RegExp(`plus 4 ${['FILM', 'TV', 'GAMES', 'EVENTS'][TOPICS.indexOf(chosen[0])]} picks`));
     if (chosen.length === 2) for (const t of chosen) assert.equal(counts[t], 2, sentence);
     if (chosen.length === 3) assert.match(sentence, /a fourth from whichever posted most recently/);
-    if (chosen.length === 0 || chosen.length === 4) assert.match(sentence, /one pick each from Film, TV, Games and Events/);
+    if (chosen.length === 0 || chosen.length === 4) assert.match(sentence, /one pick each from FILM, TV, GAMES and EVENTS/);
+    assert.doesNotMatch(sentence, /\b(Film|Games|Events)\b/, 'names match the tiles: uppercase');
     assert.doesNotMatch(sentence, /\u2014/);
   }
 });

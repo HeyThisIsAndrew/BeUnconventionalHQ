@@ -1,35 +1,46 @@
 ---
 /**
- * NewsletterTopics: choose what THE HQ DISPATCH sends. One component for the
- * signup form (NewsletterForm.astro) and the preference page (/newsletter),
- * so the two can never explain it differently.
+ * NewsletterTopics: choose what THE HQ DISPATCH sends. One tile system for the
+ * signup box (NewsletterForm.astro) and the preference page (/newsletter), so
+ * the two can never look or read differently.
  *
- * ─── TWO PRESENTATIONS (owner's review, 2026-11-01) ──────────────────────
- *   variant="modal"   (signup form) one short line, "Your topics: all four",
- *                     and a "Choose topics" button that opens the cards in a
- *                     <dialog>. The cards inline made the subscribe box far
- *                     too big; the box keeps its old size this way.
- *   variant="inline"  (/newsletter) the cards on the page, because choosing
- *                     is that page's whole job.
- * Either way the reader sees what it is for ("Choose what lands in your
- * inbox"), what an issue contains (one featured story for everyone, plus
- * four picks), a card per topic with a description and a checkmark that
- * fills and pops, and a live "You'll get: ..." line worded from the same rule
- * the Kit Worker uses (fillSlots() in src/lib/dispatch-topics.ts).
+ * ─── HOW IT READS (owner's review, 2026-11-01) ───────────────────────────
+ * The trigger is the sentence itself: "CHOOSE WHAT LANDS IN YOUR INBOX", set
+ * as a header in the box footer line's own type (body font, uppercase,
+ * 0.08em tracking: `.newsletter-fineprint`) but larger, heavier and white,
+ * with the site's red underline as the link cue. NewsletterForm renders it
+ * twice, above the email row and again below the one sentence that says what
+ * choosing does, so it is never out of reach while reading the box.
+ * Topic names are UPPERCASE everywhere: on the tiles, in the "You'll get"
+ * line and in the "Selected" line.
  *
- * The checkboxes stay inside the surrounding <form> in both variants (a
- * <dialog> nested in a form keeps its inputs in that form), so the forms read
- * `input[name="topics"]:checked` either way. All on by default; none ticked
- * means all four (parseTopics). The modal is the native <dialog>: Escape and
- * focus trapping come with it, and the page behind locks through the site's
- * one scroll lock (src/lib/scroll-lock.ts).
+ *   variant="modal"    (signup box) the note, the selected line, the second
+ *                      trigger and a native <dialog> with the tiles. The
+ *                      dialog sits inside the <form>, so the checkboxes still
+ *                      go with the signup. Escape, Close, the action button
+ *                      and a backdrop click all close it; the dialog keeps
+ *                      focus inside while open; the page behind locks through
+ *                      src/lib/scroll-lock.ts; focus returns to the trigger.
+ *   variant="inline"   (/newsletter) the tiles on the page. With `preview`,
+ *                      they render DISABLED and visibly unselectable: the page
+ *                      cannot save a choice until the reader opens their
+ *                      emailed link, and the tiles must not pretend otherwise.
+ *                      The page enables them once that link is verified.
+ *
+ * The "You'll get" line is worded from the slot rule the Kit Worker uses
+ * (fillSlots() in src/lib/dispatch-topics.ts). None ticked means all four.
  */
 import { TOPICS, TOPIC_LABELS } from '../lib/dispatch-topics.ts';
+import { MESSAGES } from '../data/content.js';
 
 interface Props {
   variant?: 'inline' | 'modal';
+  /** inline only: tiles shown as a disabled preview of the defaults. */
+  preview?: boolean;
+  /** inline only: id for the fieldset, so the page can find it. */
+  id?: string;
 }
-const { variant = 'inline' } = Astro.props;
+const { variant = 'inline', preview = false, id } = Astro.props;
 
 /** What each topic covers, in the publication's terms. */
 const DESCRIPTIONS = {
@@ -38,22 +49,29 @@ const DESCRIPTIONS = {
   games: 'Releases, previews and industry news',
   events: 'Cons, premieres and live coverage',
 } as const;
+
+const TOPICS_TRIGGER_TEXT = MESSAGES.newsletterTopicsTrigger;
+const dialogId = 'nl-topics-dialog';
 ---
 
 {variant === 'modal' ? (
   <div class="nl-topics-compact" data-nl-topics-root>
-    <p class="nl-topics-line">
-      <span data-nl-short>Your topics: all four</span>
-      <button type="button" class="nl-topics-open" data-nl-open aria-haspopup="dialog">Choose topics</button>
+    <p class="nl-topics-note">
+      Choosing topics changes what lands in your inbox: one featured story for everyone, plus four picks from the topics you choose.
+      <span class="nl-topics-selected" data-nl-short>Selected: FILM, TV, GAMES, EVENTS.</span>
     </p>
-    <dialog class="nl-dialog" data-nl-dialog aria-label="Choose what lands in your inbox">
+    <button type="button" class="nl-hq-header nl-topics-link" data-nl-open aria-haspopup="dialog" aria-controls={dialogId}>{TOPICS_TRIGGER_TEXT}</button>
+    <dialog class="nl-dialog" id={dialogId} data-nl-dialog aria-labelledby="nl-dialog-title" aria-describedby="nl-dialog-intro">
       <div class="nl-dialog-inner">
-        <button type="button" class="nl-dialog-close" data-nl-close aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
+        <div class="nl-dialog-head">
+          <h2 class="nl-hq-header nl-dialog-title" id="nl-dialog-title">{TOPICS_TRIGGER_TEXT}</h2>
+          <button type="button" class="nl-dialog-close" data-nl-close>
+            Close <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <p class="nl-topics-intro" id="nl-dialog-intro">Choosing topics changes what lands in your inbox. Every issue has one featured story for everyone, plus four picks from the topics you choose. Tap a topic to turn it on or off.</p>
         <fieldset class="nl-topics nl-topics--modal" data-nl-topics>
-          <legend class="nl-topics-legend">Choose what lands in your inbox</legend>
-          <p class="nl-topics-intro">Every issue has one featured story for everyone, plus four picks from the topics you choose.</p>
+          <legend class="sr-only">Topics</legend>
           <div class="nl-topics-grid">
             {TOPICS.map((topic) => (
               <label class="nl-topic">
@@ -67,21 +85,20 @@ const DESCRIPTIONS = {
             ))}
           </div>
           <p class="nl-topics-summary" data-nl-summary aria-live="polite">
-            You'll get: the featured story, plus one pick each from Film, TV, Games and Events.
+            You'll get: the featured story, plus one pick each from FILM, TV, GAMES and EVENTS.
           </p>
         </fieldset>
-        <button type="button" class="cta-button-primary nl-dialog-done" data-nl-close>Done</button>
+        <button type="button" class="cta-button-primary nl-dialog-done" data-nl-close>Use these topics</button>
       </div>
     </dialog>
   </div>
 ) : (
-  <fieldset class="nl-topics" data-nl-topics data-nl-topics-root>
-    <legend class="nl-topics-legend">Choose what lands in your inbox</legend>
-    <p class="nl-topics-intro">Every issue has one featured story for everyone, plus four picks from the topics you choose.</p>
+  <fieldset class:list={['nl-topics', { 'is-preview': preview }]} id={id} data-nl-topics data-nl-topics-root>
+    <legend class="sr-only">Topics</legend>
     <div class="nl-topics-grid">
       {TOPICS.map((topic) => (
         <label class="nl-topic">
-          <input type="checkbox" name="topics" value={topic} checked />
+          <input type="checkbox" name="topics" value={topic} checked disabled={preview} />
           <span class="nl-topic-card">
             <span class="nl-topic-check" aria-hidden="true"></span>
             <span class="nl-topic-name">{TOPIC_LABELS[topic]}</span>
@@ -91,7 +108,7 @@ const DESCRIPTIONS = {
       ))}
     </div>
     <p class="nl-topics-summary" data-nl-summary aria-live="polite">
-      You'll get: the featured story, plus one pick each from Film, TV, Games and Events.
+      You'll get: the featured story, plus one pick each from FILM, TV, GAMES and EVENTS.
     </p>
   </fieldset>
 )}
@@ -100,11 +117,12 @@ const DESCRIPTIONS = {
   import { lockScroll, unlockScroll } from '../lib/scroll-lock';
 
   /*
-    The sentence under the cards, worded from the slot rule (fillSlots in
+    Topic names are UPPERCASE in every sentence, the same as on the tiles.
+    The "You'll get" wording follows the slot rule (fillSlots in
     src/lib/dispatch-topics.ts): an even share per topic, and any leftover
     pick goes to whichever chosen topic published most recently.
   */
-  const LABELS: Record<string, string> = { film: 'Film', tv: 'TV', games: 'Games', events: 'Events' };
+  const LABELS: Record<string, string> = { film: 'FILM', tv: 'TV', games: 'GAMES', events: 'EVENTS' };
 
   const list = (words: string[]) =>
     words.length <= 1 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
@@ -112,7 +130,7 @@ const DESCRIPTIONS = {
   function summarize(chosen: string[]): string {
     const names = chosen.map((t) => LABELS[t] ?? t);
     if (names.length === 0) {
-      return 'Nothing picked means everything: the featured story, plus one pick each from Film, TV, Games and Events.';
+      return 'Nothing picked means everything: the featured story, plus one pick each from FILM, TV, GAMES and EVENTS.';
     }
     if (names.length === 1) return `You'll get: the featured story, plus 4 ${names[0]} picks.`;
     if (names.length === 2) return `You'll get: the featured story, plus 2 ${names[0]} and 2 ${names[1]} picks.`;
@@ -122,10 +140,10 @@ const DESCRIPTIONS = {
     return `You'll get: the featured story, plus one pick each from ${list(names)}.`;
   }
 
-  /** The one line the signup box shows while the cards sit in the modal. */
+  /** The selected line in the signup box. */
   function shortLine(chosen: string[]): string {
-    if (chosen.length === 0 || chosen.length === 4) return 'Your topics: all four';
-    return `Your topics: ${list(chosen.map((t) => LABELS[t] ?? t))}`;
+    if (chosen.length === 0) return 'Selected: none, which means all four.';
+    return `Selected: ${chosen.map((t) => LABELS[t] ?? t).join(', ')}.`;
   }
 
   function bind(root: HTMLElement) {
@@ -133,12 +151,10 @@ const DESCRIPTIONS = {
     root.dataset.bound = '1';
     const out = root.querySelector<HTMLElement>('[data-nl-summary]');
     const short = root.querySelector<HTMLElement>('[data-nl-short]');
-    const open = root.querySelector<HTMLButtonElement>('[data-nl-open]');
     const update = () => {
       const chosen = [...root.querySelectorAll<HTMLInputElement>('input[name="topics"]:checked')].map((b) => b.value);
       if (out) out.textContent = summarize(chosen);
       if (short) short.textContent = shortLine(chosen);
-      if (open) open.textContent = chosen.length === 0 || chosen.length === 4 ? 'Choose topics' : 'Change';
     };
     // A change from code (the preference page loading saved topics) is
     // announced with a bubbling `change` event, the same as a tap.
@@ -146,17 +162,36 @@ const DESCRIPTIONS = {
     update();
 
     const dialog = root.querySelector<HTMLDialogElement>('[data-nl-dialog]');
-    if (!dialog || !open) return;
-    open.addEventListener('click', () => {
-      if (dialog.open) return;
-      dialog.showModal();
-      lockScroll();
+    if (!dialog) return;
+    // Every trigger in the same box opens it (NewsletterForm renders two).
+    const scope = root.closest('form') ?? root;
+    let opener: HTMLElement | null = null;
+    scope.querySelectorAll<HTMLElement>('[data-nl-open]').forEach((button) => {
+      button.addEventListener('click', () => {
+        if (dialog.open) return;
+        opener = button;
+        dialog.showModal();
+        lockScroll();
+      });
     });
     root.querySelectorAll<HTMLButtonElement>('[data-nl-close]').forEach((b) => b.addEventListener('click', () => dialog.close()));
-    // A tap on the dimmed backdrop (the dialog box itself, outside its inner panel) closes it.
+    // A click on the dimmed backdrop (the dialog box itself, outside its inner panel) closes it.
     dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
-    // Every way out (Done, the X, Escape, the backdrop) ends here, once.
-    dialog.addEventListener('close', () => { unlockScroll(); open.focus(); });
+    // Keep Tab inside while it is open: a modal <dialog> makes the page
+    // behind inert, but Tab past the last control still leaves for the
+    // browser's own toolbar. Wrap from the last control to the first and back.
+    dialog.addEventListener('keydown', (event) => {
+      if (event.key !== 'Tab') return;
+      const focusable = [...dialog.querySelectorAll<HTMLElement>('button, input, a[href], [tabindex]:not([tabindex="-1"])')]
+        .filter((el) => !(el as HTMLButtonElement).disabled);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    });
+    // Every way out (the action, Close, Escape, the backdrop) ends here, once.
+    dialog.addEventListener('close', () => { unlockScroll(); opener?.focus(); });
   }
 
   document.addEventListener('astro:page-load', () => {

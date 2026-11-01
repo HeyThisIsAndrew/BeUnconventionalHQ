@@ -28,30 +28,100 @@
   gap: 0.75rem;
 }
 
-/* THE HQ DISPATCH topics (NewsletterTopics.astro): four cards that say what
-   they are, a checkmark that fills and pops, and a live "you'll get" line.
-   Real checkboxes, laid over each card so the whole card is the tap target.
-   Two by two on a phone, four across from 640px. */
+/* ─── THE HQ DISPATCH topics (NewsletterTopics.astro) ──────────────────────
+   One tile system for the signup box's dialog and the /newsletter page.
+
+   THE HEADER TYPE. `.nl-hq-header` is the box footer line's own type,
+   `.newsletter-fineprint` below (the body font, uppercase, 0.08em tracking),
+   promoted to a header: 0.95rem instead of 0.7rem (never under 14px, where
+   the site's 80% laptop root would take it), weight 800 instead of the
+   inherited 400, and full white instead of 50%. Text sizes in this block
+   are max(rem, px): rem so they grow with the root at 2560px and 4K, px so
+   the laptop root never takes them below a readable size. Used for the trigger
+   ("CHOOSE WHAT LANDS IN YOUR INBOX"), the dialog's heading and the
+   /newsletter section headings, so they read as one family with the line
+   that closes the box. The trigger adds the site's red underline as its
+   link cue. */
+.nl-hq-header {
+  font-family: var(--font-body);
+  font-size: max(0.95rem, 14px);
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-white);
+}
+
+.nl-topics-link {
+  display: inline-block;
+  min-height: 44px;
+  margin: 0;
+  padding: 0.6rem 0.25rem;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: underline;
+  text-decoration-color: var(--color-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.45em;
+  transition: color 0.18s ease;
+}
+
+.nl-topics-link:hover {
+  color: var(--color-accent-text);
+}
+
+.nl-topics-link:focus-visible {
+  outline: 2px solid var(--color-white);
+  outline-offset: 4px;
+}
+
+/* First trigger, above the email row. */
+.nl-topics-link--top {
+  display: block;
+  margin: 0 auto 1rem;
+}
+
+/* The one sentence that gives the triggers their context, and the current choice. */
+.nl-topics-compact {
+  margin-top: 1.1rem;
+  text-align: center;
+}
+
+.nl-topics-note {
+  max-width: 34rem;
+  margin: 0 auto 0.35rem;
+  font-size: max(0.85rem, 13px);
+  line-height: 1.55;
+  color: var(--color-white-muted);
+}
+
+.nl-topics-selected {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--color-white);
+}
+
+.newsletter-form.is-success .nl-topics-link--top,
+.newsletter-form.is-success .nl-topics-compact {
+  display: none;
+}
+
+/* The tiles: real checkboxes laid over each card, so the whole card is the
+   tap target. Two by two at every width, in the dialog and on the page. */
 .nl-topics {
   border: 0;
-  margin: 1.5rem 0 0;
+  margin: 0;
   padding: 0;
   min-width: 0;
   text-align: left;
 }
 
-.nl-topics-legend {
-  padding: 0;
-  font-family: var(--font-body);
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--color-white);
-}
-
 .nl-topics-intro {
-  margin: 0.35rem 0 0.9rem;
-  font-size: 0.85rem;
-  line-height: 1.5;
+  margin: 0 0 1rem;
+  font-size: max(0.9rem, 13px);
+  line-height: 1.55;
   color: var(--color-white-muted);
 }
 
@@ -59,12 +129,6 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.6rem;
-}
-
-@media (min-width: 640px) {
-  .nl-topics-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
 }
 
 .nl-topic {
@@ -91,7 +155,7 @@
   flex-direction: column;
   gap: 0.3rem;
   height: 100%;
-  min-height: 92px;
+  min-height: 5.75rem;
   padding: 0.85rem 0.9rem;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.02);
@@ -103,19 +167,19 @@
 }
 
 .nl-topic-name {
+  /* Room for the check on the name's line only; the description gets the full width. */
+  padding-right: 1.6rem;
   font-family: var(--font-body);
-  font-size: 0.85rem;
+  font-size: max(0.85rem, 12px);
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--color-white-muted);
   transition: color 0.18s ease;
-  /* Room for the check on the name's line only; the description gets the full width. */
-  padding-right: 1.6rem;
 }
 
 .nl-topic-desc {
-  font-size: 0.75rem;
+  font-size: max(0.8rem, 12px);
   line-height: 1.4;
   color: var(--color-white-muted);
 }
@@ -128,7 +192,7 @@
   width: 1.15rem;
   height: 1.15rem;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
   transition: background-color 0.18s ease, border-color 0.18s ease;
 }
 
@@ -195,52 +259,41 @@
   padding: 0.7rem 0.9rem;
   border-left: 2px solid var(--color-accent);
   background: rgba(255, 255, 255, 0.03);
-  font-size: 0.85rem;
+  font-size: max(0.85rem, 13px);
   line-height: 1.5;
   color: var(--color-white);
 }
 
-.newsletter-form.is-success .nl-topics {
-  display: none;
+/* PREVIEW (the /newsletter page before the emailed link): the defaults,
+   shown honestly as not yet changeable. Disabled inputs, a dashed frame, a
+   grey check instead of the red one, no hover, no press, default cursor. */
+.nl-topics.is-preview .nl-topic,
+.nl-topics.is-preview .nl-topic input {
+  cursor: default;
 }
 
-/* Signup form: the cards live in a dialog; the box keeps one short line. */
-.nl-topics-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem 0.75rem;
-  margin: 0.9rem 0 0;
-  font-size: 0.85rem;
-  color: var(--color-white-muted);
+.nl-topics.is-preview .nl-topic-card,
+.nl-topics.is-preview .nl-topic input:checked + .nl-topic-card {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: none;
+  transform: none;
 }
 
-.nl-topics-open {
-  min-height: 44px;
-  padding: 0 0.25rem;
-  background: none;
-  border: 0;
-  cursor: pointer;
-  font: inherit;
-  font-weight: 700;
+.nl-topics.is-preview .nl-topic input:checked + .nl-topic-card .nl-topic-check {
+  background: rgba(255, 255, 255, 0.35);
+  border-color: transparent;
+  animation: none;
+}
+
+.nl-topics.is-preview .nl-topic input:checked + .nl-topic-card .nl-topic-name {
   color: var(--color-white);
-  text-decoration: underline;
-  text-decoration-color: var(--color-accent);
-  text-underline-offset: 4px;
 }
 
-.nl-topics-open:hover,
-.nl-topics-open:focus-visible {
-  color: var(--color-accent-text);
-}
-
-.newsletter-form.is-success .nl-topics-compact {
-  display: none;
-}
-
+/* The dialog. */
 .nl-dialog {
-  width: min(560px, calc(100% - 32px));
+  width: min(36rem, calc(100% - 32px));
   max-height: calc(100dvh - 32px);
   margin: auto;
   padding: 0;
@@ -257,43 +310,54 @@
 }
 
 .nl-dialog-inner {
-  position: relative;
-  padding: 1.5rem 1.25rem 1.25rem;
+  padding: 1.25rem 1.25rem 1.25rem;
+  text-align: left;
 }
 
-.nl-topics--modal {
-  margin-top: 0;
+.nl-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.6rem;
 }
 
-.nl-topics--modal .nl-topics-legend {
-  padding-right: 2.5rem;
-  font-size: 1.05rem;
+.nl-dialog-title {
+  margin: 0;
+  padding-top: 0.55rem;
 }
 
-/* Two by two inside the dialog at every width: four across is too narrow. */
-.nl-topics--modal .nl-topics-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
+/* Close says what it does, in words, at a full tap size. */
 .nl-dialog-close {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0 0.75rem;
   background: none;
-  border: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
   cursor: pointer;
-  font-size: 1.6rem;
-  line-height: 1;
-  color: var(--color-white-muted);
+  font-family: var(--font-body);
+  font-size: max(0.75rem, 11px);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-white);
 }
 
-.nl-dialog-close:hover,
+.nl-dialog-close span {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.nl-dialog-close:hover {
+  border-color: var(--color-white);
+}
+
 .nl-dialog-close:focus-visible {
-  color: var(--color-white);
+  outline: 2px solid var(--color-white);
+  outline-offset: 2px;
 }
 
 .nl-dialog-done {
@@ -305,7 +369,8 @@
 @media (prefers-reduced-motion: reduce) {
   .nl-topic-card,
   .nl-topic-check,
-  .nl-topic-check::after {
+  .nl-topic-check::after,
+  .nl-topics-link {
     transition: none;
   }
   .nl-topic input:checked + .nl-topic-card .nl-topic-check {
