@@ -1725,9 +1725,19 @@ ${activeFonts
     fixed-height flex accordion leaves the last row cut off behind the bar.
     `lvh` is the unit scripts/viewport-units.test.mjs pins for exactly this.
   */
+  /*
+    CLEAR OF THE NAVBAR AT EVERY SIZE. This read `var(--header-height, 80px)`,
+    and nothing defines --header-height, so it was always 80px: 13px clear of
+    the 67px laptop navbar, but the navbar is rem-sized and grows with the
+    root font, so at 2560 (83px) and 4K (95px) it covered the "Franchises"
+    heading (measured by the scaling audit, 2026-11-01). It now follows the
+    navbar's own measured height (--nav-h, set by Navbar.astro before first
+    paint) plus the same 13px, and never drops below the 80px the laptop
+    layout was signed off at, so nothing moves there.
+  */
   .featured-directory-page {
     width: 100%;
-    padding-top: var(--header-height, 80px);
+    padding-top: max(80px, calc(var(--nav-h, 0px) + 13px));
     height: 100lvh;
     min-height: 750px;
     background: #000;
@@ -1750,8 +1760,8 @@ ${activeFonts
       subtracts is that element's own, which is what `height: 100%` used to
       resolve against.
     */
-    height: calc(100lvh - var(--header-height, 80px));
-    min-height: calc(750px - var(--header-height, 80px));
+    height: calc(100lvh - max(80px, calc(var(--nav-h, 0px) + 13px)));
+    min-height: calc(750px - max(80px, calc(var(--nav-h, 0px) + 13px)));
     width: 100%;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
@@ -3735,7 +3745,7 @@ ${activeFonts
          the last collapsed row under the URL bar. The accordion sizes itself
          from the viewport instead. */
       min-height: 0;
-      padding-top: var(--header-height, 64px);
+      padding-top: max(64px, var(--nav-h, 64px));
     }
 
     .accordion-header {
