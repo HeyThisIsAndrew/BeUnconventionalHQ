@@ -25,6 +25,13 @@ function siteFetch(env, url) {
   // Through the service binding: the domain's bot protection refuses
   // datacenter IPs, the binding does not cross it.
   const sameSite = env.SITE_URL && new URL(url).origin === new URL(env.SITE_URL).origin;
+  // Local test mode: FEED_ORIGIN points the site's URLs at a local copy
+  // (`astro preview`), e.g. `wrangler dev --var FEED_ORIGIN:http://localhost:4321`.
+  // Never set in wrangler.jsonc. Runbook: "Testing on your own machine".
+  if (sameSite && env.FEED_ORIGIN) {
+    const local = new URL(url);
+    return fetch(new URL(local.pathname + local.search, env.FEED_ORIGIN));
+  }
   return sameSite && env.HQ_SITE ? env.HQ_SITE.fetch(new Request(url)) : fetch(url);
 }
 
@@ -87,7 +94,10 @@ export class KitDraftState {
         return { ok: false, error: String(error?.message ?? error) };
       }
     }
-    const send = (notice, key) => sendOwnerEmail(env, { ...notice, key: `dispatch-kit-${key}` });
+    // Local test mode without a Resend key prints the email instead.
+    const send = env.FEED_ORIGIN && !env.RESEND_API_KEY
+      ? async (notice) => console.log(`[dispatch-kit] EMAIL (local, not sent): ${notice.subject}\n${notice.text}`)
+      : (notice, key) => sendOwnerEmail(env, { ...notice, key: `dispatch-kit-${key}` });
     try {
       if (forceFailure) throw new Error('Forced failure: testing the newsletter alert. No draft was attempted.');
       const result = await runKitDraft({

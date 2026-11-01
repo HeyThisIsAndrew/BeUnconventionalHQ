@@ -1,0 +1,104 @@
+# ─── BRANCH PREVIEW: human test access without touching production ──────────
+#
+# Builds the branch you run it on and uploads it as a PREVIEW VERSION of the
+# site Worker, at its own address:
+#   https://<branch>-beunconventionalhq.heythisisandrewb.workers.dev
+# `wrangler versions upload` does not deploy: production keeps serving what
+# deploy.yml last put live. The next deploy from main is unaffected.
+#
+# RUN IT: Actions > "Branch preview" > Run workflow > pick the branch.
+# The address is printed at the top of the run's summary page.
+#
+# WHAT A PREVIEW SHARES WITH PRODUCTION (read before testing forms):
+#   - the same KV store and the same secrets. A test signup on a preview is
+#     a real record in the real subscriber list: use your own addresses.
+#   - the same Turnstile widget, which only answers on hostnames it lists.
+#     Add heythisisandrewb.workers.dev to it once (Cloudflare > Turnstile >
+#     the newsletter widget > Hostname Management) or forms will refuse.
+# Runbook: scripts/branch-preview.md.
+name: Branch preview
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: branch-preview-${{ github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+      CLOUDFLARE_ACCOUNT_ID: b10b7bc3e6a0fd361ba0956c8aa7d307
+    steps:
+      - name: Check the deploy token is configured
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is not set. See scripts/deploy.md."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        env:
+          PUBLIC_BUILD_SHA: ${{ github.sha }}
+        run: npm run build
+
+      - name: Upload as a preview version (production unchanged)
+        id: upload
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          # A DNS label: lowercase letters, digits and hyphens, short enough
+          # that "<alias>-beunconventionalhq" stays under 63 characters.
+          ALIAS=$(echo "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-40 | sed -E 's/-+$//')
+          npx wrangler versions upload --config dist/server/wrangler.json \
+            --preview-alias "$ALIAS" --message "Branch preview: $BRANCH @ ${GITHUB_SHA::7}"
+          URL="https://${ALIAS}-beunconventionalhq.heythisisandrewb.workers.dev"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Check the preview answers
+        env:
+          URL: ${{ steps.upload.outputs.url }}
+        run: |
+          for attempt in $(seq 1 12); do
+            CODE=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$URL/?preview-check=$attempt" || true)
+            [ "$CODE" = "200" ] && break
+            echo "Attempt $attempt: HTTP $CODE, waiting..."
+            sleep 10
+          done
+          {
+            echo "## Preview ready"
+            echo ""
+            echo "**$URL**"
+            echo ""
+            echo "Branch \`${GITHUB_REF_NAME}\` at \`${GITHUB_SHA::7}\`. Production is unchanged."
+            echo ""
+            echo "| Page | HTTP |"
+            echo "| --- | --- |"
+            for path in / /dispatch.json /newsletter /intel; do
+              echo "| [$path]($URL$path) | $(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$URL$path" || true) |"
+            done
+            echo ""
+            echo "Test signups write to the REAL subscriber list. Use your own addresses. Runbook: scripts/branch-preview.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$CODE" != "200" ]; then
+            echo "::error::The preview did not answer 200. If every attempt was 404, turn on Preview URLs for the Worker (Cloudflare > Workers > beunconventionalhq > Settings > Domains & Routes)."
+            exit 1
+          fi
