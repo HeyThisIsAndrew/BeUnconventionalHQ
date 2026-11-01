@@ -367,7 +367,7 @@ export const server = {
     handler: async (input) => {
       const email = await verifyPrefsToken(readEnv('NEWSLETTER_LINK_SECRET') ?? '', input.token);
       if (!email) {
-        throw new ActionError({ code: 'UNAUTHORIZED', message: 'This link has expired or is not valid. Ask for a new one below.' });
+        throw new ActionError({ code: 'UNAUTHORIZED', message: 'This link has expired or is not valid. Ask for a new one with the form above.' });
       }
       const KV = readEnv('KV');
       const kitConfig = readKitConfig();

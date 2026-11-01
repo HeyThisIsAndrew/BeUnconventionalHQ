@@ -1,48 +1,52 @@
 ---
 /**
- * /newsletter: THE HQ DISPATCH preference page. Choose topics, or unsubscribe.
+ * /newsletter: subscribe to THE HQ DISPATCH, or, already subscribed, change
+ * topics or unsubscribe. Andrew sends people straight here to subscribe.
  *
- * ─── ONE CENTRED PAGE, HONEST ABOUT THE EMAIL LINK (owner's reviews, 2026-11-01)
- * Why the emailed link: there is no login, and the link is what proves the
- * reader owns the address before its topics change or it is unsubscribed.
- * The page says that in one sentence, then, in order:
- *   1. what THE HQ DISPATCH is, and a way in for someone not subscribed
- *      yet (the homepage subscribe box, /#subscribe);
- *   2. the link form, one sentence of why, and one line each on what the
- *      email is (sender and subject read from newsletter-prefs.ts, never
- *      retyped), what happens for an address that never subscribed, what to
- *      do after the 48 hours, and the unsubscribe link in every issue;
- *   3. the four topics as a plain PREVIEW list, labelled "Preview only",
- *      with no frame, check or fill, so nothing looks tappable. After the
- *      link they become the dialog's real tiles, with Save and Unsubscribe;
- *   4. the signup box's own footer line.
-
+ * ─── THE LAYOUT (owner's decisions, 2026-11-01, final) ────────────────────
+ *   1. SUBSCRIBE, always visible, never in the accordion: the masthead, a
+ *      short heading, one subtitle line, then the homepage box's own form in
+ *      its page layout (NewsletterForm layout="page"): email, the four tiles
+ *      selectable in place and all on (the box's default), Subscribe, the
+ *      spam line. Same script, same `subscribe` action: one subscribe system.
+ *   2. ALREADY SUBSCRIBED, one accordion panel at the bottom, built from the
+ *      /featured accordion (featured/index.astro: `.accordion-section`, the
+ *      heading-wrapping-a-button, the header strip, the spaced capital title
+ *      and its red left rule when open, one panel open at a time). Its
+ *      values are copied below rather than imported because that accordion
+ *      is not a component: it lives inside the /featured page's own scoped
+ *      styles, sized by viewport-share flex rows this page does not have.
+ *      Inside: why the emailed link (no login; the link proves the address
+ *      is yours), the link form, the detail block (From / Subject / Link
+ *      valid, each on its own line, read from newsletter-prefs.ts so the
+ *      page can never describe a different email from the one that
+ *      arrives), and three short lines.
+ * Every paragraph is LEFT aligned inside the centred column; only the
+ * masthead keeps its centred display lockup. Nothing is justified.
+ *
  * Two states, decided by the URL:
- *   no ?t=   the preview, the steps and the link form (actions.newsletterLink).
- *            The answer never says whether the address is subscribed.
- *   ?t=...   the signed link: live tiles, Save, Unsubscribe
- *            (actions.newsletterPrefs). An expired link drops back to the
- *            first state with a note.
- * Every issue links here ("Choose your topics", with ?email= prefilled by
- * Kit). Kit's own one-click unsubscribe stays in every issue as well.
- *
- * Sizes are rem, so the page scales with the site's root steps at 2560px and
- * 4K (global-base.css) instead of shrinking to a strip in the middle.
+ *   no ?t=   as above. ?email= (every issue's "Choose your topics" link,
+ *            prefilled by Kit) opens the panel with the address filled in.
+ *   ?t=...   the signed link (actions.newsletterPrefs): the panel opens on
+ *            the reader's own topics, with Save and Unsubscribe. An expired
+ *            link leaves the link form showing, with a note.
+ * Kit's own one-click unsubscribe stays in every issue as well.
  *
  * Gated like the other utility routes: noindex here, and in the sitemap
- * filter in astro.config.mjs. Not robots-blocked, so crawlers can read the
- * noindex. Logic: src/lib/newsletter-prefs.ts. Runbook: scripts/hq-dispatch.md.
+ * filter in astro.config.mjs. Logic: src/lib/newsletter-prefs.ts. Runbook:
+ * scripts/hq-dispatch.md.
  */
 import Layout from '../layouts/Layout.astro';
 import { site } from '../data/site.js';
 import { SECTIONS, MESSAGES } from '../data/content.js';
 import PageTitle from '../components/PageTitle.astro';
+import NewsletterForm from '../components/NewsletterForm.astro';
 import NewsletterTopics from '../components/NewsletterTopics.astro';
 import { LINK_TTL_HOURS, prefsEmail, LINK_FROM } from '../lib/newsletter-prefs.ts';
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
 
-const title = `Newsletter Preferences | ${site.name}`;
-const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and Events, or unsubscribe.';
+const title = `Subscribe to THE HQ DISPATCH | ${site.name}`;
+const description = 'Subscribe to THE HQ DISPATCH and choose your topics: Film, TV, Games and Events. Already subscribed? Change your topics or unsubscribe.';
 /* Read from the code that sends the email, so the page can never describe a
    different sender or subject from the one that arrives. */
 const LINK_SENDER = LINK_FROM;
@@ -50,139 +54,295 @@ const LINK_SUBJECT = prefsEmail('').subject;
 ---
 
 <Layout title={title} description={description} noindex>
-  <main class="container-page prefs-main">
-    <div class="prefs-page" id="prefs" data-sitekey={PUBLIC_TURNSTILE_SITE_KEY ?? ''} data-trigger-text={MESSAGES.newsletterTopicsTrigger}>
-      <header class="prefs-header">
+  <main class="container-page">
+    <div class="prefs-page" id="prefs" data-sitekey={PUBLIC_TURNSTILE_SITE_KEY ?? ''}>
+      <section class="prefs-subscribe" aria-labelledby="prefs-subscribe-title">
         <div class="section-header prefs-lockup">
           <PageTitle {...SECTIONS.subscribe} scale="secondary" as="h1" />
         </div>
-        <p class="prefs-lede">{MESSAGES.subscribeSubtitle} You control what lands in your inbox.</p>
-        <p class="prefs-lede prefs-new" id="prefs-new">Not subscribed yet? <a class="prefs-inline" href="/#subscribe">Subscribe on the homepage</a>.</p>
-        <p class="prefs-lede prefs-signed-in" id="prefs-address" hidden></p>
-      </header>
-
-      <section class="prefs-section" id="prefs-request-section" aria-labelledby="prefs-link-title">
-        <h2 class="nl-hq-header prefs-section-title" id="prefs-link-title">Change your topics or unsubscribe</h2>
-        <p class="prefs-note">There is no login, so we email you a link that proves the address is yours before anything changes.</p>
-        <form class="newsletter-form prefs-request" id="prefs-request" novalidate>
-          <div class="newsletter-row">
-            <label class="sr-only" for="prefs-email">Email address</label>
-            <input class="newsletter-input" id="prefs-email" name="email" type="email" inputmode="email" autocomplete="email" required placeholder="you@example.com" />
-            <button class="cta-button-primary newsletter-submit" type="submit">Email me a link</button>
-          </div>
-          <div class="prefs-turnstile" id="prefs-turnstile"></div>
-        </form>
-        <ul class="prefs-facts">
-          <li>Look for an email from {LINK_SENDER} titled &ldquo;{LINK_SUBJECT}&rdquo;.</li>
-          <li>If that address never subscribed, no email is sent.</li>
-          <li>The link works for {LINK_TTL_HOURS} hours; after that, ask for a new one here.</li>
-          <li>No link? The Unsubscribe link at the bottom of any issue also works.</li>
-        </ul>
+        <h2 class="nl-hq-header prefs-section-title" id="prefs-subscribe-title">Subscribe</h2>
+        <p class="prefs-lede">{MESSAGES.subscribeSubtitle}</p>
+        <NewsletterForm layout="page" />
       </section>
 
-      <section class="prefs-section" aria-labelledby="prefs-topics-title">
-        <h2 class="nl-hq-header prefs-section-title" id="prefs-topics-title">The four topics</h2>
-        <p class="prefs-note" id="prefs-topics-note">Preview only: topics cannot be changed on this page.</p>
-        <form id="prefs-choose" novalidate>
-          <NewsletterTopics preview id="prefs-topics" />
-          <div class="prefs-actions" id="prefs-actions" hidden>
-            <button class="cta-button-primary" type="submit">Save my topics</button>
-            <button class="prefs-link-button" type="button" id="prefs-unsub">Unsubscribe from THE HQ DISPATCH</button>
-          </div>
-          <div class="prefs-confirm" id="prefs-confirm" hidden>
-            <p>Stop all THE HQ DISPATCH emails to this address?</p>
-            <button class="cta-button-primary" type="button" id="prefs-unsub-yes">Yes, unsubscribe me</button>
-            <button class="prefs-link-button" type="button" id="prefs-unsub-no">Keep my subscription</button>
-          </div>
-        </form>
-      </section>
+      <div class="accordion-container prefs-accordion">
+        <div class="accordion-section collapsed" id="prefs-existing" data-prefs-accordion>
+          <h2 class="accordion-heading">
+            <button type="button" class="accordion-header" aria-expanded="false" aria-controls="prefs-panel">
+              <span class="accordion-header-bg" aria-hidden="true"></span>
+              <span class="accordion-title">Already subscribed? Change topics or unsubscribe</span>
+            </button>
+          </h2>
+          <div class="accordion-body" id="prefs-panel">
+            <div class="prefs-panel">
+              <div id="prefs-request-section">
+                <p class="prefs-note">There is no login, so we email you a link that proves the address is yours before anything changes.</p>
+                <form class="newsletter-form prefs-request" id="prefs-request" novalidate>
+                  <div class="newsletter-row">
+                    <label class="sr-only" for="prefs-email">Email address</label>
+                    <input class="newsletter-input" id="prefs-email" name="email" type="email" inputmode="email" autocomplete="email" required placeholder="you@example.com" aria-describedby="prefs-status" />
+                    <button class="cta-button-primary newsletter-submit" type="submit">Email me a link</button>
+                  </div>
+                  <div class="prefs-turnstile" id="prefs-turnstile"></div>
+                </form>
+                <p class="prefs-status" id="prefs-status" role="status" aria-live="polite"></p>
+                <dl class="prefs-detail" aria-label="The email we send">
+                  <div class="prefs-detail-row"><dt>From:</dt><dd class="prefs-keep">{LINK_SENDER}</dd></div>
+                  <div class="prefs-detail-row"><dt>Subject:</dt><dd>{LINK_SUBJECT}</dd></div>
+                  <div class="prefs-detail-row"><dt>Link valid:</dt><dd class="prefs-keep">{LINK_TTL_HOURS} hours</dd></div>
+                </dl>
+                <ul class="prefs-facts">
+                  <li>If that address never subscribed, no email is sent.</li>
+                  <li>Link expired? Ask for a new one with the form above.</li>
+                  <li>The Unsubscribe link at the bottom of any issue also works.</li>
+                </ul>
+              </div>
 
-      <p class="prefs-status" id="prefs-status" role="status" aria-live="polite"></p>
-      <p class="newsletter-fineprint prefs-fineprint">{MESSAGES.newsletterFineprint}</p>
+              <form class="prefs-choose" id="prefs-choose" novalidate hidden>
+                <p class="prefs-signed-in" id="prefs-address"></p>
+                <NewsletterTopics id="prefs-topics" legend={MESSAGES.newsletterTopicsTrigger} />
+                <div class="prefs-actions" id="prefs-actions">
+                  <button class="cta-button-primary" type="submit">Save my topics</button>
+                  <button class="prefs-link-button" type="button" id="prefs-unsub">Unsubscribe from THE HQ DISPATCH</button>
+                </div>
+                <div class="prefs-confirm" id="prefs-confirm" hidden>
+                  <p>Stop all THE HQ DISPATCH emails to this address?</p>
+                  <button class="cta-button-primary" type="button" id="prefs-unsub-yes">Yes, unsubscribe me</button>
+                  <button class="prefs-link-button" type="button" id="prefs-unsub-no">Keep my subscription</button>
+                </div>
+                <p class="prefs-status" id="prefs-choose-status" role="status" aria-live="polite"></p>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </main>
 </Layout>
 
 <style>
-  /* Centred column, rem throughout so it scales with the root steps; text
+  /* ONE CENTRED COLUMN, LEFT-ALIGNED TEXT. The column is the subscribe
+     form's own existing width (56.25rem, .newsletter-form in
+     newsletter.css), so the text, the tiles and the accordion share one
+     edge. rem throughout, so it scales with the root at 2560px and 4K; text
      sizes are max(rem, px) so the 80% laptop root never makes them tiny.
-     Clear of the fixed navbar by its MEASURED height (--nav-h, published by
-     Navbar.astro), not a guessed px value: `pt-24` on a `.container-page`
-     did nothing and the kicker sat under the navbar (owner's screenshot). */
-  /* On a screen taller than the page (2560px, 4K), the layout keeps the
-     footer at the bottom; this page's own <main> takes that height and
-     centres the column in it, so it never reads as a short form over empty
-     space. On shorter screens it changes nothing. */
-  .prefs-main {
-    flex: 1 0 auto;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-  }
+     Clear of the fixed navbar by its measured height (--nav-h). Content
+     starts at the top and the footer follows it: no centring in the
+     viewport, no reserved height. */
   .prefs-page {
     width: 100%;
-    max-width: 46rem;
+    max-width: 56.25rem;
     margin: 0 auto;
-    padding: calc(var(--nav-h, 84px) + 3rem) 0 2.5rem;
-    text-align: center;
+    padding: calc(var(--nav-h, 84px) + 2rem) 0 0.5rem;
+    text-align: left;
   }
-  .prefs-lockup { margin-bottom: 1.25rem; }
+  .prefs-lockup { margin-bottom: 1.75rem; }
+  .prefs-section-title { margin: 0 0 0.4rem; }
   .prefs-lede {
-    max-width: 36rem;
-    margin: 0 auto;
+    margin: 0;
     font-size: max(1rem, 15px);
-    line-height: 1.6;
-    color: var(--color-white-muted);
-  }
-  .prefs-signed-in { margin-top: 0.75rem; color: var(--color-white); }
-
-  .prefs-section {
-    margin-top: 2.25rem;
-    padding-top: 2rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-  }
-  .prefs-section-title { margin: 0 0 0.75rem; }
-  .prefs-note {
-    max-width: 36rem;
-    margin: 0 auto 1.25rem;
-    font-size: max(0.9rem, 13px);
-    line-height: 1.6;
-    color: var(--color-white-muted);
-  }
-  .prefs-new { margin-top: 0.6rem; color: var(--color-white); }
-  .prefs-inline {
-    color: var(--color-white);
-    text-decoration: underline;
-    text-decoration-color: var(--color-accent);
-    text-underline-offset: 3px;
-  }
-  .prefs-inline:hover, .prefs-inline:focus-visible { color: var(--color-accent-text); }
-
-  /* One short fact per line, under the form. */
-  .prefs-facts {
-    max-width: 36rem;
-    margin: 1.1rem auto 0;
-    padding: 0;
-    list-style: none;
-    font-size: max(0.85rem, 12.5px);
     line-height: 1.55;
     color: var(--color-white-muted);
   }
-  .prefs-facts li + li { margin-top: 0.3rem; }
 
-  /* The box's form sizing, inside this column rather than its own 56rem. */
+  /* ─── THE ACCORDION: /featured's, value for value ──────────────────────
+     From src/pages/featured/index.astro. Same: the section's #050505 and
+     2px bottom rule, the container's 1px top rule, the header strip's
+     red-to-black gradient (0.6, full on hover, gone when open), the
+     heading-wrapping-a-button, the inset focus ring, the spaced capital
+     title (0.5 white closed, 0.94 white open with the 2px red rule down its
+     left edge), its hover nudge and its typeface stack. One panel open at a
+     time. Differences, all forced by this page: a row here is as tall as its
+     content (/featured's rows are viewport shares), so the strip has a
+     min-height and the closed body is display:none; the side padding is
+     /featured's phone value at every width, because 5vw of a full-bleed row
+     is not a column's padding; the title keeps its desktop size on phones
+     (/featured's phone size is for one-word labels); the open header can be
+     pressed again to close, because with one panel that is the only way to
+     close it; and the body fades in with the same 0.5s and 0.3s delay. */
+  .prefs-accordion {
+    margin-top: 2.25rem;
+    width: 100%;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    scroll-margin-top: calc(var(--nav-h, 84px) + 1rem);
+  }
+  .accordion-section {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+    background: #050505;
+  }
+  .accordion-header-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    opacity: 0.6;
+    background: linear-gradient(to right, rgba(var(--category-accent-rgb, 100, 0, 0), 0.75) 0%, rgba(0, 0, 0, 0.95) 60%);
+    transition: opacity 0.4s ease, background 0.4s ease;
+  }
+  .accordion-section.collapsed:hover .accordion-header-bg {
+    opacity: 1;
+    background: linear-gradient(to right, rgba(var(--category-accent-rgb, 153, 0, 0), 0.95) 0%, rgba(0, 0, 0, 0.95) 60%);
+  }
+  .accordion-section.expanded .accordion-header-bg {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .accordion-heading {
+    position: relative;
+    z-index: 10;
+    margin: 0;
+    font: inherit;
+  }
+  .accordion-header {
+    appearance: none;
+    -webkit-appearance: none;
+    position: relative;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    width: 100%;
+    min-height: 4.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0.9rem 1.25rem;
+    cursor: pointer;
+  }
+  .accordion-header:focus-visible {
+    outline: 2px solid var(--color-accent-text, #ef4444);
+    outline-offset: -6px;
+  }
+  .accordion-section.expanded .accordion-header {
+    padding: 1.5rem 1.25rem 1rem;
+    background: transparent;
+  }
+  .accordion-title {
+    display: block;
+    font-family: 'Helvetica Neue', Helvetica, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    font-size: clamp(0.8rem, 1.15vw, 1.05rem);
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.34em;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 0;
+    z-index: 2;
+    transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+    line-height: 1.25;
+  }
+  .accordion-section.collapsed:hover .accordion-title {
+    color: #fff;
+    transform: translateX(5px);
+  }
+  .accordion-section.expanded .accordion-title {
+    font-size: clamp(0.95rem, 1.5vw, 1.35rem);
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.94);
+    letter-spacing: 0.3em;
+    transform: none;
+    padding-left: 0.9rem;
+    border-left: 2px solid rgba(var(--category-accent-rgb, 204, 0, 0), 0.9);
+  }
+  .accordion-header:focus-visible .accordion-title {
+    color: rgba(255, 255, 255, 0.9);
+  }
+  .accordion-section.collapsed .accordion-body {
+    display: none;
+  }
+  .accordion-section.expanded .accordion-body {
+    animation: prefs-panel-in 0.5s ease 0.3s both;
+  }
+  @keyframes prefs-panel-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* ─── Inside the panel ─────────────────────────────────────────────── */
+  .prefs-panel { padding: 0.25rem 1.25rem 1.5rem; }
+  .prefs-note {
+    margin: 0 0 1rem;
+    font-size: max(0.95rem, 14px);
+    line-height: 1.55;
+    color: var(--color-white-muted);
+  }
   .prefs-request { max-width: none; margin: 0; }
   .prefs-turnstile:not(:empty) { margin-top: 1rem; }
 
+  /* THE DETAIL BLOCK: what arrives, one item per line, label then value.
+     The site's red left rule (the article quote's 3px accent) on the dark
+     surface. A value never breaks inside itself: the address, and the
+     hours, wrap to the next line whole if the row is too narrow, and the
+     subject starts on its own row, so it cannot split across a sentence. */
+  .prefs-detail {
+    margin: 1rem 0 0;
+    padding: 0.9rem 1.1rem;
+    background: var(--color-surface, #111111);
+    border-left: 3px solid var(--color-accent);
+    font-size: max(0.95rem, 14px);
+    line-height: 1.5;
+  }
+  .prefs-detail-row {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 0.5ch;
+  }
+  .prefs-detail-row + .prefs-detail-row { margin-top: 0.3rem; }
+  .prefs-detail dt {
+    font-weight: 700;
+    color: var(--color-white-muted);
+  }
+  .prefs-detail dd {
+    margin: 0;
+    color: var(--color-white);
+  }
+  .prefs-keep { white-space: nowrap; }
+
+  /* PHONES. The longest row, "From: noreply@beunconventionalhq.com",
+     measures 20.6 times its font size, so on a phone the strip, the panel
+     and the detail block share a tighter 0.75rem side padding, the detail
+     block runs to the panel's edges (its text still lines up with the
+     panel's), and its type is capped at the width it has (the viewport less
+     the page gutters, the 3px rule and its padding, 84px in all, over 20.8):
+     13.3px at 360, 13.9px at 375, the full size from 390. Each value stays
+     on its label's line. The title keeps its spaced capitals at a tracking
+     a phone can hold (0.15em; /featured's own phone rule drops it to
+     -0.02em for its one-word labels). */
+  @media (max-width: 560px) {
+    .accordion-header { padding: 0.9rem 0.75rem; }
+    .accordion-section.expanded .accordion-header { padding: 1.25rem 0.75rem 0.75rem; }
+    .accordion-title,
+    .accordion-section.expanded .accordion-title { letter-spacing: 0.15em; }
+    .prefs-panel { padding: 0.25rem 0.75rem 1.25rem; }
+    .prefs-detail {
+      margin-inline: -0.75rem;
+      padding: 0.8rem 0.5rem 0.8rem calc(0.75rem - 3px);
+      font-size: min(max(0.95rem, 14px), calc((100vw - 84px) / 20.8));
+    }
+  }
+
+  .prefs-facts {
+    margin: 0.9rem 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: max(0.9rem, 13px);
+    line-height: 1.55;
+    color: var(--color-white-muted);
+  }
+  .prefs-facts li + li { margin-top: 0.25rem; }
+
+  /* After the emailed link: the reader's own topics, Save, Unsubscribe. */
+  .prefs-signed-in { margin: 0 0 1rem; font-size: max(0.95rem, 14px); color: var(--color-white); }
   .prefs-actions, .prefs-confirm {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: center;
     gap: 1rem;
-    margin-top: 1.5rem;
+    margin-top: 1.25rem;
   }
-  .prefs-confirm p { width: 100%; margin: 0; }
+  .prefs-confirm p { width: 100%; margin: 0; color: var(--color-white); }
   .prefs-link-button {
     min-height: 44px;
     padding: 0.75rem 0;
@@ -196,9 +356,20 @@ const LINK_SUBJECT = prefsEmail('').subject;
     text-underline-offset: 4px;
   }
   .prefs-link-button:hover, .prefs-link-button:focus-visible { color: var(--color-accent-text); }
-  .prefs-status { margin: 2rem 0 0; min-height: 1.5rem; color: var(--color-white); }
+  .prefs-status {
+    margin: 0.6rem 0 0;
+    font-size: max(0.9rem, 13px);
+    color: var(--color-white);
+  }
+  .prefs-status:empty { display: none; }
   .prefs-status.is-error { color: var(--color-accent-text); }
-  .prefs-fineprint { margin-top: 1rem; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .accordion-header-bg,
+    .accordion-title { transition: none; }
+    .accordion-section.expanded .accordion-body { animation: none; }
+    .accordion-section.collapsed:hover .accordion-title { transform: none; }
+  }
 </style>
 
 <script>
@@ -207,74 +378,97 @@ const LINK_SUBJECT = prefsEmail('').subject;
 
   type Topic = 'film' | 'tv' | 'games' | 'events';
 
+  /** /featured's accordion behaviour: one panel open at a time, the header's
+      aria-expanded kept in step. With a single panel, pressing the open
+      header closes it. Returns a setter so the URL states can open it. */
+  function bindAccordion(root: HTMLElement) {
+    const sections = [...root.querySelectorAll<HTMLElement>('[data-prefs-accordion]')];
+    const set = (section: HTMLElement, open: boolean) => {
+      section.classList.toggle('expanded', open);
+      section.classList.toggle('collapsed', !open);
+      section.querySelector('.accordion-header')?.setAttribute('aria-expanded', String(open));
+    };
+    for (const section of sections) {
+      section.querySelector('.accordion-header')?.addEventListener('click', () => {
+        const open = !section.classList.contains('expanded');
+        for (const s of sections) set(s, s === section && open);
+      });
+    }
+    return (section: HTMLElement) => { for (const s of sections) set(s, s === section); };
+  }
+
   function setup() {
     const root = document.getElementById('prefs');
     if (!root || root.dataset.bound) return;
     root.dataset.bound = '1';
-    const status = document.getElementById('prefs-status')!;
+    const openPanel = bindAccordion(root);
+    const existing = document.getElementById('prefs-existing')!;
     const request = document.getElementById('prefs-request') as HTMLFormElement;
     const requestSection = document.getElementById('prefs-request-section')!;
     const choose = document.getElementById('prefs-choose') as HTMLFormElement;
     const tiles = document.getElementById('prefs-topics')!;
-    const say = (message: string, error = false) => {
+    const requestStatus = document.getElementById('prefs-status')!;
+    const chooseStatus = document.getElementById('prefs-choose-status')!;
+    const sayIn = (status: HTMLElement) => (message: string, error = false) => {
       status.textContent = message;
       status.classList.toggle('is-error', error);
     };
+    const sayRequest = sayIn(requestStatus);
+    const sayChoose = sayIn(chooseStatus);
     const params = new URLSearchParams(location.search);
     const token = params.get('t');
     const emailInput = document.getElementById('prefs-email') as HTMLInputElement;
     if (params.get('email')) emailInput.value = params.get('email') ?? '';
+    // Arriving from an issue (?email=) or a signed link (?t=): this reader is
+    // already subscribed, so their panel opens and comes into view.
+    if (token || params.get('email')) {
+      openPanel(existing);
+      requestAnimationFrame(() => existing.closest('.prefs-accordion')?.scrollIntoView({ block: 'start' }));
+    }
 
     const boxes = () => [...tiles.querySelectorAll<HTMLInputElement>('input[name="topics"]')];
     const announce = () => tiles.dispatchEvent(new Event('change', { bubbles: true }));
     const errorText = (error: any) =>
       error?.type === 'AstroActionInputError' ? 'Please check the address and try again.' : error?.message || 'Something went wrong. Please try again.';
 
-    /* State 2: a verified link turns the preview into the real thing. */
+    /* State 2: a verified link shows the reader's own topics. */
     if (token) {
-      say('Loading your topics...');
+      sayRequest('Loading your topics...');
       (async () => {
         const { data, error } = await actions.newsletterPrefs({ token, op: 'get' });
-        if (error || !data) return say(errorText(error), true);
+        if (error || !data) return sayRequest(errorText(error), true);
+        sayRequest('');
         requestSection.hidden = true;
-        document.getElementById('prefs-new')!.hidden = true;
-        const address = document.getElementById('prefs-address')!;
-        address.textContent = `Signed in as ${data.email}.`;
-        address.hidden = false;
-        document.getElementById('prefs-topics-title')!.textContent = document.querySelector('[data-trigger-text]')?.getAttribute('data-trigger-text') ?? 'Choose what lands in your inbox';
-        tiles.classList.remove('is-preview');
-        for (const box of boxes()) { box.disabled = false; box.checked = data.topics.includes(box.value as Topic); }
+        choose.hidden = false;
+        document.getElementById('prefs-address')!.textContent = `Signed in as ${data.email}.`;
+        for (const box of boxes()) box.checked = data.topics.includes(box.value as Topic);
         announce();
-        document.getElementById('prefs-topics-note')!.textContent = 'Tap a topic to turn it on or off, then save.';
-        document.getElementById('prefs-actions')!.hidden = false;
-        say(data.unsubscribed ? 'This address is unsubscribed. Save your topics to come back.' : '');
+        sayChoose(data.unsubscribed ? 'This address is unsubscribed. Save your topics to come back.' : '');
       })();
 
       choose.addEventListener('submit', async (event) => {
         event.preventDefault();
-        say('Saving...');
+        sayChoose('Saving...');
         const topics = boxes().filter((b) => b.checked).map((b) => b.value as Topic);
         const { data, error } = await actions.newsletterPrefs({ token, op: 'save', topics });
-        if (error || !data) return say(errorText(error), true);
+        if (error || !data) return sayChoose(errorText(error), true);
         for (const box of boxes()) box.checked = data.topics.includes(box.value as Topic);
         announce();
-        say('Saved. Your next issue follows these topics.');
+        sayChoose('Saved. Your next issue follows these topics.');
       });
       const confirm = document.getElementById('prefs-confirm')!;
       document.getElementById('prefs-unsub')!.addEventListener('click', () => { confirm.hidden = false; });
       document.getElementById('prefs-unsub-no')!.addEventListener('click', () => { confirm.hidden = true; });
       document.getElementById('prefs-unsub-yes')!.addEventListener('click', async () => {
-        say('Unsubscribing...');
+        sayChoose('Unsubscribing...');
         const { error } = await actions.newsletterPrefs({ token, op: 'unsubscribe' });
-        if (error) return say(errorText(error), true);
+        if (error) return sayChoose(errorText(error), true);
         confirm.hidden = true;
-        say('Done. You will not get THE HQ DISPATCH any more. Changed your mind? Save your topics above.');
+        sayChoose('Done. You will not get THE HQ DISPATCH any more. Changed your mind? Save your topics above.');
       });
-      return;
     }
 
-    /* State 1: the preview stays a preview; ask for a link. Turnstile runs only when a site key exists. */
-    choose.addEventListener('submit', (event) => event.preventDefault());
+    /* State 1: ask for a link. Turnstile runs only when a site key exists. */
     const sitekey = root.dataset.sitekey;
     const humanToken = async (): Promise<string | undefined> => {
       if (!sitekey) return undefined;
@@ -294,17 +488,17 @@ const LINK_SUBJECT = prefsEmail('').subject;
     request.addEventListener('submit', async (event) => {
       event.preventDefault();
       const email = emailInput.value.trim();
-      if (!email || !emailInput.checkValidity()) return say('Please enter a valid email address.', true);
-      say('Sending...');
+      if (!email || !emailInput.checkValidity()) return sayRequest('Please enter a valid email address.', true);
+      sayRequest('Sending...');
       let human: string | undefined;
       try {
         human = await humanToken();
       } catch {
-        return say("Our anti-spam check couldn't finish. An ad blocker can cause this. Please try again.", true);
+        return sayRequest("Our anti-spam check couldn't finish. An ad blocker can cause this. Please try again.", true);
       }
       const { data, error } = await actions.newsletterLink({ email, 'cf-turnstile-response': human });
-      if (error || !data) return say(errorText(error), true);
-      say(data.message);
+      if (error || !data) return sayRequest(errorText(error), true);
+      sayRequest(data.message);
     });
   }
 

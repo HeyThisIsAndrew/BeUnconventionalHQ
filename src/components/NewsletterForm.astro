@@ -57,6 +57,13 @@
  * repetition (owner's calls, 2026-11-01). Readers change it later on /newsletter,
  * through the link in every issue.
  *
+ * ─── layout="page" (/newsletter) ──────────────────────────────────────────
+ * The same form, the same script and the same `subscribe` action, laid out
+ * down the page: email, the four tiles in place (selectable, all on, the
+ * box's default), Subscribe, the spam line. No trigger and no dialog: the
+ * tiles are already on screen, under the trigger's own sentence as their
+ * label. One subscribe system, two layouts (owner's call, 2026-11-01).
+ *
  * ─── HOW TO RESTYLE IT ────────────────────────────────────────────────────
  * `.newsletter-form` and friends in styles/modules/newsletter.css.
  */
@@ -72,6 +79,13 @@ import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
   on every page.
 */
 const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
+
+interface Props {
+  /** 'box' (default): the subscribe band. 'page': /newsletter, tiles inline. */
+  layout?: 'box' | 'page';
+}
+const { layout = 'box' } = Astro.props;
+const onPage = layout === 'page';
 ---
 
 {/*
@@ -80,7 +94,7 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
   script would mean marking it `is:inline` and losing bundling.
 */}
 <form
-  class="newsletter-form"
+  class:list={['newsletter-form', { 'newsletter-form--page': onPage }]}
   id="newsletter-form"
   novalidate
   data-sitekey={turnstileSiteKey ?? ''}
@@ -88,7 +102,7 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
   {/* The topic trigger: ONCE in this box, above the email row (owner's
       call). The sentence is its own explanation. A button, not a link: it
       opens a dialog on this page. */}
-  <button type="button" class="nl-hq-header nl-one-line nl-topics-link nl-topics-link--top" data-nl-open aria-haspopup="dialog" aria-controls="nl-topics-dialog">{MESSAGES.newsletterTopicsTrigger}</button>
+  {!onPage && <button type="button" class="nl-hq-header nl-one-line nl-topics-link nl-topics-link--top" data-nl-open aria-haspopup="dialog" aria-controls="nl-topics-dialog">{MESSAGES.newsletterTopicsTrigger}</button>}
 
   <div class="newsletter-row">
     <label class="sr-only" for="newsletter-email">Email address</label>
@@ -103,13 +117,25 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
       placeholder="you@example.com"
       aria-describedby="newsletter-status"
     />
-    <button class="cta-button-primary newsletter-submit" type="submit">
-      <span class="newsletter-submit-label">{LABELS.subscribe ?? 'Subscribe'}</span>
-      <span class="newsletter-spinner" aria-hidden="true"></span>
-    </button>
+    {!onPage && (
+      <button class="cta-button-primary newsletter-submit" type="submit">
+        <span class="newsletter-submit-label">{LABELS.subscribe ?? 'Subscribe'}</span>
+        <span class="newsletter-spinner" aria-hidden="true"></span>
+      </button>
+    )}
   </div>
 
-  <NewsletterTopics variant="modal" />
+  {onPage ? (
+    <>
+      <NewsletterTopics legend={MESSAGES.newsletterTopicsTrigger} />
+      <button class="cta-button-primary newsletter-submit" type="submit">
+        <span class="newsletter-submit-label">{LABELS.subscribe ?? 'Subscribe'}</span>
+        <span class="newsletter-spinner" aria-hidden="true"></span>
+      </button>
+    </>
+  ) : (
+    <NewsletterTopics variant="modal" />
+  )}
 
   {/* Mount point for the explicitly-rendered Turnstile widget. Empty in the
       HTML, and empty at rest in execute mode too: it only fills if Cloudflare

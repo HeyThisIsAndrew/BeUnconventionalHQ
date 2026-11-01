@@ -268,38 +268,55 @@
   100% { transform: scale(1); }
 }
 
-/* PREVIEW (/newsletter before the emailed link): a plain reference list,
-   deliberately NOT a card. No frame, no check, no fill, no hover, no press,
-   default cursor, disabled inputs; just the name and its description over
-   a hairline. Nothing about it says "tap me", because nothing happens. */
-.nl-topics.is-preview .nl-topics-grid {
-  gap: 0 1.5rem;
+/* The tiles' visible label, on /newsletter's subscribe form: the box
+   trigger's sentence and type, set as the fieldset's legend. Floated so the
+   legend lays out like any block (a bare legend sits on the fieldset's
+   border line); the grid clears it. */
+.nl-topics-legend {
+  float: left;
+  width: 100%;
+  margin: 0 0 0.75rem;
+  padding: 0;
 }
 
-.nl-topics.is-preview .nl-topic,
-.nl-topics.is-preview .nl-topic input {
-  cursor: default;
+.nl-topics-legend + .nl-topics-grid {
+  clear: both;
 }
 
-.nl-topics.is-preview .nl-topic-card,
-.nl-topics.is-preview .nl-topic input:checked + .nl-topic-card {
+/* ─── /newsletter's subscribe form (NewsletterForm layout="page") ────────
+   The box's form and script, laid out down the page's column instead of
+   across the band: email, then the tiles, then Subscribe, then the spam
+   line, all left aligned. On success it collapses to the message rather
+   than holding the form's height, so the page below does not sit under an
+   empty block. */
+.newsletter-form--page {
+  max-width: none;
+  margin: 1.25rem 0 0;
+  text-align: left;
+}
+
+.newsletter-form--page > .nl-topics {
+  margin-top: 1.5rem;
+}
+
+.newsletter-form--page > .newsletter-submit {
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.newsletter-form--page > .newsletter-submit ~ .newsletter-status:empty {
+  margin-top: 0.25rem;
+}
+
+.newsletter-form--page.is-success {
   min-height: 0;
-  padding: 0.75rem 0;
-  border: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background: none;
-  box-shadow: none;
-  transform: none;
+  justify-content: flex-start;
 }
 
-.nl-topics.is-preview .nl-topic-check {
+.newsletter-form--page.is-success > .nl-topics,
+.newsletter-form--page.is-success > .newsletter-submit {
   display: none;
-}
-
-.nl-topics.is-preview .nl-topic-name,
-.nl-topics.is-preview .nl-topic input:checked + .nl-topic-card .nl-topic-name {
-  padding-right: 0;
-  color: var(--color-white);
 }
 
 /* The dialog. The <dialog> itself is a transparent frame; the panel inside

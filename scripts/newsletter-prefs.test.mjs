@@ -96,6 +96,7 @@ test('wiring: inline topic toggles on signup, actions validate topics, /newslett
   const form = readFileSync(new URL('../src/components/NewsletterForm.astro', import.meta.url), 'utf8');
   const topicsUi = readFileSync(new URL('../src/components/NewsletterTopics.astro', import.meta.url), 'utf8');
   assert.match(form, /<NewsletterTopics variant="modal" \/>/, 'the signup box keeps its size: the cards open in a dialog');
+  assert.match(form, /\{!onPage && <button type="button" class="nl-hq-header nl-one-line nl-topics-link/, 'the box keeps its one trigger');
   assert.match(topicsUi, /<dialog class="nl-dialog"/);
   assert.match(topicsUi, /lockScroll\(\)/, 'the page behind locks through the one scroll lock');
   assert.match(topicsUi, /type="checkbox" name="topics" value=\{topic\} checked/);
@@ -114,16 +115,28 @@ test('wiring: inline topic toggles on signup, actions validate topics, /newslett
   assert.match(topicsUi, /data-nl-short aria-live="polite"/, 'the Selected line updates and is announced');
   assert.match(form, /topics,\n\s*\}\);/, 'the toggles reach actions.subscribe');
   const prefsPage = readFileSync(new URL('../src/pages/newsletter.astro', import.meta.url), 'utf8');
-  assert.match(prefsPage, /<NewsletterTopics preview id="prefs-topics" \/>/, 'the page shows the same tiles, as a preview until the link');
-  assert.match(topicsUi, /disabled=\{preview\}/, 'preview tiles are really disabled, not just styled');
-  assert.match(prefsPage, /\{MESSAGES\.newsletterFineprint\}/, 'the box footer line, same words');
-  assert.match(prefsPage, /Preview only: topics cannot be changed on this page\./);
+  // /newsletter is a subscribe page first (owner's decisions, 2026-11-01):
+  // the box's own form, tiles in place, never inside the accordion.
+  assert.match(prefsPage, /<NewsletterForm layout="page" \/>/, 'the same subscribe form and action as the box');
+  assert.ok(prefsPage.indexOf('<NewsletterForm layout="page"') < prefsPage.indexOf('class="accordion-container'), 'subscribe comes first, outside the accordion');
+  assert.match(form, /<NewsletterTopics legend=\{MESSAGES\.newsletterTopicsTrigger\} \/>/, 'page layout: the tiles in place, labelled by the trigger sentence');
+  assert.doesNotMatch(topicsUi, /disabled=\{|is-preview|preview\?:/, 'no preview-only tiles anywhere');
+  assert.doesNotMatch(prefsPage, /href="\/#subscribe"|Preview only/, 'no send-away link, no preview section');
+  assert.match(form, /\{MESSAGES\.newsletterFineprint\}/, 'the spam line, same words');
+  // The existing-subscriber panel: one /featured-style accordion section.
+  assert.equal((prefsPage.match(/ data-prefs-accordion>/g) ?? []).length, 1);
+  assert.match(prefsPage, /<h2 class="accordion-heading">\s*<button type="button" class="accordion-header" aria-expanded="false" aria-controls="prefs-panel">/);
+  assert.match(prefsPage, />Already subscribed\? Change topics or unsubscribe</);
   assert.match(prefsPage, /There is no login, so we email you a link that proves the address is yours/);
-  assert.match(prefsPage, /href="\/#subscribe"/, 'a new visitor is sent to the subscribe box');
-  assert.match(prefsPage, /\{LINK_SENDER\}/, 'the sender comes from the code that sends the email');
+  // The detail block: label, colon, value, one per line, values from code.
+  assert.match(prefsPage, /<dt>From:<\/dt><dd class="prefs-keep">\{LINK_SENDER\}<\/dd>/);
+  assert.match(prefsPage, /<dt>Subject:<\/dt><dd>\{LINK_SUBJECT\}<\/dd>/);
+  assert.match(prefsPage, /<dt>Link valid:<\/dt><dd class="prefs-keep">\{LINK_TTL_HOURS\} hours<\/dd>/);
   assert.match(prefsPage, /If that address never subscribed, no email is sent\./);
-  assert.match(prefsPage, /The link works for \{LINK_TTL_HOURS\} hours; after that, ask for a new one here\./);
+  assert.match(prefsPage, /Link expired\? Ask for a new one with the form above\./);
   assert.match(prefsPage, /The Unsubscribe link at the bottom of any issue also works\./);
+  // Left-aligned text, nothing centred or justified but the masthead.
+  assert.doesNotMatch(prefsPage, /text-align:\s*(center|justify)/);
   assert.equal((prefsPage.match(/as="h1"/g) ?? []).length, 1);
   assert.doesNotMatch(prefsPage, /<h1\b/, 'the one h1 is the PageTitle lockup');
   const actions = readFileSync(new URL('../src/actions/index.ts', import.meta.url), 'utf8');

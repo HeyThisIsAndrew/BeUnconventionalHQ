@@ -1,7 +1,7 @@
 ---
 /**
  * NewsletterTopics: choose what THE HQ DISPATCH sends. One tile system for the
- * signup box (NewsletterForm.astro) and the preference page (/newsletter).
+ * signup box (NewsletterForm.astro) and the /newsletter page (subscribe form and preference panel).
  *
  * ─── LEAN BY DESIGN (owner's review, 2026-11-01) ─────────────────────────
  * The trigger sentence, "CHOOSE WHAT LANDS IN YOUR INBOX", IS the
@@ -20,11 +20,11 @@
  *                      #video-modal in Layout.astro): see `.nl-dialog-x`.
  *                      Escape, the X, the action and a backdrop click close
  *                      it; Tab wraps inside; focus returns to the trigger.
- *   variant="inline"   (/newsletter) the tiles on the page. With `preview`
- *                      they render as a plain reference list (no frame, no
- *                      check, disabled inputs): the page cannot save until
- *                      the reader's emailed link proves the address is
- *                      theirs. The page turns them into real tiles then.
+ *   variant="inline"   (/newsletter) the same tiles, selectable, on the page.
+ *                      The subscribe form passes `legend` (the same
+ *                      sentence as the box's trigger, shown above the
+ *                      tiles); the preference panel uses them unlabelled
+ *                      once the reader's emailed link has opened it.
  * None ticked means all four (parseTopics).
  */
 import { TOPICS, TOPIC_LABELS } from '../lib/dispatch-topics.ts';
@@ -32,12 +32,12 @@ import { MESSAGES } from '../data/content.js';
 
 interface Props {
   variant?: 'inline' | 'modal';
-  /** inline only: a non-interactive reference list of the defaults. */
-  preview?: boolean;
+  /** inline only: a visible label above the tiles (the fieldset's legend). */
+  legend?: string;
   /** inline only: id for the fieldset, so the page can find it. */
   id?: string;
 }
-const { variant = 'inline', preview = false, id } = Astro.props;
+const { variant = 'inline', legend, id } = Astro.props;
 
 /** What each topic covers, in the publication's terms. */
 const DESCRIPTIONS = {
@@ -77,12 +77,14 @@ const DESCRIPTIONS = {
     </dialog>
   </div>
 ) : (
-  <fieldset class:list={['nl-topics', { 'is-preview': preview }]} id={id} data-nl-topics data-nl-topics-root>
-    <legend class="sr-only">Topics</legend>
+  <fieldset class="nl-topics" id={id} data-nl-topics data-nl-topics-root>
+    {legend
+      ? <legend class="nl-hq-header nl-one-line nl-topics-legend">{legend}</legend>
+      : <legend class="sr-only">Topics</legend>}
     <div class="nl-topics-grid">
       {TOPICS.map((topic) => (
         <label class="nl-topic">
-          <input type="checkbox" name="topics" value={topic} checked disabled={preview} />
+          <input type="checkbox" name="topics" value={topic} checked />
           <span class="nl-topic-card">
             <span class="nl-topic-check" aria-hidden="true"></span>
             <span class="nl-topic-name">{TOPIC_LABELS[topic]}</span>
