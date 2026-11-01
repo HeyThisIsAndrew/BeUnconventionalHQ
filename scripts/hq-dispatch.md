@@ -250,10 +250,12 @@ on the site. One card per subject still holds (dedupe), and there is no
 ALSO THIS WEEK in this layout. `LAYOUT: "classic"` keeps the old shape.
 
 **The reader's choice.** Readers pick topics in two places:
-- **On signup:** "Choose what lands in your inbox", four topic cards under
-  the email box (inline, no pop-up), all on by default, each with a short
-  description and a checkmark, and a live line saying exactly what the
-  reader will get for their choice. Leaving them all off means all four.
+- **On signup:** one line under the email box, "Your topics: all four", and
+  a "Choose topics" button that opens a dialog: "Choose what lands in your
+  inbox", four topic cards (all on by default, each with a description and a
+  checkmark) and a live line saying exactly what the reader will get. The
+  cards sat inline once and made the box far too big (owner's call). Leaving
+  them all off means all four.
 - **On `/newsletter`:** the preference page. A reader types their address and
   gets a signed link by email (48 hours); the link opens their toggles, Save,
   and Unsubscribe. Knowing an address is not enough to change it. Every issue

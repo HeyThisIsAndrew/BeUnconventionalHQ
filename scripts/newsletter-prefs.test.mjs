@@ -95,7 +95,9 @@ test('the link email carries the link and says what happens if it was not asked 
 test('wiring: inline topic toggles on signup, actions validate topics, /newsletter gated', () => {
   const form = readFileSync(new URL('../src/components/NewsletterForm.astro', import.meta.url), 'utf8');
   const topicsUi = readFileSync(new URL('../src/components/NewsletterTopics.astro', import.meta.url), 'utf8');
-  assert.match(form, /<NewsletterTopics \/>/);
+  assert.match(form, /<NewsletterTopics variant="modal" \/>/, 'the signup box keeps its size: the cards open in a dialog');
+  assert.match(topicsUi, /<dialog class="nl-dialog"/);
+  assert.match(topicsUi, /lockScroll\(\)/, 'the page behind locks through the one scroll lock');
   assert.match(topicsUi, /type="checkbox" name="topics" value=\{topic\} checked/);
   assert.match(topicsUi, /Choose what lands in your inbox/, 'says what it is for, not "Send me"');
   assert.match(topicsUi, /aria-live="polite"/, 'the "you\'ll get" line is announced');
@@ -149,7 +151,10 @@ test("the \"you'll get\" sentence matches the slot rule for every combination", 
   const src = readFileSync(new URL('../src/components/NewsletterTopics.astro', import.meta.url), 'utf8');
   // Pull the browser function out of the component and run it here.
   const fn = src.slice(src.indexOf('const LABELS'), src.indexOf('function bind'));
-  const summarize = new Function(`${fn.replace(/: Record<string, string>/, '').replace(/\(words: string\[\]\)/, '(words)').replace(/\(chosen: string\[\]\): string/, '(chosen)')}; return summarize;`)();
+  const js = fn.replace(/: Record<string, string>/g, '').replace(/(\w+): string\[\]/g, '$1').replace(/\): string \{/g, ') {');
+  const [summarize, shortLine] = new Function(`${js}; return [summarize, shortLine];`)();
+  assert.equal(shortLine([]), 'Your topics: all four');
+  assert.equal(shortLine(['film', 'tv']), 'Your topics: Film and TV');
   const { fillSlots, TOPICS } = await import('../src/lib/dispatch-topics.ts');
   const by = Object.fromEntries(TOPICS.map((t) => [t, [1, 2, 3, 4].map((n) => ({ t, pubDate: `2026-11-0${n}` }))]));
   for (let mask = 0; mask < 16; mask++) {
