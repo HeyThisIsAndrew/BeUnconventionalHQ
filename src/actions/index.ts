@@ -331,7 +331,13 @@ export const server = {
         console.error('[actions.newsletterLink] NEWSLETTER_LINK_SECRET or RESEND_API_KEY is not set.');
         throw new ActionError({ code: 'SERVICE_UNAVAILABLE', message: 'This page is not available right now. Please try again later.' });
       }
-      if (await isSubscriber(email)) {
+      /* One link per address per 10 minutes, whatever the form is fed: the
+         answer below is the same either way, so a script cannot use this
+         to flood someone's inbox. */
+      const KV = readEnv('KV');
+      const cooling = KV ? await KV.get(`prefslink:${email}`) : null;
+      if (!cooling && (await isSubscriber(email))) {
+        if (KV) await KV.put(`prefslink:${email}`, '1', { expirationTtl: 600 });
         // The site the request came to, so a link sent from a preview copy opens
         // that preview, and one from production opens production.
         const link = prefsLink(new URL(context.request.url).origin, await signPrefsToken(secret, email));
@@ -383,7 +389,8 @@ export const server = {
       if (input.op === 'save') {
         const topics = parseTopics(input.topics ?? []);
         if (KV) await KV.put(`subscriber:${email}`, JSON.stringify({ ...(record ?? { email }), topics: formatTopics(topics), topicsUpdatedAt: new Date().toISOString(), unsubscribedAt: undefined }));
-        if (kitConfig) await saveKitTopics(kitConfig, email, topics);
+        // A reader Kit does not know yet comes in through the form, confirmation and all.
+        if (kitConfig) await saveKitTopics(kitConfig, email, topics, { addToForm: true });
         return { email, topics, unsubscribed: false };
       }
 

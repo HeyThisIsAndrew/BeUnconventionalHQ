@@ -451,3 +451,18 @@ test('Facebook: POST /{page}/feed with message and link; errors carry no token',
 test('scrub removes every configured secret', () => {
   assert.equal(scrub('a app-pass-123456 b threads-token-abcdef', SECRETS), 'a [redacted] b [redacted]');
 });
+
+// ─── scripts/social-templates.mjs (review and approve without editing JSON) ─
+
+test('approving rewrites templates.json in its own layout, nothing else changes', async () => {
+  const { serializeTemplates, setApproved, TEMPLATES_PATH } = await import('./social-templates.mjs');
+  const raw = readFileSync(TEMPLATES_PATH, 'utf8');
+  assert.equal(serializeTemplates(JSON.parse(raw)), raw, 'round trip is byte-identical');
+  const doc = JSON.parse(raw);
+  assert.deepEqual(setApproved(doc, { ids: ['review-01', 'news-03'] }), ['review-01', 'news-03']);
+  assert.equal(doc.templates.review[0].approved, true);
+  assert.equal(setApproved(doc, { type: 'video' }).length, doc.templates.video.length);
+  assert.deepEqual(setApproved(doc, { ids: ['review-01'], approved: false }), ['review-01']);
+  assert.throws(() => setApproved(doc, { ids: ['nope-99'] }), /No template with id nope-99/);
+  validateTemplates(JSON.parse(serializeTemplates(doc)));
+});

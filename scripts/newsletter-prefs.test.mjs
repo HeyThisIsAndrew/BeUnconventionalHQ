@@ -54,15 +54,25 @@ function fakeKit(subscribers = []) {
   return { calls, fetchImpl };
 }
 
-test('Kit gets topics in its custom field, canonical; a new signup joins the form only when configured', async () => {
+test("Kit gets topics without ever skipping its confirmation: new readers go in inactive, through the form", async () => {
   const kit = fakeKit();
-  await saveKitTopics({ apiKey: 'k', field: 'hq_topics', formId: '123' }, 'Reader@Example.com', ['tv', 'film'], { addToForm: true, fetchImpl: kit.fetchImpl });
-  assert.deepEqual(kit.calls.map((c) => [c.method, c.path]), [['POST', '/v4/subscribers'], ['POST', '/v4/forms/123/subscribers']]);
-  assert.deepEqual(kit.calls[0].body, { email_address: 'reader@example.com', fields: { hq_topics: 'film,tv' } });
-  assert.equal(kit.calls[0].key, 'k');
+  const status = await saveKitTopics({ apiKey: 'k', field: 'hq_topics', formId: '123' }, 'Reader@Example.com', ['tv', 'film'], { addToForm: true, fetchImpl: kit.fetchImpl });
+  assert.equal(status, 'invited');
+  assert.deepEqual(kit.calls.map((c) => [c.method, c.path]), [['GET', '/v4/subscribers'], ['POST', '/v4/subscribers'], ['POST', '/v4/forms/123/subscribers']]);
+  assert.deepEqual(kit.calls[1].body, { email_address: 'reader@example.com', state: 'inactive', fields: { hq_topics: 'film,tv' } });
+  assert.equal(kit.calls[1].key, 'k');
+  // No form configured: a new reader is not created in Kit at all.
   const noForm = fakeKit();
-  await saveKitTopics({ apiKey: 'k' }, 'a@b.c', ['games'], { addToForm: true, fetchImpl: noForm.fetchImpl });
-  assert.equal(noForm.calls.length, 1, 'no KIT_FORM_ID, no form step');
+  assert.equal(await saveKitTopics({ apiKey: 'k' }, 'a@b.c', ['games'], { addToForm: true, fetchImpl: noForm.fetchImpl }), 'skipped');
+  assert.deepEqual(noForm.calls.map((c) => c.method), ['GET']);
+});
+
+test('a reader Kit already has: only the topics field changes, their state is never touched', async () => {
+  const kit = fakeKit([{ id: 55, email_address: 'old@example.com', state: 'active', fields: { hq_topics: '' } }]);
+  const status = await saveKitTopics({ apiKey: 'k', formId: '123' }, 'old@example.com', ['games'], { addToForm: true, fetchImpl: kit.fetchImpl });
+  assert.equal(status, 'updated');
+  assert.deepEqual(kit.calls.map((c) => [c.method, c.path]), [['GET', '/v4/subscribers'], ['PUT', '/v4/subscribers/55']]);
+  assert.deepEqual(kit.calls[1].body, { fields: { hq_topics: 'games' } });
 });
 
 test('reading and unsubscribing go through the subscriber Kit has for the address', async () => {
@@ -90,6 +100,7 @@ test('wiring: inline topic toggles on signup, actions validate topics, /newslett
   assert.match(actions, /topics: z\.array\(z\.enum\(TOPICS\)\)/);
   assert.match(actions, /KIT_SYNC_SIGNUPS'\) === 'true'/, 'Kit sync stays off until switched on');
   assert.match(actions, /verifyPrefsToken\(/);
+  assert.match(actions, /prefslink:\$\{email\}`, '1', \{ expirationTtl: 600 \}/, 'one link per address per 10 minutes');
   const page = readFileSync(new URL('../src/pages/newsletter.astro', import.meta.url), 'utf8');
   assert.match(page, /<Layout [^>]*noindex/);
   assert.equal((page.match(/<h1\b/g) ?? []).length, 1);
@@ -124,5 +135,6 @@ test('the KV import: every record read, confirmation required, unsubscribed skip
   assert.deepEqual(dry.skipped, [{ email: 'b@x.com', why: 'unsubscribed' }]);
   const live = await importSubscribers(records, { apiKey: 'k', formId: '9' }, { execute: true, fetchImpl: kit.fetchImpl, sleep: async () => {} });
   assert.equal(live.imported.length, 1);
-  assert.deepEqual(kit.calls.map((c) => c.path), ['/v4/subscribers', '/v4/forms/9/subscribers'], "through the form: Kit's confirmation email");
+  assert.deepEqual(kit.calls.map((c) => `${c.method} ${c.path}`), ['GET /v4/subscribers', 'POST /v4/subscribers', 'POST /v4/forms/9/subscribers'], "through the form: Kit's confirmation email");
+  assert.equal(kit.calls[1].body.state, 'inactive');
 });

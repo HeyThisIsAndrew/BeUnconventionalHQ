@@ -104,18 +104,29 @@ export function topicsOf(subscriber: any, field = 'hq_topics'): Topic[] {
 }
 
 /**
- * Creates or updates the subscriber with their topics, then (for a new
- * signup with KIT_FORM_ID set) adds them to the form, which is what makes
- * Kit send its confirmation email. Kit's v4 create call updates an existing
- * address rather than duplicating it.
+ * Records a reader's topics in Kit without ever skipping Kit's confirmation.
+ *   - Kit already has the address: only the topics field changes (PUT), so
+ *     a confirmed reader stays confirmed and an unconfirmed one stays so.
+ *   - A new address with a Kit form (addToForm and KIT_FORM_ID): created
+ *     INACTIVE, then added to the form. Inactive is what makes Kit honour
+ *     the form's confirmation email (Kit's own WordPress plugin does the
+ *     same); created active, the reader would be mailed without confirming.
+ *   - A new address and no form: Kit is not touched ('skipped'); the site's
+ *     KV record keeps the topics until the reader comes in through a form.
  */
-export async function saveKitTopics(cfg: KitConfig, email: string, topics: readonly Topic[], { addToForm = false, fetchImpl = fetch as Fetch } = {}) {
+export async function saveKitTopics(cfg: KitConfig, email: string, topics: readonly Topic[], { addToForm = false, fetchImpl = fetch as Fetch } = {}): Promise<'updated' | 'invited' | 'skipped'> {
   const field = cfg.field || 'hq_topics';
   const address = normalizeEmail(email);
-  await kit(cfg.apiKey, 'POST', '/subscribers', { email_address: address, fields: { [field]: formatTopics(topics) } }, fetchImpl);
-  if (addToForm && cfg.formId) {
-    await kit(cfg.apiKey, 'POST', `/forms/${encodeURIComponent(cfg.formId)}/subscribers`, { email_address: address }, fetchImpl);
+  const fields = { [field]: formatTopics(topics) };
+  const existing = await findKitSubscriber(cfg, address, fetchImpl);
+  if (existing?.id) {
+    await kit(cfg.apiKey, 'PUT', `/subscribers/${encodeURIComponent(existing.id)}`, { fields }, fetchImpl);
+    return 'updated';
   }
+  if (!addToForm || !cfg.formId) return 'skipped';
+  await kit(cfg.apiKey, 'POST', '/subscribers', { email_address: address, state: 'inactive', fields }, fetchImpl);
+  await kit(cfg.apiKey, 'POST', `/forms/${encodeURIComponent(cfg.formId)}/subscribers`, { email_address: address }, fetchImpl);
+  return 'invited';
 }
 
 /** Unsubscribes the address in Kit. True if Kit had it. */
