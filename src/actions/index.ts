@@ -44,7 +44,7 @@ import { ActionError, defineAction } from 'astro:actions';
 import { z } from 'astro/zod';
 import { TOPICS, parseTopics, formatTopics } from '../lib/dispatch-topics.ts';
 import {
-  signPrefsToken, verifyPrefsToken, prefsLink, prefsEmail, normalizeEmail,
+  signPrefsToken, verifyPrefsToken, prefsLink, prefsEmail, normalizeEmail, LINK_FROM,
   findKitSubscriber, saveKitTopics, unsubscribeKit, topicsOf, type KitConfig,
 } from '../lib/newsletter-prefs.ts';
 // @ts-ignore - virtual module provided by @astrojs/cloudflare, absent from
@@ -345,7 +345,7 @@ export const server = {
         const res = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ from: 'noreply@beunconventionalhq.com', to: email, ...message }),
+          body: JSON.stringify({ from: LINK_FROM, to: email, ...message }),
         });
         if (!res.ok) console.error(`[actions.newsletterLink] Resend answered HTTP ${res.status}`);
       }

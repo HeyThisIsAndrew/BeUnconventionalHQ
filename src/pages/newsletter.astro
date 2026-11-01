@@ -2,20 +2,21 @@
 /**
  * /newsletter: THE HQ DISPATCH preference page. Choose topics, or unsubscribe.
  *
- * ─── ONE CENTRED PAGE, HONEST ABOUT THE EMAIL LINK (owner's review, 2026-11-01)
- * The page cannot change anyone's topics until it knows the reader owns the
- * address, which is what the emailed link proves. So it says so, in order:
- *   1. what THE HQ DISPATCH is, and that the reader controls what lands in
- *      their inbox;
- *   2. the four topic tiles, the SAME tiles as the signup box's dialog
- *      (NewsletterTopics.astro). Before the link they are a labelled,
- *      disabled PREVIEW of the defaults (all four on), never tiles that look
- *      tappable but save nothing. After the link they turn live, load the
- *      reader's saved topics, and save;
- *   3. how to get the link, in three plain steps, and the form;
- *   4. how to unsubscribe, visible in both states;
- *   5. the signup box's own footer line ("No spam. Unsubscribe any time.").
- *
+ * ─── ONE CENTRED PAGE, HONEST ABOUT THE EMAIL LINK (owner's reviews, 2026-11-01)
+ * Why the emailed link: there is no login, and the link is what proves the
+ * reader owns the address before its topics change or it is unsubscribed.
+ * The page says that in one sentence, then, in order:
+ *   1. what THE HQ DISPATCH is, and a way in for someone not subscribed
+ *      yet (the homepage subscribe box, /#subscribe);
+ *   2. the link form, one sentence of why, and one line each on what the
+ *      email is (sender and subject read from newsletter-prefs.ts, never
+ *      retyped), what happens for an address that never subscribed, what to
+ *      do after the 48 hours, and the unsubscribe link in every issue;
+ *   3. the four topics as a plain PREVIEW list, labelled "Preview only",
+ *      with no frame, check or fill, so nothing looks tappable. After the
+ *      link they become the dialog's real tiles, with Save and Unsubscribe;
+ *   4. the signup box's own footer line.
+
  * Two states, decided by the URL:
  *   no ?t=   the preview, the steps and the link form (actions.newsletterLink).
  *            The answer never says whether the address is subscribed.
@@ -37,45 +38,32 @@ import { site } from '../data/site.js';
 import { SECTIONS, MESSAGES } from '../data/content.js';
 import PageTitle from '../components/PageTitle.astro';
 import NewsletterTopics from '../components/NewsletterTopics.astro';
-import { LINK_TTL_HOURS } from '../lib/newsletter-prefs.ts';
+import { LINK_TTL_HOURS, prefsEmail, LINK_FROM } from '../lib/newsletter-prefs.ts';
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
 
 const title = `Newsletter Preferences | ${site.name}`;
 const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and Events, or unsubscribe.';
+/* Read from the code that sends the email, so the page can never describe a
+   different sender or subject from the one that arrives. */
+const LINK_SENDER = LINK_FROM;
+const LINK_SUBJECT = prefsEmail('').subject;
 ---
 
 <Layout title={title} description={description} noindex>
-  <main class="container-page">
-    <div class="prefs-page" id="prefs" data-sitekey={PUBLIC_TURNSTILE_SITE_KEY ?? ''}>
+  <main class="container-page prefs-main">
+    <div class="prefs-page" id="prefs" data-sitekey={PUBLIC_TURNSTILE_SITE_KEY ?? ''} data-trigger-text={MESSAGES.newsletterTopicsTrigger}>
       <header class="prefs-header">
         <div class="section-header prefs-lockup">
           <PageTitle {...SECTIONS.subscribe} scale="secondary" as="h1" />
         </div>
         <p class="prefs-lede">{MESSAGES.subscribeSubtitle} You control what lands in your inbox.</p>
+        <p class="prefs-lede prefs-new" id="prefs-new">Not subscribed yet? <a class="prefs-inline" href="/#subscribe">Subscribe on the homepage</a>.</p>
         <p class="prefs-lede prefs-signed-in" id="prefs-address" hidden></p>
       </header>
 
-      <section class="prefs-section" aria-labelledby="prefs-topics-title">
-        <h2 class="nl-hq-header prefs-section-title" id="prefs-topics-title">{MESSAGES.newsletterTopicsTrigger}</h2>
-        <p class="prefs-note" id="prefs-topics-note">
-          <span class="prefs-tag">Preview</span>
-          Every new subscriber starts with all four topics on. Open your emailed link to change them; your choice is saved from that page.
-        </p>
-        <form id="prefs-choose" novalidate>
-          <NewsletterTopics preview id="prefs-topics" />
-          <div class="prefs-actions" id="prefs-actions" hidden>
-            <button class="cta-button-primary" type="submit">Save my topics</button>
-          </div>
-        </form>
-      </section>
-
       <section class="prefs-section" id="prefs-request-section" aria-labelledby="prefs-link-title">
-        <h2 class="nl-hq-header prefs-section-title" id="prefs-link-title">Get your link</h2>
-        <ol class="prefs-steps">
-          <li><span class="prefs-step-num" aria-hidden="true">01</span>Enter the address you subscribed with.</li>
-          <li><span class="prefs-step-num" aria-hidden="true">02</span>We email you a link. It works for {LINK_TTL_HOURS} hours.</li>
-          <li><span class="prefs-step-num" aria-hidden="true">03</span>Open it to choose your topics or to unsubscribe.</li>
-        </ol>
+        <h2 class="nl-hq-header prefs-section-title" id="prefs-link-title">Change your topics or unsubscribe</h2>
+        <p class="prefs-note">There is no login, so we email you a link that proves the address is yours before anything changes.</p>
         <form class="newsletter-form prefs-request" id="prefs-request" novalidate>
           <div class="newsletter-row">
             <label class="sr-only" for="prefs-email">Email address</label>
@@ -84,19 +72,29 @@ const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and 
           </div>
           <div class="prefs-turnstile" id="prefs-turnstile"></div>
         </form>
+        <ul class="prefs-facts">
+          <li>Look for an email from {LINK_SENDER} titled &ldquo;{LINK_SUBJECT}&rdquo;.</li>
+          <li>If that address never subscribed, no email is sent.</li>
+          <li>The link works for {LINK_TTL_HOURS} hours; after that, ask for a new one here.</li>
+          <li>No link? The Unsubscribe link at the bottom of any issue also works.</li>
+        </ul>
       </section>
 
-      <section class="prefs-section" aria-labelledby="prefs-unsub-title">
-        <h2 class="nl-hq-header prefs-section-title" id="prefs-unsub-title">Unsubscribe</h2>
-        <p class="prefs-note" id="prefs-unsub-help">Open your emailed link and choose Unsubscribe, or use the Unsubscribe link at the bottom of any issue of THE HQ DISPATCH.</p>
-        <div id="prefs-unsub-live" hidden>
-          <button class="prefs-link-button" type="button" id="prefs-unsub">Unsubscribe from THE HQ DISPATCH</button>
+      <section class="prefs-section" aria-labelledby="prefs-topics-title">
+        <h2 class="nl-hq-header prefs-section-title" id="prefs-topics-title">The four topics</h2>
+        <p class="prefs-note" id="prefs-topics-note">Preview only: topics cannot be changed on this page.</p>
+        <form id="prefs-choose" novalidate>
+          <NewsletterTopics preview id="prefs-topics" />
+          <div class="prefs-actions" id="prefs-actions" hidden>
+            <button class="cta-button-primary" type="submit">Save my topics</button>
+            <button class="prefs-link-button" type="button" id="prefs-unsub">Unsubscribe from THE HQ DISPATCH</button>
+          </div>
           <div class="prefs-confirm" id="prefs-confirm" hidden>
             <p>Stop all THE HQ DISPATCH emails to this address?</p>
             <button class="cta-button-primary" type="button" id="prefs-unsub-yes">Yes, unsubscribe me</button>
             <button class="prefs-link-button" type="button" id="prefs-unsub-no">Keep my subscription</button>
           </div>
-        </div>
+        </form>
       </section>
 
       <p class="prefs-status" id="prefs-status" role="status" aria-live="polite"></p>
@@ -111,7 +109,18 @@ const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and 
      Clear of the fixed navbar by its MEASURED height (--nav-h, published by
      Navbar.astro), not a guessed px value: `pt-24` on a `.container-page`
      did nothing and the kicker sat under the navbar (owner's screenshot). */
+  /* On a screen taller than the page (2560px, 4K), the layout keeps the
+     footer at the bottom; this page's own <main> takes that height and
+     centres the column in it, so it never reads as a short form over empty
+     space. On shorter screens it changes nothing. */
+  .prefs-main {
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
   .prefs-page {
+    width: 100%;
     max-width: 46rem;
     margin: 0 auto;
     padding: calc(var(--nav-h, 84px) + 3rem) 0 2.5rem;
@@ -128,8 +137,8 @@ const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and 
   .prefs-signed-in { margin-top: 0.75rem; color: var(--color-white); }
 
   .prefs-section {
-    margin-top: 3rem;
-    padding-top: 2.5rem;
+    margin-top: 2.25rem;
+    padding-top: 2rem;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
   }
   .prefs-section-title { margin: 0 0 0.75rem; }
@@ -140,41 +149,26 @@ const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and 
     line-height: 1.6;
     color: var(--color-white-muted);
   }
-  .prefs-tag {
-    display: inline-block;
-    margin-right: 0.4rem;
-    padding: 0.1rem 0.45rem;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    font-size: max(0.7rem, 10.5px);
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+  .prefs-new { margin-top: 0.6rem; color: var(--color-white); }
+  .prefs-inline {
     color: var(--color-white);
-    vertical-align: 0.1em;
+    text-decoration: underline;
+    text-decoration-color: var(--color-accent);
+    text-underline-offset: 3px;
   }
+  .prefs-inline:hover, .prefs-inline:focus-visible { color: var(--color-accent-text); }
 
-  .prefs-steps {
-    display: grid;
-    gap: 0.75rem;
-    max-width: 40rem;
-    margin: 0 auto 1.5rem;
+  /* One short fact per line, under the form. */
+  .prefs-facts {
+    max-width: 36rem;
+    margin: 1.1rem auto 0;
     padding: 0;
     list-style: none;
-    font-size: max(0.9rem, 13px);
-    line-height: 1.5;
-    color: var(--color-white);
+    font-size: max(0.85rem, 12.5px);
+    line-height: 1.55;
+    color: var(--color-white-muted);
   }
-  @media (min-width: 48rem) {
-    .prefs-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.25rem; }
-  }
-  .prefs-step-num {
-    display: block;
-    margin-bottom: 0.3rem;
-    font-size: max(0.75rem, 11px);
-    font-weight: 700;
-    letter-spacing: 0.2em;
-    color: var(--color-accent-text);
-  }
+  .prefs-facts li + li { margin-top: 0.3rem; }
 
   /* The box's form sizing, inside this column rather than its own 56rem. */
   .prefs-request { max-width: none; margin: 0; }
@@ -243,16 +237,16 @@ const description = 'Choose what THE HQ DISPATCH sends you: Film, TV, Games and 
         const { data, error } = await actions.newsletterPrefs({ token, op: 'get' });
         if (error || !data) return say(errorText(error), true);
         requestSection.hidden = true;
+        document.getElementById('prefs-new')!.hidden = true;
         const address = document.getElementById('prefs-address')!;
         address.textContent = `Signed in as ${data.email}.`;
         address.hidden = false;
+        document.getElementById('prefs-topics-title')!.textContent = document.querySelector('[data-trigger-text]')?.getAttribute('data-trigger-text') ?? 'Choose what lands in your inbox';
         tiles.classList.remove('is-preview');
         for (const box of boxes()) { box.disabled = false; box.checked = data.topics.includes(box.value as Topic); }
         announce();
-        document.getElementById('prefs-topics-note')!.textContent = 'Tap a topic to turn it on or off, then save. Your next issue follows what you save.';
+        document.getElementById('prefs-topics-note')!.textContent = 'Tap a topic to turn it on or off, then save.';
         document.getElementById('prefs-actions')!.hidden = false;
-        document.getElementById('prefs-unsub-help')!.textContent = 'Stop every THE HQ DISPATCH email to this address. You can come back any time by saving your topics again.';
-        document.getElementById('prefs-unsub-live')!.hidden = false;
         say(data.unsubscribed ? 'This address is unsubscribed. Save your topics to come back.' : '');
       })();
 

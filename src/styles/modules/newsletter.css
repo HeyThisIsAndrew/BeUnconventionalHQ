@@ -77,29 +77,50 @@
   outline-offset: 4px;
 }
 
-/* First trigger, above the email row. */
+/* The one trigger, above the email row. Centred on the box at its own
+   width: on a phone the form is narrower than the line (246px of form at
+   360px), so the line may run a few px past the email field into the box's
+   36px padding, always at least 16px inside its border, instead of
+   shrinking below 13px. A button sizes to its text, so `margin: auto`
+   would left-align it once it outgrows the form; this centres it. */
 .nl-topics-link--top {
   display: block;
-  margin: 0 auto 1rem;
+  width: max-content;
+  position: relative;
+  left: 50%;
+  translate: -50% 0;
+  margin: 0 0 0.75rem;
 }
 
-/* The one sentence that gives the triggers their context, and the current choice. */
+/* ONE LINE at every width from 360px (owner's call): the box trigger and the
+   dialog heading never wrap and never truncate. The sentence measures 21.75
+   times its font size at this 0.08em tracking (Inter 800, uppercase), so the
+   size is capped at the width it has: the viewport less 64px of gutters
+   (the dialog's 16px margins plus 16px of padding; in the box, the 20px
+   section gutter plus 16px inside the border), over 22.5 for a little air. 360px: 13.2px. 375px: 13.8px. 390px: 14.5px.
+   Wider screens get the full header size. */
+.nl-one-line {
+  white-space: nowrap;
+  font-size: min(max(0.95rem, 14px), calc((100vw - 64px) / 22.5));
+}
+
+/* While no message is showing, the status line keeps its reserved height
+   (so nothing jumps when one arrives) but drops its top margin, so the
+   Selected line and the spam line read as one compact block. */
+.nl-topics-compact ~ .newsletter-status:empty {
+  margin-top: 0.25rem;
+}
+
+/* Under the email row: the current choice, updated on every change. */
 .nl-topics-compact {
-  margin-top: 1.1rem;
+  margin-top: 0.75rem;
   text-align: center;
 }
 
-.nl-topics-note {
-  max-width: 34rem;
-  margin: 0 auto 0.35rem;
-  font-size: max(0.85rem, 13px);
-  line-height: 1.55;
-  color: var(--color-white-muted);
-}
-
 .nl-topics-selected {
-  display: block;
-  margin-top: 0.25rem;
+  margin: 0;
+  font-size: max(0.85rem, 13px);
+  line-height: 1.5;
   color: var(--color-white);
 }
 
@@ -116,13 +137,6 @@
   padding: 0;
   min-width: 0;
   text-align: left;
-}
-
-.nl-topics-intro {
-  margin: 0 0 1rem;
-  font-size: max(0.9rem, 13px);
-  line-height: 1.55;
-  color: var(--color-white-muted);
 }
 
 .nl-topics-grid {
@@ -254,19 +268,14 @@
   100% { transform: scale(1); }
 }
 
-.nl-topics-summary {
-  margin: 0.9rem 0 0;
-  padding: 0.7rem 0.9rem;
-  border-left: 2px solid var(--color-accent);
-  background: rgba(255, 255, 255, 0.03);
-  font-size: max(0.85rem, 13px);
-  line-height: 1.5;
-  color: var(--color-white);
+/* PREVIEW (/newsletter before the emailed link): a plain reference list,
+   deliberately NOT a card. No frame, no check, no fill, no hover, no press,
+   default cursor, disabled inputs; just the name and its description over
+   a hairline. Nothing about it says "tap me", because nothing happens. */
+.nl-topics.is-preview .nl-topics-grid {
+  gap: 0 1.5rem;
 }
 
-/* PREVIEW (the /newsletter page before the emailed link): the defaults,
-   shown honestly as not yet changeable. Disabled inputs, a dashed frame, a
-   grey check instead of the red one, no hover, no press, default cursor. */
 .nl-topics.is-preview .nl-topic,
 .nl-topics.is-preview .nl-topic input {
   cursor: default;
@@ -274,34 +283,40 @@
 
 .nl-topics.is-preview .nl-topic-card,
 .nl-topics.is-preview .nl-topic input:checked + .nl-topic-card {
-  border-style: dashed;
-  border-color: rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.02);
+  min-height: 0;
+  padding: 0.75rem 0;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: none;
   box-shadow: none;
   transform: none;
 }
 
-.nl-topics.is-preview .nl-topic input:checked + .nl-topic-card .nl-topic-check {
-  background: rgba(255, 255, 255, 0.35);
-  border-color: transparent;
-  animation: none;
+.nl-topics.is-preview .nl-topic-check {
+  display: none;
 }
 
+.nl-topics.is-preview .nl-topic-name,
 .nl-topics.is-preview .nl-topic input:checked + .nl-topic-card .nl-topic-name {
+  padding-right: 0;
   color: var(--color-white);
 }
 
-/* The dialog. */
+/* The dialog. The <dialog> itself is a transparent frame; the panel inside
+   is the box. The X sits ABOVE the panel's top-right corner, where the
+   video modal puts its own (modal.css: top -45px, right 0), so the frame
+   leaves 3.25rem of room for it and the panel scrolls, never the frame,
+   which would clip the X. */
 .nl-dialog {
   width: min(36rem, calc(100% - 32px));
-  max-height: calc(100dvh - 32px);
+  max-width: none;
+  max-height: none;
   margin: auto;
-  padding: 0;
-  overflow: auto;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: var(--color-surface, #111111);
+  padding: 3.25rem 0 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
   color: var(--color-white);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
 }
 
 .nl-dialog::backdrop {
@@ -309,55 +324,78 @@
   backdrop-filter: blur(3px);
 }
 
-.nl-dialog-inner {
-  padding: 1.25rem 1.25rem 1.25rem;
+.nl-dialog-frame {
+  position: relative;
+}
+
+.nl-dialog-panel {
+  max-height: calc(100dvh - 5.5rem);
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--color-surface, #111111);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
   text-align: left;
 }
 
-.nl-dialog-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.6rem;
-}
-
 .nl-dialog-title {
-  margin: 0;
-  padding-top: 0.55rem;
+  margin: 0 0 0.9rem;
 }
 
-/* Close says what it does, in words, at a full tap size. */
-.nl-dialog-close {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-height: 44px;
-  padding: 0 0.75rem;
+/*
+  THE CLOSE X: the video modal's `.modal-close` (src/styles/modules/modal.css,
+  rendered by #video-modal in Layout.astro), value for value: a bare ×, no
+  box, no border, no background, white, 2.5rem, 5px padding, above the
+  panel's top-right corner; red and a quarter turn (0.3s) on hover; the
+  accent outline on keyboard focus; `touch-action: manipulation` and the same
+  invisible hit-area growth down and left as a11y.css gives it. Its own class
+  rather than `.modal-close`, because that class carries the video player's
+  landscape repositioning and the corner-controls test measures the first
+  one on a page. scripts/newsletter-prefs.test.mjs keeps the values equal.
+  `.is-turning` is the same turn, held while the dialog closes on a tap.
+*/
+.nl-dialog-x {
+  position: absolute;
+  top: -45px;
+  right: 0;
   background: none;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: none;
+  color: white;
+  font-size: 2.5rem;
   cursor: pointer;
-  font-family: var(--font-body);
-  font-size: max(0.75rem, 11px);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-white);
-}
-
-.nl-dialog-close span {
-  font-size: 1.1rem;
+  transition:
+    color 0.3s ease,
+    transform 0.3s ease;
   line-height: 1;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.nl-dialog-close:hover {
-  border-color: var(--color-white);
+.nl-dialog-x::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: -14px;
+  right: 0;
+  left: -16px;
+  background: none;
+  pointer-events: auto;
 }
 
-.nl-dialog-close:focus-visible {
-  outline: 2px solid var(--color-white);
+.nl-dialog-x:focus-visible {
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+}
+
+.nl-dialog-x:hover,
+.nl-dialog-x.is-turning {
+  color: var(--color-accent-text);
+  transform: rotate(90deg);
 }
 
 .nl-dialog-done {
@@ -370,7 +408,8 @@
   .nl-topic-card,
   .nl-topic-check,
   .nl-topic-check::after,
-  .nl-topics-link {
+  .nl-topics-link,
+  .nl-dialog-x {
     transition: none;
   }
   .nl-topic input:checked + .nl-topic-card .nl-topic-check {

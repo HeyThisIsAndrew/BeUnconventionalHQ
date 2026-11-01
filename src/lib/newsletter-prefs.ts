@@ -19,6 +19,9 @@
 import { formatTopics, parseTopics, type Topic } from './dispatch-topics.ts';
 
 export const LINK_TTL_HOURS = 48;
+/** Who the preference-link email comes from. /newsletter quotes this, so the
+ *  page can never name a different sender from the one that arrives. */
+export const LINK_FROM = 'noreply@beunconventionalhq.com';
 const DOMAIN = 'HQ_NEWSLETTER_PREFS_V1';
 const KIT_API = 'https://api.kit.com/v4';
 const encoder = new TextEncoder();
