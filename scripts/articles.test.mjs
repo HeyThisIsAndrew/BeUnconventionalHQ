@@ -122,9 +122,11 @@ test('empty paragraphs are dropped but image-bearing ones are kept', () => {
 // ── Instagram Embeds ────────────────────────────────────────────────────────
 
 test('Substack Instagram wrapper is transformed to <instagram-embed>', () => {
-  const substackWrapper = '<div class="instagram-embed-wrap" data-attrs="{&quot;instagram_id&quot;:&quot;DfFEKfhk4YD&quot;,&quot;title&quot;:&quot;Instagram&quot;,&quot;thumbnail_url&quot;:&quot;https://s3.amazonaws.com/test.jpg&quot;}" data-component-name="InstagramToDOM"></div>';
+  const substackWrapper = '<div class="instagram-embed-wrap" data-attrs="{&quot;instagram_id&quot;:&quot;DfFEKfhk4YD&quot;,&quot;title&quot;:&quot;Instagram&quot;,&quot;thumbnail_url&quot;:&quot;https://s3.amazonaws.com/test.jpg&quot;,&quot;author_name&quot;:&quot;amctheatres&quot;}" data-component-name="InstagramToDOM"></div>';
   const out = sanitizeArticleHtml(`<p>Before</p>${substackWrapper}<p>After</p>`);
-  assert.ok(out.includes('<instagram-embed instagram-id="DfFEKfhk4YD" thumbnail-url="https://s3.amazonaws.com/test.jpg" title="Instagram"></instagram-embed>'), out);
+  assert.ok(out.includes('<instagram-embed instagram-id="DfFEKfhk4YD" thumbnail-url="https://s3.amazonaws.com/test.jpg" title="Instagram" author-name="amctheatres"></instagram-embed>'), out);
+  const direct = extractInstagramEmbeds(substackWrapper);
+  assert.ok(direct.includes('author-name="amctheatres"'), direct);
 });
 
 test('Native Instagram blockquotes and iframes are transformed to <instagram-embed>', () => {

@@ -24,7 +24,7 @@ const ALLOWED_ATTRS: Record<string, string[]> = {
   img: ['src', 'alt', 'title', 'width', 'height'],
   'substack-gallery': [],
   'youtube-embed': ['video-id'],
-  'instagram-embed': ['instagram-id', 'thumbnail-url', 'title'],
+  'instagram-embed': ['instagram-id', 'thumbnail-url', 'title', 'author-name'],
 };
 
 /**
@@ -162,8 +162,11 @@ export function extractInstagramEmbeds(html: string): string {
         const title = parsed?.title
           ? ` title="${String(parsed.title).replace(/"/g, '&quot;')}"`
           : '';
+        const author = parsed?.author_name
+          ? ` author-name="${String(parsed.author_name).replace(/"/g, '&quot;')}"`
+          : '';
 
-        return `<instagram-embed instagram-id="${safeId}"${thumb}${title}></instagram-embed>`;
+        return `<instagram-embed instagram-id="${safeId}"${thumb}${title}${author}></instagram-embed>`;
       } catch {
         return match;
       }
