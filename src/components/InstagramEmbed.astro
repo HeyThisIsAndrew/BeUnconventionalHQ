@@ -1,0 +1,298 @@
+---
+/**
+ * A client-side Web Component that upgrades <instagram-embed> tags emitted by
+ * the HTML sanitizer into a compact, cinematic media tile matching the site's ContentCard style.
+ *
+ * PLAYS IN PLACE / ON-CLICK. Keeps page load fast, zero layout shift (CLS),
+ * zero third-party Meta trackers until interaction, and prevents vertical sprawl
+ * in the editorial column (unlike Substack's native full-height embeds).
+ *
+ * A "Watch on Instagram" link is always rendered below the tile.
+ */
+---
+<script>
+  import { SOCIAL_ICONS } from '../data/icons.js';
+
+  class InstagramEmbed extends HTMLElement {
+    connectedCallback() {
+      if (this.dataset.initialized) return;
+      this.dataset.initialized = 'true';
+
+      const instagramId = this.getAttribute('instagram-id');
+      if (!instagramId) return;
+
+      const thumbnailUrl = this.getAttribute('thumbnail-url');
+      const title = this.getAttribute('title') || 'Instagram post';
+
+      this.setAttribute('role', 'button');
+      this.setAttribute('tabindex', '0');
+      this.setAttribute('aria-label', `Play Instagram reel: ${title}`);
+      this.setAttribute('data-play-hover', 'true');
+
+      // Visual facade matching ContentCard & YouTubeEmbed media styles
+      const imageMarkup = thumbnailUrl
+        ? `<img
+             class="content-card-img"
+             src="${thumbnailUrl}"
+             alt="${title.replace(/"/g, '&quot;')}"
+             loading="lazy"
+             decoding="async"
+           />`
+        : `<div class="ig-placeholder-fallback">
+             <span class="ig-fallback-icon" aria-hidden="true">${SOCIAL_ICONS.Instagram}</span>
+             <span class="ig-fallback-label">Instagram Reel</span>
+           </div>`;
+
+      this.innerHTML = `
+        <div class="content-card-media">
+          ${imageMarkup}
+          <div class="ig-tile-overlay">
+            <div class="ig-badge-top" aria-hidden="true">
+              <span class="ig-badge-icon">${SOCIAL_ICONS.Instagram}</span>
+              <span class="ig-badge-text">Instagram</span>
+            </div>
+            <div class="play-button-wrapper" aria-hidden="true">
+              <div class="cinematic-play-button">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Direct exit door link, rendered always below the host
+      const footer = document.createElement('div');
+      footer.className = 'ig-embed-footer';
+      footer.innerHTML = `
+        <a class="ig-embed-watch" href="https://www.instagram.com/p/${encodeURIComponent(instagramId)}/" target="_blank" rel="noopener noreferrer">
+          <span class="ig-mark" aria-hidden="true">${SOCIAL_ICONS.Instagram}</span>
+          <span>Watch on Instagram</span>
+        </a>
+      `;
+      this.after(footer);
+
+      const start = (e: Event) => {
+        if (this.classList.contains('is-player')) return;
+        e.preventDefault();
+        this.play(instagramId);
+      };
+
+      this.addEventListener('click', start);
+      this.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') start(e);
+      });
+    }
+
+    play(instagramId: string) {
+      this.classList.add('is-player');
+      this.removeAttribute('role');
+      this.removeAttribute('tabindex');
+      this.removeAttribute('aria-label');
+      this.removeAttribute('data-play-hover');
+
+      const frame = document.createElement('iframe');
+      frame.className = 'ig-embed-frame';
+      frame.title = 'Instagram player';
+      frame.setAttribute('allow', 'autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share');
+      frame.setAttribute('scrolling', 'no');
+      frame.allowFullscreen = true;
+      frame.src = `https://www.instagram.com/p/${encodeURIComponent(instagramId)}/embed/`;
+
+      frame.onload = () => {
+        this.classList.add('is-ready');
+      };
+
+      this.appendChild(frame);
+      frame.focus();
+    }
+  }
+
+  if (!customElements.get('instagram-embed')) {
+    customElements.define('instagram-embed', InstagramEmbed);
+  }
+</script>
+
+<style is:global>
+  /*
+    INSTAGRAM EMBED COMPACT FACADE & PLAYER
+
+    Unlike Substack's native Instagram embed which blows out vertically to
+    800px-950px+ and creates a wall of comments and dead space, this keeps
+    a disciplined, cinematic spatial footprint:
+    - Centered in the article body (max-width: 380px)
+    - Portrait proportion (aspect-ratio: 9 / 14; max-height: 560px)
+    - Hover lift on the media box, keeping the host transform-free
+    - Persistent "Watch on Instagram" exit door
+  */
+  instagram-embed {
+    display: block;
+    width: 100%;
+    max-width: 380px;
+    margin: 2.5rem auto;
+    aspect-ratio: 9 / 14;
+    min-height: 460px;
+    max-height: 560px;
+    position: relative;
+    cursor: pointer;
+  }
+
+  instagram-embed .content-card-media {
+    position: absolute;
+    inset: 0;
+    background-color: var(--color-surface, #111);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    overflow: hidden;
+    transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    instagram-embed:hover .content-card-media {
+      transform: translateY(-6px);
+      border-color: var(--color-accent, #cc0000);
+      box-shadow: 0 10px 30px rgba(204, 0, 0, 0.15);
+    }
+
+    instagram-embed:hover .content-card-img {
+      transform: scale(1.04);
+    }
+  }
+
+  instagram-embed:focus-visible {
+    outline: 2px solid var(--color-accent, #cc0000);
+    outline-offset: 3px;
+  }
+
+  instagram-embed .content-card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.6s ease;
+  }
+
+  instagram-embed .ig-tile-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to top,
+      rgba(9, 9, 11, 0.85) 0%,
+      rgba(9, 9, 11, 0.2) 50%,
+      rgba(9, 9, 11, 0.6) 100%
+    );
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    transition: background 0.3s ease;
+  }
+
+  instagram-embed .ig-badge-top {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.6rem;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-white, #fff);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  instagram-embed .ig-badge-icon {
+    display: inline-flex;
+    width: 14px;
+    height: 14px;
+  }
+
+  instagram-embed .ig-placeholder-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    background: radial-gradient(circle at 30% 30%, #222, #0d0d0d);
+    color: var(--color-white-muted, #aaa);
+  }
+
+  instagram-embed .ig-fallback-icon {
+    width: 48px;
+    height: 48px;
+    opacity: 0.7;
+  }
+
+  instagram-embed .ig-fallback-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* ─── PLAYER STATE ─── */
+  instagram-embed.is-player {
+    cursor: auto;
+  }
+
+  instagram-embed .ig-embed-frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    z-index: 1;
+    background: #000;
+    border-radius: 4px;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  instagram-embed.is-ready .ig-embed-frame {
+    opacity: 1;
+  }
+
+  instagram-embed.is-player .content-card-media {
+    transform: none !important;
+  }
+
+  /* Footer escape hatch */
+  .ig-embed-footer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: -1.75rem auto 2.5rem;
+    max-width: 380px;
+  }
+
+  .article-body .ig-embed-watch,
+  .ig-embed-watch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--color-white-muted, #aaa);
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+
+  .article-body .ig-embed-watch:hover,
+  .ig-embed-watch:hover {
+    color: var(--color-white, #fff);
+  }
+
+  .ig-mark {
+    display: inline-flex;
+    width: 14px;
+    height: 14px;
+  }
+</style>
