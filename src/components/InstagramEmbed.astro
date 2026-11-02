@@ -10,13 +10,15 @@
  *   metadata, inline play action, and direct "Watch on Instagram" exit door.
  *
  * In player mode, the card mounts a clean, responsive Instagram embed iframe
- * with dedicated escape and return controls.
+ * with loading and error states, and dedicated escape and return controls.
  */
 ---
 <script>
   import { SOCIAL_ICONS } from '../data/icons.js';
 
   class InstagramEmbed extends HTMLElement {
+    private loadTimeout: number | null = null;
+
     connectedCallback() {
       if (this.dataset.initialized) return;
       this.dataset.initialized = 'true';
@@ -26,16 +28,27 @@
 
       const thumbnailUrl = this.getAttribute('thumbnail-url');
       const rawTitle = this.getAttribute('title');
-      const authorName = this.getAttribute('author-name');
+      const authorName = this.getAttribute('author-name') || 'amctheatres';
       const displayTitle = rawTitle && rawTitle.toLowerCase() !== 'instagram'
         ? rawTitle
         : 'Featured Instagram Reel';
-      const handle = authorName ? `@${authorName}` : 'Instagram';
+      const handle = `@${authorName}`;
 
-      this.renderFacade(instagramId, thumbnailUrl, displayTitle, handle);
+      this.renderFacade(instagramId, thumbnailUrl, displayTitle, handle, authorName);
     }
 
-    renderFacade(instagramId: string, thumbnailUrl: string | null, displayTitle: string, handle: string) {
+    renderFacade(
+      instagramId: string,
+      thumbnailUrl: string | null,
+      displayTitle: string,
+      handle: string,
+      authorName: string
+    ) {
+      if (this.loadTimeout) {
+        window.clearTimeout(this.loadTimeout);
+        this.loadTimeout = null;
+      }
+
       this.classList.remove('is-player');
 
       const imageMarkup = thumbnailUrl
@@ -50,6 +63,9 @@
              <span class="ig-fallback-icon" aria-hidden="true">${SOCIAL_ICONS.Instagram}</span>
              <span class="ig-fallback-label">Instagram Reel</span>
            </div>`;
+
+      const accountUrl = `https://www.instagram.com/${encodeURIComponent(authorName)}/`;
+      const postUrl = `https://www.instagram.com/p/${encodeURIComponent(instagramId)}/`;
 
       this.innerHTML = `
         <div class="ig-embed-card">
@@ -76,7 +92,15 @@
               </div>
               <div class="ig-brand-meta">
                 <span class="ig-brand-type">Instagram Reel</span>
-                <span class="ig-brand-handle">${handle}</span>
+                <a
+                  class="ig-brand-handle"
+                  href="${accountUrl}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="${authorName} on Instagram"
+                >
+                  ${handle}
+                </a>
               </div>
             </div>
             <div class="ig-brand-body">
@@ -88,7 +112,7 @@
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
                 <span>Play in Article</span>
               </button>
-              <a class="ig-btn-external" href="https://www.instagram.com/p/${encodeURIComponent(instagramId)}/" target="_blank" rel="noopener noreferrer">
+              <a class="ig-btn-external" href="${postUrl}" target="_blank" rel="noopener noreferrer">
                 <span>Watch on Instagram</span>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
               </a>
@@ -99,7 +123,7 @@
 
       const start = (e: Event) => {
         e.preventDefault();
-        this.play(instagramId, thumbnailUrl, displayTitle, handle);
+        this.play(instagramId, thumbnailUrl, displayTitle, handle, authorName);
       };
 
       const previewPane = this.querySelector('.ig-preview-pane');
@@ -112,8 +136,17 @@
       playBtn?.addEventListener('click', start);
     }
 
-    play(instagramId: string, thumbnailUrl: string | null, displayTitle: string, handle: string) {
+    play(
+      instagramId: string,
+      thumbnailUrl: string | null,
+      displayTitle: string,
+      handle: string,
+      authorName: string
+    ) {
       this.classList.add('is-player');
+
+      const postUrl = `https://www.instagram.com/p/${encodeURIComponent(instagramId)}/`;
+      const embedSrc = `https://www.instagram.com/p/${encodeURIComponent(instagramId)}/embed/`;
 
       this.innerHTML = `
         <div class="ig-player-card">
@@ -123,7 +156,7 @@
               <span class="ig-topbar-title">${displayTitle}</span>
             </div>
             <div class="ig-topbar-actions">
-              <a class="ig-topbar-watch" href="https://www.instagram.com/p/${encodeURIComponent(instagramId)}/" target="_blank" rel="noopener noreferrer">
+              <a class="ig-topbar-watch" href="${postUrl}" target="_blank" rel="noopener noreferrer">
                 <span>Watch on Instagram</span>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
               </a>
@@ -133,24 +166,92 @@
             </div>
           </div>
           <div class="ig-frame-stage">
+            <div class="ig-player-loading" role="status" aria-live="polite">
+              <div class="ig-loading-spinner" aria-hidden="true"></div>
+              <span class="ig-loading-text">Loading Instagram player...</span>
+            </div>
+
+            <div class="ig-player-error" role="alert" style="display: none;">
+              <div class="ig-error-icon" aria-hidden="true">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+              </div>
+              <h4 class="ig-error-title">Unable to play in article</h4>
+              <p class="ig-error-desc">Your browser or privacy settings may be blocking third-party embeds.</p>
+              <div class="ig-error-actions">
+                <a class="ig-btn-play cta-button-primary" href="${postUrl}" target="_blank" rel="noopener noreferrer">
+                  <span>Watch on Instagram</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                </a>
+                <button class="ig-btn-external ig-btn-return" type="button">
+                  <span>Return to Preview</span>
+                </button>
+              </div>
+            </div>
+
             <iframe
               class="ig-embed-frame"
-              title="Instagram player"
-              src="https://www.instagram.com/p/${encodeURIComponent(instagramId)}/embed/"
+              title="${displayTitle.replace(/"/g, '&quot;')}"
+              src="${embedSrc}"
               allowtransparency="true"
               allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
               allowfullscreen
               scrolling="no"
+              style="opacity: 0; transition: opacity 0.3s ease;"
             ></iframe>
           </div>
         </div>
       `;
 
+      const frame = this.querySelector<HTMLIFrameElement>('.ig-embed-frame');
+      const loader = this.querySelector<HTMLElement>('.ig-player-loading');
+      const errorBox = this.querySelector<HTMLElement>('.ig-player-error');
       const closeBtn = this.querySelector('.ig-btn-close-player');
-      closeBtn?.addEventListener('click', (e) => {
+      const returnBtn = this.querySelector('.ig-btn-return');
+
+      let hasLoaded = false;
+
+      const markLoaded = () => {
+        if (hasLoaded) return;
+        hasLoaded = true;
+        if (this.loadTimeout) {
+          window.clearTimeout(this.loadTimeout);
+          this.loadTimeout = null;
+        }
+        if (loader) loader.style.display = 'none';
+        if (frame) frame.style.opacity = '1';
+      };
+
+      const markFailed = () => {
+        if (hasLoaded) return;
+        if (this.loadTimeout) {
+          window.clearTimeout(this.loadTimeout);
+          this.loadTimeout = null;
+        }
+        if (loader) loader.style.display = 'none';
+        if (frame) frame.style.display = 'none';
+        if (errorBox) errorBox.style.display = 'flex';
+      };
+
+      if (frame) {
+        frame.addEventListener('load', () => {
+          // Give Instagram frame a brief tick to initialise inside DOM
+          setTimeout(markLoaded, 150);
+        });
+        frame.addEventListener('error', markFailed);
+      }
+
+      // Safety timeout: if iframe fails to report load within 8s, reveal fallback
+      this.loadTimeout = window.setTimeout(() => {
+        if (!hasLoaded) markFailed();
+      }, 8000);
+
+      const restore = (e: Event) => {
         e.preventDefault();
-        this.renderFacade(instagramId, thumbnailUrl, displayTitle, handle);
-      });
+        this.renderFacade(instagramId, thumbnailUrl, displayTitle, handle, authorName);
+      };
+
+      closeBtn?.addEventListener('click', restore);
+      returnBtn?.addEventListener('click', restore);
     }
   }
 
@@ -174,6 +275,21 @@
     margin: 2.5rem 0;
     position: relative;
     box-sizing: border-box;
+  }
+
+  /* ── FOCUS RING SYSTEM ── */
+  instagram-embed :focus:not(:focus-visible) {
+    outline: none !important;
+  }
+
+  instagram-embed .ig-preview-pane:focus-visible,
+  instagram-embed .ig-btn-play:focus-visible,
+  instagram-embed .ig-btn-external:focus-visible,
+  instagram-embed .ig-brand-handle:focus-visible,
+  instagram-embed .ig-btn-close-player:focus-visible,
+  instagram-embed .ig-topbar-watch:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.9) !important;
+    outline-offset: 2px !important;
   }
 
   /* ── FACADE CARD ── */
@@ -202,11 +318,13 @@
     background: #000;
     cursor: pointer;
     overflow: hidden;
+    /* Subtle inner border to signal playability without a heavy ad frame */
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    transition: box-shadow 0.3s ease;
   }
 
-  instagram-embed .ig-preview-pane:focus-visible {
-    outline: 2px solid var(--color-accent, #cc0000);
-    outline-offset: -2px;
+  instagram-embed .ig-preview-pane:hover {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
   }
 
   instagram-embed .ig-preview-img {
@@ -264,13 +382,35 @@
     height: 12px;
   }
 
+  /*
+    PLAY ICON SPECIFICATION:
+    - Hidden at rest (opacity: 0) by intentional design.
+    - Containerless white play triangle and soft red glow appear exclusively on hover.
+    - No permanent button or circle container.
+  */
+  instagram-embed .cinematic-play-button svg {
+    opacity: 0 !important;
+    transition: opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    instagram-embed .ig-preview-pane:hover .cinematic-play-button svg,
+    instagram-embed [data-play-hover]:hover .cinematic-play-button svg {
+      opacity: 1 !important;
+      color: #ffffff !important;
+      filter: drop-shadow(0 0 17px rgba(204, 0, 0, 1)) drop-shadow(0 0 33px rgba(204, 0, 0, 0.9)) !important;
+      transform: scale(1.1);
+    }
+  }
+
   /* ── RIGHT: BRAND & HUB PANE ── */
   instagram-embed .ig-brand-pane {
     flex: 1;
     padding: 2.25rem 2.5rem;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: center;
+    gap: 1.25rem;
     background: radial-gradient(ellipse at top right, rgba(225, 48, 108, 0.08) 0%, transparent 65%), var(--color-surface, #111111);
     border-left: 1px solid rgba(255, 255, 255, 0.06);
   }
@@ -278,49 +418,65 @@
   instagram-embed .ig-brand-header {
     display: flex;
     align-items: center;
-    gap: 0.85rem;
+    gap: 1rem;
+    margin: 0;
   }
 
+  /* Noticeably larger Instagram gradient mark */
   instagram-embed .ig-platform-logo {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
     background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
     display: flex;
     align-items: center;
     justify-content: center;
     color: #fff;
     flex-shrink: 0;
-    box-shadow: 0 4px 14px rgba(220, 39, 67, 0.3);
+    box-shadow: 0 4px 16px rgba(220, 39, 67, 0.35);
   }
 
   instagram-embed .ig-platform-logo svg {
-    width: 22px;
-    height: 22px;
+    width: 26px;
+    height: 26px;
   }
 
   instagram-embed .ig-brand-meta {
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 0.2rem;
   }
 
+  /* Noticeably larger eyebrow text */
   instagram-embed .ig-brand-type {
-    font-size: 0.72rem;
+    font-size: 0.85rem;
     font-weight: 700;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: var(--color-white-muted, #888);
+    color: var(--color-white-muted, #9ca3af);
   }
 
+  /* Clickable handle with hover underline */
   instagram-embed .ig-brand-handle {
-    font-size: 0.95rem;
+    font-size: 1.05rem;
     font-weight: 600;
     color: var(--color-white, #f0f0f0);
+    text-decoration: none;
+    display: inline-block;
+    width: fit-content;
+    transition: color 0.2s ease, text-decoration-color 0.2s ease;
+  }
+
+  instagram-embed .ig-brand-handle:hover,
+  instagram-embed .ig-brand-handle:focus-visible {
+    color: #ffffff;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    text-decoration-thickness: 1.5px;
   }
 
   instagram-embed .ig-brand-body {
-    margin: 1.25rem 0;
+    margin: 0;
   }
 
   instagram-embed .ig-brand-title {
@@ -328,13 +484,13 @@
     font-weight: 700;
     line-height: 1.35;
     color: var(--color-white, #f0f0f0);
-    margin: 0 0 0.5rem 0;
+    margin: 0 0 0.45rem 0;
   }
 
   instagram-embed .ig-brand-desc {
     font-size: 0.9rem;
     line-height: 1.5;
-    color: var(--color-white-muted, #888);
+    color: var(--color-white-muted, #9ca3af);
     margin: 0;
   }
 
@@ -343,8 +499,10 @@
     align-items: center;
     gap: 1rem;
     flex-wrap: wrap;
+    margin-top: 0.25rem;
   }
 
+  /* Primary CTA: sharp rectangle, transparent with accent border */
   instagram-embed .ig-btn-play {
     display: inline-flex;
     align-items: center;
@@ -379,33 +537,34 @@
     transform: translateY(0);
   }
 
+  /* Secondary CTA: high contrast, scannable against #111111 */
   .article-body instagram-embed .ig-btn-external,
   instagram-embed .ig-btn-external {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.45rem;
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    gap: 0.5rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.35);
     border-radius: 0;
-    color: var(--color-white-muted, #aaa);
+    color: #e2e8f0;
     text-decoration: none;
     font-size: 0.78rem;
     font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    padding: 0.75rem 1.25rem;
+    padding: 0.75rem 1.35rem;
     white-space: nowrap;
     transition:
-      border-color 0.3s cubic-bezier(0.25, 0.8, 0.2, 1),
-      color 0.3s cubic-bezier(0.25, 0.8, 0.2, 1),
-      background-color 0.3s cubic-bezier(0.25, 0.8, 0.2, 1);
+      border-color 0.25s ease,
+      color 0.25s ease,
+      background-color 0.25s ease;
   }
 
   .article-body instagram-embed .ig-btn-external:hover,
   instagram-embed .ig-btn-external:hover {
-    border-color: rgba(255, 255, 255, 0.5);
-    background: rgba(255, 255, 255, 0.05);
+    border-color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
     color: #ffffff;
   }
 
@@ -489,10 +648,11 @@
   }
 
   instagram-embed .ig-frame-stage {
+    position: relative;
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 1.5rem 0;
+    min-height: 520px;
     background: #000;
   }
 
@@ -503,6 +663,83 @@
     height: 540px;
     border: 0;
     background: transparent;
+  }
+
+  /* Loading State */
+  instagram-embed .ig-player-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    background: #000000;
+    z-index: 2;
+    transition: opacity 0.3s ease;
+  }
+
+  instagram-embed .ig-loading-spinner {
+    width: 38px;
+    height: 38px;
+    border: 3px solid rgba(255, 255, 255, 0.15);
+    border-top-color: var(--color-accent, #cc0000);
+    border-radius: 50%;
+    animation: ig-spin 0.8s linear infinite;
+  }
+
+  @keyframes ig-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  instagram-embed .ig-loading-text {
+    font-size: 0.85rem;
+    color: var(--color-white-muted, #aaa);
+    letter-spacing: 0.05em;
+  }
+
+  /* Error State */
+  instagram-embed .ig-player-error {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    text-align: center;
+    background: #0a0a0c;
+    z-index: 3;
+  }
+
+  instagram-embed .ig-error-icon {
+    color: var(--color-accent-text, #ef4444);
+    margin-bottom: 0.75rem;
+  }
+
+  instagram-embed .ig-error-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 0.5rem 0;
+  }
+
+  instagram-embed .ig-error-desc {
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--color-white-muted, #aaa);
+    max-width: 360px;
+    margin: 0 0 1.5rem 0;
+  }
+
+  instagram-embed .ig-error-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: center;
   }
 
   /* ── FALLBACK ── */
@@ -541,21 +778,54 @@
 
     instagram-embed .ig-preview-pane {
       width: 100%;
-      height: 280px;
+      height: 240px; /* Capped to prevent tall sprawl */
     }
 
     instagram-embed .ig-brand-pane {
       border-left: none;
       border-top: 1px solid rgba(255, 255, 255, 0.06);
       padding: 1.5rem 1.25rem;
+      gap: 1rem;
+    }
+
+    instagram-embed .ig-platform-logo {
+      width: 44px;
+      height: 44px;
+    }
+
+    instagram-embed .ig-platform-logo svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    instagram-embed .ig-brand-type {
+      font-size: 0.8rem;
     }
 
     instagram-embed .ig-brand-title {
       font-size: 1.15rem;
     }
 
+    instagram-embed .ig-brand-actions {
+      flex-direction: column;
+      width: 100%;
+      gap: 0.75rem;
+    }
+
+    instagram-embed .ig-btn-play,
+    .article-body instagram-embed .ig-btn-external,
+    instagram-embed .ig-btn-external {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 44px; /* 44px minimum tap target */
+      padding: 0.85rem 1rem;
+      text-align: center;
+      justify-content: center;
+    }
+
     instagram-embed .ig-frame-stage {
       padding: 0;
+      min-height: 480px;
     }
 
     instagram-embed .ig-embed-frame {
