@@ -53,17 +53,19 @@
 
       this.innerHTML = `
         <div class="ig-embed-card">
-          <div class="ig-preview-pane" role="button" tabindex="0" aria-label="Play ${displayTitle.replace(/"/g, '&quot;')}">
+          <div class="ig-preview-pane" role="button" tabindex="0" data-play-hover="true" aria-label="Play ${displayTitle.replace(/"/g, '&quot;')}">
             ${imageMarkup}
             <div class="ig-preview-overlay">
               <span class="ig-preview-badge">
                 <span class="ig-badge-svg" aria-hidden="true">${SOCIAL_ICONS.Instagram}</span>
                 <span>Reel</span>
               </span>
-              <div class="ig-play-circle" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
+              <div class="play-button-wrapper" aria-hidden="true">
+                <div class="cinematic-play-button">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </div>
               </div>
             </div>
           </div>
@@ -82,13 +84,13 @@
               <p class="ig-brand-desc">Watch the original video on Instagram or launch the player inline.</p>
             </div>
             <div class="ig-brand-actions">
-              <button class="ig-btn-play" type="button">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+              <button class="ig-btn-play cta-button-primary" type="button">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
                 <span>Play in Article</span>
               </button>
               <a class="ig-btn-external" href="https://www.instagram.com/p/${encodeURIComponent(instagramId)}/" target="_blank" rel="noopener noreferrer">
                 <span>Watch on Instagram</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
               </a>
             </div>
           </div>
@@ -180,7 +182,7 @@
     flex-direction: row;
     background: var(--color-surface, #111111);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 6px;
+    border-radius: 4px;
     overflow: hidden;
     min-height: 380px;
     max-height: 420px;
@@ -260,36 +262,6 @@
     display: inline-flex;
     width: 12px;
     height: 12px;
-  }
-
-  instagram-embed .ig-play-circle {
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    background: rgba(0, 0, 0, 0.75);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    border: 1.5px solid rgba(255, 255, 255, 0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    transition: transform 0.3s ease, border-color 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease;
-  }
-
-  instagram-embed .ig-play-circle svg {
-    width: 22px;
-    height: 22px;
-    margin-left: 3px;
-  }
-
-  @media (hover: hover) and (pointer: fine) {
-    instagram-embed .ig-preview-pane:hover .ig-play-circle {
-      transform: scale(1.1);
-      border-color: var(--color-accent, #cc0000);
-      background: rgba(204, 0, 0, 0.85);
-      box-shadow: 0 0 25px rgba(204, 0, 0, 0.5);
-    }
   }
 
   /* ── RIGHT: BRAND & HUB PANE ── */
@@ -376,56 +348,72 @@
   instagram-embed .ig-btn-play {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    background: var(--color-accent, #cc0000);
+    justify-content: center;
+    gap: 0.55rem;
+    background: transparent;
     border: 1px solid var(--color-accent, #cc0000);
-    color: #fff;
+    border-radius: 0;
+    color: var(--color-white, #f0f0f0);
     font-size: 0.78rem;
     font-weight: 600;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.15em;
     text-transform: uppercase;
-    padding: 0.7rem 1.4rem;
-    border-radius: 4px;
+    padding: 0.75rem 1.4rem;
     cursor: pointer;
-    transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+    white-space: nowrap;
+    transition:
+      background-color 0.3s cubic-bezier(0.25, 0.8, 0.2, 1),
+      box-shadow 0.3s cubic-bezier(0.25, 0.8, 0.2, 1),
+      transform 0.3s cubic-bezier(0.25, 0.8, 0.2, 1),
+      color 0.3s cubic-bezier(0.25, 0.8, 0.2, 1);
   }
 
   instagram-embed .ig-btn-play:hover {
-    background-color: #e00000;
-    box-shadow: 0 0 20px rgba(204, 0, 0, 0.4);
+    background-color: var(--color-accent, #cc0000);
+    color: #ffffff;
+    box-shadow: 0 0 30px rgba(204, 0, 0, 0.4);
     transform: translateY(-1px);
+  }
+
+  instagram-embed .ig-btn-play:active {
+    transform: translateY(0);
   }
 
   .article-body instagram-embed .ig-btn-external,
   instagram-embed .ig-btn-external {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.45rem;
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: var(--color-white, #f0f0f0);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 0;
+    color: var(--color-white-muted, #aaa);
     text-decoration: none;
     font-size: 0.78rem;
     font-weight: 600;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    padding: 0.7rem 1.25rem;
-    border-radius: 4px;
-    transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+    padding: 0.75rem 1.25rem;
+    white-space: nowrap;
+    transition:
+      border-color 0.3s cubic-bezier(0.25, 0.8, 0.2, 1),
+      color 0.3s cubic-bezier(0.25, 0.8, 0.2, 1),
+      background-color 0.3s cubic-bezier(0.25, 0.8, 0.2, 1);
   }
 
   .article-body instagram-embed .ig-btn-external:hover,
   instagram-embed .ig-btn-external:hover {
-    border-color: rgba(255, 255, 255, 0.4);
+    border-color: rgba(255, 255, 255, 0.5);
     background: rgba(255, 255, 255, 0.05);
-    color: #fff;
+    color: #ffffff;
   }
 
   /* ── PLAYER CARD MODE ── */
   instagram-embed .ig-player-card {
     background: var(--color-surface, #111111);
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 6px;
+    border-radius: 4px;
     overflow: hidden;
     box-shadow: 0 24px 48px -16px rgba(0, 0, 0, 0.9);
   }
@@ -486,7 +474,7 @@
     justify-content: center;
     width: 28px;
     height: 28px;
-    border-radius: 4px;
+    border-radius: 0;
     background: transparent;
     border: 1px solid rgba(255, 255, 255, 0.15);
     color: var(--color-white-muted, #888);
