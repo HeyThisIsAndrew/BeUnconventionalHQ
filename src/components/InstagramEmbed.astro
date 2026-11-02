@@ -11,12 +11,14 @@
  *
  * OVERLAY PLAYER MODE:
  * - Dedicated modal overlay hugging the 9:16 video aspect ratio.
- * - Top: Floating close X outside the panel, no duplicate title bar or top buttons.
+ * - Option A: Fullscreen scrollable overlay in landscape mode.
+ * - Overlay is attached directly to document.body on open to sit above #navbar (z-index: 100).
+ * - Sticky calendar-style X pinned at top right with safe-area notch padding.
  * - Middle: Official Instagram embed with native header intact.
  * - Bottom: Dedicated HQ footer bar with "Open Reel on Instagram" and
  *   "See comments on Instagram" actions.
  * - All HQ elements use hard edges (border-radius: 0) and site standard link hovers.
- * - Esc key and backdrop dismiss return focus directly to the Play in Article button.
+ * - Esc key, X button, and backdrop dismiss return focus directly to the Play in Article button.
  */
 ---
 <script>
@@ -26,6 +28,7 @@
     private loadTimeout: number | null = null;
     private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
     private lastTrigger: HTMLElement | null = null;
+    private overlayRef: HTMLElement | null = null;
 
     connectedCallback() {
       if (this.dataset.initialized) return;
@@ -43,6 +46,12 @@
       const handle = `@${authorName}`;
 
       this.render(instagramId, thumbnailUrl, displayTitle, handle, authorName);
+    }
+
+    disconnectedCallback() {
+      if (this.overlayRef && this.overlayRef.parentElement === document.body) {
+        this.overlayRef.remove();
+      }
     }
 
     render(
@@ -69,6 +78,7 @@
              <span class="ig-fallback-label">Instagram Reel</span>
            </div>`;
 
+      // Render the article facade card
       this.innerHTML = `
         <div class="ig-embed-card">
           <div class="ig-preview-pane" role="button" tabindex="0" data-play-hover="true" aria-label="Play ${displayTitle.replace(/"/g, '&quot;')} in article">
@@ -121,69 +131,80 @@
             </div>
           </div>
         </div>
+      `;
 
-        <div class="ig-overlay" role="dialog" aria-modal="true" aria-label="Instagram Reel Player" hidden inert>
-          <div class="ig-overlay-backdrop"></div>
-          <div class="ig-overlay-container">
-            <div class="ig-overlay-panel">
-              <button class="ig-overlay-close close-btn" type="button" aria-label="Close Instagram player">&times;</button>
-              <div class="ig-overlay-stage">
-                <div class="ig-player-loading" role="status" aria-live="polite">
-                  <div class="ig-loading-spinner" aria-hidden="true"></div>
-                  <span class="ig-loading-text">Loading Instagram player...</span>
-                </div>
+      // Create overlay container element
+      const overlay = document.createElement('div');
+      overlay.className = 'ig-overlay';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-label', 'Instagram Reel Player');
+      overlay.setAttribute('hidden', '');
+      overlay.setAttribute('inert', '');
 
-                <div class="ig-player-error" role="alert" style="display: none;">
-                  <div class="ig-error-icon" aria-hidden="true">
-                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                  </div>
-                  <h4 class="ig-error-title">Unable to play in article</h4>
-                  <p class="ig-error-desc">Your browser or privacy settings may be blocking third-party embeds.</p>
-                  <div class="ig-error-actions">
-                    <a class="ig-btn-play cta-button-primary" href="${postUrl}" target="_blank" rel="noopener noreferrer">
-                      <span>Open Reel on Instagram</span>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                    </a>
-                    <button class="ig-btn-external ig-btn-return" type="button">
-                      <span>Return to Article</span>
-                    </button>
-                  </div>
-                </div>
-
-                <iframe
-                  class="ig-embed-frame"
-                  title="${displayTitle.replace(/"/g, '&quot;')}"
-                  src="about:blank"
-                  allowtransparency="true"
-                  allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-                  allowfullscreen
-                  scrolling="no"
-                ></iframe>
+      overlay.innerHTML = `
+        <div class="ig-overlay-backdrop"></div>
+        <div class="ig-overlay-container">
+          <div class="ig-overlay-panel">
+            <button class="ig-overlay-close close-btn" type="button" aria-label="Close Instagram player">&times;</button>
+            <div class="ig-overlay-stage">
+              <div class="ig-player-loading" role="status" aria-live="polite">
+                <div class="ig-loading-spinner" aria-hidden="true"></div>
+                <span class="ig-loading-text">Loading Instagram player...</span>
               </div>
 
-              <div class="ig-overlay-footer">
-                <a class="ig-footer-link" href="${postUrl}" target="_blank" rel="noopener noreferrer">
-                  <span>Open Reel on Instagram</span>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                </a>
-                <span class="ig-footer-divider" aria-hidden="true">&bull;</span>
-                <a class="ig-footer-link" href="${postUrl}" target="_blank" rel="noopener noreferrer">
-                  <span>See comments on Instagram</span>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                </a>
+              <div class="ig-player-error" role="alert" style="display: none;">
+                <div class="ig-error-icon" aria-hidden="true">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                </div>
+                <h4 class="ig-error-title">Unable to play in article</h4>
+                <p class="ig-error-desc">Your browser or privacy settings may be blocking third-party embeds.</p>
+                <div class="ig-error-actions">
+                  <a class="ig-btn-play cta-button-primary" href="${postUrl}" target="_blank" rel="noopener noreferrer">
+                    <span>Open Reel on Instagram</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                  </a>
+                  <button class="ig-btn-external ig-btn-return" type="button">
+                    <span>Return to Article</span>
+                  </button>
+                </div>
               </div>
+
+              <iframe
+                class="ig-embed-frame"
+                title="${displayTitle.replace(/"/g, '&quot;')}"
+                src="about:blank"
+                allowtransparency="true"
+                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                allowfullscreen
+                scrolling="no"
+              ></iframe>
+            </div>
+
+            <div class="ig-overlay-footer">
+              <a class="ig-footer-link" href="${postUrl}" target="_blank" rel="noopener noreferrer">
+                <span>Open Reel on Instagram</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+              </a>
+              <span class="ig-footer-divider" aria-hidden="true">&bull;</span>
+              <a class="ig-footer-link" href="${postUrl}" target="_blank" rel="noopener noreferrer">
+                <span>See comments on Instagram</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+              </a>
             </div>
           </div>
         </div>
       `;
 
-      const overlay = this.querySelector<HTMLElement>('.ig-overlay');
-      const backdrop = this.querySelector<HTMLElement>('.ig-overlay-backdrop');
-      const frame = this.querySelector<HTMLIFrameElement>('.ig-embed-frame');
-      const loader = this.querySelector<HTMLElement>('.ig-player-loading');
-      const errorBox = this.querySelector<HTMLElement>('.ig-player-error');
-      const closeBtn = this.querySelector<HTMLButtonElement>('.ig-overlay-close');
-      const returnBtn = this.querySelector<HTMLButtonElement>('.ig-btn-return');
+      this.overlayRef = overlay;
+
+      const backdrop = overlay.querySelector<HTMLElement>('.ig-overlay-backdrop');
+      const panel = overlay.querySelector<HTMLElement>('.ig-overlay-panel');
+      const frame = overlay.querySelector<HTMLIFrameElement>('.ig-embed-frame');
+      const loader = overlay.querySelector<HTMLElement>('.ig-player-loading');
+      const errorBox = overlay.querySelector<HTMLElement>('.ig-player-error');
+      const closeBtn = overlay.querySelector<HTMLButtonElement>('.ig-overlay-close');
+      const returnBtn = overlay.querySelector<HTMLButtonElement>('.ig-btn-return');
       const previewPane = this.querySelector<HTMLElement>('.ig-preview-pane');
       const playBtn = this.querySelector<HTMLButtonElement>('.ig-btn-play');
 
@@ -220,12 +241,19 @@
 
       const openOverlay = (trigger: HTMLElement) => {
         this.lastTrigger = trigger;
-        if (!overlay) return;
+
+        // Move overlay to document.body so it sits above #navbar (z-index: 100) and all site chrome
+        if (overlay.parentElement !== document.body) {
+          document.body.appendChild(overlay);
+        }
 
         overlay.removeAttribute('hidden');
         overlay.removeAttribute('inert');
         overlay.classList.add('is-active');
         document.body.classList.add('ig-overlay-open');
+
+        // Reset scroll position to top of video
+        overlay.scrollTop = 0;
 
         if (loader) loader.style.display = 'flex';
         if (errorBox) errorBox.style.display = 'none';
@@ -257,8 +285,6 @@
       };
 
       const closeOverlay = () => {
-        if (!overlay) return;
-
         if (this.loadTimeout) {
           window.clearTimeout(this.loadTimeout);
           this.loadTimeout = null;
@@ -298,6 +324,18 @@
       closeBtn?.addEventListener('click', closeOverlay);
       returnBtn?.addEventListener('click', closeOverlay);
       backdrop?.addEventListener('click', closeOverlay);
+
+      // Clicking on overlay padding area outside panel also closes
+      overlay.addEventListener('click', (e: MouseEvent) => {
+        if (e.target === overlay || e.target === backdrop) {
+          closeOverlay();
+        }
+      });
+
+      // Prevent clicks inside panel from triggering backdrop dismiss
+      panel?.addEventListener('click', (e: MouseEvent) => {
+        e.stopPropagation();
+      });
     }
   }
 
@@ -323,19 +361,22 @@
     box-sizing: border-box;
   }
 
+  /* Body scroll lock when overlay is open */
   body.ig-overlay-open {
     overflow: hidden !important;
+    overscroll-behavior: none !important;
   }
 
   /* Focus ring system: thin high-contrast ring for keyboard navigation */
-  instagram-embed :focus:not(:focus-visible) {
+  instagram-embed :focus:not(:focus-visible),
+  .ig-overlay :focus:not(:focus-visible) {
     outline: none !important;
   }
 
   instagram-embed .ig-preview-pane:focus-visible,
   instagram-embed .ig-btn-play:focus-visible,
   instagram-embed .ig-btn-external:focus-visible,
-  instagram-embed .ig-footer-link:focus-visible {
+  .ig-footer-link:focus-visible {
     outline: 2px solid rgba(255, 255, 255, 0.9) !important;
     outline-offset: 2px !important;
   }
@@ -645,52 +686,66 @@
   }
 
   /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-     HQ OVERLAY PLAYER REDESIGN
-     - Single header system: floating bare close X outside panel, no title bar.
-     - Panel hugs the 9:16 video without black side bars.
-     - Hard edges (border-radius: 0) on all HQ chrome.
-     - Footer bar below video with distinct external & comments actions.
+     HQ OVERLAY PLAYER: FULLSCREEN VIEWPORT-COVERING MODAL
+     - Sits directly on document.body at z-index: 1000, completely above #navbar (z-index: 100)
+     - Single header system: floating bare close X, no duplicate title bar
+     - Panel hugs the 9:16 video without black side bars
+     - Hard edges (border-radius: 0) on all HQ chrome
+     - Option A: Scrollable fullscreen overlay on landscape mobile
+     - Footer bar below video with distinct external & comments actions
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-  instagram-embed .ig-overlay {
+  .ig-overlay {
     position: fixed;
-    inset: 0;
-    z-index: 500;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    z-index: 1000; /* Above #navbar (z-index: 100) and all site chrome */
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
     transition: opacity 0.25s ease, visibility 0.25s ease;
+    box-sizing: border-box;
   }
 
-  instagram-embed .ig-overlay.is-active {
+  .ig-overlay.is-active {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
   }
 
-  instagram-embed .ig-overlay-backdrop {
-    position: absolute;
+  .ig-overlay-backdrop {
+    position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.9);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: -1;
   }
 
-  instagram-embed .ig-overlay-container {
+  .ig-overlay-container {
     position: relative;
     z-index: 1;
     width: 100%;
     max-width: 440px;
-    padding: 3.5rem 1rem 1.5rem 1rem;
+    margin: auto;
+    padding: 3.5rem 1rem 2rem 1rem;
     box-sizing: border-box;
     display: flex;
     justify-content: center;
+    min-height: min-content;
   }
 
   /* Panel hugs the 9:16 vertical video */
-  instagram-embed .ig-overlay-panel {
+  .ig-overlay-panel {
     position: relative;
     width: 100%;
     max-width: 380px;
@@ -710,8 +765,9 @@
     - Floating outside the panel at top right.
     - Turns accent-red and rotates 90deg on hover.
     - Thin focus ring on keyboard navigation, no sticky outline on mobile tap.
+    - touch-action: manipulation to eliminate iOS double-tap delay.
   */
-  instagram-embed .ig-overlay-close {
+  .ig-overlay-close {
     position: absolute;
     top: -45px;
     right: 0;
@@ -726,8 +782,8 @@
     line-height: 1;
     cursor: pointer;
     padding: 0;
-    width: 2.25rem;
-    height: 2.25rem;
+    width: 2.5rem;
+    height: 2.5rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -739,32 +795,34 @@
     user-select: none;
     outline: none !important;
     border-radius: 0;
+    z-index: 1010;
+    touch-action: manipulation;
   }
 
-  instagram-embed .ig-overlay-close:hover {
+  .ig-overlay-close:hover {
     color: var(--color-accent-text, #ef4444);
     transform: rotate(90deg);
   }
 
-  instagram-embed .ig-overlay-close:focus,
-  instagram-embed .ig-overlay-close:active {
+  .ig-overlay-close:focus,
+  .ig-overlay-close:active {
     background: transparent !important;
     outline: none !important;
     box-shadow: none !important;
   }
 
-  instagram-embed .ig-overlay-close:focus-visible {
+  .ig-overlay-close:focus-visible {
     background: transparent !important;
     outline: 2px solid var(--color-accent, #cc0000) !important;
     outline-offset: 2px;
   }
 
-  instagram-embed .ig-overlay-close::-webkit-focus-inner {
+  .ig-overlay-close::-webkit-focus-inner {
     border: 0;
   }
 
   /* ── EMBED STAGE (Middle: Official Instagram Embed) ── */
-  instagram-embed .ig-overlay-stage {
+  .ig-overlay-stage {
     position: relative;
     width: 100%;
     flex: 1 1 auto;
@@ -776,7 +834,7 @@
     justify-content: center;
   }
 
-  instagram-embed .ig-embed-frame {
+  .ig-embed-frame {
     width: 100%;
     height: 540px;
     max-height: calc(100dvh - 160px);
@@ -787,7 +845,7 @@
   }
 
   /* ── HQ FOOTER BAR (Bottom: Distinct Actions) ── */
-  instagram-embed .ig-overlay-footer {
+  .ig-overlay-footer {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -799,15 +857,15 @@
     flex-wrap: wrap;
   }
 
-  instagram-embed .ig-footer-divider {
+  .ig-footer-divider {
     color: rgba(255, 255, 255, 0.25);
     font-size: 0.75rem;
     user-select: none;
   }
 
   /* Footer action links: site standard hover (red text + red underline draws in) */
-  .article-body instagram-embed .ig-footer-link,
-  instagram-embed .ig-footer-link {
+  .article-body .ig-footer-link,
+  .ig-footer-link {
     position: relative;
     display: inline-flex;
     align-items: center;
@@ -823,7 +881,7 @@
     border-radius: 0;
   }
 
-  instagram-embed .ig-footer-link::after {
+  .ig-footer-link::after {
     content: '';
     position: absolute;
     bottom: 0;
@@ -836,28 +894,28 @@
     transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.2, 1);
   }
 
-  .article-body instagram-embed .ig-footer-link:hover,
-  instagram-embed .ig-footer-link:hover {
+  .article-body .ig-footer-link:hover,
+  .ig-footer-link:hover {
     color: var(--color-accent-text, #ef4444) !important;
     text-decoration: none !important;
   }
 
-  .article-body instagram-embed .ig-footer-link:hover::after,
-  instagram-embed .ig-footer-link:hover::after,
-  .article-body instagram-embed .ig-footer-link:focus-visible::after,
-  instagram-embed .ig-footer-link:focus-visible::after {
+  .article-body .ig-footer-link:hover::after,
+  .ig-footer-link:hover::after,
+  .article-body .ig-footer-link:focus-visible::after,
+  .ig-footer-link:focus-visible::after {
     transform: scaleX(1);
   }
 
-  .article-body instagram-embed .ig-footer-link:focus-visible,
-  instagram-embed .ig-footer-link:focus-visible {
+  .article-body .ig-footer-link:focus-visible,
+  .ig-footer-link:focus-visible {
     color: var(--color-accent-text, #ef4444) !important;
     outline: 2px solid var(--color-accent, #cc0000) !important;
     outline-offset: 2px !important;
   }
 
   /* ── LOADING & ERROR STATES ── */
-  instagram-embed .ig-player-loading {
+  .ig-player-loading {
     position: absolute;
     inset: 0;
     display: flex;
@@ -870,7 +928,7 @@
     transition: opacity 0.3s ease;
   }
 
-  instagram-embed .ig-loading-spinner {
+  .ig-loading-spinner {
     width: 38px;
     height: 38px;
     border: 3px solid rgba(255, 255, 255, 0.15);
@@ -885,13 +943,13 @@
     }
   }
 
-  instagram-embed .ig-loading-text {
+  .ig-loading-text {
     font-size: 0.85rem;
     color: var(--color-white-muted, #aaa);
     letter-spacing: 0.05em;
   }
 
-  instagram-embed .ig-player-error {
+  .ig-player-error {
     position: absolute;
     inset: 0;
     display: flex;
@@ -905,19 +963,19 @@
     border-radius: 0;
   }
 
-  instagram-embed .ig-error-icon {
+  .ig-error-icon {
     color: var(--color-accent-text, #ef4444);
     margin-bottom: 0.75rem;
   }
 
-  instagram-embed .ig-error-title {
+  .ig-error-title {
     font-size: 1.15rem;
     font-weight: 700;
     color: #fff;
     margin: 0 0 0.5rem 0;
   }
 
-  instagram-embed .ig-error-desc {
+  .ig-error-desc {
     font-size: 0.88rem;
     line-height: 1.5;
     color: var(--color-white-muted, #aaa);
@@ -925,7 +983,7 @@
     margin: 0 0 1.5rem 0;
   }
 
-  instagram-embed .ig-error-actions {
+  .ig-error-actions {
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -959,7 +1017,7 @@
     letter-spacing: 0.05em;
   }
 
-  /* ── MOBILE RESPONSIVE ── */
+  /* ── MOBILE PORTRAIT RESPONSIVE ── */
   @media (max-width: 640px) {
     instagram-embed .ig-embed-card {
       flex-direction: column;
@@ -1014,39 +1072,113 @@
       justify-content: center;
     }
 
-    instagram-embed .ig-overlay-container {
-      padding: 3.5rem 0.75rem 1rem 0.75rem;
+    .ig-overlay-container {
+      padding: 3.5rem 0.75rem 1.5rem 0.75rem;
     }
 
-    instagram-embed .ig-overlay-panel {
+    .ig-overlay-panel {
       max-width: 100%;
       width: 100%;
     }
 
-    instagram-embed .ig-overlay-stage {
-      min-height: 460px;
+    .ig-overlay-stage {
+      min-height: 480px;
     }
 
-    instagram-embed .ig-embed-frame {
-      min-height: 460px;
-      height: 500px;
+    .ig-embed-frame {
+      min-height: 480px;
+      height: 520px;
+      max-height: calc(100dvh - 150px);
     }
 
-    instagram-embed .ig-overlay-footer {
+    .ig-overlay-footer {
       flex-direction: column;
       gap: 0.65rem;
-      padding: 0.75rem 0.75rem;
+      padding: 0.85rem 0.75rem;
     }
 
-    instagram-embed .ig-footer-divider {
+    .ig-footer-divider {
       display: none;
     }
 
-    .article-body instagram-embed .ig-footer-link,
-    instagram-embed .ig-footer-link {
+    .article-body .ig-footer-link,
+    .ig-footer-link {
       width: 100%;
       justify-content: center;
       min-height: 44px;
+    }
+  }
+
+  /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     DEDICATED LANDSCAPE MOBILE MODE (Option A: Scrollable Fullscreen Overlay)
+     Applies to phones in landscape (height <= 600px).
+     - Overlay covers 100vw x 100dvh, hiding site header completely.
+     - Top-aligned vertical scroll with safe area notch padding.
+     - Sticky calendar X pinned at top right with safe area padding.
+     - Unconstrained video height so the 9:16 frame and center play icon never clip.
+     - Full footer reachable by scroll with generous bottom clearance.
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+  @media (orientation: landscape) and (max-height: 600px) {
+    .ig-overlay {
+      align-items: flex-start !important;
+      justify-content: center !important;
+    }
+
+    .ig-overlay-container {
+      margin: 0 auto !important;
+      padding-top: max(env(safe-area-inset-top, 0px), 24px) !important;
+      padding-bottom: max(env(safe-area-inset-bottom, 0px), 40px) !important;
+      padding-left: max(env(safe-area-inset-left, 0px), 24px) !important;
+      padding-right: max(env(safe-area-inset-right, 0px), 24px) !important;
+      width: 100% !important;
+      max-width: 380px !important;
+      box-sizing: border-box !important;
+    }
+
+    .ig-overlay-panel {
+      width: 100% !important;
+      max-width: 350px !important;
+      max-height: none !important; /* Allow natural expansion so video is never vertically squashed */
+      margin: 0 auto !important;
+    }
+
+    /* Pinned sticky calendar-style close button with safe area clearance */
+    .ig-overlay-close {
+      position: fixed !important;
+      top: max(env(safe-area-inset-top, 0px), 12px) !important;
+      right: max(env(safe-area-inset-right, 0px), 16px) !important;
+      z-index: 1010 !important;
+      width: 2.5rem !important;
+      height: 2.5rem !important;
+    }
+
+    .ig-overlay-stage {
+      min-height: 520px !important;
+      height: 540px !important;
+    }
+
+    .ig-embed-frame {
+      width: 100% !important;
+      height: 540px !important;
+      min-height: 520px !important;
+      max-height: none !important;
+    }
+
+    .ig-overlay-footer {
+      flex-direction: column !important;
+      gap: 0.65rem !important;
+      padding: 0.85rem 0.75rem !important;
+    }
+
+    .ig-footer-divider {
+      display: none !important;
+    }
+
+    .article-body .ig-footer-link,
+    .ig-footer-link {
+      width: 100% !important;
+      justify-content: center !important;
+      min-height: 44px !important;
     }
   }
 </style>
