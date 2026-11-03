@@ -11,7 +11,7 @@
  *
  * OVERLAY PLAYER MODE:
  * - Dedicated modal overlay hugging the 9:16 video aspect ratio.
- * - Option A: Fullscreen scrollable overlay in landscape mode.
+ * - Dedicated no-scroll side-by-side split layout in landscape mobile mode.
  * - Overlay is attached directly to document.body on open to sit above #navbar (z-index: 100).
  * - Sticky calendar-style X pinned at top right with safe-area notch padding.
  * - Middle: Official Instagram embed with native header intact.
@@ -182,6 +182,11 @@
             </div>
 
             <div class="ig-overlay-footer">
+              <div class="ig-landscape-brand-meta">
+                <span class="ig-landscape-eyebrow">Instagram Reel</span>
+                <span class="ig-landscape-title">${displayTitle}</span>
+                <span class="ig-landscape-handle">${handle}</span>
+              </div>
               <a class="ig-footer-link" href="${postUrl}" target="_blank" rel="noopener noreferrer">
                 <span>Open Reel on Instagram</span>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
@@ -857,6 +862,11 @@
     flex-wrap: wrap;
   }
 
+  /* Hidden by default in portrait/desktop, surfaced exclusively in landscape side-by-side mode */
+  .ig-landscape-brand-meta {
+    display: none;
+  }
+
   .ig-footer-divider {
     color: rgba(255, 255, 255, 0.25);
     font-size: 0.75rem;
@@ -1110,64 +1120,116 @@
   }
 
   /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-     DEDICATED LANDSCAPE MOBILE MODE (Option A: Scrollable Fullscreen Overlay)
+     DEDICATED LANDSCAPE MOBILE MODE: NO-SCROLL SIDE-BY-SIDE SPLIT
      Applies to phones in landscape (height <= 600px).
-     - Overlay covers 100vw x 100dvh, hiding site header completely.
-     - Top-aligned vertical scroll with safe area notch padding.
-     - Sticky calendar X pinned at top right with safe area padding.
-     - Unconstrained video height so the 9:16 frame and center play icon never clip.
-     - Full footer reachable by scroll with generous bottom clearance.
+     - Fits 100% within viewport height (100dvh) with zero vertical/horizontal scrollbar.
+     - Side-by-side architectural card:
+       * Left: Native Instagram embed stage sized to viewport height.
+       * Right: Dedicated HQ actions pane with brand metadata, "Open Reel on Instagram",
+         and "See comments on Instagram".
+     - Sticky calendar X pinned at top right with safe area notch padding.
+     - All HQ chrome maintains hard edges (border-radius: 0) and site standard link hovers.
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
   @media (orientation: landscape) and (max-height: 600px) {
     .ig-overlay {
-      align-items: flex-start !important;
+      overflow: hidden !important;
+      align-items: center !important;
       justify-content: center !important;
+      height: 100vh !important;
+      height: 100dvh !important;
+      overscroll-behavior: none !important;
+      padding-left: max(env(safe-area-inset-left, 0px), 16px) !important;
+      padding-right: max(env(safe-area-inset-right, 0px), 16px) !important;
+      padding-top: max(env(safe-area-inset-top, 0px), 8px) !important;
+      padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px) !important;
     }
 
     .ig-overlay-container {
       margin: 0 auto !important;
-      padding-top: max(env(safe-area-inset-top, 0px), 24px) !important;
-      padding-bottom: max(env(safe-area-inset-bottom, 0px), 40px) !important;
-      padding-left: max(env(safe-area-inset-left, 0px), 24px) !important;
-      padding-right: max(env(safe-area-inset-right, 0px), 24px) !important;
+      padding: 0 !important;
       width: 100% !important;
-      max-width: 380px !important;
-      box-sizing: border-box !important;
+      height: 100% !important;
+      max-width: 100% !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
     }
 
     .ig-overlay-panel {
-      width: 100% !important;
-      max-width: 350px !important;
-      max-height: none !important; /* Allow natural expansion so video is never vertically squashed */
-      margin: 0 auto !important;
-    }
-
-    /* Pinned sticky calendar-style close button with safe area clearance */
-    .ig-overlay-close {
-      position: fixed !important;
-      top: max(env(safe-area-inset-top, 0px), 12px) !important;
-      right: max(env(safe-area-inset-right, 0px), 16px) !important;
-      z-index: 1010 !important;
-      width: 2.5rem !important;
-      height: 2.5rem !important;
+      flex-direction: row !important;
+      width: auto !important;
+      max-width: calc(100vw - max(env(safe-area-inset-left, 0px), 16px) - max(env(safe-area-inset-right, 0px), 16px) - 64px) !important;
+      height: calc(100dvh - max(env(safe-area-inset-top, 0px), 10px) - max(env(safe-area-inset-bottom, 0px), 10px)) !important;
+      max-height: calc(100dvh - 16px) !important;
+      align-items: stretch !important;
+      background: var(--color-surface, #111111) !important;
+      border: 1px solid rgba(255, 255, 255, 0.14) !important;
+      border-radius: 0 !important;
+      overflow: hidden !important;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.95) !important;
     }
 
     .ig-overlay-stage {
-      min-height: 520px !important;
-      height: 540px !important;
+      height: 100% !important;
+      min-height: unset !important;
+      width: 326px !important;
+      flex: 0 0 326px !important;
+      background: #000000 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
     }
 
     .ig-embed-frame {
       width: 100% !important;
-      height: 540px !important;
-      min-height: 520px !important;
-      max-height: none !important;
+      height: 100% !important;
+      min-height: unset !important;
+      max-height: unset !important;
+      border: none !important;
+      background: #000000 !important;
+      display: block !important;
     }
 
     .ig-overlay-footer {
       flex-direction: column !important;
-      gap: 0.65rem !important;
-      padding: 0.85rem 0.75rem !important;
+      justify-content: center !important;
+      align-items: flex-start !important;
+      border-top: none !important;
+      border-left: 1px solid rgba(255, 255, 255, 0.1) !important;
+      padding: 1.25rem 1.5rem !important;
+      gap: 0.85rem !important;
+      min-width: 220px !important;
+      max-width: 270px !important;
+      flex: 1 0 auto !important;
+      background: #0d0d0d !important;
+    }
+
+    .ig-landscape-brand-meta {
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 0.2rem !important;
+      margin-bottom: 0.35rem !important;
+    }
+
+    .ig-landscape-eyebrow {
+      font-size: 0.72rem !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.14em !important;
+      text-transform: uppercase !important;
+      color: #9ca3af !important;
+    }
+
+    .ig-landscape-title {
+      font-size: 1rem !important;
+      font-weight: 700 !important;
+      color: #ffffff !important;
+      line-height: 1.25 !important;
+    }
+
+    .ig-landscape-handle {
+      font-size: 0.85rem !important;
+      color: var(--color-accent-text, #ef4444) !important;
+      font-weight: 600 !important;
     }
 
     .ig-footer-divider {
@@ -1176,9 +1238,30 @@
 
     .article-body .ig-footer-link,
     .ig-footer-link {
-      width: 100% !important;
-      justify-content: center !important;
-      min-height: 44px !important;
+      width: auto !important;
+      justify-content: flex-start !important;
+      min-height: unset !important;
+      padding: 0.25rem 0 !important;
+      font-size: 0.78rem !important;
+      white-space: nowrap !important;
+    }
+
+    .ig-overlay-close {
+      position: fixed !important;
+      top: max(env(safe-area-inset-top, 0px), 12px) !important;
+      right: max(env(safe-area-inset-right, 0px), 16px) !important;
+      z-index: 1020 !important;
+      width: 2.5rem !important;
+      height: 2.5rem !important;
+    }
+
+    .ig-player-error {
+      padding: 1rem !important;
+    }
+
+    .ig-error-desc {
+      font-size: 0.8rem !important;
+      margin-bottom: 1rem !important;
     }
   }
 </style>
