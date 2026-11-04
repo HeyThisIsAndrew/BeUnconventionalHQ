@@ -358,6 +358,7 @@ const IFRAME_FILES = [
   'src/components/EventAnnouncement.astro',
   'src/pages/featured/[slug].astro',
   'src/components/YouTubeEmbed.astro',
+  'src/components/InstagramEmbed.astro',
 ];
 for (const rel of IFRAME_FILES) {
   test(`${rel}: every iframe allows fullscreen`, () => {

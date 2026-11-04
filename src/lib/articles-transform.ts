@@ -16,7 +16,7 @@ import { CATEGORIES, categoryTagAliases } from '../data/constants.js';
 const ALLOWED_TAGS = [
   'p', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'blockquote', 'hr',
   'a', 'img', 'figure', 'figcaption', 'em', 'strong', 'code', 'pre', 'br',
-  'substack-gallery', 'youtube-embed'
+  'substack-gallery', 'youtube-embed', 'instagram-embed'
 ];
 
 const ALLOWED_ATTRS: Record<string, string[]> = {
@@ -24,6 +24,7 @@ const ALLOWED_ATTRS: Record<string, string[]> = {
   img: ['src', 'alt', 'title', 'width', 'height'],
   'substack-gallery': [],
   'youtube-embed': ['video-id'],
+  'instagram-embed': ['instagram-id', 'thumbnail-url', 'title', 'author-name'],
 };
 
 /**
@@ -129,6 +130,79 @@ export function extractYouTubeEmbeds(html: string): string {
   );
 }
 
+/**
+ * Extracts Instagram embeds from Substack's native div wrappers, blockquotes,
+ * or iframes and replaces them with a custom <instagram-embed> element.
+ * Must run BEFORE sanitization so wrappers and attributes are not stripped.
+ */
+export function extractInstagramEmbeds(html: string): string {
+  if (!html) return '';
+
+  // 1. Substack custom div wrapper: <div class="instagram-embed-wrap" data-attrs="..." data-component-name="InstagramToDOM"></div>
+  let out = html.replace(
+    /<div\b((?:[^>"']|"[^"]*"|'[^']*')*)>([\s\S]*?)<\/div>/gi,
+    (match, attrs) => {
+      if (!attrs.includes('instagram-embed-wrap') && !attrs.includes('InstagramToDOM')) {
+        return match;
+      }
+      const dataMatch = attrs.match(/data-attrs=(["'])(.*?)\1/);
+      if (!dataMatch) return match;
+      try {
+        const jsonStr = dataMatch[2].replace(/&quot;/g, '"');
+        const parsed = JSON.parse(jsonStr);
+        const id = parsed?.instagram_id || parsed?.id;
+        if (!id) return match;
+
+        const safeId = String(id).replace(/[^A-Za-z0-9_-]/g, '');
+        if (!safeId) return match;
+
+        const thumb = parsed?.thumbnail_url
+          ? ` thumbnail-url="${String(parsed.thumbnail_url).replace(/"/g, '&quot;')}"`
+          : '';
+        const title = parsed?.title
+          ? ` title="${String(parsed.title).replace(/"/g, '&quot;')}"`
+          : '';
+        const author = parsed?.author_name
+          ? ` author-name="${String(parsed.author_name).replace(/"/g, '&quot;')}"`
+          : '';
+
+        return `<instagram-embed instagram-id="${safeId}"${thumb}${title}${author}></instagram-embed>`;
+      } catch {
+        return match;
+      }
+    }
+  );
+
+  // 2. Native blockquote embed: <blockquote class="instagram-media" ...>...</blockquote>
+  out = out.replace(
+    /<blockquote\b((?:[^>"']|"[^"]*"|'[^']*')*)>([\s\S]*?)<\/blockquote>/gi,
+    (match, attrs, inner) => {
+      if (!attrs.includes('instagram-media') && !attrs.includes('data-instgrm-permalink')) {
+        return match;
+      }
+      const permalinkMatch = (attrs + ' ' + inner).match(/https?:\/\/(?:www\.)?instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/i);
+      if (permalinkMatch) {
+        return `<instagram-embed instagram-id="${permalinkMatch[1]}"></instagram-embed>`;
+      }
+      return match;
+    }
+  );
+
+  // 3. Native iframe embed: <iframe src="...instagram.com/(p|reel|tv)/..."></iframe>
+  out = out.replace(
+    /<iframe\b((?:[^>"']|"[^"]*"|'[^']*')*)>([\s\S]*?)<\/iframe>/gi,
+    (match, attrs) => {
+      const srcMatch = attrs.match(/src=["'](?:https?:)?\/\/(?:www\.)?instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)[^"']*["']/i);
+      if (srcMatch) {
+        return `<instagram-embed instagram-id="${srcMatch[1]}"></instagram-embed>`;
+      }
+      return match;
+    }
+  );
+
+  return out;
+}
+
 /** Sanitize imported HTML down to the semantic allowlist. */
 /*
   ─── PULL QUOTES SURVIVE SANITIZATION ───────────────────────────────────────
@@ -186,7 +260,7 @@ export function liftPullQuotes(html: string): string {
 export function sanitizeArticleHtml(html: string): string {
   if (!html) return '';
   
-  const processedHtml = extractYouTubeEmbeds(extractSubstackGalleries(liftPullQuotes(demoteHeadings(html))));
+  const processedHtml = extractInstagramEmbeds(extractYouTubeEmbeds(extractSubstackGalleries(liftPullQuotes(demoteHeadings(html)))));
   
   return sanitizeHtml(processedHtml, {
     allowedTags: ALLOWED_TAGS,
