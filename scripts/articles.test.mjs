@@ -21,6 +21,7 @@ import {
   buildPreview,
   mergeSnapshot,
   liftPullQuotes,
+  extractInstagramEmbeds,
 } from '../src/lib/articles-transform.ts';
 import { imageFingerprint, stripCoverImageFromBody } from '../src/lib/article-media.ts';
 import { parseImageDimensions, labelImageLinks } from '../src/lib/article-images-transform.ts';
@@ -116,6 +117,36 @@ test('empty paragraphs are dropped but image-bearing ones are kept', () => {
   const out = sanitizeArticleHtml('<p>  </p><p><img src="https://x.test/a.png" alt="a"></p>');
   assert.ok(!out.includes('<p>  </p>'), out);
   assert.ok(out.includes('<img'), out);
+});
+
+// ── Instagram Embeds ────────────────────────────────────────────────────────
+
+test('Substack Instagram wrapper is transformed to <instagram-embed>', () => {
+  const substackWrapper = '<div class="instagram-embed-wrap" data-attrs="{&quot;instagram_id&quot;:&quot;DfFEKfhk4YD&quot;,&quot;title&quot;:&quot;Instagram&quot;,&quot;thumbnail_url&quot;:&quot;https://s3.amazonaws.com/test.jpg&quot;,&quot;author_name&quot;:&quot;amctheatres&quot;}" data-component-name="InstagramToDOM"></div>';
+  const out = sanitizeArticleHtml(`<p>Before</p>${substackWrapper}<p>After</p>`);
+  assert.ok(out.includes('<instagram-embed instagram-id="DfFEKfhk4YD" thumbnail-url="https://s3.amazonaws.com/test.jpg" title="Instagram" author-name="amctheatres"></instagram-embed>'), out);
+  const direct = extractInstagramEmbeds(substackWrapper);
+  assert.ok(direct.includes('author-name="amctheatres"'), direct);
+});
+
+test('Native Instagram blockquotes and iframes are transformed to <instagram-embed>', () => {
+  const bq = '<blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/reel/DfFEKfhk4YD/"></blockquote>';
+  const iframe = '<iframe src="https://www.instagram.com/p/DfFEKfhk4YD/embed/"></iframe>';
+  assert.ok(sanitizeArticleHtml(bq).includes('<instagram-embed instagram-id="DfFEKfhk4YD"></instagram-embed>'));
+  assert.ok(sanitizeArticleHtml(iframe).includes('<instagram-embed instagram-id="DfFEKfhk4YD"></instagram-embed>'));
+});
+
+test('<instagram-embed> tags survive sanitization but malicious attributes are stripped', () => {
+  const evil = '<instagram-embed instagram-id="DfFEKfhk4YD" onload="alert(1)" style="color:red"></instagram-embed>';
+  const out = sanitizeArticleHtml(evil);
+  assert.ok(out.includes('<instagram-embed instagram-id="DfFEKfhk4YD"></instagram-embed>'), out);
+  assert.ok(!out.includes('onload'), out);
+  assert.ok(!out.includes('style'), out);
+});
+
+test('<instagram-embed> tags are excluded from toPlainText()', () => {
+  const html = '<p>Hello</p><instagram-embed instagram-id="DfFEKfhk4YD"></instagram-embed><p>World</p>';
+  assert.equal(toPlainText(html), 'Hello World');
 });
 
 // ── Category mapping ────────────────────────────────────────────────────────
