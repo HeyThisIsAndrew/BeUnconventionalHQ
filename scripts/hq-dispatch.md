@@ -313,6 +313,43 @@ imports goes through a Kit form, so they get Kit's confirmation email.
    reader gets one per topic and nothing breaks.
 4. Re-upload `template.html` to Kit (the footer has the new topics link).
 
+### Setup status (2026-11-05)
+
+Done (checked through the Kit and Cloudflare APIs):
+- Kit is on the **free** plan, and its v4 API works on it: a draft
+  broadcast was created with the HQ Dispatch template and read back as a
+  draft (#278). A per-reader topics draft (`create-personalized`) kept its
+  `{% case %}` / `{% raw %}` Liquid intact; draft **26827763**, "per-reader
+  topics test, delete me", is left in Kit for the owner's preview test.
+- Kit sender: andrew@beunconventionalhq.com, verified. Its from-name is
+  the bare address; set a display name in Kit if wanted.
+- Kit custom field `hq_topics` created (id 1421790).
+- `KIT_FORM_ID` = 9953749 ("Newsletter site") in `wrangler.jsonc` vars.
+  Check in Kit that this form's confirmation (double opt-in) email is ON:
+  the API does not show it.
+- `KIT_EMAIL_TEMPLATE_ID` = 5554176 ("HQ Dispatch") in
+  `dispatch-kit-worker/wrangler.jsonc`. The Kit API cannot read or update
+  an HTML template's HTML, so re-pasting `template.html` into it is by hand.
+- Site Worker secrets: `KIT_API_KEY` and `RESEND_API_KEY` set. Resend's
+  domain beunconventionalhq.com is verified. GitHub secret `KIT_API_KEY` set.
+- KV import dry run: 4 subscriber records, 4 would import, none skipped.
+- Free-plan fit: the account will have 3 cron triggers (substack relay,
+  Kit Worker, social Worker) of the 5 Workers Free allows; both Durable
+  Objects use SQLite storage, which Workers Free includes.
+
+Still open:
+- `NEWSLETTER_LINK_SECRET` on the site Worker. **Not through the dashboard
+  while a branch preview is the newest version:** on 2026-11-05 adding
+  `KIT_API_KEY` in the dashboard built from the newest version, which was
+  the `feat-newsletter-topics` preview, and deployed it to production; a
+  manual run of `deploy.yml` put main back. Use
+  `npx wrangler versions secret put NEWSLETTER_LINK_SECRET --name beunconventionalhq`
+  (saves on a new version without deploying), or the dashboard right after
+  a production deploy.
+- The KV import with `--execute` (sends each of the 4 Kit's confirmation
+  email), `KIT_SYNC_SIGNUPS`, `CREATE_DRAFTS`, `PERSONALIZE`: owner's calls.
+- The two Workers deploy only after the merge (their code is not on main).
+
 ### Decisions (made by Claude at the owner's request, 2026-10-31)
 
 The owner asked for these to be decided for now. Each can be reversed.

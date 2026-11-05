@@ -13,6 +13,15 @@ with links to the pages worth checking.
 It is a preview VERSION of the live Worker (`wrangler versions upload`), not
 a deploy: production keeps serving `main`.
 
+**While a preview is the newest version, do not change a variable or secret
+in the Cloudflare dashboard.** The dashboard builds the change on the NEWEST
+version and deploys it, so production starts serving the branch. It happened
+on 2026-11-05 (adding `KIT_API_KEY`); a manual run of **Deploy production**
+(`deploy.yml`, Run workflow on `main`) put main back. Set secrets with
+`npx wrangler versions secret put <NAME> --name beunconventionalhq`, which
+saves them on a new version WITHOUT deploying, or in the dashboard right
+after a production deploy, when the newest version is main's.
+
 **It shares production's data and secrets.** A signup on the preview is a
 real record in the real subscriber list, so test with your own addresses.
 
@@ -21,9 +30,12 @@ One-time setup, or forms on the preview will refuse:
   Management > add `heythisisandrewb.workers.dev`.
 - **Preview URLs:** if the run fails with 404s, Cloudflare > Workers >
   beunconventionalhq > Settings > Domains & Routes > turn Preview URLs on.
-- **Newsletter preference page** (`/newsletter`, topics branch only): add the
-  Worker secret `NEWSLETTER_LINK_SECRET` (any long random string) under
-  Settings > Variables and Secrets. Production code ignores it until merged.
+- **Newsletter preference page** (`/newsletter`, topics branch only): the
+  Worker secret `NEWSLETTER_LINK_SECRET` (any long random string), set with
+  `npx wrangler versions secret put NEWSLETTER_LINK_SECRET --name beunconventionalhq`
+  and then a fresh Branch preview run (a new preview version carries the
+  newest version's secrets). Not through the dashboard: see the warning
+  above. Production code ignores it until merged.
 
 ## 2. The newsletter, as an email (no Kit, no list)
 
