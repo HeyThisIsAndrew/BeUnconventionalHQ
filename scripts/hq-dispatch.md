@@ -290,12 +290,23 @@ imports goes through a Kit form, so they get Kit's confirmation email.
 
 **Setup, in order (nothing changes until each step is done):**
 1. Kit: create the custom field `hq_topics` (Kit > Grow > Subscribers >
-   any subscriber > Add a custom field, or the API). Optional: note the id
-   of a Kit form whose confirmation email new signups should get.
+   any subscriber > Add a custom field, or the API), and note the id of
+   the Kit form whose confirmation email new signups should get, with its
+   confirmation (double opt-in) email turned ON. **`KIT_FORM_ID` is
+   required, not optional:** without it `saveKitTopics()` skips anyone Kit
+   does not already have, so new site signups never reach Kit at all, and
+   the KV import refuses to run.
 2. Site Worker secrets (Cloudflare > Workers > beunconventionalhq >
    Settings > Variables and Secrets): `NEWSLETTER_LINK_SECRET` (a long
-   random string), `KIT_API_KEY`, `KIT_FORM_ID` (optional),
-   `KIT_SYNC_SIGNUPS` = `true` when ready. `RESEND_API_KEY` is already there.
+   random string), `KIT_API_KEY`, `KIT_FORM_ID`, and `KIT_SYNC_SIGNUPS` =
+   `true` when ready. `RESEND_API_KEY` is already there. **Add every one as
+   a Secret (encrypted), never a plain-text Variable, including the
+   non-secret ones (`KIT_FORM_ID`, `KIT_SYNC_SIGNUPS`, `KIT_TOPICS_FIELD`):**
+   `wrangler.jsonc` has its own `vars` block and no `keep_vars`, so every
+   deploy from GitHub Actions deletes plain-text variables set in the
+   dashboard. Secrets survive deploys. (Or add the non-secret ones to the
+   `vars` block in `wrangler.jsonc` and commit them.)
+   From a terminal: `npx wrangler secret put KIT_FORM_ID --name beunconventionalhq`.
 3. The #278 check, extended: create a draft with `PERSONALIZE: "true"`, then
    check in Kit that two test subscribers with different `hq_topics` see
    different slots. If Kit does not render it, leave PERSONALIZE off: every
@@ -308,7 +319,7 @@ The owner asked for these to be decided for now. Each can be reversed.
 
 | Question | Decision | Why |
 | --- | --- | --- |
-| Import the existing KV signups into Kit? | **Yes, through a Kit form**, so each gets Kit's confirmation email (`kv-subscribers-to-kit.mjs`, KIT_FORM_ID required). | The site never sent a confirmation. A list that never confirmed is how a first send lands in spam, and confirming is the clean consent record. Some people will not confirm; that is the cost. |
+| Import the existing KV signups into Kit? | **Yes, through a Kit form**, so each gets Kit's confirmation email (`CLOUDFLARE_API_TOKEN=... KIT_API_KEY=... KIT_FORM_ID=... node scripts/kv-subscribers-to-kit.mjs`; all three are required, the Cloudflare token to read KV; dry run first, `--execute` to import). | The site never sent a confirmation. A list that never confirmed is how a first send lands in spam, and confirming is the clean consent record. Some people will not confirm; that is the cost. |
 | What is FEATURED? | **The newest story**, unless the owner picks one for the issue: `node scripts/trigger-kit-draft.mjs --feature <slug, link or YouTube id>` before Thursday (used once, then cleared; `--feature ""` clears). | Hands-off by default, editorial when it matters. The newest story still names the issue in Kit, so a pick never breaks the duplicate guard. A pick not in this week's stories is reported and the newest leads. |
 | Can a story with no section lead? | **Yes**, but it never fills a topic slot. | FEATURED is "the story of the week", not a topic. |
 | ALSO THIS WEEK in the topics layout? | **No.** | Condensing was the point. Duplicates are left out and listed in the notice. The classic layout keeps it. |
