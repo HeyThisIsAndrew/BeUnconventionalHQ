@@ -148,7 +148,15 @@ export async function buildSearchIndex(): Promise<SearchEntry[]> {
         view was nothing but hubs. A hub is not dated content; it is a place.
         The default view curates a mix instead of taking the top of this sort.
       */
-      tags: h.youtubeSyncKeywords || [],
+      /*
+        The hub's own name first, then its tag list. A hub must outrank an
+        article for its own brand name, and the tag list cannot be trusted to
+        carry the bare name: Disney's did not, so on 2026-11-06 an Avengers
+        article tagged "Disney" beat the Disney Hub for "disney"
+        (scripts/e2e-search-relevance.test.mjs). Index only: hub coverage
+        matching reads the hub docs, not this.
+      */
+      tags: [h.title, ...(h.youtubeSyncKeywords || [])].filter(Boolean),
       hubCategory: h.hubCategory || 'other'
     })),
     ...pages
