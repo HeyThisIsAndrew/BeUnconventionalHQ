@@ -19,12 +19,19 @@
   Kit variables used (all documented by Kit):
     posts, post.title, post.url, post.summary, post.content,
     post.categories
+  Set only by the site's newsletter feed (/dispatch.json, never by Kit):
+    post.newsletter, post.subtitle, post.lede, post.blurb
   The label reads "<first category> | <second category>", so the feed
   sends the content type first and the section second ("Review", "TV"
-  renders REVIEW | TV). A "Video" category turns the button into Watch now.
+  renders REVIEW | TV). A "Video" category turns the button into Watch now,
+  and "Upcoming" (the next event, when no event story ran) into Event details.
   Kit has NO documented image variable, so the image is read out of
   post.content: the feed must put a 1200x675 JPEG <img> as the FIRST
   element of content:encoded. The contract is in scripts/hq-dispatch.md.
+
+  Labels (the red kickers and TYPE | SECTION) are #ff6b6b at weight 700:
+  6.8:1 on the #111111 box, where the site's #ef4444 is 5.0:1 and read as
+  faint in some clients and in dark mode (owner's report).
 
   Every style is inline on purpose: some Gmail accounts strip <style>, and
   the classes only add phone tweaks on top of a layout that already works
@@ -37,7 +44,14 @@
   {% assign dx_cat = post.categories | first %}
   {% if dx_cat == blank %}{% assign dx_cat = 'From the HQ' %}{% elsif post.categories.size > 1 %}{% assign dx_cat = dx_cat | append: ' | ' | append: post.categories[1] %}{% endif %}
   {% assign dx_alt = post.title | strip_html | replace: '"', '&quot;' %}
-  {% if post.categories contains 'Video' %}{% assign dx_cta = 'Watch now' %}{% else %}{% assign dx_cta = 'Read the story' %}{% endif %}
+  {% if post.categories contains 'Video' %}{% assign dx_cta = 'Watch now' %}{% elsif post.categories contains 'Upcoming' %}{% assign dx_cta = 'Event details' %}{% else %}{% assign dx_cta = 'Read the story' %}{% endif %}
+  {% comment %} The newsletter feed (/dispatch.json) hands over separate fields
+     and flags itself with post.newsletter: subtitle and lede for FEATURED, a
+     one-line blurb for LATEST, each written by the author and printed WHOLE.
+     A missing one is left out and reported to the owner, never filled from
+     the article body and never cut mid-sentence. Kit's RSS route has only
+     post.summary, so it falls back to that, also uncut. {% endcomment %}
+  {% if post.newsletter %}{% assign dx_sub = post.subtitle %}{% assign dx_blurb = post.blurb %}{% else %}{% assign dx_sub = post.summary | strip_html %}{% assign dx_blurb = post.summary | strip_html %}{% endif %}
 
   {% if forloop.first %}
   <!-- ============ FEATURED ============ -->
@@ -45,7 +59,7 @@
     <tr>
       <td align="center" style="padding:8px 0 24px 0; text-align:center;">
         <h2 style="margin:0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; text-align:center;">
-          <span class="dx-red" style="display:block; font-size:12px; line-height:16px; font-weight:600; letter-spacing:0.3em; text-transform:uppercase; color:#ef4444; padding-bottom:8px;">This week</span>
+          <span class="dx-red" style="display:block; font-size:12px; line-height:16px; font-weight:700; letter-spacing:0.3em; text-transform:uppercase; color:#ff6b6b; padding-bottom:8px;">This week</span>
           <span class="dx-title dx-white" style="display:block; font-size:30px; line-height:34px; font-weight:900; letter-spacing:0.03em; text-transform:uppercase; color:#f0f0f0;">Featured</span>
         </h2>
       </td>
@@ -67,13 +81,22 @@
     {% endif %}
     <tr>
       <td class="dx-pad" style="padding:26px 28px 30px 28px;">
-        <p class="dx-red" style="margin:0 0 12px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:11px; line-height:16px; font-weight:600; letter-spacing:0.2em; text-transform:uppercase; color:#ef4444;">{{ dx_cat }}</p>
+        <p class="dx-red" style="margin:0 0 12px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:12px; line-height:16px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; color:#ff6b6b;">{{ dx_cat }}</p>
         <h3 style="margin:0 0 14px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:27px; line-height:33px; font-weight:800; letter-spacing:-0.01em; color:#f0f0f0;">
           <a href="{{ post.url }}" class="dx-hl dx-white dx-feature-hl" style="color:#f0f0f0; text-decoration:none; font-size:27px; line-height:33px;"><span class="dx-gm-screen"><span class="dx-gm-diff">{{ post.title }}</span></span></a>
         </h3>
-        {% if post.summary != blank %}
-        <p class="dx-body" style="margin:0 0 26px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:16px; line-height:27px; color:#a3a3a3;">{{ post.summary | strip_html | truncatewords: 38 }}</p>
+        <!-- Two separate fields, never merged: the SUBTITLE is the author's
+             own standfirst, printed whole, and the LEDE is an excerpt of the
+             article's opening paragraph (whole sentences only), which is
+             where the date and place live. The feed drops any lede sentence
+             that repeats the subtitle, so nothing is said twice. -->
+        {% if dx_sub != blank %}
+        <p class="dx-sub dx-white" style="margin:0 0 14px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:18px; line-height:28px; font-weight:600; color:#e5e5e5;">{{ dx_sub }}</p>
         {% endif %}
+        {% if post.lede != blank %}
+        <p class="dx-body" style="margin:0 0 14px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:15px; line-height:25px; color:#a3a3a3;">{{ post.lede }}</p>
+        {% endif %}
+        <div style="height:12px; line-height:12px; font-size:0;">&nbsp;</div>
         <!-- The site's primary button (.cta-button-primary): a #cc0000
              outline around white uppercase type. Hover fills it red. 48px
              tall; full width on a phone. -->
@@ -95,7 +118,7 @@
     <tr>
       <td align="center" style="padding:48px 0 24px 0; text-align:center;">
         <h2 style="margin:0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; text-align:center;">
-          <span class="dx-red" style="display:block; font-size:12px; line-height:16px; font-weight:600; letter-spacing:0.3em; text-transform:uppercase; color:#ef4444; padding-bottom:8px;">The dispatch</span>
+          <span class="dx-red" style="display:block; font-size:12px; line-height:16px; font-weight:700; letter-spacing:0.3em; text-transform:uppercase; color:#ff6b6b; padding-bottom:8px;">The dispatch</span>
           <span class="dx-title dx-white" style="display:block; font-size:30px; line-height:34px; font-weight:900; letter-spacing:0.03em; text-transform:uppercase; color:#f0f0f0;">Latest from the</span>
           <span class="dx-title-hq dx-red-lg" style="display:block; padding-left:150px; font-size:26px; line-height:26px; font-weight:900; letter-spacing:0.03em; text-transform:uppercase; color:#cc0000; text-shadow:0 0 18px rgba(204,0,0,0.55);">HQ</span>
         </h2>
@@ -139,12 +162,12 @@
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                   <tr>
                     <td style="padding:0; text-align:left;">
-                      <p class="dx-red" style="margin:0 0 8px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:11px; line-height:16px; font-weight:600; letter-spacing:0.2em; text-transform:uppercase; color:#ef4444;">{{ dx_cat }}</p>
+                      <p class="dx-red" style="margin:0 0 8px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:12px; line-height:16px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; color:#ff6b6b;">{{ dx_cat }}</p>
                       <h3 style="margin:0 0 6px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:18px; line-height:24px; font-weight:800; color:#f0f0f0;">
                         <a href="{{ post.url }}" class="dx-hl dx-white" style="color:#f0f0f0; text-decoration:none;"><span class="dx-gm-screen"><span class="dx-gm-diff">{{ post.title }}</span></span></a>
                       </h3>
-                      {% if post.summary != blank %}
-                      <p class="dx-body" style="margin:0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:#a3a3a3;">{{ post.summary | strip_html | truncatewords: 22 }}</p>
+                      {% if dx_blurb != blank %}
+                      <p class="dx-body" style="margin:0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:#a3a3a3;">{{ dx_blurb }}</p>
                       {% endif %}
                       <a href="{{ post.url }}" class="dx-cta" style="display:inline-block; padding:13px 0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:11px; line-height:18px; font-weight:700; letter-spacing:0.18em; text-transform:uppercase; color:#f0f0f0; text-decoration:none;">{{ dx_cta }} &rsaquo;</a>
                     </td>

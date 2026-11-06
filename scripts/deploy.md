@@ -61,6 +61,18 @@ account, prefix `CLOUDFLARE_ACCOUNT_ID=b10b7bc3e6a0fd361ba0956c8aa7d307`).
 A hand deploy has no build stamp; the next workflow run notices production
 is not on a stamped `main` commit and deploys it properly.
 
+## Dashboard variable and secret edits deploy the NEWEST version
+
+Adding or changing a variable or secret in the Cloudflare dashboard creates
+a new version from the newest uploaded version and deploys it. When a
+Branch preview (`scripts/branch-preview.md`) is the newest version, that
+puts the unmerged branch on production. It happened on 2026-11-05; running
+this workflow by hand on `main` (Actions > Deploy production > Run
+workflow) put main back, and the new secret survived. Prefer
+`npx wrangler versions secret put <NAME> --name beunconventionalhq` (no
+deploy; the next deploy carries the secret forward), or edit in the
+dashboard straight after a production deploy.
+
 ## Checking what is live
 
 View the source of https://beunconventionalhq.com/ and find

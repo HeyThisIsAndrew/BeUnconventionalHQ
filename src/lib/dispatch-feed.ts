@@ -45,7 +45,7 @@ export const DISPATCH_IMAGE_PUBLIC_PATH = '/dispatch/images';
 
 /** The masthead (3:1), and the 16:9 art a story gets when it has none of its
  *  own. Both built by scripts/build-dispatch-art.mjs and committed. */
-export const DISPATCH_HEADER_IMAGE = '/dispatch/header-1200x400.png';
+export const DISPATCH_HEADER_IMAGE = '/dispatch/header-v2-1200x400.png';
 export const DISPATCH_FALLBACK_IMAGE = '/dispatch/fallback-1200x675.jpg';
 
 /** Section names that say nothing, so the label shows the type alone. */
@@ -76,6 +76,34 @@ export interface DispatchVideoInput {
   editorial?: unknown;
 }
 
+/**
+ * The newsletter's own copy for a story, kept as SEPARATE fields (owner's
+ * rules, 2026-10-31):
+ *   subtitle  the author's standfirst, printed whole: the CMS editorial
+ *             excerpt, else (articles) the Substack subtitle. Never rewritten.
+ *   lede      articles only: whole sentences from the opening paragraph,
+ *             minus any sentence that repeats the subtitle. Shown under the
+ *             subtitle on FEATURED; it is where the date and place live.
+ *   blurb     the one line under a LATEST headline: a newsletter-specific
+ *             `editorial.newsletterBlurb` if written, else the subtitle when
+ *             it is one line. Never the body's first sentence, never a
+ *             YouTube description, never cut mid-sentence.
+ *   missing   what the owner still has to write ('subtitle', 'blurb'). A
+ *             missing field is left OUT of the email and reported; it is
+ *             never invented or filled from somewhere else.
+ */
+export interface NewsletterCopy {
+  subtitle: string | null;
+  lede: string | null;
+  blurb: string | null;
+  missing: string[];
+}
+
+/** Longest lede excerpt, in characters. Whole sentences only, so often shorter. */
+export const NEWSLETTER_LEDE_MAX = 320;
+/** Longest subtitle that still counts as a one-line LATEST blurb. */
+export const NEWSLETTER_BLURB_MAX = 220;
+
 export interface DispatchEntry {
   kind: 'article' | 'video';
   title: string;
@@ -88,6 +116,8 @@ export interface DispatchEntry {
   categories: string[];
   /** The ORIGINAL image URL. The sync composes it; the feed looks it up. */
   imageSource: string | null;
+  /** The newsletter's separate fields (see NewsletterCopy). */
+  newsletter: NewsletterCopy;
 }
 
 /** One manifest entry, keyed by the source URL. */
@@ -126,6 +156,62 @@ function absolute(siteUrl: string, pathname: string): string {
   return new URL(pathname, siteUrl).toString().replace(/\/$/, '');
 }
 
+const plainText = (value: unknown): string =>
+  String(value ?? '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** Sentences of plain text. A sentence ends at . ! ? or an ellipsis, before a capital or quote. */
+export function splitSentences(text: string): string[] {
+  return plainText(text)
+    .split(/(?<=[.!?\u2026]["\u201d\u2019)]?)\s+(?=["\u201c\u2018(]?[A-Z0-9])/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+/** Compares sentences the way a reader would: case, quote style and end punctuation aside. */
+const sentenceKey = (s: string) =>
+  s.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[\s.!?\u2026,;:]+$/, '').replace(/\s+/g, ' ').trim();
+
+/** Text a machine shortened: it ends in an ellipsis. Never printed as a whole line. */
+const looksCut = (s: string) => /(\u2026|\.\.\.)$/.test(s.trim());
+
+/** Whole sentences from the front of `paragraph`, up to `max` characters, skipping any in `avoid`. */
+export function wholeSentences(paragraph: string, max: number, avoid: string[] = []): string | null {
+  const banned = new Set(avoid.flatMap((a) => splitSentences(a)).map(sentenceKey));
+  const kept: string[] = [];
+  for (const sentence of splitSentences(paragraph)) {
+    if (banned.has(sentenceKey(sentence))) continue;
+    if ([...kept, sentence].join(' ').length > max) break;
+    kept.push(sentence);
+  }
+  return kept.length ? kept.join(' ') : null;
+}
+
+export function newsletterCopy(
+  item: DispatchArticleInput | DispatchVideoInput,
+  kind: 'article' | 'video',
+): NewsletterCopy {
+  const editorial = (item.editorial ?? {}) as { excerpt?: unknown; newsletterBlurb?: unknown };
+  const authored = plainText(editorial.excerpt);
+  const substackSubtitle = kind === 'article' ? plainText((item as DispatchArticleInput).excerpt) : '';
+  const subtitle = authored || substackSubtitle || null;
+
+  let lede: string | null = null;
+  if (kind === 'article') {
+    const preview = (item as DispatchArticleInput).preview;
+    const opening = plainText(Array.isArray(preview) ? preview[0] : preview);
+    lede = opening ? wholeSentences(opening, NEWSLETTER_LEDE_MAX, subtitle ? [subtitle] : []) : null;
+  }
+
+  const written = plainText(editorial.newsletterBlurb);
+  const subtitleFits = subtitle && subtitle.length <= NEWSLETTER_BLURB_MAX && !looksCut(subtitle);
+  const blurb = written || (subtitleFits ? subtitle : null);
+
+  const missing: string[] = [];
+  if (!subtitle) missing.push('subtitle');
+  if (!blurb) missing.push('blurb');
+  return { subtitle, lede, blurb, missing };
+}
+
 export function articleEntry(article: DispatchArticleInput, siteUrl: string): DispatchEntry | null {
   const pubDate = validDate(article.isoDate);
   if (!article.slug || !article.title || !pubDate) return null;
@@ -140,6 +226,7 @@ export function articleEntry(article: DispatchArticleInput, siteUrl: string): Di
     pubDate,
     categories: [type, section(article.category)].filter(Boolean) as string[],
     imageSource: article.image ? String(article.image) : null,
+    newsletter: newsletterCopy(article, 'article'),
   };
 }
 
@@ -156,6 +243,7 @@ export function videoEntry(video: DispatchVideoInput): DispatchEntry | null {
     pubDate,
     categories: ['Video', section(video.category)].filter(Boolean) as string[],
     imageSource: video.thumbnail ? String(video.thumbnail) : null,
+    newsletter: newsletterCopy(video, 'video'),
   };
 }
 
@@ -206,4 +294,68 @@ export function dispatchContentHtml(entry: DispatchEntry, imageUrl: string): str
   const img = `<img src="${escapeHtml(imageUrl)}" width="${DISPATCH_IMAGE_WIDTH}" height="${DISPATCH_IMAGE_HEIGHT}" alt="">`;
   const summary = entry.summary ? `<p>${escapeHtml(entry.summary)}</p>` : '';
   return img + summary;
+}
+
+/**
+ * An entry as Kit's RSS Liquid would see it: what the Post Template
+ * (email/hq-dispatch/post-template.liquid.html) is rendered with. Title and
+ * summary are escaped here because the template prints them raw.
+ */
+export function dispatchKitPost(entry: DispatchEntry, imageUrl: string) {
+  return {
+    title: escapeHtml(entry.title),
+    url: entry.link,
+    summary: escapeHtml(entry.summary),
+    content: dispatchContentHtml(entry, imageUrl),
+    categories: entry.categories,
+    /* The newsletter's separate fields. The Post Template prefers these
+       whenever `newsletter` is set, and prints them whole. */
+    newsletter: true,
+    subtitle: entry.newsletter.subtitle ? escapeHtml(entry.newsletter.subtitle) : '',
+    lede: entry.newsletter.lede ? escapeHtml(entry.newsletter.lede) : '',
+    blurb: entry.newsletter.blurb ? escapeHtml(entry.newsletter.blurb) : '',
+  };
+}
+
+/** One item of /dispatch.json, the machine twin of /dispatch.xml. */
+export interface DispatchJsonItem {
+  /** Stable identity across builds: the item's absolute link. */
+  guid: string;
+  kind: 'article' | 'video';
+  title: string;
+  link: string;
+  summary: string;
+  /** ISO 8601. */
+  pubDate: string;
+  /** [content type, section?], the same pair the RSS item carries. */
+  categories: string[];
+  /** Absolute URL of the composed 1200x675 image (or the branded fallback). */
+  imageUrl: string;
+  /** The story as the newsletter's FEATURED box (src/lib/dispatch-boxes.ts). */
+  featuredHtml?: string;
+  /** The story as a LATEST FROM THE HQ box, without the section heading. */
+  latestHtml?: string;
+  /** The story as an ALSO THIS WEEK line (a demoted duplicate, see the Kit Worker). */
+  alsoHtml?: string;
+  /** The newsletter's separate fields and what is missing (see NewsletterCopy). */
+  newsletter: NewsletterCopy;
+}
+
+/**
+ * /dispatch.json item. Workers (the social distribution engine, issue #282)
+ * read this rather than parse the XML; the fields are the RSS item's, so the
+ * two feeds can never disagree about a story.
+ */
+export function dispatchJsonItem(entry: DispatchEntry, imageUrl: string): DispatchJsonItem {
+  return {
+    guid: entry.link,
+    kind: entry.kind,
+    title: entry.title,
+    link: entry.link,
+    summary: entry.summary,
+    pubDate: entry.pubDate.toISOString(),
+    categories: entry.categories,
+    imageUrl,
+    newsletter: entry.newsletter,
+  };
 }

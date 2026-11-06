@@ -28,6 +28,680 @@
   gap: 0.75rem;
 }
 
+/* ─── THE HQ DISPATCH topics (NewsletterTopics.astro) ──────────────────────
+   One tile system for the signup box's dialog and the /newsletter page.
+
+   THE HEADER TYPE. `.nl-hq-header` is the box footer line's own type,
+   `.newsletter-fineprint` below (the body font, uppercase, 0.08em tracking),
+   promoted to a header: 0.95rem instead of 0.7rem (never under 14px, where
+   the site's 80% laptop root would take it), weight 800 instead of the
+   inherited 400, and full white instead of 50%. Text sizes in this block
+   are max(rem, px): rem so they grow with the root at 2560px and 4K, px so
+   the laptop root never takes them below a readable size. Used for the trigger
+   ("CHOOSE WHAT LANDS IN YOUR INBOX"), the dialog's heading and the
+   /newsletter section headings, so they read as one family with the line
+   that closes the box. The trigger adds the site's red underline as its
+   link cue. */
+.nl-hq-header {
+  font-family: var(--font-body);
+  font-size: max(0.95rem, 14px);
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-white);
+}
+
+.nl-topics-link {
+  display: inline-block;
+  min-height: 44px;
+  margin: 0;
+  padding: 0.6rem 0.25rem;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: underline;
+  text-decoration-color: var(--color-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.45em;
+  transition: color 0.18s ease;
+}
+
+.nl-topics-link:hover {
+  color: var(--color-accent-text);
+}
+
+.nl-topics-link:focus-visible {
+  outline: 2px solid var(--color-white);
+  outline-offset: 4px;
+}
+
+/* The one trigger, above the email row. Centred on the box at its own
+   width: on a phone the form is narrower than the line (246px of form at
+   360px), so the line may run a few px past the email field into the box's
+   36px padding, always at least 16px inside its border, instead of
+   shrinking below 13px. A button sizes to its text, so `margin: auto`
+   would left-align it once it outgrows the form; this centres it. */
+.nl-topics-link--top {
+  display: block;
+  width: max-content;
+  position: relative;
+  left: 50%;
+  translate: -50% 0;
+  margin: 0 0 0.75rem;
+}
+
+/* ONE LINE at every width from 360px (owner's call): the box trigger and the
+   dialog heading never wrap and never truncate. The sentence measures 21.75
+   times its font size at this 0.08em tracking (Inter 800, uppercase), so the
+   size is capped at the width it has: the viewport less 64px of gutters
+   (the dialog's 16px margins plus 16px of padding; in the box, the 20px
+   section gutter plus 16px inside the border), over 22.5 for a little air. 360px: 13.2px. 375px: 13.8px. 390px: 14.5px.
+   Wider screens get the full header size. */
+.nl-one-line {
+  white-space: nowrap;
+  font-size: min(max(0.95rem, 14px), calc((100vw - 64px) / 22.5));
+}
+
+/* Under the email row: the current choice, updated on every change. */
+.nl-topics-compact {
+  margin-top: 0.75rem;
+  text-align: center;
+}
+
+.nl-topics-selected {
+  margin: 0;
+  font-size: max(0.85rem, 13px);
+  line-height: 1.5;
+  color: var(--color-white);
+}
+
+.newsletter-form.is-success .nl-topics-link--top,
+.newsletter-form.is-success .nl-topics-compact {
+  display: none;
+}
+
+/* ─── THE BOX'S SPACING: ONE GAP (owner's call, 2026-11-01) ────────────────
+   Masthead, subtitle, CHOOSE link, email, Subscribe, Selected line, spam
+   line: the same space between each. The big hole under the subtitle was
+   three spacings stacked (the band's 2rem flex gap, the form's own 2rem top
+   margin and the link's 44px tap height); now the band's gap is the one
+   gap, the form adds none, and the link's tap height is an invisible hit
+   area instead of padding. The status line takes no space until it has a
+   message (it stays in the accessibility tree, so it is still announced).
+   The masthead's gap to the subtitle is set in SubscribeCTA.astro. */
+.subscribe-cta {
+  --nl-gap: max(1.1rem, 16px);
+}
+
+.subscribe-cta .cta-band {
+  gap: var(--nl-gap);
+}
+
+.subscribe-cta .subscribe-cta-subtitle {
+  margin: 0;
+}
+
+.subscribe-cta .newsletter-form {
+  margin-top: 0;
+}
+
+.subscribe-cta .nl-topics-link--top {
+  min-height: 0;
+  padding-block: 0;
+  /* Plus the red underline's own drop below the text (0.45em offset). */
+  margin-bottom: calc(var(--nl-gap) + 0.25em);
+}
+
+.subscribe-cta .nl-topics-link--top::before {
+  content: '';
+  position: absolute;
+  inset: -13px 0;
+}
+
+.subscribe-cta .newsletter-row {
+  row-gap: var(--nl-gap);
+}
+
+.subscribe-cta .nl-topics-compact {
+  margin-top: var(--nl-gap);
+}
+
+.subscribe-cta .newsletter-status:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.subscribe-cta .newsletter-status:not(:empty) {
+  margin-top: var(--nl-gap);
+}
+
+.subscribe-cta .newsletter-fineprint {
+  margin-top: var(--nl-gap);
+  text-align: center;
+}
+
+/* The tiles: real checkboxes laid over each card, so the whole card is the
+   tap target. Two by two at every width, in the dialog and on the page. */
+.nl-topics {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  text-align: left;
+}
+
+.nl-topics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.nl-topic {
+  position: relative;
+  display: block;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nl-topic input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.nl-topic-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  height: 100%;
+  min-height: 5.75rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.02);
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    transform 0.12s ease,
+    box-shadow 0.18s ease;
+}
+
+.nl-topic-name {
+  /* Room for the check on the name's line only; the description gets the full width. */
+  padding-right: 1.6rem;
+  font-family: var(--font-body);
+  font-size: max(0.85rem, 12px);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-white-muted);
+  transition: color 0.18s ease;
+}
+
+.nl-topic-desc {
+  font-size: max(0.8rem, 12px);
+  line-height: 1.4;
+  color: var(--color-white-muted);
+}
+
+/* The check: an empty ring when off; a filled red disc with a tick when on. */
+.nl-topic-check {
+  position: absolute;
+  top: 0.8rem;
+  right: 0.8rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.nl-topic-check::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: 0.3rem;
+  height: 0.55rem;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -50%) rotate(45deg) scale(0);
+  transition: transform 0.18s ease;
+}
+
+.nl-topic input:checked + .nl-topic-card {
+  border-color: var(--color-accent);
+  background: rgba(204, 0, 0, 0.14);
+  box-shadow: 0 0 18px rgba(204, 0, 0, 0.18);
+}
+
+.nl-topic input:checked + .nl-topic-card .nl-topic-name {
+  color: var(--color-white);
+}
+
+.nl-topic input:checked + .nl-topic-card .nl-topic-check {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  animation: nl-pop 0.24s ease;
+}
+
+.nl-topic input:checked + .nl-topic-card .nl-topic-check::after {
+  transform: translate(-50%, -50%) rotate(45deg) scale(1);
+}
+
+/* Press feedback: the card gives under the finger. */
+.nl-topic:active .nl-topic-card {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) {
+  .nl-topic:hover .nl-topic-card {
+    border-color: rgba(255, 255, 255, 0.32);
+  }
+  .nl-topic:hover input:checked + .nl-topic-card {
+    border-color: var(--color-accent-hover, #ff1a1a);
+  }
+}
+
+.nl-topic input:focus-visible + .nl-topic-card {
+  outline: 2px solid var(--color-white);
+  outline-offset: 2px;
+}
+
+@keyframes nl-pop {
+  0% { transform: scale(0.7); }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+/* ─── /newsletter's subscribe form (NewsletterForm layout="page") ────────
+   The box's form and script: email and SUBSCRIBE (side by side from 560px,
+   as in the box), the topics strip, the Selected line, the spam line.
+   Text is left aligned, except the spam line, which is centred (owner's
+   call). On success it collapses to the message rather than holding the
+   form's height. */
+.newsletter-form--page {
+  max-width: none;
+  margin: 1.5rem 0 0;
+  text-align: left;
+}
+
+.newsletter-form--page > .nl-topics-accordion {
+  margin-top: 1.25rem;
+}
+
+.newsletter-form--page .nl-topics-selected {
+  margin-top: 0.75rem;
+}
+
+.newsletter-form--page .newsletter-status:empty {
+  display: none;
+}
+
+.newsletter-form--page .newsletter-fineprint {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.newsletter-form--page.is-success {
+  min-height: 0;
+  justify-content: flex-start;
+}
+
+.newsletter-form--page.is-success > .nl-topics-accordion {
+  display: none;
+}
+
+/* ─── THE ACCORDION: /featured's, value for value ──────────────────────────
+   From src/pages/featured/index.astro, for /newsletter's two strips (the
+   topics strip in the subscribe form, and "Already subscribed?"), each
+   wrapped in `.nl-acc` so none of this can reach /featured's own rows.
+   Same: the section's #050505 and 2px bottom rule, the 1px top rule, the
+   header strip's red-to-black gradient (0.6, full on hover, gone when
+   open), the heading-wrapping-a-button, the inset focus ring, the spaced
+   capital title (0.5 white closed, 0.94 white open with the 2px red rule
+   down its left edge), its hover nudge and its typeface stack.
+   Differences, forced by the page: a strip is as tall as its content
+   (/featured's rows are shares of the screen), so it has a min-height and
+   the closed body is display:none; each strip opens and closes on its own
+   (src/lib/nl-accordion.ts; owner's call); a chevron on the right turns
+   when open (owner's call); side padding is /featured's phone value at
+   every width; and the body fades in with /featured's 0.5s after 0.3s. */
+.nl-acc {
+  width: 100%;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nl-acc .accordion-section {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+  background: #050505;
+}
+
+.nl-acc .accordion-header-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0.6;
+  background: linear-gradient(to right, rgba(var(--category-accent-rgb, 100, 0, 0), 0.75) 0%, rgba(0, 0, 0, 0.95) 60%);
+  transition: opacity 0.4s ease, background 0.4s ease;
+}
+
+.nl-acc .accordion-section.collapsed:hover .accordion-header-bg {
+  opacity: 1;
+  background: linear-gradient(to right, rgba(var(--category-accent-rgb, 153, 0, 0), 0.95) 0%, rgba(0, 0, 0, 0.95) 60%);
+}
+
+.nl-acc .accordion-section.expanded .accordion-header-bg {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.nl-acc .accordion-heading {
+  position: relative;
+  z-index: 10;
+  margin: 0;
+  font: inherit;
+}
+
+.nl-acc .accordion-header {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  min-height: 4.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 1rem;
+  padding: 0.9rem 1.25rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nl-acc .accordion-header:focus {
+  outline: none;
+}
+
+.nl-acc .accordion-header:focus-visible {
+  outline: 2px solid var(--color-accent-text, #ef4444);
+  outline-offset: -6px;
+}
+
+.nl-acc .accordion-section.expanded .accordion-header {
+  padding: 1.25rem 1.25rem 1rem;
+  background: transparent;
+}
+
+.nl-acc .accordion-title {
+  display: block;
+  font-family: 'Helvetica Neue', Helvetica, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  font-size: clamp(0.8rem, 1.15vw, 1.05rem);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.34em;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0;
+  z-index: 2;
+  transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+  line-height: 1.25;
+}
+
+@media (hover: hover) {
+  .nl-acc .accordion-section.collapsed:hover .accordion-title {
+    color: #fff;
+    transform: translateX(5px);
+  }
+}
+
+.nl-acc .accordion-section.expanded .accordion-title {
+  font-size: clamp(0.95rem, 1.5vw, 1.35rem);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.94);
+  letter-spacing: 0.3em;
+  transform: none;
+  padding-left: 0.9rem;
+  border-left: 2px solid rgba(var(--category-accent-rgb, 204, 0, 0), 0.9);
+}
+
+.nl-acc .accordion-header:focus-visible .accordion-title {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* The chevron: a CSS-drawn caret at the strip's right edge, pointing down
+   when closed and up when open. Same white as the title in each state. */
+.nl-acc .accordion-chevron {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin: -0.3rem 0.25rem 0 auto;
+  border-right: 2px solid rgba(255, 255, 255, 0.6);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.6);
+  transform: rotate(45deg);
+  transition: transform 0.3s ease, border-color 0.3s ease;
+}
+
+.nl-acc .accordion-section.expanded .accordion-chevron {
+  margin-top: 0.3rem;
+  border-color: rgba(255, 255, 255, 0.94);
+  transform: rotate(-135deg);
+}
+
+.nl-acc .accordion-section.collapsed .accordion-body {
+  display: none;
+}
+
+.nl-acc .accordion-section.expanded .accordion-body {
+  animation: nl-acc-in 0.5s ease 0.3s both;
+}
+
+@keyframes nl-acc-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* The topics strip's body: the tiles, inset to the title's edge. */
+.nl-topics-accordion .accordion-body {
+  padding: 0.25rem 1.25rem 1.25rem;
+}
+
+/* PHONES: a tighter 0.75rem side padding, and the spaced capitals at a
+   tracking a phone can hold (0.15em; /featured's own phone rule drops it
+   to -0.02em for its one-word labels). */
+@media (max-width: 560px) {
+  .nl-acc .accordion-header {
+    padding: 0.9rem 0.75rem;
+  }
+  .nl-acc .accordion-section.expanded .accordion-header {
+    padding: 1.25rem 0.75rem 0.75rem;
+  }
+  .nl-acc .accordion-title,
+  .nl-acc .accordion-section.expanded .accordion-title {
+    letter-spacing: 0.15em;
+  }
+  .nl-topics-accordion .accordion-body {
+    padding: 0.25rem 0.75rem 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nl-acc .accordion-header-bg,
+  .nl-acc .accordion-title,
+  .nl-acc .accordion-chevron {
+    transition: none;
+  }
+  .nl-acc .accordion-section.expanded .accordion-body {
+    animation: none;
+  }
+}
+
+/* The dialog. The <dialog> itself is a transparent frame; the panel inside
+   is the box. The X sits ABOVE the panel's top-right corner, where the
+   video modal puts its own (modal.css: top -45px, right 0), so the frame
+   leaves 3.25rem of room for it and the panel scrolls, never the frame,
+   which would clip the X. */
+.nl-dialog {
+  width: min(36rem, calc(100% - 32px));
+  max-width: none;
+  max-height: none;
+  margin: auto;
+  padding: 3.25rem 0 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  color: var(--color-white);
+}
+
+.nl-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.nl-dialog-frame {
+  position: relative;
+}
+
+.nl-dialog-panel {
+  max-height: calc(100dvh - 5.5rem);
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--color-surface, #111111);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  text-align: left;
+}
+
+.nl-dialog-title {
+  margin: 0 0 0.9rem;
+}
+
+/*
+  THE CLOSE X: the video modal's `.modal-close` (src/styles/modules/modal.css)
+  for colour, size, position and turn ONLY: a bare white ×, 2.5rem, above
+  the panel's top-right corner. No box, no border, no background in any
+  state. Hover turns the × itself red and nothing else, and only on a
+  device that really hovers (a phone keeps :hover stuck after a tap, which
+  would greet the next open with a red ×). A tap turns it a quarter turn
+  (`.is-turning`) and the dialog closes. Keyboard focus shows a thin 1px
+  white ring, for keyboard use only (:focus-visible), never after a tap.
+  The red square in the owner's iPhone screenshot was the homepage's 2px
+  crimson focus ring (`.home-v4 :focus-visible`), drawn because the dialog
+  put focus on the X when it opened. The dialog now takes that first focus
+  itself (NewsletterTopics), and the X's own thin ring outranks the
+  homepage's.
+  `touch-action: manipulation` and the invisible hit area as in a11y.css.
+*/
+.nl-dialog-x {
+  position: absolute;
+  top: -45px;
+  right: 0;
+  background: none;
+  border: none;
+  color: white;
+  font-size: 2.5rem;
+  cursor: pointer;
+  transition:
+    color 0.3s ease,
+    transform 0.3s ease;
+  line-height: 1;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  box-shadow: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.nl-dialog-x::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: -14px;
+  right: 0;
+  left: -16px;
+  background: none;
+  pointer-events: auto;
+}
+
+.nl-dialog-x:focus,
+.nl-dialog-x:active {
+  outline: none;
+  background: none;
+  border: none;
+}
+
+/* `.nl-dialog` in front so it beats the homepage's own focus ring,
+   `.home-v4 :focus-visible` (2px crimson, home.css), which is the same
+   weight and comes later: that was the red square. */
+.nl-dialog .nl-dialog-x:focus-visible {
+  outline: 1px solid var(--color-white);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+@media (hover: hover) {
+  .nl-dialog-x:hover {
+    color: var(--color-accent-text);
+  }
+}
+
+.nl-dialog-x.is-turning {
+  color: var(--color-accent-text);
+  transform: rotate(90deg);
+}
+
+/* The dialog takes first focus on open (so no control shows a ring
+   unasked); it draws nothing for it. */
+dialog.nl-dialog:focus,
+dialog.nl-dialog:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.nl-dialog-done {
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nl-topic-card,
+  .nl-topic-check,
+  .nl-topic-check::after,
+  .nl-topics-link,
+  .nl-dialog-x {
+    transition: none;
+  }
+  .nl-topic input:checked + .nl-topic-card .nl-topic-check {
+    animation: none;
+  }
+  .nl-topic:active .nl-topic-card {
+    transform: none;
+  }
+}
+
 /*
    Turnstile widget mount point.
 

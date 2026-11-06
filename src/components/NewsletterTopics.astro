@@ -1,0 +1,187 @@
+---
+/**
+ * NewsletterTopics: choose what THE HQ DISPATCH sends. One tile system for the
+ * signup box (NewsletterForm.astro) and the /newsletter page (subscribe form and preference panel).
+ *
+ * ─── LEAN BY DESIGN (owner's review, 2026-11-01) ─────────────────────────
+ * The trigger sentence, "CHOOSE WHAT LANDS IN YOUR INBOX", IS the
+ * explanation: no paragraph restates it. It appears ONCE in the box, above
+ * the email row (NewsletterForm.astro), and once as the dialog's heading, on
+ * one line at every width from 360px up (`.nl-one-line`). The dialog holds
+ * the four tiles, their names and descriptions, and one action. Nothing
+ * else.
+ *
+ *   variant="modal"    (signup box) the "Selected" line, which updates on
+ *                      every real change, and the native <dialog>. The
+ *                      dialog sits inside the <form>, so the checkboxes go
+ *                      with the signup. Its close control is the site's
+ *                      plain rotating X, copied from the video modal's
+ *                      `.modal-close` (src/styles/modules/modal.css, the
+ *                      #video-modal in Layout.astro): see `.nl-dialog-x`.
+ *                      Escape, the X, the action and a backdrop click close
+ *                      it; Tab wraps inside; focus returns to the trigger.
+ *   variant="accordion" (/newsletter) a collapsed strip titled with the
+ *                      same sentence, /featured's accordion header
+ *                      (`.nl-acc` in newsletter.css, src/lib/nl-accordion.ts),
+ *                      closed by default, a chevron that turns when open.
+ *                      Inside: the four tiles. Under the strip: the same
+ *                      "Selected" line, live whether the strip is open or
+ *                      not. The tiles sit in the subscribe form, so
+ *                      SUBSCRIBE (or Save, after a signed link) sends them.
+ * None ticked means all four (parseTopics).
+ */
+import { TOPICS, TOPIC_LABELS } from '../lib/dispatch-topics.ts';
+import { MESSAGES } from '../data/content.js';
+
+interface Props {
+  variant?: 'accordion' | 'modal';
+  /** accordion only: id for the fieldset, so the page can find it. */
+  id?: string;
+}
+const { variant = 'modal', id } = Astro.props;
+
+/** What each topic covers, in the publication's terms. */
+const DESCRIPTIONS = {
+  film: 'Reviews, trailers and premieres',
+  tv: 'Series reviews and episode breakdowns',
+  games: 'Releases, previews and industry news',
+  events: 'Cons, premieres and live coverage',
+} as const;
+---
+
+{variant === 'modal' ? (
+  <div class="nl-topics-compact" data-nl-topics-root>
+    <p class="nl-topics-selected" data-nl-short aria-live="polite">Selected: FILM, TV, GAMES, EVENTS.</p>
+    <dialog class="nl-dialog" id="nl-topics-dialog" data-nl-dialog aria-labelledby="nl-dialog-title" tabindex="-1">
+      <div class="nl-dialog-frame">
+        <button type="button" class="nl-dialog-x" data-nl-x aria-label="Close">&times;</button>
+        <div class="nl-dialog-panel">
+          <h2 class="nl-hq-header nl-one-line nl-dialog-title" id="nl-dialog-title">{MESSAGES.newsletterTopicsTrigger}</h2>
+          <fieldset class="nl-topics nl-topics--modal" data-nl-topics>
+            <legend class="sr-only">Topics</legend>
+            <div class="nl-topics-grid">
+              {TOPICS.map((topic) => (
+                <label class="nl-topic">
+                  <input type="checkbox" name="topics" value={topic} checked />
+                  <span class="nl-topic-card">
+                    <span class="nl-topic-check" aria-hidden="true"></span>
+                    <span class="nl-topic-name">{TOPIC_LABELS[topic]}</span>
+                    <span class="nl-topic-desc">{DESCRIPTIONS[topic]}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <button type="button" class="cta-button-primary nl-dialog-done" data-nl-close>Use these topics</button>
+        </div>
+      </div>
+    </dialog>
+  </div>
+) : (
+  <div class="nl-acc nl-topics-accordion" data-nl-topics-root>
+    <div class="accordion-section collapsed" data-nl-accordion>
+      <h2 class="accordion-heading">
+        <button type="button" class="accordion-header" aria-expanded="false" aria-controls="nl-topics-panel">
+          <span class="accordion-header-bg" aria-hidden="true"></span>
+          <span class="accordion-title">{MESSAGES.newsletterTopicsTrigger}</span>
+          <span class="accordion-chevron" aria-hidden="true"></span>
+        </button>
+      </h2>
+      <div class="accordion-body" id="nl-topics-panel">
+        <fieldset class="nl-topics" id={id} data-nl-topics>
+          <legend class="sr-only">Topics</legend>
+          <div class="nl-topics-grid">
+            {TOPICS.map((topic) => (
+              <label class="nl-topic">
+                <input type="checkbox" name="topics" value={topic} checked />
+                <span class="nl-topic-card">
+                  <span class="nl-topic-check" aria-hidden="true"></span>
+                  <span class="nl-topic-name">{TOPIC_LABELS[topic]}</span>
+                  <span class="nl-topic-desc">{DESCRIPTIONS[topic]}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      </div>
+    </div>
+    <p class="nl-topics-selected" data-nl-short aria-live="polite">Selected: FILM, TV, GAMES, EVENTS.</p>
+  </div>
+)}
+
+<script>
+  import { lockScroll, unlockScroll } from '../lib/scroll-lock';
+  import { bindAccordion } from '../lib/nl-accordion';
+
+  /* Topic names are UPPERCASE in every sentence, the same as on the tiles. */
+  const LABELS: Record<string, string> = { film: 'FILM', tv: 'TV', games: 'GAMES', events: 'EVENTS' };
+
+  /** The selected line in the signup box. */
+  function shortLine(chosen: string[]): string {
+    if (chosen.length === 0) return 'Selected: none, which means all four.';
+    return `Selected: ${chosen.map((t) => LABELS[t] ?? t).join(', ')}.`;
+  }
+
+  /** The video modal's X turns 90 degrees over 0.3s (modal.css); close once it has. */
+  const X_TURN_MS = 300;
+
+  function bind(root: HTMLElement) {
+    if (root.dataset.bound) return;
+    root.dataset.bound = '1';
+    const short = root.querySelector<HTMLElement>('[data-nl-short]');
+    const update = () => {
+      const chosen = [...root.querySelectorAll<HTMLInputElement>('input[name="topics"]:checked')].map((b) => b.value);
+      if (short) short.textContent = shortLine(chosen);
+    };
+    root.addEventListener('change', update);
+    update();
+    root.querySelectorAll<HTMLElement>('[data-nl-accordion]').forEach(bindAccordion);
+
+    const dialog = root.querySelector<HTMLDialogElement>('[data-nl-dialog]');
+    if (!dialog) return;
+    const x = dialog.querySelector<HTMLButtonElement>('[data-nl-x]');
+    // The trigger lives in the surrounding form (NewsletterForm.astro).
+    const scope = root.closest('form') ?? root;
+    let opener: HTMLElement | null = null;
+    scope.querySelectorAll<HTMLElement>('[data-nl-open]').forEach((button) => {
+      button.addEventListener('click', () => {
+        if (dialog.open) return;
+        opener = button;
+        x?.classList.remove('is-turning');
+        dialog.showModal();
+        // First focus goes to the dialog itself, not the X: Safari drew its
+        // focus ring round the X on every tap-open (the red square).
+        dialog.focus();
+        lockScroll();
+      });
+    });
+    // The X turns as it closes, the same quarter turn the video modal's X
+    // makes on tap, so the dialog waits for it before going.
+    x?.addEventListener('click', () => {
+      x.classList.add('is-turning');
+      window.setTimeout(() => dialog.close(), matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : X_TURN_MS);
+    });
+    root.querySelectorAll<HTMLButtonElement>('[data-nl-close]').forEach((b) => b.addEventListener('click', () => dialog.close()));
+    // A click on the dimmed backdrop (the dialog box itself, outside its frame) closes it.
+    dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+    // Keep Tab inside while it is open: a modal <dialog> makes the page
+    // behind inert, but Tab past the last control still leaves for the
+    // browser's own toolbar. Wrap from the last control to the first and back.
+    dialog.addEventListener('keydown', (event) => {
+      if (event.key !== 'Tab') return;
+      const focusable = [...dialog.querySelectorAll<HTMLElement>('button, input, a[href], [tabindex]:not([tabindex="-1"])')]
+        .filter((el) => !(el as HTMLButtonElement).disabled);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    });
+    // Every way out (the X, the action, Escape, the backdrop) ends here, once.
+    dialog.addEventListener('close', () => { unlockScroll(); opener?.focus(); });
+  }
+
+  document.addEventListener('astro:page-load', () => {
+    document.querySelectorAll<HTMLElement>('[data-nl-topics-root]').forEach(bind);
+  });
+</script>

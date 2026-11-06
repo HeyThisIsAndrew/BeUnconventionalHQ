@@ -40,6 +40,7 @@ import {
   DISPATCH_IMAGE_PUBLIC_PATH,
 } from '../src/lib/dispatch-feed.ts';
 import { mapSanityVideo } from '../src/lib/videos.ts';
+import { selectUpcomingEvent, eventImageSource } from '../src/lib/dispatch-topics.ts';
 import { categorize } from '../src/data/categorize.js';
 import { site } from '../src/data/site.js';
 
@@ -92,7 +93,11 @@ async function run() {
     Array.isArray(articles) ? articles : [],
     Array.isArray(videoDocs) ? videoDocs : [],
   );
-  const sources = [...new Set(entries.map((e) => e.imageSource).filter((u) => /^https?:\/\//i.test(u ?? '')))];
+  // Plus the next upcoming event's key art: the newsletter's Events slot
+  // shows that event when no event story ran this week.
+  const upcoming = selectUpcomingEvent(Array.isArray(videoDocs) ? videoDocs : []);
+  const eventArt = upcoming ? eventImageSource(upcoming) : null;
+  const sources = [...new Set([...entries.map((e) => e.imageSource), eventArt].filter((u) => /^https?:\/\//i.test(u ?? '')))];
 
   let manifest = {};
   try {

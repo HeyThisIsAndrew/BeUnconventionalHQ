@@ -736,6 +736,13 @@ export default defineConfig({
         access: 'secret',
         optional: true,
       }),
+      // THE HQ DISPATCH topics (src/lib/newsletter-prefs.ts, scripts/hq-dispatch.md).
+      // All optional: unset, signup stays KV-only and /newsletter says it is unavailable.
+      NEWSLETTER_LINK_SECRET: envField.string({ context: 'server', access: 'secret', optional: true }),
+      KIT_API_KEY: envField.string({ context: 'server', access: 'secret', optional: true }),
+      KIT_SYNC_SIGNUPS: envField.string({ context: 'server', access: 'secret', optional: true }),
+      KIT_FORM_ID: envField.string({ context: 'server', access: 'secret', optional: true }),
+      KIT_TOPICS_FIELD: envField.string({ context: 'server', access: 'secret', optional: true }),
     },
   },
 
@@ -799,6 +806,8 @@ export default defineConfig({
         const path = url.pathname.replace(/\/$/, '');
         const excludedPaths = [
           '/links',
+          // THE HQ DISPATCH preference page: reached from a signed email link.
+          '/newsletter',
           '/admin',
           '/local-cms',
           '/media-kit',

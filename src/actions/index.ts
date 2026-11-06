@@ -42,6 +42,11 @@ import { ActionError, defineAction } from 'astro:actions';
 /* `astro:schema` is deprecated and goes away in Astro 8; `astro/zod` is the
    same Zod 4 instance without the deprecation. */
 import { z } from 'astro/zod';
+import { TOPICS, parseTopics, formatTopics } from '../lib/dispatch-topics.ts';
+import {
+  signPrefsToken, verifyPrefsToken, prefsLink, prefsEmail, normalizeEmail, LINK_FROM,
+  findKitSubscriber, saveKitTopics, unsubscribeKit, topicsOf, type KitConfig,
+} from '../lib/newsletter-prefs.ts';
 // @ts-ignore - virtual module provided by @astrojs/cloudflare, absent from
 // the type graph during `astro check` but present at build and at runtime.
 import { env as workerEnv } from 'cloudflare:workers';
@@ -215,6 +220,27 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
+/** Kit settings for the newsletter actions, or null while Kit is not configured. */
+function readKitConfig(): KitConfig | null {
+  const apiKey = readEnv('KIT_API_KEY');
+  if (!apiKey) return null;
+  return { apiKey, field: readEnv('KIT_TOPICS_FIELD') || 'hq_topics', formId: readEnv('KIT_FORM_ID') || undefined };
+}
+
+/** On the list, by the site's own record or by Kit's. */
+async function isSubscriber(email: string): Promise<boolean> {
+  const KV = readEnv('KV');
+  if (KV && (await KV.get(`subscriber:${email}`))) return true;
+  const kitConfig = readKitConfig();
+  if (!kitConfig) return false;
+  try {
+    const subscriber = await findKitSubscriber(kitConfig, email);
+    return Boolean(subscriber && subscriber.state !== 'cancelled');
+  } catch {
+    return false;
+  }
+}
+
 export const server = {
   /**
    * Newsletter signup. Stores `subscriber:<email>` in the `KV` binding.
@@ -227,9 +253,13 @@ export const server = {
          decides whether a missing token is allowed. Marking it required here
          would reject the unconfigured-Turnstile case before that runs. */
       'cf-turnstile-response': z.string().optional(),
+      /* THE HQ DISPATCH topics from the form's toggles. Absent or empty means
+         all four (src/lib/dispatch-topics.ts parseTopics). */
+      topics: z.array(z.enum(TOPICS)).max(TOPICS.length).optional(),
     }),
     handler: async (input, context) => {
       const { email, 'cf-turnstile-response': turnstileToken } = input;
+      const topics = formatTopics(parseTopics(input.topics ?? []));
 
       await requireHuman(context, turnstileToken, 'subscribe');
 
@@ -254,6 +284,7 @@ export const server = {
                it exists so a future second form is tellable apart in a KV
                dump. */
             source: 'NewsletterForm',
+            topics,
           }),
         );
       } else {
@@ -263,7 +294,110 @@ export const server = {
         console.log('-----------------------------------------');
       }
 
+      /* Kit is where the newsletter is sent from. Until KIT_SYNC_SIGNUPS is
+         "true" (and KIT_API_KEY set) the KV record above is the only copy,
+         exactly as before. A Kit failure never fails the signup: the address
+         is already saved, and the owner's backfill can carry it later. */
+      const kitConfig = readKitConfig();
+      if (kitConfig && readEnv('KIT_SYNC_SIGNUPS') === 'true') {
+        try {
+          await saveKitTopics(kitConfig, email, parseTopics(topics), { addToForm: true });
+        } catch (error) {
+          console.error('[actions.subscribe] Kit sync failed:', error instanceof Error ? error.message : error);
+        }
+      }
+
       return { success: true, message: 'Subscribed successfully!' };
+    },
+  }),
+
+  /**
+   * Preference page, step 1: email the reader a signed link to /newsletter.
+   * The answer is the same whether or not the address is on the list, so the
+   * form cannot be used to find out who subscribes.
+   */
+  newsletterLink: defineAction({
+    accept: 'json',
+    input: z.object({
+      email: z.email('Please enter a valid email address.'),
+      'cf-turnstile-response': z.string().optional(),
+    }),
+    handler: async (input, context) => {
+      await requireHuman(context, input['cf-turnstile-response'], 'newsletterLink');
+      const email = normalizeEmail(input.email);
+      const secret = readEnv('NEWSLETTER_LINK_SECRET');
+      const resendKey = readEnv('RESEND_API_KEY');
+      if (!secret || !resendKey) {
+        console.error('[actions.newsletterLink] NEWSLETTER_LINK_SECRET or RESEND_API_KEY is not set.');
+        throw new ActionError({ code: 'SERVICE_UNAVAILABLE', message: 'This page is not available right now. Please try again later.' });
+      }
+      /* One link per address per 10 minutes, whatever the form is fed: the
+         answer below is the same either way, so a script cannot use this
+         to flood someone's inbox. */
+      const KV = readEnv('KV');
+      const cooling = KV ? await KV.get(`prefslink:${email}`) : null;
+      if (!cooling && (await isSubscriber(email))) {
+        if (KV) await KV.put(`prefslink:${email}`, '1', { expirationTtl: 600 });
+        // The site the request came to, so a link sent from a preview copy opens
+        // that preview, and one from production opens production.
+        const link = prefsLink(new URL(context.request.url).origin, await signPrefsToken(secret, email));
+        const message = prefsEmail(link);
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: LINK_FROM, to: email, ...message }),
+        });
+        if (!res.ok) console.error(`[actions.newsletterLink] Resend answered HTTP ${res.status}`);
+      }
+      return { success: true, message: 'If that address is on the list, a link is on its way. Check your inbox.' };
+    },
+  }),
+
+  /**
+   * Preference page, step 2: read or change a reader's topics, or
+   * unsubscribe them, with the signed token from their link.
+   */
+  newsletterPrefs: defineAction({
+    accept: 'json',
+    input: z.object({
+      token: z.string().max(600),
+      op: z.enum(['get', 'save', 'unsubscribe']),
+      topics: z.array(z.enum(TOPICS)).max(TOPICS.length).optional(),
+    }),
+    handler: async (input) => {
+      const email = await verifyPrefsToken(readEnv('NEWSLETTER_LINK_SECRET') ?? '', input.token);
+      if (!email) {
+        throw new ActionError({ code: 'UNAUTHORIZED', message: 'This link has expired or is not valid. Ask for a new one with the form above.' });
+      }
+      const KV = readEnv('KV');
+      const kitConfig = readKitConfig();
+      const record: any = KV ? await KV.get(`subscriber:${email}`, 'json') : null;
+
+      if (input.op === 'get') {
+        let topics = parseTopics((record as any)?.topics);
+        if (kitConfig) {
+          try {
+            const subscriber = await findKitSubscriber(kitConfig, email);
+            if (subscriber) topics = topicsOf(subscriber, kitConfig.field);
+          } catch (error) {
+            console.error('[actions.newsletterPrefs] Kit read failed:', error instanceof Error ? error.message : error);
+          }
+        }
+        return { email, topics, unsubscribed: Boolean((record as any)?.unsubscribedAt) };
+      }
+
+      if (input.op === 'save') {
+        const topics = parseTopics(input.topics ?? []);
+        if (KV) await KV.put(`subscriber:${email}`, JSON.stringify({ ...(record ?? { email }), topics: formatTopics(topics), topicsUpdatedAt: new Date().toISOString(), unsubscribedAt: undefined }));
+        // A reader Kit does not know yet comes in through the form, confirmation and all.
+        if (kitConfig) await saveKitTopics(kitConfig, email, topics, { addToForm: true });
+        return { email, topics, unsubscribed: false };
+      }
+
+      // unsubscribe
+      if (KV && record) await KV.put(`subscriber:${email}`, JSON.stringify({ ...record, unsubscribedAt: new Date().toISOString() }));
+      if (kitConfig) await unsubscribeKit(kitConfig, email);
+      return { email, topics: [], unsubscribed: true };
     },
   }),
 

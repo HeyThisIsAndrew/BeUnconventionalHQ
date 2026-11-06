@@ -516,6 +516,36 @@ featuredBrand `logo`/`heroImage` are real Sanity asset references; `urlFor()` in
   load in flight, never the callback. Load the API through
   `src/lib/youtube-iframe-api.ts`; `scripts/youtube-iframe-api.test.mjs`.
 
+## Automation: THE HQ DISPATCH and social posting
+
+Two standalone Workers, each with its own `wrangler.jsonc` and deploy workflow,
+both reading `/dispatch.json` through a service binding (the domain's bot
+protection refuses datacenter IPs). Runbooks: `scripts/hq-dispatch.md`,
+`scripts/social-blast.md`; testing by hand: `scripts/branch-preview.md`.
+
+- **Everything ships OFF and the owner switches it on.** Never flip these
+  without the owner saying so: `LIVE_PLATFORMS` (social posts),
+  `CREATE_DRAFTS` / `PERSONALIZE` (Kit Worker), `KIT_SYNC_SIGNUPS` (site),
+  and never set `"approved": true` on a template in
+  `social-blast-worker/templates.json`: approval is the owner's, per template.
+- **Email markup lives only in `email/hq-dispatch/*.liquid.html`.** The site
+  pre-renders it into `/dispatch.json` (`src/lib/dispatch-boxes.ts`); the Kit
+  Worker only joins pieces and drops escaped words into placeholders.
+- **Newsletter copy is the author's, never rewritten or cut.** Subtitle and
+  lede are separate fields; a missing one is left out and listed under
+  WRITE BEFORE SENDING, never filled from the body or a YouTube description.
+- **Kit is the source of truth for drafts**: the marker in a draft's
+  description is checked before every create, so lost Worker state cannot
+  make a second draft. The marker names the NEWEST story, whatever is FEATURED.
+- **Never create a Kit subscriber as active.** New readers go in `inactive`
+  and through a Kit form, which is what sends Kit's confirmation email;
+  existing readers only ever get their `hq_topics` field updated
+  (`saveKitTopics()` in `src/lib/newsletter-prefs.ts`).
+- **One story, one post per platform**: social state is a Durable Object, not
+  KV, and an in-flight post that never answered is reported, never retried.
+- Worker `compatibility_date` must stay on or before 2026-09-04 while
+  wrangler is pinned to ~4.127, or `wrangler dev` refuses to start.
+
 ## Conventions
 
 - **The global QA sweep (`npm run test:dist`, `scripts/e2e-global-qa-sweep.test.mjs`)

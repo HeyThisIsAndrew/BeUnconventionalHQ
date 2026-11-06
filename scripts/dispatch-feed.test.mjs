@@ -25,12 +25,20 @@ import {
   isDispatchVideoDoc,
   dispatchImageUrl,
   dispatchContentHtml,
+  dispatchJsonItem,
+  dispatchKitPost,
+  newsletterCopy,
+  wholeSentences,
   articleEntry,
   videoEntry,
   DISPATCH_FEED_LIMIT,
   DISPATCH_FALLBACK_IMAGE,
 } from '../src/lib/dispatch-feed.ts';
 import { composeDispatchImage, WIDTH, HEIGHT } from './dispatch-image.mjs';
+import { createBoxRenderer } from '../src/lib/dispatch-boxes.ts';
+import { joinBoxes } from '../dispatch-kit-worker/kit-draft.mjs';
+import { renderPosts, FIXTURE_POSTS, POST_TEMPLATE_PATH, DISPATCH_DIR } from './hq-dispatch-render.mjs';
+import { Liquid } from 'liquidjs';
 
 const SITE = 'https://beunconventionalhq.com/';
 const article = (over = {}) => ({
@@ -110,6 +118,158 @@ test('content:encoded starts with the 1200x675 image, then the escaped summary',
   const html = dispatchContentHtml(e, 'https://beunconventionalhq.com/dispatch/images/abc.jpg');
   assert.match(html, /^<img src="https:\/\/beunconventionalhq\.com\/dispatch\/images\/abc\.jpg" width="1200" height="675" alt="">/);
   assert.match(html, /<p>Tom &amp; Jerry say &quot;hi&quot; &gt; 3<\/p>$/);
+});
+
+test('/dispatch.json items: the RSS fields, ISO date, link as guid', () => {
+  const e = articleEntry(article(), SITE);
+  const item = dispatchJsonItem(e, 'https://beunconventionalhq.com/dispatch/images/abc.jpg');
+  assert.deepEqual(item, {
+    guid: 'https://beunconventionalhq.com/intel/a-story',
+    kind: 'article',
+    title: 'A Story',
+    link: 'https://beunconventionalhq.com/intel/a-story',
+    summary: 'The standfirst.',
+    pubDate: '2026-09-10T12:00:00.000Z',
+    categories: ['Review', 'TV'],
+    imageUrl: 'https://beunconventionalhq.com/dispatch/images/abc.jpg',
+    newsletter: { subtitle: 'The standfirst.', lede: null, blurb: 'The standfirst.', missing: [] },
+  });
+  // JSON-safe: survives a round trip unchanged (no Date objects).
+  assert.deepEqual(JSON.parse(JSON.stringify(item)), item);
+  assert.equal(dispatchJsonItem(videoEntry(video()), 'x').kind, 'video');
+});
+
+test('pre-rendered boxes joined in order are EXACTLY the Kit template rendering the same posts', async () => {
+  const renderer = createBoxRenderer(readFileSync(POST_TEMPLATE_PATH, 'utf8'));
+  const heading = await renderer.latestHeading();
+  assert.match(heading, /Latest from the/);
+  for (let n = 1; n <= FIXTURE_POSTS.length; n++) {
+    const posts = FIXTURE_POSTS.slice(0, n);
+    const boxes = await Promise.all(posts.map((p) => renderer.boxes(p)));
+    const joined = joinBoxes(boxes[0].featuredHtml, heading, boxes.slice(1).map((b) => b.latestHtml));
+    // Whitespace between tags is the only freedom allowed: it renders as nothing.
+    const squash = (html) => html.replace(/>\s+</g, '><').trim();
+    assert.equal(squash(joined), squash(await renderPosts(posts)), `${n} posts`);
+  }
+  // A box carries its own story and no section heading.
+  const { featuredHtml, latestHtml } = await renderer.boxes(FIXTURE_POSTS[1]);
+  assert.match(featuredHtml, /Watch now/);
+  assert.doesNotMatch(latestHtml, /Latest from the/);
+});
+
+test('the Kit post shape escapes the text the template prints raw', () => {
+  const e = articleEntry(article({ title: 'Tom & <Jerry>', excerpt: 'a "b"' }), SITE);
+  const post = dispatchKitPost(e, 'https://beunconventionalhq.com/dispatch/images/abc.jpg');
+  assert.equal(post.title, 'Tom &amp; &lt;Jerry&gt;');
+  assert.equal(post.summary, 'a &quot;b&quot;');
+  assert.match(post.content, /^<img src="https:\/\/beunconventionalhq\.com\/dispatch\/images\/abc\.jpg"/);
+  assert.deepEqual(post.categories, ['Review', 'TV']);
+});
+
+// ─── the newsletter's own fields (owner's rules, 2026-10-31) ───────────────
+
+const ANDREW_SUBTITLE = "Who's gonna win Game of the Year? GTA VI, cutting it close with a November 19 launch, one day before the cutoff.";
+const GAME_AWARDS_LEDE = 'The gaming industry takes over the Peacock Theater on December 10, with live performances, first-look trailers, and direct access to the developers building the games we love. Here is why a ticket is worth the trip to Los Angeles.';
+
+test("FEATURED: the author's subtitle exactly as written, and the lede as a SEPARATE field", () => {
+  const copy = newsletterCopy(article({ excerpt: ANDREW_SUBTITLE, preview: [GAME_AWARDS_LEDE, 'Second paragraph.'] }), 'article');
+  assert.equal(copy.subtitle, ANDREW_SUBTITLE, 'never rewritten');
+  assert.equal(copy.lede, GAME_AWARDS_LEDE, 'the opening paragraph, whole');
+  assert.notEqual(copy.subtitle, copy.lede);
+  // A CMS editorial excerpt is the author's too, and wins.
+  assert.equal(newsletterCopy(article({ editorial: { excerpt: 'Typed in the CMS.' } }), 'article').subtitle, 'Typed in the CMS.');
+});
+
+test('the same sentence is never shown twice: a lede sentence that repeats the subtitle is dropped', () => {
+  const copy = newsletterCopy(article({
+    excerpt: 'The gaming industry takes over the Peacock Theater on December 10.',
+    preview: ['The gaming industry takes over the Peacock Theater on December 10! Here is why a ticket is worth the trip.'],
+  }), 'article');
+  assert.equal(copy.lede, 'Here is why a ticket is worth the trip.');
+  // Nothing left after the repeat: no lede at all.
+  assert.equal(newsletterCopy(article({ excerpt: 'Same words.', preview: ['Same words.'] }), 'article').lede, null);
+});
+
+test('the lede is whole sentences only, never cut mid-thought', () => {
+  const long = `${'A sentence that runs on for quite a while to fill space. '.repeat(8)}`;
+  const lede = wholeSentences(long, 320);
+  assert.ok(lede.length <= 320);
+  assert.match(lede, /space\.$/);
+  // One sentence longer than the limit: no lede, rather than half a sentence.
+  assert.equal(wholeSentences(`${'word '.repeat(100)}end.`, 320), null);
+});
+
+test('blurb: written newsletter summary first, else a one-line subtitle, else MISSING (never invented)', () => {
+  assert.equal(newsletterCopy(article({ editorial: { newsletterBlurb: 'Written for the newsletter.' } }), 'article').blurb, 'Written for the newsletter.');
+  assert.equal(newsletterCopy(article({ excerpt: 'A one-line subtitle.' }), 'article').blurb, 'A one-line subtitle.');
+  // Too long to be one line, or already cut by a machine: flagged, not trimmed.
+  const tooLong = newsletterCopy(article({ excerpt: `${'Long '.repeat(60)}end.` }), 'article');
+  assert.equal(tooLong.blurb, null);
+  assert.deepEqual(tooLong.missing, ['blurb']);
+  assert.equal(newsletterCopy(article({ excerpt: 'It was cut off…' }), 'article').blurb, null);
+  // A video never borrows its YouTube description, and never the body's first sentence.
+  const v = newsletterCopy(video({ description: 'I just attended the premiere and had to share my first thoughts.' }), 'video');
+  assert.equal(v.blurb, null);
+  assert.deepEqual(v.missing, ['subtitle', 'blurb']);
+  assert.equal(newsletterCopy(article({ excerpt: '', preview: ['Body first sentence.'] }), 'article').blurb, null);
+  assert.equal(newsletterCopy(video({ editorial: { newsletterBlurb: 'One line.' } }), 'video').blurb, 'One line.');
+});
+
+test('the Kit post carries the separate fields; the boxes print them whole', async () => {
+  const e = articleEntry(article({ excerpt: ANDREW_SUBTITLE, preview: [GAME_AWARDS_LEDE] }), SITE);
+  const post = dispatchKitPost(e, 'https://beunconventionalhq.com/dispatch/images/abc.jpg');
+  assert.equal(post.newsletter, true);
+  const renderer = createBoxRenderer(readFileSync(POST_TEMPLATE_PATH, 'utf8'));
+  const { featuredHtml, latestHtml } = await renderer.boxes(post);
+  assert.ok(featuredHtml.includes("Who&#39;s gonna win Game of the Year? GTA VI, cutting it close with a November 19 launch, one day before the cutoff.") ||
+    featuredHtml.includes(post.subtitle), 'subtitle whole');
+  assert.ok(featuredHtml.includes('Peacock Theater on December 10'), 'lede present');
+  assert.equal(featuredHtml.split('November 19 launch').length - 1, 1, 'subtitle once');
+  assert.equal(featuredHtml.split('Peacock Theater').length - 1, 1, 'lede once');
+  // LATEST shows the blurb, whole, and no lede.
+  assert.ok(latestHtml.includes(post.blurb));
+  assert.ok(!latestHtml.includes('Peacock Theater'));
+  // A story with no blurb renders without the line, not with a stand-in.
+  const bare = { ...post, blurb: '' };
+  const { latestHtml: noBlurb } = await renderer.boxes(bare);
+  assert.ok(!/class="dx-body"/.test(noBlurb));
+});
+
+test('no template truncates text any more', () => {
+  for (const f of ['post-template.liquid.html', 'also-this-week.liquid.html']) {
+    assert.ok(!/truncate/.test(readFileSync(`${DISPATCH_DIR}/${f}`, 'utf8')), f);
+  }
+});
+
+test('ALSO THIS WEEK rows, the issue line and the editor note are pre-rendered with placeholders', async () => {
+  const read = (f) => readFileSync(`${DISPATCH_DIR}/${f}`, 'utf8');
+  const renderer = createBoxRenderer({
+    post: read('post-template.liquid.html'), also: read('also-this-week.liquid.html'),
+    issueMarker: read('issue-marker.liquid.html'), editorNote: read('editor-note.liquid.html'),
+  });
+  const heading = await renderer.alsoHeading();
+  assert.match(heading, /Also this week/);
+  const { alsoHtml } = await renderer.boxes(FIXTURE_POSTS[1]);
+  assert.ok(alsoHtml.includes(FIXTURE_POSTS[1].title));
+  assert.doesNotMatch(alsoHtml, /Also this week/);
+  // Heading + rows equals the template rendering the same posts.
+  const squash = (html) => html.replace(/>\s+</g, '><').trim();
+  const rows = await Promise.all(FIXTURE_POSTS.slice(0, 3).map(async (p) => (await renderer.boxes(p)).alsoHtml));
+  const direct = await new Liquid().parseAndRender(read('also-this-week.liquid.html'), { posts: FIXTURE_POSTS.slice(0, 3) });
+  assert.equal(squash(heading + rows.join('')), squash(direct));
+  const { issueMarkerHtml, editorNoteHtml } = await renderer.issuePieces();
+  assert.ok(issueMarkerHtml.includes('%%HQ_ISSUE_MARKER%%'));
+  assert.ok(editorNoteHtml.includes('%%HQ_EDITOR_NOTE%%'));
+  assert.match(editorNoteHtml, /From the editor/);
+});
+
+test('labels clear 6.5:1 on the story box (owner: red labels read faint)', () => {
+  const L = (h) => { const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const ratio = (a, b) => (Math.max(L(a), L(b)) + 0.05) / (Math.min(L(a), L(b)) + 0.05);
+  const post = readFileSync(POST_TEMPLATE_PATH, 'utf8');
+  const labels = [...post.matchAll(/class="dx-red"[^>]*color:(#[0-9a-f]{6})/gi)].map((m) => m[1]);
+  assert.ok(labels.length >= 4);
+  for (const c of labels) assert.ok(ratio(c, '#111111') >= 6.5, `${c} is ${ratio(c, '#111111').toFixed(2)}:1`);
 });
 
 test('the fallback art is committed and 16:9', async () => {

@@ -48,10 +48,31 @@
  * status message is an `aria-live` region so screen readers hear the result,
  * and `aria-busy` marks the form while the challenge and the request run.
  *
+ * ─── TOPICS ───────────────────────────────────────────────────────────────
+ * "CHOOSE WHAT LANDS IN YOUR INBOX" once, above the email row, opening a
+ * dialog of the four topic tiles; under the email row, the "Selected" line
+ * (NewsletterTopics.astro, variant="modal"), which updates on every change.
+ * All on by default. The tiles sat inline once and made the subscribe box
+ * far too big; a second trigger and an explaining sentence were cut as
+ * repetition (owner's calls, 2026-11-01). Readers change it later on /newsletter,
+ * through the link in every issue.
+ *
+ * ─── layout="page" (/newsletter) ──────────────────────────────────────────
+ * The same form, the same script and the same `subscribe` action. Email and
+ * SUBSCRIBE always on screen, then the topics as a collapsed accordion strip
+ * (closed by default, the four tiles inside, all on, the box's default),
+ * the Selected line under it, the spam line. No trigger and no dialog. One
+ * subscribe system, two layouts (owner's call, 2026-11-01).
+ * After a signed emailed link, /newsletter turns this same form into the
+ * reader's preference form (button "Save"): it marks the form with
+ * `data-prefs-token`, and the submit handler below then stands aside and
+ * lets the page save topics instead of subscribing.
+ *
  * ─── HOW TO RESTYLE IT ────────────────────────────────────────────────────
  * `.newsletter-form` and friends in styles/modules/newsletter.css.
  */
 import { LABELS, MESSAGES } from '../data/content.js';
+import NewsletterTopics from './NewsletterTopics.astro';
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
 
 /*
@@ -62,6 +83,13 @@ import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
   on every page.
 */
 const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
+
+interface Props {
+  /** 'box' (default): the subscribe band. 'page': /newsletter, tiles inline. */
+  layout?: 'box' | 'page';
+}
+const { layout = 'box' } = Astro.props;
+const onPage = layout === 'page';
 ---
 
 {/*
@@ -70,11 +98,16 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
   script would mean marking it `is:inline` and losing bundling.
 */}
 <form
-  class="newsletter-form"
+  class:list={['newsletter-form', { 'newsletter-form--page': onPage }]}
   id="newsletter-form"
   novalidate
   data-sitekey={turnstileSiteKey ?? ''}
 >
+  {/* The topic trigger: ONCE in this box, above the email row (owner's
+      call). The sentence is its own explanation. A button, not a link: it
+      opens a dialog on this page. */}
+  {!onPage && <button type="button" class="nl-hq-header nl-one-line nl-topics-link nl-topics-link--top" data-nl-open aria-haspopup="dialog" aria-controls="nl-topics-dialog">{MESSAGES.newsletterTopicsTrigger}</button>}
+
   <div class="newsletter-row">
     <label class="sr-only" for="newsletter-email">Email address</label>
     <input
@@ -93,6 +126,8 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
       <span class="newsletter-spinner" aria-hidden="true"></span>
     </button>
   </div>
+
+  {onPage ? <NewsletterTopics variant="accordion" id="prefs-topics" /> : <NewsletterTopics variant="modal" />}
 
   {/* Mount point for the explicitly-rendered Turnstile widget. Empty in the
       HTML, and empty at rest in execute mode too: it only fills if Cloudflare
@@ -392,6 +427,8 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
     document.addEventListener('submit', async (event) => {
       const form = (event.target as HTMLElement).closest('#newsletter-form') as HTMLFormElement;
       if (!form) return;
+      /* /newsletter after a signed link: the page saves topics instead. */
+      if (form.dataset.prefsToken) return;
 
       event.preventDefault();
 
@@ -435,9 +472,12 @@ const turnstileSiteKey = PUBLIC_TURNSTILE_SITE_KEY;
       setStateForForm(form, 'submitting', 'Subscribing…');
 
       try {
+        const topics = [...form.querySelectorAll<HTMLInputElement>('input[name="topics"]:checked')]
+          .map((box) => box.value) as ('film' | 'tv' | 'games' | 'events')[];
         const { data, error } = await actions.subscribe({
           email,
           'cf-turnstile-response': token,
+          topics,
         });
 
         if (!error && data?.success) {

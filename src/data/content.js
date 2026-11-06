@@ -198,6 +198,9 @@ export const MESSAGES = {
     "This one went off-script. The page you're after moved, vanished, or never existed, but the good stuff is still one click away.",
   subscribeSubtitle: `The week's best stories, reviews, and industry analysis from ${site.name}.`,
   newsletterFineprint: 'No spam. Unsubscribe any time.',
+  /* THE HQ DISPATCH topic choice: the trigger in the signup box (twice), the
+     modal's heading and the /newsletter page (NewsletterTopics.astro). */
+  newsletterTopicsTrigger: 'Choose what lands in your inbox',
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════

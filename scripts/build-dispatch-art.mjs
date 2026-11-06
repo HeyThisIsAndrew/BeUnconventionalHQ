@@ -3,7 +3,10 @@
  * carry the site's real display font (Syne) and logo, which the email itself
  * cannot load (issue #266 rules out web fonts in the email):
  *
- *   public/dispatch/header-1200x400.png    the masthead, 3:1, shown at 600x200
+ *   public/dispatch/header-v2-1200x400.png the masthead, 3:1, shown at 600x200
+ *                                          (header-1200x400.png, the first one
+ *                                          with the logo, is kept: never delete
+ *                                          an image an email may point at)
  *   public/dispatch/fallback-1200x675.jpg  a story's art when it has none of
  *                                          its own, 16:9, so the FEATURED box
  *                                          always opens on a full-width image
@@ -46,25 +49,25 @@ const base = `
   .hq { color: #cc0000; text-shadow: 0 0 28px rgba(204,0,0,0.55); }
 `;
 
+/* The masthead is THE HQ DISPATCH lockup alone, centred. It used to carry
+   the logo beside it, which made three brand marks in a row (the top bar's
+   "BE UNCONVENTIONAL HQ", the logo, then this lockup), and the logo's tagline
+   was unreadable at phone width (owner's call). The publisher is named once,
+   in the email's top bar. */
 const header = `<!doctype html><html><head><style>${base}
-  body { display: flex; align-items: center; justify-content: center; padding: 0 64px; gap: 52px; }
-  .logo { height: 200px; flex: none; }
-  .rule { width: 1px; align-self: stretch; margin: 80px 0; background: #262626; flex: none; }
+  body { display: flex; align-items: center; justify-content: center; padding: 0 64px; }
   /* flex: none and nowrap: Syne is wide, and a shrinking column is what
      wrapped THE HQ onto two lines and pushed DISPATCH off the frame. */
-  .lockup { display: flex; flex-direction: column; flex: none; white-space: nowrap; }
-  .kicker { font-size: 22px; letter-spacing: 0.3em; margin-bottom: 16px; }
-  .title { font-size: 84px; letter-spacing: 0.01em; }
-  .title .hq { display: block; font-size: 58px; margin-top: 6px; padding-left: 44px; }
+  .lockup { display: flex; flex-direction: column; align-items: center; flex: none; white-space: nowrap; text-align: center; }
+  .kicker { font-size: 24px; letter-spacing: 0.3em; margin-bottom: 18px; color: #ff6b6b; font-weight: 700; }
+  .title { font-size: 104px; letter-spacing: 0.01em; }
+  .title .hq { display: block; font-size: 72px; margin-top: 6px; }
 </style></head><body>
-  <img class="logo" src="data:image/png;base64,${logo}" alt="">
-  <div class="rule"></div>
   <div class="lockup">
     <div class="kicker">Every week</div>
     <div class="title">The HQ<span class="hq">Dispatch</span></div>
   </div>
 </body></html>`;
-
 const fallback = `<!doctype html><html><head><style>${base}
   body { display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #111111; }
   .logo { width: 620px; }
@@ -74,7 +77,8 @@ const fallback = `<!doctype html><html><head><style>${base}
   <div class="kicker">The HQ Dispatch</div>
 </body></html>`;
 
-const browser = await puppeteer.launch({ headless: true });
+// Containers that run as root need PUPPETEER_NO_SANDBOX=1.
+const browser = await puppeteer.launch({ headless: true, args: process.env.PUPPETEER_NO_SANDBOX ? ['--no-sandbox'] : [] });
 try {
   const page = await browser.newPage();
   const shoot = async (html, width, height) => {

@@ -190,9 +190,14 @@ check('both actions read secrets through the Workers env, not import.meta alone'
   );
 });
 
-check('contact runs the same Turnstile gate as subscribe', () => {
+check('contact (and the newsletter link request) run the same Turnstile gate as subscribe', () => {
+  // Every action a stranger can trigger from a public form. newsletterPrefs
+  // is not here on purpose: it needs a signed link, which is its gate.
+  for (const label of ['subscribe', 'contact', 'newsletterLink']) {
+    assert.match(actionsCode, new RegExp(`await requireHuman\\([^)]*'${label}'\\)`), `${label} must gate on requireHuman`);
+  }
   const calls = actionsCode.match(/await requireHuman\(/g) ?? [];
-  assert.equal(calls.length, 2, 'expected both actions to gate on requireHuman');
+  assert.equal(calls.length, 3, 'a new public action needs adding here, gated');
 });
 
 check('submitted values are escaped before going into the contact email HTML', () => {
