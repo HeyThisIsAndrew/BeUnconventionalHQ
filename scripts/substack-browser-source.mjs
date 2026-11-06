@@ -6,11 +6,9 @@ export async function renderPublicSubstack(browser, url) {
   const target = new URL(url);
   const api = ['/api/v1/posts', '/api/v1/archive'].includes(target.pathname)
     && target.searchParams.get('limit') === '20'
-    && /^(0|[1-9]\d*)$/.test(target.searchParams.get('offset') ?? '')
-    && Number(target.searchParams.get('offset')) <= 5000
-    && Number(target.searchParams.get('offset')) % 20 === 0
-    && [...target.searchParams.keys()].every(key => ['limit', 'offset', 'sort'].includes(key))
-    && ['limit', 'offset', 'sort'].every(key => target.searchParams.getAll(key).length <= 1)
+    && (!target.searchParams.has('cursor') || /^[A-Za-z0-9+/=_-]{1,512}$/.test(target.searchParams.get('cursor')))
+    && [...target.searchParams.keys()].every(key => ['limit', 'cursor', 'sort'].includes(key))
+    && ['limit', 'cursor', 'sort'].every(key => target.searchParams.getAll(key).length <= 1)
     && (!target.searchParams.has('sort') || target.searchParams.get('sort') === 'new');
   if (target.origin !== SUBSTACK_PUBLICATION ||
       !(api || (!target.search && (target.pathname === '/feed' || /^\/p\/[a-z0-9-]+$/.test(target.pathname))))) {

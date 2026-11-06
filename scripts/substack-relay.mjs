@@ -4,6 +4,7 @@
  */
 import { XMLParser } from 'fast-xml-parser';
 import { parsePostHtml } from './substack-post-html.mjs';
+import { parsePostsPage } from './substack-source.mjs';
 import { verifyAutomationRequest } from '../src/lib/automation-auth.mjs';
 import { watchSubstack, callGateway, watchArticlesFromPosts } from './substack-watcher.mjs';
 import { sendFailureEmail } from '../src/lib/automation-notifications.mjs';
@@ -32,33 +33,46 @@ export async function relayPosts(request, { fetchUpstream = fetch, loadPost, loa
   const url = new URL(request.url);
   if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers: { Allow: 'GET' } });
   if (url.pathname !== '/posts') return new Response('Not found', { status: 404 });
-  const offset = url.searchParams.get('offset') ?? '0';
-  if (!/^(0|[1-9]\d*)$/.test(offset) || Number(offset) > 5000 || Number(offset) % PAGE_SIZE ||
-      [...url.searchParams.keys()].some(key => key !== 'offset') || url.searchParams.getAll('offset').length > 1) {
-    return new Response('Expected only offset=0,20,40,...,5000', { status: 400 });
+  const offset = url.searchParams.get('offset');
+  const cursor = url.searchParams.get('cursor');
+  if ([...url.searchParams.keys()].some(key => !['offset', 'cursor'].includes(key)) ||
+      url.searchParams.getAll('offset').length > 1 || url.searchParams.getAll('cursor').length > 1 ||
+      (offset && (!/^(0|[1-9]\d*)$/.test(offset) || Number(offset) > 5000 || Number(offset) % PAGE_SIZE)) ||
+      (cursor && !/^[A-Za-z0-9+/=_-]{1,512}$/.test(cursor)) || (offset && cursor)) {
+    return new Response('Expected one optional cursor or offset=0,20,...,5000', { status: 400 });
   }
-  url.search = `?offset=${offset}`;
+  url.search = cursor ? `?cursor=${encodeURIComponent(cursor)}` : offset ? `?offset=${offset}` : '';
   const key = new Request(url.toString());
   const cached = await cache?.match(key);
   if (cached) return cached;
+  let apiError;
   try {
     if (loadApiPage) {
-      const posts = await loadApiPage(Number(offset));
-      if (!Array.isArray(posts) || posts.length > PAGE_SIZE || (!posts.length && offset === '0')) {
-        throw new Error('Substack API returned an invalid article page');
-      }
-      const ids = new Set();
-      for (const post of posts) {
-        const link = new URL(post.canonical_url || `${PUBLICATION}/p/${post.slug}`);
-        validatePost(post, link);
-        if (link.origin !== PUBLICATION || !link.pathname.startsWith('/p/') || ids.has(String(post.id))) {
-          throw new Error('Substack API returned a foreign or repeated article');
+      try {
+        const page = await loadApiPage({ cursor: cursor ?? undefined, offset: offset === null ? undefined : Number(offset) });
+        const { posts, nextCursor } = parsePostsPage(page);
+        if (!Array.isArray(posts) || posts.length > PAGE_SIZE || (!posts.length && offset === '0')) {
+          throw new Error('Substack API returned an invalid article page');
         }
-        ids.add(String(post.id));
+        const ids = new Set();
+        for (const post of posts) {
+          const link = new URL(post.canonical_url || `${PUBLICATION}/p/${post.slug}`);
+          validatePost(post, link);
+          if (link.origin !== PUBLICATION || !link.pathname.startsWith('/p/') || ids.has(String(post.id))) {
+            throw new Error('Substack API returned a foreign or repeated article');
+          }
+          ids.add(String(post.id));
+        }
+        const result = Response.json({ posts, nextCursor }, { headers: { 'Cache-Control': 'public, max-age=300', 'X-Content-Type-Options': 'nosniff' } });
+        if (cache) waitUntil(cache.put(key, result.clone()));
+        return result;
+      } catch (error) {
+        // The posts endpoint is undocumented and has changed its pagination
+        // contract before. The public feed plus full post pages is slower, but
+        // remains a complete, worker-side recovery path rather than allowing a
+        // schema change to halt GitHub-hosted publishing.
+        apiError = error;
       }
-      const result = Response.json(posts, { headers: { 'Cache-Control': 'public, max-age=300', 'X-Content-Type-Options': 'nosniff' } });
-      if (cache) waitUntil(cache.put(key, result.clone()));
-      return result;
     }
     const getText = async url => {
       const response = await fetchUpstream(url, {
@@ -83,7 +97,7 @@ export async function relayPosts(request, { fetchUpstream = fetch, loadPost, loa
     const items = doc.rss?.channel?.item;
     const feed = items ? (Array.isArray(items) ? items : [items]) : [];
     if (!feed.length) throw new Error('Substack RSS returned no items');
-    const window = feed.slice(Number(offset), Number(offset) + PAGE_SIZE);
+    const window = feed.slice(Number(offset ?? 0), Number(offset ?? 0) + PAGE_SIZE);
     const posts = new Array(window.length);
     let next = 0;
     // At most 21 subrequests, four article pages at a time.
@@ -99,13 +113,16 @@ export async function relayPosts(request, { fetchUpstream = fetch, loadPost, loa
           : parsePostHtml(await getText(link.toString())), link);
       }
     }));
+    // Keep the long-standing RSS fallback wire format. The caller can still
+    // read it as legacy offset pagination when the internal API is unavailable.
     const result = Response.json(posts, { headers: {
       'Cache-Control': 'public, max-age=300', 'X-Content-Type-Options': 'nosniff',
     } });
     if (cache) waitUntil(cache.put(key, result.clone()));
     return result;
   } catch (error) {
-    return Response.json({ error: error.message }, { status: 502, headers: { 'Cache-Control': 'no-store' } });
+    const detail = apiError ? `Substack API recovery failed (${apiError.message}); RSS fallback failed: ${error.message}` : error.message;
+    return Response.json({ error: detail }, { status: 502, headers: { 'Cache-Control': 'no-store' } });
   }
 }
 
@@ -175,15 +192,15 @@ export class ArticleSource {
     return render;
   }
 
-  async apiPage(endpoint, offset = 0) {
+  async apiPage(endpoint, { cursor, offset } = {}) {
     const archiveKey = 'source:archive:v1';
     if (endpoint === 'archive') {
       const cached = await this.state.storage.get(archiveKey);
-      if (cached && this.now() - cached.savedAt < 60000) return cached.posts;
+      if (cached && this.now() - cached.savedAt < 60000) return cached.page;
     }
     const url = new URL(`/api/v1/${endpoint}`, PUBLICATION);
-    url.search = new URLSearchParams({ limit: '20', offset: String(offset), ...(endpoint === 'archive' ? { sort: 'new' } : {}) }).toString();
-    let posts;
+    url.search = new URLSearchParams({ limit: '20', ...(cursor ? { cursor } : {}), ...(offset !== undefined ? { offset: String(offset) } : {}), ...(endpoint === 'archive' ? { sort: 'new' } : {}) }).toString();
+    let page;
     try {
       const cooldown = await this.state.storage.get('source:api-cooldown:v1');
       if (cooldown?.until > this.now()) throw new Error('Substack native API is cooling down');
@@ -197,17 +214,17 @@ export class ArticleSource {
         }
         throw new Error(`Substack API returned HTTP ${response.status}`);
       }
-      posts = await response.json();
-      if (!Array.isArray(posts) || (!offset && !posts.length)) throw new Error('Substack API returned an invalid page');
+      page = parsePostsPage(await response.json());
+      if (!page.posts.length && !cursor && offset === undefined) throw new Error('Substack API returned an invalid page');
     } catch {
-      posts = JSON.parse(browserTextDocument(await this.renderPublic(url.toString())));
+      page = parsePostsPage(JSON.parse(browserTextDocument(await this.renderPublic(url.toString()))));
     }
-    if (!Array.isArray(posts) || (!offset && !posts.length)) throw new Error('Substack browser API returned an invalid page');
+    if (!page.posts.length && !cursor && offset === undefined) throw new Error('Substack browser API returned an invalid page');
     if (endpoint === 'archive') {
-      watchArticlesFromPosts(posts); // Reject invalid discovery before caching it.
-      await this.state.storage.put(archiveKey, { savedAt: this.now(), posts });
+      watchArticlesFromPosts(page.posts); // Reject invalid discovery before caching it.
+      await this.state.storage.put(archiveKey, { savedAt: this.now(), page });
     }
-    return posts;
+    return page;
   }
 
   async loadPost(link, item, getText) {
@@ -344,7 +361,7 @@ export class ArticleSource {
       storage: this.state.storage, ...options,
       // RSS can remain cached at Substack for an hour after a real publish.
       // The public archive API supplies current metadata without body downloads.
-      requestArticles: this.env.BROWSER ? () => this.apiPage('archive').then(watchArticlesFromPosts) : undefined,
+      requestArticles: this.env.BROWSER ? () => this.apiPage('archive').then(page => watchArticlesFromPosts(page.posts)) : undefined,
       requestFeed: async url => {
         const response = await this.fetchUpstream(url, {
           signal: AbortSignal.timeout(15000),
@@ -355,9 +372,9 @@ export class ArticleSource {
       },
       refreshSource: async () => {
         await Promise.allSettled([...this.pending.values()]);
-        const keys = [...(await this.state.storage.list({ prefix: 'https://article-source.internal/posts?' })).keys()];
+        const keys = [...(await this.state.storage.list({ prefix: 'https://article-source.internal/posts' })).keys()];
         if (keys.length) await this.state.storage.delete(keys);
-        const refreshed = await this.fetch(new Request('https://article-source.internal/posts?offset=0'));
+        const refreshed = await this.fetch(new Request('https://article-source.internal/posts'));
         if (!refreshed.ok) throw new Error('New article payload could not be prepared; dispatch deferred');
       },
       dispatch: articles => callGateway(this.env, { action: 'dispatch', articles }),
@@ -385,7 +402,7 @@ export class ArticleSource {
     };
     const result = await relayPosts(request, {
       cache, fetchUpstream: this.fetchUpstream,
-      loadApiPage: this.env.BROWSER ? offset => this.apiPage('posts', offset) : undefined,
+      loadApiPage: this.env.BROWSER ? page => this.apiPage('posts', page) : undefined,
       loadPost: (link, item, getText) => this.loadPost(link, item, getText),
       waitUntil: promise => writes.push(promise),
     });

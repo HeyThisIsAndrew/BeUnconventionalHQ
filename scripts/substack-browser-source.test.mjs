@@ -9,7 +9,7 @@ const POST = { id: 1, title: 'New review', slug: 'new-review', canonical_url: `$
   post_date: '2026-10-28T02:47:02.493Z', postTags: [{ name: 'Film' }, { name: 'Review' }],
   body_html: '<p>A complete article with &amp; entities and <strong>formatting</strong>.</p>' };
 const escaped = value => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-const browserResponse = posts => Response.json({ success: true, result: `<html><body><pre>${escaped(JSON.stringify(posts))}</pre></body></html>` });
+const browserResponse = posts => Response.json({ success: true, result: `<html><body><pre>${escaped(JSON.stringify({ posts, nextCursor: null }))}</pre></body></html>` });
 function fixture() {
   let now = Date.parse('2026-10-28T03:00:00Z');
   const values = new Map();
@@ -40,7 +40,7 @@ function fixture() {
     posts: next => { posts = next; },
     fail: () => { failBrowser = true; },
     restart: () => { source = new ArticleSource({ storage }, env, clock); },
-    read: () => source.fetch(new Request('https://article-source.internal/posts?offset=0')),
+    read: () => source.fetch(new Request('https://article-source.internal/posts')),
   };
 }
 
@@ -54,17 +54,17 @@ test('browser transport restricts origins, paths, pagination and resource loadin
     return browserResponse([POST]);
   } };
   for (const url of ['https://evil.test/feed', `${PUB}/api/v1/user`, `${PUB}/api/v1/posts?limit=20&offset=1`,
-    `${PUB}/api/v1/posts?limit=20&offset=0&url=https://evil.test`, `${PUB}/api/v1/posts?limit=20&offset=0&offset=20`]) {
+    `${PUB}/api/v1/posts?limit=20&cursor=https://evil.test`, `${PUB}/api/v1/posts?limit=20&cursor=a&cursor=b`]) {
     await assert.rejects(renderPublicSubstack(browser, url));
   }
   assert.equal(called, false);
-  await renderPublicSubstack(browser, `${PUB}/api/v1/posts?limit=20&offset=0`);
+  await renderPublicSubstack(browser, `${PUB}/api/v1/posts?limit=20`);
   assert.equal(called, true);
 });
 
 test('Chrome JSON text is decoded once without losing HTML entities, tags or body', async () => {
   const response = await browserResponse([POST]).json();
-  assert.deepEqual(JSON.parse(browserTextDocument(response.result)), [POST]);
+  assert.deepEqual(JSON.parse(browserTextDocument(response.result)), { posts: [POST], nextCursor: null });
   assert.deepEqual(JSON.parse(browserTextDocument(JSON.stringify([POST]))), [POST]);
   assert.throws(() => JSON.parse(browserTextDocument('<html>Challenge</html>')));
 });
@@ -73,10 +73,10 @@ test('blocked native requests recover complete posts through the browser and reu
   const f = fixture();
   const response = await f.read();
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), [POST]);
+  assert.deepEqual((await response.json()).posts, [POST]);
   assert.equal(f.calls.filter(call => call.action).length, 1);
   f.restart();
-  assert.deepEqual(await (await f.read()).json(), [POST]);
+  assert.deepEqual((await (await f.read()).json()).posts, [POST]);
   assert.equal(f.calls.filter(call => call.action).length, 1);
 });
 
@@ -88,7 +88,7 @@ test('fresh archive discovery warms full posts, dispatches once, and respects br
   assert.equal(result.articles[0].url, POST.canonical_url);
   assert.equal(f.dispatches.length, 1);
   assert.deepEqual(f.dispatches[0].articles, watchArticlesFromPosts([POST]));
-  assert.deepEqual(await (await f.read()).json(), [POST], 'the full source was warmed before dispatch');
+  assert.deepEqual((await (await f.read()).json()).posts, [POST], 'the full source was warmed before dispatch');
   assert.ok(f.waits.some(wait => wait >= 11000));
   assert.equal(f.calls.filter(call => call.native).length, 1, 'native cooldown covers both API paths');
   f.restart();
@@ -105,7 +105,7 @@ test('a second real publish invalidates old full-source data and imports its com
     post_date: '2026-10-28T03:01:00Z', postTags: [{ name: 'TV' }, { name: 'New tag' }] };
   f.posts([fresh, POST]);
   assert.equal((await f.source().poll({})).action, 'dispatched');
-  assert.deepEqual(await (await f.read()).json(), [fresh, POST]);
+  assert.deepEqual((await (await f.read()).json()).posts, [fresh, POST]);
 });
 
 test('browser failures preserve the existing publication baseline and never return stale posts as fresh', async () => {
@@ -143,6 +143,6 @@ test('the full browser source rejects missing tags, missing bodies and duplicate
     const f = fixture();
     f.posts(posts);
     assert.equal((await f.read()).status, 502);
-    assert.equal(f.values.has('https://article-source.internal/posts?offset=0'), false);
+    assert.equal(f.values.has('https://article-source.internal/posts'), false);
   }
 });
