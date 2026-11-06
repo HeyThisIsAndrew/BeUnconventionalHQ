@@ -8,6 +8,20 @@ export const RELAY_URL = 'https://hq-substack-source.heythisisandrewb.workers.de
 const PAGE_SIZE = 20;
 const MAX_PAGES = 250;
 
+/**
+ * Substack changed this undocumented endpoint from an offset-paginated array
+ * to a cursor-paginated object in November 2026. Keep the old array form
+ * readable too: a relay cache or a future rollback must not strand a sync.
+ */
+export function parsePostsPage(value) {
+  if (Array.isArray(value)) return { posts: value, nextCursor: null, pagination: 'offset' };
+  if (!value || typeof value !== 'object' || !Array.isArray(value.posts) ||
+      !('nextCursor' in value) || (value.nextCursor !== null && typeof value.nextCursor !== 'string')) {
+    throw new Error('Posts API returned an unsupported page shape');
+  }
+  return { posts: value.posts, nextCursor: value.nextCursor, pagination: 'cursor' };
+}
+
 
 function validatePost(post) {
   if (!post || typeof post !== 'object' || !post.title?.trim() ||
@@ -54,12 +68,19 @@ export async function fetchText(url, {
 export async function fetchPostsApi({ publicationUrl = PUBLICATION_URL, request = fetchText } = {}) {
   const posts = [];
   const seen = new Set();
+  const cursors = new Set();
+  let pagination;
+  let cursor = null;
   for (let page = 0; page < MAX_PAGES; page++) {
     const url = new URL('/api/v1/posts', publicationUrl);
     url.searchParams.set('limit', String(PAGE_SIZE));
-    url.searchParams.set('offset', String(page * PAGE_SIZE));
-    const batch = JSON.parse(await request(url.toString()));
-    if (!Array.isArray(batch)) throw new Error('Posts API did not return an array');
+    // Do not send offset=0. The cursor API rejects every offset value.
+    if (pagination === 'cursor' && cursor) url.searchParams.set('cursor', cursor);
+    if (pagination === 'offset') url.searchParams.set('offset', String(page * PAGE_SIZE));
+    const result = parsePostsPage(JSON.parse(await request(url.toString())));
+    if (pagination && pagination !== result.pagination) throw new Error('Posts API changed pagination during sync');
+    pagination = result.pagination;
+    const batch = result.posts;
     if (!batch.length && !page) throw new Error('Posts API returned zero posts');
     for (const post of batch) {
       validatePost(post);
@@ -68,7 +89,12 @@ export async function fetchPostsApi({ publicationUrl = PUBLICATION_URL, request 
       seen.add(key);
       posts.push(post);
     }
-    if (batch.length < PAGE_SIZE) return { posts, pages: page + 1, source: 'posts API' };
+    if (pagination === 'cursor') {
+      if (!result.nextCursor) return { posts, pages: page + 1, source: 'posts API' };
+      if (cursors.has(result.nextCursor)) throw new Error('Posts API repeated a cursor; refusing an incomplete sync');
+      cursors.add(result.nextCursor);
+      cursor = result.nextCursor;
+    } else if (batch.length < PAGE_SIZE) return { posts, pages: page + 1, source: 'posts API' };
   }
   throw new Error(`Posts API exceeded ${MAX_PAGES} pages; refusing an incomplete sync`);
 }
@@ -101,7 +127,10 @@ export async function fetchPostsRelay(options = {}) {
   const request = options.request ?? fetchText;
   const result = await fetchPostsApi({ ...options, request: url => {
     const relay = new URL(relayUrl);
-    relay.searchParams.set('offset', new URL(url).searchParams.get('offset'));
+    const source = new URL(url);
+    for (const name of ['offset', 'cursor']) {
+      if (source.searchParams.has(name)) relay.searchParams.set(name, source.searchParams.get(name));
+    }
     // A cold relay deliberately paces up to twenty article requests.
     return request(relay.toString(), { timeoutMs: 90000 });
   } });

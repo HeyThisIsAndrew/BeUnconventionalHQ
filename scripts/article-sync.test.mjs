@@ -68,7 +68,7 @@ test('HTML challenges, invalid JSON and executable lookalikes fail without execu
   assert.equal(globalThis.shouldNeverRun, undefined);
 });
 
-test('posts API walks the archive beyond the RSS window using offset', async () => {
+test('posts API supports legacy offset pagination without sending offset=0', async () => {
   const urls = [];
   const result = await fetchPostsApi({ request: async url => {
     urls.push(new URL(url));
@@ -76,7 +76,21 @@ test('posts API walks the archive beyond the RSS window using offset', async () 
   } });
   assert.equal(result.posts.length, 21);
   assert.equal(result.pages, 2);
-  assert.deepEqual(urls.map(u => u.searchParams.get('offset')), ['0', '20']);
+  assert.deepEqual(urls.map(u => u.searchParams.get('offset')), [null, '20']);
+});
+
+test('posts API follows Substack cursor pages and rejects cursor loops', async () => {
+  const urls = [];
+  const result = await fetchPostsApi({ request: async url => {
+    urls.push(new URL(url));
+    return response(urls.length === 1
+      ? { posts: Array.from({ length: 20 }, (_, i) => ({ ...POST, id: i + 1 })), nextCursor: 'next-page' }
+      : { posts: [{ ...POST, id: 21 }], nextCursor: null });
+  } });
+  assert.equal(result.posts.length, 21);
+  assert.deepEqual(urls.map(url => [url.searchParams.get('offset'), url.searchParams.get('cursor')]), [[null, null], [null, 'next-page']]);
+  let loopId = 0;
+  await assert.rejects(fetchPostsApi({ request: async () => response({ posts: [{ ...POST, id: ++loopId }], nextCursor: 'same' }) }), /repeated a cursor/);
 });
 
 test('empty, incomplete, repeated and mid-pagination failures cannot masquerade as success', async () => {
@@ -101,7 +115,7 @@ test('GitHub 403 falls back to the owned relay with full tags and body', async (
   assert.equal(result.source, 'Cloudflare relay');
   assert.deepEqual(result.posts, [POST]);
   assert.equal(urls.length, 2);
-  assert.match(urls[1], /\/posts\?offset=0$/);
+  assert.match(urls[1], /\/posts$/);
 });
 
 test('RSS + HTML fallback uses complete metadata, never tagless RSS bodies', async () => {
@@ -129,7 +143,7 @@ test('relay accepts only bounded fixed-publication requests and never forwards c
     assert.equal(result.status, status);
   }
   assert.equal(calls, 0);
-  const result = await relayPosts(new Request('https://relay.test/posts?offset=0', {
+  const result = await relayPosts(new Request('https://relay.test/posts', {
     headers: { Authorization: 'secret', Cookie: 'secret' },
   }), { fetchUpstream: async (url, options) => {
     assert.ok(['https://beunconventionalhq.substack.com/feed', POST.canonical_url].includes(url));
@@ -158,6 +172,15 @@ test('relay caches valid public posts and never caches blocked or invalid respon
   assert.equal(cached, ok);
 });
 
+test('relay uses complete RSS plus post HTML when the internal API changes shape', async () => {
+  const result = await relayPosts(new Request('https://relay.test/posts'), {
+    loadApiPage: async () => ({ unexpected: true }),
+    fetchUpstream: async url => relayResponse(url),
+  });
+  assert.equal(result.status, 200);
+  assert.deepEqual(await result.json(), [POST]);
+});
+
 test('regional source strips incoming headers and requests the same US object for every caller', async () => {
   let seen;
   const env = { ARTICLE_SOURCE: {
@@ -183,7 +206,7 @@ test('source coalesces concurrent requests and shares its persisted cache across
     return relayResponse(url);
   } };
   const source = new ArticleSource(state, env);
-  const request = () => new Request('https://article-source.internal/posts?offset=0');
+  const request = () => new Request('https://article-source.internal/posts');
   const results = await Promise.all(Array.from({ length: 10 }, () => source.fetch(request())));
   for (const result of results) assert.deepEqual(await result.json(), [POST]);
   assert.equal(calls, 2, 'one feed and one article request, despite ten callers');
@@ -225,7 +248,7 @@ function persistentSourceFixture() {
     posts: value => { posts = value; },
     reject: value => { rejectPost = value; },
     restart: () => { source = new ArticleSource(state, env, clock); },
-    read: () => source.fetch(new Request('https://article-source.internal/posts?offset=0')),
+    read: () => source.fetch(new Request('https://article-source.internal/posts')),
   };
 }
 
@@ -278,7 +301,7 @@ test('429 partial failures retain completed posts, persist Retry-After and resum
   assert.equal(failed.status, 502);
   assert.match((await failed.json()).error, /HTTP 429/);
   assert.ok(f.data.has(`source:post:v1:${POST.canonical_url}`));
-  assert.equal(f.data.has('https://article-source.internal/posts?offset=0'), false);
+  assert.equal(f.data.has('https://article-source.internal/posts'), false);
   const before = f.calls.length;
   f.advance(61000);
   f.restart();

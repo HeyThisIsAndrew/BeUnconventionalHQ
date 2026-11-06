@@ -33,9 +33,16 @@ Evidence:
 
 `scripts/substack-source.mjs` tries:
 
-1. Direct posts API, paginated in batches of 20. Usually works locally.
+1. Direct posts API, paginated in batches of 20. Usually works locally. Its
+   undocumented endpoint currently returns `{ posts, nextCursor }`; the client
+   also accepts the legacy offset-paginated array so a cached relay page or a
+   rollback cannot strand a sync. Cursor loops and mixed response contracts are
+   rejected instead of publishing incomplete data.
 2. The owned `hq-substack-source` Cloudflare Worker. GitHub calls its workers.dev
-   address, avoiding the website domain's separate bot rules. The Worker discovers articles through public RSS and extracts each full
+   address, avoiding the website domain's separate bot rules. Its preferred
+   Browser Run source uses the same validated cursor contract. If that internal
+   API changes again, the Worker automatically recovers through public RSS and
+   full post HTML, so GitHub never has to reach Substack directly. The Worker discovers articles through public RSS and extracts each full
    post payload from its HTML, in batches of 20. Aggregate responses live for
    five minutes. Each complete post is stored separately, keyed by its RSS item
    fingerprint, for at most 24 hours. New or changed RSS items fetch fresh HTML;
@@ -81,8 +88,8 @@ change `lastUpdated`, rewrite the snapshot, commit, or trigger a deploy.
 - Relay deployment: Actions → Deploy Substack source relay. It also deploys
   automatically when its files change on main, using the existing
   `CLOUDFLARE_API_TOKEN` repository secret. Hourly syncs do not redeploy it.
-- Relay health: `https://hq-substack-source.heythisisandrewb.workers.dev/posts?offset=0`
-  must return a nonempty JSON array, including `body_html` and `postTags`.
+- Relay health: `https://hq-substack-source.heythisisandrewb.workers.dev/posts`
+  must return a nonempty `posts` array with `body_html` and `postTags`.
 
 Overrides: `SUBSTACK_PUBLICATION_URL`, `SUBSTACK_FEED_URL`, and
 `SUBSTACK_RELAY_URL`. The default relay is used only for this publication; it
