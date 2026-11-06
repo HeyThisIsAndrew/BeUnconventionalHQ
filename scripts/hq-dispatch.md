@@ -347,8 +347,15 @@ Still open:
   (saves on a new version without deploying), or the dashboard right after
   a production deploy.
 - The KV import with `--execute` (sends each of the 4 Kit's confirmation
-  email), `KIT_SYNC_SIGNUPS`, `CREATE_DRAFTS`, `PERSONALIZE`: owner's calls.
-- The two Workers deploy only after the merge (their code is not on main).
+  email) and `PERSONALIZE`: owner's calls.
+
+Switched on by the owner, 2026-11-06 (PR #296 merged the same day, both
+Workers deployed by their workflows):
+- `KIT_SYNC_SIGNUPS` = `"true"` in `wrangler.jsonc`: new site signups go to
+  Kit as inactive, through form 9953749, which sends the confirmation email.
+- `CREATE_DRAFTS` = `"true"` in `dispatch-kit-worker/wrangler.jsonc`: every
+  Thursday 16:00 UTC a real draft is created in Kit. Nothing sends until the
+  owner presses Send. `PERSONALIZE` stays `"false"`.
 
 ### Decisions (made by Claude at the owner's request, 2026-10-31)
 
