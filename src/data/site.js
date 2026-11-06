@@ -1,7 +1,7 @@
 export const site = {
   name: 'BE Unconventional HQ',
   short: 'Unconventional HQ',
-  tagline: 'Where nerd culture gets cinematic',
+  tagline: 'Where Nerd Culture Gets Cinematic',
   description:
     'A cinematic creator hub for film, TV, games, and live events: reviews, reactions, and deep dives from BE Unconventional HQ.',
   url: 'https://beunconventionalhq.com/',
