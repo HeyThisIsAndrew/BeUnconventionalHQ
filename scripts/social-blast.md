@@ -9,6 +9,12 @@ Issues #281 (copy engine), #282 (live platforms), #284 (draft queue), #286
 **It ships in dry run.** Nothing posts anywhere until you name a platform in
 `LIVE_PLATFORMS` AND approve the templates it is allowed to use.
 
+**Status (2026-11-07): Bluesky is live** (`LIVE_PLATFORMS: "bluesky"`, the
+owner's call). Threads and Facebook are still previews; X and YouTube
+Community are drafts in the report email. To switch Bluesky off, set
+`LIVE_PLATFORMS` back to `""` in `social-blast-worker/wrangler.jsonc` and
+merge.
+
 ## How it works
 
 ```
