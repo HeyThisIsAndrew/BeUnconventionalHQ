@@ -528,6 +528,8 @@ protection refuses datacenter IPs). Runbooks: `scripts/hq-dispatch.md`,
   `CREATE_DRAFTS` / `PERSONALIZE` (Kit Worker), `KIT_SYNC_SIGNUPS` (site),
   and never set `"approved": true` on a template in
   `social-blast-worker/templates.json`: approval is the owner's, per template.
+  The ones he approved carry `"approvedOn"` (the date he ticked them); the
+  tests fail on an approved template without it.
 - **Email markup lives only in `email/hq-dispatch/*.liquid.html`.** The site
   pre-renders it into `/dispatch.json` (`src/lib/dispatch-boxes.ts`); the Kit
   Worker only joins pieces and drops escaped words into placeholders.

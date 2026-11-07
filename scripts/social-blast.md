@@ -56,9 +56,16 @@ minutes, so it applies from the next run. No code change.
   template that needs a variable the story lacks (no summary, no section) is
   skipped. If none fit, that platform is **blocked** for the story and the
   email says why. Nothing is ever guessed.
-- `"approved": true` is what allows a template to post LIVE. Every shipped
-  template is `false`: they are drafts written for you to edit. Unapproved
-  templates still appear in dry-run previews and in X / YouTube drafts.
+- `"approved": true` is what allows a template to post LIVE. Every approved
+  template also carries `"approvedOn"`, the date the owner approved it; the
+  tests fail on an approved template without one. Unapproved templates still
+  appear in dry-run previews and in X / YouTube drafts.
+- **2026-11-07:** the owner picked 122 templates on a picking page (written
+  by Claude, ChatGPT, Gemini Argon and Muse, each shown filled in with real
+  stories) and those are the approved ones: 12 to 14 short posts and 6 to 10
+  YouTube Community posts per content type. The original placeholder drafts
+  are kept with `"retired": true`. To add or drop one later, edit the file on
+  GitHub (or `node scripts/social-templates.mjs --approve <id>`).
 - `"platforms": ["youtube"]` limits a template to some platforms. A platform
   with templates of its own uses only those (that is how YouTube gets
   question-style posts).
@@ -94,7 +101,8 @@ minutes, so it applies from the next run. No code change.
 
 ## Going live, one platform at a time
 
-1. Approve templates in `templates.json` (`"approved": true`). At least six
+1. Approve templates in `templates.json` (`"approved": true`; done for every
+   content type on 2026-11-07, see above). At least six
    per content type you publish keeps rotation working across all five
    platforms. A live platform with no approved template for a story is
    blocked and reported, never posted with an unapproved one.
