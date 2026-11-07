@@ -1,7 +1,9 @@
 # Social distribution Worker (hq-social-blast)
 
-Announces every new article and long-form video on Bluesky, Threads and the
-Facebook Page, and emails ready-to-post drafts for X and YouTube Community.
+Announces every new article and long-form video on Bluesky, Threads, the
+Facebook Page and Instagram (official APIs), and on X and Substack Notes
+through Buffer's API. Until a platform is live, X and Substack Notes are
+emailed as ready-to-post drafts; YouTube Community is always a draft.
 Issues #281 (copy engine), #282 (live platforms), #284 (draft queue), #286
 (portable config). Code: `social-blast-worker/`. Tests:
 `scripts/social-blast.test.mjs`.
@@ -10,8 +12,10 @@ Issues #281 (copy engine), #282 (live platforms), #284 (draft queue), #286
 `LIVE_PLATFORMS` AND approve the templates it is allowed to use.
 
 **Status (2026-11-07): Bluesky is live** (`LIVE_PLATFORMS: "bluesky"`, the
-owner's call). Threads and Facebook are still previews; X and YouTube
-Community are drafts in the report email. To switch Bluesky off, set
+owner's call). Threads, Facebook and Instagram are still previews; X,
+Substack Notes and YouTube Community are drafts in the report email.
+Instagram and Buffer (X, Substack Notes) are built and waiting for their keys
+(2026-11-07, see Setup). To switch Bluesky off, set
 `LIVE_PLATFORMS` back to `""` in `social-blast-worker/wrangler.jsonc` and
 merge.
 
@@ -23,7 +27,7 @@ Substack / YouTube sync → commit → deploy.yml builds the site
   → deploy.yml nudges POST /blast (signed)   ┐
   → cron every 15 minutes                    ┴→ one Durable Object, one run at a time
       → new story? pick a template per platform (templates.json, rotating)
-      → live platform: post · other platforms: preview · X/YouTube: draft
+      → live platform: post · not live: preview, or a draft for X/Substack/YouTube
       → one report email to ALERT_EMAIL
 ```
 
@@ -52,6 +56,13 @@ Posts use the platform's link card: Bluesky gets the composed 1200x675
 dispatch image as the card picture; Threads and Facebook build the card from
 the page's own preview image. Links are the site URL for articles and the
 YouTube watch URL for videos (the same links /dispatch.xml carries).
+Instagram posts that same dispatch image with the text as its caption;
+captions cannot carry links, so the URL there is plain text. X and Substack
+Notes get the URL at the end of the text and build their own card from it.
+
+- **A platform added later applies to new stories only.** Each story's
+  record lists the platforms it was planned for, so adding Instagram or
+  Substack never sends them last week's stories.
 
 ## Wording: `social-blast-worker/templates.json`
 
@@ -81,7 +92,8 @@ minutes, so it applies from the next run. No code change.
 - Content type: a video uses `video`; an article in a `sectionMap` section
   (`Events`) uses `event`; otherwise `typeMap` by content type (Review,
   Analysis, News/Announcement); anything else uses `story`.
-- Limits: Bluesky 300 graphemes, Threads 500, X 280 (a link counts as 23).
+- Limits: Bluesky 300 graphemes, Threads 500, X 280 (a link counts as 23),
+  Instagram 2,200; Facebook, Substack Notes and YouTube have house limits.
   Only `{{summary}}` is ever trimmed; a title that does not fit skips the
   template.
 
@@ -96,6 +108,8 @@ minutes, so it applies from the next run. No code change.
    | Bluesky | `BLUESKY_IDENTIFIER` (handle), `BLUESKY_APP_PASSWORD` | Bluesky → Settings → Privacy and security → App passwords. Never the account password. |
    | Threads | `THREADS_USER_ID`, `THREADS_ACCESS_TOKEN` (long-lived) | A Meta app with the Threads use case, permissions `threads_basic` + `threads_content_publish`. Development mode is enough for your own account. |
    | Facebook Page | `FB_PAGE_ID`, `FB_PAGE_ACCESS_TOKEN` | A Page token with `pages_manage_posts` + `pages_read_engagement`, derived from a long-lived user token so it does not expire. |
+   | Instagram | `IG_USER_ID` (the Instagram professional account id), `IG_ACCESS_TOKEN` | The same Meta app: add the Instagram product, permissions `instagram_basic` + `instagram_content_publish`. The account must be a Business or Creator account linked to the Facebook Page. App Review is not needed for your own account. `IG_GRAPH_HOST` in wrangler.jsonc is `graph.facebook.com` for this setup. |
+   | X, Substack Notes | `BUFFER_API_KEY` | A free Buffer account (3 channels): connect X and Substack, then Buffer → Settings → API → create a key. The channel ids go in `wrangler.jsonc` (`BUFFER_X_CHANNEL_ID`, `BUFFER_SUBSTACK_CHANNEL_ID`); list them with `BUFFER_API_KEY=… node scripts/buffer-channels.mjs`. |
 
 2. **Deploy**: Actions → "Deploy social distribution Worker" → Run workflow
    (or merge anything under `social-blast-worker/`). The workflow deploys,
@@ -109,11 +123,13 @@ minutes, so it applies from the next run. No code change.
 
 1. Approve templates in `templates.json` (`"approved": true`; done for every
    content type on 2026-11-07, see above). At least six
-   per content type you publish keeps rotation working across all five
+   per content type you publish keeps rotation working across all seven
    platforms. A live platform with no approved template for a story is
    blocked and reported, never posted with an unapproved one.
 2. In `social-blast-worker/wrangler.jsonc`, set
-   `"LIVE_PLATFORMS": "bluesky"` (comma list: `bluesky,threads,facebook`).
+   `"LIVE_PLATFORMS": "bluesky"` (comma list:
+   `bluesky,threads,facebook,instagram,x,substack`; YouTube Community can
+   never be live).
 3. Merge. The next new story posts there; everything else stays a preview.
 
 Back to dry run: set `LIVE_PLATFORMS` to `""` and merge.
@@ -145,15 +161,21 @@ datacenter IPs, the binding does not cross it.
 
 ## What it will never do
 
-- Post to X or YouTube Community. They have no free or public posting API for
-  this; they are drafts in the email, always (#284).
-- Publish to Substack. Substack has no write API; it stays the place you write.
+- Post to YouTube Community. It has no posting API; it is a draft in the
+  email, always (#284).
+- Post to X or Substack any way but Buffer's API. X's own API charges per
+  post (since 2026) and Substack has no public posting API; Buffer is an
+  official partner of both. Only top-level Substack Notes are posted, never
+  articles: Substack stays the place you write.
 - Use AI-written copy, scrapers or unofficial endpoints.
 
 ## Not built yet
 
 - The Google Sheet queue and calendar scheduler (#285, Phase 2). Drafts go by
   email for now (owner's decision, 2026-10-30).
-- Instagram Stories (#283). The API cannot add link stickers.
+- Instagram Stories (#283). The API cannot add link stickers; feed posts
+  are built (above).
+- TikTok. An app that has not passed TikTok's audit can only post privately,
+  and the audit does not accept single-account tools.
 - `/dispatch.json` does not yet carry the pre-rendered Kit story boxes that
   #273 asks for; that belongs with the Kit draft Worker (#272).

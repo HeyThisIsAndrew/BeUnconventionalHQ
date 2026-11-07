@@ -23,7 +23,7 @@ import {
   PLATFORM_LIMITS, ALL_PLATFORMS,
 } from '../social-blast-worker/copy-engine.mjs';
 import { runBlast, runAndReport, validateFeed, livePlatforms, MAX_ATTEMPTS } from '../social-blast-worker/blast.mjs';
-import { blueskyFacets, postBluesky, postThreads, postFacebook, PostError, scrub } from '../social-blast-worker/platforms.mjs';
+import { blueskyFacets, postBluesky, postThreads, postFacebook, postInstagram, postBuffer, PostError, scrub } from '../social-blast-worker/platforms.mjs';
 import { buildReport } from '../social-blast-worker/report.mjs';
 
 const TEMPLATES = JSON.parse(readFileSync(new URL('../social-blast-worker/templates.json', import.meta.url), 'utf8'));
@@ -62,6 +62,8 @@ const SECRETS = {
   BLUESKY_IDENTIFIER: 'hq.example', BLUESKY_APP_PASSWORD: 'app-pass-123456',
   THREADS_USER_ID: '42', THREADS_ACCESS_TOKEN: 'threads-token-abcdef',
   FB_PAGE_ID: '99', FB_PAGE_ACCESS_TOKEN: 'fb-token-abcdef',
+  IG_USER_ID: '77', IG_ACCESS_TOKEN: 'ig-token-abcdef',
+  BUFFER_API_KEY: 'buffer-key-abcdef', BUFFER_X_CHANNEL_ID: 'chan-x', BUFFER_SUBSTACK_CHANNEL_ID: 'chan-substack',
 };
 
 /** Fake publishers that record every call. `fail` maps platform -> error to throw. */
@@ -72,7 +74,7 @@ function fakePublishers(fail = {}) {
     if (fail[platform]) throw fail[platform]();
     return { id: `${platform}-1`, url: `https://${platform}.example/post/1` };
   };
-  return { calls, publishers: { bluesky: make('bluesky'), threads: make('threads'), facebook: make('facebook') } };
+  return { calls, publishers: Object.fromEntries(['bluesky', 'threads', 'facebook', 'instagram', 'x', 'substack'].map((p) => [p, make(p)])) };
 }
 
 async function seededStore(items = []) {
@@ -227,8 +229,8 @@ test('dry run by default: previews for live platforms, drafts for X and YouTube,
   const result = await runBlast(deps({ store, items: [item()], env: SECRETS, publishers }));
   assert.equal(calls.length, 0);
   const r = result.entries[0].results;
-  for (const p of ['bluesky', 'threads', 'facebook']) assert.equal(r[p].status, 'previewed', p);
-  for (const p of ['x', 'youtube']) assert.equal(r[p].status, 'drafted', p);
+  for (const p of ['bluesky', 'threads', 'facebook', 'instagram']) assert.equal(r[p].status, 'previewed', p);
+  for (const p of ['x', 'substack', 'youtube']) assert.equal(r[p].status, 'drafted', p);
   // A preview is final: a later live switch does not post this old story.
   const live = await runBlast(deps({ store, items: [item()], env: { ...SECRETS, LIVE_PLATFORMS: 'bluesky' }, templates: approved(), publishers }));
   assert.equal(live.action, 'nothing-new');
@@ -253,7 +255,38 @@ test('LIVE_PLATFORMS switches on only the platforms it names', async () => {
   const result = await runBlast(deps({ store, items: [item()], env: { ...SECRETS, LIVE_PLATFORMS: ' Bluesky , myspace' }, templates: approved(), publishers }));
   assert.deepEqual(calls.map((c) => c.platform), ['bluesky']);
   assert.equal(result.entries[0].results.threads.status, 'previewed');
-  assert.deepEqual([...livePlatforms({ LIVE_PLATFORMS: 'x,youtube,facebook' })], ['facebook']);
+  // YouTube Community has no posting API, so it can never be live.
+  assert.deepEqual([...livePlatforms({ LIVE_PLATFORMS: 'x,youtube,facebook,instagram,substack' })], ['x', 'facebook', 'instagram', 'substack']);
+});
+
+test('Instagram, X and Substack go live like the others; the link is in the text there', async () => {
+  const store = await seededStore();
+  const { calls, publishers } = fakePublishers();
+  const env = { ...SECRETS, LIVE_PLATFORMS: 'instagram,x,substack' };
+  const result = await runBlast(deps({ store, items: [item()], env, templates: approved(), publishers }));
+  assert.deepEqual(calls.map((c) => c.platform), ['instagram', 'x', 'substack']);
+  for (const c of calls) assert.ok(c.text.includes(item().link), `${c.platform} text carries the link`);
+  const r = result.entries[0].results;
+  assert.equal(r.youtube.status, 'drafted');
+  assert.equal(r.bluesky.status, 'previewed');
+});
+
+test('a platform added later never reaches back to stories seen before it existed', async () => {
+  const store = await seededStore();
+  // A record written before `planned` existed: the original five, all settled.
+  await store.put(`item:${item().guid}`, {
+    guid: item().guid, platforms: {
+      bluesky: { status: 'posted' }, threads: { status: 'previewed' }, facebook: { status: 'previewed' },
+      x: { status: 'drafted' }, youtube: { status: 'drafted' },
+    },
+  });
+  const { calls, publishers } = fakePublishers();
+  const result = await runBlast(deps({ store, items: [item()], env: { ...SECRETS, LIVE_PLATFORMS: 'instagram,substack' }, templates: approved(), publishers }));
+  assert.equal(result.action, 'nothing-new');
+  assert.equal(calls.length, 0);
+  // A new story plans every platform the engine knows today.
+  const fresh = await runBlast(deps({ store, items: [item(), item({ guid: 'g2', title: 'B' })], env: SECRETS, publishers }));
+  assert.deepEqual(Object.keys(fresh.entries[0].results), ALL_PLATFORMS);
 });
 
 test('a failure on one platform leaves the others posted, and retries with the same text', async () => {
@@ -380,6 +413,14 @@ test('the report carries each draft with a one-tap X composer link', () => {
   assert.doesNotMatch(report.html, /—/);
 });
 
+test('a post sent through Buffer says so and links to Buffer, not a post', () => {
+  const report = buildReport([{ item: item(), type: 'review', results: {
+    substack: { status: 'posted', via: 'buffer', url: 'https://publish.buffer.com', templateId: 'review-03', text: 't' },
+  } }], { BRAND_NAME: 'HQ', LIVE_PLATFORMS: 'substack' });
+  assert.match(report.html, /Substack Notes<\/strong>: Sent to Buffer, which posts it now/);
+  assert.match(report.html, />Open Buffer</);
+});
+
 // ─── platform wire formats ───────────────────────────────────────────────
 
 /** A fetch that answers each call from `answers` in order and records the requests. */
@@ -476,4 +517,43 @@ test('approving rewrites templates.json in its own layout, nothing else changes'
   assert.deepEqual(setApproved(doc, { ids: ['review-01'], approved: false }), ['review-01']);
   assert.throws(() => setApproved(doc, { ids: ['nope-99'] }), /No template with id nope-99/);
   validateTemplates(JSON.parse(serializeTemplates(doc)));
+});
+
+test('Instagram: image container, wait until FINISHED, publish, then the permalink', async () => {
+  const { requests, fetchImpl } = scriptedFetch([
+    { body: { id: 'c1' } }, { body: { status_code: 'IN_PROGRESS' } }, { body: { status_code: 'FINISHED' } },
+    { body: { id: 'm1' } }, { body: { permalink: 'https://www.instagram.com/p/abc/' } },
+  ]);
+  const posted = await postInstagram({ item: item(), text: 'Caption https://hq.test/a', env: SECRETS, fetchImpl, sleep: async () => {} });
+  assert.deepEqual(posted, { id: 'm1', url: 'https://www.instagram.com/p/abc/' });
+  assert.match(requests[0].url, /^https:\/\/graph\.facebook\.com\/v\d+\.0\/77\/media$/);
+  const body = new URLSearchParams(requests[0].init.body);
+  assert.equal(body.get('image_url'), item().imageUrl);
+  assert.equal(body.get('caption'), 'Caption https://hq.test/a');
+  assert.match(requests[3].url, /\/77\/media_publish$/);
+  assert.equal(new URLSearchParams(requests[3].init.body).get('creation_id'), 'c1');
+
+  await assert.rejects(postInstagram({ item: item({ imageUrl: '' }), text: 't', env: SECRETS, fetchImpl }), /no image/);
+  const broken = scriptedFetch([{ body: { id: 'c2' } }, { body: { status_code: 'ERROR' } }]);
+  await assert.rejects(postInstagram({ item: item(), text: 't', env: SECRETS, fetchImpl: broken.fetchImpl }), (e) => /ERROR/.test(e.message) && !e.maybePosted);
+});
+
+test('Buffer: one createPost, shared now, refusals read from the 200 body', async () => {
+  const ok = scriptedFetch([{ body: { data: { createPost: { __typename: 'PostActionSuccess', post: { id: 'b1' } } } } }]);
+  const text = 'Line one "quoted"\nhttps://hq.test/a';
+  const posted = await postBuffer({ text, env: SECRETS, fetchImpl: ok.fetchImpl, channelId: 'chan-x', label: 'X via Buffer' });
+  assert.equal(posted.id, 'b1');
+  assert.equal(posted.via, 'buffer');
+  const sent = ok.requests[0];
+  assert.equal(sent.url, 'https://api.buffer.com');
+  assert.equal(sent.init.headers.Authorization, 'Bearer buffer-key-abcdef');
+  const { query } = JSON.parse(sent.init.body);
+  assert.ok(query.includes(`text: ${JSON.stringify(text)}`), 'text goes in as an escaped string literal');
+  assert.match(query, /channelId: "chan-x", schedulingType: automatic, mode: shareNow/);
+
+  const refused = scriptedFetch([{ body: { data: { createPost: { __typename: 'MutationError', message: 'Channel is disconnected' } } } }]);
+  await assert.rejects(postBuffer({ text: 't', env: SECRETS, fetchImpl: refused.fetchImpl, channelId: 'c', label: 'X via Buffer' }),
+    (e) => /Channel is disconnected/.test(e.message) && e.maybePosted === false);
+  const down = async () => { throw new Error('socket hang up'); };
+  await assert.rejects(postBuffer({ text: 't', env: SECRETS, fetchImpl: down, channelId: 'c', label: 'X via Buffer' }), (e) => e.maybePosted === true);
 });
