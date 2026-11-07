@@ -32,11 +32,12 @@ export const ALL_PLATFORMS = ['bluesky', 'threads', 'facebook', 'instagram', 'x'
 
 /**
  * Platforms that render the link as a preview card, so the URL need not be in
- * the text. Everywhere else the URL is added at the end: X and Substack Notes
- * turn it into a card themselves; an Instagram caption shows it as plain,
- * unclickable text (Instagram allows no links in captions).
+ * the text (Substack Notes get theirs as Buffer's link attachment). Everywhere
+ * else the URL is added at the end: X turns it into a card itself; an
+ * Instagram caption shows it as plain, unclickable text (Instagram allows no
+ * links in captions).
  */
-const CARD_PLATFORMS = new Set(['bluesky', 'threads', 'facebook']);
+const CARD_PLATFORMS = new Set(['bluesky', 'threads', 'facebook', 'substack']);
 
 /**
  * Length limits. Bluesky counts graphemes; X weighs every link as 23

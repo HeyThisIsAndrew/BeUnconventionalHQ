@@ -57,8 +57,13 @@ dispatch image as the card picture; Threads and Facebook build the card from
 the page's own preview image. Links are the site URL for articles and the
 YouTube watch URL for videos (the same links /dispatch.xml carries).
 Instagram posts that same dispatch image with the text as its caption;
-captions cannot carry links, so the URL there is plain text. X and Substack
-Notes get the URL at the end of the text and build their own card from it.
+captions cannot carry links, so the URL there is plain text. X gets the URL
+at the end of the text and builds its own card from it (keep it inside the
+first 280 characters). Substack Notes get the story as a link card through
+Buffer's `metadata.substack.linkAttachment`, so no URL is added to the text;
+Substack builds the card itself. A post Buffer accepts is queued for
+immediate posting, not confirmed delivered: if the network refuses it later,
+Buffer shows the error on the post in its dashboard.
 
 - **A platform added later applies to new stories only.** Each story's
   record lists the platforms it was planned for, so adding Instagram or
@@ -108,8 +113,8 @@ minutes, so it applies from the next run. No code change.
    | Bluesky | `BLUESKY_IDENTIFIER` (handle), `BLUESKY_APP_PASSWORD` | Bluesky → Settings → Privacy and security → App passwords. Never the account password. |
    | Threads | `THREADS_USER_ID`, `THREADS_ACCESS_TOKEN` (long-lived) | A Meta app with the Threads use case, permissions `threads_basic` + `threads_content_publish`. Development mode is enough for your own account. |
    | Facebook Page | `FB_PAGE_ID`, `FB_PAGE_ACCESS_TOKEN` | A Page token with `pages_manage_posts` + `pages_read_engagement`, derived from a long-lived user token so it does not expire. |
-   | Instagram | `IG_USER_ID` (the Instagram professional account id), `IG_ACCESS_TOKEN` | The same Meta app: add the Instagram product, permissions `instagram_basic` + `instagram_content_publish`. The account must be a Business or Creator account linked to the Facebook Page. App Review is not needed for your own account. `IG_GRAPH_HOST` in wrangler.jsonc is `graph.facebook.com` for this setup. |
-   | X, Substack Notes | `BUFFER_API_KEY` | A free Buffer account (3 channels): connect X and Substack, then Buffer → Settings → API → create a key. The channel ids go in `wrangler.jsonc` (`BUFFER_X_CHANNEL_ID`, `BUFFER_SUBSTACK_CHANNEL_ID`); list them with `BUFFER_API_KEY=… node scripts/buffer-channels.mjs`. |
+   | Instagram | `IG_USER_ID` (the Instagram professional account id), `IG_ACCESS_TOKEN` (the Facebook Page access token) | The same Meta app (Instagram API with Facebook Login): permissions `instagram_basic`, `instagram_content_publish`, `pages_read_engagement`, plus `pages_show_list` to find the account; add `ads_management` or `ads_read` only if your role on the Page comes through Business Manager. The account must be a Business or Creator account linked to the Facebook Page. App Review is not required for an app that only serves a business you own (Meta's App Review table, Standard Access). `IG_GRAPH_HOST` in wrangler.jsonc is `graph.facebook.com` for this setup. Meta fetches the image itself (crawler `facebookexternalhit` / `meta-externalfetcher`); the first live post proves the site's bot protection lets it through, and if not the email says "Meta could not use the image". |
+   | X, Substack Notes | `BUFFER_API_KEY` | A free Buffer account (3 channels): connect X and Substack, then Buffer → Settings → API → create a key. The channel ids go in `wrangler.jsonc` (`BUFFER_X_CHANNEL_ID`, `BUFFER_SUBSTACK_CHANNEL_ID`); list them with `BUFFER_API_KEY=… node scripts/buffer-channels.mjs` (X shows as service `twitter`). The free plan's lifetime cap is 8 connections per network, so don't connect and disconnect to test. |
 
 2. **Deploy**: Actions → "Deploy social distribution Worker" → Run workflow
    (or merge anything under `social-blast-worker/`). The workflow deploys,
