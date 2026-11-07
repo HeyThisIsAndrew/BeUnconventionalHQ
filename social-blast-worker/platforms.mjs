@@ -243,19 +243,29 @@ export async function postInstagram({ item, text, env, fetchImpl, sleep = (ms) =
 
 export const BUFFER_API = 'https://api.buffer.com';
 
+const CREATE_POST = 'mutation CreatePost($input: CreatePostInput!) { createPost(input: $input) { __typename ... on PostActionSuccess { post { id } } ... on MutationError { message } } }';
+
 /**
  * One `createPost` on a Buffer channel, published at once (`shareNow`).
+ * Checked against Buffer's schema (2026-11-07 audit, two independent reads):
+ * `CreatePostInput` declares `assets` non-null with a default of [], sent
+ * explicitly anyway; `needsApproval` defaults to false and is "only valid
+ * when your posting policy on the target channel requires approval", so it
+ * is left out.
  * Buffer answers HTTP 200 even for a refused post: the refusal is a
- * MutationError in the body, so the body is always read. The URL in the text
- * becomes the platform's own link card. Buffer returns its post id, not the
- * platform's, so the report links to Buffer's dashboard rather than the post.
+ * MutationError in the body, so the body is always read. `metadata` carries
+ * a service's link attachment (Substack); X builds its own card from the URL
+ * in the text. Buffer returns its post id, not the platform's, so the report
+ * links to Buffer's dashboard rather than the post. "Created" means queued
+ * for immediate posting, not confirmed delivered.
  */
-export async function postBuffer({ text, env, fetchImpl, channelId, label }) {
-  const query = `mutation CreatePost { createPost(input: { text: ${JSON.stringify(text)}, channelId: ${JSON.stringify(channelId)}, schedulingType: automatic, mode: shareNow }) { __typename ... on PostActionSuccess { post { id } } ... on MutationError { message } } }`;
+export async function postBuffer({ text, env, fetchImpl, channelId, label, metadata }) {
+  const input = { text, channelId, schedulingType: 'automatic', mode: 'shareNow', assets: [] };
+  if (metadata) input.metadata = metadata;
   const result = await call(fetchImpl, BUFFER_API, {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.BUFFER_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query: CREATE_POST, variables: { input } }),
   }, { env, label, final: true });
   if (result.errors?.length) throw new PostError(scrub(`${label}: ${result.errors.map((e) => e.message).join('; ')}`, env));
   const outcome = result.data?.createPost;
@@ -264,7 +274,17 @@ export async function postBuffer({ text, env, fetchImpl, channelId, label }) {
 }
 
 export const postX = (args) => postBuffer({ ...args, channelId: args.env.BUFFER_X_CHANNEL_ID, label: 'X via Buffer' });
-export const postSubstack = (args) => postBuffer({ ...args, channelId: args.env.BUFFER_SUBSTACK_CHANNEL_ID, label: 'Substack Note via Buffer' });
+/**
+ * A Substack Note with the story as a link card. A raw URL in the text is not
+ * documented to become a card, so the link goes in Buffer's
+ * `metadata.substack.linkAttachment` (allowed because `assets` is empty) and
+ * the text carries no URL (copy-engine CARD_PLATFORMS).
+ */
+export const postSubstack = (args) => {
+  const linkAttachment = { url: args.item.link, title: args.item.title };
+  if (args.item.summary) linkAttachment.description = args.item.summary;
+  return postBuffer({ ...args, channelId: args.env.BUFFER_SUBSTACK_CHANNEL_ID, label: 'Substack Note via Buffer', metadata: { substack: { linkAttachment } } });
+};
 
 /**
  * Which credentials each live platform needs. A platform missing any is

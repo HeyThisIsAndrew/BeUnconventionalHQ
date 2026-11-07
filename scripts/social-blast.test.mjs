@@ -23,7 +23,7 @@ import {
   PLATFORM_LIMITS, ALL_PLATFORMS,
 } from '../social-blast-worker/copy-engine.mjs';
 import { runBlast, runAndReport, validateFeed, livePlatforms, MAX_ATTEMPTS } from '../social-blast-worker/blast.mjs';
-import { blueskyFacets, postBluesky, postThreads, postFacebook, postInstagram, postBuffer, PostError, scrub } from '../social-blast-worker/platforms.mjs';
+import { blueskyFacets, postBluesky, postThreads, postFacebook, postInstagram, postBuffer, postX, postSubstack, PostError, scrub } from '../social-blast-worker/platforms.mjs';
 import { buildReport } from '../social-blast-worker/report.mjs';
 
 const TEMPLATES = JSON.parse(readFileSync(new URL('../social-blast-worker/templates.json', import.meta.url), 'utf8'));
@@ -259,13 +259,18 @@ test('LIVE_PLATFORMS switches on only the platforms it names', async () => {
   assert.deepEqual([...livePlatforms({ LIVE_PLATFORMS: 'x,youtube,facebook,instagram,substack' })], ['x', 'facebook', 'instagram', 'substack']);
 });
 
-test('Instagram, X and Substack go live like the others; the link is in the text there', async () => {
+test('Instagram, X and Substack go live like the others; the link is in the text on Instagram and X', async () => {
   const store = await seededStore();
   const { calls, publishers } = fakePublishers();
   const env = { ...SECRETS, LIVE_PLATFORMS: 'instagram,x,substack' };
   const result = await runBlast(deps({ store, items: [item()], env, templates: approved(), publishers }));
   assert.deepEqual(calls.map((c) => c.platform), ['instagram', 'x', 'substack']);
-  for (const c of calls) assert.ok(c.text.includes(item().link), `${c.platform} text carries the link`);
+  for (const c of calls.filter((c) => c.platform !== 'substack')) assert.ok(c.text.includes(item().link), `${c.platform} text carries the link`);
+  // Substack's link is a link card (Buffer's linkAttachment): no URL is added
+  // to the text unless the owner's template writes {{url}} itself.
+  const vars = { title: 'T', url: 'https://x.test/a' };
+  assert.equal(renderTemplate({ id: 't', text: 'New: {{title}}' }, vars, 'substack'), 'New: T');
+  assert.equal(renderTemplate({ id: 't', text: 'New: {{title}}' }, vars, 'instagram'), 'New: T\n\nhttps://x.test/a');
   const r = result.entries[0].results;
   assert.equal(r.youtube.status, 'drafted');
   assert.equal(r.bluesky.status, 'previewed');
@@ -547,13 +552,34 @@ test('Buffer: one createPost, shared now, refusals read from the 200 body', asyn
   const sent = ok.requests[0];
   assert.equal(sent.url, 'https://api.buffer.com');
   assert.equal(sent.init.headers.Authorization, 'Bearer buffer-key-abcdef');
-  const { query } = JSON.parse(sent.init.body);
-  assert.ok(query.includes(`text: ${JSON.stringify(text)}`), 'text goes in as an escaped string literal');
-  assert.match(query, /channelId: "chan-x", schedulingType: automatic, mode: shareNow/);
+  const { query, variables } = JSON.parse(sent.init.body);
+  assert.match(query, /^mutation CreatePost\(\$input: CreatePostInput!\) \{ createPost\(input: \$input\)/);
+  assert.match(query, /\.\.\. on MutationError \{ message \}/);
+  // Variables, not text spliced into the query: no escaping to get wrong.
+  assert.deepEqual(variables, { input: { text, channelId: 'chan-x', schedulingType: 'automatic', mode: 'shareNow', assets: [] } });
 
   const refused = scriptedFetch([{ body: { data: { createPost: { __typename: 'MutationError', message: 'Channel is disconnected' } } } }]);
   await assert.rejects(postBuffer({ text: 't', env: SECRETS, fetchImpl: refused.fetchImpl, channelId: 'c', label: 'X via Buffer' }),
     (e) => /Channel is disconnected/.test(e.message) && e.maybePosted === false);
   const down = async () => { throw new Error('socket hang up'); };
   await assert.rejects(postBuffer({ text: 't', env: SECRETS, fetchImpl: down, channelId: 'c', label: 'X via Buffer' }), (e) => e.maybePosted === true);
+});
+
+test('Buffer: X sends no metadata; a Substack Note carries the story as a link card', async () => {
+  const success = { body: { data: { createPost: { __typename: 'PostActionSuccess', post: { id: 'b2' } } } } };
+  const x = scriptedFetch([success]);
+  await postX({ item: item(), text: 't https://hq.test/a', env: SECRETS, fetchImpl: x.fetchImpl });
+  const xInput = JSON.parse(x.requests[0].init.body).variables.input;
+  assert.equal(xInput.channelId, 'chan-x');
+  assert.equal(xInput.metadata, undefined);
+
+  const sub = scriptedFetch([structuredClone(success)]);
+  await postSubstack({ item: item(), text: 'New review', env: SECRETS, fetchImpl: sub.fetchImpl });
+  const subInput = JSON.parse(sub.requests[0].init.body).variables.input;
+  assert.equal(subInput.channelId, 'chan-substack');
+  assert.deepEqual(subInput.assets, [], 'a link card and a non-empty assets array are mutually exclusive');
+  assert.deepEqual(subInput.metadata, { substack: { linkAttachment: { url: item().link, title: item().title, description: item().summary } } });
+  const bare = scriptedFetch([structuredClone(success)]);
+  await postSubstack({ item: item({ summary: '' }), text: 'New review', env: SECRETS, fetchImpl: bare.fetchImpl });
+  assert.equal(JSON.parse(bare.requests[0].init.body).variables.input.metadata.substack.linkAttachment.description, undefined);
 });
