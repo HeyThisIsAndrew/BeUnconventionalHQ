@@ -3,13 +3,14 @@
  * It carries three things, so the owner has one place to look:
  *   - what went live (with links to the posts) or failed;
  *   - in dry-run, the exact text each platform WOULD have posted;
- *   - the ready-to-post drafts for X and YouTube Community (issue #284),
- *     each with a one-tap link that opens the composer.
+ *   - the ready-to-post drafts for X, Substack Notes and YouTube Community
+ *     (issue #284) while they are not live, X with a one-tap composer link.
  */
 import { sendOwnerEmail } from '../src/lib/automation-email.mjs';
 
 const PLATFORM_NAMES = {
-  bluesky: 'Bluesky', threads: 'Threads', facebook: 'Facebook Page', x: 'X', youtube: 'YouTube Community',
+  bluesky: 'Bluesky', threads: 'Threads', facebook: 'Facebook Page', instagram: 'Instagram',
+  x: 'X', substack: 'Substack Notes', youtube: 'YouTube Community',
 };
 
 const STATUS_LABELS = {
@@ -71,7 +72,9 @@ export function buildReport(entries, env, { inspect = false } = {}) {
     }
     for (const [platform, result] of Object.entries(entry.results)) {
       const name = PLATFORM_NAMES[platform] ?? platform;
-      const label = STATUS_LABELS[result.status] ?? result.status;
+      const label = result.status === 'posted' && result.via === 'buffer'
+        ? 'Sent to Buffer, which posts it now'
+        : STATUS_LABELS[result.status] ?? result.status;
       const detail = result.error || result.reason || '';
       text.push(`- ${name}: ${label}${result.templateId ? ` [${result.templateId}]` : ''}${detail ? `: ${detail}` : ''}${result.url ? ` ${result.url}` : ''}`);
       if (result.text) text.push(...result.text.split('\n').map((l) => `    ${l}`));
@@ -80,7 +83,7 @@ export function buildReport(entries, env, { inspect = false } = {}) {
       html.push(`<div style="border:1px solid #ddd;border-radius:6px;padding:10px 12px;margin:8px 0">`,
         `<strong>${esc(name)}</strong>: ${esc(label)}${result.templateId ? ` <small style="color:#888">${esc(result.templateId)}</small>` : ''}`,
         detail ? `<div style="color:#b00020">${esc(detail)}</div>` : '',
-        result.url ? `<div><a href="${esc(result.url)}">View post</a></div>` : '',
+        result.url ? `<div><a href="${esc(result.url)}">${result.via === 'buffer' ? 'Open Buffer' : 'View post'}</a></div>` : '',
         result.text ? `<pre style="white-space:pre-wrap;background:#f6f6f6;padding:8px;border-radius:4px;font:14px/1.4 system-ui,sans-serif;user-select:all">${esc(result.text)}</pre>` : '',
         link && result.status === 'drafted' ? `<a href="${esc(link.href)}" style="display:inline-block;padding:6px 12px;background:#111;color:#fff;border-radius:4px;text-decoration:none">${esc(link.label)}</a>` : '',
         `</div>`);

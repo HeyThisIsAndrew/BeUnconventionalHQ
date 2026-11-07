@@ -27,7 +27,15 @@
  * ("bluesky,threads"). Empty, the default, means every platform is a
  * preview: the report shows exactly what would have gone out. A preview is
  * final for that story, so switching a platform live later never posts old
- * stories. X and YouTube Community are never live: they are drafts.
+ * stories. X and Substack Notes are emailed as drafts until they are live;
+ * YouTube Community is always a draft (it has no posting API).
+ *
+ * ─── A PLATFORM ADDED LATER NEVER REACHES BACK ───────────────────────────
+ * Each record lists the platforms it was planned for when the story was
+ * first seen. A platform added to the engine afterwards (Instagram and
+ * Substack, 2026-11) applies to new stories only, so a deploy never sends a
+ * batch of last week's stories to it. Records from before `planned` existed
+ * carry the original five.
  */
 import { ALL_PLATFORMS, DRAFT_PLATFORMS, LIVE_PLATFORMS, contentTypeOf, pickVariant, validateTemplates } from './copy-engine.mjs';
 import { PLATFORM_SECRETS, PostError, blueskySession, scrub } from './platforms.mjs';
@@ -37,6 +45,8 @@ export const MAX_ATTEMPTS = 3;
 const DEFAULTS = { MAX_AGE_HOURS: 72, MAX_ITEMS_PER_RUN: 3 };
 
 const itemKey = (guid) => `item:${guid}`;
+const LEGACY_PLATFORMS = ['bluesky', 'threads', 'facebook', 'x', 'youtube'];
+const plannedFor = (record) => (record.planned ?? LEGACY_PLATFORMS).filter((p) => ALL_PLATFORMS.includes(p));
 const rotationKey = (platform, type) => `rot:${platform}:${type}`;
 
 /** The live platforms named in LIVE_PLATFORMS. Unknown names are ignored. */
@@ -66,7 +76,7 @@ const settled = (result) => result && !retryable(result) && result.status !== 'i
 /** Does this record still have platforms to do? (A retry, or an in-flight mark to resolve.) */
 function hasPending(record) {
   return !record.skipped && !record.seeded &&
-    ALL_PLATFORMS.some((p) => !settled(record.platforms?.[p]));
+    plannedFor(record).some((p) => !settled(record.platforms?.[p]));
 }
 
 /** A store that reads through to `store` and keeps every write in memory: inspection mode. */
@@ -85,7 +95,7 @@ function overlay(store) {
  *   env         vars and secrets
  *   templates   parsed templates.json
  *   fetchFeed   () => parsed /dispatch.json
- *   publishers  { bluesky, threads, facebook } (platforms.mjs)
+ *   publishers  { bluesky, threads, facebook, instagram, x, substack } (platforms.mjs)
  *   fetchImpl   fetch for platform APIs
  *   getImage    (url) => { bytes, type } | null
  *   threadsToken () => current Threads token
@@ -126,7 +136,7 @@ export async function runBlast(deps) {
   let bluesky = null;
   const entries = [];
   for (const { item, record: existing } of queue) {
-    const record = existing ?? { guid: item.guid, title: item.title, link: item.link, firstSeenAt: now(), platforms: {} };
+    const record = existing ?? { guid: item.guid, title: item.title, link: item.link, firstSeenAt: now(), planned: [...ALL_PLATFORMS], platforms: {} };
     record.platforms ??= {};
     const type = contentTypeOf(item, doc);
     record.type = type;
@@ -140,7 +150,7 @@ export async function runBlast(deps) {
 
     const usedNow = new Set(Object.values(record.platforms).map((r) => r?.templateId).filter(Boolean));
     const results = {};
-    for (const platform of ALL_PLATFORMS) {
+    for (const platform of plannedFor(record)) {
       const previous = record.platforms[platform];
       if (previous?.status === 'in-flight') {
         record.platforms[platform] = results[platform] = {
@@ -151,7 +161,7 @@ export async function runBlast(deps) {
       }
       if (settled(previous)) continue;
 
-      const mode = DRAFT_PLATFORMS.includes(platform) ? 'draft' : live.has(platform) ? 'live' : 'preview';
+      const mode = live.has(platform) ? 'live' : DRAFT_PLATFORMS.includes(platform) ? 'draft' : 'preview';
       // A retry posts the text it already chose, so rotation does not move on.
       let pick = previous?.text ? { text: previous.text, template: { id: previous.templateId } } : null;
       if (!pick) {
@@ -186,7 +196,7 @@ export async function runBlast(deps) {
         if (platform === 'bluesky') extra.session = await (bluesky ??= (deps.blueskySession ?? blueskySession)(env, fetchImpl));
         if (platform === 'threads') extra.token = await threadsToken?.();
         const posted = await publishers[platform]({ item, text: pick.text, env, fetchImpl, getImage, ...extra });
-        record.platforms[platform] = results[platform] = { ...base, status: 'posted', attempts, id: posted.id, url: posted.url };
+        record.platforms[platform] = results[platform] = { ...base, status: 'posted', attempts, id: posted.id, url: posted.url, ...(posted.via ? { via: posted.via } : {}) };
       } catch (error) {
         const message = scrub(error?.message ?? error, env);
         const maybePosted = error instanceof PostError && error.maybePosted;

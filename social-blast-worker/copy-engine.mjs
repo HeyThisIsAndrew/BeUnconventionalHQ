@@ -18,19 +18,33 @@
  *     dry-run previews and draft emails, nothing else.
  */
 
-export const LIVE_PLATFORMS = ['bluesky', 'threads', 'facebook'];
-export const DRAFT_PLATFORMS = ['x', 'youtube'];
-export const ALL_PLATFORMS = [...LIVE_PLATFORMS, ...DRAFT_PLATFORMS];
+/**
+ * Platforms that CAN post for real, once named in LIVE_PLATFORMS and given
+ * their credentials. Bluesky, Threads, Facebook and Instagram use their own
+ * official APIs; X and Substack Notes go through Buffer's API (X charges per
+ * post since 2026 and Substack has no public posting API; Buffer is an
+ * official partner of both). YouTube Community has no posting API at all.
+ */
+export const LIVE_PLATFORMS = ['bluesky', 'threads', 'facebook', 'instagram', 'x', 'substack'];
+/** Platforms whose text is emailed as a ready-to-post DRAFT while they are not live. */
+export const DRAFT_PLATFORMS = ['x', 'substack', 'youtube'];
+export const ALL_PLATFORMS = ['bluesky', 'threads', 'facebook', 'instagram', 'x', 'substack', 'youtube'];
 
-/** Platforms that render the link as a preview card, so the URL need not be in the text. */
+/**
+ * Platforms that render the link as a preview card, so the URL need not be in
+ * the text. Everywhere else the URL is added at the end: X and Substack Notes
+ * turn it into a card themselves; an Instagram caption shows it as plain,
+ * unclickable text (Instagram allows no links in captions).
+ */
 const CARD_PLATFORMS = new Set(['bluesky', 'threads', 'facebook']);
 
 /**
  * Length limits. Bluesky counts graphemes; X weighs every link as 23
- * characters (t.co); Threads counts characters. Facebook and YouTube allow far
- * more than any announcement should use, so those limits are house limits.
+ * characters (t.co); Threads counts characters; an Instagram caption allows
+ * 2,200. Facebook, Substack Notes and YouTube allow far more than any
+ * announcement should use, so those limits are house limits.
  */
-export const PLATFORM_LIMITS = { bluesky: 300, threads: 500, facebook: 2000, x: 280, youtube: 1500 };
+export const PLATFORM_LIMITS = { bluesky: 300, threads: 500, facebook: 2000, instagram: 2200, x: 280, substack: 1500, youtube: 1500 };
 const X_LINK_WEIGHT = 23;
 /** A summary trimmed shorter than this says nothing; the template is skipped instead. */
 const MIN_SUMMARY = 40;

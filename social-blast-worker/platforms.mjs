@@ -1,8 +1,12 @@
 /**
- * The three live publishers (issue #282). Official APIs only:
- *   Bluesky   AT Protocol (createSession, uploadBlob, createRecord)
- *   Threads   Threads API, two-step container then publish
- *   Facebook  Graph API, POST /{page-id}/feed
+ * The live publishers (issue #282). Official APIs only:
+ *   Bluesky    AT Protocol (createSession, uploadBlob, createRecord)
+ *   Threads    Threads API, two-step container then publish
+ *   Facebook   Graph API, POST /{page-id}/feed
+ *   Instagram  Instagram Content Publishing API, image container then publish
+ *   X, Substack Notes  Buffer's GraphQL API (createPost, shareNow): X charges
+ *              per post and Substack has no public posting API, and Buffer is
+ *              an official partner of both. Free plan: 3 channels.
  *
  * Each publisher takes ({ item, text, env, fetchImpl, getImage, session }) and
  * returns { id, url }, or throws a PostError. `maybePosted` on the error says
@@ -31,7 +35,7 @@ export const BLUESKY_THUMB_MAX_BYTES = 1000000;
 /** Removes every configured secret from a string before it is logged or emailed. */
 export function scrub(text, env) {
   let out = String(text ?? '');
-  for (const key of ['BLUESKY_APP_PASSWORD', 'THREADS_ACCESS_TOKEN', 'FB_PAGE_ACCESS_TOKEN', 'RESEND_API_KEY', 'WEBSUB_SECRET']) {
+  for (const key of ['BLUESKY_APP_PASSWORD', 'THREADS_ACCESS_TOKEN', 'FB_PAGE_ACCESS_TOKEN', 'IG_ACCESS_TOKEN', 'BUFFER_API_KEY', 'RESEND_API_KEY', 'WEBSUB_SECRET']) {
     const value = env?.[key];
     if (value && value.length >= 6) out = out.split(value).join('[redacted]');
   }
@@ -194,11 +198,86 @@ export async function postFacebook({ item, text, env, fetchImpl }) {
   return { id: created.id ?? null, url: created.id ? `https://www.facebook.com/${created.id}` : null };
 }
 
-/** Which credentials each live platform needs. A platform missing any is reported, never attempted. */
+// ─── Instagram ──────────────────────────────────────────────────────────
+
+/**
+ * A single-image feed post: the composed 1200x675 dispatch image (16:9 sits
+ * inside Instagram's 1.91:1 limit; JPEG, the only format it accepts) with the
+ * text as its caption. Meta FETCHES the image from its URL, so it must be
+ * public. Captions cannot carry links, so the URL in the text is plain.
+ * IG_GRAPH_HOST is graph.facebook.com for an account connected through a
+ * Facebook Page (the same Meta app as Threads and Facebook), or
+ * graph.instagram.com for Instagram Login.
+ */
+export async function postInstagram({ item, text, env, fetchImpl, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
+  if (!/^https:\/\//.test(item.imageUrl ?? '')) throw new PostError('Instagram: the story has no image to post');
+  const base = `https://${env.IG_GRAPH_HOST || 'graph.facebook.com'}/${env.GRAPH_API_VERSION || 'v24.0'}`;
+  const token = env.IG_ACCESS_TOKEN;
+  const container = await call(fetchImpl, `${base}/${env.IG_USER_ID}/media`, {
+    method: 'POST', body: form({ image_url: item.imageUrl, caption: text, access_token: token }),
+  }, { env, label: 'Instagram container' });
+  if (!container.id) throw new PostError('Instagram container: no id returned');
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const status = await call(fetchImpl, `${base}/${container.id}?${form({ fields: 'status_code', access_token: token })}`, {},
+      { env, label: 'Instagram container status' });
+    if (status.status_code === 'FINISHED' || !status.status_code) break;
+    if (status.status_code === 'ERROR' || status.status_code === 'EXPIRED') {
+      throw new PostError(`Instagram container ${status.status_code}: Meta could not use the image (is it public?)`);
+    }
+    if (attempt === 5) throw new PostError('Instagram container never finished processing');
+    await sleep(3000);
+  }
+  const published = await call(fetchImpl, `${base}/${env.IG_USER_ID}/media_publish`, {
+    method: 'POST', body: form({ creation_id: container.id, access_token: token }),
+  }, { env, label: 'Instagram publish', final: true });
+  let url = null;
+  try {
+    const meta = await call(fetchImpl, `${base}/${published.id}?${form({ fields: 'permalink', access_token: token })}`, {},
+      { env, label: 'Instagram permalink' });
+    url = meta.permalink ?? null;
+  } catch { /* the post is up; the link is a nicety */ }
+  return { id: published.id ?? null, url };
+}
+
+// ─── Buffer (X, Substack Notes) ─────────────────────────────────────────
+
+export const BUFFER_API = 'https://api.buffer.com';
+
+/**
+ * One `createPost` on a Buffer channel, published at once (`shareNow`).
+ * Buffer answers HTTP 200 even for a refused post: the refusal is a
+ * MutationError in the body, so the body is always read. The URL in the text
+ * becomes the platform's own link card. Buffer returns its post id, not the
+ * platform's, so the report links to Buffer's dashboard rather than the post.
+ */
+export async function postBuffer({ text, env, fetchImpl, channelId, label }) {
+  const query = `mutation CreatePost { createPost(input: { text: ${JSON.stringify(text)}, channelId: ${JSON.stringify(channelId)}, schedulingType: automatic, mode: shareNow }) { __typename ... on PostActionSuccess { post { id } } ... on MutationError { message } } }`;
+  const result = await call(fetchImpl, BUFFER_API, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${env.BUFFER_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  }, { env, label, final: true });
+  if (result.errors?.length) throw new PostError(scrub(`${label}: ${result.errors.map((e) => e.message).join('; ')}`, env));
+  const outcome = result.data?.createPost;
+  if (outcome?.post?.id) return { id: outcome.post.id, url: 'https://publish.buffer.com', via: 'buffer' };
+  throw new PostError(scrub(`${label}: ${outcome?.message ?? 'Buffer did not create the post'}`, env));
+}
+
+export const postX = (args) => postBuffer({ ...args, channelId: args.env.BUFFER_X_CHANNEL_ID, label: 'X via Buffer' });
+export const postSubstack = (args) => postBuffer({ ...args, channelId: args.env.BUFFER_SUBSTACK_CHANNEL_ID, label: 'Substack Note via Buffer' });
+
+/**
+ * Which credentials each live platform needs. A platform missing any is
+ * reported, never attempted. The Buffer channel ids are plain vars in
+ * wrangler.jsonc (not secret); the key is a secret.
+ */
 export const PLATFORM_SECRETS = {
   bluesky: ['BLUESKY_IDENTIFIER', 'BLUESKY_APP_PASSWORD'],
   threads: ['THREADS_USER_ID', 'THREADS_ACCESS_TOKEN'],
   facebook: ['FB_PAGE_ID', 'FB_PAGE_ACCESS_TOKEN'],
+  instagram: ['IG_USER_ID', 'IG_ACCESS_TOKEN'],
+  x: ['BUFFER_API_KEY', 'BUFFER_X_CHANNEL_ID'],
+  substack: ['BUFFER_API_KEY', 'BUFFER_SUBSTACK_CHANNEL_ID'],
 };
 
-export const PUBLISHERS = { bluesky: postBluesky, threads: postThreads, facebook: postFacebook };
+export const PUBLISHERS = { bluesky: postBluesky, threads: postThreads, facebook: postFacebook, instagram: postInstagram, x: postX, substack: postSubstack };
