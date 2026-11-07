@@ -102,9 +102,16 @@ test('templates.json is valid and has at least 10 general variants per content t
   }
 });
 
-test('no shipped template is pre-approved: the owner approves each one', () => {
+test('only the owner approves templates: each approved one carries the date he ticked it', () => {
+  // Approval is the owner's, per template (CLAUDE.md). He ticks templates on
+  // the picking page and each one he ticked is installed with approvedOn.
+  // An approved template without that date is a blanket approval nobody made.
   for (const list of Object.values(TEMPLATES.templates)) {
-    for (const t of list) assert.notEqual(t.approved, true, `${t.id} ships approved`);
+    for (const t of list) {
+      if (t.approved !== true) continue;
+      assert.match(t.approvedOn ?? '', /^\d{4}-\d{2}-\d{2}$/, `${t.id} is approved with no approvedOn date`);
+      assert.notEqual(t.retired, true, `${t.id} is both retired and approved`);
+    }
   }
 });
 
@@ -171,16 +178,18 @@ test('one story gets a different variant on each platform', () => {
 
 test('a platform with templates of its own uses only those (YouTube question variants)', () => {
   const pick = pickVariant(TEMPLATES, item({ kind: 'video', categories: ['Video', 'Film'] }), 'youtube');
-  assert.match(pick.template.id, /^video-yt-/);
+  assert.ok(pick.template.platforms?.includes('youtube'), `${pick.template.id} is not a YouTube template`);
   const x = pickVariant(TEMPLATES, item({ kind: 'video', categories: ['Video', 'Film'] }), 'x');
-  assert.doesNotMatch(x.template.id, /-yt-/);
+  assert.equal(x.template.platforms, undefined);
 });
 
 test('live picks use approved templates only, and block when none are', () => {
-  assert.match(pickVariant(TEMPLATES, item(), 'bluesky', { live: true }).blocked, /no approved "review" template/);
   const doc = structuredClone(TEMPLATES);
-  doc.templates.review[4].approved = true;
-  assert.equal(pickVariant(doc, item(), 'bluesky', { live: true }).template.id, 'review-05');
+  for (const list of Object.values(doc.templates)) for (const t of list) t.approved = false;
+  assert.match(pickVariant(doc, item(), 'bluesky', { live: true }).blocked, /no approved "review" template/);
+  const one = doc.templates.review.find((t) => !t.retired && !t.platforms);
+  one.approved = true;
+  assert.equal(pickVariant(doc, item(), 'bluesky', { live: true }).template.id, one.id);
 });
 
 test('lengths: Bluesky counts graphemes, X weighs a link as 23', () => {
@@ -461,7 +470,9 @@ test('approving rewrites templates.json in its own layout, nothing else changes'
   const doc = JSON.parse(raw);
   assert.deepEqual(setApproved(doc, { ids: ['review-01', 'news-03'] }), ['review-01', 'news-03']);
   assert.equal(doc.templates.review[0].approved, true);
-  assert.equal(setApproved(doc, { type: 'video' }).length, doc.templates.video.length);
+  const draftVideos = doc.templates.video.filter((t) => t.approved !== true).length;
+  assert.equal(setApproved(doc, { type: 'video' }).length, draftVideos, 'returns only the ids it changed');
+  assert.ok(doc.templates.video.every((t) => t.approved === true));
   assert.deepEqual(setApproved(doc, { ids: ['review-01'], approved: false }), ['review-01']);
   assert.throws(() => setApproved(doc, { ids: ['nope-99'] }), /No template with id nope-99/);
   validateTemplates(JSON.parse(serializeTemplates(doc)));
