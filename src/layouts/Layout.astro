@@ -682,6 +682,12 @@ const fallbackMark = await getImage({
         document.addEventListener('astro:before-swap', function (event) {
           var direction = document.documentElement.dataset.pageTransition;
           if (direction) event.newDocument.documentElement.dataset.pageTransition = direction;
+          if (document.documentElement.classList.contains('js')) {
+            event.newDocument.documentElement.classList.add('js');
+          }
+          if (document.documentElement.hasAttribute('data-screen-4k')) {
+            event.newDocument.documentElement.setAttribute('data-screen-4k', '');
+          }
           /* A FLAG, NOT AN OFFSET. This captured window.scrollY and put it back
              after the swap, which is what threw the reader to the bottom of a
              shorter page. All the swap needs to know is that a pagination
