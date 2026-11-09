@@ -490,6 +490,7 @@ export default defineConfig({
   */
   routeRules: {
     '/api/live-status.json': { maxAge: 900, swr: 300 },
+    '/api/latest-posts.json': { maxAge: 3600, swr: 86400 },
     /* NOT /img/yt/[id]/[w] (the hero art). A route rule would stamp the edge
        TTL on its 404s too, and a missing thumbnail must not be cached for a
        week, so that route sets its edge cache per response instead. */
