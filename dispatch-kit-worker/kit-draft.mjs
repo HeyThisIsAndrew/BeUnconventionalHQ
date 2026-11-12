@@ -40,6 +40,36 @@ export function joinBoxes(featuredHtml, latestHeadingHtml, latestHtml) {
 
 export const draftMarker = (guid) => `${MARKER_PREFIX}${guid}]`;
 
+/**
+ * Kit refuses a broadcast description longer than 255 characters, with a
+ * bare "There has been an error saving your changes" 422 and nothing naming
+ * the field (measured 2026-11-12: 250 saved, 260 refused). The first live
+ * weekly run sent 699 and made no draft. Capped below that in UTF-8 BYTES,
+ * so a curly quote can never tip it over whichever way Kit counts.
+ */
+export const KIT_DESCRIPTION_MAX = 250;
+const bytes = (s) => new TextEncoder().encode(s).length;
+
+/**
+ * The plan's description cut to fit Kit: whole lines in order, then a note
+ * that more was left out, and ALWAYS the draft marker last, because the
+ * duplicate guard and the issue count read it back from Kit. Nothing is lost
+ * for the owner: the "draft ready" email carries the full list.
+ */
+export function kitDescription(description, max = KIT_DESCRIPTION_MAX) {
+  const text = String(description ?? '');
+  if (bytes(text) <= max) return text;
+  const lines = text.split('\n');
+  const marker = lines[lines.length - 1].startsWith(MARKER_PREFIX) ? lines.pop() : '';
+  const more = '(more in the draft-ready email)';
+  const kept = [];
+  for (const line of lines) {
+    if (bytes([...kept, line, more, marker].filter(Boolean).join('\n')) > max) break;
+    kept.push(line);
+  }
+  return [...kept, more, marker].filter(Boolean).join('\n');
+}
+
 function positive(value, fallback) {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : fallback;
@@ -499,7 +529,7 @@ export async function runKitDraft(deps) {
     // An empty preview_text is left out, never sent as "": a featured story
     // with no subtitle (a YouTube video) is expected, and the owner is told.
     ...(plan.previewText ? { preview_text: plan.previewText } : {}),
-    description: plan.description,
+    description: kitDescription(plan.description),
     content: plan.content,
     email_template_id: Number(env.KIT_EMAIL_TEMPLATE_ID),
     public: false,
