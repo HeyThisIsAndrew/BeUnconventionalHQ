@@ -496,7 +496,9 @@ export async function runKitDraft(deps) {
 
   const body = {
     subject: plan.subject,
-    preview_text: plan.previewText,
+    // An empty preview_text is left out, never sent as "": a featured story
+    // with no subtitle (a YouTube video) is expected, and the owner is told.
+    ...(plan.previewText ? { preview_text: plan.previewText } : {}),
     description: plan.description,
     content: plan.content,
     email_template_id: Number(env.KIT_EMAIL_TEMPLATE_ID),

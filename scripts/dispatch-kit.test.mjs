@@ -134,6 +134,14 @@ test('no new stories: no draft and no Kit call', async () => {
   assert.equal(kit.requests.length, 0);
 });
 
+test('live: a featured story with no subtitle sends NO preview_text key (never an empty string)', async () => {
+  const kit = fakeKit();
+  const blank = story(2, { newsletter: { subtitle: null, lede: null, blurb: null, missing: ['subtitle'] } });
+  const result = await run({ store: memoryStore(), env: LIVE, fetchImpl: kit.fetchImpl, fetchFeed: async () => feed([story(1), blank]) });
+  assert.equal(result.action, 'created');
+  assert.ok(!('preview_text' in kit.requests.find((r) => r.method === 'POST').body));
+});
+
 test('live: creates ONE draft (send_at null, public false, the template), then a re-run creates nothing', async () => {
   const kit = fakeKit();
   const store = memoryStore();
