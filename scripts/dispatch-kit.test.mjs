@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   planDraft, previewText, runKitDraft, validateKitFeed, buildNotice, kitRequest, draftMarker, draftUrl,
-  dedupeStories, titleSubject, weekOf, nextIssueNumber, validateNote,
+  dedupeStories, titleSubject, weekOf, nextIssueNumber, validateNote, kitDescription, KIT_DESCRIPTION_MAX,
 } from '../dispatch-kit-worker/kit-draft.mjs';
 
 const NOW = Date.parse('2026-11-05T16:00:00Z');
@@ -140,6 +140,31 @@ test('live: a featured story with no subtitle sends NO preview_text key (never a
   const result = await run({ store: memoryStore(), env: LIVE, fetchImpl: kit.fetchImpl, fetchFeed: async () => feed([story(1), blank]) });
   assert.equal(result.action, 'created');
   assert.ok(!('preview_text' in kit.requests.find((r) => r.method === 'POST').body));
+});
+
+test('Kit description fits Kit (<= 250 bytes), keeps whole lines and always ends with the draft marker', () => {
+  const marker = draftMarker('https://www.youtube.com/watch?v=RQsja2Jk4tc');
+  const long = ['Issue 1 | Week of November 9, 2026', 'FEATURED: Godzilla Minus Zero Premiere Breakdown | The Human Cost of Kaiju Warfare',
+    'FILM: Avengers: Doomsday | When Cinematic Hype Meets Toy-Grade Merchandise / The Suicide Squad’s canon', 'TV: nothing this week',
+    'WRITE BEFORE SENDING:', '- Godzilla: subtitle', marker].join('\n');
+  const out = kitDescription(long);
+  assert.ok(new TextEncoder().encode(out).length <= KIT_DESCRIPTION_MAX, `${new TextEncoder().encode(out).length} bytes`);
+  assert.ok(out.endsWith(`\n${marker}`));
+  assert.ok(out.startsWith('Issue 1 | Week of November 9, 2026\nFEATURED: Godzilla'));
+  assert.match(out, /\(more in the draft-ready email\)/);
+  for (const line of out.split('\n')) assert.ok(long.split('\n').includes(line) || line.startsWith('(more'), `cut line: ${line}`);
+  assert.equal(kitDescription('short\n' + marker), 'short\n' + marker, 'a description that fits is untouched');
+});
+
+test('live: the description sent to Kit is capped even when the plan lists many stories', async () => {
+  const kit = fakeKit();
+  const items = [1, 2, 3, 4, 5, 6].map((n) => story(n, { title: `A long story title number ${n} that goes on | With a subtitle to match` }));
+  const result = await run({ store: memoryStore(), env: LIVE, fetchImpl: kit.fetchImpl, fetchFeed: async () => feed(items) });
+  assert.equal(result.action, 'created');
+  const sent = kit.requests.find((r) => r.method === 'POST').body.description;
+  assert.ok(new TextEncoder().encode(sent).length <= KIT_DESCRIPTION_MAX);
+  assert.ok(sent.endsWith(draftMarker(items[5].guid)));
+  assert.ok(result.plan.description.length > sent.length, 'the plan (and the email) keep the full list');
 });
 
 test('live: creates ONE draft (send_at null, public false, the template), then a re-run creates nothing', async () => {
