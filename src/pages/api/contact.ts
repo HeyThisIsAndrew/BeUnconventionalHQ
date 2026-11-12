@@ -15,6 +15,22 @@ import { respondToActionResult } from '../../lib/action-http';
 // fails) to prerender a GET response for a route with no GET handler.
 export const prerender = false;
 
+/**
+ * Handle GET requests by redirecting to /collaborations (matching the
+ * /contact -> /collaborations redirect in astro.config.mjs). Prevents
+ * search engine crawlers that discover this endpoint from getting 404s.
+ */
+export const GET: APIRoute = () => {
+  return new Response(null, {
+    status: 301,
+    headers: {
+      Location: '/collaborations',
+      'X-Robots-Tag': 'noindex',
+      'Cache-Control': 'public, max-age=86400',
+    },
+  });
+};
+
 export const POST: APIRoute = async (context) => {
   let body: unknown;
   try {

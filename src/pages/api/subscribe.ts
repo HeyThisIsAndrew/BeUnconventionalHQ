@@ -14,6 +14,21 @@ import { respondToActionResult } from '../../lib/action-http';
 // fails) to prerender a GET response for a route with no GET handler.
 export const prerender = false;
 
+/**
+ * Handle GET requests with 405 Method Not Allowed instead of unhandled 404.
+ */
+export const GET: APIRoute = () => {
+  return new Response(JSON.stringify({ error: 'Method not allowed. Use POST.' }), {
+    status: 405,
+    headers: {
+      'Content-Type': 'application/json',
+      Allow: 'POST',
+      'X-Robots-Tag': 'noindex',
+      'Cache-Control': 'public, max-age=86400',
+    },
+  });
+};
+
 export const POST: APIRoute = async (context) => {
   let body: unknown;
   try {
