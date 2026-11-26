@@ -43,70 +43,72 @@ const isActive = (href: string) =>
         </div>
       </a>
     </div>
-    <div class="mobile-search-wrapper mobile-only" style="display: flex; align-items: center;">
-      {/*
-        Styled by `.nav-search-btn` in navbar.css, not inline. The inline
-        version could not be overridden by any stylesheet rule, which is how
-        the desktop twin below ended up 0x0 with no way to fix it from CSS.
-      */}
-      <button class="nav-search-btn" data-action="open-search" aria-label="Search">
-        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" aria-hidden="true">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-        </svg>
-      </button>
-      <button class="nav-toggle" aria-label="Toggle Menu" aria-expanded="false">
-        <span class="line line-1"></span><span class="line line-2"></span><span class="line line-3"></span>
-      </button>
+    <div class="nav-right-group">
+      <nav class="nav-container" id="primary-nav" aria-label="Primary">
+        <ul class="nav-list">
+          {
+            navItems.map((item) => (
+              <li class="nav-item">
+                {/*
+                  `viewport`, overriding the site-wide `tap` default.
+
+                  The navbar is on screen from the first paint and never leaves,
+                  so these five destinations are warmed immediately and a click
+                  on any of them has no document to wait for. The global default
+                  stays `tap` deliberately: `viewport` applied to everything
+                  would pull every in-view link's document on a feed this long,
+                  and those documents are 264-619KB.
+
+                  This is also what repairs the desktop regression from moving
+                  the default off `hover`: hovering used to give a head start of
+                  however long the pointer rested, and `tap` gives only the
+                  ~80ms between mousedown and click. Prefetching on sight gives
+                  back more than either.
+                */}
+                <a
+                  href={`/${item.href}`}
+                  data-astro-prefetch="viewport"
+                  class:list={[{ active: isActive(item.href) }]}
+                  aria-current={isActive(item.href) ? 'page' : undefined}
+                >
+                  {item.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+      <div class="nav-right-actions">
+        <button
+          class="nav-contents-btn"
+          id="nav-contents-btn"
+          type="button"
+          aria-label="Contents"
+          title="Contents"
+          aria-controls="floating-page-nav"
+          aria-expanded="false"
+          hidden
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+            <path d="M2 4h8M2 9h14M2 14h8" stroke="currentColor" stroke-width="2" stroke-linecap="square"></path>
+          </svg>
+        </button>
+        {/*
+          Single unified Search control for desktop and mobile. Styled by
+          `.nav-search-btn` in navbar.css, never inline, so both viewports
+          keep the 44x44 tap target and never drift.
+        */}
+        <button class="nav-search-btn" data-action="open-search" type="button" aria-label="Search Be Unconventional">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
+        <button class="nav-toggle" type="button" aria-label="Toggle Menu" aria-controls="primary-nav" aria-expanded="false">
+          <span class="line line-1"></span><span class="line line-2"></span><span class="line line-3"></span>
+        </button>
+      </div>
     </div>
-    <nav class="nav-container">
-      <ul class="nav-list">
-        {
-          navItems.map((item) => (
-            <li class="nav-item">
-              {/*
-                `viewport`, overriding the site-wide `tap` default.
-
-                The navbar is on screen from the first paint and never leaves,
-                so these five destinations are warmed immediately and a click
-                on any of them has no document to wait for. The global default
-                stays `tap` deliberately: `viewport` applied to everything
-                would pull every in-view link's document on a feed this long,
-                and those documents are 264-619KB.
-
-                This is also what repairs the desktop regression from moving
-                the default off `hover`: hovering used to give a head start of
-                however long the pointer rested, and `tap` gives only the
-                ~80ms between mousedown and click. Prefetching on sight gives
-                back more than either.
-              */}
-              <a
-                href={`/${item.href}`}
-                data-astro-prefetch="viewport"
-                class:list={[{ active: isActive(item.href) }]}
-              >
-                {item.label}
-              </a>
-            </li>
-          ))
-        }
-        <li class="nav-item desktop-only">
-          {/*
-            This SVG carried no width/height and nothing in CSS sized it, so
-            the button computed 0x0 and could not be clicked at all on desktop.
-            It looked fine in a scripted test because `.click()` works on a
-            zero-size element; a person has nothing to aim at. `.nav-search-btn
-            svg` in navbar.css now sizes both copies from one place.
-          */}
-          <button type="button" class="nav-search-btn desktop-only" data-action="open-search" aria-label="Search Be Unconventional">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-          </button>
-        </li>
-      </ul>
-    </nav>
   </div>
 
   <script is:inline>
@@ -166,11 +168,8 @@ const isActive = (href: string) =>
 
             if (navbar.classList.contains('menu-open')) {
               navbar.classList.remove('menu-open');
-              const toggle = document.querySelector('.nav-toggle');
+              const toggle = document.querySelector('#navbar .nav-toggle');
               if (toggle) toggle.setAttribute('aria-expanded', 'false');
-              if (window['__hqScrollLock'] && window['__hqScrollLock'].isLocked()) {
-                window['__hqScrollLock'].release();
-              }
             }
 
             /* THE LOGO IS A HOME BUTTON, ALWAYS. Everything above this line is
@@ -283,8 +282,10 @@ const isActive = (href: string) =>
         const linkPath = new URL(link.href).pathname.replace(/\/$/, '');
         if (currentPath === linkPath || currentPath.startsWith(linkPath + '/')) {
           link.classList.add('active');
+          link.setAttribute('aria-current', 'page');
         } else {
           link.classList.remove('active');
+          link.removeAttribute('aria-current');
         }
       });
     }
@@ -359,8 +360,12 @@ const isActive = (href: string) =>
           if (!href || href.startsWith('#')) return;
           if (new URL(link.href).pathname.replace(/\/$/, '') ===
               window.location.pathname.replace(/\/$/, '')) return;
-          navList.querySelectorAll('.nav-item a.active').forEach((a) => a.classList.remove('active'));
+          navList.querySelectorAll('.nav-item a.active').forEach((a) => {
+            a.classList.remove('active');
+            a.removeAttribute('aria-current');
+          });
           link.classList.add('active');
+          link.setAttribute('aria-current', 'page');
         });
       }
 
@@ -369,37 +374,35 @@ const isActive = (href: string) =>
 
     // The navbar uses transition:persist, so Astro preserves it (and any
     // .menu-open class) across client-side navigations.
-    function resetMenuState() {
+    // Mobile nav is now a cinematic dropdown directly under the bar (not a
+    // full-screen scroll-locked overlay), so the page stays scrollable while open.
+    function closeMobileMenu(restoreFocus) {
       const navbar = document.getElementById('navbar');
-      if (navbar && navbar.classList.contains('menu-open')) {
-        navbar.classList.remove('menu-open');
-        navbar
-          .querySelector('.nav-toggle')
-          ?.setAttribute('aria-expanded', 'false');
-          
-        if (window['__hqScrollLock'] && window['__hqScrollLock'].isLocked()) {
-          window['__hqScrollLock'].release();
-        }
+      if (!navbar || !navbar.classList.contains('menu-open')) return;
+      navbar.classList.remove('menu-open');
+      const toggle = navbar.querySelector('.nav-toggle');
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', 'false');
+        if (restoreFocus && typeof toggle.focus === 'function') toggle.focus();
       }
+    }
+
+    function resetMenuState() {
+      closeMobileMenu(false);
     }
 
     function purgeNavbarState() {
       const navbar = document.getElementById('navbar');
       const identity = document.getElementById('nav-identity');
-      
+
       if (window['__hqNavFrame1']) cancelAnimationFrame(window['__hqNavFrame1']);
       if (window['__hqNavFrame2']) cancelAnimationFrame(window['__hqNavFrame2']);
 
       if (navbar) {
         navbar.style.transition = 'none';
-        
-        if (navbar.classList.contains('menu-open') && window['__hqScrollLock'] && window['__hqScrollLock'].isLocked()) {
-          window['__hqScrollLock'].release();
-        }
-        
         navbar.classList.remove('scrolled', 'menu-open');
-        
-        const toggle = document.querySelector('.nav-toggle');
+
+        const toggle = navbar.querySelector('.nav-toggle');
         if (toggle) toggle.setAttribute('aria-expanded', 'false');
       }
 
@@ -410,13 +413,19 @@ const isActive = (href: string) =>
         identity.style.pointerEvents = 'none';
         identity.setAttribute('tabindex', '-1');
       }
-      
+
       currentVisibility = null;
     }
 
     if (!window['navbarMobileMenuSetup']) {
       document.addEventListener('astro:page-load', resetMenuState);
       document.addEventListener('astro:before-swap', purgeNavbarState);
+      window.addEventListener('hq:close-nav-menu', () => closeMobileMenu(false));
+
+      const compactNavQuery = window.matchMedia('(max-width: 860px), (orientation: landscape) and (max-height: 500px)');
+      window.addEventListener('resize', () => {
+        if (!compactNavQuery.matches) closeMobileMenu(false);
+      });
 
       document.addEventListener('click', (e) => {
         const target = e.target;
@@ -426,56 +435,28 @@ const isActive = (href: string) =>
 
           `.nav-toggle` is not unique to the navbar: CategoryOverlay's close
           button reuses the class to inherit the hamburger-to-X styling
-          (`class="close-fullscreen-btn nav-toggle menu-open"`). The
-          element-bound handler this replaced read
-          `document.querySelector('.nav-toggle')`, which only ever matched the
-          navbar's own button, so the overlay's close button was never a
-          toggle. A bare `closest('.nav-toggle')` matches BOTH, and closing the
-          category overlay then also opened the mobile menu behind it and left
-          `__hqScrollLock` held — a phantom menu plus a pinned page, which made
-          the next tap on the real hamburger look dead because it merely closed
-          the menu nobody asked for.
+          (`class="close-fullscreen-btn nav-toggle menu-open"`). Scoping to
+          `#navbar` keeps CategoryOverlay and the mobile nav dropdown strictly
+          separated.
         */
         const toggle = target.closest('#navbar .nav-toggle');
         const navLink = target.closest('#navbar .nav-list a');
+        const searchBtn = target.closest('#navbar [data-action="open-search"]');
         const navbar = document.getElementById('navbar');
-        
+
         if (toggle && navbar) {
           const isOpened = navbar.classList.contains('menu-open');
           if (isOpened) {
-            /* Guarded like every other `__hqScrollLock` read in this file.
-               Navbar never imports src/lib/scroll-lock, it only reads the
-               global another component's import defines, so on a page without
-               one of those components this is undefined. */
-            if (!window['__hqScrollLock'] || !window['__hqScrollLock'].isLocked()) {
-              navbar.classList.remove('menu-open');
-              toggle.setAttribute('aria-expanded', 'false');
-              return;
-            }
-            navbar.classList.remove('menu-open');
-            toggle.setAttribute('aria-expanded', 'false');
-            window['__hqScrollLock'].unlock();
+            closeMobileMenu(false);
           } else {
-            if (window['__hqScrollLock']) window['__hqScrollLock'].lock();
+            window.dispatchEvent(new CustomEvent('hq:close-contents'));
             navbar.classList.add('menu-open');
             toggle.setAttribute('aria-expanded', 'true');
           }
-        } else if (navLink && navbar && navbar.classList.contains('menu-open')) {
-          navbar.classList.remove('menu-open');
-          /* `#navbar`-scoped for the same reason as the selectors above:
-             a bare `.nav-toggle` can resolve to CategoryOverlay's close
-             button, which would leave the real hamburger still reading
-             aria-expanded="true" after the menu had closed. */
-          const toggleEl = document.querySelector('#navbar .nav-toggle');
-          if (toggleEl) toggleEl.setAttribute('aria-expanded', 'false');
-          
-          if (window['__hqScrollLock'] && window['__hqScrollLock'].isLocked()) {
-            if (navLink.getAttribute('href') === '/') {
-              window['__hqScrollLock'].release();
-            } else {
-              window['__hqScrollLock'].unlock();
-            }
-          }
+        } else if ((navLink || searchBtn) && navbar && navbar.classList.contains('menu-open')) {
+          closeMobileMenu(false);
+        } else if (navbar && navbar.classList.contains('menu-open') && !navbar.contains(target)) {
+          closeMobileMenu(false);
         }
       });
 
@@ -483,15 +464,7 @@ const isActive = (href: string) =>
         if (e.key !== 'Escape') return;
         const navbar = document.getElementById('navbar');
         if (!navbar || !navbar.classList.contains('menu-open')) return;
-        navbar.classList.remove('menu-open');
-        const toggle = document.querySelector('.nav-toggle');
-        if (toggle) {
-          toggle.setAttribute('aria-expanded', 'false');
-          toggle.focus();
-        }
-        if (window['__hqScrollLock'] && window['__hqScrollLock'].isLocked()) {
-          window['__hqScrollLock'].unlock();
-        }
+        closeMobileMenu(true);
       });
 
       window['navbarMobileMenuSetup'] = true;
@@ -502,31 +475,34 @@ const isActive = (href: string) =>
 
 {/*
   THE NAVBAR PUBLISHES ITS OWN HEIGHT as `--nav-h` on <html>, for anything that
-  must sit flush under it (the homepage hero's `--home-top`, home.css).
+  must sit flush under it (the homepage hero's `--home-top`, home.css, and
+  dropdown menus anchored under the bar).
 
-  Its height is its content's: the logo's clamp, rem padding scaled by the
-  site's root size and a 1px border, so it is 66.55px on a 14" MacBook Pro,
-  74.75px at 1920 and 83px at 2560. The homepage cleared it with a fixed
-  104px and left a 37px dead band under it (issue #262). No single CSS value
-  matches every width, so it is measured.
-
-  Inline and directly after the header, so it runs before the hero is parsed
-  and the hero lays out at its final position (no shift). ResizeObserver
-  follows font swaps and resizes. The header is `transition:persist`, but a
-  ClientRouter swap rewrites <html>'s attributes and drops the property, so
-  it is re-applied on `astro:after-swap`.
+  Measures the top bar row (`.nav-inner` plus `#navbar`'s own padding/border)
+  so opening a dropdown never mutates `--nav-h`.
 */}
 <script is:inline>
   (function () {
     var nav = document.getElementById('navbar');
     if (!nav) return;
+    var row = nav.querySelector('.nav-inner') || nav;
     var set = function () {
-      document.documentElement.style.setProperty('--nav-h', nav.getBoundingClientRect().height + 'px');
+      var cs = getComputedStyle(nav);
+      var h =
+        row.getBoundingClientRect().height +
+        (parseFloat(cs.paddingTop) || 0) +
+        (parseFloat(cs.paddingBottom) || 0) +
+        (parseFloat(cs.borderBottomWidth) || 0);
+      document.documentElement.style.setProperty('--nav-h', h + 'px');
     };
     set();
     if (window.__navHeightObserved) return;
     window.__navHeightObserved = true;
-    if ('ResizeObserver' in window) new ResizeObserver(set).observe(nav);
+    if ('ResizeObserver' in window) {
+      var ro = new ResizeObserver(set);
+      ro.observe(nav);
+      ro.observe(row);
+    }
     document.addEventListener('astro:after-swap', set);
   })();
 </script>

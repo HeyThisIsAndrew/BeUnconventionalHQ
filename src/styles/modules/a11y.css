@@ -208,6 +208,7 @@
   turned a scroll glitch into a trap. `manipulation` is a different value
   with none of that behaviour.
 */
+.nav-contents-btn,
 .nav-toggle,
 .close-fullscreen-btn,
 .modal-close {
@@ -232,8 +233,13 @@
   left: calc(-1 * var(--nav-control-gap) + 4px);
 }
 
+#navbar:has(.nav-contents-btn:not([hidden])) .nav-search-btn::before {
+  left: calc(-1 * var(--nav-control-gap) + 4px);
+}
+
 .nav-search-btn::before,
 .nav-toggle::before,
+.nav-contents-btn::before,
 .close-fullscreen-btn::before,
 .modal-close::before {
   content: '';
@@ -330,37 +336,33 @@
   }
 
   /*
-    The search button gets the leftward budget the toggle gave up. The bar to
-    ITS left really is empty, which is the condition the original note set.
-    Same 6px downward cap for the same reason: page content sits directly
-    beneath the closed bar.
+    The search button gets the leftward budget when Contents is absent;
+    when Contents is present, Contents sits leftmost in the empty middle of
+    the bar and Search stops at the gap between them. Same 6px downward cap
+    so page content directly beneath the closed bar stays untampered.
   */
   #navbar .nav-search-btn::before {
     bottom: -6px;
     left: -48px;
   }
 
+  #navbar:has(.nav-contents-btn:not([hidden])) .nav-search-btn::before {
+    bottom: -6px;
+    left: calc(-1 * var(--nav-control-gap) + 4px);
+  }
+
+  #navbar .nav-contents-btn::before {
+    bottom: -6px;
+    left: -48px;
+  }
+
   /*
-    WHEN THE MENU IS OPEN THE BUDGET DISAPPEARS — take it.
-
-    The 6px above exists only because page content sits directly beneath the
-    closed bar, and a deeper band was measured stealing taps from a category
-    tile. Once the menu is OPEN, `.nav-container` covers the entire viewport,
-    so there is nothing underneath to steal from and the X can have the same
-    generous area the category overlay's close button gets. Antigravity's
-    audit spotted this asymmetry; it is a real one.
-
-    scripts/e2e-corner-controls.test.mjs measures the open state separately,
-    so the steal-check still governs the closed one.
+    Keep the open toggle capped at 6px downward too: the dropdown menu sits
+    directly beneath the bar rather than covering the whole screen, so a deep
+    downward hit band would steal taps from the first dropdown item.
   */
   #navbar.menu-open .nav-toggle::before {
-    bottom: -48px;
-    /*
-      Still capped at the gap horizontally, and by the same amount, for the
-      same reason as above: the search button is beside it in both states.
-      Only the VERTICAL budget changes when the menu opens, because that is
-      the axis with nothing underneath it.
-    */
+    bottom: -6px;
     left: calc(-1 * var(--nav-control-gap) + 4px);
   }
 

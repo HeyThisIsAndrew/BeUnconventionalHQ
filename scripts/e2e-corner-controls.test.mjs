@@ -447,8 +447,9 @@ async function runTests() {
     {
       const page = await browser.newPage();
       for (const vp of VIEWPORTS) {
+        for (const route of ['/intel', '/feed']) {
         await page.setViewport({ ...vp, hasTouch: true, isMobile: true });
-        await page.goto('http://localhost:4321/intel', { waitUntil: 'networkidle2' });
+        await page.goto(`http://localhost:4321${route}`, { waitUntil: 'networkidle2' });
 
         const report = await page.evaluate(async () => {
           const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -526,10 +527,11 @@ async function runTests() {
         );
 
         console.log(
-          `  ✓ ${vp.label}: ${report.filter((c) => c.reachablePct !== null).length} nav controls, ` +
+          `  ✓ ${vp.label} ${route}: ${report.filter((c) => c.reachablePct !== null).length} nav controls, ` +
             `none covering another; search ${search.w}x${search.h}`
         );
         passed++;
+        }
       }
       await page.close();
     }
