@@ -1,5 +1,5 @@
 /*
-  The category overlay has exactly ONE delegated handler (#189).
+  The category dropdown has exactly ONE delegated handler (#189).
 
   ─── WHAT WENT WRONG ──────────────────────────────────────────────────────
   CategoryOverlay.astro and QuadrantFilter.astro each wrapped a document-level
@@ -10,7 +10,7 @@
 
   Nothing pinned that order. If it had flipped, QuadrantFilter would have won
   and taken Escape-to-close, the aria-hidden toggle and the focus move with
-  it, silently: the overlay still opens, and still closes by button.
+  it, silently: the menu still opens, and still closes on click.
 
   ─── WHY A SOURCE TEST AND NOT ONLY A BROWSER ONE ─────────────────────────
   The browser suite (scripts/e2e-category-modal.test.mjs) proves the
@@ -18,9 +18,6 @@
   It cannot prove there is only one handler, because two handlers racing for
   one flag look exactly like one handler working. That is the property this
   file pins, and it is the property that was actually at risk.
-
-  Confirmed to fail on the pre-fix tree: 4 of these checks go red against the
-  two-handler version.
 */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -43,11 +40,10 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const overlay = code(read('src/components/CategoryOverlay.astro'));
 const quadrant = code(read('src/components/QuadrantFilter.astro'));
 
-/** The three selectors the delegated handler claims. */
+/** The two selectors the delegated handler claims. */
 const OWNED_SELECTORS = [
   '#open-categories-btn',
-  '#close-categories-btn',
-  '#category-fullscreen-overlay a.cat-btn',
+  '#category-dropdown-menu a.cat-btn',
 ];
 
 let failures = 0;
@@ -61,7 +57,7 @@ function check(name, fn) {
   }
 }
 
-console.log('\nCategory overlay: single ownership');
+console.log('\nCategory dropdown: single ownership');
 
 check('exactly one component claims the delegated selectors', () => {
   /* Any component that both binds a document listener AND names one of the
@@ -93,8 +89,6 @@ check('QuadrantFilter no longer binds any of them', () => {
 });
 
 check('the shared latch both components fought over is gone', () => {
-  /* Renamed rather than reused: `categoryOverlayDelegated` read as a flag
-     anyone could take, which is how two components came to share it. */
   assert.ok(
     !overlay.includes('categoryOverlayDelegated') && !quadrant.includes('categoryOverlayDelegated'),
     'the old shared flag name is still live in code',
@@ -102,12 +96,9 @@ check('the shared latch both components fought over is gone', () => {
   assert.match(overlay, /__hqCategoryOverlayBound/);
 });
 
-console.log('\nCategory overlay: the behaviours that were at risk');
+console.log('\nCategory dropdown: the behaviours that must hold');
 
-check('Escape closes the overlay', () => {
-  /* The one that mattered. Losing it leaves a keyboard user with a
-     full-screen overlay they can open and cannot dismiss, and every other
-     assertion still passes because the close button still works. */
+check('Escape closes the dropdown', () => {
   assert.match(overlay, /document\.addEventListener\('keydown'/);
   assert.match(overlay, /event\.key === 'Escape'/);
 });
@@ -117,30 +108,19 @@ check('aria-hidden is toggled on open and close', () => {
   assert.match(overlay, /setAttribute\('aria-hidden', 'true'\)/);
 });
 
-check('focus moves into the overlay on open and back out on close', () => {
-  assert.match(overlay, /closeBtn\.focus\(\)/);
-  assert.match(overlay, /openBtn\.focus\(\)/);
+check('focus moves into the dropdown on open and back to trigger on close', () => {
+  assert.match(overlay, /focusTarget\.focus\(/);
+  assert.match(overlay, /openBtn\.focus\(/);
 });
 
-check('aria-expanded tracks the overlay state', () => {
+check('aria-expanded tracks the dropdown state', () => {
   assert.match(overlay, /setAttribute\('aria-expanded', 'true'\)/);
   assert.match(overlay, /setAttribute\('aria-expanded', 'false'\)/);
 });
 
-check('the button-label handler lives with the button it mutates', () => {
-  /*
-    Regression caught while diffing the built output against main. This
-    handler rewrites `#open-categories-btn` to "Categories | Film", and it
-    used to sit in QuadrantFilter. Once QuadrantFilter's delegated block was
-    deleted its script had no imports left, Rollup folded the remainder into
-    FeedGrid's chunk, and /category/[category] does not load that chunk, so
-    the label silently stopped updating there.
-
-    Which is the same class of bug as the one this ticket fixes: behaviour
-    riding on how chunks happen to be emitted. Keeping it in the component
-    that renders the button means its script is on every page that has one.
-  */
+check('the button-label handler lives with the button it mutates and preserves the chevron', () => {
   assert.match(overlay, /Categories \| \$\{/);
+  assert.match(overlay, /category-trigger-label/);
   assert.ok(
     !quadrant.includes('Categories | '),
     'the label handler is back in QuadrantFilter, whose script is not emitted on /category',
@@ -148,28 +128,16 @@ check('the button-label handler lives with the button it mutates', () => {
 });
 
 check('the label handler leaves surfaces without a desktop row alone', () => {
-  /* /intel renders this overlay from IntelFilters, which has no
-     `.desktop-category-row`. Guarding on the row EXISTING (not on finding an
-     active button in it) stops the handler overwriting that surface's own
-     `buttonLabel` with a hardcoded default. */
   assert.match(overlay, /const desktopRow = document\.querySelector\('\.desktop-category-row, \.intel-filter-nav'\)/);
   assert.match(overlay, /if \(!openBtn \|\| !desktopRow\) return;/);
 });
 
-console.log('\nCategory overlay: what was deliberately not merged in');
+console.log('\nCategory dropdown: what was deliberately sunset or kept out');
 
 check('category links are left to ClientRouter, not hijacked', () => {
-  /*
-    QuadrantFilter's dead block did `preventDefault()` + `navigate(href)` on
-    non-hash links, and #189 suggested folding it in. It is redundant —
-    <ClientRouter /> is site-wide — and it is a regression: Astro's router
-    bails on metaKey/ctrlKey/altKey/shiftKey so cmd-click opens a new tab,
-    and that block checked none of them. Folding it in would have swallowed
-    every modified click on /intel and /category.
-  */
   assert.ok(
     !overlay.includes("from 'astro:transitions/client'"),
-    'the overlay should not be driving navigation itself',
+    'the dropdown should not be driving navigation itself',
   );
   assert.ok(
     !/navigate\(/.test(overlay),
@@ -177,24 +145,18 @@ check('category links are left to ClientRouter, not hijacked', () => {
   );
 });
 
-check('the scroll lock is released by count reset, not an extra decrement', () => {
-  /*
-    The lock is reference counted (src/lib/scroll-lock.ts). Adding
-    QuadrantFilter's `astro:before-preparation` → unlockScroll() would be a
-    counted decrement that releases ANOTHER overlay's lock when the mobile
-    nav is also open. releaseScrollLock() resets the counter outright, which
-    is what a document about to be replaced needs.
-  */
-  assert.match(overlay, /addEventListener\('astro:before-swap', releaseScrollLock\)/);
+check('the old full-screen scroll lock and stacking-context lift are removed', () => {
   assert.ok(
-    !overlay.includes('astro:before-preparation'),
-    'before-preparation + unlockScroll would decrement a shared counter',
+    !overlay.includes('lockScroll') && !overlay.includes('scroll-lock'),
+    'the anchored dropdown leaves the page scrollable and must not lock scroll',
+  );
+  assert.ok(
+    !overlay.includes('category-overlay-open'),
+    'category-overlay-open stacking-context hack must not return',
   );
 });
 
 check('the swap cleanup is registered outside the binding guard', () => {
-  /* Leak protection must not depend on which script won a race, so it sits
-     after the guarded block rather than inside it. */
   const guard = overlay.indexOf('__hqCategoryOverlayBound');
   const swap = overlay.indexOf("addEventListener('astro:before-swap'");
   assert.ok(guard > -1, 'the ownership guard is missing');
@@ -206,45 +168,22 @@ check('the swap cleanup is registered outside the binding guard', () => {
   assert.ok(closes >= opens, 'the swap listener appears to be inside the guard');
 });
 
-console.log('\nCategory overlay: it is a takeover, so it goes over everything');
+console.log('\nCategory dropdown: mutual exclusion across menus');
 
-check('the overlay escapes the stacking context that trapped it', () => {
-  /*
-    The overlay is rendered inside `#page-content`, which carries
-    `view-transition-name: page-main` so ClientRouter can slide the page. That
-    forms a STACKING CONTEXT with no z-index of its own, so the overlay painted
-    below the `<header>` at 100 however high it set itself — verified in a
-    browser at z-index 10000, where elementsFromPoint still returned the header
-    in front. A phone showed the navbar's logo, search icon and hamburger over
-    a full-screen black menu, with its close X underneath the hamburger.
+check('Navbar, Contents, and Categories dismiss each other', () => {
+  const navbarSrc = code(read('src/components/Navbar.astro'));
+  const fpnSrc = code(read('src/components/FloatingPageNav.astro'));
 
-    What must hold: the CONTEXT is lifted, and only while this one overlay is
-    open. Asserted as the relationship between the class the component sets and
-    the rule that reads it, because either half alone is silent.
-  */
-  const filters = code(read('src/styles/modules/filters.css'));
-  const overlaySrc = code(read('src/components/CategoryOverlay.astro'));
-
-  const lift = filters.match(/html\.category-overlay-open #page-content \{[^}]*\}/);
-  assert.ok(lift, 'nothing lifts #page-content, so the overlay is still sealed inside it');
-  assert.match(lift[0], /position: relative;/, 'z-index does nothing on a static box');
-
-  const liftZ = Number(lift[0].match(/z-index:\s*(\d+)/)[1]);
-  const navZ = Number(code(read('src/components/Navbar.astro')).match(/z-index:\s*(\d+)/)[1]);
-  assert.ok(liftZ > navZ, `the lifted context (${liftZ}) must outrank the navbar (${navZ})`);
-
-  assert.match(overlaySrc, /classList\.add\('category-overlay-open'\)/,
-    'opening must set the class the rule keys on');
-  assert.match(overlaySrc, /classList\.remove\('category-overlay-open'\)/,
-    'and closing must drop it, or the page stays over the navbar for good');
-
-  assert.doesNotMatch(overlaySrc, /class="category-fullscreen-overlay z-\[/,
-    'the Tailwind z utility contradicted the stylesheet it lost to; it is gone');
+  assert.match(overlay, /hq:close-nav-menu/, 'opening Categories must dismiss Navbar dropdown');
+  assert.match(overlay, /hq:close-contents/, 'opening Categories must dismiss Contents dropdown');
+  assert.match(overlay, /hq:close-categories/, 'Categories must listen for dismissal events');
+  assert.match(navbarSrc, /hq:close-categories/, 'opening Navbar must dismiss Categories dropdown');
+  assert.match(fpnSrc, /hq:close-categories/, 'opening Contents must dismiss Categories dropdown');
 });
 
 console.log(
   failures === 0
-    ? '\n✅ Category overlay ownership checks passed.\n'
+    ? '\n✅ Category dropdown ownership checks passed.\n'
     : `\n❌ ${failures} check(s) failed.\n`,
 );
 process.exit(failures === 0 ? 0 : 1);

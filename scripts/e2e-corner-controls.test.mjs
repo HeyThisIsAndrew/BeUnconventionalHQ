@@ -210,7 +210,6 @@ async function runTests() {
         };
         return {
           modalClose: read('.modal-close'),
-          fullscreenClose: read('.close-fullscreen-btn'),
         };
       });
 
@@ -329,91 +328,51 @@ async function runTests() {
     }
 
     /*
-      THE CATEGORY OVERLAY'S CLOSE BUTTON — CHECKED WHERE IT ACTUALLY EXISTS.
+      THE CATEGORIES CONTROL BELOW 768px IS NOW AN ANCHORED DROPDOWN.
 
-      This is the regression that shipped. `a11y.css` is imported last, so a
-      bare `.nav-toggle { position: relative }` there beat filters.css's
-      `position: absolute` — and the category overlay's close button carries
-      BOTH classes (`class="close-fullscreen-btn nav-toggle menu-open"`, on
-      purpose, so the two controls animate identically). The button fell out
-      of the corner into normal flow, landing in the middle of the overlay on
-      /feed and /intel in both orientations.
-
-      The earlier version of this file "checked" it — on `/`, where the
-      overlay does not exist, so the check read null and skipped. A guard that
-      silently no-ops is not a guard. It is opened here, on a route that has
-      one, and asserted to be in the corner it is drawn in.
+      The old full-screen category overlay and its corner `.close-fullscreen-btn`
+      have been sunsetted. Verify `#category-dropdown-menu` opens anchored directly
+      beneath `#open-categories-btn` on portrait phones without `.close-fullscreen-btn`.
     */
-    for (const vp of [
-      { width: 956, height: 440, label: 'landscape' },
-      { width: 390, height: 844, label: 'portrait' },
-    ]) {
-      for (const route of ['/feed', '/intel']) {
+    {
+      const vp = { width: 390, height: 844, label: 'portrait' };
+      for (const route of ['/category/film', '/intel']) {
         const page = await browser.newPage();
         await page.setViewport({ ...vp, hasTouch: true, isMobile: true });
         await page.goto(`http://localhost:4321${route}`, { waitUntil: 'networkidle2' });
 
         const seen = await page.evaluate(async () => {
-          const overlay = document.querySelector('.category-fullscreen-overlay');
-          if (!overlay) return null;
-          overlay.classList.add('active', 'is-open', 'open');
-          await new Promise((r) => setTimeout(r, 400));
+          const trigger = document.getElementById('open-categories-btn');
+          const dropdown = document.getElementById('category-dropdown-menu');
+          if (!trigger || !dropdown) return null;
+          trigger.scrollIntoView({ block: 'center', behavior: 'instant' });
+          trigger.click();
+          await new Promise((r) => setTimeout(r, 300));
 
-          const btn = document.querySelector('.close-fullscreen-btn');
-          if (!btn) return null;
-          const b = btn.getBoundingClientRect();
-          const items = [...document.querySelectorAll('.category-fullscreen-overlay .cat-btn')].map(
-            (a) => Math.round(a.getBoundingClientRect().top)
-          );
-          const content = document.querySelector('.category-fullscreen-overlay .fullscreen-content');
+          const tr = trigger.getBoundingClientRect();
+          const dr = dropdown.getBoundingClientRect();
+          const items = [...dropdown.querySelectorAll('.cat-btn')].map((a) => {
+            const r = a.getBoundingClientRect();
+            return { top: Math.round(r.top), bottom: Math.round(r.bottom), width: Math.round(r.width) };
+          });
           return {
-            position: getComputedStyle(btn).position,
-            fromTop: Math.round(b.top),
-            fromRight: Math.round(innerWidth - b.right),
-            rows: new Set(items).size,
+            position: getComputedStyle(dropdown).position,
+            topGap: Math.round(dr.top - tr.bottom),
             items: items.length,
-            scrolls: content ? content.scrollHeight > content.clientHeight + 1 : false,
+            allVisible: items.every((i) => i.top >= 0 && i.bottom <= window.innerHeight && i.width > 0),
+            hasFullscreenClose: Boolean(document.querySelector('.close-fullscreen-btn')),
           };
         });
         await page.close();
 
-        if (!seen) continue;
-        const where = `${route} ${vp.label}`;
+        assert.ok(seen, `${route} ${vp.label}: category dropdown must exist`);
+        assert.equal(seen.position, 'absolute', `${route} ${vp.label}: dropdown must be position: absolute`);
+        assert.ok(Math.abs(seen.topGap) <= 12, `${route} ${vp.label}: dropdown topGap=${seen.topGap}`);
+        assert.equal(seen.items, 4, `${route} ${vp.label}: all 4 categories must render`);
+        assert.ok(seen.allVisible, `${route} ${vp.label}: all categories must be visible on screen`);
+        assert.equal(seen.hasFullscreenClose, false, `${route} ${vp.label}: .close-fullscreen-btn must be gone`);
 
-        assert.ok(
-          seen.position === 'absolute' || seen.position === 'fixed',
-          `${where}: the categories close button computes position "${seen.position}". ` +
-            `It shares the .nav-toggle class with the navbar's hamburger, so an ` +
-            `unscoped .nav-toggle rule in a11y.css (imported last) resets it into ` +
-            `normal flow and it lands in the middle of the overlay. Scope such rules ` +
-            `to "#navbar .nav-toggle".`
-        );
-        assert.ok(
-          seen.fromRight < 120 && seen.fromTop < 120,
-          `${where}: the categories close button is ${seen.fromTop}px from the top and ` +
-            `${seen.fromRight}px from the right — it is not in its corner.`
-        );
-
-        if (vp.label === 'landscape' && seen.items > 1) {
-          assert.equal(
-            seen.rows,
-            1,
-            `${where}: the category list renders on ${seen.rows} rows. In a ~440px ` +
-              `landscape viewport a column of ${seen.items} overflows and turns the ` +
-              `overlay into a scroller; it must lay out as a row, the same way ` +
-              `.nav-list does on these screens.`
-          );
-          assert.equal(
-            seen.scrolls,
-            false,
-            `${where}: the category overlay scrolls. In landscape the list must fit.`
-          );
-        }
-
-        console.log(
-          `  ✓ ${where}: close button in corner (${seen.position}), ` +
-            `${seen.items} categories on ${seen.rows} row(s)`
-        );
+        console.log(`  ✓ ${route} ${vp.label}: category dropdown anchored (${seen.position}), ${seen.items} categories visible`);
         passed++;
       }
     }

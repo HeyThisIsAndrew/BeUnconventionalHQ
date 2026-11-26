@@ -247,8 +247,7 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
     font-size: 0.74rem;
   }
 
-  :global(html.modal-open) .floating-page-nav,
-  :global(html.category-overlay-open) .floating-page-nav {
+  :global(html.modal-open) .floating-page-nav {
     display: none !important;
   }
 
@@ -319,6 +318,7 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
     const setOpen = (open: boolean, restoreFocus = false) => {
       if (open) {
         window.dispatchEvent(new CustomEvent('hq:close-nav-menu'));
+        window.dispatchEvent(new CustomEvent('hq:close-categories'));
         navEl.hidden = false;
         void navEl.offsetWidth;
         navEl.classList.add('is-open');

@@ -86,7 +86,7 @@
  *
  * Before adding anything here, check what it transitions.
  */
-const FIXED_CONTROLS = '#navbar, .nav-toggle, .modal-close, .close-fullscreen-btn';
+const FIXED_CONTROLS = '#navbar, .nav-toggle, .modal-close';
 
 let bound = false;
 
