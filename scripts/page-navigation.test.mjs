@@ -117,8 +117,9 @@ test('the feed lands on its row rather than travelling to it', () => {
   );
 });
 
-test('the contents rail is pinned to the viewport, and gave its column back', () => {
+test('the contents nav is docked to the navbar and gave its column back', () => {
   const nav = read('src', 'components', 'FloatingPageNav.astro');
+  const navbar = read('src', 'components', 'Navbar.astro');
   const page = read('src', 'pages', 'intel', '[slug].astro');
   const css = read('src', 'styles', 'modules', 'article.css');
 
@@ -126,18 +127,25 @@ test('the contents rail is pinned to the viewport, and gave its column back', ()
     This briefly asserted the OPPOSITE — that a `.fpn-wrapper` with
     `position: sticky` had to exist. A sticky box sits where it is inserted,
     which is inside the page's content column, so the nav inherited that
-    column's left edge rather than the screen's. At 1440 the column starts ~32px
-    in and it looked right; at 3840 it starts at 978px and the nav landed on top
-    of the first card.
+    column's left edge rather than the viewport. Now the panel docks under
+    the navbar (`#nav-contents-btn`), eliminating the left-edge rail across
+    every viewport while staying `position: fixed`.
   */
   assert.match(nav, /\.floating-page-nav\s*\{[\s\S]{0,400}?position:\s*fixed/,
     'only fixed is measured from the viewport at every width');
+  assert.match(navbar, /id="nav-contents-btn"/,
+    'Navbar must render the docked Contents button');
+  assert.match(nav, /getElementById\('nav-contents-btn'\)/,
+    'FloatingPageNav must dock to #nav-contents-btn in the navbar');
+
+  /* The docked dropdown stays available on mobile and desktop alike. */
+  const navCode = nav.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(navCode, /@media\s*\(max-width:\s*1199px\)\s*\{\s*\.floating-page-nav\s*\{\s*display:\s*none/,
+    'Contents must stay accessible on mobile via the navbar button');
 
   /*
-    A fixed element is trapped by any ancestor with a transform, a filter or a
-    backdrop-filter — the containing-block rule that anchored the feed's PiP
-    window to its hero instead of the viewport. Mounted outside the grid it
-    cannot acquire one from a change inside the layout.
+    Mounted outside the reading grid so fixed positioning never hits a local
+    transform/filter context inside the article column.
   */
   assert.ok(
     page.indexOf('<FloatingPageNav') < page.indexOf('<main class="article-page">'),
@@ -145,13 +153,8 @@ test('the contents rail is pinned to the viewport, and gave its column back', ()
   );
   assert.doesNotMatch(page, /<ArticleToc/, 'the static rail is replaced, not doubled up');
 
-  /*
-    CLIPPED, NOT HIDDEN. `display: none` takes a label out of the accessibility
-    tree, and a screen reader is then offered a nav of unnamed links.
-  */
-  const label = css.length && nav.slice(nav.indexOf('.fpn-label {'));
-  assert.match(label.slice(0, label.indexOf('\n  }')), /max-width: 0/, 'labels clip');
-  assert.doesNotMatch(label.slice(0, label.indexOf('\n  }')), /display: none/, 'labels must stay announced');
+  const label = nav.slice(nav.indexOf('.fpn-label {'));
+  assert.doesNotMatch(label.slice(0, label.indexOf('\n  }')), /display:\s*none/, 'labels must stay announced');
 
   /* The 14rem track existed to hold the contents. It does not any more. */
   const grid = css.slice(css.indexOf('.article-layout {'));

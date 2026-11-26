@@ -1,4 +1,4 @@
-@media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
+@media (max-width: 860px), (orientation: landscape) and (max-height: 500px) {
   .safe-area-blackout {
     display: block;
     position: fixed;
@@ -11,27 +11,16 @@
     pointer-events: none;
   }
 
-  html,
-  body {
-    height: auto !important;
-    min-height: 100% !important;
-    position: relative; /* Re-enabled for body::before placement */
-  }
-
   #navbar {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
-    padding: 0.75rem 1rem;
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: 0.75rem;
+    padding: 0.65rem 0;
+    padding-top: max(0.65rem, env(safe-area-inset-top));
+    padding-bottom: 0.65rem;
     /* No backdrop-filter on mobile — a fixed, full-width blur re-samples
-       everything scrolling behind it every frame. hero.css also forces it
-       off for touch devices; not setting it here at all removes the
-       cascade/minifier fragility rather than relying on that override.
-       Alpha raised from 0.8 to compensate for the missing frosting so
-       sharp content doesn't read through the bar. */
+       everything scrolling behind it every frame. Alpha raised to compensate. */
     background: rgba(0, 0, 0, 0.94) !important;
     max-width: 100%;
     overflow: visible;
@@ -40,17 +29,16 @@
     z-index: 100;
   }
 
-  /* When the mobile menu is open, lift the navbar's stacking context above
-     the .safe-area-blackout (z-index: 110). The .nav-container is nested
-     inside #navbar, so its z-index: 10 is only resolved WITHIN this
-     context — without this, the whole menu is trapped at 100 and the
-     blackout renders on top of it. */
   #navbar.menu-open {
     z-index: 120;
   }
 
+  #navbar .nav-right-actions {
+    gap: var(--nav-control-gap);
+  }
+
   /* Traditional 3-Line Hamburger */
-  .nav-toggle {
+  #navbar .nav-toggle {
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -65,7 +53,7 @@
     align-items: center;
   }
 
-  .nav-toggle .line {
+  #navbar .nav-toggle .line {
     display: block;
     width: 24px;
     height: 2px;
@@ -85,118 +73,122 @@
     transform: translateY(-7px) rotate(-45deg);
   }
 
-  /* The full-screen mobile menu.
-
-     `justify-content: flex-start` + `margin: auto 0` on .nav-list, NOT
-     `justify-content: center`. The two look identical whenever the links fit
-     — auto margins absorb the free space and centre the list exactly as
-     before — but they behave completely differently once the list is taller
-     than the viewport, which is the normal case in landscape on a phone.
-     `justify-content: center` overflows the container equally at BOTH ends
-     and a scroll container cannot reach content that overflows its start
-     edge, so the top links become physically unreachable: the trap. Auto
-     margins collapse to 0 when there is no free space, so the list starts at
-     the top and `overflow-y: auto` can reach all of it. */
-  .nav-container {
-    position: fixed;
-    top: 0;
+  /* Cinematic HQ mobile dropdown (sunsetting the full-screen nav overlay).
+     Anchored directly below the fixed bar; page behind remains scrollable. */
+  #navbar .nav-container {
+    position: absolute;
+    top: 100%;
     left: 0;
+    right: 0;
     width: 100%;
-    height: 100dvh;
-    background: #000000;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
+    height: auto;
+    max-height: calc(100dvh - var(--nav-h, 72px));
+    background: rgba(8, 8, 8, 0.97);
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom: 1px solid rgba(204, 0, 0, 0.45);
+    box-shadow:
+      0 24px 48px rgba(0, 0, 0, 0.88),
+      0 4px 24px rgba(204, 0, 0, 0.16);
+    display: none;
     opacity: 0;
-    visibility: hidden;
-    transition:
-      opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-      visibility 0.4s ease;
-    z-index: 10;
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-    padding-left: max(1.5rem, env(safe-area-inset-left));
-    padding-right: max(1.5rem, env(safe-area-inset-right));
+    translate: 0 -10px;
+    pointer-events: none;
     overflow-y: auto;
     overscroll-behavior: contain;
-
-    /* iOS Safari, landscape: `visibility: hidden` is NOT sufficient to stop a
-       closed overlay from eating taps.
-
-       This element is fixed, full-width and 100dvh, so when it is scrollable
-       it becomes a composited scrolling layer covering the entire viewport on
-       EVERY page — and iOS keeps routing touches to that layer while it is
-       invisible. The result was a phone stuck in landscape: the close button,
-       the nav links, the category overlay and the article gallery were all
-       untappable. It only reproduced in landscape because only landscape.css
-       gives .nav-list `min-height: 100%` plus header clearance, which is what
-       makes the content overflow and creates the scrolling layer in the first
-       place.
-
-       `pointer-events` is the structural fix rather than a workaround: a
-       closed overlay is now incapable of receiving a tap no matter what the
-       compositor does with it. Do not remove it, and do not add
-       `-webkit-overflow-scrolling: touch` here — it is a no-op on modern iOS
-       and it is what promotes this box to the layer that caused the bug. */
-    pointer-events: none;
+    z-index: 10;
+    transition:
+      opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+      translate 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+      display 0.24s;
+    transition-behavior: allow-discrete;
   }
 
   #navbar.menu-open .nav-container {
+    display: block;
     opacity: 1;
-    visibility: visible;
+    translate: 0 0;
     pointer-events: auto;
   }
 
-  /* Prevent background scroll when any overlay is open.
-
-     `modal-open` is the class the shared scroll lock applies
-     (src/lib/scroll-lock.ts) for EVERY overlay, including the mobile menu.
-     `menu-open` is kept alongside it so any older markup or a hand-set class
-     still gets the same treatment — the two are deliberately equivalent
-     here, exactly as they already are in styles/modules/ios-lock.css. */
-  html.menu-open,
-  html.menu-open body,
-  html.modal-open,
-  html.modal-open body {
-    overflow: hidden !important;
-    -webkit-overflow-scrolling: touch;
+  @starting-style {
+    #navbar.menu-open .nav-container {
+      opacity: 0;
+      translate: 0 -10px;
+    }
   }
 
-  .nav-list {
+  #navbar .nav-container .nav-list {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 2.5rem;
+    align-items: stretch;
+    gap: 0;
     list-style: none;
     margin: 0;
-    padding: 0;
-    /* A flex item will not shrink below its content in a scroll container
-       without this, which is what clipped the last link in landscape. */
-    flex-shrink: 0;
+    padding: 0.5rem max(var(--nav-inline-pad, 1.25rem), env(safe-area-inset-right))
+      max(0.85rem, env(safe-area-inset-bottom))
+      max(var(--nav-inline-pad, 1.25rem), env(safe-area-inset-left));
   }
 
-  /* The auto margins that actually centre the menu — see the .nav-container
-     note above for why they replace `justify-content: center`.
-
-     They live in their own rule because they have to outrank
-     `#navbar nav ul { margin: 0 }` (navbar.css), an ID selector at (1,0,2)
-     that a bare `.nav-list` at (0,1,0) loses to. Verified in Chromium: with
-     the declaration folded into `.nav-list` above, the computed margin is
-     0px and the menu silently sticks to the top of the viewport. Do not
-     merge this back. */
-  #navbar .nav-container .nav-list {
-    margin: auto 0;
+  #navbar .nav-container .nav-item {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
 
-  .nav-item a {
+  #navbar .nav-container .nav-item:last-child {
+    border-bottom: none;
+  }
+
+  #navbar .nav-container .nav-item a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 48px;
+    padding: 0.85rem 0.75rem;
     font-family: var(--font-display);
-    font-size: 1.75rem;
+    font-size: 0.95rem;
     font-weight: 700;
-    color: var(--color-white);
+    color: rgba(245, 245, 245, 0.88);
     text-transform: uppercase;
     text-decoration: none;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.22em;
+    border-left: 2px solid transparent;
+    transition:
+      color 0.2s ease,
+      border-color 0.2s ease,
+      background-color 0.2s ease,
+      padding-left 0.2s ease;
+  }
+
+  #navbar .nav-container .nav-item a::after {
+    display: none;
+  }
+
+  #navbar .nav-container .nav-item a.active,
+  #navbar .nav-container .nav-item a[aria-current="page"],
+  #navbar .nav-container .nav-item a:hover,
+  #navbar .nav-container .nav-item a:focus-visible,
+  #navbar .nav-container .nav-item a:active {
+    color: var(--color-accent-text);
+    border-left-color: var(--color-accent);
+    background: rgba(204, 0, 0, 0.08);
+    text-shadow: 0 0 14px rgba(204, 0, 0, 0.5);
+    padding-left: 1rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #navbar .nav-container,
+    #navbar .nav-toggle .line,
+    #navbar .nav-container .nav-item a {
+      transition: none !important;
+    }
+  }
+}
+
+@media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
+  html,
+  body {
+    height: auto !important;
+    min-height: 100% !important;
+    position: relative; /* Re-enabled for body::before placement */
   }
 
   /* HERO BANNER STABILIZATION */
@@ -240,11 +232,6 @@
     padding: 2.8rem 1.5rem 3.65rem 1.5rem !important; /* Top reduced by ~20% */
     transform: none !important;
     opacity: 1 !important;
-  }
-
-  .nav-identity-wrapper {
-    display: flex !important;
-    transform: scale(0.8) !important;
   }
 }
 
@@ -292,7 +279,7 @@
    on the device. Keeping the unprefixed declaration in its own rule stops it
    being folded away. Verify against `dist/` after changing this.
 */
-@media (max-width: 768px), (orientation: landscape) and (max-height: 500px), (pointer: coarse) {
+@media (max-width: 860px), (orientation: landscape) and (max-height: 500px), (pointer: coarse) {
   body::before {
     display: none !important;
   }

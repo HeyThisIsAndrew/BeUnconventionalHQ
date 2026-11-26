@@ -55,14 +55,97 @@ async function runTests() {
     */
     await page.waitForSelector('.nav-toggle', { timeout: 5000 });
 
-    console.log('Opening mobile menu...');
+    console.log('Opening mobile dropdown menu...');
     await page.evaluate(el => el.click(), toggle);
-    await new Promise(r => setTimeout(r, 300)); // wait for transition
+    await new Promise(r => setTimeout(r, 350)); // wait for dropdown entry transition
 
-    const isMenuOpen = await page.evaluate(() => {
-      return document.getElementById('navbar')?.classList.contains('menu-open');
+    const dropdownOpenState = await page.evaluate(() => {
+      const navbarEl = document.getElementById('navbar');
+      const navContainer = navbarEl?.querySelector('.nav-container');
+      const navRect = navbarEl?.getBoundingClientRect();
+      const dropRect = navContainer?.getBoundingClientRect();
+      return {
+        isMenuOpen: Boolean(navbarEl?.classList.contains('menu-open')),
+        dropTop: dropRect ? Math.round(dropRect.top) : -1,
+        dropHeight: dropRect ? Math.round(dropRect.height) : -1,
+        navBottom: navRect ? Math.round(navRect.bottom) : -1,
+        innerHeight: window.innerHeight,
+        bodyPosition: getComputedStyle(document.body).position,
+        htmlOverflow: getComputedStyle(document.documentElement).overflow,
+      };
     });
-    assert.ok(isMenuOpen, 'Navbar should have menu-open class after toggle click');
+    assert.ok(dropdownOpenState.isMenuOpen, 'Navbar should have menu-open class after toggle click');
+    assert.ok(
+      dropdownOpenState.dropTop >= dropdownOpenState.navBottom - 2,
+      `Dropdown top (${dropdownOpenState.dropTop}) should sit below navbar bottom (${dropdownOpenState.navBottom})`
+    );
+    assert.ok(
+      dropdownOpenState.dropHeight > 120 && dropdownOpenState.dropHeight < dropdownOpenState.innerHeight * 0.75,
+      `Dropdown height (${dropdownOpenState.dropHeight}) should be compact, not a full-screen overlay (${dropdownOpenState.innerHeight})`
+    );
+    assert.notEqual(dropdownOpenState.bodyPosition, 'fixed', 'Body must not be fixed-locked while mobile dropdown is open');
+    assert.notEqual(dropdownOpenState.htmlOverflow, 'hidden', 'HTML scroll must remain enabled while mobile dropdown is open');
+
+    // Verify page remains scrollable while mobile dropdown is open
+    await page.evaluate(() => {
+      document.documentElement.style.scrollBehavior = 'auto';
+      window.scrollTo(0, 600);
+    });
+    await new Promise(r => setTimeout(r, 200));
+    const scrollWhileOpen = await page.evaluate(() => Math.round(window.scrollY));
+    assert.ok(scrollWhileOpen >= 500, `Page must scroll while mobile dropdown is open (scrollY=${scrollWhileOpen})`);
+
+    // Tap outside navbar closes dropdown
+    await page.evaluate(() => document.querySelector('main')?.click());
+    await new Promise(r => setTimeout(r, 300));
+    const closedAfterOutsideClick = await page.evaluate(() => !document.getElementById('navbar')?.classList.contains('menu-open'));
+    assert.ok(closedAfterOutsideClick, 'Clicking outside navbar should close mobile dropdown');
+
+    // Re-open, test Escape closes & restores focus
+    await page.evaluate(el => el.click(), toggle);
+    await new Promise(r => setTimeout(r, 300));
+    await page.keyboard.press('Escape');
+    await new Promise(r => setTimeout(r, 300));
+    const closedAfterEscape = await page.evaluate(() => ({
+      closed: !document.getElementById('navbar')?.classList.contains('menu-open'),
+      focusedToggle: document.activeElement?.classList.contains('nav-toggle'),
+    }));
+    assert.ok(closedAfterEscape.closed, 'Escape should close mobile dropdown');
+    assert.ok(closedAfterEscape.focusedToggle, 'Escape should return focus to .nav-toggle');
+
+    // Verify Contents button docked in navbar on /feed (no left-edge side rail)
+    const contentsBtn = await page.$('#nav-contents-btn');
+    assert.ok(contentsBtn, '#nav-contents-btn should exist in DOM');
+    const contentsVisible = await page.evaluate((el) => !el.hidden && getComputedStyle(el).display !== 'none', contentsBtn);
+    assert.ok(contentsVisible, '#nav-contents-btn should be visible on /feed');
+    await page.evaluate((el) => el.click(), contentsBtn);
+    await new Promise(r => setTimeout(r, 300));
+    const contentsState = await page.evaluate(() => {
+      const panel = document.getElementById('floating-page-nav');
+      const navRect = document.getElementById('navbar').getBoundingClientRect();
+      const panelRect = panel?.getBoundingClientRect();
+      return {
+        isOpen: Boolean(panel?.classList.contains('is-open')),
+        left: panelRect ? Math.round(panelRect.left) : -1,
+        right: panelRect ? Math.round(panelRect.right) : -1,
+        top: panelRect ? Math.round(panelRect.top) : -1,
+        navBottom: Math.round(navRect.bottom),
+        linksCount: panel?.querySelectorAll('[data-toc-link]').length ?? 0,
+      };
+    });
+    assert.ok(contentsState.isOpen, '#floating-page-nav should open when #nav-contents-btn is clicked');
+    assert.ok(contentsState.top >= contentsState.navBottom, 'Contents dropdown should sit below navbar');
+    assert.ok(contentsState.left > 0, 'Contents dropdown must not be pinned to left viewport edge 0');
+    assert.ok(contentsState.linksCount >= 2, 'Contents dropdown must contain section links');
+
+    // Opening mobile menu closes Contents dropdown (one dropdown at a time)
+    await page.evaluate((el) => el.click(), toggle);
+    await new Promise(r => setTimeout(r, 250));
+    const mutuallyExclusive = await page.evaluate(() => ({
+      menuOpen: document.getElementById('navbar')?.classList.contains('menu-open'),
+      contentsOpen: document.getElementById('floating-page-nav')?.classList.contains('is-open'),
+    }));
+    assert.ok(mutuallyExclusive.menuOpen && !mutuallyExclusive.contentsOpen, 'Opening mobile menu should close Contents dropdown');
 
     console.log('Closing mobile menu...');
     await page.evaluate(el => el.click(), toggle);
@@ -82,6 +165,88 @@ async function runTests() {
       return identity && window.getComputedStyle(identity).opacity === '1';
     });
     assert.ok(isScrolled, 'Navbar identity should become visible after scrolling down');
+
+    // Test landscape phone dropdown
+    await page.setViewport({ width: 844, height: 390 });
+    await page.goto('http://localhost:4321/feed', { waitUntil: 'networkidle2' });
+    await page.waitForSelector('#navbar .nav-toggle', { timeout: 5000 });
+    await page.evaluate(() => document.querySelector('#navbar .nav-toggle')?.click());
+    await new Promise(r => setTimeout(r, 300));
+    const landscapeCheck = await page.evaluate(() => {
+      const links = [...document.querySelectorAll('#navbar .nav-list a')];
+      const rects = links.map((a) => a.getBoundingClientRect());
+      return {
+        open: document.getElementById('navbar')?.classList.contains('menu-open'),
+        count: links.length,
+        allVisible: rects.every((r) => r.width > 0 && r.height > 0 && r.bottom <= window.innerHeight),
+      };
+    });
+    assert.ok(landscapeCheck.open && landscapeCheck.count === 5 && landscapeCheck.allVisible,
+      `All 5 nav links must fit visibly in landscape dropdown: ${JSON.stringify(landscapeCheck)}`);
+
+    // Test 4K desktop navbar edge alignment: logo far-left, nav links + actions far-right
+    await page.setViewport({ width: 3840, height: 2160 });
+    await page.goto('http://localhost:4321/', { waitUntil: 'networkidle2' });
+    await page.waitForSelector('#navbar', { timeout: 5000 });
+    const alignmentHome4k = await page.evaluate(() => {
+      const logoRect = document.querySelector('#navbar .nav-logo').getBoundingClientRect();
+      const rightRect = document.querySelector('#navbar .nav-right-group').getBoundingClientRect();
+      const contentsBtnEl = document.getElementById('nav-contents-btn');
+      return {
+        logoLeft: Math.round(logoRect.left),
+        rightGap: Math.round(window.innerWidth - rightRect.right),
+        contentsHidden: Boolean(contentsBtnEl?.hidden),
+      };
+    });
+    assert.ok(
+      alignmentHome4k.logoLeft <= 80,
+      `At 3840px, logo should stay on the far left (got left=${alignmentHome4k.logoLeft}px)`
+    );
+    assert.ok(
+      alignmentHome4k.rightGap <= 80,
+      `At 3840px, nav links + actions should stay on the far right (got rightGap=${alignmentHome4k.rightGap}px)`
+    );
+    assert.ok(alignmentHome4k.contentsHidden, 'Contents button should stay hidden on / when there is no FloatingPageNav');
+
+    await page.goto('http://localhost:4321/feed', { waitUntil: 'networkidle2' });
+    await page.waitForSelector('#nav-contents-btn:not([hidden])', { timeout: 5000 });
+    const alignmentFeed4k = await page.evaluate(() => {
+      const logoRect = document.querySelector('#navbar .nav-logo').getBoundingClientRect();
+      const rightRect = document.querySelector('#navbar .nav-right-group').getBoundingClientRect();
+      return {
+        logoLeft: Math.round(logoRect.left),
+        rightGap: Math.round(window.innerWidth - rightRect.right),
+      };
+    });
+    assert.ok(
+      alignmentFeed4k.logoLeft <= 80 && alignmentFeed4k.rightGap <= 80,
+      `At 3840px on /feed, logo/right alignment must hold (${JSON.stringify(alignmentFeed4k)})`
+    );
+
+    // Click Contents entry on /feed at 4K: closes dropdown & scrolls to target section
+    await page.click('#nav-contents-btn');
+    await page.waitForSelector('#floating-page-nav.is-open', { timeout: 3000 });
+    const tocTarget = await page.evaluate(() => {
+      const links = [...document.querySelectorAll('#floating-page-nav [data-toc-link]')];
+      const target = links[links.length - 1];
+      if (!target) return null;
+      const id = target.getAttribute('data-toc-link');
+      target.click();
+      return id;
+    });
+    assert.ok(tocTarget, 'Expected a target section in Contents dropdown');
+    await new Promise(r => setTimeout(r, 900));
+    const afterTocClick = await page.evaluate(() => ({
+      contentsClosed: !document.getElementById('floating-page-nav')?.classList.contains('is-open'),
+      scrollY: Math.round(window.scrollY),
+    }));
+    assert.ok(afterTocClick.contentsClosed, 'Clicking Contents entry should close dropdown');
+    assert.ok(afterTocClick.scrollY > 100, `Clicking Contents entry should scroll page (scrollY=${afterTocClick.scrollY})`);
+
+    // ClientRouter transition from /feed -> /about must hide persisted #nav-contents-btn
+    await page.click('#navbar .nav-list a[href="/about"]');
+    await page.waitForFunction(() => window.location.pathname === '/about', { timeout: 5000 });
+    await page.waitForFunction(() => document.getElementById('nav-contents-btn')?.hidden === true, { timeout: 3000 });
 
     console.log('✅ Navigation E2E tests passed.');
   } catch (error) {

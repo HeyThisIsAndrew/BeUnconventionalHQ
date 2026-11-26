@@ -75,7 +75,7 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
 
 {
   show && (
-    <nav class="floating-page-nav" aria-label={heading}>
+    <nav id="floating-page-nav" class="floating-page-nav" aria-label={heading} hidden>
       <p class="fpn-head" aria-hidden="true">{heading}</p>
       <ul class="fpn-list">
         {items.map((entry) => (
@@ -93,100 +93,78 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
 
 <style>
   /*
-    ─── PINNED TO THE VIEWPORT, NOT TO THE COLUMN ────────────────────────────
+    ─── NAVBAR-DOCKED CONTENTS DROPDOWN ──────────────────────────────────────
 
-    `fixed` rather than `sticky`: sticky still belongs to a grid track and moves
-    until it catches, which is the behaviour this replaced.
-
-    z-index 40 puts it under the navbar (which sits above it) and over the
-    article. It must not reach the PiP window's 90 — a contents list on top of a
-    video is the same mistake in the other direction.
-  */
-  /*
-    ─── STICKY WRAPPER ───────────────────────────────────────────────────────
-    It takes no layout space so it does not push the feed rows down. By being
-    `sticky`, it starts exactly where it is inserted (beneath the hero) and
-    scrolls up until it reaches 50vh, then sticks there for the rest of the page.
-  */
-  /*
-    ─── PINNED TO THE VIEWPORT, NOT TO THE CONTENT COLUMN ────────────────────
-
-    This was briefly a zero-size `position: sticky` wrapper with the nav
-    absolutely positioned inside it. A sticky box sits where it is inserted —
-    which is inside the page's content column — so the nav inherited that
-    column's left edge rather than the screen's.
-
-    At 1440 the column starts ~32px in and it looked correct. At 3840 the column
-    starts at 978px, so the nav landed directly on top of the first card in the
-    first row. Reported as "the contents thing we added is in the row on 4k
-    monitor".
-
-    `fixed` is measured from the viewport at every width, which is the only
-    thing that makes an edge-pinned element actually edge-pinned. It takes no
-    layout space either, so the rows are not pushed down — the reason the
-    wrapper was introduced is satisfied by this anyway.
+    Docked to `#nav-contents-btn` in the top navbar (matching the monorepo's
+    PageNav headerFallback pattern) instead of floating as a left-edge rail
+    over cards and typography. Still `position: fixed` against the viewport
+    so it never depends on a column width and stays off the reading measure.
   */
   .floating-page-nav {
     position: fixed;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 40;
-    display: flex;
+    top: calc(var(--nav-h, 72px) + 8px);
+    inset-inline-end: max(var(--nav-inline-pad, clamp(1.25rem, 3.5vw, 4rem)), env(safe-area-inset-right));
+    left: auto;
+    z-index: 95;
+    display: none;
     flex-direction: column;
-    gap: 0.5rem;
-    max-height: 70vh;
-    padding: 1rem 1rem 1rem 0.9rem;
-    border-radius: 0 10px 10px 0;
-    border: 1px solid transparent;
-    border-left: none;
-    background: transparent;
+    gap: 0.65rem;
+    width: min(20rem, calc(100dvw - 24px));
+    max-height: calc(100dvh - var(--nav-h, 72px) - 24px);
+    padding: 0.95rem 1.15rem;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-top: 2px solid var(--color-accent, #cc0000);
+    border-radius: 0;
+    background: rgba(10, 10, 10, 0.98);
+    box-shadow:
+      0 22px 48px rgba(0, 0, 0, 0.85),
+      0 4px 20px rgba(204, 0, 0, 0.14);
     overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-width: none;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    opacity: 0;
+    translate: 0 -8px;
+    pointer-events: none;
     transition:
-      background 0.28s ease,
-      border-color 0.28s ease,
-      box-shadow 0.28s ease,
-      padding 0.28s ease;
+      opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+      translate 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+      display 0.22s;
+    transition-behavior: allow-discrete;
   }
 
-  .floating-page-nav::-webkit-scrollbar {
+  .floating-page-nav.is-open {
+    display: flex;
+    opacity: 1;
+    translate: 0 0;
+    pointer-events: auto;
+  }
+
+  @starting-style {
+    .floating-page-nav.is-open {
+      opacity: 0;
+      translate: 0 -8px;
+    }
+  }
+
+  .floating-page-nav[hidden] {
     display: none;
   }
 
-  .floating-page-nav:hover,
-  .floating-page-nav:focus-within {
-    background: rgba(12, 12, 12, 0.94);
-    border-color: rgba(255, 255, 255, 0.1);
-    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.6);
-    padding-right: 1.5rem;
+  .floating-page-nav::-webkit-scrollbar {
+    width: 4px;
   }
 
-  /*
-    The word "Contents" is decoration here: the <nav> already carries it as its
-    accessible name, so announcing it twice would be the same label in a row.
-    `aria-hidden` on the element, not `.sr-only`, for that reason.
-  */
   .fpn-head {
     margin: 0;
-    font-family: var(--font-body);
-    font-size: 0.62rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    font-family: var(--font-display);
+    font-size: 0.66rem;
     font-weight: 700;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--color-white-muted, #888);
     white-space: nowrap;
-    opacity: 0;
-    max-height: 0;
-    overflow: hidden;
-    transition: opacity 0.28s ease, max-height 0.28s ease;
-  }
-
-  .floating-page-nav:hover .fpn-head,
-  .floating-page-nav:focus-within .fpn-head {
-    opacity: 1;
-    max-height: 2rem;
   }
 
   .fpn-list {
@@ -195,7 +173,7 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.55rem;
+    gap: 0.15rem;
   }
 
   .fpn-item.is-sub {
@@ -205,31 +183,39 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
   .fpn-list a {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
+    gap: 0.65rem;
+    min-height: 40px;
+    padding: 0.35rem 0.25rem;
     text-decoration: none;
     color: var(--color-white-muted, #888);
-    transition: color 0.2s ease;
+    transition: color 0.2s ease, background-color 0.2s ease;
+  }
+
+  @media (pointer: coarse), (max-width: 860px) {
+    .fpn-list a {
+      min-height: 44px;
+    }
   }
 
   .fpn-list a:hover,
   .fpn-list a:focus-visible {
     color: var(--color-white, #f0f0f0);
+    background: rgba(255, 255, 255, 0.04);
   }
 
   .fpn-list a:focus-visible {
     outline: 2px solid var(--color-accent-text, #ef4444);
-    outline-offset: 3px;
-    border-radius: 3px;
+    outline-offset: 2px;
+    border-radius: 0;
   }
 
-  /* The whole nav at rest: one short rule per section. */
   .fpn-tick {
     flex: 0 0 auto;
     width: 14px;
     height: 2px;
-    border-radius: 2px;
+    border-radius: 0;
     background: rgba(255, 255, 255, 0.28);
-    transition: width 0.25s ease, background 0.25s ease;
+    transition: width 0.22s ease, background 0.22s ease;
   }
 
   .fpn-item.is-sub .fpn-tick {
@@ -240,13 +226,8 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
     background: rgba(255, 255, 255, 0.6);
   }
 
-  /*
-    `.active` is set by the script below, on the <a>. Drawn long and in the
-    accent so the current section reads at a glance with the panel closed, which
-    is the state it is in almost all the time.
-  */
   .fpn-list a.active .fpn-tick {
-    width: 26px;
+    width: 24px;
     background: var(--color-accent-text, #ef4444);
   }
 
@@ -254,52 +235,28 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
     color: var(--color-white, #f0f0f0);
   }
 
-  /*
-    CLIPPED, NOT HIDDEN. `display: none` would take these out of the
-    accessibility tree and leave a screen reader a nav of unnamed links.
-  */
   .fpn-label {
-    max-width: 0;
-    opacity: 0;
-    overflow: hidden;
-    white-space: nowrap;
     font-family: var(--font-body);
-    font-size: 0.78rem;
-    line-height: 1.4;
-    transition: max-width 0.28s ease, opacity 0.22s ease;
-  }
-
-  .floating-page-nav:hover .fpn-label,
-  .floating-page-nav:focus-within .fpn-label {
-    max-width: 15rem;
-    opacity: 1;
+    font-size: 0.8rem;
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .fpn-item.is-sub .fpn-label {
-    font-size: 0.72rem;
+    font-size: 0.74rem;
   }
 
-  /*
-    ─── IT ONLY EXISTS WHERE THERE IS ROOM BESIDE THE COLUMN ─────────────────
-
-    1200px is the same breakpoint the left rail used. Below it the reading
-    column IS the page, so a panel pinned to the left edge would sit on the
-    words rather than beside them. The article still renders its own headings,
-    and the scrollbar is the position indicator at that width.
-  */
-  @media (max-width: 1199px) {
-    .floating-page-nav {
-      display: none;
-    }
+  :global(html.modal-open) .floating-page-nav,
+  :global(html.category-overlay-open) .floating-page-nav {
+    display: none !important;
   }
 
   @media (prefers-reduced-motion: reduce) {
     .floating-page-nav,
-    .fpn-head,
-    .fpn-label,
     .fpn-tick,
     .fpn-list a {
-      transition: none;
+      transition: none !important;
     }
   }
 </style>
@@ -317,35 +274,107 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
     rather than only at the very top edge.
   */
   let currentObserver: IntersectionObserver | null = null;
-  let teardownScroll: (() => void) | null = null;
-  
+  let teardownCallbacks: Array<() => void> = [];
+
   /*
     Tear down BEFORE the early returns below, not only on swap. initFloatingPageNav
-    returns early on a page with no TOC, and the same mistake in FeedGrid is
-    already recorded there as "Memory leak fix: Cleanup old hashchange listener
-    before early returns on new pages".
+    returns early on a page with no TOC, and resetting the persisted navbar
+    `#nav-contents-btn` prevents a stale Contents button from appearing on routes
+    that have no sections.
   */
   function releaseFloatingPageNav() {
     if (currentObserver) {
       currentObserver.disconnect();
       currentObserver = null;
     }
-    if (teardownScroll) {
-      teardownScroll();
-      teardownScroll = null;
+    while (teardownCallbacks.length > 0) {
+      const fn = teardownCallbacks.pop();
+      try { fn?.(); } catch {}
+    }
+    const navEl = document.getElementById('floating-page-nav');
+    if (navEl) {
+      navEl.classList.remove('is-open');
+      navEl.hidden = true;
+    }
+    const dockBtn = document.getElementById('nav-contents-btn');
+    if (dockBtn) {
+      dockBtn.hidden = true;
+      dockBtn.setAttribute('aria-expanded', 'false');
     }
   }
 
   function initFloatingPageNav() {
     releaseFloatingPageNav();
-    
+
+    const navEl = document.getElementById('floating-page-nav');
     const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-toc-link]'));
-    if (links.length === 0) return;
+    if (!navEl || links.length === 0) return;
 
     const headings = links
       .map((link) => document.getElementById(link.dataset.tocLink ?? ''))
       .filter((el): el is HTMLElement => Boolean(el));
     if (headings.length === 0) return;
+
+    const dockBtn = document.getElementById('nav-contents-btn') as HTMLButtonElement | null;
+    const setOpen = (open: boolean, restoreFocus = false) => {
+      if (open) {
+        window.dispatchEvent(new CustomEvent('hq:close-nav-menu'));
+        navEl.hidden = false;
+        void navEl.offsetWidth;
+        navEl.classList.add('is-open');
+      } else {
+        navEl.classList.remove('is-open');
+        navEl.hidden = true;
+      }
+      dockBtn?.setAttribute('aria-expanded', String(open));
+      if (!open && restoreFocus) dockBtn?.focus();
+    };
+
+    if (dockBtn) {
+      const label = navEl.getAttribute('aria-label') || 'Contents';
+      dockBtn.setAttribute('aria-label', label);
+      dockBtn.title = label;
+      dockBtn.hidden = false;
+
+      const onDockClick = (e: MouseEvent) => {
+        const nextOpen = !navEl.classList.contains('is-open');
+        setOpen(nextOpen);
+        if (nextOpen && e.detail === 0) {
+          (links.find((l) => l.classList.contains('active')) ?? links[0])?.focus({ preventScroll: true });
+        }
+      };
+      dockBtn.addEventListener('click', onDockClick);
+      teardownCallbacks.push(() => dockBtn.removeEventListener('click', onDockClick));
+    }
+
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest('[data-action="open-search"]')) {
+        if (navEl.classList.contains('is-open')) setOpen(false);
+        return;
+      }
+      if (!navEl.classList.contains('is-open')) return;
+      if (!navEl.contains(target) && !dockBtn?.contains(target)) {
+        setOpen(false);
+      }
+    };
+    const onDocKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && navEl.classList.contains('is-open')) {
+        setOpen(false, true);
+      }
+    };
+    const onCloseContents = () => {
+      if (navEl.classList.contains('is-open')) setOpen(false);
+    };
+    document.addEventListener('click', onDocClick);
+    document.addEventListener('keydown', onDocKeyDown);
+    window.addEventListener('hq:close-contents', onCloseContents);
+    teardownCallbacks.push(() => {
+      document.removeEventListener('click', onDocClick);
+      document.removeEventListener('keydown', onDocKeyDown);
+      window.removeEventListener('hq:close-contents', onCloseContents);
+    });
 
     const setActive = (id: string) => {
       links.forEach((link) => {
@@ -572,6 +601,7 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
 
         pinnedId = id;
         setActive(id);
+        setOpen(false);
 
         /*
           ─── IT TRAVELS AGAIN, NOW THAT THE JOURNEY IS SURVIVABLE ───────────
@@ -702,11 +732,12 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
     const SCROLL_KEYS = new Set([
       'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Spacebar',
     ]);
+    const onScrollKeyDown = (event: KeyboardEvent) => {
+      if (SCROLL_KEYS.has(event.key)) releasePin();
+    };
     window.addEventListener('wheel', releasePin, { passive: true });
     window.addEventListener('touchmove', releasePin, { passive: true });
-    window.addEventListener('keydown', (event) => {
-      if (SCROLL_KEYS.has((event as KeyboardEvent).key)) releasePin();
-    });
+    window.addEventListener('keydown', onScrollKeyDown);
 
     let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
     const onScroll = () => {
@@ -719,27 +750,21 @@ const heading = useLandmarks ? 'On This Page' : 'Contents';
     };
     window.addEventListener('scroll', onScroll, { passive: true });
 
-    /*
-      MODULE SCOPE, NOT `window`. This was stored as
-      `(window as any).__hqTocScrollHandler`, which works only while init and
-      teardown alternate perfectly: a second init without a swap between
-      overwrites the global and orphans the first listener, with no handle left
-      to remove it. `currentObserver` right above is already module-scoped for
-      exactly this reason, so the two now tear down the same way — and the cast
-      that was needed to satisfy strict TS goes away with the global.
-
-      The pending timer is cleared too. A scroll inside the last 50ms before a
-      ClientRouter swap otherwise leaves a callback holding the OLD page's
-      heading and link nodes until it fires.
-    */
-    teardownScroll = () => {
+    teardownCallbacks.push(() => {
+      window.removeEventListener('hashchange', pinFromHash);
+      window.removeEventListener('wheel', releasePin);
+      window.removeEventListener('touchmove', releasePin);
+      window.removeEventListener('keydown', onScrollKeyDown);
       window.removeEventListener('scroll', onScroll);
       if (scrollTimeout) clearTimeout(scrollTimeout);
       scrollTimeout = null;
-    };
+    });
   }
 
+  if (document.readyState !== 'loading') {
+    initFloatingPageNav();
+  }
   document.addEventListener('astro:page-load', initFloatingPageNav);
-  
+
   document.addEventListener('astro:before-swap', releaseFloatingPageNav);
 </script>
