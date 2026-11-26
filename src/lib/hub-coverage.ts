@@ -48,7 +48,12 @@ export type CoverageItem = Record<string, any> & { contentType: 'article' | 'vid
  */
 export function normalizeTag(value: unknown): string {
   if (typeof value !== 'string') return '';
-  return value.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  return value
+    .toLowerCase()
+    .replace(/\+/g, ' plus ')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**

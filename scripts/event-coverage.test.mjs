@@ -67,9 +67,20 @@ test('a tag match ignores case and punctuation, and nothing else', () => {
   assert.equal(normalizeTag('marvel-studios'), 'marvel studios');
   assert.equal(normalizeTag('  MARVEL   STUDIOS '), 'marvel studios');
   assert.equal(normalizeTag('San Diego Comic-Con'), 'san diego comic con');
+  assert.equal(normalizeTag('Disney+'), 'disney plus');
+  assert.equal(normalizeTag('Apple TV+'), 'apple tv plus');
+  assert.equal(compactTag('Disney+'), 'disneyplus');
   assert.equal(normalizeTag(undefined), '');
   assert.equal(normalizeTag(42), '');
   assert.equal(normalizeTag('   '), '');
+});
+
+test('Disney+ matches "Disney+" and "Disney Plus" but never bare "Disney"', () => {
+  const disneyPlusKeywords = ['disney plus', 'disney+', 'disney+ original'];
+  const tags = getHubMatchTags({ youtubeSyncKeywords: disneyPlusKeywords });
+  assert.equal(matchArticlesByTags([article({ tags: ['Disney'] })], tags).length, 0);
+  assert.equal(matchArticlesByTags([article({ tags: ['Disney+'] })], tags).length, 1);
+  assert.equal(matchArticlesByTags([article({ tags: ['Disney Plus'] })], tags).length, 1);
 });
 
 test('a substring is NOT a match', () => {

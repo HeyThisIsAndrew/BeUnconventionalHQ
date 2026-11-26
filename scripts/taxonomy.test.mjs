@@ -57,9 +57,42 @@ console.log('taxonomy (sync-youtube.mjs)');
 test('normalizeTag: case + punctuation insensitive', () => {
   assert.equal(normalizeTag('San Diego Comic-Con'), 'san diego comic con');
   assert.equal(normalizeTag('SAN  DIEGO   comic_con'), 'san diego comic con');
-  assert.equal(normalizeTag('  Apple TV+ '), 'apple tv');
+  assert.equal(normalizeTag('  Apple TV+ '), 'apple tv plus');
+  assert.equal(normalizeTag('Disney+'), 'disney plus');
+  assert.equal(normalizeTag('Disney+ Original'), 'disney plus original');
   assert.equal(normalizeTag(''), '');
   assert.equal(normalizeTag(null), '');
+});
+
+test('disney vs disney-plus: "+" is preserved as "plus" so bare Disney never leaks to Disney+', () => {
+  const disneyDict = buildTaxonomyDictionary({
+    topics: TIER1_TOPIC_SEEDS,
+    hubs: [
+      { slug: 'disney-plus', keywords: ['disney plus', 'disney+', 'disney+ original'] },
+      {
+        slug: 'disney',
+        keywords: [
+          'walt disney',
+          'walt disney pictures',
+          'disney animation',
+          'walt disney animation',
+          'walt disney animation studios',
+          'disney studios',
+          'walt disney studios',
+          'disney live action',
+        ],
+      },
+    ],
+  });
+
+  const studioVideo = matchVideoTags(
+    ['Film', 'Disney', 'Walt Disney', 'Walt Disney Animation Studios', 'Walt Disney Studios'],
+    disneyDict,
+  );
+  assert.deepEqual(studioVideo.hubIds, ['disney']);
+
+  const streamingVideo = matchVideoTags(['TV', 'Disney+'], disneyDict);
+  assert.deepEqual(streamingVideo.hubIds, ['disney-plus']);
 });
 
 // ── buildTaxonomyDictionary ──────────────────────────────────────────────────

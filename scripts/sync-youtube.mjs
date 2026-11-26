@@ -41,6 +41,7 @@ export const TIER1_TOPIC_SEEDS = Object.freeze([
 export function normalizeTag(value) {
   return String(value ?? '')
     .toLowerCase()
+    .replace(/\+/g, ' plus ')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 }
