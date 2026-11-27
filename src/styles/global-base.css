@@ -451,6 +451,19 @@ body {
   flex: 1 0 auto;
 }
 
+/*
+  #page-content (`view-transition-name: page-main`) and `footer.site-footer`
+  (`transition:name="footer"`) are sibling stacking contexts inside #app-wrapper.
+  Because the footer follows #page-content in DOM order, any fixed or absolute
+  dropdown rendered inside #page-content would paint beneath the footer unless
+  #page-content is lifted while open. Stays at z-index: 95 so #navbar (100/120)
+  always remains on top and BrandGlow / PiP are unaffected when closed.
+*/
+#page-content:has(#floating-page-nav.is-open, #category-dropdown-menu.is-open) {
+  position: relative;
+  z-index: 95;
+}
+
 ::selection {
   background-color: var(--color-accent);
   color: var(--color-white);

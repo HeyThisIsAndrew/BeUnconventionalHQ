@@ -163,6 +163,19 @@ test('the contents nav is docked to the navbar and gave its column back', () => 
   assert.ok(cols, 'the three-column grid must still be declared in one place');
   assert.ok(+cols[1] <= 11, `the left track must shrink with the contents gone, got ${cols[1]}rem`);
   assert.ok(+cols[2] >= 56, `and the reading measure must take the width, got ${cols[2]}rem`);
+
+  /* #page-content must lift above sibling footer.site-footer when Contents opens */
+  const globalCss = read('src', 'styles', 'global-base.css');
+  const liftMatch = globalCss.match(
+    /#page-content:has\([^)]*#floating-page-nav\.is-open[^)]*\)\s*\{([^}]*)\}/,
+  );
+  assert.ok(liftMatch, 'global-base.css must lift #page-content when #floating-page-nav is open');
+  assert.match(liftMatch[1], /position:\s*relative/, 'lifted #page-content needs position: relative');
+  const liftZ = Number(liftMatch[1].match(/z-index:\s*(\d+)/)?.[1]);
+  assert.ok(
+    liftZ >= 1 && liftZ <= 99,
+    `lifted #page-content z-index must sit above the footer (>=1) and below #navbar (100), got ${liftZ}`,
+  );
 });
 
 /*
