@@ -1,26 +1,21 @@
 ---
 /**
- * CategoryOverlay — the mobile "Categories" button and the full-screen menu
- * it opens.
+ * CategoryOverlay — the mobile "Categories" trigger and the anchored
+ * dropdown menu it opens.
  *
  * ─── WHY THIS EXISTS ──────────────────────────────────────────────────────
- * On phones the four category buttons are too wide to sit in a row, so both
- * the Feed and /intel collapse them behind one "Categories" button that opens
- * a full-screen overlay. That behaviour used to live only inside
- * QuadrantFilter.astro, which is why /intel didn't have it — the whole point
- * of the component work was to be able to reuse this, so here it is.
+ * Below 768px the four inline category buttons are collapsed behind one
+ * "Categories" button. Sunsetting the old full-screen overlay and its
+ * scroll-lock / z-index hacks, tapping the button now drops down an overlapping
+ * menu directly underneath the trigger (leaving the page scrollable and
+ * never shifting content down).
  *
  * ─── HOW IT WORKS ─────────────────────────────────────────────────────────
- * The overlay is always in the DOM; opening it toggles `.is-open`, which
- * flips opacity/visibility via CSS. It is not a <dialog> — an earlier
- * <dialog> version exists in QuadrantFilter as commented-out dead code and
- * should not be revived; this replaced it.
- *
- * While open, the page behind is scroll-locked by pinning <body> with
- * `position: fixed` and a negative `top` equal to the current scroll offset.
- * That is the only reliable way to stop iOS Safari scrolling the page under
- * a fixed overlay, and it is why closing has to restore those inline styles
- * and the scroll position rather than just removing a class.
+ * Both `#open-categories-btn` and `#category-dropdown-menu` live inside
+ * `.mobile-category-row`. Opening toggles `.is-open` and `inert` /
+ * `aria-hidden`, dismisses any other open dropdown (`hq:close-nav-menu`,
+ * `hq:close-contents`), and closes on trigger re-tap, outside tap, `Escape`,
+ * category link click, or route swap.
  *
  * ─── HOW TO USE IT ────────────────────────────────────────────────────────
  *     <CategoryOverlay items={[
@@ -32,8 +27,8 @@
  * client-side), /intel passes a real route. The component doesn't care.
  *
  * ─── HOW TO RESTYLE IT ────────────────────────────────────────────────────
- * `.category-fullscreen-overlay`, `.close-fullscreen-btn`,
- * `.mobile-category-row` in styles/modules/filters.css.
+ * `.mobile-category-row`, `.category-dropdown-panel`, `.category-trigger-chevron`
+ * in styles/modules/filters.css (and styles/modules/landscape.css).
  */
 import { LABELS } from '../data/content.js';
 
@@ -58,43 +53,41 @@ interface Props {
 const { items, buttonLabel = LABELS.categories } = Astro.props;
 ---
 
-{/* The closed state: one full-width button, mobile only (CSS hides it above
-    768px). `aria-expanded` is kept in sync by the script below. */}
+{/* The closed state + anchored overlapping dropdown inside one relative
+    container, mobile only (CSS hides `.mobile-category-row` above 768px). */}
 <div class="mobile-category-row">
   <button
     id="open-categories-btn"
+    type="button"
     class="quadrant-btn full-width-btn"
-    aria-haspopup="dialog"
     aria-expanded="false"
-    aria-controls="category-fullscreen-overlay"
+    aria-controls="category-dropdown-menu"
   >
-    {buttonLabel}
-  </button>
-</div>
-
-{/* The open state. Always rendered; `.is-open` reveals it. */}
-<div
-  id="category-fullscreen-overlay"
-  class="category-fullscreen-overlay"
-  role="dialog"
-  aria-modal="true"
-  aria-label="Categories"
-  aria-hidden="true"
-  inert
->
-  <button
-    class="close-fullscreen-btn nav-toggle menu-open"
-    aria-label="Close categories"
-    id="close-categories-btn"
-  >
-    {/* Three bars pre-transformed into an X by CSS — the same close control
-        the main mobile nav uses, so the two feel identical. */}
-    <span class="line line-1"></span>
-    <span class="line line-2"></span>
-    <span class="line line-3"></span>
+    <span class="category-trigger-label">{buttonLabel}</span>
+    <svg
+      class="category-trigger-chevron"
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M3 5l4 4 4-4"
+        stroke="currentColor"
+        stroke-width="1.75"
+        stroke-linecap="square"
+      ></path>
+    </svg>
   </button>
 
-  <div class="fullscreen-content filter-row category-row">
+  <nav
+    id="category-dropdown-menu"
+    class="category-dropdown-panel"
+    aria-label="Categories"
+    aria-hidden="true"
+    inert
+  >
     <div class="filter-grid">
       {
         items.map((item) => (
@@ -109,204 +102,140 @@ const { items, buttonLabel = LABELS.categories } = Astro.props;
         ))
       }
     </div>
-  </div>
+  </nav>
 </div>
 
 <script>
-  import { lockScroll, unlockScroll, releaseScrollLock } from '../lib/scroll-lock';
-
   /*
-    Open/close for the mobile category overlay.
+    Open/close for the mobile category dropdown.
 
     ─── THIS COMPONENT IS THE SOLE OWNER OF THIS BEHAVIOUR (#189) ───────────
-    QuadrantFilter.astro used to carry a second, near-identical delegated
-    block guarded by the SAME `window.categoryOverlayDelegated` flag, and it
-    renders <CategoryOverlay /> itself, so on /feed both scripts ran on one
-    page. Whichever module Vite happened to emit first claimed the flag and
-    the other's entire block never registered.
-
-    Nothing pinned that order. It was an emergent property of chunk emission,
-    and if a refactor or an Astro upgrade had flipped it, QuadrantFilter would
-    have won and taken Escape-to-close, the `aria-hidden` toggle and the focus
-    move with it. Silently: the overlay still opened and still closed by
-    button, so it looked fine, while a keyboard user was left with a
-    full-screen overlay they could open and not dismiss.
-
-    All four elements the handler touches are rendered HERE — the open button,
-    the close button, the overlay and the category links — so this is where
-    the handler belongs. QuadrantFilter's copy is deleted rather than given
-    its own flag: two live handlers on the same selectors would double-close
-    the overlay.
-
     Event delegation on document (Issue #71) so the UI feels alive before the
-    cold load has finished.
+    cold load has finished. Renamed `__hqCategoryOverlayBound` rather than a
+    generic shared latch so no other component competes for it.
   */
-
-  /* Renamed from `categoryOverlayDelegated` deliberately. That name read as
-     a shared latch two components could compete for, which is exactly what
-     went wrong. This one names its owner. */
   if (!(window as any).__hqCategoryOverlayBound) {
     (window as any).__hqCategoryOverlayBound = true;
 
-    function close(overlay: HTMLElement, openBtn: HTMLElement | null) {
-      if (!overlay.classList.contains('is-open')) return;
-      overlay.classList.remove('is-open');
-      overlay.setAttribute('aria-hidden', 'true');
-      overlay.setAttribute('inert', '');
-      document.documentElement.classList.remove('category-overlay-open');
-      unlockScroll();
+    function close(panel: HTMLElement, openBtn: HTMLElement | null, restoreFocus = false) {
+      if (!panel.classList.contains('is-open')) return;
+      panel.classList.remove('is-open');
+      panel.closest('.mobile-category-row')?.classList.remove('is-open');
+      panel.setAttribute('aria-hidden', 'true');
+      panel.setAttribute('inert', '');
       if (openBtn) {
         openBtn.setAttribute('aria-expanded', 'false');
-        openBtn.focus();
+        if (restoreFocus) {
+          openBtn.focus({ preventScroll: true });
+        }
       }
     }
 
-    function open(overlay: HTMLElement, openBtn: HTMLElement | null, closeBtn: HTMLElement | null) {
-      overlay.classList.add('is-open');
-      overlay.setAttribute('aria-hidden', 'false');
-      overlay.removeAttribute('inert');
-      /*
-        ─── A CLASS ON <html>, BECAUSE z-index CANNOT REACH THE NAVBAR ───────
+    function open(panel: HTMLElement, openBtn: HTMLElement | null) {
+      /* Dismiss any competing dropdown before opening this one. */
+      window.dispatchEvent(new CustomEvent('hq:close-nav-menu'));
+      window.dispatchEvent(new CustomEvent('hq:close-contents'));
 
-        This overlay is rendered inside the page, and `#page-content` carries
-        `view-transition-name: page-main` (global-base.css), which forms a
-        STACKING CONTEXT. Everything in here is therefore sealed inside it, and
-        `#page-content` itself has no z-index, so it sits below the `<header>`
-        at 100 whatever number the overlay gives itself. Raising the overlay
-        from 200 to 10000 changed nothing at all: measured with
-        elementsFromPoint, the header still came back in front.
-
-        The only thing that can lift it is its own stacking context, and the
-        only selector that can reach that is one anchored outside the page. So
-        the component says it is open and filters.css does the lifting.
-
-        `modal-open` already lands on <html> via the shared scroll lock, but it
-        is shared with the search palette and the video lightbox, and neither
-        of those wants the page raised over the navbar. This says which modal.
-      */
-      document.documentElement.classList.add('category-overlay-open');
-      lockScroll();
+      panel.classList.add('is-open');
+      panel.closest('.mobile-category-row')?.classList.add('is-open');
+      panel.setAttribute('aria-hidden', 'false');
+      panel.removeAttribute('inert');
       if (openBtn) {
         openBtn.setAttribute('aria-expanded', 'true');
       }
-      if (closeBtn) {
-        /*
-          This focus() silently did nothing until the CSS was fixed alongside
-          it, and the failure predates #189.
 
-          `.category-fullscreen-overlay` transitioned `visibility` over 0.4s in
-          both directions, so at the instant `.is-open` landed the computed
-          value was still `hidden` — and a hidden element cannot take focus.
-          A keyboard user opened a full-screen menu with focus left on the page
-          behind it, and their next Tab walked that page rather than the menu.
-          #189 lists this as a behaviour that would be lost if the two racing
-          handlers swapped order; it was already lost in the handler that won.
-
-          styles/modules/filters.css now flips visibility with no delay on the
-          way in, so the button is focusable here. Reading `offsetHeight` first
-          forces the pending style recalc to land before focus() asks whether
-          the element is visible.
-        */
-        void overlay.offsetHeight;
-        closeBtn.focus();
+      /* Force pending style recalc so `visibility: visible` lands before
+         focus moves into the dropdown. */
+      void panel.offsetHeight;
+      const focusTarget = panel.querySelector('.cat-btn.active') ?? panel.querySelector('.cat-btn');
+      if (focusTarget instanceof HTMLElement) {
+        focusTarget.focus({ preventScroll: true });
       }
     }
 
     document.addEventListener('click', (event) => {
       const target = event.target as HTMLElement | null;
       if (!target) return;
-      
+
       const openBtnEl = target.closest('#open-categories-btn');
-      const closeBtnEl = target.closest('#close-categories-btn');
-      const catLink = target.closest('#category-fullscreen-overlay a.cat-btn');
+      const catLink = target.closest('#category-dropdown-menu a.cat-btn');
 
-      const overlay = document.getElementById('category-fullscreen-overlay');
+      const panel = document.getElementById('category-dropdown-menu');
       const openBtn = document.getElementById('open-categories-btn');
-      const closeBtn = document.getElementById('close-categories-btn');
 
-      if (openBtnEl && overlay) {
+      if (openBtnEl && panel) {
         event.preventDefault();
-        if (overlay.classList.contains('is-open')) close(overlay, openBtn);
-        else open(overlay, openBtn, closeBtn);
-      } else if (closeBtnEl && overlay) {
-        close(overlay, openBtn);
-      } else if (catLink && overlay) {
-        close(overlay, openBtn);
+        if (panel.classList.contains('is-open')) close(panel, openBtn, false);
+        else open(panel, openBtn);
+      } else if (catLink && panel) {
+        close(panel, openBtn, false);
+      } else if (panel && panel.classList.contains('is-open') && !target.closest('.mobile-category-row')) {
+        close(panel, openBtn, false);
       }
     });
 
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
-        const overlay = document.getElementById('category-fullscreen-overlay');
+        const panel = document.getElementById('category-dropdown-menu');
         const openBtn = document.getElementById('open-categories-btn');
-        if (overlay && overlay.classList.contains('is-open')) {
-          close(overlay, openBtn);
+        if (panel && panel.classList.contains('is-open')) {
+          close(panel, openBtn, true);
         }
+      }
+    });
+
+    window.addEventListener('hq:close-categories', () => {
+      const panel = document.getElementById('category-dropdown-menu');
+      const openBtn = document.getElementById('open-categories-btn');
+      if (panel) close(panel, openBtn, false);
+    });
+
+    const mobileQuery = window.matchMedia('(max-width: 768px)');
+    window.addEventListener('resize', () => {
+      if (!mobileQuery.matches) {
+        const panel = document.getElementById('category-dropdown-menu');
+        const openBtn = document.getElementById('open-categories-btn');
+        if (panel) close(panel, openBtn, false);
       }
     });
   }
 
   /*
-    Two things QuadrantFilter's deleted block did that are deliberately NOT
-    carried over. #189 suggested folding them in; both turned out to be worse
-    than the default.
-
-    1. `preventDefault()` + `navigate()` on a non-hash `a.cat-btn`.
-       Redundant, and a regression. <ClientRouter /> is mounted site-wide
-       (Layout.astro) and already turns a same-origin anchor click into a
-       client-side navigation. Crucially it first bails on metaKey, ctrlKey,
-       altKey and shiftKey, so cmd-click still opens a category in a new tab.
-       The deleted block checked none of those, so folding it in would have
-       swallowed every modified click on /intel and /category — trading a
-       latent bug for a live one. Letting the link behave like a link is both
-       less code and more correct.
-
-    2. `astro:before-preparation` → `unlockScroll()`.
-       The scroll lock is REFERENCE COUNTED (src/lib/scroll-lock.ts), so an
-       extra counted decrement does not merely repeat work: with the mobile
-       nav also open it would release ITS lock and unpin the page underneath.
-       The line below is the right cleanup because `releaseScrollLock()`
-       resets the counter outright, which is what a document about to be
-       replaced actually needs.
+    Category links stay plain anchors handled by <ClientRouter /> (never
+    `preventDefault()` + `navigate()`), so modifier-clicks still open new tabs.
+    Ensure any open dropdown closes cleanly before ClientRouter swaps the DOM;
+    registered outside the guard so leak protection never races.
   */
-
-  /* A client-side navigation can leave the body pinned if the overlay was
-     open when the link was followed. Always release the lock on swap.
-     Registered OUTSIDE the guard above: it is idempotent, and leak protection
-     must not depend on which script won a race. */
-  document.addEventListener('astro:before-swap', releaseScrollLock);
+  document.addEventListener('astro:before-swap', () => {
+    const panel = document.getElementById('category-dropdown-menu');
+    const openBtn = document.getElementById('open-categories-btn');
+    if (panel && panel.classList.contains('is-open')) {
+      panel.classList.remove('is-open');
+      panel.closest('.mobile-category-row')?.classList.remove('is-open');
+      panel.setAttribute('aria-hidden', 'true');
+      panel.setAttribute('inert', '');
+      openBtn?.setAttribute('aria-expanded', 'false');
+    }
+  });
 
   /*
     Reflect the current category on the closed button: "Categories | Film".
-
-    This lived in QuadrantFilter, which renders the desktop row this reads
-    from, but it MUTATES the button this component renders. It moved here
-    because leaving it there broke it: with QuadrantFilter's delegated block
-    deleted its script had no imports left, Rollup folded the remainder into
-    FeedGrid's chunk, and /category/[category] does not load that chunk, so
-    the label quietly stopped updating there.
-
-    Guarded on a known desktop row EXISTING — the Feed's `.desktop-category-row`
-    or /intel's `.intel-filter-nav` — rather than on finding an active button in
-    it. The guard is not tidiness: a surface that renders this overlay with its
-    own `buttonLabel` and no category row of its own would have that label
-    overwritten with a hardcoded default the moment this handler ran there.
-
-    Which is also why this is an explicit list of rows and not `[class*=row]`
-    or similar. Adding a surface to it is a decision that its filter row owns
-    the overlay's label; make that decision deliberately.
+    Guarded on a known desktop row EXISTING — `.desktop-category-row` or
+    `.intel-filter-nav` — and writes into `.category-trigger-label` so the
+    trailing chevron SVG is preserved.
   */
   document.addEventListener('astro:page-load', () => {
     const openBtn = document.getElementById('open-categories-btn');
     const desktopRow = document.querySelector('.desktop-category-row, .intel-filter-nav');
     if (!openBtn || !desktopRow) return;
 
+    const labelEl = openBtn.querySelector('.category-trigger-label') ?? openBtn;
     const activeCat = desktopRow.querySelector('.cat-btn.active');
     if (activeCat) {
-      openBtn.textContent = `Categories | ${activeCat.textContent?.trim()}`;
+      labelEl.textContent = `Categories | ${activeCat.textContent?.trim()}`;
       openBtn.classList.add('active');
     } else {
-      openBtn.textContent = 'Categories';
+      labelEl.textContent = 'Categories';
       openBtn.classList.remove('active');
     }
   });

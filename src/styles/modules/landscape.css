@@ -104,43 +104,40 @@
   into the content it sits over.
 */
 @media (orientation: landscape) and (max-height: 500px) {
-  .close-fullscreen-btn {
-    top: calc(max(1.75rem, env(safe-area-inset-top, 1.75rem)) + var(--vv-top, 0px));
-  }
-
   .modal-close {
     top: calc(max(env(safe-area-inset-top, 28px), 28px) + var(--vv-top, 0px));
   }
 }
 
 /*
-  ─── CATEGORY OVERLAY IN LANDSCAPE: ROW, NOT COLUMN ────────────────────────
+  ─── CATEGORY DROPDOWN IN LANDSCAPE: ROW, NOT COLUMN ───────────────────────
 
-  `.category-fullscreen-overlay .filter-grid` is `flex-direction: column`
-  (filters.css), which is right in portrait and wrong here: four stacked
-  items at 1.5rem gaps are taller than a ~390-440px landscape viewport, so
-  the list overflowed and `.fullscreen-content`'s `overflow-y: auto` turned
-  it into a scroller. Reported from a device: "there's also a scroller for
-  the categories, which should not be present in landscape view. This view
-  should be horizontal, not vertical."
-
-  This is the exact treatment `.nav-list` already gets above for the same
-  reason on the same screens — the two overlays are meant to feel identical,
-  so they wrap the same way. Laid out as a row, the categories fit without
-  scrolling and the close button is the only thing in the corner again.
+  Short landscape viewports don't have the vertical room for 4 stacked rows.
+  Lay out `.category-dropdown-panel` items in a horizontal flex-wrap row
+  just like `.nav-list` above.
 */
 @media (orientation: landscape) and (max-height: 500px) {
-  .category-fullscreen-overlay .filter-grid {
+  .category-dropdown-panel .filter-grid {
     flex-direction: row;
     flex-wrap: wrap;
     justify-content: center;
     align-content: center;
-    gap: 1.25rem 2.25rem;
+    gap: 0.5rem 1.25rem;
+    padding: 0.5rem 1rem;
   }
 
-  /* The tall portrait tap padding is what made the column overflow; in a row
-     the horizontal padding is what matters. */
-  .category-fullscreen-overlay .cat-btn {
-    padding: 0.75rem 1.25rem;
+  .category-dropdown-panel .cat-btn {
+    width: auto;
+    min-height: 44px;
+    padding: 0.55rem 0.9rem;
+    border-left: none;
+    border-bottom: 2px solid transparent;
+  }
+
+  .category-dropdown-panel .cat-btn:hover,
+  .category-dropdown-panel .cat-btn:focus-visible,
+  .category-dropdown-panel .cat-btn.active {
+    border-left-color: transparent;
+    border-bottom-color: var(--color-accent);
   }
 }

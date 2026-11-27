@@ -184,6 +184,56 @@ async function runTests() {
     assert.ok(landscapeCheck.open && landscapeCheck.count === 5 && landscapeCheck.allVisible,
       `All 5 nav links must fit visibly in landscape dropdown: ${JSON.stringify(landscapeCheck)}`);
 
+    // Mobile portrait footer overlap: #floating-page-nav must paint above footer.site-footer
+    await page.setViewport({ width: 390, height: 844 });
+    await page.goto('http://localhost:4321/feed', { waitUntil: 'networkidle2' });
+    await page.waitForSelector('#nav-contents-btn:not([hidden])', { timeout: 5000 });
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await new Promise(r => setTimeout(r, 200));
+    await page.click('#nav-contents-btn');
+    await page.waitForSelector('#floating-page-nav.is-open', { timeout: 3000 });
+    await new Promise(r => setTimeout(r, 300));
+    const footerOverlap = await page.evaluate(() => {
+      const panel = document.getElementById('floating-page-nav');
+      const footer = document.querySelector('footer.site-footer');
+      const navbar = document.getElementById('navbar');
+      if (!panel || !footer || !navbar) return null;
+      const pr = panel.getBoundingClientRect();
+      const fr = footer.getBoundingClientRect();
+      const nr = navbar.getBoundingClientRect();
+      const overlapTop = Math.max(pr.top, fr.top);
+      const overlapBottom = Math.min(pr.bottom, fr.bottom);
+      const overlapX = Math.round(pr.left + pr.width / 2);
+      const overlapY = Math.round((overlapTop + overlapBottom) / 2);
+      const overlapHit = document.elementFromPoint(overlapX, overlapY);
+      const links = [...panel.querySelectorAll('[data-toc-link]')];
+      const lastVisible = [...links].reverse().find((a) => {
+        const r = a.getBoundingClientRect();
+        return r.bottom <= pr.bottom && r.top >= pr.top && r.height > 0;
+      });
+      const lr = lastVisible?.getBoundingClientRect();
+      const linkHit = lr ? document.elementFromPoint(Math.round(lr.left + lr.width / 2), Math.round(lr.top + lr.height / 2)) : null;
+      return {
+        navGap: Math.round(pr.top - nr.bottom),
+        overlaps: overlapBottom > overlapTop,
+        overlapHitsPanel: Boolean(overlapHit && panel.contains(overlapHit)),
+        overlapHitsFooter: Boolean(overlapHit && footer.contains(overlapHit)),
+        lastLinkHitsPanel: Boolean(linkHit && panel.contains(linkHit)),
+        lastLinkHitsFooter: Boolean(linkHit && footer.contains(linkHit)),
+      };
+    });
+    assert.ok(
+      footerOverlap && Math.abs(footerOverlap.navGap) <= 1,
+      `Expected #floating-page-nav to sit flush against #navbar bottom, got navGap=${footerOverlap?.navGap}`,
+    );
+    assert.ok(footerOverlap?.overlaps, `Expected footer to overlap #floating-page-nav at page bottom: ${JSON.stringify(footerOverlap)}`);
+    assert.ok(
+      footerOverlap.overlapHitsPanel && !footerOverlap.overlapHitsFooter && footerOverlap.lastLinkHitsPanel && !footerOverlap.lastLinkHitsFooter,
+      `Contents dropdown painted beneath footer.site-footer: ${JSON.stringify(footerOverlap)}`,
+    );
+    await page.click('#nav-contents-btn');
+    await page.waitForFunction(() => !document.getElementById('floating-page-nav')?.classList.contains('is-open'), { timeout: 3000 });
+
     // Test 4K desktop navbar edge alignment: logo far-left, nav links + actions far-right
     await page.setViewport({ width: 3840, height: 2160 });
     await page.goto('http://localhost:4321/', { waitUntil: 'networkidle2' });

@@ -39,7 +39,7 @@ const VIEWPORTS = [
    /feed adds the category overlay's close button. */
 const ROUTES = ['/', '/feed'];
 
-const CONTROLS = ['#navbar', '.nav-toggle', '.modal-close', '.close-fullscreen-btn'];
+const CONTROLS = ['#navbar', '.nav-toggle', '.modal-close'];
 
 async function runTests() {
   console.log('Starting Astro preview server for Viewport Anchor E2E...');
