@@ -196,9 +196,11 @@ async function runTests() {
     const footerOverlap = await page.evaluate(() => {
       const panel = document.getElementById('floating-page-nav');
       const footer = document.querySelector('footer.site-footer');
-      if (!panel || !footer) return null;
+      const navbar = document.getElementById('navbar');
+      if (!panel || !footer || !navbar) return null;
       const pr = panel.getBoundingClientRect();
       const fr = footer.getBoundingClientRect();
+      const nr = navbar.getBoundingClientRect();
       const overlapTop = Math.max(pr.top, fr.top);
       const overlapBottom = Math.min(pr.bottom, fr.bottom);
       const overlapX = Math.round(pr.left + pr.width / 2);
@@ -212,6 +214,7 @@ async function runTests() {
       const lr = lastVisible?.getBoundingClientRect();
       const linkHit = lr ? document.elementFromPoint(Math.round(lr.left + lr.width / 2), Math.round(lr.top + lr.height / 2)) : null;
       return {
+        navGap: Math.round(pr.top - nr.bottom),
         overlaps: overlapBottom > overlapTop,
         overlapHitsPanel: Boolean(overlapHit && panel.contains(overlapHit)),
         overlapHitsFooter: Boolean(overlapHit && footer.contains(overlapHit)),
@@ -219,6 +222,10 @@ async function runTests() {
         lastLinkHitsFooter: Boolean(linkHit && footer.contains(linkHit)),
       };
     });
+    assert.ok(
+      footerOverlap && Math.abs(footerOverlap.navGap) <= 1,
+      `Expected #floating-page-nav to sit flush against #navbar bottom, got navGap=${footerOverlap?.navGap}`,
+    );
     assert.ok(footerOverlap?.overlaps, `Expected footer to overlap #floating-page-nav at page bottom: ${JSON.stringify(footerOverlap)}`);
     assert.ok(
       footerOverlap.overlapHitsPanel && !footerOverlap.overlapHitsFooter && footerOverlap.lastLinkHitsPanel && !footerOverlap.lastLinkHitsFooter,
